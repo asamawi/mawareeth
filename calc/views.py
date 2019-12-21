@@ -1,6 +1,7 @@
 from django.shortcuts import render
 
-from django.http import HttpResponse
 
 def index(request):
-	return HttpResponse("hello.")
+	context = dict()
+	context['calc_content'] = "hello world"
+	return render(request,'index.html',context=context)
