@@ -7,22 +7,19 @@ class Person(models.Model):
         ('F', 'Female'),
     )
     sex = models.CharField(max_length=1, choices=GENDER_CHOICES)
-    first_name = models.CharField()
-    last_name = models.CharField()
-    parents = models.ForeignKey(Marriage, on_delete=models.SET_NULL)
+    first_name = models.CharField(max_length=200)
+    last_name = models.CharField(max_length=200)
+    parents = models.ForeignKey(Marriage,null=True, on_delete=models.SET_NULL)
 
-class Marriage (models.Model):
-    husband = models.ForeignKey(Person, on_delete=models.SET_NULL)
-    wife = models.ForeignKey(Person, on_delete=models.SET_NULL)
+class Marriage(models.Model):
+    """Marriage Class"""
+    husband = models.ForeignKey(Person,null=False, on_delete=models.SET_NULL,related_name='husband')
+    wife = models.ForeignKey(Person,null=False, on_delete=models.SET_NULL,related_name='wife')
 
-
-
-
-
-class Calculation (models.Model):
+class Calculation(models.Model):
     """Calculation for bequest class"""
     deceased = Person()
-    name = models.CharField()
+    name = models.CharField(max_length=200)
     amount = models.IntegerField(default=1000)
 
     def __str__(self):
