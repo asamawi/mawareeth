@@ -13,8 +13,8 @@ class Person(models.Model):
 
 class Marriage(models.Model):
     """Marriage Class"""
-    husband = models.ForeignKey(Person,null=False, on_delete=models.SET_NULL,related_name='husband')
-    wife = models.ForeignKey(Person,null=False, on_delete=models.SET_NULL,related_name='wife')
+    husband = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='husband')
+    wife = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='wife')
 
 class Calculation(models.Model):
     """Calculation for bequest class"""
