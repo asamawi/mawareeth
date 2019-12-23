@@ -9,7 +9,7 @@ class Person(models.Model):
     sex = models.CharField(max_length=1, choices=GENDER_CHOICES)
     first_name = models.CharField(max_length=200)
     last_name = models.CharField(max_length=200)
-    parents = models.ForeignKey(Marriage,null=True, on_delete=models.SET_NULL)
+    parents = models.ForeignKey('Marriage',null=True, on_delete=models.SET_NULL)
 
 class Marriage(models.Model):
     """Marriage Class"""
