@@ -18,7 +18,7 @@ class Marriage(models.Model):
 
 class Calculation(models.Model):
     """Calculation for bequest class"""
-    deceased = Person()
+    deceased = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL)
     name = models.CharField(max_length=200)
     amount = models.IntegerField(default=1000)
 
@@ -28,7 +28,7 @@ class Calculation(models.Model):
 class Heir(Person):
     """Heir class"""
 
-    calculation = models.ForeignKey(Calculation, on_delete=models.CASCADE)
+    calc= models.ForeignKey(Calculation, on_delete=models.CASCADE)
 
     def __str__(self):
         return self.heir_name
