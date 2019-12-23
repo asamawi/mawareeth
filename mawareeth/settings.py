@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
     'mawareeth',
     'calc'
 ]
@@ -124,3 +125,5 @@ STATIC_URL = '/static/'
 
 # Activate Django-Heroku
 django_heroku.settings(locals())
+
+SITE_ID = 1 
