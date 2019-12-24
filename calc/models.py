@@ -6,12 +6,15 @@ class Person(models.Model):
         ('M', 'Male'),
         ('F', 'Female'),
     )
-    sex = models.CharField(max_length=1, choices=GENDER_CHOICES)
+    sex = models.CharField(max_length=1, choices=GENDER_CHOICES,null=False)
     first_name = models.CharField(max_length=200)
     last_name = models.CharField(max_length=200)
     parents = models.ForeignKey('Marriage',null=True, on_delete=models.SET_NULL)
 
     def add_father(self, first_name = None, last_name = None):
+
+        self.save()
+
         if self.parents and self.parents.husband:
             return "father already exist"
         else:
@@ -32,6 +35,9 @@ class Person(models.Model):
             return father
 
     def add_mother(self, first_name = None, last_name = None):
+
+        self.save()
+
         if self.parents and self.parents.wife:
             return "Mother already exist"
         else:
@@ -50,6 +56,50 @@ class Person(models.Model):
 
             self.parents.save()
             return mother
+
+    def add_son(self, first_name = None, last_name = None):
+
+        self.save()
+
+        #check for existing Marriage/s
+        count = 0
+        # for a female Person
+        if self.sex =='F':
+            m = Marriage.objects.filter(wife = self)
+            count = m.count()
+            if count == 0:
+                m = Marriage(wife = self)
+                m.save()
+            elif count == 1:
+                m = Marriage.objects.get(wife = self)
+
+        # for a male Person
+        elif self.sex =='M':
+            m = Marriage.objects.filter(husband = self)
+            count = m.count()
+            if count == 0:
+                m = Marriage(husband = self)
+                m.save()
+            elif count == 1:
+                m = Marriage.objects.get(husband = self)
+
+        # Person with no sex defined
+        else:
+            return "Person should be male or female"
+
+        if count > 1:
+            return "can't handle more than one Marriage"
+
+        if first_name is None:
+            first_name = self.first_name+" Son"
+        if last_name is None:
+            last_name = self.last_name
+        son = Person(sex='M', first_name=first_name ,last_name=last_name)
+        son.parents = m
+        son.save()
+        return son
+
+
 
     def __str__(self):
         return f"{self.first_name} id: {self.id}"
