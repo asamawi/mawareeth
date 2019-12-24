@@ -11,10 +11,16 @@ class Person(models.Model):
     last_name = models.CharField(max_length=200)
     parents = models.ForeignKey('Marriage',null=True, on_delete=models.SET_NULL)
 
+    def __str__(self):
+        return f"{self.first_name} id: {self.id}"
+
 class Marriage(models.Model):
     """Marriage Class"""
     husband = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='husband')
     wife = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='wife')
+
+    def __str__(self):
+        return "id: " + str(self.id) + " " +(self.husband.first_name if self.husband  else "") + " " + (self.wife.first_name if self.wife else "")
 
 class Calculation(models.Model):
     """Calculation for bequest class"""
