@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 class Person(models.Model):
     """Person Class"""
@@ -146,6 +147,7 @@ class Marriage(models.Model):
 
 class Calculation(models.Model):
     """Calculation for bequest class"""
+    user = models.ForeignKey(User,on_delete=models.CASCADE)
     deceased = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL)
     name = models.CharField(max_length=200)
     amount = models.IntegerField(default=1000)
