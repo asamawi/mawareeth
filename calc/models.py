@@ -150,13 +150,84 @@ class Calculation(models.Model):
     name = models.CharField(max_length=200)
     amount = models.IntegerField(default=1000)
 
+    _observers = []
+
+    def attach(self, observer) -> None:
+        """
+        Attach an observer to the subject.
+        """
+        self._observers.append(observer)
+
+    def add_father(self):
+        self.deceased.add_father()
+        self.add_father_heir()
+
+    def add_mother(self):
+        self.deceased.add_mother()
+        self.add_mother_heir()
+
+    def add_father_heir(self):
+        father = Father(calc=self, person = self.deceased.parents.husband)
+        father.save()
+        self.attach(father)
+
+    def add_mother_heir(self):
+        mother = Mother(calc=self, person = self.deceased.parents.wife)
+        mother.save()
+        self.attach(mother)
+
+    def add_deceased(self, d: Person):
+        self.deceased = d
+
+        #check for parents
+        if d.parents:
+            #check for Father
+            if d.parents.husband:
+                self.add_father_heir()
+            #check for mother
+            if d.parents.wife:
+                self.add_mother()
+
+
+
+
+
     def __str__(self):
-        return self.deceased
+        return str(self.deceased)
 
 class Heir(Person):
     """Heir class"""
 
-    calc= models.ForeignKey(Calculation, on_delete=models.CASCADE)
+    calc = models.ForeignKey(Calculation, on_delete=models.CASCADE)
+
+    def calc(self) -> Calculation:
+        return self.Calc
+
+    def calc(self, calc: Calculation):
+        self.calc= calc
+
+    def add(self, calc: Calculation):
+        pass
+
+    def remove(self, calc: Calculation):
+        pass
+
+    def is_composite(self) ->bool:
+        return False
 
     def __str__(self):
-        return self.heir_name
+        return (self.first_name if self.first_name else " ")
+
+class Father(Heir):
+    def __init__(self, calc:Calculation = None, person:Person = None):
+        super().__init__()
+        self.calc = calc
+        self.person = person
+    person = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL)
+
+class Mother(Heir):
+    def __init__(self, calc:Calculation = None, person:Person = None):
+        super().__init__()
+        self.calc = calc
+        self.person = person
+    person = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL)
