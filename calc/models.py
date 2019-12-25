@@ -97,6 +97,28 @@ class Person(models.Model):
         son.save()
         return son
 
+    def add_spouse(self,first_name = None, last_name = None):
+
+        if self.sex == 'M':
+            if first_name is None:
+                first_name = self.first_name+" wife"
+            husband = self
+            wife = Person(sex='F',first_name=first_name)
+            wife.save()
+        elif self.sex == 'F':
+            if first_name is None:
+                first_name = self.first_name+" husband"
+            wife = self
+            husband = Person(sex='M',first_name=first_name)
+            husband.save()
+
+        #create a Marriage
+        m = Marriage(husband=husband, wife=wife)
+        m.save()
+
+        return m
+
+
 
 
     def __str__(self):
