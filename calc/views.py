@@ -1,21 +1,21 @@
+from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
+from django.views import generic
+
 from .models import Calculation, Person, Marriage
 
-def index(request):
-	calculation_list = Calculation.objects.filter(user=request.user)
-	context = dict()
-	context['calc_content'] = "hello world"
-	context['calculation_list'] = calculation_list
-	return render(request,'index.html',context)
+class IndexView(generic.ListView):
+	template_name = 'calc/index.html'
+	context_object_name = 'calculation_list'
 
-def detail(request, calculation_id):
-	calculation = get_object_or_404(Calculation, pk=calculation_id)
-	return render(request,'detail.html',{'calculation': calculation})
+	def get_queryset(self):
+		return Calculation.objects.filter(user=self.request.user)
 
-def results(request, calculation_id):
-	calculation = get_object_or_404(Calculation, pk=calculation_id)
-	return render(request,'results.html',{'calculation': calculation})
+class DetailView(generic.DetailView):
+	model = Calculation
+	template_name = 'calc/detail.html'
 
-def vote(request, calculation_id):
-	calculation = get_object_or_404(Calculation, pk=calculation_id)
-	return render(request,'vote.html',{'calculation': calculation})
+class ResultsView(generic.DetailView):
+	model = Calculation
+	template_name = 'calc/results.html'
