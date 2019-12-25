@@ -77,10 +77,17 @@ WSGI_APPLICATION = 'mawareeth.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'djongo',
+        'NAME': 'mongo_mawareeth_db',
     }
 }
 
@@ -126,4 +133,4 @@ STATIC_URL = '/static/'
 # Activate Django-Heroku
 django_heroku.settings(locals())
 
-SITE_ID = 1 
+SITE_ID = 1
