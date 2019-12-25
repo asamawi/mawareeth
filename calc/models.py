@@ -13,8 +13,6 @@ class Person(models.Model):
 
     def add_father(self, first_name = None, last_name = None):
 
-        self.save()
-
         if self.parents and self.parents.husband:
             return "father already exist"
         else:
@@ -36,8 +34,6 @@ class Person(models.Model):
 
     def add_mother(self, first_name = None, last_name = None):
 
-        self.save()
-
         if self.parents and self.parents.wife:
             return "Mother already exist"
         else:
@@ -57,9 +53,7 @@ class Person(models.Model):
             self.parents.save()
             return mother
 
-    def add_son(self, first_name = None, last_name = None):
-
-        self.save()
+    def add_son(self, first_name = None, last_name = None, parents = None):
 
         #check for existing Marriage/s
         count = 0
@@ -88,7 +82,11 @@ class Person(models.Model):
             return "Person should be male or female"
 
         if count > 1:
-            return "can't handle more than one Marriage"
+            if parents is None:
+                return "can't handle more than one Marriage, please provide Marriage"
+            elif isinstance(parents, Marriage):
+                m = parents
+
 
         if first_name is None:
             first_name = self.first_name+" Son"
