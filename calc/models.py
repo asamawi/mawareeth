@@ -118,6 +118,18 @@ class Person(models.Model):
 
         return m
 
+    def add_brother(self,first_name = None, last_name = None):
+        if self.parents is None:
+            m = Marriage()
+            m.save()
+            self.parents = m
+        if first_name is None:
+            first_name = self.first_name+" brother"
+        if last_name is None:
+            last_name = self.last_name
+        brother = Person(sex='M',first_name=first_name, last_name=last_name,parents=self.parents)
+        brother.save()
+        return brother
 
 
 
