@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-12-26 03:15+0300\n"
+"POT-Creation-Date: 2019-12-26 23:57+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,6 +19,44 @@ msgstr ""
 "Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
 "&& n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
 
-#: mawareeth/templates/base.html:14
-msgid "| Mawareeth 2.0"
+#: .\calc\templates\calc\index.html:7 .\mawareeth\templates\base.html:29
+msgid "Home"
+msgstr "الرئيسية"
+
+#: .\calc\templates\calc\index.html:31
+msgid "View this page in:"
+msgstr "تصفح هذه الصفحة باللغات التالية:"
+
+#: .\mawareeth\settings.py:148
+msgid "Arabic"
+msgstr "العربية"
+
+#: .\mawareeth\settings.py:149
+msgid "English"
+msgstr "الانجليزية"
+
+#: .\mawareeth\templates\base.html:18 .\mawareeth\templates\base.html:21
+#, fuzzy
+#| msgid "| Mawareeth 2.0"
+msgid "Mawareeth 2.0"
 msgstr " مواريث 2.0"
+
+#: .\mawareeth\templates\base.html:32
+msgid "About"
+msgstr ""
+
+#: .\mawareeth\templates\base.html:36
+msgid "Dropdown"
+msgstr ""
+
+#: .\mawareeth\templates\base.html:39
+msgid "Action"
+msgstr ""
+
+#: .\mawareeth\templates\base.html:40
+msgid "Another action"
+msgstr ""
+
+#: .\mawareeth\templates\base.html:42
+msgid "Something else here"
+msgstr ""

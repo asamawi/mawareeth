@@ -19,8 +19,8 @@ from django.urls import include, path
 from calc import views as calc_views
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('calc/', include('calc.urls')),
+    #path('admin/', admin.site.urls),
+    #path('calc/', include('calc.urls')),
     path('i18n/', include('django.conf.urls.i18n')),
 ]
 
