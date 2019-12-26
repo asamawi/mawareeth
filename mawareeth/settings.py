@@ -114,7 +114,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
 
-LANGUAGE_CODE = 'ar-SA'
+LANGUAGE_CODE = 'en'
 
 TIME_ZONE = 'Asia/Riyadh'
 
@@ -138,3 +138,5 @@ SITE_ID = 1
 LOCALE_PATHS = [
     'locale/ar/LC_MESSAGES',
     ]
+
+prefix_default_language = False
