@@ -134,3 +134,7 @@ STATIC_URL = '/static/'
 django_heroku.settings(locals())
 
 SITE_ID = 1
+
+LOCALE_PATHS = [
+    'locale/LANG/LC_MESSAGES',
+    ]
