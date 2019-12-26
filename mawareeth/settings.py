@@ -114,7 +114,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ar-SA'
 
 TIME_ZONE = 'Asia/Riyadh'
 
@@ -136,5 +136,5 @@ django_heroku.settings(locals())
 SITE_ID = 1
 
 LOCALE_PATHS = [
-    'locale/LANG/LC_MESSAGES',
+    'locale/ar/LC_MESSAGES',
     ]
