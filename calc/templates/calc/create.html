@@ -12,15 +12,10 @@
 {% endblock %}
 
 {% block body %}
-{% if calculation_list %}
-  <ul>
-    {% for calculation in calculation_list %}
-      <li>
-          <a href="{% url 'calc:detail' calculation.id %}"> {{calculation.name}}</a>
-      </li>
-    {% endfor %}
-  </ul>
-{% else %}
-    <p>No calculation available.</p>
-{% endif %}
+Male | Female
+Deceased First Name
+Last NAME
+Name this tree
+
+
 {% endblock %}
