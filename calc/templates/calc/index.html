@@ -1,9 +1,11 @@
 {% extends 'base.html' %}
 {% load static %}
-{% load i18n %} 
+{% load i18n %}
 
 {% block title %}
-  Home
+
+  {% trans "Home" %}
+
 {% endblock %}
 
 {% block css %}
@@ -23,4 +25,13 @@
 {% else %}
     <p>No calculation available.</p>
 {% endif %}
+
+{% get_available_languages as languages %}
+
+{% trans "View this page in:" %}
+{% for lang_code, lang_name in languages %}
+    {% language lang_code %}
+    <a href="{% url 'calc:index' %}">{{ lang_name }}</a>
+    {% endlanguage %}
+{% endfor %}
 {% endblock %}
