@@ -10,7 +10,7 @@ class Person(models.Model):
     sex = models.CharField(max_length=1, choices=GENDER_CHOICES,null=False)
     first_name = models.CharField(max_length=200)
     last_name = models.CharField(max_length=200)
-    parents = models.ForeignKey('Marriage',null=True, on_delete=models.SET_NULL)
+    parents = models.ForeignKey('Marriage',null=True, on_delete=models.SET_NULL, blank=True)
 
     def add_father(self, first_name = None, last_name = None):
 
@@ -147,7 +147,7 @@ class Marriage(models.Model):
 
 class Calculation(models.Model):
     """Calculation for bequest class"""
-    user = models.ForeignKey(User,on_delete=models.CASCADE)
+    user = models.ForeignKey(User,on_delete=models.CASCADE,null=True)
     deceased = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL)
     name = models.CharField(max_length=200)
     amount = models.IntegerField(default=1000)
