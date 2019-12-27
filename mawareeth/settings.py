@@ -42,7 +42,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sites',
     'mawareeth',
-    'calc'
+    'calc',
+    'polymorphic',
+
 ]
 
 MIDDLEWARE = [

@@ -1,16 +1,25 @@
 from django.db import models
+from polymorphic.models import PolymorphicModel
+
 from django.contrib.auth.models import User
 
-class Person(models.Model):
+class Person(PolymorphicModel):
     """Person Class"""
     GENDER_CHOICES = (
         ('M', 'Male'),
         ('F', 'Female'),
     )
-    sex = models.CharField(max_length=1, choices=GENDER_CHOICES,null=False)
-    first_name = models.CharField(max_length=200)
-    last_name = models.CharField(max_length=200)
+    sex = models.CharField(max_length=1, choices=GENDER_CHOICES,null=False,blank=True)
+    first_name = models.CharField(max_length=200,blank=True)
+    last_name = models.CharField(max_length=200,blank=True)
     parents = models.ForeignKey('Marriage',null=True, on_delete=models.SET_NULL, blank=True)
+
+    def __init__(self, sex = 'M', first_name = "John", last_name = "Doe", parents = None, *args, **kwds):
+        super().__init__(*args, **kwds)
+        self.sex = sex
+        self.first_name = first_name
+        self.last_name = last_name
+        self.parents = Marriage()
 
     def add_father(self, first_name = None, last_name = None):
 
@@ -132,15 +141,13 @@ class Person(models.Model):
         brother.save()
         return brother
 
-
-
     def __str__(self):
         return f"{self.first_name} id: {self.id}"
 
 class Marriage(models.Model):
     """Marriage Class"""
-    husband = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='husband')
-    wife = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='wife')
+    husband = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='husband',blank=True)
+    wife = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='wife',blank=True)
 
     def __str__(self):
         return "id: " + str(self.id) + " " +(self.husband.first_name if self.husband  else "") + " " + (self.wife.first_name if self.wife else "")
@@ -148,10 +155,7 @@ class Marriage(models.Model):
 class Calculation(models.Model):
     """Calculation for bequest class"""
     user = models.ForeignKey(User,on_delete=models.CASCADE,null=True)
-    deceased = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL)
     name = models.CharField(max_length=200)
-    amount = models.IntegerField(default=1000)
-
     _observers = []
 
     def attach(self, observer) -> None:
@@ -160,47 +164,56 @@ class Calculation(models.Model):
         """
         self._observers.append(observer)
 
-    def add_father(self):
-        self.deceased.add_father()
-        self.add_father_heir()
+    # def add_father(self):
+    #     self.deceased.add_father()
+    #     self.add_father_heir()
+    #
+    # def add_mother(self):
+    #     self.deceased.add_mother()
+    #     self.add_mother_heir()
+    #
+    # def add_father_heir(self):
+    #     father = Father(calc=self, person = self.deceased.parents.husband)
+    #     father.save()
+    #     self.attach(father)
+    #
+    # def add_mother_heir(self):
+    #     mother = Mother(calc=self, person = self.deceased.parents.wife)
+    #     mother.save()
+    #     self.attach(mother)
+    #
+    # def add_deceased(self, d: Person):
+    #     self.deceased = d
 
-    def add_mother(self):
-        self.deceased.add_mother()
-        self.add_mother_heir()
-
-    def add_father_heir(self):
-        father = Father(calc=self, person = self.deceased.parents.husband)
-        father.save()
-        self.attach(father)
-
-    def add_mother_heir(self):
-        mother = Mother(calc=self, person = self.deceased.parents.wife)
-        mother.save()
-        self.attach(mother)
-
-    def add_deceased(self, d: Person):
-        self.deceased = d
-
-        #check for parents
-        if d.parents:
-            #check for Father
-            if d.parents.husband:
-                self.add_father_heir()
-            #check for mother
-            if d.parents.wife:
-                self.add_mother()
-
-
-
-
+        # #check for parents
+        # if d.parents:
+        #     #check for Father
+        #     if d.parents.husband:
+        #         self.add_father_heir()
+        #     #check for mother
+        #     if d.parents.wife:
+        #         self.add_mother()
 
     def __str__(self):
-        return str(self.deceased)
+        return str(self.name)
+
+class Deceased(Person):
+    """Deceased class"""
+    calc = models.ForeignKey(Calculation, on_delete=models.CASCADE)
+
+    def __init__(self, estate = 0,*args, **kwds):
+        super().__init__(*args, **kwds  )
+        self.estate = estate
 
 class Heir(Person):
     """Heir class"""
-
+    abstract = True
     calc = models.ForeignKey(Calculation, on_delete=models.CASCADE)
+
+    def __init__ (self, calc=None,*args, **kwds):
+        super().__init__(*args, **kwds)
+        self.calc = calc
+
 
     def calc(self) -> Calculation:
         return self.Calc
@@ -221,15 +234,12 @@ class Heir(Person):
         return (self.first_name if self.first_name else " ")
 
 class Father(Heir):
-    def __init__(self, calc:Calculation = None, person:Person = None):
-        super().__init__()
-        self.calc = calc
+    def __init__(self,person = None,*args, **kwds):
+        super().__init__(*args, **kwds)
         self.person = person
-    person = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL)
+
 
 class Mother(Heir):
-    def __init__(self, calc:Calculation = None, person:Person = None):
-        super().__init__()
-        self.calc = calc
+    def __init__(self, person = None,*args, **kwds):
+        super().__init__(*args, **kwds)
         self.person = person
-    person = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL)
