@@ -20,6 +20,7 @@ class Person(PolymorphicModel):
         self.first_name = first_name
         self.last_name = last_name
         self.parents = Marriage()
+        self.parents.save()
 
     def add_father(self, first_name = None, last_name = None):
 
@@ -152,8 +153,18 @@ class Marriage(models.Model):
     def __str__(self):
         return "id: " + str(self.id) + " " +(self.husband.first_name if self.husband  else "") + " " + (self.wife.first_name if self.wife else "")
 
+
+class Deceased(Person):
+    """Deceased class"""
+    estate = models.IntegerField()
+
+    def __init__(self, estate,*args, **kwds):
+        super().__init__(*args, **kwds  )
+        self.estate = estate
+
 class Calculation(models.Model):
     """Calculation for bequest class"""
+    deceased = models.ForeignKey(Deceased,on_delete=models.CASCADE,null=True)
     user = models.ForeignKey(User,on_delete=models.CASCADE,null=True)
     name = models.CharField(max_length=200)
     _observers = []
@@ -164,10 +175,9 @@ class Calculation(models.Model):
         """
         self._observers.append(observer)
 
-    # def add_father(self):
-    #     self.deceased.add_father()
-    #     self.add_father_heir()
-    #
+    def add_father(self, *args, **kwds):
+        return Father(calc=self, *args, **kwds)
+
     # def add_mother(self):
     #     self.deceased.add_mother()
     #     self.add_mother_heir()
@@ -197,23 +207,10 @@ class Calculation(models.Model):
     def __str__(self):
         return str(self.name)
 
-class Deceased(Person):
-    """Deceased class"""
-    calc = models.ForeignKey(Calculation, on_delete=models.CASCADE)
-
-    def __init__(self, estate = 0,*args, **kwds):
-        super().__init__(*args, **kwds  )
-        self.estate = estate
-
 class Heir(Person):
     """Heir class"""
     abstract = True
     calc = models.ForeignKey(Calculation, on_delete=models.CASCADE)
-
-    def __init__ (self, calc=None,*args, **kwds):
-        super().__init__(*args, **kwds)
-        self.calc = calc
-
 
     def calc(self) -> Calculation:
         return self.Calc
@@ -234,9 +231,12 @@ class Heir(Person):
         return (self.first_name if self.first_name else " ")
 
 class Father(Heir):
-    def __init__(self,person = None,*args, **kwds):
-        super().__init__(*args, **kwds)
-        self.person = person
+    def __init__(self, calc):
+        super().__init__()
+        calc.deceased.add_father()
+        self.calc = calc
+
+
 
 
 class Mother(Heir):
