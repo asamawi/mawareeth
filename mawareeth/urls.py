@@ -22,6 +22,7 @@ urlpatterns = [
     #path('admin/', admin.site.urls),
     #path('calc/', include('calc.urls')),
     path('i18n/', include('django.conf.urls.i18n')),
+    path('accounts/', include('django.contrib.auth.urls')),
 ]
 
 calc_patterns = ([
