@@ -2,15 +2,28 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
+from django.contrib.auth.views import LoginView
+from django.contrib.auth.decorators import login_required
+from django.utils.decorators import method_decorator
+from django.views.generic import View
 
 from .models import Calculation, Person, Marriage
 
-class IndexView(generic.ListView):
+class LoginRequired(View):
+    """
+    Redirects to login if user is anonymous
+    """
+    @method_decorator(login_required)
+    def dispatch(self, *args, **kwargs):
+        return super(LoginRequired, self).dispatch(*args, **kwargs)
+
+class IndexView(LoginRequired, generic.ListView):
 	template_name = 'calc/index.html'
 	context_object_name = 'calculation_list'
 
 	def get_queryset(self):
 		return Calculation.objects.filter(user=self.request.user)
+
 
 class DetailView(generic.DetailView):
 	model = Calculation
