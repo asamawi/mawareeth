@@ -3,3 +3,4 @@ gunicorn
 django-heroku
 djongo
 django-polymorphic
+pymongo[srv]
