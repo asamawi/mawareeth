@@ -93,8 +93,8 @@ WSGI_APPLICATION = 'mawareeth.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'djongo',
-        'NAME': 'mongo_mawareeth_db',
-    }
+        'NAME': 'mawareeth',
+        'HOST':   os.environ['MONGOLAB_URI']  }
 }
 
 
