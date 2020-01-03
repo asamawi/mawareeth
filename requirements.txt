@@ -4,3 +4,4 @@ django-heroku
 djongo
 django-polymorphic
 pymongo[srv]
+sqlparse==0.2.4
