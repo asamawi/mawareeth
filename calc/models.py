@@ -14,6 +14,19 @@ class Person(PolymorphicModel):
     last_name = models.CharField(max_length=200,blank=True)
     parents = models.ForeignKey('Marriage',null=True, on_delete=models.SET_NULL, blank=True)
 
+    def add_father(self, person):
+
+            if self.parents and self.parents.male:
+                return "father already exist"
+            else:
+
+                #check for parents
+                if self.parents is None:
+                    self.parents = Marriage(male=person)
+                else:
+                    self.parents.male=person
+
+                return person
 
     def __str__(self):
         return f"{self.first_name} id: {self.id}"
