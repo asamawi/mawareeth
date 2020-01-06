@@ -33,5 +33,5 @@ calc_patterns = ([
 
 urlpatterns += i18n_patterns(
     path('admin/', admin.site.urls),
-    path('calc/', include(calc_patterns,namespace='calc')),
+    path('', include(calc_patterns,namespace='calc')),
 )
