@@ -22,9 +22,9 @@ class Person(PolymorphicModel):
 
                 #check for parents
                 if self.parents is None:
-                    self.parents = Marriage(male=person)
-                else:
-                    self.parents.male=person
+                    self.parents = Marriage()
+
+                self.parents.add_male(person)
 
                 return person
 
@@ -35,6 +35,9 @@ class Marriage(models.Model):
     """Marriage Class"""
     male = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='male',blank=True)
     female = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='female',blank=True)
+
+    def add_male(self,person):
+        self.male = person
 
     def __str__(self):
         return "id: " + str(self.id) + " " +(self.husband.first_name if self.husband  else "") + " " + (self.wife.first_name if self.wife else "")
