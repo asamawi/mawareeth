@@ -4,12 +4,9 @@ python:
 services:
   - mysql
 env:
-  -DJANGO=2.2 DB=mysql DATABASE_NAME=mawareeth MONGOLAB_URI=None
+  -DJANGO=2.2 DB=sqlite3 DATABASE_NAME=mawareeth MONGOLAB_URI=None
 install:
   - pip install -r requirements.txt
-  - pip install mysqlclient
-  - pip install mysql-connector
-before_script:
-  - mysql -e 'create database test;' -u root
+
 script:
   - python manage.py test
