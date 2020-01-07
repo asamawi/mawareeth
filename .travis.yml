@@ -5,7 +5,7 @@ python:
 services:
   - mysql
 env:
-  -DJANGO=2.2 DB=sqlite3 DATABASE_NAME=mawareeth MONGOLAB_URI=None
+  -DJANGO=2.2 DB=django.db.backends.sqlite3 DATABASE_NAME=mawareeth MONGOLAB_URI=None
 install:
   - pip install -r requirements.txt
 
