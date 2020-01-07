@@ -7,6 +7,7 @@ env:
   -DJANGO=2.2 DB=mysql DATABASE_NAME=mawareeth MONGOLAB_URI=None
 install:
   - pip install -r requirements.txt
+  - pip install mysqlclient
 before_script:
   - mysql -e 'create database test;' -u root
 script:
