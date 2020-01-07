@@ -9,7 +9,7 @@ env:
 install:
   - pip install -r requirements.txt
 before_script:
-  - python manage.py makemigrations -u root
-  - python manage.py migrate -u root
+  - sudo python manage.py makemigrations
+  - sudo python manage.py migrate
 script:
   - python manage.py test
