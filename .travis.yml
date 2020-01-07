@@ -1,12 +1,14 @@
 language: python
 os: linux
 python:
+  - "2.7"
   - "3.8"
 services:
   - mysql
 env:
-  -DJANGO=2.2 DB=django.db.backends.sqlite3 DATABASE_NAME=mawareeth MONGOLAB_URI=None
+  - DB=django.db.backends.sqlite3 DATABASE_NAME=mawareeth MONGOLAB_URI=None
 install:
+  - pip3 install --upgrade pip
   - pip3 install -r requirements.txt
 before_script:
   - sudo python3 manage.py makemigrations
