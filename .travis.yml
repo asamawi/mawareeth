@@ -8,6 +8,7 @@ env:
 install:
   - pip install -r requirements.txt
   - pip install mysqlclient
+  - pip install mysql-connector
 before_script:
   - mysql -e 'create database test;' -u root
 script:
