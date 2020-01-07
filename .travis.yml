@@ -8,6 +8,8 @@ env:
   -DJANGO=2.2 DB=django.db.backends.sqlite3 DATABASE_NAME=mawareeth MONGOLAB_URI=None
 install:
   - pip install -r requirements.txt
-
+before_script: # => 6
+  - python manage.py makemigrations
+  - python manage.py migrate
 script:
   - python manage.py test

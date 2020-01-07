@@ -36,7 +36,7 @@ class Marriage(models.Model):
     male = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='male',blank=True)
     female = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='female',blank=True)
 
-    def add_male(self,person):
+    def add_male(self, person):
         self.male = person
 
     def __str__(self):
