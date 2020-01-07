@@ -1,13 +1,13 @@
 language: python
 os: linux
 python:
-  - "2.7"
   - "3.8"
 services:
   - mysql
 env:
   - DB=django.db.backends.sqlite3 DATABASE_NAME=mawareeth MONGOLAB_URI=None
 install:
+  - source ~/virtualenv/python3.8/bin/activate
   - pip install --upgrade pip
   - pip install -r requirements.txt
 before_script:
