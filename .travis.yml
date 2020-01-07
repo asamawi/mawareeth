@@ -1,13 +1,13 @@
 language: python
     python:
       - "3.8"
-    services: # => 3
+    services:
       - mysql
-    env: # => 4
+    env:
       -DJANGO=2.2 DB=mysql
-    install: # => 5
+    install:
       - pip install -r requirements.txt
-    before_script: # => 6
+    before_script:
       - mysql -e 'create database test;' -u root
-    script: # => 7
+    script: 
       - python manage.py test
