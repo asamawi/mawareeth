@@ -3,13 +3,14 @@ os: linux
 python:
   - "3.8"
 services:
-  - mysql
+  - sqlite3
 env:
   - DB=django.db.backends.sqlite3 DATABASE_NAME=mawareeth MONGOLAB_URI=None
 install:
   - pip install --upgrade pip
   - pip install -r requirements.txt
 before_script:
+  - pip freeze
   - sudo python3 manage.py makemigrations
   - sudo python3 manage.py migrate
 script:
