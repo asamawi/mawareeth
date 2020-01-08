@@ -3,13 +3,14 @@ os: linux
 python:
   - "3.8"
 services:
-  - sqlite3
+  - mongodb
 env:
-  -  DB=sqlite ENGINE=django.db.backends.sqlite3 DATABASE_NAME=mawareeth MONGOLAB_URI=localhost
+  -  DB=mongodb ENGINE=djongo DATABASE_NAME=mydb_test MONGOLAB_URI=localhost
 install:
   - pip install --upgrade pip
   - pip install -r requirements.txt
 before_script:
+  - mongo mydb_test --eval 'db.createUser({user:"travis",pwd:"test",roles:["readWrite"]});'
   - python3 manage.py makemigrations
   - python3 manage.py migrate
 script:
