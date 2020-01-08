@@ -1,7 +1,7 @@
-django==2.2
+django
 gunicorn
 django-heroku
 djongo
 django-polymorphic
 pymongo[srv]
-sqlparse==0.2.4
+sqlparse
