@@ -4,6 +4,7 @@ python:
   - "3.8"
 services:
   - mongodb
+  - postgresql
 env:
   -  DB=mongodb ENGINE=djongo DATABASE_NAME=mydb_test MONGOLAB_URI=localhost
   -  DB=sqlite3 ENGINE=django.db.backends.sqlite3 DATABASE_NAME=mydb_test MONGOLAB_URI=localhost
