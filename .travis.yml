@@ -7,6 +7,7 @@ services:
 env:
   -  DB=mongodb ENGINE=djongo DATABASE_NAME=mydb_test MONGOLAB_URI=localhost
   -  DB=sqlite3 ENGINE=django.db.backends.sqlite3 DATABASE_NAME=mydb_test MONGOLAB_URI=localhost
+  -  DB=postgres ENGINE=django.db.backends.django.db.backends.postgresql_psycopg2 DATABASE_NAME=mydb_test MONGOLAB_URI=localhost
 
 install:
   - pip install --upgrade pip
