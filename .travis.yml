@@ -5,7 +5,7 @@ python:
 services:
   - postgresql
 env:
-  -  DB=postgres ENGINE=django.db.backends.postgresql_psycopg2 DATABASE_NAME=mydb_test MONGOLAB_URI=localhost
+  -  DB=postgres ENGINE=django.db.backends.postgresql_psycopg2 DATABASE_NAME=mydb_test DATABASE_URL=localhost
 
 install:
   - pip install --upgrade pip
