@@ -1,13 +1,18 @@
 language: python
-    python:
-      - "3.8"
-    services: # => 3
-      - mysql
-    env: # => 4
-      -DJANGO=2.2 DB=mysql
-    install: # => 5
-      - pip install -r requirements.txt
-    before_script: # => 6
-      - mysql -e 'create database test;' -u root
-    script: # => 7
-      - python manage.py test
+os: linux
+python:
+  - "3.8"
+services:
+  - postgresql
+env:
+  -  DB=postgres ENGINE=django.db.backends.postgresql_psycopg2 DATABASE_NAME=mydb_test MONGOLAB_URI=localhost
+
+install:
+  - pip install --upgrade pip
+  - pip install -r requirements.txt
+before_script:
+  - psql -c 'create database mydb_test;' -U postgres
+  - python3 manage.py makemigrations
+  - python3 manage.py migrate
+script:
+  - python3 manage.py test
