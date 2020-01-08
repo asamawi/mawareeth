@@ -10,7 +10,7 @@ install:
   - pip install --upgrade pip
   - pip install -r requirements.txt
 before_script:
-  - mongo test --eval 'db.createUser({user:"travis",pwd:"test",roles:["dbOwner"]});'
+  - mongo public --eval 'db.createUser({user:"travis",pwd:"test",roles:["dbOwner"]});'
   - python3 manage.py makemigrations
   - python3 manage.py migrate
 script:
