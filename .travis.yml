@@ -6,6 +6,8 @@ services:
   - mongodb
 env:
   -  DB=mongodb ENGINE=djongo DATABASE_NAME=mydb_test MONGOLAB_URI=localhost
+  -  DB=sqlite3 ENGINE=sqlite3 DATABASE_NAME=mydb_test MONGOLAB_URI=localhost
+
 install:
   - pip install --upgrade pip
   - pip install -r requirements.txt
