@@ -53,7 +53,7 @@ class Calculation(models.Model):
 
 class Deceased(Person):
     """Deceased class"""
-    estate = models.IntegerField()
+    estate = models.IntegerField(default=1000)
     calc = models.ForeignKey(Calculation, on_delete=models.CASCADE)
 
 class Heir(Person):
