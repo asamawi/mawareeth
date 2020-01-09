@@ -95,8 +95,8 @@ DATABASES = {
         'ENGINE': os.environ['ENGINE'], #djongo
         'NAME': os.environ['DATABASE_NAME'],
         'HOST':   os.environ['DATABASE_HOST'],
-        'USER': os.environ['DB_USER'],
-        'PASSWORD': os.environ['DB_PASS'],  }
+        'USER': os.environ.get('DB_USER',''),
+        'PASSWORD': os.environ.get('DB_PASS',''),  }
 }
 
 
