@@ -1,9 +1,11 @@
 {% extends 'calc/base.html' %}
 {% load static %}
 {% load i18n %}
+{% load calc_extras %}
+
 
 {% block title %}
-  Calculation {{ calculation.name}}
+  {% trans "Calculation" %} | {{ calculation.name}}
 {% endblock %}
 
 {% block css %}
@@ -11,11 +13,18 @@
 {% endblock %}
 
 {% block body %}
-<h1>{{ calculation.name }}</h1>
-<ul>
-{% for heir in calculation.heir_set.all %}
-    <li>{{ heir.first_name }}</li>
-{% endfor %}
-</ul>
+<h1> {% trans "Calculation name:" %}{{ calculation.name }}</h1>
+    {% trans "Deceased name:" %} {{ calculation.deceased_set.first.first_name }} <br />
+    {% trans "Deceased estate:" %} {{ calculation.deceased_set.first.estate }}
 
+<ol>
+{% for heir in calculation.heir_set.all %}
+<li>
+  <ul>
+    <li>{% trans "Heir Name:" %}{{ heir.first_name }}</li>
+    <li>{% trans "Heir Class:" %}{{ heir|get_class }}</li>
+  </ul>
+</li>
+{% endfor %}
+</ol>
 {% endblock %}
