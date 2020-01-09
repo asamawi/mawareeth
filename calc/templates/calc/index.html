@@ -26,12 +26,4 @@
     <p>No calculation available.</p>
 {% endif %}
 
-{% get_available_languages as languages %}
-
-{% trans "View this page in:" %}
-{% for lang_code, lang_name in languages %}
-    {% language lang_code %}
-    <a href="{% url 'calc:index' %}">{{ lang_name }}</a>
-    {% endlanguage %}
-{% endfor %}
 {% endblock %}
