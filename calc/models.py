@@ -40,7 +40,7 @@ class Marriage(models.Model):
         self.male = person
 
     def __str__(self):
-        return "id: " + str(self.id) + " " +(self.husband.first_name if self.husband  else "") + " " + (self.wife.first_name if self.wife else "")
+        return "id: " + str(self.id) + " " +(self.male.first_name if self.husband  else "") + " " + (self.female.first_name if self.wife else "")
 
 
 class Calculation(models.Model):
