@@ -33,3 +33,11 @@ class CalculationTestCase(TestCase):
         self.assertTrue(logged_in)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["calculation_list"].count(), 1)
+
+    def test_calc_page(self):
+        c = Client()
+        calc = Calculation.objects.get(name="calc1")
+        logged_in = c.login(username='john', password='johnpassword')
+        response = c.get(f"/en/{calc.id}/")
+        self.assertTrue(logged_in)
+        self.assertEqual(response.status_code, 200)
