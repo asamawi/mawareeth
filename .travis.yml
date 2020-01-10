@@ -14,5 +14,6 @@ before_script:
   - psql -c 'create database mydb_test;' -U postgres
   - python3 manage.py makemigrations
   - python3 manage.py migrate
+  - python manage.py collectstatic
 script:
   - python3 manage.py test
