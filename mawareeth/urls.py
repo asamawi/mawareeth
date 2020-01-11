@@ -29,7 +29,10 @@ calc_patterns = ([
     path('', calc_views.IndexView.as_view(), name='index'),
     path('new/', calc_views.new, name='new'),
     path('<int:pk>/', calc_views.DetailView.as_view(), name='detail'),
+    path('<int:pk>/delete/', calc_views.delete, name='delete'),
     path('<int:pk>/results/', calc_views.ResultsView.as_view(), name='results'),
+    path('error/', calc_views.error, name='error'),
+
 ], 'calc')
 
 urlpatterns += i18n_patterns(
