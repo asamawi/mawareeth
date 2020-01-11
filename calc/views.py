@@ -36,6 +36,10 @@ class ResultsView(LoginRequired, generic.DetailView):
 
 def new(request):
     name = request.POST["name"]
+    if name == "":
+        messages.error(request,"Must enter a name for your calcualtion" )
+        return HttpResponseRedirect(reverse('calc:error'))
+
     user = request.user
     calc = Calculation.objects.create (name=name, user=user)
     return HttpResponseRedirect(reverse('calc:detail', args=(calc.id,)))
