@@ -19,6 +19,7 @@
     {% for calculation in calculation_list %}
       <li>
           <a href="{% url 'calc:detail' calculation.id %}"> {{calculation.name}}</a>
+          <a href="{% url 'calc:delete' calculation.id %}"> {% trans "delete" %}</a>
       </li>
     {% endfor %}
   </ul>
@@ -28,7 +29,7 @@
 <h2> {% trans "Create new calculation"%}</h2>
 <form class="" action="{% url 'calc:new' %}" method="post">
   {% csrf_token %}
-  <input type="text" name="name" value="{% trans 'Name your Calculation' %}"> </input>
+  <input type="text" name="name" placeholder="{% trans 'Name your Calculation' %}"> </input>
   <input type="submit" name="{% trans 'Submit' %}"></input>
 </form>
 {% endblock %}
