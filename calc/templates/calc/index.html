@@ -14,6 +14,13 @@
 {% endblock %}
 
 {% block body %}
+<h2> {% trans "Create new calculation"%}</h2>
+<form class="" action="{% url 'calc:new' %}" method="post">
+  {% csrf_token %}
+  <input type="text" name="name" placeholder="{% trans 'Name your Calculation' %}"> </input>
+  <input type="submit" name="{% trans 'Submit' %}"></input>
+</form>
+
 {% if calculation_list %}
   <ul>
     {% for calculation in calculation_list %}
@@ -26,10 +33,5 @@
 {% else %}
     <p>No calculation available.</p>
 {% endif %}
-<h2> {% trans "Create new calculation"%}</h2>
-<form class="" action="{% url 'calc:new' %}" method="post">
-  {% csrf_token %}
-  <input type="text" name="name" placeholder="{% trans 'Name your Calculation' %}"> </input>
-  <input type="submit" name="{% trans 'Submit' %}"></input>
-</form>
+
 {% endblock %}
