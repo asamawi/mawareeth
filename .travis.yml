@@ -5,7 +5,7 @@ python:
 services:
   - postgresql
 env:
-  -  DB=postgres ENGINE=django.db.backends.postgresql_psycopg2 DATABASE_NAME=mydb_test DATABASE_HOST=localhost DJANGI_KEY=)vzug)78j&h83(=h^&=@n%b(()ai!dryu!88++oij_)gl9oa1_ DEBUG=False
+  -  DB=postgres ENGINE=django.db.backends.postgresql_psycopg2 DATABASE_NAME=mydb_test DATABASE_HOST=localhost DJANGO_KEY=)vzug)78j&h83(=h^&=@n%b(()ai!dryu!88++oij_)gl9oa1_ DEBUG=False
 
 install:
   - pip install --upgrade pip
