@@ -16,18 +16,18 @@ class HeirAdmin(PolymorphicChildModelAdmin):
     # base_fieldsets = (
     #     ...
     # )
-    def get_queryset(self, request):
-    qs = self.model.polymorphic.get_queryset()
-
-    ordering = self.get_ordering(request)
-    if ordering:
-        qs = qs.order_by(*ordering)
-
-    if not self.has_change_permission(request):
-        qs = qs.none()
-
-    return qs
     show_in_index = True
+    def get_queryset(self, request):
+        qs = self.model.polymorphic.get_queryset()
+
+        ordering = self.get_ordering(request)
+        if ordering:
+            qs = qs.order_by(*ordering)
+
+        if not self.has_change_permission(request):
+            qs = qs.none()
+
+        return qs
 
 @admin.register(Deceased)
 class DeceasedAdmin(HeirAdmin):

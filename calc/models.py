@@ -1,5 +1,6 @@
 from django.db import models
 from polymorphic.models import PolymorphicModel
+from polymorphic.managers import PolymorphicManager
 
 from django.contrib.auth.models import User
 
@@ -63,7 +64,7 @@ class Heir(Person):
 
     objects = models.Manager()
     polymorphic = PolymorphicManager()
-    
+
     def __str__(self):
         return (self.first_name if self.first_name else " ")
 
