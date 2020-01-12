@@ -15,7 +15,18 @@
 {% block body %}
 
 {% if form.errors %}
-<p>{{form.errors}}</p>
+{% for field in form %}
+    {% for error in field.errors %}
+        <div class="alert alert-danger">
+            <strong>{{ error|escape }}</strong>
+        </div>
+    {% endfor %}
+{% endfor %}
+{% for error in form.non_field_errors %}
+    <div class="alert alert-danger">
+        <strong>{{ error|escape }}</strong>
+    </div>
+{% endfor %}
 {% endif %}
 <div class="container">
     <div class="row">
@@ -27,23 +38,25 @@
           <form method="post">
             {% csrf_token %}
             <div class="form-label-group">
-              <label for="id_username">{% trans 'Username:' %}</label>
               <input type="text" name="username" maxlength="150"
               autocapitalize="none" autocomplete="username" autofocus=""
               required="" id="id_username" class="form-control"
               placeholder="{% trans 'Letters, digits and @/./+/-/_ only.' %}">
+              <label for="id_username">{% trans 'Username:' %}</label>
+
             </div>
             <div class="form-label-group">
-             <label for="id_password1">{% trans 'Password:' %}</label>
                <input type="password" name="password1" class="form-control"
                autocomplete="new-password" required="" id="id_password1"
                placeholder="{% trans 'min 8 characters. Strong password required' %}">
+               <label for="id_password1">{% trans 'Password:' %}</label>
             </div>
             <div class="form-label-group">
-             <label for="id_password2">{% trans 'Password confirmation:' %}</label>
                <input type="password" name="password2" class="form-control"
                autocomplete="new-password" required=""
                id="id_password2" placeholder="{% trans 'Enter the same password' %}">
+               <label for="id_password2">{% trans 'Password confirmation:' %}</label>
+
             </div>
             <br />
             <div>
