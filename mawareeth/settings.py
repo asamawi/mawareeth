@@ -153,3 +153,5 @@ LANGUAGES = [
   ('ar', _('Arabic')),
   ('en', _('English')),
 ]
+LOGIN_REDIRECT_URL = 'calc:index'
+LOGOUT_REDIRECT_URL = 'calc:index'

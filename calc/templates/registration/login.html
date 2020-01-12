@@ -48,9 +48,9 @@
               <button class="btn btn-lg btn-primary btn-block text-uppercase" type="submit" value="login">{% trans "Sign in" %}</button>
               <input type="hidden" name="next" value="{{ next }}">
               </form>
-
+              <a href="{% url 'calc:signup' %}">{% trans 'Sign Up' %}</a>
               {# Assumes you setup the password_reset view in your URLconf #}
-              <p><a href="{% url 'password_reset' %}">Lost password?</a></p>
+              <a href="{% url 'password_reset' %}">{% trans 'Lost password?' %}</a>
             </div>
           </div>
         </div>

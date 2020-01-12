@@ -10,5 +10,7 @@ urlpatterns = [
 	path('<int:pk>/deceased', views.deceased, name='deceased'),
     path('<int:pk>/results/', views.ResultsView.as_view(), name='results'),
 	path('error/', views.error, name='error'),
+	path('signup/', views.SignUp.as_view(), name='signup'),
+
 
 ]
