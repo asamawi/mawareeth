@@ -1,0 +1,28 @@
+{% extends "calc/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}
+
+  {% trans "Sign Up" %}
+
+{% endblock %}
+
+{% block css %}
+<link rel="stylesheet" type="text/css" href="{% static 'calc/style.css' %}">
+<link rel="stylesheet" href="{% static 'calc/css/content.css' %}">
+{% endblock %}
+{% block body %}
+
+{% if form.errors %}
+<p>{{form.errors}}</p>
+{% endif %}
+
+<h2>{% trans "Sign up" %}</h2>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">{% trans "Sign up" %}</button>
+</form>
+
+{% endblock %}
