@@ -4,3 +4,4 @@ django-heroku
 django-polymorphic
 pymongo[srv]
 sqlparse
+django-anymail[mailgun]
