@@ -61,6 +61,9 @@ class Heir(Person):
     abstract = True
     calc = models.ForeignKey(Calculation, on_delete=models.CASCADE,null=True)
 
+    objects = models.Manager()
+    polymorphic = PolymorphicManager()
+    
     def __str__(self):
         return (self.first_name if self.first_name else " ")
 
