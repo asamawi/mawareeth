@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.sites',
     'mawareeth',
     'polymorphic',
+    'anymail',
 
 ]
 
@@ -155,3 +156,11 @@ LANGUAGES = [
 ]
 LOGIN_REDIRECT_URL = 'calc:index'
 LOGOUT_REDIRECT_URL = 'calc:index'
+ANYMAIL = {
+    "MAILGUN_API_KEY" : os.environ['MAILGUN_ACCESS_KEY'],
+    "MAILGUN_API_URL": "https://api.eu.mailgun.net/v3",
+    "MAILGUN_SENDER_DOMAIN" : os.environ['MAILGUN_SERVER_NAME'],
+}
+EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
+DEFAULT_FROM_EMAIL = "noreply@mawareeth.com"
+SERVER_EMAIL = "notifications@mawareeth.com"
