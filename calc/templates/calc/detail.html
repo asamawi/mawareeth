@@ -19,29 +19,11 @@
       <div class="card card-index my-5">
         <div class="card-body">
           <h5>{% trans "Calculation name:" %}{{ calculation.name }}</h5>
-          {% if calculation.deceased %}
-            {% trans "Deceased name:" %} {{ calculation.deceased_set.first.first_name }} <br />
-            {% trans "Deceased estate:" %} {{ calculation.deceased_set.first.estate }}
+          {% if calculation.deceased_set.count != 0 %}
+          {% trans "Deceased name:" %} {{ calculation.deceased_set.first.first_name }} <br />
+          {% trans "Deceased estate:" %} {{ calculation.deceased_set.first.estate }}
           {% else %}
-            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#deceased">Add Deceased</button>
-            <!-- Modal -->
-            <div class="modal fade" id="deceased" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
-              <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                    <h4 class="modal-title" id="myModalLabel">Modal title</h4>
-                  </div>
-                  <div class="modal-body">
-                    ...
-                  </div>
-                  <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary">Save changes</button>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#deceased">Add Deceased</button>
           {% endif %}
           <ol>
             {% for heir in calculation.heir_set.all %}
@@ -58,9 +40,48 @@
 
             {% endfor %}
           </ol>
+          <!-- Modal -->
+          <div class="modal fade" id="deceased" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+            <div class="modal-dialog" role="document">
+              <div class="modal-content">
+                <form action="{% url 'calc:deceased' calculation.id %}" method="post">
+                  {% csrf_token %}
+                  <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="myModalLabel">{% trans 'Add deceased' %}</h4>
+                  </div>
+                  <div class="modal-body">
+                    <div class="form-group">
+                      <label for="first_name" class="col-form-label">{% trans 'First Name:' %}</label>
+                      <input type="text" class="form-control" id="first_name" name="first_name">
+                    </div>
+                    <div class="form-group">
+                      <label for="last_name" class="col-form-label">{% trans 'Last Name:' %}</label>
+                      <input type="text" class="form-control" id="last_name" name="last_name">
+                    </div>
+                    <div class="form-group">
+                      <label for="sex" class="col-form-label">{% trans 'Sex:' %}</label>
+                      <select id="sex" name="sex"class="form-control">
+                        <option value='M' selected>{% trans 'Male' %}</option>
+                        <option value='F'>{% trans 'Female' %}</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="estate" class="col-form-label">{% trans 'Estate:' %}</label>
+                      <input type="text" class="form-control" id="estate" name="estate">
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">{% trans 'Add deceased' %}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
         </div>
-        {% endblock %}
       </div>
     </div>
   </div>
 </div>
+{% endblock %}

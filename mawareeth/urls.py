@@ -30,6 +30,7 @@ calc_patterns = ([
     path('new/', calc_views.new, name='new'),
     path('<int:pk>/', calc_views.DetailView.as_view(), name='detail'),
     path('<int:pk>/delete/', calc_views.delete, name='delete'),
+    path('<int:pk>/deceased', calc_views.deceased, name='deceased'),
     path('<int:pk>/results/', calc_views.ResultsView.as_view(), name='results'),
     path('error/', calc_views.error, name='error'),
     path('signup/', calc_views.SignUp.as_view(), name='signup'),

@@ -138,3 +138,7 @@ body {
 .badge-success a {
   color: #fff
 }
+
+.modal-header {
+  display: block;
+}
