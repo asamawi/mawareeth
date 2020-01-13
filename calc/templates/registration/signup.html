@@ -35,7 +35,7 @@
           <div class="card-body">
 
           <h2 class="card-title text-center">{% trans "Sign up" %}</h2>
-          <form method="post">
+          <form method="post" class="form-signin">
             {% csrf_token %}
             <div class="form-label-group">
               <input type="text" name="username" maxlength="150"
@@ -63,6 +63,8 @@
               <button class="btn btn-lg btn-primary btn-block text-uppercase" type="submit">{% trans "Sign up" %}</button>
             </div>
           </form>
+          <a href="{% url 'login' %}">{% trans 'Already registered' %}</a>
+
         </div>
       </div>
     </div>

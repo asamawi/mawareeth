@@ -5,33 +5,62 @@
 
 
 {% block title %}
-  {% trans "Calculation" %} | {{ calculation.name}}
+{% trans "Calculation" %} | {{ calculation.name}}
 {% endblock %}
 
 {% block css %}
-  <link rel="stylesheet" href="{% static 'calc/css/content.css' %}">
+<link rel="stylesheet" href="{% static 'calc/css/content.css' %}">
 {% endblock %}
 
 {% block body %}
 <div class="container">
-<h1> {% trans "Calculation name:" %}{{ calculation.name }}</h1>
-    {% trans "Deceased name:" %} {{ calculation.deceased_set.first.first_name }} <br />
-    {% trans "Deceased estate:" %} {{ calculation.deceased_set.first.estate }}
+  <div class="row">
+    <div class="col-sm-10 col-md-9 col-lg-7 mx-auto">
+      <div class="card card-index my-5">
+        <div class="card-body">
+          <h5>{% trans "Calculation name:" %}{{ calculation.name }}</h5>
+          {% if calculation.deceased %}
+            {% trans "Deceased name:" %} {{ calculation.deceased_set.first.first_name }} <br />
+            {% trans "Deceased estate:" %} {{ calculation.deceased_set.first.estate }}
+          {% else %}
+            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#deceased">Add Deceased</button>
+            <!-- Modal -->
+            <div class="modal fade" id="deceased" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+              <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="myModalLabel">Modal title</h4>
+                  </div>
+                  <div class="modal-body">
+                    ...
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary">Save changes</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+          <ol>
+            {% for heir in calculation.heir_set.all %}
+            <li>
+              <ul>
+                <li>{% trans "Heir Name:" %}{{ heir.first_name }}</li>
+                <li>{% trans "Heir Class:" %}{{ heir|get_class }}</li>
+              </ul>
+            </li>
+            {% empty %}
+            <li>
+              {% trans "No Heirs" %}
+            </li>
 
-<ol>
-{% for heir in calculation.heir_set.all %}
-<li>
-  <ul>
-    <li>{% trans "Heir Name:" %}{{ heir.first_name }}</li>
-    <li>{% trans "Heir Class:" %}{{ heir|get_class }}</li>
-  </ul>
-</li>
-{% empty %}
-<li>
-  {% trans "No Heirs" %}
-  </li>
-
-{% endfor %}
-</ol>
+            {% endfor %}
+          </ol>
+        </div>
+        {% endblock %}
+      </div>
+    </div>
+  </div>
 </div>
-{% endblock %}

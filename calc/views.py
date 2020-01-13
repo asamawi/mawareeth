@@ -45,8 +45,10 @@ def new(request):
 
     user = request.user
     calc = Calculation.objects.create (name=name, user=user)
-    return HttpResponseRedirect(reverse('calc:detail', args=(calc.id,)))
-
+    if 'next' in request.POST and request.POST['next'] != "":
+        return HttpResponseRedirect(reverse('calc:detail', args=(calc.id,)))
+    else:
+        return HttpResponseRedirect(reverse('calc:index'))
 def deceased(request, calc_id):
     calc = get_object_or_404(Calculation, pk=calc_id)
     sex = request.POST["sex"]
