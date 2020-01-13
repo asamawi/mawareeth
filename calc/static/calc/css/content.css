@@ -134,3 +134,11 @@ body {
     color: #777;
   }
 }
+
+.badge-success a {
+  color: #fff
+}
+
+.modal-header {
+  display: block;
+}

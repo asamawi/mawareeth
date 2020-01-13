@@ -11,7 +11,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.urls import reverse_lazy
 
 
-from .models import Calculation, Person, Marriage
+from .models import Calculation, Person, Marriage, Deceased
 
 class LoginRequired(View):
     """
@@ -45,14 +45,16 @@ def new(request):
 
     user = request.user
     calc = Calculation.objects.create (name=name, user=user)
-    return HttpResponseRedirect(reverse('calc:detail', args=(calc.id,)))
-
-def deceased(request, calc_id):
-    calc = get_object_or_404(Calculation, pk=calc_id)
-    sex = request.POST["sex"]
-    first_name = request.POST["first_name"]
-    last_name = request.POST["last_name"]
-    estate = request.POST["estate"]
+    if 'next' in request.POST and request.POST['next'] != "":
+        return HttpResponseRedirect(reverse('calc:detail', args=(calc.id,)))
+    else:
+        return HttpResponseRedirect(reverse('calc:index'))
+def deceased(request, pk):
+    calc = get_object_or_404(Calculation, pk=pk)
+    sex = request.POST.get('sex')
+    first_name = request.POST.get('first_name')
+    last_name = request.POST.get('last_name')
+    estate = request.POST.get('estate')
     Deceased.objects.create(calc=calc, sex=sex, first_name=first_name, last_name=last_name, estate=estate)
     return HttpResponseRedirect(reverse('calc:detail', args=(calc.id,)))
 

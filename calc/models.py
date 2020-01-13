@@ -57,6 +57,8 @@ class Deceased(Person):
     estate = models.IntegerField(default=1000)
     calc = models.ForeignKey(Calculation, on_delete=models.CASCADE,null=True)
 
+    objects = models.Manager()
+    polymorphic = PolymorphicManager()
 class Heir(Person):
     """Heir class"""
     abstract = True
