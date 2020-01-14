@@ -32,12 +32,12 @@
             {% else %}
             <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-heir="Deceased" data-url="{% url 'calc:deceased' calculation.id %}">Add Deceased</button>
             {% endif %}
-            {% if calculation.father_set.count != 0 %}
+            {% if Father.count != 0 %}
             <div class="card text-white bg-info mb-3" style="max-width: 18rem;">
               <div class="card-header">{% trans "Father" %}</div>
               <div class="card-body">
 
-                {% trans "Father name:" %} {{ calculation.father_set.first.first_name }} <br />
+                {% trans "Father name:" %} {{ Father.first.first_name }} <br />
               </div>
             </div>
             {% else %}

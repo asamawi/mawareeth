@@ -60,14 +60,13 @@ class Deceased(Person):
 class Heir(Person):
     """Heir class"""
     abstract = True
+    calc = models.ForeignKey(Calculation, on_delete=models.CASCADE,null=True)
 
     def __str__(self):
         return (self.first_name if self.first_name else " ")
 
 class Father(Heir):
-    """Father Class"""
-    calc = models.ForeignKey(Calculation, on_delete=models.CASCADE,null=True)
-
+    pass
 
 class Mother(Heir):
     pass

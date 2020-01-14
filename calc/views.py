@@ -30,8 +30,13 @@ class IndexView(LoginRequired, generic.ListView):
 
 
 class DetailView(LoginRequired, generic.DetailView):
-	model = Calculation
-	template_name = 'calc/detail.html'
+    model = Calculation
+    template_name = 'calc/detail.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['Father'] = self.object.heir_set.instance_of(Father)
+        return context
 
 class ResultsView(LoginRequired, generic.DetailView):
 	model = Calculation
