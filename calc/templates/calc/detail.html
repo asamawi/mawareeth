@@ -99,8 +99,12 @@
       var modal = $(this)
       modal.find('#modal-form').attr('action', url)
       if (button.data('heir') != 'Deceased') {
-         $('#estate-form-group').remove();
-         $('#sex-form-group').remove();
+         $('#estate-form-group').css('display','none');
+         $('#sex-form-group').css('display','none');
+      }
+      else {
+        $('#estate-form-group').css('display','block');
+        $('#sex-form-group').css('display','block');
       }
     })
   </script>
