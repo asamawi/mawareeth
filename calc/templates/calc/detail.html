@@ -28,9 +28,14 @@
                 {% trans "Deceased name:" %} {{ calculation.deceased_set.first.first_name }} <br />
                 {% trans "Deceased estate:" %} {{ calculation.deceased_set.first.estate }}
               </div>
+              <div class="card-footer">
+                {% if Father.count == 0 %}
+                <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-heir="{% trans 'Father' %}" data-url="{% url 'calc:father' calculation.id %}">{%trans 'Add Father' %}</button>
+                {% endif %}
+              </div>
             </div>
             {% else %}
-            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-heir="Deceased" data-url="{% url 'calc:deceased' calculation.id %}">Add Deceased</button>
+            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-heir="{% trans 'Deceased' %}" data-url="{% url 'calc:deceased' calculation.id %}">{%trans 'Add Deceased' %}</button>
             {% endif %}
             {% if Father.count != 0 %}
             <div class="card text-white bg-info mb-3" style="max-width: 18rem;">
@@ -40,8 +45,6 @@
                 {% trans "Father name:" %} {{ Father.first.first_name }} <br />
               </div>
             </div>
-            {% else %}
-            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-heir="Father" data-url="{% url 'calc:father' calculation.id %}">{%trans 'Add Father' %}</button>
             {% endif %}
 
             <!-- Modal -->
@@ -99,8 +102,8 @@
       var modal = $(this)
       modal.find('#modal-form').attr('action', url)
       if (button.data('heir') != 'Deceased') {
-         $('#estate-form-group').css('display','none');
-         $('#sex-form-group').css('display','none');
+        $('#estate-form-group').css('display','none');
+        $('#sex-form-group').css('display','none');
       }
       else {
         $('#estate-form-group').css('display','block');

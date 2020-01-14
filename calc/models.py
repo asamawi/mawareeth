@@ -49,6 +49,9 @@ class Calculation(models.Model):
     user = models.ForeignKey(User,on_delete=models.CASCADE,null=True)
     name = models.CharField(max_length=200)
 
+    def add_father(self, first_name, last_name):
+        return Father().add(calc=self, first_name=first_name, last_name=last_name)
+
     def __str__(self):
         return str(self.name)
 
@@ -66,7 +69,12 @@ class Heir(Person):
         return (self.first_name if self.first_name else " ")
 
 class Father(Heir):
-    pass
+
+    def add(self, calc, first_name, last_name):
+        f = Father.objects.create(calc=calc, first_name=first_name, last_name=last_name, sex="M")
+        calc.deceased_set.first().add_father(f)
+
+
 
 class Mother(Heir):
     pass
