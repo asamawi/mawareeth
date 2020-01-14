@@ -17,65 +17,70 @@
   <div class="row">
     <div class="col-sm-10 col-md-9 col-lg-7 mx-auto">
       <div class="card card-index my-5">
-        <div class="card-body">
-          <h5>{% trans "Calculation name:" %}{{ calculation.name }}</h5>
-          {% if calculation.deceased_set.count != 0 %}
-          {% trans "Deceased name:" %} {{ calculation.deceased_set.first.first_name }} <br />
-          {% trans "Deceased estate:" %} {{ calculation.deceased_set.first.estate }}
-          {% else %}
-          <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#deceased">Add Deceased</button>
-          {% endif %}
-          <ol>
-            {% for heir in calculation.heir_set.all %}
-            <li>
-              <ul>
-                <li>{% trans "Heir Name:" %}{{ heir.first_name }}</li>
-                <li>{% trans "Heir Class:" %}{{ heir|get_class }}</li>
-              </ul>
-            </li>
-            {% empty %}
-            <li>
-              {% trans "No Heirs" %}
-            </li>
+        <div class="card-header">
+          {% trans "Calculation name:" %}{{ calculation.name }}</div>
+          <div class="card-body">
+            {% if calculation.deceased_set.count != 0 %}
+            <div class="card text-white bg-secondary mb-3" style="max-width: 18rem;">
+              <div class="card-header">{% trans "Deceased" %}</div>
+              <div class="card-body">
 
-            {% endfor %}
-          </ol>
-          <!-- Modal -->
-          <div class="modal fade" id="deceased" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
-            <div class="modal-dialog" role="document">
-              <div class="modal-content">
-                <form action="{% url 'calc:deceased' calculation.id %}" method="post">
-                  {% csrf_token %}
-                  <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                    <h4 class="modal-title" id="myModalLabel">{% trans 'Add deceased' %}</h4>
-                  </div>
-                  <div class="modal-body">
-                    <div class="form-group">
-                      <label for="first_name" class="col-form-label">{% trans 'First Name:' %}</label>
-                      <input type="text" class="form-control" id="first_name" name="first_name">
+                {% trans "Deceased name:" %} {{ calculation.deceased_set.first.first_name }} <br />
+                {% trans "Deceased estate:" %} {{ calculation.deceased_set.first.estate }}
+              </div>
+            </div>
+            {% else %}
+            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-heir="Deceased" data-url="{% url 'calc:deceased' calculation.id %}">Add Deceased</button>
+            {% endif %}
+            {% if Father.count != 0 %}
+            <div class="card text-white bg-info mb-3" style="max-width: 18rem;">
+              <div class="card-header">{% trans "Father" %}</div>
+              <div class="card-body">
+
+                {% trans "Father name:" %} {{ Father.first.first_name }} <br />
+              </div>
+            </div>
+            {% else %}
+            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-heir="Father" data-url="{% url 'calc:father' calculation.id %}">{%trans 'Add Father' %}</button>
+            {% endif %}
+
+            <!-- Modal -->
+            <div class="modal fade" id="add" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+              <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                  <form id="modal-form" action="" method="post">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                      <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                      <h4 class="modal-title" id="myModalLabel">{% trans 'Add' %}</h4>
                     </div>
-                    <div class="form-group">
-                      <label for="last_name" class="col-form-label">{% trans 'Last Name:' %}</label>
-                      <input type="text" class="form-control" id="last_name" name="last_name">
+                    <div class="modal-body">
+                      <div class="form-group">
+                        <label for="first_name" class="col-form-label">{% trans 'First Name:' %}</label>
+                        <input type="text" class="form-control" id="first_name" name="first_name">
+                      </div>
+                      <div class="form-group">
+                        <label for="last_name" class="col-form-label">{% trans 'Last Name:' %}</label>
+                        <input type="text" class="form-control" id="last_name" name="last_name">
+                      </div>
+                      <div id= "sex-form-group" class="form-group">
+                        <label for="sex" class="col-form-label">{% trans 'Sex:' %}</label>
+                        <select id="sex" name="sex"class="form-control">
+                          <option value='M' selected>{% trans 'Male' %}</option>
+                          <option value='F'>{% trans 'Female' %}</option>
+                        </select>
+                      </div>
+                      <div id="estate-form-group"class="form-group">
+                        <label for="estate" class="col-form-label">{% trans 'Estate:' %}</label>
+                        <input type="text" class="form-control" id="estate" name="estate">
+                      </div>
                     </div>
-                    <div class="form-group">
-                      <label for="sex" class="col-form-label">{% trans 'Sex:' %}</label>
-                      <select id="sex" name="sex"class="form-control">
-                        <option value='M' selected>{% trans 'Male' %}</option>
-                        <option value='F'>{% trans 'Female' %}</option>
-                      </select>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                      <button type="submit" class="btn btn-primary">{% trans 'Add' %}</button>
                     </div>
-                    <div class="form-group">
-                      <label for="estate" class="col-form-label">{% trans 'Estate:' %}</label>
-                      <input type="text" class="form-control" id="estate" name="estate">
-                    </div>
-                  </div>
-                  <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary">{% trans 'Add deceased' %}</button>
-                  </div>
-                </form>
+                  </form>
+                </div>
               </div>
             </div>
           </div>
@@ -83,5 +88,24 @@
       </div>
     </div>
   </div>
-</div>
-{% endblock %}
+  {% endblock %}
+  {% block scripts %}
+  <script type="text/javascript">
+    $('#add').on('show.bs.modal', function (event) {
+      var button = $(event.relatedTarget) // Button that triggered the modal
+      var url = button.data('url') // Extract info from data-* attributes
+      // If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
+      // Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
+      var modal = $(this)
+      modal.find('#modal-form').attr('action', url)
+      if (button.data('heir') != 'Deceased') {
+         $('#estate-form-group').css('display','none');
+         $('#sex-form-group').css('display','none');
+      }
+      else {
+        $('#estate-form-group').css('display','block');
+        $('#sex-form-group').css('display','block');
+      }
+    })
+  </script>
+  {% endblock %}

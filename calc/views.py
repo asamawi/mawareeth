@@ -11,7 +11,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.urls import reverse_lazy
 
 
-from .models import Calculation, Person, Marriage, Deceased
+from .models import Calculation, Person, Marriage, Deceased, Father
 
 class LoginRequired(View):
     """
@@ -30,8 +30,13 @@ class IndexView(LoginRequired, generic.ListView):
 
 
 class DetailView(LoginRequired, generic.DetailView):
-	model = Calculation
-	template_name = 'calc/detail.html'
+    model = Calculation
+    template_name = 'calc/detail.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['Father'] = self.object.heir_set.instance_of(Father)
+        return context
 
 class ResultsView(LoginRequired, generic.DetailView):
 	model = Calculation
@@ -57,6 +62,15 @@ def deceased(request, pk):
     estate = request.POST.get('estate')
     Deceased.objects.create(calc=calc, sex=sex, first_name=first_name, last_name=last_name, estate=estate)
     return HttpResponseRedirect(reverse('calc:detail', args=(calc.id,)))
+
+def father(request, pk):
+    calc = get_object_or_404(Calculation, pk=pk)
+    sex = 'M'
+    first_name = request.POST.get('first_name')
+    last_name = request.POST.get('last_name')
+    Father.objects.create(calc=calc, sex=sex, first_name=first_name, last_name=last_name)
+    return HttpResponseRedirect(reverse('calc:detail', args=(calc.id,)))
+
 
 def delete(request, pk):
     calc = get_object_or_404(Calculation, pk=pk)
