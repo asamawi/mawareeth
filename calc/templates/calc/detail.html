@@ -30,12 +30,12 @@
               </div>
               <div class="card-footer">
                 {% if Father.count == 0 %}
-                <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-heir="{% trans 'Father' %}" data-url="{% url 'calc:father' calculation.id %}">{%trans 'Add Father' %}</button>
+                <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Father" data-heir="{% trans 'Father' %}" data-url="{% url 'calc:father' calculation.id %}">{%trans 'Add Father' %}</button>
                 {% endif %}
               </div>
             </div>
             {% else %}
-            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-heir="{% trans 'Deceased' %}" data-url="{% url 'calc:deceased' calculation.id %}">{%trans 'Add Deceased' %}</button>
+            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Deceased" data-heir="{% trans 'Deceased' %}" data-url="{% url 'calc:deceased' calculation.id %}">{%trans 'Add Deceased' %}</button>
             {% endif %}
             {% if Father.count != 0 %}
             <div class="card text-white bg-info mb-3" style="max-width: 18rem;">
@@ -101,7 +101,7 @@
       // Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
       var modal = $(this)
       modal.find('#modal-form').attr('action', url)
-      if (button.data('heir') != 'Deceased') {
+      if (button.data('name') != 'Deceased') {
         $('#estate-form-group').css('display','none');
         $('#sex-form-group').css('display','none');
       }

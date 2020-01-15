@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-12-26 23:57+0300\n"
+"POT-Creation-Date: 2020-01-15 07:03+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,44 +19,219 @@ msgstr ""
 "Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
 "&& n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
 
-#: .\calc\templates\calc\index.html:7 .\mawareeth\templates\base.html:29
-msgid "Home"
-msgstr "الرئيسية"
-
-#: .\calc\templates\calc\index.html:31
-msgid "View this page in:"
-msgstr "تصفح هذه الصفحة باللغات التالية:"
-
-#: .\mawareeth\settings.py:148
-msgid "Arabic"
-msgstr "العربية"
-
-#: .\mawareeth\settings.py:149
-msgid "English"
-msgstr "الانجليزية"
-
-#: .\mawareeth\templates\base.html:18 .\mawareeth\templates\base.html:21
+#: .\calc\templates\calc\base.html:18 .\calc\templates\calc\base.html:21
 #, fuzzy
 #| msgid "| Mawareeth 2.0"
 msgid "Mawareeth 2.0"
-msgstr " مواريث 2.0"
+msgstr "مواريث 2.0"
 
-#: .\mawareeth\templates\base.html:32
+#: .\calc\templates\calc\base.html:29 .\calc\templates\calc\index.html:7
+msgid "Home"
+msgstr "الرئيسية"
+
+#: .\calc\templates\calc\base.html:32
 msgid "About"
-msgstr ""
+msgstr "من نحن"
 
-#: .\mawareeth\templates\base.html:36
+#: .\calc\templates\calc\base.html:36
 msgid "Dropdown"
-msgstr ""
+msgstr "قائمة منسدلة"
 
-#: .\mawareeth\templates\base.html:39
+#: .\calc\templates\calc\base.html:39
 msgid "Action"
-msgstr ""
+msgstr "اجراء"
 
-#: .\mawareeth\templates\base.html:40
+#: .\calc\templates\calc\base.html:40
 msgid "Another action"
-msgstr ""
+msgstr "اجراء اخر"
 
-#: .\mawareeth\templates\base.html:42
+#: .\calc\templates\calc\base.html:42
 msgid "Something else here"
-msgstr ""
+msgstr "شي اخر هنا"
+
+#: .\calc\templates\calc\base.html:50
+msgid "Welcome "
+msgstr "اهلا بكم"
+
+#: .\calc\templates\calc\base.html:50
+msgid " logout "
+msgstr "تسجيل خروج"
+
+#: .\calc\templates\calc\base.html:52
+msgid "login"
+msgstr "تسجيل دخول"
+
+#: .\calc\templates\calc\base.html:53
+#: .\calc\templates\registration\login.html:62
+#: .\calc\templates\registration\signup.html:7
+msgid "Sign Up"
+msgstr "تسجيل"
+
+#: .\calc\templates\calc\detail.html:8
+msgid "Calculation"
+msgstr "مسألة "
+
+#: .\calc\templates\calc\detail.html:21
+msgid "Calculation name:"
+msgstr "اسم المسألة"
+
+#: .\calc\templates\calc\detail.html:25 .\calc\templates\calc\detail.html:38
+msgid "Deceased"
+msgstr "الميت"
+
+#: .\calc\templates\calc\detail.html:28
+msgid "Deceased name:"
+msgstr "اسم الميت"
+
+#: .\calc\templates\calc\detail.html:29
+msgid "Deceased estate:"
+msgstr "التركة"
+
+#: .\calc\templates\calc\detail.html:33 .\calc\templates\calc\detail.html:42
+msgid "Father"
+msgstr "اب"
+
+#: .\calc\templates\calc\detail.html:33
+msgid "Add Father"
+msgstr "اضافة الاب"
+
+#: .\calc\templates\calc\detail.html:38
+msgid "Add Deceased"
+msgstr "اضافة الميت"
+
+#: .\calc\templates\calc\detail.html:45
+msgid "Father name:"
+msgstr "اسم الاب"
+
+#: .\calc\templates\calc\detail.html:58 .\calc\templates\calc\detail.html:83
+msgid "Add"
+msgstr "اضافة"
+
+#: .\calc\templates\calc\detail.html:62
+msgid "First Name:"
+msgstr "الاسم الاول"
+
+#: .\calc\templates\calc\detail.html:66
+msgid "Last Name:"
+msgstr "الاسم الاخير"
+
+#: .\calc\templates\calc\detail.html:70
+msgid "Sex:"
+msgstr "الجنس"
+
+#: .\calc\templates\calc\detail.html:72
+msgid "Male"
+msgstr "ذكر"
+
+#: .\calc\templates\calc\detail.html:73
+msgid "Female"
+msgstr "انثى"
+
+#: .\calc\templates\calc\detail.html:77
+msgid "Estate:"
+msgstr "التركة"
+
+#: .\calc\templates\calc\error.html:7
+msgid "error"
+msgstr "خطاء"
+
+#: .\calc\templates\calc\index.html:21
+msgid "Create new calculation"
+msgstr "انشاء مسالة جديدة"
+
+#: .\calc\templates\calc\index.html:25
+msgid "Name your Calculation"
+msgstr "اعطي اسم للمسالة"
+
+#: .\calc\templates\calc\index.html:26
+msgid "Calculation name"
+msgstr "اسم المسألة"
+
+#: .\calc\templates\calc\index.html:28
+msgid "Submit and continue"
+msgstr "اضافة و استمرار"
+
+#: .\calc\templates\calc\index.html:29
+msgid "Save and add another"
+msgstr "حفظ و اضافة جديدة"
+
+#: .\calc\templates\calc\index.html:49
+msgid "delete"
+msgstr "حذف"
+
+#: .\calc\templates\registration\login.html:7
+msgid "Login"
+msgstr "تسجيل دخول"
+
+#: .\calc\templates\registration\login.html:37
+msgid "Please login to see this page."
+msgstr "الرجاء تسجيل الدخول لمشاهدة الصفحة"
+
+#: .\calc\templates\registration\login.html:45
+msgid "Sign In"
+msgstr "تسجيل الدخول"
+
+#: .\calc\templates\registration\login.html:50
+msgid "Enter your username"
+msgstr "ادخل اسم المستخدم"
+
+#: .\calc\templates\registration\login.html:52
+msgid "Username"
+msgstr "اسم المستخدم"
+
+#: .\calc\templates\registration\login.html:56
+#: .\calc\templates\registration\login.html:57
+msgid "Password"
+msgstr "كلمة المرور"
+
+#: .\calc\templates\registration\login.html:59
+msgid "Sign in"
+msgstr "تسجيل الدخول"
+
+#: .\calc\templates\registration\login.html:64
+msgid "Lost password?"
+msgstr "نسيت كلمة المرور"
+
+#: .\calc\templates\registration\signup.html:37
+#: .\calc\templates\registration\signup.html:63
+msgid "Sign up"
+msgstr "تسجيل"
+
+#: .\calc\templates\registration\signup.html:44
+msgid "Letters, digits and @/./+/-/_ only."
+msgstr "حروف و ارقام و @/./+/-/_ فقط."
+
+#: .\calc\templates\registration\signup.html:45
+msgid "Username:"
+msgstr "اسم المستخدم:"
+
+#: .\calc\templates\registration\signup.html:51
+msgid "min 8 characters. Strong password required"
+msgstr "8 حروف على الاقل. يجب ان تكون كلمة مرور قوية"
+
+#: .\calc\templates\registration\signup.html:52
+msgid "Password:"
+msgstr "كلمة المرور"
+
+#: .\calc\templates\registration\signup.html:57
+msgid "Enter the same password"
+msgstr "ادخل نفس كلمة المرور"
+
+#: .\calc\templates\registration\signup.html:58
+msgid "Password confirmation:"
+msgstr "تاكيد كلمة المرور:"
+
+#: .\calc\templates\registration\signup.html:66
+msgid "Already registered"
+msgstr "تم التسجيل سابقا"
+
+#: .\mawareeth\settings.py:154
+msgid "Arabic"
+msgstr "العربية"
+
+#: .\mawareeth\settings.py:155
+msgid "English"
+msgstr "الانجليزية"
+
+#~ msgid "View this page in:"
+#~ msgstr "تصفح هذه الصفحة باللغات التالية:"
