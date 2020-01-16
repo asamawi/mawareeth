@@ -1,6 +1,8 @@
 from django.db import models
 from polymorphic.models import PolymorphicModel
 from polymorphic.managers import PolymorphicManager
+from django.urls import reverse
+
 
 from django.contrib.auth.models import User
 
@@ -57,9 +59,10 @@ class Calculation(models.Model):
 
 class Deceased(Person):
     """Deceased class"""
-    estate = models.IntegerField(default=1000)
+    estate = models.IntegerField()
     calc = models.ForeignKey(Calculation, on_delete=models.CASCADE,null=True)
-
+    def get_absolute_url(self):
+        return reverse('calc:detail', args=[self.calc.id])
 class Heir(Person):
     """Heir class"""
     abstract = True

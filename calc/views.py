@@ -9,10 +9,35 @@ from django.views.generic import View
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
 from django.urls import reverse_lazy
-
+from calc.forms import HeirForm, DeceasedForm
+from django.views.generic.edit import CreateView, UpdateView, DeleteView
 
 from .models import Calculation, Person, Marriage, Deceased, Father
 
+class DeceasedCreate(CreateView):
+    model = Deceased
+    fields = ['first_name','last_name','sex', 'estate']
+
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Overridden so we can make sure the `calc` instance exists
+        before going any further.
+        """
+        self.calc = get_object_or_404(Calculation, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+    def form_valid(self, form):
+        """
+        Overridden to add the ipsum relation to the `Lorem` instance.
+        """
+        form.instance.calc = self.calc
+        return super().form_valid(form)
+
+class DeceasedUpdate(UpdateView):
+    model = Deceased
+    fields = ['first_name','last_name','sex', 'estate']
+class DeceasedDelete(DeleteView):
+    model = Deceased
+    success_url = reverse_lazy('calc:detail')
 class LoginRequired(View):
     """
     Redirects to login if user is anonymous
