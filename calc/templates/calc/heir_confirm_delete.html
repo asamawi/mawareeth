@@ -2,7 +2,6 @@
 {% load static %}
 {% load i18n %}
 {% load calc_extras %}
-{% load crispy_forms_tags %}
 
 
 {% block title %}
@@ -24,8 +23,8 @@
           <form method="post"
           action="{{request.path}}">
           {% csrf_token %}
-          {{ form|crispy }}
-          <input type="submit" class="btn btn-primary">
+          <p>{% trans 'Are you sure you want to delete' %} "{{ object }}"?</p>
+          <input type="submit">
         </form>
       </div>
     </div>

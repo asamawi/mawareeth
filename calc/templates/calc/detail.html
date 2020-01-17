@@ -45,23 +45,41 @@
           {% trans "Deceased estate:" %} {{ calculation.deceased_set.first.estate }}
         </div>
         <div class="card-footer">
+          {% if Mother.count == 0 %}
+          <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Mother" data-heir="{% trans 'Mother' %}" data-url="{% url 'calc:mother' calculation.id %}">{% icon 'plus' %}{%trans ' Add Mother' %}</button>
+          {% endif %}
           {% if Father.count == 0 %}
-          <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Father" data-heir="{% trans 'Father' %}" data-url="{% url 'calc:father' calculation.id %}">{%trans 'Add Father' %}</button>
+          <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Father" data-heir="{% trans 'Father' %}" data-url="{% url 'calc:father' calculation.id %}">{% icon 'plus' %}{%trans ' Add Father' %}</button>
           {% endif %}
         </div>
       </div>
       {% else %}
       <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Deceased" data-heir="{% trans 'Deceased' %}" data-url="{% url 'calc:deceased' calculation.id %}">{%trans 'Add Deceased' %}</button>
       {% endif %}
-      {% if Father.count != 0 %}
-      <div class="card text-white bg-info mb-3" style="max-width: 18rem;">
-        <div class="card-header">{% trans "Father" %}</div>
-        <div class="card-body">
 
-          {% trans "Father name:" %} {{ Father.first.first_name }} <br />
+      {% for heir in calculation.heir_set.all %}
+      <div class="card text-white bg-info mb-3" style="max-width: 18rem;">
+        <div class="card-header">
+          {{heir|get_class}}
+
         </div>
+          <div class="card-body">
+            {{heir}}
+            <a
+            href="{% url 'calc:heir_delete' heir.id %}"
+            class="float-right btn btn-primary a-btn-slide-text">
+            <span>{% icon 'trash-o' %}</span>
+          </a>
+          <a
+          class="float-right btn btn-primary a-btn-slide-text"
+          href="{% url 'calc:heir_update' heir.id %}"
+          >
+          <span>{% icon 'edit' %}</span>
+        </a>
       </div>
-      {% endif %}
+      </div>
+      {% endfor %}
+
 
       <!-- Modal -->
       <div class="modal fade" id="add" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
