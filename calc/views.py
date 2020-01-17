@@ -23,7 +23,7 @@ class DeceasedCreate(CreateView):
         Overridden so we can make sure the `calc` instance exists
         before going any further.
         """
-        self.calc = get_object_or_404(Calculation, pk=kwargs['pk'])
+        self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
         if self.calc.deceased_set.count() >= 1:
             messages.error(request,"Decease already exist")
             return HttpResponseRedirect(reverse( 'calc:error'))
