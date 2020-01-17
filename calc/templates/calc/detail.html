@@ -27,21 +27,17 @@
           <div class="card text-white bg-secondary mb-3" style="max-width: 18rem;">
             <div class="card-header">
               {% trans "Deceased" %}
-              <div class="container">
-                <div class="row">
-                  <a
-                  href="{% url 'calc:deceased_delete' calculation.deceased_set.first.id %}"
-                  class="float-left btn btn-primary a-btn-slide-text">
-                  <span>{% icon 'trash-o' %}</span>
-                </a>
-                <a
-                class="float-left btn btn-primary a-btn-slide-text"
-                href="{% url 'calc:deceased_update' calculation.deceased_set.first.id %}"
-                >
-                <span>{% icon 'edit' %}</span>
-              </a>
-            </div>
-          </div>
+              <a
+              href="{% url 'calc:deceased_delete' calculation.deceased_set.first.id %}"
+              class="float-right btn btn-primary a-btn-slide-text">
+              <span>{% icon 'trash-o' %}</span>
+            </a>
+            <a
+            class="float-right btn btn-primary a-btn-slide-text"
+            href="{% url 'calc:deceased_update' calculation.deceased_set.first.id %}"
+            >
+            <span>{% icon 'edit' %}</span>
+          </a>
         </div>
         <div class="card-body">
 
