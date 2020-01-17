@@ -27,7 +27,7 @@ class DeceasedCreate(CreateView):
         return super().dispatch(request, *args, **kwargs)
     def form_valid(self, form):
         """
-        Overridden to add the ipsum relation to the `Lorem` instance.
+        Overridden to add the relation to the calculation instance.
         """
         form.instance.calc = self.calc
         return super().form_valid(form)
@@ -35,9 +35,23 @@ class DeceasedCreate(CreateView):
 class DeceasedUpdate(UpdateView):
     model = Deceased
     fields = ['first_name','last_name','sex', 'estate']
+
 class DeceasedDelete(DeleteView):
     model = Deceased
-    success_url = reverse_lazy('calc:detail')
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        self.calc = self.object.calc # assuming that deceased have a foreignkey reference to Calculation model
+        self.object.delete()
+        success_url = self.get_success_url()
+        return HttpResponseRedirect(success_url)
+
+    def get_success_url(self):
+        calc = self.calc
+        return reverse(  # no need for lazy here
+            'calc:detail',
+             kwargs={'pk': calc.id}
+        )
+
 class LoginRequired(View):
     """
     Redirects to login if user is anonymous

@@ -8,6 +8,7 @@ urlpatterns = [
 	path('<int:pk>/', views.DetailView.as_view(), name='detail'),
 	path('<int:pk>/delete/', views.delete, name='delete'),
 	path('<int:pk>/deceased', views.DeceasedCreate.as_view(), name='deceased'),
+	path('<int:pk>/deceased_delete', views.DeceasedDelete.as_view(), name='deceased_delete'),
 	path('<int:pk>/father', views.father, name='father'),
     path('<int:pk>/results/', views.ResultsView.as_view(), name='results'),
 	path('error/', views.error, name='error'),
