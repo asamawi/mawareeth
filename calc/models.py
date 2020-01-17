@@ -54,6 +54,9 @@ class Calculation(models.Model):
     def add_father(self, first_name, last_name):
         return Father().add(calc=self, first_name=first_name, last_name=last_name)
 
+    def add_mother(self, first_name, last_name):
+        return Mother().add(calc=self, first_name=first_name, last_name=last_name)
+
     def __str__(self):
         return str(self.name)
 
@@ -80,7 +83,9 @@ class Father(Heir):
 
 
 class Mother(Heir):
-    pass
+    def add(self, calc, first_name, last_name):
+        calc.deceased_set.first().add_mother(self)
+
 
 class Husband(Heir):
     pass
