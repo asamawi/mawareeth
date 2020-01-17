@@ -30,6 +30,7 @@ class DeceasedCreate(CreateView):
         Overridden to add the relation to the calculation instance.
         """
         form.instance.calc = self.calc
+
         return super().form_valid(form)
 
 class DeceasedUpdate(UpdateView):
