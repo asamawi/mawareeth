@@ -24,7 +24,6 @@
           action="{{request.path}}">
           {% csrf_token %}
           <p>{% trans 'Are you sure you want to delete' %} "{{ object }}"?</p>
-          {{ form.as_p }}
           <input type="submit">
         </form>
       </div>
