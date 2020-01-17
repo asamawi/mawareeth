@@ -60,6 +60,7 @@ class DeceasedDelete(DeleteView):
 class MotherCreate(CreateView):
     model = Mother
     fields = ['first_name','last_name']
+    template_name = 'calc/heir_form.html'
 
     def dispatch(self, request, *args, **kwargs):
         """
@@ -77,7 +78,11 @@ class MotherCreate(CreateView):
         Overridden to add the relation to the calculation instance.
         """
         form.instance.calc = self.calc
+        self.object = form.save()
+        form.instance.calc.add_mother(self.object)
         return super().form_valid(form)
+
+
 
 class HeirUpdate(UpdateView):
     model = Heir

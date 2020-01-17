@@ -2,6 +2,8 @@ from django.db import models
 from polymorphic.models import PolymorphicModel
 from polymorphic.managers import PolymorphicManager
 from django.urls import reverse
+from django.utils.translation import gettext as _
+
 
 
 from django.contrib.auth.models import User
@@ -18,18 +20,26 @@ class Person(PolymorphicModel):
     parents = models.ForeignKey('Marriage',null=True, on_delete=models.SET_NULL, blank=True)
 
     def add_father(self, person):
+        if self.parents and self.parents.male:
+            raise _("father already exist")
+        else:
+            #check for parents
+            if self.parents is None:
+                self.parents = Marriage()
 
-            if self.parents and self.parents.male:
-                return "father already exist"
-            else:
+            self.parents.add_male(person)
 
-                #check for parents
-                if self.parents is None:
-                    self.parents = Marriage()
+            return person
+    def add_mother(self, mother):
+        if self.parents and self.parents.female:
+            raise _("Mother already exist")
+        else:
+            #check for parents
+            if self.parents is None:
+                self.parents = Marriage.objects.create()
 
-                self.parents.add_male(person)
-
-                return person
+            self.parents.add_female(mother)
+            return mother
 
     def __str__(self):
         return f"{self.first_name} id: {self.id}"
@@ -41,6 +51,10 @@ class Marriage(models.Model):
 
     def add_male(self, person):
         self.male = person
+
+    def add_female(self, person):
+        self.female = person
+        self.save()
 
     def __str__(self):
         return "id: " + str(self.id) + " " +(self.male.first_name if self.male  else "") + " " + (self.female.first_name if self.female else "")
@@ -54,8 +68,8 @@ class Calculation(models.Model):
     def add_father(self, first_name, last_name):
         return Father().add(calc=self, first_name=first_name, last_name=last_name)
 
-    def add_mother(self, first_name, last_name):
-        return Mother().add(calc=self, first_name=first_name, last_name=last_name)
+    def add_mother(self, mother):
+        return Mother().add(calc=self, mother=mother)
 
     def __str__(self):
         return str(self.name)
@@ -84,8 +98,8 @@ class Father(Heir):
 
 
 class Mother(Heir):
-    def add(self, calc, first_name, last_name):
-        calc.deceased_set.first().add_mother(self)
+    def add(self, calc, mother):
+        calc.deceased_set.first().add_mother(mother=mother)
 
 
 class Husband(Heir):
