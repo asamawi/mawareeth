@@ -77,6 +77,8 @@ class MotherCreate(CreateView):
         """
         form.instance.calc = self.calc
         self.object = form.save()
+        self.object.sex="F"
+        self.object.save()
         form.instance.calc.add_mother(self.object)
         return super().form_valid(form)
 
@@ -102,6 +104,8 @@ class FatherCreate(CreateView):
         """
         form.instance.calc = self.calc
         self.object = form.save()
+        self.object.sex="M"
+        self.object.save()
         form.instance.calc.add_father(self.object)
         return super().form_valid(form)
 
