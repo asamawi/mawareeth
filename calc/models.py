@@ -19,17 +19,18 @@ class Person(PolymorphicModel):
     last_name = models.CharField(max_length=200,blank=True)
     parents = models.ForeignKey('Marriage',null=True, on_delete=models.SET_NULL, blank=True)
 
-    def add_father(self, person):
+    def add_father(self, father):
         if self.parents and self.parents.male:
             raise _("father already exist")
         else:
             #check for parents
             if self.parents is None:
-                self.parents = Marriage()
+                self.parents = Marriage.objects.create()
 
-            self.parents.add_male(person)
+            self.parents.add_male(father)
+            self.save()
 
-            return person
+            return father
     def add_mother(self, mother):
         if self.parents and self.parents.female:
             raise _("Mother already exist")
@@ -39,6 +40,7 @@ class Person(PolymorphicModel):
                 self.parents = Marriage.objects.create()
 
             self.parents.add_female(mother)
+            self.save()
             return mother
 
     def __str__(self):
@@ -46,11 +48,12 @@ class Person(PolymorphicModel):
 
 class Marriage(models.Model):
     """Marriage Class"""
-    male = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='male',blank=True)
-    female = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='female',blank=True)
+    male = models.ForeignKey(Person,null=True, on_delete=models.CASCADE,related_name='male',blank=True)
+    female = models.ForeignKey(Person,null=True, on_delete=models.CASCADE,related_name='female',blank=True)
 
     def add_male(self, person):
         self.male = person
+        self.save()
 
     def add_female(self, person):
         self.female = person
@@ -65,8 +68,8 @@ class Calculation(models.Model):
     user = models.ForeignKey(User,on_delete=models.CASCADE,null=True)
     name = models.CharField(max_length=200)
 
-    def add_father(self, first_name, last_name):
-        return Father().add(calc=self, first_name=first_name, last_name=last_name)
+    def add_father(self, father):
+        return Father().add(calc=self, father=father)
 
     def add_mother(self, mother):
         return Mother().add(calc=self, mother=mother)
@@ -91,9 +94,8 @@ class Heir(Person):
 
 class Father(Heir):
 
-    def add(self, calc, first_name, last_name):
-        f = Father.objects.create(calc=calc, first_name=first_name, last_name=last_name, sex="M")
-        calc.deceased_set.first().add_father(f)
+    def add(self, calc, father):
+        calc.deceased_set.first().add_father(father=father)
 
 
 
