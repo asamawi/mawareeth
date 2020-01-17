@@ -11,6 +11,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.urls import reverse_lazy
 from calc.forms import HeirForm, DeceasedForm
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
+from django.utils.translation import gettext as _
 
 from .models import *
 
@@ -25,7 +26,7 @@ class DeceasedCreate(CreateView):
         """
         self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
         if self.calc.deceased_set.count() >= 1:
-            messages.error(request,"Decease already exist")
+            messages.error(request,_("Decease already exist"))
             return HttpResponseRedirect(reverse( 'calc:error'))
         return super().dispatch(request, *args, **kwargs)
     def form_valid(self, form):
@@ -65,6 +66,9 @@ class MotherCreate(CreateView):
         before going any further.
         """
         self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+        if self.calc.heir_set.instance_of(Mother).count() >= 1:
+            messages.error(request,_("Mother already exist"))
+            return HttpResponseRedirect(reverse( 'calc:error'))
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
