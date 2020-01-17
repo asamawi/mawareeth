@@ -34,8 +34,6 @@ class DeceasedCreate(CreateView):
         Overridden to add the relation to the calculation instance.
         """
         form.instance.calc = self.calc
-        form.instance.calc.add_mother(first_name=form.first_name, last_name=form.last_name)
-
         return super().form_valid(form)
 
 class DeceasedUpdate(UpdateView):
