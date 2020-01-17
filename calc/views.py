@@ -24,6 +24,9 @@ class DeceasedCreate(CreateView):
         before going any further.
         """
         self.calc = get_object_or_404(Calculation, pk=kwargs['pk'])
+        if self.calc.deceased_set.count() >= 1:
+            messages.error(request,"Decease already exist")
+            return HttpResponseRedirect(reverse( 'calc:error'))
         return super().dispatch(request, *args, **kwargs)
     def form_valid(self, form):
         """

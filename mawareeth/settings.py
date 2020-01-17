@@ -45,7 +45,8 @@ INSTALLED_APPS = [
     'mawareeth',
     'polymorphic',
     'anymail',
-
+    'crispy_forms',
+    'django_icons',
 ]
 
 MIDDLEWARE = [
@@ -164,3 +165,5 @@ ANYMAIL = {
 EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
 DEFAULT_FROM_EMAIL = "noreply@mawareeth.com"
 SERVER_EMAIL = "notifications@mawareeth.com"
+
+CRISPY_TEMPLATE_PACK = 'bootstrap4'

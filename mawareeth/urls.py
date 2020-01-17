@@ -32,6 +32,7 @@ calc_patterns = ([
     path('<int:pk>/delete/', calc_views.delete, name='delete'),
     path('<int:pk>/deceased', calc_views.DeceasedCreate.as_view(), name='deceased'),
 	path('<int:pk>/deceased_delete', calc_views.DeceasedDelete.as_view(), name='deceased_delete'),
+	path('<int:pk>/deceased_update', calc_views.DeceasedUpdate.as_view(), name='deceased_update'),
     path('<int:pk>/father', calc_views.father, name='father'),
     path('<int:pk>/results/', calc_views.ResultsView.as_view(), name='results'),
     path('error/', calc_views.error, name='error'),

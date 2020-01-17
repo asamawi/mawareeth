@@ -5,3 +5,5 @@ django-polymorphic
 pymongo[srv]
 sqlparse
 django-anymail[mailgun]
+django-crispy-forms
+django-icons
