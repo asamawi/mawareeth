@@ -70,7 +70,8 @@ class Heir(Person):
     """Heir class"""
     abstract = True
     calc = models.ForeignKey(Calculation, on_delete=models.CASCADE,null=True)
-
+    def get_absolute_url(self):
+        return reverse('calc:detail', args=[self.calc.id])
     def __str__(self):
         return (self.first_name if self.first_name else " ")
 

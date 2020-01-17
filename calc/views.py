@@ -11,8 +11,9 @@ from django.contrib.auth.forms import UserCreationForm
 from django.urls import reverse_lazy
 from calc.forms import HeirForm, DeceasedForm
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
+from django.utils.translation import gettext as _
 
-from .models import Calculation, Person, Marriage, Deceased, Father
+from .models import *
 
 class DeceasedCreate(CreateView):
     model = Deceased
@@ -23,9 +24,9 @@ class DeceasedCreate(CreateView):
         Overridden so we can make sure the `calc` instance exists
         before going any further.
         """
-        self.calc = get_object_or_404(Calculation, pk=kwargs['pk'])
+        self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
         if self.calc.deceased_set.count() >= 1:
-            messages.error(request,"Decease already exist")
+            messages.error(request,_("Decease already exist"))
             return HttpResponseRedirect(reverse( 'calc:error'))
         return super().dispatch(request, *args, **kwargs)
     def form_valid(self, form):
@@ -56,7 +57,50 @@ class DeceasedDelete(DeleteView):
             'calc:detail',
              kwargs={'pk': calc.id}
         )
+class MotherCreate(CreateView):
+    model = Mother
+    fields = ['first_name','last_name']
 
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Overridden so we can make sure the `calc` instance exists
+        before going any further.
+        """
+        self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+        if self.calc.heir_set.instance_of(Mother).count() >= 1:
+            messages.error(request,_("Mother already exist"))
+            return HttpResponseRedirect(reverse( 'calc:error'))
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        """
+        Overridden to add the relation to the calculation instance.
+        """
+        form.instance.calc = self.calc
+        return super().form_valid(form)
+
+class HeirUpdate(UpdateView):
+    model = Heir
+    fields = ['first_name','last_name']
+    template_name = 'calc/heir_form.html'
+
+class HeirDelete(DeleteView):
+    model = Heir
+    template_name = 'calc/heir_confirm_delete.html'
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        self.calc = self.object.calc # assuming that deceased have a foreignkey reference to Calculation model
+        self.object.delete()
+        success_url = self.get_success_url()
+        return HttpResponseRedirect(success_url)
+
+    def get_success_url(self):
+        calc = self.calc
+        return reverse(  # no need for lazy here
+            'calc:detail',
+             kwargs={'pk': calc.id}
+        )
 class LoginRequired(View):
     """
     Redirects to login if user is anonymous
@@ -80,6 +124,14 @@ class DetailView(LoginRequired, generic.DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['Father'] = self.object.heir_set.instance_of(Father)
+        context['Mother'] = self.object.heir_set.instance_of(Mother)
+        context['Wife'] = self.object.heir_set.instance_of(Wife)
+        context['Husband'] = self.object.heir_set.instance_of(Husband)
+        context['Daughter'] = self.object.heir_set.instance_of(Daughter)
+        context['Son'] = self.object.heir_set.instance_of(Son)
+
+
+
         return context
 
 class ResultsView(LoginRequired, generic.DetailView):
@@ -98,14 +150,6 @@ def new(request):
         return HttpResponseRedirect(reverse('calc:detail', args=(calc.id,)))
     else:
         return HttpResponseRedirect(reverse('calc:index'))
-def deceased(request, pk):
-    calc = get_object_or_404(Calculation, pk=pk)
-    sex = request.POST.get('sex')
-    first_name = request.POST.get('first_name')
-    last_name = request.POST.get('last_name')
-    estate = request.POST.get('estate')
-    Deceased.objects.create(calc=calc, sex=sex, first_name=first_name, last_name=last_name, estate=estate)
-    return HttpResponseRedirect(reverse('calc:detail', args=(calc.id,)))
 
 def father(request, pk):
     calc = get_object_or_404(Calculation, pk=pk)
