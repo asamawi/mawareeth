@@ -1,0 +1,35 @@
+{% extends "calc/base.html" %}
+{% load static %}
+{% load i18n %}
+{% load calc_extras %}
+
+
+{% block title %}
+{% trans "Deceased" %}
+{% endblock %}
+
+{% block css %}
+<link rel="stylesheet" href="{% static 'calc/css/content.css' %}">
+{% endblock %}
+
+{% block body %}
+<div class="container">
+  <div class="row">
+    <div class="col-sm-10 col-md-9 col-lg-7 mx-auto">
+      <div class="card card-index my-5">
+        <div class="card-header">
+        </div>
+        <div class="card-body">
+          <form method="post"
+          action="{{request.path}}">
+          {% csrf_token %}
+          <p>{% trans 'Are you sure you want to delete' %} "{{ object }}"?</p>
+          {{ form.as_p }}
+          <input type="submit">
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}
