@@ -120,22 +120,23 @@ class Heir(Person):
         return (self.first_name if self.first_name else " ")
 
 class Father(Heir):
-
+    """Father class"""
     def add(self, calc, father):
         calc.deceased_set.first().add_father(father=father)
 
-
-
 class Mother(Heir):
+    """Mother class"""
     def add(self, calc, mother):
         calc.deceased_set.first().add_mother(mother=mother)
 
 
 class Husband(Heir):
+    """Husbnad class"""
     def add(self, calc, husband):
         calc.deceased_set.first().add_husband(husband=husband)
 
 class Wife(Heir):
+    """Wife class"""
     def add(self, calc, wife):
         calc.deceased_set.first().add_wife(wife=wife)
 
