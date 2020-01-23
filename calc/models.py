@@ -7,6 +7,8 @@ from django.utils.translation import gettext as _
 
 
 from django.contrib.auth.models import User
+def NON_POLYMORPHIC_CASCADE(collector, field, sub_objs, using):
+    return models.CASCADE(collector, field, sub_objs.non_polymorphic(), using)
 
 class Person(PolymorphicModel):
     """Person Class"""
@@ -80,13 +82,13 @@ class Calculation(models.Model):
 class Deceased(Person):
     """Deceased class"""
     estate = models.IntegerField()
-    calc = models.ForeignKey(Calculation, on_delete=models.CASCADE,null=True)
+    calc = models.ForeignKey(Calculation, on_delete=NON_POLYMORPHIC_CASCADE,null=True)
     def get_absolute_url(self):
         return reverse('calc:detail', args=[self.calc.id])
 class Heir(Person):
     """Heir class"""
     abstract = True
-    calc = models.ForeignKey(Calculation, on_delete=models.CASCADE,null=True)
+    calc = models.ForeignKey(Calculation, on_delete=NON_POLYMORPHIC_CASCADE,null=True)
     def get_absolute_url(self):
         return reverse('calc:detail', args=[self.calc.id])
     def __str__(self):

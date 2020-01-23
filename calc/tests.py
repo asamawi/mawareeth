@@ -52,5 +52,6 @@ class CalculationTestCase(TestCase):
 
     def test_delete_calc(self):
         calc = Calculation.objects.get(name="calc1")
-        calc.delete()
-        self.assertIsNone(calc)
+        expected = (10, {'calc.Calculation': 1, 'calc.Deceased': 1, 'calc.Marriage': 1, 'calc.Father': 1, 'calc.Mother': 1, 'calc.Heir': 2, 'calc.Person': 3})
+        result = calc.delete()
+        self.assertEquals(result, expected)
