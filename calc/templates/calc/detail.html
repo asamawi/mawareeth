@@ -46,82 +46,104 @@
         </div>
         <div class="card-footer">
           {% if Mother.count == 0 %}
-          <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Mother" data-heir="{% trans 'Mother' %}" data-url="{% url 'calc:mother' calculation.id %}">{% icon 'plus' %}{%trans ' Add Mother' %}</button>
-          {% endif %}
-          {% if Father.count == 0 %}
-          <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Father" data-heir="{% trans 'Father' %}" data-url="{% url 'calc:father' calculation.id %}">{% icon 'plus' %}{%trans ' Add Father' %}</button>
-          {% endif %}
-        </div>
-      </div>
-      {% else %}
-      <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Deceased" data-heir="{% trans 'Deceased' %}" data-url="{% url 'calc:deceased' calculation.id %}">{%trans 'Add Deceased' %}</button>
+          <button type="button" class="btn btn-primary" data-toggle="modal"
+          data-target="#add" data-name="Mother" data-heir="{% trans 'Mother' %}"
+          data-url="{% url 'calc:mother' calculation.id %}">
+          {% icon 'plus' %}{%trans ' Mother' %}
+        </button>
+        {% endif %}
+        {% if Father.count == 0 %}
+        <button type="button" class="btn btn-primary" data-toggle="modal"
+        data-target="#add" data-name="Father" data-heir="{% trans 'Father' %}"
+        data-url="{% url 'calc:father' calculation.id %}">
+        {% icon 'plus' %}{%trans ' Father' %}
+      </button>
       {% endif %}
+      {% if calculation.deceased_set.first.sex == "M" and Wife.count < 4 %}
+      <button type="button" class="btn btn-primary" data-toggle="modal"
+      data-target="#add" data-name="Wife" data-heir="{% trans 'Wife' %}"
+      data-url="{% url 'calc:wife' calculation.id %}">
+      {% icon 'plus' %}{%trans ' Wife' %}
+    </button>
+    {% endif %}
+    {% if calculation.deceased_set.first.sex == "F" and Husband.count == 0 %}
+    <button type="button" class="btn btn-primary" data-toggle="modal"
+    data-target="#add" data-name="Husband" data-heir="{% trans 'Husband' %}"
+    data-url="{% url 'calc:husband' calculation.id %}">
+    {% icon 'plus' %}{%trans ' Husband' %}
+  </button>
+  {% endif %}
+  </div>
+</div>
+{% else %}
+<button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Deceased" data-heir="{% trans 'Deceased' %}" data-url="{% url 'calc:deceased' calculation.id %}">{%trans 'Add Deceased' %}</button>
+{% endif %}
 
-      {% for heir in calculation.heir_set.all %}
-      <div class="card text-white bg-info mb-3" style="max-width: 18rem;">
-        <div class="card-header">
-          {{heir|get_class}}
+{% for heir in calculation.heir_set.all %}
+<div class="card text-white bg-info mb-3" style="max-width: 18rem;">
+  <div class="card-header">
+    {{heir|get_class}}
 
+  </div>
+  <div class="card-body">
+    {{heir}}
+    <a
+    href="{% url 'calc:heir_delete' heir.id %}"
+    class="float-right btn btn-primary a-btn-slide-text">
+    <span>{% icon 'trash-o' %}</span>
+  </a>
+  <a
+  class="float-right btn btn-primary a-btn-slide-text"
+  href="{% url 'calc:heir_update' heir.id %}"
+  >
+  <span>{% icon 'edit' %}</span>
+</a>
+</div>
+</div>
+{% endfor %}
+
+
+<!-- Modal -->
+<div class="modal fade" id="add" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <form id="modal-form" action="" method="post">
+        {% csrf_token %}
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <h4 class="modal-title" id="myModalLabel">{% trans 'Add' %}</h4>
         </div>
-          <div class="card-body">
-            {{heir}}
-            <a
-            href="{% url 'calc:heir_delete' heir.id %}"
-            class="float-right btn btn-primary a-btn-slide-text">
-            <span>{% icon 'trash-o' %}</span>
-          </a>
-          <a
-          class="float-right btn btn-primary a-btn-slide-text"
-          href="{% url 'calc:heir_update' heir.id %}"
-          >
-          <span>{% icon 'edit' %}</span>
-        </a>
-      </div>
-      </div>
-      {% endfor %}
-
-
-      <!-- Modal -->
-      <div class="modal fade" id="add" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
-        <div class="modal-dialog" role="document">
-          <div class="modal-content">
-            <form id="modal-form" action="" method="post">
-              {% csrf_token %}
-              <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                <h4 class="modal-title" id="myModalLabel">{% trans 'Add' %}</h4>
-              </div>
-              <div class="modal-body">
-                <div class="form-group">
-                  <label for="first_name" class="col-form-label">{% trans 'First Name:' %}</label>
-                  <input type="text" class="form-control" id="first_name" name="first_name">
-                </div>
-                <div class="form-group">
-                  <label for="last_name" class="col-form-label">{% trans 'Last Name:' %}</label>
-                  <input type="text" class="form-control" id="last_name" name="last_name">
-                </div>
-                <div id= "sex-form-group" class="form-group">
-                  <label for="sex" class="col-form-label">{% trans 'Sex:' %}</label>
-                  <select id="sex" name="sex"class="form-control">
-                    <option value='M' selected>{% trans 'Male' %}</option>
-                    <option value='F'>{% trans 'Female' %}</option>
-                  </select>
-                </div>
-                <div id="estate-form-group"class="form-group">
-                  <label for="estate" class="col-form-label">{% trans 'Estate:' %}</label>
-                  <input type="text" class="form-control" id="estate" name="estate">
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                <button type="submit" class="btn btn-primary">{% trans 'Add' %}</button>
-              </div>
-            </form>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="first_name" class="col-form-label">{% trans 'First Name:' %}</label>
+            <input type="text" class="form-control" id="first_name" name="first_name">
+          </div>
+          <div class="form-group">
+            <label for="last_name" class="col-form-label">{% trans 'Last Name:' %}</label>
+            <input type="text" class="form-control" id="last_name" name="last_name">
+          </div>
+          <div id= "sex-form-group" class="form-group">
+            <label for="sex" class="col-form-label">{% trans 'Sex:' %}</label>
+            <select id="sex" name="sex"class="form-control">
+              <option value='M' selected>{% trans 'Male' %}</option>
+              <option value='F'>{% trans 'Female' %}</option>
+            </select>
+          </div>
+          <div id="estate-form-group"class="form-group">
+            <label for="estate" class="col-form-label">{% trans 'Estate:' %}</label>
+            <input type="text" class="form-control" id="estate" name="estate">
           </div>
         </div>
-      </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">{% trans 'Add' %}</button>
+        </div>
+      </form>
     </div>
   </div>
+</div>
+</div>
+</div>
 </div>
 </div>
 </div>

@@ -45,6 +45,25 @@ class Person(PolymorphicModel):
             self.save()
             return mother
 
+    def add_husband(self, husband):
+        #check for existing marriages
+        if self.female.count() == 0:
+            m = Marriage.objects.create()
+            m.add_male(husband)
+            m.add_female(self)
+            return m
+        else:
+             raise _("Husband already exist")
+
+    def add_wife(self, wife):
+        #check for existing marriages
+        if self.male.count() < 4:
+            m = Marriage.objects.create()
+            m.add_male(self)
+            m.add_female(wife)
+            return m
+        else:
+            raise _("Cann't have more than 4 wifes")
     def __str__(self):
         return f"{self.first_name} id: {self.id}"
 
@@ -75,6 +94,12 @@ class Calculation(models.Model):
 
     def add_mother(self, mother):
         return Mother().add(calc=self, mother=mother)
+
+    def add_husband(self, husband):
+        return Husband().add(calc=self, husband=husband)
+
+    def add_wife(self, wife):
+        return Wife().add(calc=self, wife=wife)
 
     def __str__(self):
         return str(self.name)
@@ -107,10 +132,12 @@ class Mother(Heir):
 
 
 class Husband(Heir):
-    pass
+    def add(self, calc, husband):
+        calc.deceased_set.first().add_husband(husband=husband)
 
 class Wife(Heir):
-    pass
+    def add(self, calc, wife):
+        calc.deceased_set.first().add_wife(wife=wife)
 
 class Daughter(Heir):
     pass

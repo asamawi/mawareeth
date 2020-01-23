@@ -109,7 +109,59 @@ class FatherCreate(CreateView):
         form.instance.calc.add_father(self.object)
         return super().form_valid(form)
 
+class HusbandCreate(CreateView):
+    model = Husband
+    fields = ['first_name','last_name']
+    template_name = 'calc/heir_form.html'
 
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Overridden so we can make sure the `calc` instance exists
+        before going any further.
+        """
+        self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+        if self.calc.heir_set.instance_of(Husband).count() >= 1:
+            messages.error(request,_("Husband already exist"))
+            return HttpResponseRedirect(reverse( 'calc:error'))
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        """
+        Overridden to add the relation to the calculation instance.
+        """
+        form.instance.calc = self.calc
+        self.object = form.save()
+        self.object.sex="M"
+        self.object.save()
+        form.instance.calc.add_husband(self.object)
+        return super().form_valid(form)
+
+class WifeCreate(CreateView):
+    model = Wife
+    fields = ['first_name','last_name']
+    template_name = 'calc/heir_form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Overridden so we can make sure the `calc` instance exists
+        before going any further.
+        """
+        self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+        if self.calc.heir_set.instance_of(Wife).count() >= 4:
+            messages.error(request,_("Cann't have more than 4 wifes"))
+            return HttpResponseRedirect(reverse( 'calc:error'))
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        """
+        Overridden to add the relation to the calculation instance.
+        """
+        form.instance.calc = self.calc
+        self.object = form.save()
+        self.object.sex="F"
+        self.object.save()
+        form.instance.calc.add_wife(self.object)
+        return super().form_valid(form)
 
 class HeirUpdate(UpdateView):
     model = Heir
