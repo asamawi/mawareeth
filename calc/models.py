@@ -3,6 +3,7 @@ from polymorphic.models import PolymorphicModel
 from polymorphic.managers import PolymorphicManager
 from django.urls import reverse
 from django.utils.translation import gettext as _
+from polymorphic.managers import PolymorphicManager, PolymorphicQuerySet
 
 
 
@@ -10,7 +11,30 @@ from django.contrib.auth.models import User
 def NON_POLYMORPHIC_CASCADE(collector, field, sub_objs, using):
     return models.CASCADE(collector, field, sub_objs.non_polymorphic(), using)
 
+class CascadeDeletePolymorphicQuerySet(PolymorphicQuerySet):
+    """
+    Patch the QuerySet to call delete on the non_polymorphic QuerySet, avoiding models.deletion.Collector typing problem
+
+    Based on workarounds proposed in: https://github.com/django-polymorphic/django-polymorphic/issues/229
+    See also: https://github.com/django-polymorphic/django-polymorphic/issues/34,
+              https://github.com/django-polymorphic/django-polymorphic/issues/84
+    Related Django ticket: https://code.djangoproject.com/ticket/23076
+    """
+    def delete(self):
+        if not self.polymorphic_disabled:
+            return self.non_polymorphic().delete()
+        else:
+            return super().delete()
+
+
+class CascadeDeletePolymorphicManager(PolymorphicManager):
+    queryset_class = CascadeDeletePolymorphicQuerySet
+
 class Person(PolymorphicModel):
+    non_polymorphic = CascadeDeletePolymorphicManager()
+
+    class Meta:
+        base_manager_name = 'non_polymorphic'
     """Person Class"""
     GENDER_CHOICES = (
         ('M', 'Male'),

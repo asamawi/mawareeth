@@ -23,7 +23,7 @@
           <form method="post"
           action="{{request.path}}">
           {% csrf_token %}
-          <p>{% trans 'Are you sure you want to delete' %} "{{ object }}"?</p>
+          <p>{% trans 'Are you sure you want to delete' %} "{{ object }}" {% trans 'All heirs will be deleted' %}?</p>
           <input type="submit">
         </form>
       </div>

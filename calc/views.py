@@ -38,13 +38,14 @@ class DeceasedCreate(CreateView):
 
 class DeceasedUpdate(UpdateView):
     model = Deceased
-    fields = ['first_name','last_name','sex', 'estate']
+    fields = ['first_name','last_name', 'estate']
 
 class DeceasedDelete(DeleteView):
     model = Deceased
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
         self.calc = self.object.calc # assuming that deceased have a foreignkey reference to Calculation model
+        self.calc.heir_set.all().delete()
         self.object.delete()
         success_url = self.get_success_url()
         return HttpResponseRedirect(success_url)
