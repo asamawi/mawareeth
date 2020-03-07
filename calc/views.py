@@ -164,6 +164,78 @@ class WifeCreate(CreateView):
         form.instance.calc.add_wife(self.object)
         return super().form_valid(form)
 
+class DaughterCreate(CreateView):
+    model = Daughter
+    fields = ['first_name','last_name']
+    template_name = 'calc/heir_form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Overridden so we can make sure the `calc` instance exists
+        before going any further.
+        """
+        self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        """
+        Overridden to add the relation to the calculation instance.
+        """
+        form.instance.calc = self.calc
+        self.object = form.save()
+        self.object.sex ="F"
+        self.object.save()
+        if form.instance.calc.deceased_set.first().sex =='M':
+            father = form.instance.calc.deceased_set.first()
+            if form.instance.calc.deceased_set.first().female.count()==1:
+                mother =form.instance.calc.deceased_set.first().female.first()
+            elif form.instance.calc.deceased_set.first().female.count()==0:
+                mother = None
+        else:
+             mother = form.instance.calc.deceased_set.first()
+             if form.instance.calc.deceased_set.first().male.count()==1:
+                 father = form.instance.calc.deceased_set.first().male.first()
+             else:
+                 father = None
+        form.instance.calc.add_daughter(self.object, mother=mother, father=father)
+        return super().form_valid(form)
+
+class SonCreate(CreateView):
+    model = Son
+    fields = ['first_name','last_name']
+    template_name = 'calc/heir_form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Overridden so we can make sure the `calc` instance exists
+        before going any further.
+        """
+        self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        """
+        Overridden to add the relation to the calculation instance.
+        """
+        form.instance.calc = self.calc
+        self.object = form.save()
+        self.object.sex="M"
+        self.object.save()
+        if form.instance.calc.deceased_set.first().sex =='M':
+            father = form.instance.calc.deceased_set.first()
+            if form.instance.calc.deceased_set.first().female.count()==1:
+                mother =form.instance.calc.deceased_set.first().female.first()
+            elif form.instance.calc.deceased_set.first().female.count()==0:
+                mother = None
+        else:
+             mother = form.instance.calc.deceased_set.first()
+             if form.instance.calc.deceased_set.first().male.count()==1:
+                 father = form.instance.calc.deceased_set.first().male.first()
+             else:
+                 father = None
+        form.instance.calc.add_son(self.object, mother=mother, father=father)
+        return super().form_valid(form)
+
 class HeirUpdate(UpdateView):
     model = Heir
     fields = ['first_name','last_name']

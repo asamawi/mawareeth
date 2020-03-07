@@ -73,6 +73,16 @@
     {% icon 'plus' %}{%trans ' Husband' %}
   </button>
   {% endif %}
+  <button type="button" class="btn btn-primary" data-toggle="modal"
+  data-target="#add" data-name="Daughter" data-heir="{% trans 'Daughter' %}"
+  data-url="{% url 'calc:daughter' calculation.id %}">
+  {% icon 'plus' %}{%trans ' Daughter' %}
+</button>
+<button type="button" class="btn btn-primary" data-toggle="modal"
+data-target="#add" data-name="Son" data-heir="{% trans 'Son' %}"
+data-url="{% url 'calc:son' calculation.id %}">
+{% icon 'plus' %}{%trans ' Son' %}
+</button>
   </div>
 </div>
 {% else %}
