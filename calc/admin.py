@@ -1,7 +1,7 @@
 from django.contrib import admin
 from polymorphic.admin import PolymorphicParentModelAdmin, PolymorphicChildModelAdmin, PolymorphicChildModelFilter
 
-from .models import Calculation, Person, Marriage, Heir,Deceased, Father, Mother
+from .models import *
 
 admin.site.register(Calculation)
 admin.site.register(Marriage)
@@ -31,11 +31,34 @@ class FatherAdmin(HeirAdmin):
     # define custom features here
 
 @admin.register(Mother)
-class FatherAdmin(HeirAdmin):
+class MotherAdmin(HeirAdmin):
     base_model = Mother  # Explicitly set here!
     show_in_index = True
     # define custom features here
 
+@admin.register(Husband)
+class HusbandAdmin(HeirAdmin):
+    base_model = Husband  # Explicitly set here!
+    show_in_index = True
+    # define custom features here
+
+@admin.register(Wife)
+class WifeAdmin(HeirAdmin):
+    base_model = Wife  # Explicitly set here!
+    show_in_index = True
+    # define custom features here
+
+@admin.register(Daughter)
+class DaughterAdmin(HeirAdmin):
+    base_model = Daughter  # Explicitly set here!
+    show_in_index = True
+    # define custom features here
+
+@admin.register(Son)
+class SonAdmin(HeirAdmin):
+    base_model = Son  # Explicitly set here!
+    show_in_index = True
+    # define custom features here
 @admin.register(Person)
 class PersonAdmin(PolymorphicParentModelAdmin):
     """ The parent model admin """

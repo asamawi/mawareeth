@@ -71,7 +71,7 @@ class Person(PolymorphicModel):
 
     def add_husband(self, husband):
         #check for existing marriages
-        if self.female.count() == 0:
+        if self.male.count() == 0:
             m = Marriage.objects.create()
             m.add_male(husband)
             m.add_female(self)
@@ -81,13 +81,54 @@ class Person(PolymorphicModel):
 
     def add_wife(self, wife):
         #check for existing marriages
-        if self.male.count() < 4:
+        if self.female.count() < 4:
             m = Marriage.objects.create()
             m.add_male(self)
             m.add_female(wife)
             return m
         else:
             raise _("Cann't have more than 4 wifes")
+
+    def add_daughter(self, daughter, mother, father):
+
+        #check if person is a male
+        if self.sex == 'M':
+            #check for marriages
+            if self.male.count() != 0:
+                daughter.parents=Marriage.objects.get(male=self, female=mother)
+            else:
+                daughter.parents=Marriage.objects.create()
+                daughter.parents.add_male(self)
+                daughter.parents.add_female(mother)
+
+        elif self.sex == 'F':
+            if self.female.count() != 0:
+                daughter.parents=Marriage.objects.get(female=self, male=father)
+            else:
+                daughter.parents=Marriage.objects.create()
+                daughter.parents.add_male(father)
+                daughter.parents.add_female(self)
+
+    def add_son(self, son, mother, father):
+
+        #check if person is a male
+        if self.sex == 'M':
+            #check for marriages
+            if self.male.count() != 0:
+                son.parents=Marriage.objects.get(male=self, female=mother)
+            else:
+                son.parents=Marriage.objects.create()
+                son.parents.add_male(self)
+                son.parents.add_female(mother)
+
+        elif self.sex == 'F':
+            if self.female.count() != 0:
+                son.parents=Marriage.objects.get(female=self, male=father)
+            else:
+                son.parents=Marriage.objects.create()
+                son.parents.add_male(father)
+                son.parents.add_female(self)
+
     def __str__(self):
         return f"{self.first_name} id: {self.id}"
 
@@ -124,6 +165,12 @@ class Calculation(models.Model):
 
     def add_wife(self, wife):
         return Wife().add(calc=self, wife=wife)
+
+    def add_daughter(self, daughter, mother, father):
+        return Daughter().add(calc=self, daughter=daughter,mother=mother, father=father)
+
+    def add_son(self, son, mother, father):
+        return Son().add(calc=self, son=son, mother=mother, father=father)
 
     def __str__(self):
         return str(self.name)
@@ -165,10 +212,12 @@ class Wife(Heir):
         calc.deceased_set.first().add_wife(wife=wife)
 
 class Daughter(Heir):
-    pass
+    def add(self, calc, daughter, mother, father):
+        calc.deceased_set.first().add_daughter(daughter=daughter, mother=mother, father=father)
 
 class Son(Heir):
-    pass
+    def add(self, calc, son, mother, father):
+        calc.deceased_set.first().add_son(son=son, mother=mother, father=father)
 
 class Brother(Heir):
     pass
