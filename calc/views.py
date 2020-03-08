@@ -187,14 +187,14 @@ class DaughterCreate(CreateView):
         self.object.save()
         if form.instance.calc.deceased_set.first().sex =='M':
             father = form.instance.calc.deceased_set.first()
-            if form.instance.calc.deceased_set.first().female.count()==1:
-                mother =form.instance.calc.deceased_set.first().female.first()
-            elif form.instance.calc.deceased_set.first().female.count()==0:
+            if form.instance.calc.deceased_set.first().male.count()==1:
+                mother =form.instance.calc.deceased_set.first().male.first().female
+            elif form.instance.calc.deceased_set.first().male.count()==0:
                 mother = None
         else:
              mother = form.instance.calc.deceased_set.first()
-             if form.instance.calc.deceased_set.first().male.count()==1:
-                 father = form.instance.calc.deceased_set.first().male.first()
+             if form.instance.calc.deceased_set.first().female.count()==1:
+                 father = form.instance.calc.deceased_set.first().female.first().male
              else:
                  father = None
         form.instance.calc.add_daughter(self.object, mother=mother, father=father)
@@ -223,14 +223,14 @@ class SonCreate(CreateView):
         self.object.save()
         if form.instance.calc.deceased_set.first().sex =='M':
             father = form.instance.calc.deceased_set.first()
-            if form.instance.calc.deceased_set.first().female.count()==1:
-                mother =form.instance.calc.deceased_set.first().female.first()
-            elif form.instance.calc.deceased_set.first().female.count()==0:
+            if form.instance.calc.deceased_set.first().male.count()==1:
+                mother =form.instance.calc.deceased_set.first().male.first().female
+            elif form.instance.calc.deceased_set.first().male.count()==0:
                 mother = None
         else:
              mother = form.instance.calc.deceased_set.first()
-             if form.instance.calc.deceased_set.first().male.count()==1:
-                 father = form.instance.calc.deceased_set.first().male.first()
+             if form.instance.calc.deceased_set.first().female.count()==1:
+                 father = form.instance.calc.deceased_set.first().female.first().male
              else:
                  father = None
         form.instance.calc.add_son(self.object, mother=mother, father=father)
