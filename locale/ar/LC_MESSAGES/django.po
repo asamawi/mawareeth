@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-03-18 00:09+0300\n"
+"POT-Creation-Date: 2020-03-18 00:33+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -20,14 +20,10 @@ msgstr ""
 "&& n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
 
 #: .\calc\forms.py:7 .\calc\forms.py:12
-#, fuzzy
-#| msgid "First Name:"
 msgid "First Name"
 msgstr "الاسم الاول"
 
 #: .\calc\forms.py:8 .\calc\forms.py:13
-#, fuzzy
-#| msgid "Last Name:"
 msgid "Last Name"
 msgstr "الاسم الاخير"
 
@@ -48,8 +44,6 @@ msgid "Cann't have more than 4 wifes"
 msgstr "لا يمكن اضافة اكثر من 4 زوجات"
 
 #: .\calc\templates\calc\base.html:19 .\calc\templates\calc\base.html:22
-#, fuzzy
-#| msgid "| Mawareeth 2.0"
 msgid "Mawareeth 2.0"
 msgstr "مواريث 2.0"
 
@@ -128,26 +122,20 @@ msgid "Deceased estate:"
 msgstr "التركة"
 
 #: .\calc\templates\calc\detail.html:50
-#, fuzzy
-#| msgid "Father"
 msgid "Mother"
 msgstr "ام"
 
 #: .\calc\templates\calc\detail.html:52
-#, fuzzy
-#| msgid "Father"
 msgid " Mother"
-msgstr "ام"
+msgstr " ام"
 
 #: .\calc\templates\calc\detail.html:57
 msgid "Father"
 msgstr "اب"
 
 #: .\calc\templates\calc\detail.html:59
-#, fuzzy
-#| msgid "Father"
 msgid " Father"
-msgstr "اب"
+msgstr " اب"
 
 #: .\calc\templates\calc\detail.html:64
 msgid "Wife"
@@ -214,14 +202,16 @@ msgid "Estate:"
 msgstr "التركة"
 
 #: .\calc\templates\calc\detail.html:148
-#, fuzzy
-#| msgid "Father"
 msgid "Mother:"
-msgstr "ام"
+msgstr "ام:"
 
 #: .\calc\templates\calc\detail.html:151
 msgid "--- Select Mother ---"
 msgstr "--- اختر الام ---"
+
+#: .\calc\templates\calc\detail.html:163
+msgid "Close"
+msgstr "الغاء"
 
 #: .\calc\templates\calc\error.html:7
 msgid "error"
@@ -322,8 +312,6 @@ msgid "Already registered"
 msgstr "تم التسجيل سابقا"
 
 #: .\calc\views.py:29
-#, fuzzy
-#| msgid "Deceased estate:"
 msgid "Decease already exist"
 msgstr "يوجد متوفى"
 
@@ -343,7 +331,7 @@ msgstr "الانجليزية"
 #~ msgstr "اضافة الاب"
 
 #~ msgid "Father name:"
-#~ msgstr "اسم الاب"
+#~ msgstr "اسم الاب:"
 
 #~ msgid "View this page in:"
 #~ msgstr "تصفح هذه الصفحة باللغات التالية:"
