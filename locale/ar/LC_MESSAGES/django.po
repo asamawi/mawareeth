@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-01-15 07:03+0300\n"
+"POT-Creation-Date: 2020-03-18 00:09+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,121 +19,217 @@ msgstr ""
 "Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
 "&& n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
 
-#: .\calc\templates\calc\base.html:18 .\calc\templates\calc\base.html:21
+#: .\calc\forms.py:7 .\calc\forms.py:12
+#, fuzzy
+#| msgid "First Name:"
+msgid "First Name"
+msgstr "الاسم الاول"
+
+#: .\calc\forms.py:8 .\calc\forms.py:13
+#, fuzzy
+#| msgid "Last Name:"
+msgid "Last Name"
+msgstr "الاسم الاخير"
+
+#: .\calc\models.py:50
+msgid "father already exist"
+msgstr "الاب موجود"
+
+#: .\calc\models.py:62 .\calc\views.py:71
+msgid "Mother already exist"
+msgstr "الام موجودة"
+
+#: .\calc\models.py:80 .\calc\views.py:125
+msgid "Husband already exist"
+msgstr "الزوج موجود"
+
+#: .\calc\models.py:90 .\calc\views.py:152
+msgid "Cann't have more than 4 wifes"
+msgstr "لا يمكن اضافة اكثر من 4 زوجات"
+
+#: .\calc\templates\calc\base.html:19 .\calc\templates\calc\base.html:22
 #, fuzzy
 #| msgid "| Mawareeth 2.0"
 msgid "Mawareeth 2.0"
 msgstr "مواريث 2.0"
 
-#: .\calc\templates\calc\base.html:29 .\calc\templates\calc\index.html:7
+#: .\calc\templates\calc\base.html:30 .\calc\templates\calc\index.html:7
 msgid "Home"
 msgstr "الرئيسية"
 
-#: .\calc\templates\calc\base.html:32
+#: .\calc\templates\calc\base.html:33
 msgid "About"
 msgstr "من نحن"
 
-#: .\calc\templates\calc\base.html:36
+#: .\calc\templates\calc\base.html:37
 msgid "Dropdown"
 msgstr "قائمة منسدلة"
 
-#: .\calc\templates\calc\base.html:39
+#: .\calc\templates\calc\base.html:40
 msgid "Action"
 msgstr "اجراء"
 
-#: .\calc\templates\calc\base.html:40
+#: .\calc\templates\calc\base.html:41
 msgid "Another action"
 msgstr "اجراء اخر"
 
-#: .\calc\templates\calc\base.html:42
+#: .\calc\templates\calc\base.html:43
 msgid "Something else here"
 msgstr "شي اخر هنا"
 
-#: .\calc\templates\calc\base.html:50
+#: .\calc\templates\calc\base.html:51
 msgid "Welcome "
 msgstr "اهلا بكم"
 
-#: .\calc\templates\calc\base.html:50
+#: .\calc\templates\calc\base.html:51
 msgid " logout "
 msgstr "تسجيل خروج"
 
-#: .\calc\templates\calc\base.html:52
+#: .\calc\templates\calc\base.html:53
 msgid "login"
 msgstr "تسجيل دخول"
 
-#: .\calc\templates\calc\base.html:53
+#: .\calc\templates\calc\base.html:54
 #: .\calc\templates\registration\login.html:62
 #: .\calc\templates\registration\signup.html:7
 msgid "Sign Up"
 msgstr "تسجيل"
 
-#: .\calc\templates\calc\detail.html:8
-msgid "Calculation"
-msgstr "مسألة "
-
-#: .\calc\templates\calc\detail.html:21
-msgid "Calculation name:"
-msgstr "اسم المسألة"
-
-#: .\calc\templates\calc\detail.html:25 .\calc\templates\calc\detail.html:38
+#: .\calc\templates\calc\deceased_confirm_delete.html:8
+#: .\calc\templates\calc\deceased_form.html:9
+#: .\calc\templates\calc\detail.html:29 .\calc\templates\calc\detail.html:89
+#: .\calc\templates\calc\heir_confirm_delete.html:8
 msgid "Deceased"
 msgstr "الميت"
 
-#: .\calc\templates\calc\detail.html:28
+#: .\calc\templates\calc\deceased_confirm_delete.html:26
+#: .\calc\templates\calc\heir_confirm_delete.html:26
+msgid "Are you sure you want to delete"
+msgstr "هل انت متاكد من الحذف؟"
+
+#: .\calc\templates\calc\deceased_confirm_delete.html:26
+msgid "All heirs will be deleted"
+msgstr "سيتم حذف جميع الورثة"
+
+#: .\calc\templates\calc\detail.html:10
+msgid "Calculation"
+msgstr "مسألة "
+
+#: .\calc\templates\calc\detail.html:23
+msgid "Calculation name:"
+msgstr "اسم المسألة"
+
+#: .\calc\templates\calc\detail.html:44
 msgid "Deceased name:"
 msgstr "اسم الميت"
 
-#: .\calc\templates\calc\detail.html:29
+#: .\calc\templates\calc\detail.html:45
 msgid "Deceased estate:"
 msgstr "التركة"
 
-#: .\calc\templates\calc\detail.html:33 .\calc\templates\calc\detail.html:42
+#: .\calc\templates\calc\detail.html:50
+#, fuzzy
+#| msgid "Father"
+msgid "Mother"
+msgstr "ام"
+
+#: .\calc\templates\calc\detail.html:52
+#, fuzzy
+#| msgid "Father"
+msgid " Mother"
+msgstr "ام"
+
+#: .\calc\templates\calc\detail.html:57
 msgid "Father"
 msgstr "اب"
 
-#: .\calc\templates\calc\detail.html:33
-msgid "Add Father"
-msgstr "اضافة الاب"
+#: .\calc\templates\calc\detail.html:59
+#, fuzzy
+#| msgid "Father"
+msgid " Father"
+msgstr "اب"
 
-#: .\calc\templates\calc\detail.html:38
+#: .\calc\templates\calc\detail.html:64
+msgid "Wife"
+msgstr "زوجة"
+
+#: .\calc\templates\calc\detail.html:66
+msgid " Wife"
+msgstr " زوجة"
+
+#: .\calc\templates\calc\detail.html:71
+msgid "Husband"
+msgstr "زوج"
+
+#: .\calc\templates\calc\detail.html:73
+msgid " Husband"
+msgstr " زوج"
+
+#: .\calc\templates\calc\detail.html:77
+msgid "Daughter"
+msgstr "بنت"
+
+#: .\calc\templates\calc\detail.html:79
+msgid " Daughter"
+msgstr " بنت"
+
+#: .\calc\templates\calc\detail.html:82
+msgid "Son"
+msgstr "ابن"
+
+#: .\calc\templates\calc\detail.html:84
+msgid " Son"
+msgstr " ابن"
+
+#: .\calc\templates\calc\detail.html:89
 msgid "Add Deceased"
 msgstr "اضافة الميت"
 
-#: .\calc\templates\calc\detail.html:45
-msgid "Father name:"
-msgstr "اسم الاب"
-
-#: .\calc\templates\calc\detail.html:58 .\calc\templates\calc\detail.html:83
+#: .\calc\templates\calc\detail.html:124 .\calc\templates\calc\detail.html:164
 msgid "Add"
 msgstr "اضافة"
 
-#: .\calc\templates\calc\detail.html:62
+#: .\calc\templates\calc\detail.html:128
 msgid "First Name:"
 msgstr "الاسم الاول"
 
-#: .\calc\templates\calc\detail.html:66
+#: .\calc\templates\calc\detail.html:132
 msgid "Last Name:"
 msgstr "الاسم الاخير"
 
-#: .\calc\templates\calc\detail.html:70
+#: .\calc\templates\calc\detail.html:136
 msgid "Sex:"
 msgstr "الجنس"
 
-#: .\calc\templates\calc\detail.html:72
+#: .\calc\templates\calc\detail.html:138
 msgid "Male"
 msgstr "ذكر"
 
-#: .\calc\templates\calc\detail.html:73
+#: .\calc\templates\calc\detail.html:139
 msgid "Female"
 msgstr "انثى"
 
-#: .\calc\templates\calc\detail.html:77
+#: .\calc\templates\calc\detail.html:143
 msgid "Estate:"
 msgstr "التركة"
+
+#: .\calc\templates\calc\detail.html:148
+#, fuzzy
+#| msgid "Father"
+msgid "Mother:"
+msgstr "ام"
+
+#: .\calc\templates\calc\detail.html:151
+msgid "--- Select Mother ---"
+msgstr "--- اختر الام ---"
 
 #: .\calc\templates\calc\error.html:7
 msgid "error"
 msgstr "خطاء"
+
+#: .\calc\templates\calc\heir_form.html:9
+msgid "Heir"
+msgstr "وارث"
 
 #: .\calc\templates\calc\index.html:21
 msgid "Create new calculation"
@@ -225,13 +321,29 @@ msgstr "تاكيد كلمة المرور:"
 msgid "Already registered"
 msgstr "تم التسجيل سابقا"
 
-#: .\mawareeth\settings.py:154
+#: .\calc\views.py:29
+#, fuzzy
+#| msgid "Deceased estate:"
+msgid "Decease already exist"
+msgstr "يوجد متوفى"
+
+#: .\calc\views.py:98
+msgid "Father already exist"
+msgstr "الاب موجود"
+
+#: .\mawareeth\settings.py:155
 msgid "Arabic"
 msgstr "العربية"
 
-#: .\mawareeth\settings.py:155
+#: .\mawareeth\settings.py:156
 msgid "English"
 msgstr "الانجليزية"
+
+#~ msgid "Add Father"
+#~ msgstr "اضافة الاب"
+
+#~ msgid "Father name:"
+#~ msgstr "اسم الاب"
 
 #~ msgid "View this page in:"
 #~ msgstr "تصفح هذه الصفحة باللغات التالية:"
