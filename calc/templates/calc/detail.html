@@ -83,7 +83,7 @@ data-target="#add" data-name="Son" data-heir="{% trans 'Son' %}"
 data-url="{% url 'calc:son' calculation.id %}">
 {% icon 'plus' %}{%trans ' Son' %}
 </button>
-  </div>
+</div>
 </div>
 {% else %}
 <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Deceased" data-heir="{% trans 'Deceased' %}" data-url="{% url 'calc:deceased' calculation.id %}">{%trans 'Add Deceased' %}</button>
@@ -139,10 +139,25 @@ data-url="{% url 'calc:son' calculation.id %}">
               <option value='F'>{% trans 'Female' %}</option>
             </select>
           </div>
-          <div id="estate-form-group"class="form-group">
+          <div id="estate-form-group" class="form-group">
             <label for="estate" class="col-form-label">{% trans 'Estate:' %}</label>
             <input type="text" class="form-control" id="estate" name="estate">
           </div>
+          {% if Wife.count > 1 %}
+          <div id="mother-form-group" class="form-group" >
+            <label for="mother" class="col-form-label">{% trans 'Mother:' %}</label>
+            <select class="form-control" id="mother" name="mother">
+              <option value="">
+                {% trans '--- Select Mother ---' %}
+              </option>
+              {% for mother in Wife %}
+              <option value="{{ mother.pk }}">
+                {{ mother.first_name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
@@ -174,6 +189,12 @@ data-url="{% url 'calc:son' calculation.id %}">
     else {
       $('#estate-form-group').css('display','block');
       $('#sex-form-group').css('display','block');
+    }
+    if (button.data('name') != 'Daughter' && button.data('name') != 'Son'  ){
+      $('#mother-form-group').css('display','none');
+    }
+    else {
+      $('#mother-form-group').css('display','block');
     }
   })
 </script>
