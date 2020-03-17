@@ -63,5 +63,5 @@ class SonAdmin(HeirAdmin):
 class PersonAdmin(PolymorphicParentModelAdmin):
     """ The parent model admin """
     base_model = Person  # Optional, explicitly set here.
-    child_models = (Father, Mother, Deceased)
+    child_models = (Father, Mother, Deceased, Daughter, Son)
     list_filter = (PolymorphicChildModelFilter,)  # This is optional.
