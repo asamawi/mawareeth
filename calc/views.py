@@ -191,6 +191,8 @@ class DaughterCreate(CreateView):
                 mother =form.instance.calc.deceased_set.first().male.first().female
             elif form.instance.calc.deceased_set.first().male.count()==0:
                 mother = None
+            else:
+                mother = get_object_or_404(Wife, pk=self.request.POST.get('mother'))
         else:
              mother = form.instance.calc.deceased_set.first()
              if form.instance.calc.deceased_set.first().female.count()==1:
@@ -227,6 +229,8 @@ class SonCreate(CreateView):
                 mother =form.instance.calc.deceased_set.first().male.first().female
             elif form.instance.calc.deceased_set.first().male.count()==0:
                 mother = None
+            else:
+                mother = get_object_or_404(Wife, pk=self.request.POST.get('mother'))
         else:
              mother = form.instance.calc.deceased_set.first()
              if form.instance.calc.deceased_set.first().female.count()==1:
