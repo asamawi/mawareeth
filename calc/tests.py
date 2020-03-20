@@ -249,3 +249,56 @@ class HusbandQuoteTestCase(TestCase):
         self.assertEquals(calc1.get_husband().asaba, False)
         self.assertEquals(Fraction(calc2.get_husband().quote).limit_denominator(), Fraction(1,2))
         self.assertEquals(calc2.get_husband().asaba, False)
+
+class WifeQuoteTestCase(TestCase):
+
+    def setUp(self):
+        user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
+        #case 1 where wife get 1/8
+        calc1 = Calculation.objects.create(name='calc1', user=user1)
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc1)
+        son1 = Son.objects.create(first_name="Son", last_name="test", sex="M", calc=calc1)
+        calc1.add_son(son1, mother=None, father=None)
+        wife1 = Wife.objects.create(first_name="Wife1", last_name="test", sex="F", calc=calc1)
+        calc1.add_wife(wife1)
+
+        #case 2  where wife get 1/4
+        calc2 = Calculation.objects.create(name='calc2', user=user1)
+        deceased2 = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="1000",calc=calc2)
+        mother2 = Mother.objects.create(first_name="Mother2", last_name="test", sex="F", calc=calc2)
+        calc2.add_mother(mother2)
+        father2 = Father.objects.create(first_name="Father2", last_name="test", sex="M", calc=calc2)
+        calc2.add_father(father2)
+        wife2 = Wife.objects.create(first_name="Wife2", last_name="test", sex="F", calc=calc2)
+        calc2.add_wife(wife2)
+
+        #case 3  where wives get 1/4
+        calc3 = Calculation.objects.create(name='calc3', user=user1)
+        deceased3 = Deceased.objects.create(first_name="Deceased3", last_name="test", sex="M",estate="1000",calc=calc3)
+        wife3 = Wife.objects.create(first_name="Wife3", last_name="test", sex="F", calc=calc3)
+        calc3.add_wife(wife3)
+        wife4 = Wife.objects.create(first_name="Wife3", last_name="test", sex="F", calc=calc3)
+        calc3.add_wife(wife4)
+        wife5 = Wife.objects.create(first_name="Wife3", last_name="test", sex="F", calc=calc3)
+        calc3.add_wife(wife5)
+
+    def test_husband_qet_quote(self):
+        calc1 = Calculation.objects.get(name="calc1")
+        calc2 = Calculation.objects.get(name="calc2")
+        calc3 = Calculation.objects.get(name="calc3")
+
+        calc1.get_quotes()
+        calc2.get_quotes()
+        calc3.get_quotes()
+
+        self.assertEquals(Fraction(calc1.get_wives().first().quote).limit_denominator(), Fraction(1,8))
+        self.assertEquals(calc1.get_wives().first().asaba, False)
+        self.assertEquals(calc1.get_wives().first().shared_quote, False)
+
+        self.assertEquals(Fraction(calc2.get_wives().first().quote).limit_denominator(), Fraction(1,4))
+        self.assertEquals(calc2.get_wives().first().asaba, False)
+        self.assertEquals(calc2.get_wives().first().shared_quote, False)
+
+        self.assertEquals(Fraction(calc3.get_wives().first().quote).limit_denominator(), Fraction(1,4))
+        self.assertEquals(calc3.get_wives().first().asaba, False)
+        self.assertEquals(calc3.get_wives().first().shared_quote, True)

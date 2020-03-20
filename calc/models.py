@@ -218,7 +218,9 @@ class Calculation(models.Model):
 
     def get_husband(self):
         return self.heir_set.instance_of(Husband).first()
-        
+    def get_wives(self):
+        return self.heir_set.instance_of(Wife)
+
 class Deceased(Person):
     """Deceased class"""
     estate = models.IntegerField()
@@ -296,10 +298,30 @@ class Husband(Heir):
             self.quote_reason = _("husband gets 1/2 becuase there is no decendent")
         self.save()
         return self.quote
+
 class Wife(Heir):
     """Wife class"""
     def add(self, calc, wife):
         calc.deceased_set.first().add_wife(wife=wife)
+
+    def get_quote(self, calc):
+        if calc.heir_set.instance_of(Wife).count() == 1:
+            if calc.has_descendent():
+                self.quote = 1/8
+                self.quote_reason = _("wife gets 1/8 becuase of decendent")
+            else:
+                self.quote = 1/4
+                self.quote_reason = _("wife gets 1/4 becuase there is no decendent")
+        else:
+            if calc.has_descendent():
+                self.quote = 1/8
+                self.quote_reason = _("wife gets 1/8 becuase of decendent")
+            else:
+                self.quote = 1/4
+                self.quote_reason = _("wife gets 1/4 becuase there is no decendent")
+            self.shared_quote = True
+        self.save()
+        return self.quote
 
 class Daughter(Heir):
     def add(self, calc, daughter, mother, father):
