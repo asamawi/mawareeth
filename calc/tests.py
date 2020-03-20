@@ -215,3 +215,37 @@ class MotherQuoteTestCase(TestCase):
         self.assertEquals(calc2.get_mother().asaba, False)
         self.assertEquals(Fraction(calc3.get_mother().quote).limit_denominator(), Fraction(1,6))
         self.assertEquals(calc3.get_mother().asaba, False)
+
+class HusbandQuoteTestCase(TestCase):
+
+    def setUp(self):
+        user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
+        #case 1 where Husband get 1/4
+        calc1 = Calculation.objects.create(name='calc1', user=user1)
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="F",estate="1000",calc=calc1)
+        son1 = Son.objects.create(first_name="Son", last_name="test", sex="M", calc=calc1)
+        calc1.add_son(son1, mother=None, father=None)
+        husband1 = Husband.objects.create(first_name="Husband1", last_name="test", sex="M", calc=calc1)
+        calc1.add_husband(husband1)
+
+        #case 2  where husband get 1/2
+        calc2 = Calculation.objects.create(name='calc2', user=user1)
+        deceased2 = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="F",estate="1000",calc=calc2)
+        mother2 = Mother.objects.create(first_name="Mother2", last_name="test", sex="F", calc=calc2)
+        calc2.add_mother(mother2)
+        father2 = Father.objects.create(first_name="Father2", last_name="test", sex="M", calc=calc2)
+        calc2.add_father(father2)
+        husband2 = Husband.objects.create(first_name="Husband2", last_name="test", sex="M", calc=calc2)
+        calc2.add_husband(husband2)
+
+    def test_father_qet_quote(self):
+        calc1 = Calculation.objects.get(name="calc1")
+        calc2 = Calculation.objects.get(name="calc2")
+
+        calc1.get_quotes()
+        calc2.get_quotes()
+
+        self.assertEquals(Fraction(calc1.get_husband().quote).limit_denominator(), Fraction(1,4))
+        self.assertEquals(calc1.get_husband().asaba, False)
+        self.assertEquals(Fraction(calc2.get_husband().quote).limit_denominator(), Fraction(1,2))
+        self.assertEquals(calc2.get_husband().asaba, False)
