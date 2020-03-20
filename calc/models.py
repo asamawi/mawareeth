@@ -197,8 +197,24 @@ class Calculation(models.Model):
 
     def has_female_descendent(self):
         return self.heir_set.instance_of(Daughter).count() > 0 or self.heir_set.instance_of(DaughterOfSon).count() > 0
+
+    def has_siblings(self):
+        return self.heir_set.instance_of(Brother).count() > 1  or self.heir_set.instance_of(PaternalHalfBrother).count() > 1 or self.heir_set.instance_of(MaternalHalfBrother).count() > 1 or self.heir_set.instance_of(Sister).count() > 1 or self.heir_set.instance_of(PaternalHalfSister).count() > 1 or self.heir_set.instance_of(MaternalHalfSister).count() > 1
+
+    def has_spouse(self):
+        if self.deceased_set.first().sex == 'M':
+            return self.heir_set.instance_of(Wife).count() > 0
+        else:
+            return self.heir_set.instance_of(Husband).count() > 0
+
+    def has_father(self):
+        return self.heir_set.instance_of(Father).count() > 0
+
     def get_father(self):
         return self.heir_set.instance_of(Father).first()
+
+    def get_mother(self):
+        return self.heir_set.instance_of(Mother).first()
 class Deceased(Person):
     """Deceased class"""
     estate = models.IntegerField()
@@ -211,7 +227,7 @@ class Heir(Person):
     shared_quote = models.BooleanField(default=False)    #prescribed share is shared with other heir like 2 daughters
     asaba = models.BooleanField(default=False)           #agnate or residuary
     blocked = models.BooleanField(default=False)         # restrcited from inheritance
-
+    quote_reason = models.CharField(max_length=255, default="")
     abstract = True
     calc = models.ForeignKey(Calculation, on_delete=NON_POLYMORPHIC_CASCADE,null=True)
     def get_absolute_url(self):
@@ -228,11 +244,14 @@ class Father(Heir):
     def get_quote(self, calc):
         if calc.has_male_descendent():
             self.quote = 1/6
+            self.quote_reason = _("father gets 1/6 prescribed share because of male decendent")
         elif calc.has_female_descendent():
             self.quote = 1/6
             self.asaba = True
+            self.quote_reason = _("father gets 1/6 plus remainder because of female decendent")
         else:
             self.asaba = True
+            self.quout_reason = _("father gets the remainder because there is no decendent")
         self.save()
         return self.quote
 
@@ -242,6 +261,21 @@ class Mother(Heir):
     """Mother class"""
     def add(self, calc, mother):
         calc.deceased_set.first().add_mother(mother=mother)
+
+    def get_quote(self, calc):
+        if calc.has_descendent() or calc.has_siblings():
+            self.quote = 1/6
+            self.quote_reason = _("mother gets 1/6 becasue of decendent or siblings")
+        elif calc.has_spouse() and calc.has_father():
+            if calc.deceased_set.first().sex == 'M':
+                self.quote = 1/4
+                self.quote_reason = _("mother gets 1/3 of the remainder which is 1/4.")
+            else:
+                self.quote = 1/6
+                self.quote_reason = _("mother gets 1/3 of the remainder which is 1/6")
+        self.save()
+        return self.quote
+
 
 
 class Husband(Heir):
