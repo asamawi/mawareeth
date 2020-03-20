@@ -55,3 +55,67 @@ class CalculationTestCase(TestCase):
         expected = (10, {'calc.Calculation': 1, 'calc.Deceased': 1, 'calc.Marriage': 1, 'calc.Father': 1, 'calc.Mother': 1, 'calc.Heir': 2, 'calc.Person': 3})
         result = calc.delete()
         self.assertEquals(result, expected)
+
+class CalculationHasDeceasedTestCase(TestCase):
+
+    def setUp(self):
+        user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
+        user2 = User.objects.create_user('sandra', 'bullock@missconj.com', 'sandrapassword')
+        calc1 = Calculation.objects.create(name='calc1', user=user1)
+        calc2 = Calculation.objects.create(name='calc2', user=user2)
+        calc3 = Calculation.objects.create(name='calc3', user=user2)
+
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc1)
+        deceased2 = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="1000",calc=calc2)
+
+        father = Father.objects.create(first_name="Father", last_name="test", sex="M", calc=calc1)
+        calc1.add_father(father)
+        mother = Mother.objects.create(first_name="Mother", last_name="test", sex="F", calc=calc1)
+        calc1.add_mother(mother)
+        daughter = Daughter.objects.create(first_name="Daughter", last_name="test", sex="F", calc=calc1)
+        calc1.add_daughter(daughter, mother=mother, father=father)
+        son = Son.objects.create(first_name="Son", last_name="test", sex="M", calc=calc2)
+        calc2.add_son(son, mother=mother, father=father)
+
+    def test_has_descenent(self):
+        calc1 = Calculation.objects.get(name="calc1")
+        calc2 = Calculation.objects.get(name="calc2")
+        calc3 = Calculation.objects.get(name="calc3")
+        self.assertEquals(calc1.has_descendent(), True)
+        self.assertEquals(calc2.has_descendent(), True)
+        self.assertEquals(calc3.has_descendent(), False)
+
+    def test_has_male_descenent(self):
+        calc1 = Calculation.objects.get(name="calc1")
+        calc2 = Calculation.objects.get(name="calc2")
+        calc3 = Calculation.objects.get(name="calc3")
+        self.assertEquals(calc1.has_male_descendent(), False)
+        self.assertEquals(calc2.has_male_descendent(), True)
+        self.assertEquals(calc3.has_male_descendent(), False)
+    def test_has_female_descenent(self):
+        calc1 = Calculation.objects.get(name="calc1")
+        calc2 = Calculation.objects.get(name="calc2")
+        calc3 = Calculation.objects.get(name="calc3")
+        self.assertEquals(calc1.has_female_descendent(), True)
+        self.assertEquals(calc2.has_female_descendent(), False)
+        self.assertEquals(calc3.has_female_descendent(), False)
+
+class FatherQuoteTestCase(TestCase):
+
+    def setUp(self):
+        user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
+        user2 = User.objects.create_user('sandra', 'bullock@missconj.com', 'sandrapassword')
+
+        calc1 = Calculation.objects.create(name='calc1', user=user1)
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc1)
+        father = Father.objects.create(first_name="Father", last_name="test", sex="M", calc=calc1)
+        calc1.add_father(father)
+        son1 = Son.objects.create(first_name="Son", last_name="test", sex="M", calc=calc1)
+        calc1.add_son(son1, mother=None, father=father)
+
+
+    def test_father_qet_quote(self):
+        calc1 = Calculation.objects.get(name="calc1")
+        calc1.get_quotes()
+        self.assertEquals(Fraction(calc1.get_father().quote).limit_denominator(), Fraction(1,6))
+        self.assertEquals(calc1.get_father().asaba, False)

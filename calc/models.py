@@ -4,6 +4,7 @@ from polymorphic.managers import PolymorphicManager
 from django.urls import reverse
 from django.utils.translation import gettext as _
 from polymorphic.managers import PolymorphicManager, PolymorphicQuerySet
+from fractions import Fraction
 
 
 
@@ -151,6 +152,12 @@ class Marriage(models.Model):
 
 class Calculation(models.Model):
     """Calculation for bequest class"""
+    shares = models.IntegerField(default=0)      # LCM for all prescribed shares
+    exces = models.BooleanField(default=False)       # if prescribed shares is greater than gcm
+    correction = models.BooleanField(default=False)  # shares and heirs number division should give no fractions
+    shares_exces = models.IntegerField(default=0)
+    shares_corrected = models.IntegerField(default=0)
+
     user = models.ForeignKey(User,on_delete=models.CASCADE,null=True)
     name = models.CharField(max_length=200)
 
@@ -175,6 +182,23 @@ class Calculation(models.Model):
     def __str__(self):
         return str(self.name)
 
+    def get_quotes(self):
+        for heir in self.heir_set.all():
+            heir.get_quote(self)
+
+    def lcm(a, b):
+        return abs(a*b) // math.gcd(a, b)
+
+    def has_descendent(self):
+        return self.heir_set.instance_of(Son).count() > 0 or self.heir_set.instance_of(Daughter).count() > 0 or self.heir_set.instance_of(SonOfSon).count() > 0 or self.heir_set.instance_of(DaughterOfSon).count() > 0
+
+    def has_male_descendent(self):
+        return self.heir_set.instance_of(Son).count() > 0 or self.heir_set.instance_of(SonOfSon).count() > 0
+
+    def has_female_descendent(self):
+        return self.heir_set.instance_of(Daughter).count() > 0 or self.heir_set.instance_of(DaughterOfSon).count() > 0
+    def get_father(self):
+        return self.heir_set.instance_of(Father).first()
 class Deceased(Person):
     """Deceased class"""
     estate = models.IntegerField()
@@ -183,17 +207,36 @@ class Deceased(Person):
         return reverse('calc:detail', args=[self.calc.id])
 class Heir(Person):
     """Heir class"""
+    quote = models.DecimalField(max_digits=11, decimal_places=10, default=0)  #prescribed share
+    shared_quote = models.BooleanField(default=False)    #prescribed share is shared with other heir like 2 daughters
+    asaba = models.BooleanField(default=False)           #agnate or residuary
+    blocked = models.BooleanField(default=False)         # restrcited from inheritance
+
     abstract = True
     calc = models.ForeignKey(Calculation, on_delete=NON_POLYMORPHIC_CASCADE,null=True)
     def get_absolute_url(self):
         return reverse('calc:detail', args=[self.calc.id])
     def __str__(self):
         return (self.first_name if self.first_name else " ")
+    def get_quote(self, calc):
+        pass
 
 class Father(Heir):
     """Father class"""
     def add(self, calc, father):
         calc.deceased_set.first().add_father(father=father)
+    def get_quote(self, calc):
+        if calc.has_male_descendent:
+            self.quote = 1/6
+        elif calc.has_female_descendent:
+            self.quote = 1/6
+            self.asaba = True
+        else:
+            self.asaba = True
+        self.save()
+        return self.quote
+
+
 
 class Mother(Heir):
     """Mother class"""
