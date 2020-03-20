@@ -238,7 +238,7 @@ class HusbandQuoteTestCase(TestCase):
         husband2 = Husband.objects.create(first_name="Husband2", last_name="test", sex="M", calc=calc2)
         calc2.add_husband(husband2)
 
-    def test_father_qet_quote(self):
+    def test_husband_qet_quote(self):
         calc1 = Calculation.objects.get(name="calc1")
         calc2 = Calculation.objects.get(name="calc2")
 
