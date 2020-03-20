@@ -226,9 +226,9 @@ class Father(Heir):
     def add(self, calc, father):
         calc.deceased_set.first().add_father(father=father)
     def get_quote(self, calc):
-        if calc.has_male_descendent:
+        if calc.has_male_descendent():
             self.quote = 1/6
-        elif calc.has_female_descendent:
+        elif calc.has_female_descendent():
             self.quote = 1/6
             self.asaba = True
         else:

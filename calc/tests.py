@@ -104,18 +104,34 @@ class FatherQuoteTestCase(TestCase):
 
     def setUp(self):
         user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
-        user2 = User.objects.create_user('sandra', 'bullock@missconj.com', 'sandrapassword')
-
+        #case 1 where father has quote 1/6 only
         calc1 = Calculation.objects.create(name='calc1', user=user1)
         deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc1)
         father = Father.objects.create(first_name="Father", last_name="test", sex="M", calc=calc1)
         calc1.add_father(father)
         son1 = Son.objects.create(first_name="Son", last_name="test", sex="M", calc=calc1)
         calc1.add_son(son1, mother=None, father=father)
-
+        #case 2 where father has quote 1/6 and remainder
+        calc2 = Calculation.objects.create(name='calc2', user=user1)
+        deceased2 = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="1000",calc=calc2)
+        father2 = Father.objects.create(first_name="Father2", last_name="test", sex="M", calc=calc2)
+        calc2.add_father(father2)
+        daughter = Daughter.objects.create(first_name="Daughter", last_name="test", sex="F", calc=calc2)
+        calc2.add_daughter(daughter, mother=None, father=father2)
+        #case 3 where father has remainder only
+        calc3 = Calculation.objects.create(name='calc3', user=user1)
+        deceased3 = Deceased.objects.create(first_name="Deceased3", last_name="test", sex="M",estate="1000",calc=calc3)
+        father3 = Father.objects.create(first_name="Father3", last_name="test", sex="M", calc=calc3)
 
     def test_father_qet_quote(self):
         calc1 = Calculation.objects.get(name="calc1")
+        calc2 = Calculation.objects.get(name="calc2")
+        calc3 = Calculation.objects.get(name="calc3")
         calc1.get_quotes()
+        calc2.get_quotes()
         self.assertEquals(Fraction(calc1.get_father().quote).limit_denominator(), Fraction(1,6))
         self.assertEquals(calc1.get_father().asaba, False)
+        self.assertEquals(Fraction(calc2.get_father().quote).limit_denominator(), Fraction(1,6))
+        self.assertEquals(calc2.get_father().asaba, True)
+        self.assertEquals(Fraction(calc3.get_father().quote).limit_denominator(), Fraction())
+        self.assertEquals(calc2.get_father().asaba, True)
