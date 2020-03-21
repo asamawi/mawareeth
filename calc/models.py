@@ -228,6 +228,9 @@ class Calculation(models.Model):
     def get_daughters(self):
         return self.heir_set.instance_of(Daughter)
 
+    def get_sons(self):
+        return self.heir_set.instance_of(Son)
+
 class Deceased(Person):
     """Deceased class"""
     estate = models.IntegerField()
@@ -331,7 +334,7 @@ class Wife(Heir):
         return self.quote
 
 class Daughter(Heir):
-    """ Daughter Class"""
+    """Daughter Class"""
     def add(self, calc, daughter, mother, father):
         calc.deceased_set.first().add_daughter(daughter=daughter, mother=mother, father=father)
 
@@ -349,9 +352,19 @@ class Daughter(Heir):
             self.quote_reason = _("Daughters share the quote of 2/3 when there is no son/s")
         self.save()
         return self.quote
+
 class Son(Heir):
+    """Son Class"""
     def add(self, calc, son, mother, father):
         calc.deceased_set.first().add_son(son=son, mother=mother, father=father)
+
+    def get_quote(self, calc):
+        if calc.heir_set.instance_of(Son).count() > 1:
+            self.shared_quote = True
+        self.asaba =  True
+        self.quote_reason = _("Son/s share the remainder or all amount if no other heir exist")
+        self.save()
+        return self.quote
 
 class Brother(Heir):
     pass

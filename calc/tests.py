@@ -365,3 +365,42 @@ class DaughterQuoteTestCase(TestCase):
         self.assertEquals(Fraction(calc4.get_daughters().first().quote).limit_denominator(), Fraction(2,3))
         self.assertEquals(calc4.get_daughters().first().asaba, False)
         self.assertEquals(calc4.get_daughters().first().shared_quote, True)
+
+class SonQuoteTestCase(TestCase):
+
+    def setUp(self):
+        user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
+        #case 1 where son get residuary i.e asaba (agnate)
+        calc1 = Calculation.objects.create(name='calc1', user=user1)
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc1)
+        son1 = Son.objects.create(first_name="Son1", last_name="test", sex="M", calc=calc1)
+        calc1.add_son(son1, mother=None, father=None)
+        daughter1 = Daughter.objects.create(first_name="Daughter1", last_name="test", sex="F", calc=calc1)
+        calc1.add_daughter(daughter1, mother=None, father=None)
+
+        #case 2 where Son share residuary i.e asaba (agnate)
+        calc2 = Calculation.objects.create(name='calc2', user=user1)
+        deceased2 = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="1000",calc=calc2)
+        son2 = Son.objects.create(first_name="Son2", last_name="test", sex="M", calc=calc2)
+        calc2.add_son(son2, mother=None, father=None)
+        son3 = Son.objects.create(first_name="Son3", last_name="test", sex="M", calc=calc2)
+        calc2.add_son(son3, mother=None, father=None)
+
+
+
+    def test_daughter_qet_quote(self):
+        calc1 = Calculation.objects.get(name="calc1")
+        calc2 = Calculation.objects.get(name="calc2")
+
+
+        calc1.get_quotes()
+        calc2.get_quotes()
+
+
+        self.assertEquals(Fraction(calc1.get_sons().first().quote).limit_denominator(), Fraction(0,1))
+        self.assertEquals(calc1.get_sons().first().asaba, True)
+        self.assertEquals(calc1.get_sons().first().shared_quote, False)
+
+        self.assertEquals(Fraction(calc2.get_sons().first().quote).limit_denominator(), Fraction(0,1))
+        self.assertEquals(calc2.get_sons().first().asaba, True)
+        self.assertEquals(calc2.get_sons().first().shared_quote, True)
