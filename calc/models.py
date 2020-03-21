@@ -5,6 +5,7 @@ from django.urls import reverse
 from django.utils.translation import gettext as _
 from polymorphic.managers import PolymorphicManager, PolymorphicQuerySet
 from fractions import Fraction
+from functools import reduce
 
 
 
@@ -189,6 +190,9 @@ class Calculation(models.Model):
     def lcm(a, b):
         return abs(a*b) // math.gcd(a, b)
 
+    def lcm_list(list):
+        return reduce(lambda a, b : lcm(a, b), list)
+
     def has_descendent(self):
         return self.heir_set.instance_of(Son).count() > 0 or self.heir_set.instance_of(Daughter).count() > 0 or self.heir_set.instance_of(SonOfSon).count() > 0 or self.heir_set.instance_of(DaughterOfSon).count() > 0
 
@@ -237,6 +241,21 @@ class Calculation(models.Model):
             fractions.add(heir.get_fraction())
         return fractions
 
+    def set_calc_shares(self):
+        count = self.heir_set.all().count()
+        males = self.heir_set.filter(sex='M').count()
+        females = self.heir_set.filter(sex='F').count()
+
+        #if all are asaba (agnates)
+        if self.heir_set.filter(asaba=True).count() == count:
+            #if all same gender
+            if   males == count or females  == count:
+                self.shares = count
+            else:
+                for heir in self.heir_set.all():
+                    self.shares = males * 2 + females
+        self.save()
+        return self.shares                 
 
 class Deceased(Person):
     """Deceased class"""

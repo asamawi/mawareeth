@@ -435,5 +435,9 @@ class CalculationGetSharesTestCase(TestCase):
         calc1.get_quotes()
         calc2.get_quotes()
 
+        calc1.set_calc_shares()
+        calc2.set_calc_shares()
+
         self.assertEquals(calc1.get_shares(), {Fraction(0,1)})
         self.assertEquals(calc2.get_shares(), {Fraction(1,2), Fraction(1,6)})
+        self.assertEquals(calc1.shares,3)
