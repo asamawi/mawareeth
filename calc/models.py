@@ -231,6 +231,13 @@ class Calculation(models.Model):
     def get_sons(self):
         return self.heir_set.instance_of(Son)
 
+    def get_shares(self):
+        fractions = set()
+        for heir in self.heir_set.all():
+            fractions.add(heir.get_fraction())
+        return fractions
+
+
 class Deceased(Person):
     """Deceased class"""
     estate = models.IntegerField()
@@ -252,6 +259,8 @@ class Heir(Person):
         return (self.first_name if self.first_name else " ")
     def get_quote(self, calc):
         pass
+    def get_fraction(self):
+        return Fraction(self.quote).limit_denominator()
 
 class Father(Heir):
     """Father class"""

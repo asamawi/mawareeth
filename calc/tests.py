@@ -404,3 +404,36 @@ class SonQuoteTestCase(TestCase):
         self.assertEquals(Fraction(calc2.get_sons().first().quote).limit_denominator(), Fraction(0,1))
         self.assertEquals(calc2.get_sons().first().asaba, True)
         self.assertEquals(calc2.get_sons().first().shared_quote, True)
+
+class CalculationGetSharesTestCase(TestCase):
+
+    def setUp(self):
+        user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
+
+        calc1 = Calculation.objects.create(name='calc1', user=user1)
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc1)
+        son1 = Son.objects.create(first_name="Son1", last_name="test", sex="M", calc=calc1)
+        calc1.add_son(son1, mother=None, father=None)
+        daughter1 = Daughter.objects.create(first_name="Daughter1", last_name="test", sex="F", calc=calc1)
+        calc1.add_daughter(daughter1, mother=None, father=None)
+
+        #case 2 where father has quote 1/6 and duaghter gets 1/2
+        calc2 = Calculation.objects.create(name='calc2', user=user1)
+        deceased2 = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="1000",calc=calc2)
+        father2 = Father.objects.create(first_name="Father2", last_name="test", sex="M", calc=calc2)
+        calc2.add_father(father2)
+        daughter = Daughter.objects.create(first_name="Daughter", last_name="test", sex="F", calc=calc2)
+        calc2.add_daughter(daughter, mother=None, father=father2)
+
+
+
+
+    def test_calc_get_share(self):
+        calc1 = Calculation.objects.get(name="calc1")
+        calc2 = Calculation.objects.get(name="calc2")
+
+        calc1.get_quotes()
+        calc2.get_quotes()
+
+        self.assertEquals(calc1.get_shares(), {Fraction(0,1)})
+        self.assertEquals(calc2.get_shares(), {Fraction(1,2), Fraction(1,6)})
