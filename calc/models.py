@@ -199,7 +199,7 @@ class Calculation(models.Model):
         return self.heir_set.instance_of(Daughter).count() > 0 or self.heir_set.instance_of(DaughterOfSon).count() > 0
 
     def has_siblings(self):
-        return self.heir_set.instance_of(Brother).count() > 1  or self.heir_set.instance_of(PaternalHalfBrother).count() > 1 or self.heir_set.instance_of(MaternalHalfBrother).count() > 1 or self.heir_set.instance_of(Sister).count() > 1 or self.heir_set.instance_of(PaternalHalfSister).count() > 1 or self.heir_set.instance_of(MaternalHalfSister).count() > 1
+        return self.heir_set.instance_of(Brother).count() + self.heir_set.instance_of(PaternalHalfBrother).count() + self.heir_set.instance_of(MaternalHalfBrother).count() + self.heir_set.instance_of(Sister).count() + self.heir_set.instance_of(PaternalHalfSister).count() + self.heir_set.instance_of(MaternalHalfSister).count() > 1
 
     def has_spouse(self):
         if self.deceased_set.first().sex == 'M':
@@ -210,6 +210,9 @@ class Calculation(models.Model):
     def has_father(self):
         return self.heir_set.instance_of(Father).count() > 0
 
+    def has_son(self):
+        return self.heir_set.instance_of(Son).count() > 0
+
     def get_father(self):
         return self.heir_set.instance_of(Father).first()
 
@@ -218,8 +221,12 @@ class Calculation(models.Model):
 
     def get_husband(self):
         return self.heir_set.instance_of(Husband).first()
+
     def get_wives(self):
         return self.heir_set.instance_of(Wife)
+
+    def get_daughters(self):
+        return self.heir_set.instance_of(Daughter)
 
 class Deceased(Person):
     """Deceased class"""
@@ -315,18 +322,33 @@ class Wife(Heir):
         else:
             if calc.has_descendent():
                 self.quote = 1/8
-                self.quote_reason = _("wife gets 1/8 becuase of decendent")
+                self.quote_reason = _("wives share the qoute of 1/8 becuase of decendent")
             else:
                 self.quote = 1/4
-                self.quote_reason = _("wife gets 1/4 becuase there is no decendent")
+                self.quote_reason = _("wives share the quote of 1/4 becuase there is no decendent")
             self.shared_quote = True
         self.save()
         return self.quote
 
 class Daughter(Heir):
+    """ Daughter Class"""
     def add(self, calc, daughter, mother, father):
         calc.deceased_set.first().add_daughter(daughter=daughter, mother=mother, father=father)
 
+    def get_quote(self, calc):
+        if calc.has_son():
+            self.asaba = True
+            if calc.heir_set.instance_of(Daughter).count() > 1:
+                self.shared_quote = True
+        elif calc.heir_set.instance_of(Daughter).count() == 1:
+            self.quote = 1/2
+            self.quote_reason = _("Daughter gets 1/2 when she has no other sibling/s")
+        else:
+            self.quote = 2/3
+            self.shared_quote = True
+            self.quote_reason = _("Daughters share the quote of 2/3 when there is no son/s")
+        self.save()
+        return self.quote
 class Son(Heir):
     def add(self, calc, son, mother, father):
         calc.deceased_set.first().add_son(son=son, mother=mother, father=father)
