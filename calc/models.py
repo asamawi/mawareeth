@@ -6,6 +6,7 @@ from django.utils.translation import gettext as _
 from polymorphic.managers import PolymorphicManager, PolymorphicQuerySet
 from fractions import Fraction
 from functools import reduce
+import math
 
 
 
@@ -187,11 +188,11 @@ class Calculation(models.Model):
         for heir in self.heir_set.all():
             heir.get_quote(self)
 
-    def lcm(a, b):
+    def lcm(self, a, b):
         return abs(a*b) // math.gcd(a, b)
 
-    def lcm_list(list):
-        return reduce(lambda a, b : lcm(a, b), list)
+    def lcm_list(self, list):
+        return reduce(lambda a, b : self.lcm(a, b), list)
 
     def has_descendent(self):
         return self.heir_set.instance_of(Son).count() > 0 or self.heir_set.instance_of(Daughter).count() > 0 or self.heir_set.instance_of(SonOfSon).count() > 0 or self.heir_set.instance_of(DaughterOfSon).count() > 0
@@ -245,6 +246,7 @@ class Calculation(models.Model):
         count = self.heir_set.all().count()
         males = self.heir_set.filter(sex='M').count()
         females = self.heir_set.filter(sex='F').count()
+        denom_list = []
 
         #if all are asaba (agnates)
         if self.heir_set.filter(asaba=True).count() == count:
@@ -254,8 +256,13 @@ class Calculation(models.Model):
             else:
                 for heir in self.heir_set.all():
                     self.shares = males * 2 + females
+        else:
+            fractions_set = self.get_shares()
+            for fraction in fractions_set:
+                denom_list.append(fraction.denominator)
+            self.shares = self.lcm_list(denom_list)
         self.save()
-        return self.shares                 
+        return self.shares
 
 class Deceased(Person):
     """Deceased class"""
