@@ -236,7 +236,7 @@ class Calculation(models.Model):
     def get_sons(self):
         return self.heir_set.instance_of(Son)
 
-    def get_shares(self):
+    def get_fractions(self):
         fractions = set()
         for heir in self.heir_set.all():
             fractions.add(heir.get_fraction())
@@ -257,12 +257,24 @@ class Calculation(models.Model):
                 for heir in self.heir_set.all():
                     self.shares = males * 2 + females
         else:
-            fractions_set = self.get_shares()
+            fractions_set = self.get_fractions()
             for fraction in fractions_set:
                 denom_list.append(fraction.denominator)
             self.shares = self.lcm_list(denom_list)
         self.save()
         return self.shares
+
+    def get_shares(self):
+        shares = 0
+        for  heir in self.heir_set.all():
+            shares = shares + heir.get_share()
+        return shares
+    def set_calc_correction(self):
+        pass
+    def get_corrected_shares(self):
+        pass
+    def set_calc_excess(self):
+        pass
 
 class Deceased(Person):
     """Deceased class"""
@@ -277,6 +289,7 @@ class Heir(Person):
     asaba = models.BooleanField(default=False)           #agnate or residuary
     blocked = models.BooleanField(default=False)         # restrcited from inheritance
     quote_reason = models.CharField(max_length=255, default="")
+    correction = models.BooleanField(default=False)
     abstract = True
     calc = models.ForeignKey(Calculation, on_delete=NON_POLYMORPHIC_CASCADE,null=True)
     def get_absolute_url(self):
@@ -285,6 +298,22 @@ class Heir(Person):
         return (self.first_name if self.first_name else " ")
     def get_quote(self, calc):
         pass
+    def get_share(self, calc):
+        if self.asaba == True:
+            return 0
+        elif self.shared_quote == True:
+            count = calc.instance_of( __class__ ).count()
+            share = calc.share / self.get_fraction().denominator / count
+            if isinstance(share, int):
+                return share
+            else:
+                self.correction=True
+                calc.correction=True
+                calc.save()
+                return 0
+        else:
+            return calc.share / self.get_fraction().denominator
+
     def get_fraction(self):
         return Fraction(self.quote).limit_denominator()
 
@@ -305,7 +334,6 @@ class Father(Heir):
             self.quote_reason = _("father gets the remainder because there is no decendent")
         self.save()
         return self.quote
-
 
 
 class Mother(Heir):
