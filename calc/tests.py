@@ -290,18 +290,27 @@ class WifeQuoteTestCase(TestCase):
         calc1.get_quotes()
         calc2.get_quotes()
         calc3.get_quotes()
+        calc1.set_calc_shares()
+        calc2.set_calc_shares()
+        calc3.set_calc_shares()
 
         self.assertEquals(Fraction(calc1.get_wives().first().quote).limit_denominator(), Fraction(1,8))
         self.assertEquals(calc1.get_wives().first().asaba, False)
         self.assertEquals(calc1.get_wives().first().shared_quote, False)
+        self.assertEquals(calc1.get_shares(),{Fraction(0, 1), Fraction(1, 8)})
+        self.assertEquals(calc1.shares,8)
 
         self.assertEquals(Fraction(calc2.get_wives().first().quote).limit_denominator(), Fraction(1,4))
         self.assertEquals(calc2.get_wives().first().asaba, False)
         self.assertEquals(calc2.get_wives().first().shared_quote, False)
+        self.assertEquals(calc2.get_shares(), {Fraction(0,1), Fraction(1,4)})
+        self.assertEquals(calc2.shares,4)
 
         self.assertEquals(Fraction(calc3.get_wives().first().quote).limit_denominator(), Fraction(1,4))
         self.assertEquals(calc3.get_wives().first().asaba, False)
         self.assertEquals(calc3.get_wives().first().shared_quote, True)
+        self.assertEquals(calc3.get_shares(), {Fraction(1,4)})
+        self.assertEquals(calc3.shares,4)
 
 class DaughterQuoteTestCase(TestCase):
 
@@ -350,21 +359,34 @@ class DaughterQuoteTestCase(TestCase):
         calc3.get_quotes()
         calc4.get_quotes()
 
+        calc1.set_calc_shares()
+        calc2.set_calc_shares()
+        calc3.set_calc_shares()
+        calc4.set_calc_shares()
+
         self.assertEquals(Fraction(calc1.get_daughters().first().quote).limit_denominator(), Fraction(0,1))
         self.assertEquals(calc1.get_daughters().first().asaba, True)
         self.assertEquals(calc1.get_daughters().first().shared_quote, False)
+        self.assertEquals(calc1.get_shares(), {Fraction(0,1)})
+        self.assertEquals(calc1.shares,3)
 
         self.assertEquals(Fraction(calc2.get_daughters().first().quote).limit_denominator(), Fraction(0,1))
         self.assertEquals(calc2.get_daughters().first().asaba, True)
         self.assertEquals(calc2.get_daughters().first().shared_quote, True)
+        self.assertEquals(calc1.get_shares(), {Fraction(0,1)})
+        self.assertEquals(calc2.shares,4)
 
         self.assertEquals(Fraction(calc3.get_daughters().first().quote).limit_denominator(), Fraction(1,2))
         self.assertEquals(calc3.get_daughters().first().asaba, False)
         self.assertEquals(calc3.get_daughters().first().shared_quote, False)
+        self.assertEquals(calc1.get_shares(), {Fraction(0,1)})
+        self.assertEquals(calc3.shares,2)
 
         self.assertEquals(Fraction(calc4.get_daughters().first().quote).limit_denominator(), Fraction(2,3))
         self.assertEquals(calc4.get_daughters().first().asaba, False)
         self.assertEquals(calc4.get_daughters().first().shared_quote, True)
+        self.assertEquals(calc1.get_shares(), {Fraction(0,1)})
+        self.assertEquals(calc4.shares,3)
 
 class SonQuoteTestCase(TestCase):
 
@@ -396,15 +418,18 @@ class SonQuoteTestCase(TestCase):
         calc1.get_quotes()
         calc2.get_quotes()
 
+        calc1.set_calc_shares()
+        calc2.set_calc_shares()
 
         self.assertEquals(Fraction(calc1.get_sons().first().quote).limit_denominator(), Fraction(0,1))
         self.assertEquals(calc1.get_sons().first().asaba, True)
         self.assertEquals(calc1.get_sons().first().shared_quote, False)
+        self.assertEquals(calc1.shares,3)
 
         self.assertEquals(Fraction(calc2.get_sons().first().quote).limit_denominator(), Fraction(0,1))
         self.assertEquals(calc2.get_sons().first().asaba, True)
         self.assertEquals(calc2.get_sons().first().shared_quote, True)
-
+        self.assertEquals(calc2.shares,2)
 class CalculationGetSharesTestCase(TestCase):
 
     def setUp(self):
