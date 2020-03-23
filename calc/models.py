@@ -7,6 +7,7 @@ from polymorphic.managers import PolymorphicManager, PolymorphicQuerySet
 from fractions import Fraction
 from functools import reduce
 import math
+from django.db.models import Count
 
 
 
@@ -244,12 +245,10 @@ class Calculation(models.Model):
 
     def set_calc_shares(self):
         count = self.heir_set.all().count()
-        males = self.heir_set.filter(sex='M').count()
-        females = self.heir_set.filter(sex='F').count()
-        denom_list = []
-
         #if all are asaba (agnates)
         if self.heir_set.filter(asaba=True).count() == count:
+            males = self.heir_set.filter(sex='M').count()
+            females = self.heir_set.filter(sex='F').count()
             #if all same gender
             if   males == count or females  == count:
                 self.shares = count
@@ -257,6 +256,7 @@ class Calculation(models.Model):
                 for heir in self.heir_set.all():
                     self.shares = males * 2 + females
         else:
+            denom_list = []
             fractions_set = self.get_fractions()
             for fraction in fractions_set:
                 denom_list.append(fraction.denominator)
@@ -267,10 +267,21 @@ class Calculation(models.Model):
     def get_shares(self):
         shares = 0
         for  heir in self.heir_set.all():
-            shares = shares + heir.get_share()
-        return shares
+            shares = shares + heir.get_share(self)
+        if self.correction == True:
+            return 0
+        else:
+            return shares
     def set_calc_correction(self):
-        pass
+            if self.heir_set.filter(correction=True).values('polymorphic_ctype_id').annotate(total=Count('id')).count() == 1:
+                heir_share = self.heir_set.filter(correction=True).first().get_share(self)
+                count = self.heir_set.filter(correction=True).count()
+                if count % heir_share == 0:
+                    self.shares_corrected = math.gcd(count, heir_share) * self.shares
+                else:
+                    self.shares_corrected = count * self.shares
+                self.save()
+                return self.shares_corrected
     def get_corrected_shares(self):
         pass
     def set_calc_excess(self):
@@ -286,6 +297,8 @@ class Heir(Person):
     """Heir class"""
     quote = models.DecimalField(max_digits=11, decimal_places=10, default=0)  #prescribed share
     shared_quote = models.BooleanField(default=False)    #prescribed share is shared with other heir like 2 daughters
+    share = models.IntegerField(default=0)
+    corrected_share = models.IntegerField(default=0)
     asaba = models.BooleanField(default=False)           #agnate or residuary
     blocked = models.BooleanField(default=False)         # restrcited from inheritance
     quote_reason = models.CharField(max_length=255, default="")
@@ -299,20 +312,22 @@ class Heir(Person):
     def get_quote(self, calc):
         pass
     def get_share(self, calc):
-        if self.asaba == True:
-            return 0
-        elif self.shared_quote == True:
-            count = calc.instance_of( __class__ ).count()
-            share = calc.share / self.get_fraction().denominator / count
-            if isinstance(share, int):
-                return share
+        share = calc.shares * self.get_fraction().numerator // self.get_fraction().denominator
+        if self.shared_quote == True:
+            count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
+            if share % count == 0:
+                self.share = share // count
+                self.save()
             else:
                 self.correction=True
                 calc.correction=True
+                self.share = share
+                self.save()
                 calc.save()
-                return 0
         else:
-            return calc.share / self.get_fraction().denominator
+            self.share=share
+            self.save()
+        return self.share
 
     def get_fraction(self):
         return Fraction(self.quote).limit_denominator()
