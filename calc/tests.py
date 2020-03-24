@@ -544,4 +544,4 @@ class CalculationSetCalcCorrectionTestCase(TestCase):
         self.assertEquals(calc1.get_father().get_share(calc1), 1)
         self.assertEquals(calc1.get_shares(), 0)
         self.assertEquals(calc1.shares, 6)
-        self.assertEquals(calc1.set_calc_correction(),1)
+        self.assertEquals(calc1.set_calc_correction(),18)
