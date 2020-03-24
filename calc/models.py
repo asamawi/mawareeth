@@ -372,7 +372,15 @@ class Heir(Person):
                 self.corrected_share = self.share * multiplier
                 self.save()
         return self.corrected_share
-
+    def get_amount(self, calc):
+        estate = calc.deceased_set.first().estate
+        if calc.correction == False:
+            if calc.excess == False:
+                return estate / calc.shares * self.share
+            else:
+                return estate / calc.shares_excess * self.share
+        else:
+            return estate / calc.shares_corrected * self.corrected_share
 
     def get_fraction(self):
         return Fraction(self.quote).limit_denominator()

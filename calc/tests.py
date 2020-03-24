@@ -553,7 +553,7 @@ class CalculationSetCalcExcessTestCase(TestCase):
         user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
 
         calc1 = Calculation.objects.create(name='calc1', user=user1)
-        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc1)
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="8100",calc=calc1)
         mother = Mother.objects.create(first_name="Mother", last_name="test", sex="F", calc=calc1)
         calc1.add_mother(mother)
         father = Father.objects.create(first_name="Father", last_name="test", sex="M", calc=calc1)
@@ -586,3 +586,7 @@ class CalculationSetCalcExcessTestCase(TestCase):
         self.assertEquals(calc1.get_mother().get_corrected_share(calc1),12)
         self.assertEquals(calc1.get_father().get_corrected_share(calc1),12)
         self.assertEquals(calc1.get_corrected_shares(),81)
+        self.assertEquals(calc1.get_daughters().first().get_amount(calc1),1600)
+        self.assertEquals(calc1.get_mother().get_amount(calc1),1200)
+        self.assertEquals(calc1.get_father().get_amount(calc1),1200)
+        self.assertEquals(calc1.get_wives().first().get_amount(calc1),900)
