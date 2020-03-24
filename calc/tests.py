@@ -581,3 +581,8 @@ class CalculationSetCalcExcessTestCase(TestCase):
         self.assertEquals(calc1.shares, 24)
         self.assertEquals(calc1.shares_excess, 27)
         self.assertEquals(calc1.set_calc_correction(),81)
+        self.assertEquals(calc1.shares_corrected,81)
+        self.assertEquals(calc1.get_daughters().first().get_corrected_share(calc1),16)
+        self.assertEquals(calc1.get_mother().get_corrected_share(calc1),12)
+        self.assertEquals(calc1.get_father().get_corrected_share(calc1),12)
+        self.assertEquals(calc1.get_corrected_shares(),81)

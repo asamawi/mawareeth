@@ -304,7 +304,11 @@ class Calculation(models.Model):
                 return self.shares_corrected
 
     def get_corrected_shares(self):
-        pass
+        if self.correction == True and self.shares_corrected != 0:
+            shares = 0
+            for  heir in self.heir_set.all():
+                shares = shares + heir.get_corrected_share(self)
+            return shares
 
     def compute(self):
         self.get_quotes()
@@ -354,6 +358,21 @@ class Heir(Person):
             self.share=share
             self.save()
         return self.share
+    def get_corrected_share(self, calc):
+        if calc.correction==True and calc.shares_corrected != 0:
+            if calc.excess == True:
+                multiplier = calc.shares_corrected // calc.shares_excess
+            else:
+                multiplier = calc.shares_corrected // calc.shares
+
+            if self.shared_quote == True:
+                self.corrected_share = self.share
+                self.save()
+            else:
+                self.corrected_share = self.share * multiplier
+                self.save()
+        return self.corrected_share
+
 
     def get_fraction(self):
         return Fraction(self.quote).limit_denominator()
