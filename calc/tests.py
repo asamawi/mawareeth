@@ -533,15 +533,51 @@ class CalculationSetCalcCorrectionTestCase(TestCase):
         calc1.get_quotes()
         calc1.set_calc_shares()
         calc1.get_shares()
-        calc1.set_calc_correction()
 
         self.assertEquals(calc1.get_fractions(), {Fraction(1,6),Fraction(2,3)})
         self.assertEquals(calc1.set_calc_shares(), 6)
         self.assertEquals(calc1.get_daughters().first().get_fraction(), Fraction(2,3))
         self.assertEquals(calc1.get_daughters().first().get_share(calc1), 4)
         self.assertEquals(calc1.get_daughters().first().correction, True)
+        self.assertEquals(calc1.get_daughters().count(), 3)
+        self.assertEquals(calc1.heir_set.filter(correction=True).count(),3)
         self.assertEquals(calc1.get_mother().get_share(calc1), 1)
         self.assertEquals(calc1.get_father().get_share(calc1), 1)
-        self.assertEquals(calc1.get_shares(), 0)
+        self.assertEquals(calc1.get_shares(), 6)
         self.assertEquals(calc1.shares, 6)
+        self.assertEquals(calc1.shares_excess, 0)
         self.assertEquals(calc1.set_calc_correction(),18)
+class CalculationSetCalcExcessTestCase(TestCase):
+
+    def setUp(self):
+        user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
+
+        calc1 = Calculation.objects.create(name='calc1', user=user1)
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc1)
+        mother = Mother.objects.create(first_name="Mother", last_name="test", sex="F", calc=calc1)
+        calc1.add_mother(mother)
+        father = Father.objects.create(first_name="Father", last_name="test", sex="M", calc=calc1)
+        calc1.add_father(father)
+        daughter1 = Daughter.objects.create(first_name="Daughter1", last_name="test", sex="F", calc=calc1)
+        calc1.add_daughter(daughter1, mother=None, father=None)
+        daughter2 = Daughter.objects.create(first_name="Daughter2", last_name="test", sex="F", calc=calc1)
+        calc1.add_daughter(daughter2, mother=None, father=None)
+        daughter3 = Daughter.objects.create(first_name="Daughter3", last_name="test", sex="F", calc=calc1)
+        calc1.add_daughter(daughter3, mother=None, father=None)
+        wife = Wife.objects.create(first_name="Wife", last_name="test", sex='F', calc=calc1)
+        calc1.add_wife(wife)
+
+    def test_set_calc_Excess(self):
+        calc1 = Calculation.objects.get(name="calc1")
+
+        calc1.get_quotes()
+        calc1.set_calc_shares()
+        calc1.get_shares()
+        calc1.set_calc_correction()
+
+        self.assertEquals(calc1.get_fractions(), {Fraction(1,6),Fraction(2,3),Fraction(1,8)})
+        self.assertEquals(calc1.set_calc_shares(), 24)
+        self.assertEquals(calc1.get_shares(), 27)
+        self.assertEquals(calc1.shares, 24)
+        self.assertEquals(calc1.shares_excess, 27)
+        self.assertEquals(calc1.set_calc_correction(),81)

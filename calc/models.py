@@ -212,6 +212,8 @@ class Calculation(models.Model):
             return self.heir_set.instance_of(Wife).count() > 0
         else:
             return self.heir_set.instance_of(Husband).count() > 0
+    def has_asaba(self):
+        return self.heir_set.filter(asaba=True).count() > 0
 
     def has_father(self):
         return self.heir_set.instance_of(Father).count() > 0
@@ -266,32 +268,50 @@ class Calculation(models.Model):
 
     def get_shares(self):
         shares = 0
-        for  heir in self.heir_set.all():
+        for  heir in self.heir_set.filter(correction=False):
             shares = shares + heir.get_share(self)
         if self.correction == True:
-            return 0
+            if self.heir_set.filter(correction=True).values('polymorphic_ctype_id').annotate(total=Count('id')).count() == 1:
+                shares = shares + self.heir_set.filter(correction=True).first().get_share(self)
+
+        if shares > self.shares:
+            self.excess = True
+            self.shares_excess = shares
+            self.save()
+            return self.shares_excess
         else:
+            self.excess = False
+            self.shares_excess = 0
+            self.save()
             return shares
     def set_calc_correction(self):
-        if self.correction == True and self.excess==False:
+        if self.correction == True:
             if self.heir_set.filter(correction=True).values('polymorphic_ctype_id').annotate(total=Count('id')).count() == 1:
                 heir_share = self.heir_set.filter(correction=True).first().get_share(self)
                 count = self.heir_set.filter(correction=True).count()
-                if count % heir_share == 0:
-                    self.shares_corrected = math.gcd(count, heir_share) * self.shares
+                shares = 0
+                if self.excess == True:
+                    shares = self.shares_excess
                 else:
-                    self.shares_corrected = count * self.shares
+                    shares = self.shares
+
+                if count % heir_share == 0:
+                    self.shares_corrected = math.gcd(count, heir_share) * shares
+                else:
+                    self.shares_corrected = count * shares
+
                 self.save()
                 return self.shares_corrected
+
     def get_corrected_shares(self):
         pass
-    def set_calc_excess(self):
-        pass
+
     def compute(self):
         self.get_quotes()
         self.set_calc_shares()
         self.get_shares()
         self.set_calc_correction()
+        self.get_corrected_shares()
 
 class Deceased(Person):
     """Deceased class"""
