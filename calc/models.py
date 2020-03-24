@@ -156,9 +156,9 @@ class Marriage(models.Model):
 class Calculation(models.Model):
     """Calculation for bequest class"""
     shares = models.IntegerField(default=0)      # LCM for all prescribed shares
-    exces = models.BooleanField(default=False)       # if prescribed shares is greater than gcm
+    excess = models.BooleanField(default=False)       # if prescribed shares is greater than gcm
     correction = models.BooleanField(default=False)  # shares and heirs number division should give no fractions
-    shares_exces = models.IntegerField(default=0)
+    shares_excess = models.IntegerField(default=0)
     shares_corrected = models.IntegerField(default=0)
 
     user = models.ForeignKey(User,on_delete=models.CASCADE,null=True)
@@ -273,6 +273,7 @@ class Calculation(models.Model):
         else:
             return shares
     def set_calc_correction(self):
+        if self.correction == True and self.excess==False:
             if self.heir_set.filter(correction=True).values('polymorphic_ctype_id').annotate(total=Count('id')).count() == 1:
                 heir_share = self.heir_set.filter(correction=True).first().get_share(self)
                 count = self.heir_set.filter(correction=True).count()
@@ -286,6 +287,11 @@ class Calculation(models.Model):
         pass
     def set_calc_excess(self):
         pass
+    def compute(self):
+        self.get_quotes()
+        self.set_calc_shares()
+        self.get_shares()
+        self.set_calc_correction()
 
 class Deceased(Person):
     """Deceased class"""
