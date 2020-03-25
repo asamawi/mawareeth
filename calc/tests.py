@@ -242,8 +242,8 @@ class HusbandQuoteTestCase(TestCase):
         calc1 = Calculation.objects.get(name="calc1")
         calc2 = Calculation.objects.get(name="calc2")
 
-        calc1.get_quotes()
-        calc2.get_quotes()
+        calc1.compute()
+        calc2.compute()
 
         self.assertEquals(Fraction(calc1.get_husband().quote).limit_denominator(), Fraction(1,4))
         self.assertEquals(calc1.get_husband().asaba, False)
@@ -255,12 +255,12 @@ class WifeQuoteTestCase(TestCase):
     def setUp(self):
         user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
         #case 1 where wife get 1/8
-        calc1 = Calculation.objects.create(name='calc1', user=user1)
-        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc1)
-        son1 = Son.objects.create(first_name="Son", last_name="test", sex="M", calc=calc1)
-        calc1.add_son(son1, mother=None, father=None)
-        wife1 = Wife.objects.create(first_name="Wife1", last_name="test", sex="F", calc=calc1)
-        calc1.add_wife(wife1)
+        calc11 = Calculation.objects.create(name='calc11', user=user1)
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc11)
+        son1 = Son.objects.create(first_name="Son", last_name="test", sex="M", calc=calc11)
+        calc11.add_son(son1, mother=None, father=None)
+        wife1 = Wife.objects.create(first_name="Wife1", last_name="test", sex="F", calc=calc11)
+        calc11.add_wife(wife1)
 
         #case 2  where wife get 1/4
         calc2 = Calculation.objects.create(name='calc2', user=user1)
@@ -283,33 +283,30 @@ class WifeQuoteTestCase(TestCase):
         calc3.add_wife(wife5)
 
     def test_wife_qet_quote(self):
-        calc1 = Calculation.objects.get(name="calc1")
+        calc11 = Calculation.objects.get(name="calc11")
         calc2 = Calculation.objects.get(name="calc2")
         calc3 = Calculation.objects.get(name="calc3")
 
-        calc1.get_quotes()
-        calc2.get_quotes()
-        calc3.get_quotes()
-        calc1.set_calc_shares()
-        calc2.set_calc_shares()
-        calc3.set_calc_shares()
+        calc11.compute()
+        calc2.compute()
+        calc3.compute()
 
-        self.assertEquals(Fraction(calc1.get_wives().first().quote).limit_denominator(), Fraction(1,8))
-        self.assertEquals(calc1.get_wives().first().asaba, False)
-        self.assertEquals(calc1.get_wives().first().shared_quote, False)
-        self.assertEquals(calc1.get_fractions(),{Fraction(0, 1), Fraction(1, 8)})
-        self.assertEquals(calc1.shares,8)
+        self.assertEquals(Fraction(calc11.get_wives().first().quote).limit_denominator(), Fraction(1,8))
+        self.assertEquals(calc11.get_wives().first().asaba, False)
+        self.assertEquals(calc11.get_wives().first().shared_quote, False)
+        self.assertEquals(calc11.get_fractions(calc11.heir_set.all()),{Fraction(7, 8), Fraction(1, 8)})
+        self.assertEquals(calc11.shares,8)
 
         self.assertEquals(Fraction(calc2.get_wives().first().quote).limit_denominator(), Fraction(1,4))
         self.assertEquals(calc2.get_wives().first().asaba, False)
         self.assertEquals(calc2.get_wives().first().shared_quote, False)
-        self.assertEquals(calc2.get_fractions(), {Fraction(0,1), Fraction(1,4)})
+        self.assertEquals(calc2.get_fractions(calc2.heir_set.all()), {Fraction(1,2), Fraction(1,4)})
         self.assertEquals(calc2.shares,4)
 
         self.assertEquals(Fraction(calc3.get_wives().first().quote).limit_denominator(), Fraction(1,4))
         self.assertEquals(calc3.get_wives().first().asaba, False)
         self.assertEquals(calc3.get_wives().first().shared_quote, True)
-        self.assertEquals(calc3.get_fractions(), {Fraction(1,4)})
+        self.assertEquals(calc3.get_fractions(calc3.heir_set.all()), {Fraction(1,4)})
         self.assertEquals(calc3.shares,4)
 
 class DaughterQuoteTestCase(TestCase):
@@ -354,38 +351,34 @@ class DaughterQuoteTestCase(TestCase):
         calc3 = Calculation.objects.get(name="calc3")
         calc4 = Calculation.objects.get(name="calc4")
 
-        calc1.get_quotes()
-        calc2.get_quotes()
-        calc3.get_quotes()
-        calc4.get_quotes()
+        calc1.compute()
+        calc2.compute()
+        calc3.compute()
+        calc4.compute()
 
-        calc1.set_calc_shares()
-        calc2.set_calc_shares()
-        calc3.set_calc_shares()
-        calc4.set_calc_shares()
 
         self.assertEquals(Fraction(calc1.get_daughters().first().quote).limit_denominator(), Fraction(0,1))
         self.assertEquals(calc1.get_daughters().first().asaba, True)
         self.assertEquals(calc1.get_daughters().first().shared_quote, False)
-        self.assertEquals(calc1.get_fractions(), {Fraction(0,1)})
+        self.assertEquals(calc1.get_fractions(calc1.heir_set.all()), {Fraction(0,1)})
         self.assertEquals(calc1.shares,3)
 
         self.assertEquals(Fraction(calc2.get_daughters().first().quote).limit_denominator(), Fraction(0,1))
         self.assertEquals(calc2.get_daughters().first().asaba, True)
         self.assertEquals(calc2.get_daughters().first().shared_quote, True)
-        self.assertEquals(calc1.get_fractions(), {Fraction(0,1)})
+        self.assertEquals(calc1.get_fractions(calc1.heir_set.all()), {Fraction(0,1)})
         self.assertEquals(calc2.shares,4)
 
         self.assertEquals(Fraction(calc3.get_daughters().first().quote).limit_denominator(), Fraction(1,2))
         self.assertEquals(calc3.get_daughters().first().asaba, False)
         self.assertEquals(calc3.get_daughters().first().shared_quote, False)
-        self.assertEquals(calc1.get_fractions(), {Fraction(0,1)})
+        self.assertEquals(calc1.get_fractions(calc1.heir_set.all()), {Fraction(0,1)})
         self.assertEquals(calc3.shares,2)
 
         self.assertEquals(Fraction(calc4.get_daughters().first().quote).limit_denominator(), Fraction(2,3))
         self.assertEquals(calc4.get_daughters().first().asaba, False)
         self.assertEquals(calc4.get_daughters().first().shared_quote, True)
-        self.assertEquals(calc1.get_fractions(), {Fraction(0,1)})
+        self.assertEquals(calc1.get_fractions(calc1.heir_set.all()), {Fraction(0,1)})
         self.assertEquals(calc4.shares,3)
 
 class SonQuoteTestCase(TestCase):
@@ -415,11 +408,9 @@ class SonQuoteTestCase(TestCase):
         calc2 = Calculation.objects.get(name="calc2")
 
 
-        calc1.get_quotes()
-        calc2.get_quotes()
+        calc1.compute()
+        calc2.compute()
 
-        calc1.set_calc_shares()
-        calc2.set_calc_shares()
 
         self.assertEquals(Fraction(calc1.get_sons().first().quote).limit_denominator(), Fraction(0,1))
         self.assertEquals(calc1.get_sons().first().asaba, True)
@@ -443,35 +434,29 @@ class CalculationGetSharesTestCase(TestCase):
         calc1.add_daughter(daughter1, mother=None, father=None)
 
         #case 2 where father has quote 1/6 and duaghter gets 1/2
-        calc2 = Calculation.objects.create(name='calc2', user=user1)
-        deceased2 = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="1000",calc=calc2)
-        father2 = Father.objects.create(first_name="Father2", last_name="test", sex="M", calc=calc2)
-        calc2.add_father(father2)
-        daughter = Daughter.objects.create(first_name="Daughter", last_name="test", sex="F", calc=calc2)
-        calc2.add_daughter(daughter, mother=None, father=father2)
+        calc22 = Calculation.objects.create(name='calc22', user=user1)
+        deceased2 = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="1000",calc=calc22)
+        father2 = Father.objects.create(first_name="Father2", last_name="test", sex="M", calc=calc22)
+        calc22.add_father(father2)
+        daughter = Daughter.objects.create(first_name="Daughter", last_name="test", sex="F", calc=calc22)
+        calc22.add_daughter(daughter, mother=None, father=father2)
 
 
 
 
-    def test_calc_get_share(self):
+    def test_calc_set_share(self):
         calc1 = Calculation.objects.get(name="calc1")
-        calc2 = Calculation.objects.get(name="calc2")
+        calc22 = Calculation.objects.get(name="calc22")
 
-        calc1.get_quotes()
-        calc2.get_quotes()
+        calc1.compute()
+        calc22.compute()
 
-        calc1.set_calc_shares()
-        calc2.set_calc_shares()
-
-        calc1.get_shares()
-        calc2.get_shares()
-
-        self.assertEquals(calc1.get_fractions(), {Fraction(0,1)})
-        self.assertEquals(calc2.get_fractions(), {Fraction(1,2), Fraction(1,6)})
+        self.assertEquals(calc1.get_fractions(calc1.heir_set.all()), {Fraction(0,1)})
+        self.assertEquals(calc22.get_fractions(calc22.heir_set.all()), {Fraction(1,2), Fraction(1,6)})
         self.assertEquals(calc1.shares,3)
-        self.assertEquals(calc2.shares,6)
+        self.assertEquals(calc22.shares,6)
         self.assertEquals(calc1.get_shares(), 0)
-        self.assertEquals(calc2.get_shares(), 4)
+        self.assertEquals(calc22.get_shares(), 4)
 
 class CalculationGetShareTestCase(TestCase):
 
@@ -492,18 +477,15 @@ class CalculationGetShareTestCase(TestCase):
     def test_set_calc_correction(self):
         calc1 = Calculation.objects.get(name="calc1")
 
-        calc1.get_quotes()
-        calc1.set_calc_shares()
-        calc1.get_shares()
-        calc1.set_calc_correction()
+        calc1.compute()
 
-        self.assertEquals(calc1.get_fractions(), {Fraction(1,6),Fraction(2,3)})
+        self.assertEquals(calc1.get_fractions(calc1.heir_set.all()), {Fraction(1,6),Fraction(2,3)})
         self.assertEquals(calc1.set_calc_shares(), 6)
         self.assertEquals(calc1.get_daughters().first().get_fraction(), Fraction(2,3))
-        self.assertEquals(calc1.get_daughters().first().get_share(calc1), 2)
+        self.assertEquals(calc1.get_daughters().first().set_share(calc1), 2)
         self.assertEquals(calc1.get_daughters().first().correction, False)
-        self.assertEquals(calc1.get_mother().get_share(calc1), 1)
-        self.assertEquals(calc1.get_father().get_share(calc1), 1)
+        self.assertEquals(calc1.get_mother().set_share(calc1), 1)
+        self.assertEquals(calc1.get_father().set_share(calc1), 1)
         self.assertEquals(calc1.get_shares(), 6)
         self.assertEquals(calc1.get_daughters().first().shared_quote, True)
 
@@ -527,26 +509,64 @@ class CalculationSetCalcCorrectionTestCase(TestCase):
         daughter3 = Daughter.objects.create(first_name="Daughter3", last_name="test", sex="F", calc=calc1)
         calc1.add_daughter(daughter3, mother=None, father=None)
 
+        calc2 = Calculation.objects.create(name='calc2', user=user1)
+        deceased = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="1000",calc=calc2)
+        wife1 = Wife.objects.create(first_name='wife1',last_name='test', sex='F', calc=calc2)
+        calc2.add_wife(wife1)
+        wife2 = Wife.objects.create(first_name='wife2',last_name='test', sex='F', calc=calc2)
+        calc2.add_wife(wife2)
+        wife3 = Wife.objects.create(first_name='wife3',last_name='test', sex='F', calc=calc2)
+        calc2.add_wife(wife3)
+        son1 = Son.objects.create(first_name='son1',last_name='test', sex='M', calc=calc2)
+        calc2.add_son(son1, mother=wife1, father=None)
+        son2 = Son.objects.create(first_name='son2',last_name='test', sex='M', calc=calc2)
+        calc2.add_son(son2, mother=wife1, father=None)
+
+
     def test_set_calc_correction(self):
         calc1 = Calculation.objects.get(name="calc1")
+        calc2 = Calculation.objects.get(name="calc2")
 
-        calc1.get_quotes()
-        calc1.set_calc_shares()
-        calc1.get_shares()
+        calc1.compute()
+        calc2.compute()
 
-        self.assertEquals(calc1.get_fractions(), {Fraction(1,6),Fraction(2,3)})
+        self.assertEquals(calc1.get_fractions(calc1.heir_set.all()), {Fraction(1,6),Fraction(2,3)})
         self.assertEquals(calc1.set_calc_shares(), 6)
         self.assertEquals(calc1.get_daughters().first().get_fraction(), Fraction(2,3))
-        self.assertEquals(calc1.get_daughters().first().get_share(calc1), 4)
+        self.assertEquals(calc1.get_daughters().first().set_share(calc1), 4)
         self.assertEquals(calc1.get_daughters().first().correction, True)
         self.assertEquals(calc1.get_daughters().count(), 3)
         self.assertEquals(calc1.heir_set.filter(correction=True).count(),3)
-        self.assertEquals(calc1.get_mother().get_share(calc1), 1)
-        self.assertEquals(calc1.get_father().get_share(calc1), 1)
+        self.assertEquals(calc1.get_mother().set_share(calc1), 1)
+        self.assertEquals(calc1.get_father().set_share(calc1), 1)
         self.assertEquals(calc1.get_shares(), 6)
         self.assertEquals(calc1.shares, 6)
         self.assertEquals(calc1.shares_excess, 0)
         self.assertEquals(calc1.set_calc_correction(),18)
+        self.assertEquals(calc2.get_wives().first().get_quote(calc2), 1/8)
+        self.assertEquals(calc2.get_wives().first().set_share(calc2), 1)
+        self.assertEquals(calc2.shares, 8)
+        self.assertEquals(calc2.get_wives().first().shared_quote, True)
+        self.assertEquals(calc2.get_wives().first().set_share(calc2), 1)
+        self.assertEquals(calc2.get_wives().first().correction, True)
+        self.assertEquals(calc2.get_sons().first().shared_quote, True)
+        self.assertEquals(calc2.shares, 8)
+        self.assertEquals(calc2.heir_set.filter(asaba=True).count(),2)
+        self.assertEquals(calc2.heir_set.filter(asaba=True, sex='M').count(),2)
+        self.assertEquals(calc2.heir_set.filter(asaba=True, sex='F').count(),0)
+        self.assertEquals(calc2.get_shares(),1)
+        self.assertEquals(calc2.get_sons().first().get_fraction(), Fraction(7,8))
+        self.assertEquals(calc2.get_sons().first().set_share(calc2), 7)
+        self.assertEquals(calc2.get_sons().first().correction, True)
+        self.assertEquals(calc2.heir_set.filter(correction=True).values('polymorphic_ctype_id').annotate(total=Count('id')).count(),2)
+        self.assertEquals(calc2.get_sons().first().get_quote(calc2), 7/8)
+        self.assertEquals(calc2.get_sons().first().set_share(calc2), 7)
+        self.assertEquals(calc2.get_fractions(calc2.heir_set.all()), {Fraction(1,8),Fraction(7,8)})
+        self.assertEquals(calc2.get_sons().first().share, 7)
+        self.assertEquals(calc2.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))[0]["total"],2)
+        self.assertEquals(calc2.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))[1]["total"],3)
+        self.assertEquals(calc2.set_calc_correction(),48)
+
 class CalculationSetCalcExcessTestCase(TestCase):
 
     def setUp(self):
@@ -570,12 +590,10 @@ class CalculationSetCalcExcessTestCase(TestCase):
     def test_set_calc_Excess(self):
         calc1 = Calculation.objects.get(name="calc1")
 
-        calc1.get_quotes()
-        calc1.set_calc_shares()
-        calc1.get_shares()
-        calc1.set_calc_correction()
+        calc1.compute()
 
-        self.assertEquals(calc1.get_fractions(), {Fraction(1,6),Fraction(2,3),Fraction(1,8)})
+
+        self.assertEquals(calc1.get_fractions(calc1.heir_set.all()), {Fraction(1,6),Fraction(2,3),Fraction(1,8)})
         self.assertEquals(calc1.set_calc_shares(), 24)
         self.assertEquals(calc1.get_shares(), 27)
         self.assertEquals(calc1.shares, 24)

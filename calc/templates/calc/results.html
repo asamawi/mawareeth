@@ -3,19 +3,28 @@
 {% load i18n %}
 
 {% block title %}
-  Calculation {{ calculation.name}}
+Calculation {{ calculation.name}}
 {% endblock %}
 
 {% block css %}
-  <link rel="stylesheet" href="{% static 'calc/css/content.css' %}">
+<link rel="stylesheet" href="{% static 'calc/css/content.css' %}">
 {% endblock %}
 
 {% block body %}
-<h1>{{ calculation.name }}</h1>
-<ul>
-{% for heir in calculation.heir_set.all %}
-    <li>{{ heir.first_name }}</li>
-{% endfor %}
-</ul>
 
-{% endblock %}
+<table class="Report_Table" cellpadding="4" cellspacing="4" dir="rtl">
+  <tbody>
+    <tr>
+      <td class="Report_Title" >_("serial")</td>
+      <td class="Report_Title" >_("Quote")</td>
+      <td class="Report_Title" >_("Relation")</td>
+      <td class="Report_Title" >_("Shares")</td>
+      <td class="Report_Title" >_("Excess")</td>
+      <td class="Report_Title" >_("Shortage")</td>
+      <td class="Report_Title" >_("Correction")</td>
+
+    </tr>
+
+
+  </tbody></table>
+  {% endblock %}
