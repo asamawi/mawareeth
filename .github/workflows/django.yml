@@ -9,7 +9,7 @@ env:
   DB: postgres 
   ENGINE: django.db.backends.postgresql_psycopg2 
   DATABASE_NAME: mydb_test 
-  DATABASE_HOST: postgres 
+  DATABASE_HOST: localhost 
   DJANGO_KEY: ")vzug)78j&h83(=h^&=@n%b(()ai!dryu!88++oij_)gl9oa1_" 
   DEBUG: False
   MAILGUN_ACCESS_KEY: ${{ secrets.MAILGUN_ACCESS_KEY }}
