@@ -50,7 +50,7 @@ jobs:
 
     - name: Set up
       run: |
-        psql -p ${{ job.services.postgres.ports[5432] }} -h localhost -c 'create database mydb_test;' -U postgres
+        psql -p ${{ job.services.postgres.ports[5432] }} -h localhost -c 'create database mydb_test;' -U postgres -P postgres
         python3 manage.py makemigrations
         python3 manage.py migrate
         python manage.py collectstatic
