@@ -5,6 +5,13 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+env:
+  DB: postgres 
+  ENGINE: django.db.backends.postgresql_psycopg2 
+  DATABASE_NAME: mydb_test 
+  DATABASE_HOST: localhost 
+  DJANGO_KEY: ")vzug)78j&h83(=h^&=@n%b(()ai!dryu!88++oij_)gl9oa1_" 
+  DEBUG: False
 
 jobs:
   build:
@@ -13,7 +20,7 @@ jobs:
     strategy:
       max-parallel: 4
       matrix:
-        python-version: [3.6, 3.7, 3.8]
+        python-version: [3.8]
 
     steps:
     - uses: actions/checkout@v2
