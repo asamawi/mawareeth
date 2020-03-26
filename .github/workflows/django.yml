@@ -38,8 +38,6 @@ jobs:
     - uses: harmon758/postgresql-action@v1
       with:
         postgresql version: '11'
-        env: 
-          POSTGRES_PASSWORD: postgres
     - name: Set up
       run: |
         psql -c 'create database mydb_test;' -U postgres
