@@ -94,11 +94,12 @@ WSGI_APPLICATION = 'mawareeth.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': os.environ['ENGINE'], #djongo
-        'NAME': os.environ['DATABASE_NAME'],
-        'HOST':   os.environ['DATABASE_HOST'],
-        'USER': os.environ.get('DB_USER',''),
-        'PASSWORD': os.environ.get('DB_PASS',''),  }
+        'ENGINE': os.environ.get('ENGINE','django.db.backends.postgresql_psycopg2'), #djongo
+        'NAME': os.environ.get('DATABASE_NAME','mydb_mawareeth'),
+        'HOST':   os.environ.get('DATABASE_HOST','localhost'),
+        'USER': os.environ.get('DB_USER','postgres'),
+        'PASSWORD': os.environ.get('DB_PASS','postgres'),
+        'PORT': os.environ.get('POSTGRES_PORT','5432')}
 }
 
 
