@@ -40,7 +40,7 @@ jobs:
         postgresql version: '11'
     - name: Set up
       run: |
-        psql -h postgres -c 'create database mydb_test;' -U postgres
+        psql -p 5432 -h postgres -c 'create database mydb_test;' -U postgres
         python3 manage.py makemigrations
         python3 manage.py migrate
         python manage.py collectstatic
