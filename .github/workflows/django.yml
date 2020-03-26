@@ -5,7 +5,18 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-
+env:
+  DB: postgres 
+  ENGINE: django.db.backends.postgresql_psycopg2 
+  DATABASE_NAME: mydb_test 
+  DATABASE_HOST: localhost
+  DJANGO_KEY: ")vzug)78j&h83(=h^&=@n%b(()ai!dryu!88++oij_)gl9oa1_" 
+  DEBUG: False
+  MAILGUN_ACCESS_KEY: ${{ secrets.MAILGUN_ACCESS_KEY }}
+  MAILGUN_SERVER_NAME: ${{ secrets.MAILGUN_SERVER_NAME }}
+  DB_USER: postgres
+  DB_PASS: postgres
+  PGPASSWORD: postgres
 jobs:
   build:   
     runs-on: ubuntu-latest
@@ -44,19 +55,9 @@ jobs:
         python3 manage.py migrate
         python manage.py collectstatic
       env:
-        POSTGRES_HOST: localhost
         POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }} # get randomly assigned published port
-        DB: postgres 
-        ENGINE: django.db.backends.postgresql_psycopg2 
-        DATABASE_NAME: mydb_test 
-        DATABASE_HOST: localhost
-        DJANGO_KEY: ")vzug)78j&h83(=h^&=@n%b(()ai!dryu!88++oij_)gl9oa1_" 
-        DEBUG: False
-        MAILGUN_ACCESS_KEY: ${{ secrets.MAILGUN_ACCESS_KEY }}
-        MAILGUN_SERVER_NAME: ${{ secrets.MAILGUN_SERVER_NAME }}
-        DB_USER: postgres
-        DB_PASS: postgres
-        PGPASSWORD: postgres
     - name: Run Tests
       run: |
         python manage.py test
+      env:
+        POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }} # get randomly assigned published port
