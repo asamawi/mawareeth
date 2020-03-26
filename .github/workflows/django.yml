@@ -16,8 +16,6 @@ env:
   MAILGUN_SERVER_NAME: ${{ secrets.MAILGUN_SERVER_NAME }}
   DB_USER: postgres
   DB_PASS: postgres
-  POSTGRES_HOST: localhost
-  POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }} # get randomly assigned published port
 
 jobs:
   build:
@@ -54,7 +52,9 @@ jobs:
         python3 manage.py makemigrations
         python3 manage.py migrate
         python manage.py collectstatic
-
+      env:
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }} # get randomly assigned published port  
     - name: Run Tests
       run: |
         python manage.py test
