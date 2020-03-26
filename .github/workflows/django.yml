@@ -16,6 +16,7 @@ env:
   MAILGUN_SERVER_NAME: ${{ secrets.MAILGUN_SERVER_NAME }}
   DB_USER: postgres
   DB_PASS: postgres
+  PGPASSWORD: postgres
 
 jobs:
   build:   
@@ -50,7 +51,7 @@ jobs:
 
     - name: Set up
       run: |
-        psql -p ${{ job.services.postgres.ports[5432] }} -h localhost -c 'create database mydb_test;' -U postgres -P postgres
+        psql -p ${{ job.services.postgres.ports[5432] }} -h localhost -c 'create database mydb_test;' -U postgres
         python3 manage.py makemigrations
         python3 manage.py migrate
         python manage.py collectstatic
