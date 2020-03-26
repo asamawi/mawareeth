@@ -13,6 +13,7 @@ env:
   DJANGO_KEY: ")vzug)78j&h83(=h^&=@n%b(()ai!dryu!88++oij_)gl9oa1_" 
   DEBUG: False
   MAILGUN_ACCESS_KEY: ${{ secrets.MAILGUN_ACCESS_KEY }}
+  MAILGUN_SERVER_NAME: ${{ secrets.MAILGUN_SERVER_NAME }}
 
 jobs:
   build:
