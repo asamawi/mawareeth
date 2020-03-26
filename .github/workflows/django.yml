@@ -24,7 +24,19 @@ jobs:
       max-parallel: 4
       matrix:
         python-version: [3.8]
-
+    
+    services:
+      postgres:
+        image: postgres:10.8
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+        # will assign a random free host port
+        - 5432/tcp
+        # needed because the postgres container does not provide a healthcheck
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
@@ -44,6 +56,9 @@ jobs:
         python3 manage.py makemigrations
         python3 manage.py migrate
         python manage.py collectstatic
+      env:
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }} # get randomly assigned published port
     - name: Run Tests
       run: |
         python manage.py test
