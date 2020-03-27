@@ -56,7 +56,9 @@ Calculation {{ calculation.name}}
         {% if calculation.excess == True %}
         <td>{{ heir.share }}</td>
         {% endif %}
+        {% if calculation.correction == True %}
         <td>{{ heir.corrected_share }}</td>
+        {% endif %}
         <td>{{ heir.amount }}</td>
       </tr>
       {% endfor %}
@@ -72,7 +74,9 @@ Calculation {{ calculation.name}}
         {% if calculation.excess == True %}
         <td>{{ heir.share }}</td>
         {% endif %}
+        {% if calculation.correction == True %}
         <td>{{ heir.corrected_share }}</td>
+        {% endif %}
         <td>{{ heir.amount }}</td>
       </tr>
       {% endfor %}
@@ -86,14 +90,23 @@ Calculation {{ calculation.name}}
         <td rowspan="{{ Wife.count }}" class="align-middle" >{{ heir.get_fraction }}</td>
         {% endif %}
         <td>{% trans "Wife" %}</td>
-        {% if forloop.counter == 1%}
-        <td rowspan="{{ Wife.count }}" class="align-middle" >{{ heir.share }}</td>
+        {% if calculation.correction == True %}
+          {% if forloop.counter == 1%}
+          <td rowspan="{{ Wife.count }}" class="align-middle">
+            {{ heir.share }}
+          </td>
+          {% endif %}
+        {% else %}
+        <td>{{ heir.share }}</td>
         {% endif %}
         {% if calculation.excess == True %}
         {% if forloop.counter == 1%}
         <td rowspan="{{ Wife.count }}" class="align-middle" >{{ heir.share }}</td>
-        {% endif %}        {% endif %}
+        {% endif %}
+        {% endif %}
+        {% if calculation.correction == True %}
         <td>{{ heir.corrected_share }}</td>
+        {% endif %}
         <td>{{ heir.amount }}</td>
       </tr>
       {% endfor %}
@@ -108,7 +121,9 @@ Calculation {{ calculation.name}}
         {% if calculation.excess == True %}
         <td>{{ heir.share }}</td>
         {% endif %}
+        {% if calculation.correction == True %}
         <td>{{ heir.corrected_share }}</td>
+        {% endif %}
         <td>{{ heir.amount }}</td>
       </tr>
       {% endfor %}
@@ -118,18 +133,30 @@ Calculation {{ calculation.name}}
       <tr>
         <td>{{ heir.first_name }}</td>
         {% if forloop.counter == 1%}
-        <td rowspan="{{ Daughter.count }}" class="align-middle">{{ heir.get_fraction }}</td>
+        <td rowspan="{{ Daughter.count }}" class="align-middle">
+          {{ heir.get_fraction }}
+        </td>
         {% endif %}
         <td>{% trans "Daughter" %}</td>
-        {% if forloop.counter == 1%}
-        <td rowspan="{{ Daughter.count }}" class="align-middle">{{ heir.share }}</td>
+        {% if calculation.correction == True %}
+          {% if forloop.counter == 1%}
+          <td rowspan="{{ Daughter.count }}" class="align-middle">
+            {{ heir.share }}
+          </td>
+          {% endif %}
+        {% else %}
+        <td>{{ heir.share }}</td>
         {% endif %}
         {% if calculation.excess == True %}
         {% if forloop.counter == 1%}
-        <td rowspan="{{ Daughter.count }}" class="align-middle">{{ heir.share }}</td>
+        <td rowspan="{{ Daughter.count }}" class="align-middle">
+          {{ heir.share }}
+        </td>
         {% endif %}
         {% endif %}
+        {% if calculation.correction == True %}
         <td>{{ heir.corrected_share }}</td>
+        {% endif %}
         <td>{{ heir.amount }}</td>
       </tr>
       {% endfor %}
@@ -142,15 +169,23 @@ Calculation {{ calculation.name}}
         <td rowspan="{{ Son.count }}" class="align-middle">{{ heir.get_fraction }}</td>
         {% endif %}
         <td>{% trans "Son" %}</td>
-        {% if forloop.counter == 1%}
-        <td rowspan="{{ Son.count }}" class="align-middle">{{ heir.share }}</td>
+        {% if calculation.correction == True %}
+          {% if forloop.counter == 1%}
+          <td rowspan="{{ Son.count }}" class="align-middle">
+            {{ heir.share }}
+          </td>
+          {% endif %}
+        {% else %}
+        <td>{{ heir.share }}</td>
         {% endif %}
         {% if calculation.excess == True %}
         {% if forloop.counter == 1%}
         <td rowspan="{{ Son.count }}" class="align-middle">{{ heir.share }}</td>
         {% endif %}
         {% endif %}
+        {% if calculation.correction == True %}
         <td>{{ heir.corrected_share }}</td>
+        {% endif %}
         <td>{{ heir.amount }}</td>
       </tr>
       {% endfor %}

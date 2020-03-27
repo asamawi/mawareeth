@@ -277,9 +277,12 @@ class Calculation(models.Model):
             correction_set = self.heir_set.filter(correction=True, asaba=False).values('polymorphic_ctype_id','share').annotate(total=Count('id'))
             for result in correction_set:
                 shares = shares + result["share"]
-        asaba = self.heir_set.filter(asaba=True).first()
+        asaba = self.heir_set.filter(asaba=True, correction=True).first()
         if asaba:
             shares = shares + asaba.share
+        else:
+            for asaba in self.heir_set.filter(asaba=True, correction=False):
+                shares = shares + asaba.share
         if shares > self.shares:
             self.excess = True
             self.shares_excess = shares
@@ -376,6 +379,12 @@ class Calculation(models.Model):
         self.residual_shares=  self.shares - shares
         return self.residual_shares
 
+    def set_calc_excess(self):
+        shares = self.get_shares()
+        if shares > self.shares:
+            self.excess = True
+            self.shares_excess = shares
+            self.save()
 
     def clear(self):
         self.shares = 0
@@ -398,6 +407,7 @@ class Calculation(models.Model):
         self.set_asaba_quotes()
         self.set_asaba_shares()
         self.get_shares()
+        self.set_calc_excess()
         self.set_calc_shortage()
         self.set_calc_correction()
         self.get_corrected_shares()
@@ -555,7 +565,7 @@ class Father(Heir):
             self.quote_reason = _("father gets 1/6 prescribed share because of male decendent")
         elif calc.has_female_descendent():
             self.quote = 1/6
-            self.asaba = True
+            #self.asaba = True
             self.quote_reason = _("father gets 1/6 plus remainder because of female decendent")
         else:
             self.asaba = True
