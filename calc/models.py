@@ -282,7 +282,11 @@ class Calculation(models.Model):
             self.shares_excess = shares
             self.save()
             return self.shares_excess
+        elif shares < self.shares:
+            self.shortage = True
+            self.save()
         else:
+            self.shortage = False
             self.excess = False
             self.shares_excess = 0
             self.save()
@@ -367,6 +371,9 @@ class Calculation(models.Model):
         self.set_calc_shares()
         self.set_shares()
         self.set_asaba_quotes()
+        self.set_shares()
+        self.get_shares()
+        self.set_calc_shortage()
         self.set_calc_correction()
         self.get_corrected_shares()
         self.set_amounts()
@@ -420,8 +427,8 @@ class Heir(Person):
     def set_asaba_quote(self, calc):
         shares = calc.get_shares()
         remainder = calc.shares - shares
-        if self.quote == 0:
-            if remainder > 0 and shares > 0:
+        if remainder > 0 and shares > 0:
+            if self.quote == 0:
                 quote = remainder / calc.shares
                 #check for correction
                 if self.shared_quote == True:
@@ -440,6 +447,8 @@ class Heir(Person):
                 self.quote = quote
                 self.quote_reason = _("residuary for asaba")
                 self.save()
+            else:
+                quote = (remainder + self.share )/calc.shares
 
     def get_corrected_share(self, calc):
         if calc.correction==True and calc.shares_corrected != 0:
