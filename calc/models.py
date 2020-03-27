@@ -359,7 +359,9 @@ class Calculation(models.Model):
             pass
         for heir in asaba:
             heir.set_asaba_quote(self)
-
+    def set_amounts(self):
+        for heir in self.heir_set.all():
+            heir.set_amount(self)
     def compute(self):
         self.get_quotes()
         self.set_calc_shares()
@@ -367,6 +369,7 @@ class Calculation(models.Model):
         self.set_asaba_quotes()
         self.set_calc_correction()
         self.get_corrected_shares()
+        self.set_amounts()
 
 class Deceased(Person):
     """Deceased class"""
@@ -380,6 +383,7 @@ class Heir(Person):
     shared_quote = models.BooleanField(default=False)    #prescribed share is shared with other heir like 2 daughters
     share = models.IntegerField(default=0)
     corrected_share = models.IntegerField(default=0)
+    amount = models.IntegerField(default=0)
     asaba = models.BooleanField(default=False)           #agnate or residuary
     blocked = models.BooleanField(default=False)         # restrcited from inheritance
     quote_reason = models.CharField(max_length=255, default="")
@@ -452,16 +456,18 @@ class Heir(Person):
                 self.save()
         return self.corrected_share
 
-    def get_amount(self, calc):
+    def set_amount(self, calc):
         estate = calc.deceased_set.first().estate
+        amount = 0
         if calc.correction == False:
             if calc.excess == False:
-                return estate / calc.shares * self.share
+                amount = estate / calc.shares * self.share
             else:
-                return estate / calc.shares_excess * self.share
+                amount = estate / calc.shares_excess * self.share
         else:
-            return estate / calc.shares_corrected * self.corrected_share
-
+            amount = estate / calc.shares_corrected * self.corrected_share
+        self.amount = amount
+        self.save()
     def get_fraction(self):
         return Fraction(self.quote).limit_denominator()
 

@@ -156,3 +156,8 @@ a.btn:hover {
      -moz-transition-duration: 0.5s;
      -o-transition-duration: 0.5s;
  }
+ .Report_Table1{border:1px;background-color:#ffffff; border-color:#f5f5f5; width:700px; height:35px;}
+ .Report_Table{border:1px; border-color:#b1d48d; width:700px; height:35px;}
+ .Report_Title{background-color: #b1d48d; color:#ffffff; font-weight:bold; width:200px; height:10px; text-align:center;}
+ .Report_Text1{background-color: #cce9ae; color: #006633; text-align:center;}
+ .Report_Text2{background-color: #dcf3c4; color: #006633; text-align:center;}
