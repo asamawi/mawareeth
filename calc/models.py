@@ -395,7 +395,7 @@ class Heir(Person):
     shared_quote = models.BooleanField(default=False)    #prescribed share is shared with other heir like 2 daughters
     share = models.IntegerField(default=0)
     corrected_share = models.IntegerField(default=0)
-    amount = models.IntegerField(default=0)
+    amount = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     asaba = models.BooleanField(default=False)           #agnate or residuary
     blocked = models.BooleanField(default=False)         # restrcited from inheritance
     quote_reason = models.CharField(max_length=255, default="")
