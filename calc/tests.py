@@ -510,7 +510,7 @@ class CalculationSetCalcCorrectionTestCase(TestCase):
         calc1.add_daughter(daughter3, mother=None, father=None)
 
         calc2 = Calculation.objects.create(name='calc2', user=user1)
-        deceased = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="1000",calc=calc2)
+        deceased = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="4800",calc=calc2)
         wife1 = Wife.objects.create(first_name='wife1',last_name='test', sex='F', calc=calc2)
         calc2.add_wife(wife1)
         wife2 = Wife.objects.create(first_name='wife2',last_name='test', sex='F', calc=calc2)
@@ -554,7 +554,7 @@ class CalculationSetCalcCorrectionTestCase(TestCase):
         self.assertEquals(calc2.heir_set.filter(asaba=True).count(),2)
         self.assertEquals(calc2.heir_set.filter(asaba=True, sex='M').count(),2)
         self.assertEquals(calc2.heir_set.filter(asaba=True, sex='F').count(),0)
-        self.assertEquals(calc2.get_shares(),1)
+        self.assertEquals(calc2.get_shares(),8)
         self.assertEquals(calc2.get_sons().first().get_fraction(), Fraction(7,8))
         self.assertEquals(calc2.get_sons().first().set_share(calc2), 7)
         self.assertEquals(calc2.get_sons().first().correction, True)
@@ -566,6 +566,10 @@ class CalculationSetCalcCorrectionTestCase(TestCase):
         self.assertEquals(calc2.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))[0]["total"],2)
         self.assertEquals(calc2.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))[1]["total"],3)
         self.assertEquals(calc2.set_calc_correction(),48)
+        self.assertEquals(calc2.get_wives().first().shared_quote,True)
+        self.assertEquals(calc2.get_sons().first().shared_quote,True)
+        self.assertEquals(calc2.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id')).count(), 2)
+        self.assertEquals(calc2.get_wives().first().corrected_share,2)
 
 class CalculationSetCalcExcessTestCase(TestCase):
 

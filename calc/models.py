@@ -241,6 +241,9 @@ class Calculation(models.Model):
     def get_sons(self):
         return self.heir_set.instance_of(Son)
 
+    def get_heirs_no_spouse(self):
+        return self.heir_set.not_instance_of(Husband, Wife)
+
     def get_fractions(self, heirs):
         fractions = set()
         for heir in heirs:
@@ -334,24 +337,26 @@ class Calculation(models.Model):
             return shares
     def set_calc_shortage(self):
         if self.shortage == True:
+            shares = self.get_shares()
             if self.has_spouse() == False:
                 self.shares_shorted = shares
                 self.save()
             elif self.has_spouse() == True:
                 if self.deceased_set.first().sex == 'M':
-                    shares = self.get_wives().first().set_share()
+                    shares = self.get_wives().first().set_share(self)
                 else:
-                    shares = self.get_husband().set_share()
+                    shares = self.get_husband().set_share(self)
                 heirs = self.get_heirs_no_spouse()
                 denom_list = []
                 fractions_set = self.get_fractions(heirs)
                 for fraction in fractions_set:
                     denom_list.append(fraction.denominator)
-                heirs_shares = self.lcm_list(denom_list)
-                if remainder % heirs_shares == 0:
-                    self.shares_shorted = math.gcd(remainder, heirs_shares) * shares
-                else:
-                    self.shares_shorted = remainder * shares
+                if denom_list:
+                    heirs_shares = self.lcm_list(denom_list)
+                    if remainder % heirs_shares == 0:
+                        self.shares_shorted = math.gcd(remainder, heirs_shares) * shares
+                    else:
+                        self.shares_shorted = remainder * shares
                 self.save()
     def set_asaba_quotes(self):
 
@@ -451,18 +456,27 @@ class Heir(Person):
                 quote = (remainder + self.share )/calc.shares
 
     def get_corrected_share(self, calc):
+        correction_set = calc.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
         if calc.correction==True and calc.shares_corrected != 0:
             if calc.excess == True:
                 multiplier = calc.shares_corrected // calc.shares_excess
             else:
                 multiplier = calc.shares_corrected // calc.shares
-
-            if self.shared_quote == True:
-                self.corrected_share = self.share
-                self.save()
+            if correction_set.count() == 1:
+                if self.shared_quote == True:
+                    self.corrected_share = self.share
+                    self.save()
+                else:
+                    self.corrected_share = self.share * multiplier
+                    self.save()
             else:
-                self.corrected_share = self.share * multiplier
-                self.save()
+                count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
+                if self.shared_quote == True:
+                    self.corrected_share = self.share * multiplier // count
+                    self.save()
+                else:
+                    self.corrected_share = self.share * multiplier
+                    self.save()
         return self.corrected_share
 
     def set_amount(self, calc):
