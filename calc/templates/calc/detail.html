@@ -38,6 +38,11 @@
             >
             <span>{% icon 'edit' %}</span>
           </a>
+          <a
+          href="{% url 'calc:results' calculation.id %}"
+          class="float-right btn btn-primary a-btn-slide-text">
+          <span>{% icon 'calculator' %}</span>
+          </a>
         </div>
         <div class="card-body">
 
@@ -89,28 +94,35 @@ data-url="{% url 'calc:son' calculation.id %}">
 <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#add" data-name="Deceased" data-heir="{% trans 'Deceased' %}" data-url="{% url 'calc:deceased' calculation.id %}">{%trans 'Add Deceased' %}</button>
 {% endif %}
 
-{% for heir in calculation.heir_set.all %}
-<div class="card text-white bg-info mb-3" style="max-width: 18rem;">
-  <div class="card-header">
-    {{heir|get_class}}
 
-  </div>
-  <div class="card-body">
-    {{heir}}
-    <a
-    href="{% url 'calc:heir_delete' heir.id %}"
-    class="float-right btn btn-primary a-btn-slide-text">
-    <span>{% icon 'trash-o' %}</span>
-  </a>
-  <a
-  class="float-right btn btn-primary a-btn-slide-text"
-  href="{% url 'calc:heir_update' heir.id %}"
-  >
-  <span>{% icon 'edit' %}</span>
-</a>
-</div>
-</div>
+<table class="table table-bordered table-hover table-sm table-light" cellpadding="4" cellspacing="4" {% if LANGUAGE_BIDI %} dir="rtl" {% endif %}>
+  <thead class="thead-light">
+    <tr>
+      <th scope="col">{%trans "Relation" %}</th>
+      <th scope="col">{%trans "Name" %}</th>
+    </tr>
+{% for heir in calculation.heir_set.all %}
+  <tr>
+    <td>{{heir|get_class}}</td>
+    <td>{{heir.first_name}} {{heir.last_name}}</td>
+    <td>
+      <a
+      href="{% url 'calc:heir_delete' heir.id %}"
+      class="float-right btn btn-primary a-btn-slide-text">
+      <span>{% icon 'trash-o' %}</span>
+    </a>
+      </td>
+      <td>
+        <a
+        class="float-right btn btn-primary a-btn-slide-text"
+        href="{% url 'calc:heir_update' heir.id %}"
+        >
+        <span>{% icon 'edit' %}</span></td>
+  </tr>
 {% endfor %}
+</thead>
+</table>
+
 
 
 <!-- Modal -->

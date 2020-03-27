@@ -280,9 +280,6 @@ class Calculation(models.Model):
         asaba = self.heir_set.filter(asaba=True).first()
         if asaba:
             shares = shares + asaba.share
-
-
-
         if shares > self.shares:
             self.excess = True
             self.shares_excess = shares
@@ -456,19 +453,25 @@ class Heir(Person):
             shares = calc.shares
             remainder = calc.residual_shares
             asaba_count = calc.heir_set.filter(asaba=True).count()
-            #check for correction
-            if self.shared_quote == True:
+            if asaba_count == 1:
+                self.share = remainder
+            else:
+                #check for correction
                 males = calc.heir_set.filter(asaba=True, sex='M').count()
                 females = calc.heir_set.filter(asaba=True, sex='F').count()
-                if remainder % asaba_count == 0:
-                    if males == asaba_count or females == asaba_count or remainder % (males*2+females) == 0:
-                        self.correction = False
+                if remainder % (males*2+females) == 0:
+                    if males == asaba_count or females == asaba_count:
+                        self.share = remainder // asaba_count
                     else:
-                        self.correction = True
+                        if self.sex == "M":
+                            self.share = remainder // asaba_count * 2
+                        else:
+                            self.share = remainder // asaba_count
                 else:
+                    self.share= remainder
                     self.correction = True
-            self.share = remainder
             self.save()
+            return self.share
 
 
     def set_asaba_quote(self, calc):
