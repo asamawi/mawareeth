@@ -104,15 +104,13 @@ data-url="{% url 'calc:son' calculation.id %}">
 {% for heir in calculation.heir_set.all %}
   <tr>
     <td>{{heir|get_class}}</td>
-    <td>{{heir.first_name}} {{heir.last_name}}</td>
-    <td>
+    <td>{{heir.first_name}} {{heir.last_name}}
       <a
       href="{% url 'calc:heir_delete' heir.id %}"
       class="float-right btn btn-primary a-btn-slide-text">
       <span>{% icon 'trash-o' %}</span>
     </a>
-      </td>
-      <td>
+
         <a
         class="float-right btn btn-primary a-btn-slide-text"
         href="{% url 'calc:heir_update' heir.id %}"

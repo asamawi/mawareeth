@@ -41,12 +41,17 @@
     {% if calculation_list %}
     {% for calculation in calculation_list %}
     <li class="list-group-item">
-      <a href="{% url 'calc:detail' calculation.id %}">
+      <a href="{% url 'calc:results' calculation.id %}">
         {{calculation.name}}
       </a>
       <span class="badge badge-success badge-pill float-right">
         <a href="{% url 'calc:delete' calculation.id %}">
           {% trans "delete" %}
+        </a>
+      </span>
+      <span class="badge badge-success badge-pill float-right">
+        <a href="{% url 'calc:detail' calculation.id %}">
+          {% trans "edit" %}
         </a>
       </span>
     </li>
