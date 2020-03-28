@@ -37,29 +37,30 @@
 </div>
 
 
-<div class=container>
-  <ul class="list-group">
-    {% if calculation_list %}
-    {% for calculation in calculation_list %}
-    <li class="list-group-item">
-      <a href="{% url 'calc:results' calculation.id %}">
-        {{calculation.name}}
-      </a>
+<div class="row">
+  <div class="col-sm-10 col-md-9 col-lg-7 mx-auto">
+
+    <ul class="list-group">
+      {% if calculation_list %}
+      {% for calculation in calculation_list %}
+      <li class="list-group-item">
+        <a href="{% url 'calc:results' calculation.id %}">
+          {{calculation.name}}
+        </a>
         <a href="{% url 'calc:delete' calculation.id %}"
         class="float-right btn btn-primary a-btn-slide-text">
-          <span>{% icon 'trash-o' %}</span>
-        </a>
-        <a href="{% url 'calc:detail' calculation.id %}"
-        class="float-right btn btn-primary a-btn-slide-text">
-          <span>{% icon 'edit' %}</span>
-        </a>
-    </li>
-    {% endfor %}
-    {% else %}
-    <li class="list-group-item">No calculation available.</li>
-    {% endif %}
-  </ul>
+        <span>{% icon 'trash-o' %}</span>
+      </a>
+      <a href="{% url 'calc:detail' calculation.id %}"
+      class="float-right btn btn-primary a-btn-slide-text">
+      <span>{% icon 'edit' %}</span>
+    </a>
+  </li>
+  {% endfor %}
+  {% else %}
+  <li class="list-group-item">No calculation available.</li>
+  {% endif %}
+</ul>
 </div>
-
 </div>
 {% endblock %}

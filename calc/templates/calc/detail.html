@@ -101,7 +101,7 @@ data-url="{% url 'calc:son' calculation.id %}">
       <th scope="col">{%trans "Relation" %}</th>
       <th scope="col">{%trans "Name" %}</th>
     </tr>
-{% for heir in calculation.heir_set.all %}
+{% for heir in Heirs %}
   <tr>
     <td>{{heir|get_class}}</td>
     <td>{{heir.first_name}} {{heir.last_name}}
