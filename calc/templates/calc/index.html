@@ -1,6 +1,7 @@
 {% extends "calc/base.html" %}
 {% load static %}
 {% load i18n %}
+{% load icons %}
 
 {% block title %}
 
@@ -44,16 +45,14 @@
       <a href="{% url 'calc:results' calculation.id %}">
         {{calculation.name}}
       </a>
-      <span class="badge badge-success badge-pill float-right">
-        <a href="{% url 'calc:delete' calculation.id %}">
-          {% trans "delete" %}
+        <a href="{% url 'calc:delete' calculation.id %}"
+        class="float-right btn btn-primary a-btn-slide-text">
+          <span>{% icon 'trash-o' %}</span>
         </a>
-      </span>
-      <span class="badge badge-success badge-pill float-right">
-        <a href="{% url 'calc:detail' calculation.id %}">
-          {% trans "edit" %}
+        <a href="{% url 'calc:detail' calculation.id %}"
+        class="float-right btn btn-primary a-btn-slide-text">
+          <span>{% icon 'edit' %}</span>
         </a>
-      </span>
     </li>
     {% endfor %}
     {% else %}
