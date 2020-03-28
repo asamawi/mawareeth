@@ -305,6 +305,11 @@ class ResultsView(LoginRequired, generic.DetailView):
 		context['Husband'] = self.object.heir_set.instance_of(Husband)
 		context['Daughter'] = self.object.heir_set.instance_of(Daughter)
 		context['Son'] = self.object.heir_set.instance_of(Son)
+		context['female_asaba'] = self.object.heir_set.filter(asaba=True, sex="F")
+		context['male_asaba'] = self.object.heir_set.filter(asaba=True, sex="M")
+		context['asaba'] = self.object.heir_set.filter(asaba=True)
+
+
 		return context
 
 	def dispatch(self, request, *args, **kwargs):

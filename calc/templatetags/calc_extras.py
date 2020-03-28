@@ -1,4 +1,5 @@
 from django import template
+from django.utils.translation import gettext as _
 
 register = template.Library()
 
@@ -6,4 +7,4 @@ register = template.Library()
 
 @register.filter
 def get_class(obj):
-    return obj.__class__.__name__
+    return _(obj.__class__.__name__)
