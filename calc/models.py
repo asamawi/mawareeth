@@ -438,6 +438,8 @@ class Calculation(models.Model):
         self.get_corrected_shares()
         self.set_amounts()
 
+    def get_absolute_url(self):
+        return reverse('calc:detail', args=[self.id])
 class Deceased(Person):
     """Deceased class"""
     estate = models.IntegerField()

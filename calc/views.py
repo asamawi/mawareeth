@@ -321,6 +321,10 @@ class ResultsView(LoginRequired, generic.DetailView):
 		self.calc.compute()
 		return super().dispatch(request, *args, **kwargs)
 
+class CalculationUpdate(UpdateView):
+	model = Calculation
+	fields = ['name']
+
 def new(request):
 	name = request.POST["name"]
 	if name == "":

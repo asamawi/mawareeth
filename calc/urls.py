@@ -10,6 +10,7 @@ urlpatterns = [
 	path('<int:calc_id>/deceased', views.DeceasedCreate.as_view(), name='deceased'),
 	path('<int:pk>/deceased_delete', views.DeceasedDelete.as_view(), name='deceased_delete'),
 	path('<int:pk>/deceased_update', views.DeceasedUpdate.as_view(), name='deceased_update'),
+	path('<int:pk>/calc_update', views.CalculationUpdate.as_view(), name='calc_update'),
 	path('<int:calc_id>/mother', views.MotherCreate.as_view(), name='mother'),
 	path('<int:pk>/heir_delete', views.HeirDelete.as_view(), name='heir_delete'),
 	path('<int:pk>/heir_update', views.HeirUpdate.as_view(), name='heir_update'),

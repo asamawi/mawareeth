@@ -21,10 +21,16 @@
       <div class="card card-index my-5">
         <div class="card-header">
           {% trans "Calculation name:" %}{{ calculation.name }}
+          <a
+          class="float-right btn btn-primary a-btn-slide-text"
+          href="{% url 'calc:calc_update' calculation.id %}"
+          >
+          <span>{% icon 'edit' %}</span>
+        </a>
         </div>
         <div class="card-body">
           {% if calculation.deceased_set.count != 0 %}
-          <div class="card text-white bg-secondary mb-3" style="max-width: 18rem;">
+          <div class="card text-white bg-secondary mb-3">
             <div class="card-header">
               {% trans "Deceased" %}
               <a
