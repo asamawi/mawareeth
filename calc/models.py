@@ -300,6 +300,8 @@ class Calculation(models.Model):
             shares = 0
             if self.excess == True:
                 shares = self.shares_excess
+            elif self.shortage == True:
+                shares = self.shares_shorted
             else:
                 shares = self.shares
             correction_set = self.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
@@ -357,8 +359,9 @@ class Calculation(models.Model):
             return shares
 
     def set_calc_shortage(self):
-        if self.shortage == True:
-            shares = self.get_shares()
+        shares = self.get_shares()
+        if self.shares > shares:
+            self.shortage = True
             remainder = self.shares - shares
             if self.has_spouse() == False:
                 self.shares_shorted = shares
@@ -538,6 +541,8 @@ class Heir(Person):
         if calc.correction==True and calc.shares_corrected != 0:
             if calc.excess == True:
                 multiplier = calc.shares_corrected // calc.shares_excess
+            elif calc.shortage == True:
+                multiplier = calc.shares_corrected // calc.shares_shorted
             else:
                 multiplier = calc.shares_corrected // calc.shares
             if correction_set.count() == 1:
@@ -568,10 +573,12 @@ class Heir(Person):
         estate = calc.deceased_set.first().estate
         amount = 0
         if calc.correction == False:
-            if calc.excess == False:
-                amount = estate / calc.shares * self.share
-            else:
+            if calc.excess == True:
                 amount = estate / calc.shares_excess * self.share
+            elif calc.shortage == True:
+                amount = estate / calc.shares_shorted * self.share
+            else:
+                amount = estate / calc.shares * self.share
         else:
             amount = estate / calc.shares_corrected * self.corrected_share
         self.amount = amount
