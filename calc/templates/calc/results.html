@@ -60,6 +60,9 @@ Calculation {{ calculation.name}}
             {% if calculation.excess == True %}
             <td>{{ heir.share }}</td>
             {% endif %}
+            {% if calculation.shortage == True %}
+            <td>{{ heir.shorted_share }}</td>
+            {% endif %}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
@@ -78,6 +81,9 @@ Calculation {{ calculation.name}}
             {% if calculation.excess == True %}
             <td>{{ heir.share }}</td>
             {% endif %}
+            {% if calculation.shortage == True %}
+            <td>{{ heir.shorted_share }}</td>
+            {% endif %}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
@@ -91,7 +97,9 @@ Calculation {{ calculation.name}}
           <tr>
             <td>{{ heir.first_name }}</td>
             {% if forloop.counter == 1%}
-            <td rowspan="{{ Wife.count }}" class="align-middle" >{{ heir.get_fraction }}</td>
+            <td rowspan="{{ Wife.count }}" class="align-middle" >
+              {{ heir.get_fraction }}
+            </td>
             {% endif %}
             <td>{{heir|get_class}}</td>
             {% if calculation.correction == True %}
@@ -105,7 +113,16 @@ Calculation {{ calculation.name}}
             {% endif %}
             {% if calculation.excess == True %}
             {% if forloop.counter == 1%}
-            <td rowspan="{{ Wife.count }}" class="align-middle" >{{ heir.share }}</td>
+            <td rowspan="{{ Wife.count }}" class="align-middle" >
+              {{ heir.share }}
+            </td>
+            {% endif %}
+            {% endif %}
+            {% if calculation.shortage == True %}
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ Wife.count }}" class="align-middle" >
+              {{ heir.shorted_share }}
+            </td>
             {% endif %}
             {% endif %}
             {% if calculation.correction == True %}
@@ -124,6 +141,9 @@ Calculation {{ calculation.name}}
             <td>{{ heir.share }}</td>
             {% if calculation.excess == True %}
             <td>{{ heir.share }}</td>
+            {% endif %}
+            {% if calculation.shortage == True %}
+            <td>{{ heir.shorted_share }}</td>
             {% endif %}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
@@ -170,6 +190,13 @@ Calculation {{ calculation.name}}
             </td>
             {% endif %}
             {% endif %}
+            {% if calculation.shortage == True %}
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ Daughter.count }}" class="align-middle">
+              {{ heir.shorted_share }}
+            </td>
+            {% endif %}
+            {% endif %}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
@@ -202,7 +229,16 @@ Calculation {{ calculation.name}}
             {% endif %}
             {% if calculation.excess == True %}
             {% if forloop.counter == 1%}
-            <td rowspan="{{ Son.count }}" class="align-middle">{{ heir.share }}</td>
+            <td rowspan="{{ Son.count }}" class="align-middle">
+              {{ heir.share }}
+            </td>
+            {% endif %}
+            {% endif %}
+            {% if calculation.shortage == True %}
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ Son.count }}" class="align-middle">
+              {{ heir.shorted_share }}
+            </td>
             {% endif %}
             {% endif %}
             {% if calculation.correction == True %}

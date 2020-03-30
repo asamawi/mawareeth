@@ -234,6 +234,9 @@ class Calculation(models.Model):
     def get_wives(self):
         return self.heir_set.instance_of(Wife)
 
+    def get_spouse(self):
+        return self.heir_set.instance_of(Husband,Wife)
+
     def get_daughters(self):
         return self.heir_set.instance_of(Daughter)
 
@@ -367,10 +370,6 @@ class Calculation(models.Model):
                 self.shares_shorted = shares
                 self.save()
             elif self.has_spouse() == True:
-                if self.deceased_set.first().sex == 'M':
-                    shares = self.get_wives().first().set_share(self)
-                else:
-                    shares = self.get_husband().set_share(self)
                 heirs = self.get_heirs_no_spouse()
                 denom_list = []
                 fractions_set = self.get_fractions(heirs)
@@ -379,9 +378,9 @@ class Calculation(models.Model):
                 if denom_list:
                     heirs_shares = self.lcm_list(denom_list)
                     if remainder % heirs_shares == 0:
-                        self.shares_shorted = math.gcd(remainder, heirs_shares) * shares
+                        self.shares_shorted = math.gcd(remainder, heirs_shares) * self.shares
                     else:
-                        self.shares_shorted = remainder * shares
+                        self.shares_shorted = remainder * self.shares
                 self.save()
 
     def set_asaba_quotes(self):
@@ -413,7 +412,14 @@ class Calculation(models.Model):
             self.excess = True
             self.shares_excess = shares
             self.save()
-
+    def set_shortage_shares(self):
+        if self.shortage == True:
+            for heir in self.heir_set.not_instance_of(Husband,Wife):
+                heir.set_shortage_share(self)
+            spouse_set =  self.get_spouse()
+            for spouse in spouse_set:
+                spouse.shorted_share = spouse.share
+                spouse.save()
     def clear(self):
         self.shares = 0
         self.excess = False
@@ -437,6 +443,7 @@ class Calculation(models.Model):
         self.get_shares()
         self.set_calc_excess()
         self.set_calc_shortage()
+        self.set_shortage_shares()
         self.set_calc_correction()
         self.get_corrected_shares()
         self.set_amounts()
@@ -455,6 +462,7 @@ class Heir(Person):
     shared_quote = models.BooleanField(default=False)    #prescribed share is shared with other heir like 2 daughters
     share = models.IntegerField(default=0)
     corrected_share = models.IntegerField(default=0)
+    shorted_share = models.IntegerField(default=0)
     amount = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     asaba = models.BooleanField(default=False)           #agnate or residuary
     blocked = models.BooleanField(default=False)         # restrcited from inheritance
@@ -488,6 +496,17 @@ class Heir(Person):
             return self.share
         else:
             return 0
+    def set_shortage_share(self, calc):
+        if calc.shortage == True:
+            if calc.has_spouse():
+                spouse = calc.get_spouse().first()
+                remainder = calc.shares_shorted - spouse.share
+                self.shorted_share = remainder
+            else:
+                self.shorted_share = self.share
+        self.save()
+        return self.shorted_share
+
     def set_asaba_share(self,calc):
         if self.asaba == True:
             shares = calc.shares
@@ -513,7 +532,6 @@ class Heir(Person):
             self.save()
             return self.share
 
-
     def set_asaba_quote(self, calc):
         remainder = calc.residual_shares
         shares =  calc.shares
@@ -529,11 +547,6 @@ class Heir(Person):
                 quote = (remainder + self.share )/calc.shares
                 self.quote = quote
                 self.save()
-
-
-
-
-
 
     def get_corrected_share(self, calc):
         correction_set = calc.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
@@ -576,7 +589,7 @@ class Heir(Person):
             if calc.excess == True:
                 amount = estate / calc.shares_excess * self.share
             elif calc.shortage == True:
-                amount = estate / calc.shares_shorted * self.share
+                amount = estate / calc.shares_shorted * self.shorted_share
             else:
                 amount = estate / calc.shares * self.share
         else:
@@ -595,6 +608,7 @@ class Heir(Person):
         self.blocked = False
         self.quote_reason = ""
         self.correction = False
+        self.shorted_share = 0
         self.save()
 
 class Father(Heir):
