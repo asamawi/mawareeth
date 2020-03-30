@@ -371,12 +371,10 @@ class Calculation(models.Model):
             remainder = self.shares - shares
             if self.has_spouse() == False:
                 self.shares_shorted = shares
-                self.save()
             elif self.has_spouse() == True:
                 spouse = self.get_spouse().first()
                 self.shares_shorted = spouse.get_fraction().denominator
-                self.save()
-
+            self.save()
     def set_asaba_quotes(self):
         #check for asaba exclude father with quote
         asaba = self.heir_set.filter(asaba=True).exclude(quote__gt=0)
@@ -600,17 +598,24 @@ class Heir(Person):
                 #check for correction
                 males = calc.heir_set.filter(asaba=True, sex='M').count()
                 females = calc.heir_set.filter(asaba=True, sex='F').count()
-                if remainder % (males*2+females) == 0:
-                    if males == asaba_count or females == asaba_count:
+                if males == asaba_count or females == asaba_count:
+                    if remainder % asaba_count == 0:
                         self.share = remainder // asaba_count
                     else:
-                        if self.sex == "M":
-                            self.share = remainder // (2 * males + females) * 2
-                        else:
-                            self.share = remainder // (2 * males + females)
+                        self.share = remainder
+                        self.correction = True
+                        calc.correction = True
+                        calc.save()
+                elif remainder % (males*2+females) == 0:
+                    if self.sex == "M":
+                        self.share = remainder // (2 * males + females) * 2
+                    else:
+                        self.share = remainder // (2 * males + females)
                 else:
                     self.share= remainder
                     self.correction = True
+                    calc.correction = True
+                    calc.save()
             self.save()
             return self.share
 

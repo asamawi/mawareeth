@@ -207,7 +207,11 @@ Calculation {{ calculation.name}}
               {% endif %}
             {% endif %}
             {% else %}
-            <td>{{ heir.share }}</td>
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ Daughter.count }}" class="align-middle">
+              {{ heir.share }}
+            </td>
+            {% endif %}
             {% endif %}
             {% if calculation.excess == True %}
             {% if forloop.counter == 1%}
@@ -256,7 +260,11 @@ Calculation {{ calculation.name}}
               {% endif %}
             {% endif %}
             {% else %}
-            <td>{{ heir.share }}</td>
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ Son.count }}" class="align-middle">
+              {{ heir.share }}
+            </td>
+            {% endif %}
             {% endif %}
             {% if calculation.excess == True %}
             {% if forloop.counter == 1%}
