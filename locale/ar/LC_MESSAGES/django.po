@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-03-28 21:55+0300\n"
+"POT-Creation-Date: 2020-03-31 01:24+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -43,67 +43,67 @@ msgstr "الزوج موجود"
 msgid "Cann't have more than 4 wifes"
 msgstr "لا يمكن اضافة اكثر من 4 زوجات"
 
-#: .\calc\models.py:521
+#: .\calc\models.py:623
 msgid "residuary for asaba"
 msgstr "الباقي للعصبة"
 
-#: .\calc\models.py:598
+#: .\calc\models.py:703
 msgid "father gets 1/6 prescribed share because of male decendent"
 msgstr "الاب ياخذ السدس لوجود الفرع الوارث"
 
-#: .\calc\models.py:602
+#: .\calc\models.py:707
 msgid "father gets 1/6 plus remainder because of female decendent"
 msgstr "الاب ياخذ السدس و الباقي تعصيبا "
 
-#: .\calc\models.py:605
+#: .\calc\models.py:710
 msgid "father gets the remainder because there is no decendent"
 msgstr "الاب ياخذ الباقي لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:618
+#: .\calc\models.py:723
 msgid "mother gets 1/6 becasue of decendent or siblings"
 msgstr "تاخذ الام السدس لوجود الفرع الوارث او جمع من الاخوة"
 
-#: .\calc\models.py:622
+#: .\calc\models.py:727
 msgid "mother gets 1/3 of the remainder which is 1/4."
 msgstr "تاخذ الام ثلث الباقي اي الربع"
 
-#: .\calc\models.py:625
+#: .\calc\models.py:730
 msgid "mother gets 1/3 of the remainder which is 1/6"
 msgstr "تاخذ الام ثلث الباقي اي السدس"
 
-#: .\calc\models.py:639
+#: .\calc\models.py:744
 msgid "husband gets 1/4 becuase of decendent"
 msgstr "الزوج ياخذ الربع لوجود الفرع الوارث"
 
-#: .\calc\models.py:642
+#: .\calc\models.py:747
 msgid "husband gets 1/2 becuase there is no decendent"
 msgstr "الزوج ياخذ النصف لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:655
+#: .\calc\models.py:760
 msgid "wife gets 1/8 becuase of decendent"
 msgstr "تاخذ الزوجة الثمن لوجود الفرع الوارث"
 
-#: .\calc\models.py:658
+#: .\calc\models.py:763
 msgid "wife gets 1/4 becuase there is no decendent"
 msgstr "تاخذ الزوجة الربع لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:662
+#: .\calc\models.py:767
 msgid "wives share the qoute of 1/8 becuase of decendent"
 msgstr "الزوجات شركاء في الثمن لوجود الفرع الوارث"
 
-#: .\calc\models.py:665
+#: .\calc\models.py:770
 msgid "wives share the quote of 1/4 becuase there is no decendent"
 msgstr "الزوجات شركاء في الربع لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:682
+#: .\calc\models.py:787
 msgid "Daughter gets 1/2 when she has no other sibling/s"
 msgstr "البنت تاخذ النصف اذا انفردت من دون اخوة و اخوات"
 
-#: .\calc\models.py:686
+#: .\calc\models.py:791
 msgid "Daughters share the quote of 2/3 when there is no son/s"
 msgstr "البنات شركاء في الثلثين اذا لم يوجد اخ لهن معصب"
 
-#: .\calc\models.py:699
+#: .\calc\models.py:804
 msgid "Son/s share the remainder or all amount if no other heir exist"
 msgstr "الابن او الابناء عصبة ياخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
@@ -153,9 +153,10 @@ msgstr "تسجيل دخول"
 msgid "Sign Up"
 msgstr "تسجيل"
 
+#: .\calc\templates\calc\calculation_form.html:9
 #: .\calc\templates\calc\deceased_confirm_delete.html:8
 #: .\calc\templates\calc\deceased_form.html:9
-#: .\calc\templates\calc\detail.html:29 .\calc\templates\calc\detail.html:94
+#: .\calc\templates\calc\detail.html:35 .\calc\templates\calc\detail.html:100
 #: .\calc\templates\calc\heir_confirm_delete.html:8
 msgid "Deceased"
 msgstr "الميت"
@@ -177,111 +178,111 @@ msgstr "مسألة "
 msgid "Calculation name:"
 msgstr "اسم المسألة"
 
-#: .\calc\templates\calc\detail.html:49
+#: .\calc\templates\calc\detail.html:55
 msgid "Deceased name:"
 msgstr "اسم الميت"
 
-#: .\calc\templates\calc\detail.html:50
+#: .\calc\templates\calc\detail.html:56
 msgid "Deceased estate:"
 msgstr "التركة"
 
-#: .\calc\templates\calc\detail.html:55
+#: .\calc\templates\calc\detail.html:61
 msgid "Mother"
 msgstr "ام"
 
-#: .\calc\templates\calc\detail.html:57
+#: .\calc\templates\calc\detail.html:63
 msgid " Mother"
 msgstr " ام"
 
-#: .\calc\templates\calc\detail.html:62
+#: .\calc\templates\calc\detail.html:68
 msgid "Father"
 msgstr "اب"
 
-#: .\calc\templates\calc\detail.html:64
+#: .\calc\templates\calc\detail.html:70
 msgid " Father"
 msgstr " اب"
 
-#: .\calc\templates\calc\detail.html:69
+#: .\calc\templates\calc\detail.html:75
 msgid "Wife"
 msgstr "زوجة"
 
-#: .\calc\templates\calc\detail.html:71
+#: .\calc\templates\calc\detail.html:77
 msgid " Wife"
 msgstr " زوجة"
 
-#: .\calc\templates\calc\detail.html:76
+#: .\calc\templates\calc\detail.html:82
 msgid "Husband"
 msgstr "زوج"
 
-#: .\calc\templates\calc\detail.html:78
+#: .\calc\templates\calc\detail.html:84
 msgid " Husband"
 msgstr " زوج"
 
-#: .\calc\templates\calc\detail.html:82
+#: .\calc\templates\calc\detail.html:88
 msgid "Daughter"
 msgstr "بنت"
 
-#: .\calc\templates\calc\detail.html:84
+#: .\calc\templates\calc\detail.html:90
 msgid " Daughter"
 msgstr " بنت"
 
-#: .\calc\templates\calc\detail.html:87
+#: .\calc\templates\calc\detail.html:93
 msgid "Son"
 msgstr "ابن"
 
-#: .\calc\templates\calc\detail.html:89
+#: .\calc\templates\calc\detail.html:95
 msgid " Son"
 msgstr " ابن"
 
-#: .\calc\templates\calc\detail.html:94
+#: .\calc\templates\calc\detail.html:100
 msgid "Add Deceased"
 msgstr "اضافة الميت"
 
-#: .\calc\templates\calc\detail.html:101 .\calc\templates\calc\results.html:24
+#: .\calc\templates\calc\detail.html:107 .\calc\templates\calc\results.html:24
 msgid "Relation"
 msgstr "القرابة "
 
-#: .\calc\templates\calc\detail.html:102 .\calc\templates\calc\results.html:22
+#: .\calc\templates\calc\detail.html:108 .\calc\templates\calc\results.html:22
 msgid "Name"
 msgstr "الاسم"
 
-#: .\calc\templates\calc\detail.html:134 .\calc\templates\calc\detail.html:174
+#: .\calc\templates\calc\detail.html:140 .\calc\templates\calc\detail.html:180
 msgid "Add"
 msgstr "اضافة"
 
-#: .\calc\templates\calc\detail.html:138
+#: .\calc\templates\calc\detail.html:144
 msgid "First Name:"
 msgstr "الاسم الاول"
 
-#: .\calc\templates\calc\detail.html:142
+#: .\calc\templates\calc\detail.html:148
 msgid "Last Name:"
 msgstr "الاسم الاخير"
 
-#: .\calc\templates\calc\detail.html:146
+#: .\calc\templates\calc\detail.html:152
 msgid "Sex:"
 msgstr "الجنس"
 
-#: .\calc\templates\calc\detail.html:148
+#: .\calc\templates\calc\detail.html:154
 msgid "Male"
 msgstr "ذكر"
 
-#: .\calc\templates\calc\detail.html:149
+#: .\calc\templates\calc\detail.html:155
 msgid "Female"
 msgstr "انثى"
 
-#: .\calc\templates\calc\detail.html:153
+#: .\calc\templates\calc\detail.html:159
 msgid "Estate:"
 msgstr "التركة"
 
-#: .\calc\templates\calc\detail.html:158
+#: .\calc\templates\calc\detail.html:164
 msgid "Mother:"
 msgstr "ام:"
 
-#: .\calc\templates\calc\detail.html:161
+#: .\calc\templates\calc\detail.html:167
 msgid "--- Select Mother ---"
 msgstr "--- اختر الام ---"
 
-#: .\calc\templates\calc\detail.html:173
+#: .\calc\templates\calc\detail.html:179
 msgid "Close"
 msgstr "الغاء"
 
@@ -330,15 +331,23 @@ msgid "Shortage"
 msgstr "الرد"
 
 #: .\calc\templates\calc\results.html:33
+msgid "Shortage calc"
+msgstr "مسالة الرد"
+
+#: .\calc\templates\calc\results.html:34
+msgid "Calc Union"
+msgstr "الجامعة"
+
+#: .\calc\templates\calc\results.html:37
 msgid "Correction"
 msgstr "التصحيح"
 
-#: .\calc\templates\calc\results.html:35
+#: .\calc\templates\calc\results.html:39
 msgid "Amount"
 msgstr "القيمة"
 
-#: .\calc\templates\calc\results.html:142
-#: .\calc\templates\calc\results.html:187
+#: .\calc\templates\calc\results.html:188
+#: .\calc\templates\calc\results.html:245
 msgid "asaba"
 msgstr "عصبة"
 
