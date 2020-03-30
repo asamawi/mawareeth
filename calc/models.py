@@ -160,6 +160,9 @@ class Calculation(models.Model):
     shortage = models.BooleanField(default=False)
     residual_shares = models.IntegerField(default=0)
     correction = models.BooleanField(default=False)  # shares and heirs number division should give no fractions
+    shortage_calc = models.BooleanField(default=False)
+    shortage_calc_shares = models.IntegerField(default=0)
+    shortage_union_shares = models.IntegerField(default=0)
     shares_excess = models.IntegerField(default=0)
     shares_corrected = models.IntegerField(default=0)
     shares_shorted = models.IntegerField(default=0)
@@ -403,6 +406,7 @@ class Calculation(models.Model):
             self.excess = True
             self.shares_excess = shares
             self.save()
+
     def set_shortage_shares(self):
         if self.shortage == True:
             spouse_set =  self.get_spouse()
@@ -411,6 +415,45 @@ class Calculation(models.Model):
                 spouse.save()
             for heir in self.heir_set.not_instance_of(Husband,Wife):
                 heir.set_shortage_share(self)
+
+    def set_shortage_calc_shares(self):
+        if self.shortage_calc == True:
+            denom_list = []
+            heirs = self.get_heirs_no_spouse()
+            fractions_set = self.get_fractions(heirs)
+            for fraction in fractions_set:
+                denom_list.append(fraction.denominator)
+            self.shortage_calc_shares = self.lcm_list(denom_list)
+            self.save()
+
+    def set_shortage_calc_share(self):
+        if self.shortage_calc == True:
+            heirs = self.get_heirs_no_spouse()
+            for heir in heirs:
+                heir.set_shortage_calc_share(self)
+
+    def set_shortage_union_shares(self):
+        if self.shortage_calc == True:
+            heirs = self.get_heirs_no_spouse()
+            shorted_shares = 0
+            remainder = heirs.first().shorted_share
+            for heir in heirs:
+                shorted_shares = shorted_shares + heir.shortage_calc_share
+            if shorted_shares % remainder == 0:
+                self.shortage_union_shares = self.shortage_calc_shares
+            else:
+                self.shortage_union_shares = shorted_shares * self.shares_shorted
+            self.save()
+    def set_shortage_union_share(self):
+        if self.shortage_calc == True:
+            spouse_set =  self.get_spouse()
+            multiplier = self.shortage_union_shares // self.shares_shorted
+            for spouse in spouse_set:
+                spouse.shortage_union_share = spouse.shorted_share * multiplier
+                spouse.save()
+            heirs = self.get_heirs_no_spouse()
+            for heir in heirs:
+                heir.set_shortage_union_share(self)
 
     def clear(self):
         self.shares = 0
@@ -436,6 +479,11 @@ class Calculation(models.Model):
         self.set_calc_excess()
         self.set_calc_shortage()
         self.set_shortage_shares()
+        if self.shortage_calc:
+            self.set_shortage_calc_shares()
+            self.set_shortage_calc_share()
+            self.set_shortage_union_shares()
+            self.set_shortage_union_share()
         self.set_calc_correction()
         self.get_corrected_shares()
         self.set_amounts()
@@ -460,6 +508,9 @@ class Heir(Person):
     blocked = models.BooleanField(default=False)         # restrcited from inheritance
     quote_reason = models.CharField(max_length=255, default="")
     correction = models.BooleanField(default=False)
+    shortage_calc = models.BooleanField(default = False)
+    shortage_calc_share = models.IntegerField(default=0)
+    shortage_union_share = models.IntegerField(default=0)
     abstract = True
     calc = models.ForeignKey(Calculation, on_delete=NON_POLYMORPHIC_CASCADE,null=True)
     def get_absolute_url(self):
@@ -493,21 +544,49 @@ class Heir(Person):
             if calc.has_spouse():
                 spouse = calc.get_spouse().first()
                 remainder = calc.shares_shorted - spouse.shorted_share
-                if self.shared_quote == True:
-                    count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
-                    if remainder % count == 0:
-                        self.shorted_share = remainder // count
-                        self.save()
-                    else:
-                        self.correction=True
-                        calc.correction=True
+                shorted_types = calc.heir_set.not_instance_of(Husband, Wife).values('polymorphic_ctype_id','share').annotate(total=Count('id'))
+                if shorted_types.count() == 1:
+                    if self.shared_quote == True:
+                        count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
+                        if remainder % count == 0:
+                            self.shorted_share = remainder // count
+                        else:
+                            self.correction=True
+                            calc.correction=True
+                            self.shorted_share = remainder
+                            calc.save()
+                    else :
                         self.shorted_share = remainder
-                        self.save()
-                        calc.save()
+                elif shorted_types.count() > 1:
+                    self.shorted_share = remainder
+                    self.shortage_calc = True
+                    calc.shortage_calc = True
+                    calc.save()
             else:
                 self.shorted_share = self.share
         self.save()
         return self.shorted_share
+    def set_shortage_calc_share(self, calc):
+        if self.shortage_calc == True:
+            share = calc.shortage_calc_shares * self.get_fraction().numerator // self.get_fraction().denominator
+            if self.shared_quote == True:
+                count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
+                if share % count == 0:
+                    self.shortage_calc_share = share // count
+                    self.save()
+                else:
+                    self.correction=True
+                    calc.correction=True
+                    self.share = share
+                    self.save()
+                    calc.save()
+            else:
+                self.shortage_calc_share=share
+                self.save()
+            return self.shortage_calc_share
+    def set_shortage_union_share(self, calc):
+            self.shortage_union_share = self.shortage_calc_share * self.shorted_share
+            self.save()
 
     def set_asaba_share(self,calc):
         if self.asaba == True:
@@ -538,8 +617,6 @@ class Heir(Person):
         remainder = calc.residual_shares
         shares =  calc.shares
         if remainder > 0 and shares > 0:
-            asaba_types = calc.heir_set.filter(asaba=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
-            asaba_count = calc.heir_set.filter(asaba=True).count()
             if self.quote == 0:
                 quote = remainder / calc.shares
                 self.quote = quote
@@ -562,6 +639,7 @@ class Heir(Person):
                 share = self.shorted_share
             else:
                 multiplier = calc.shares_corrected // calc.shares
+                share = self.share
             if correction_set.count() == 1:
                 if self.shared_quote == True:
                     self.corrected_share = share

@@ -610,3 +610,34 @@ class CalculationSetCalcExcessTestCase(TestCase):
         self.assertEquals(calc1.get_mother().amount,1200)
         self.assertEquals(calc1.get_father().amount,1200)
         self.assertEquals(calc1.get_wives().first().amount,900)
+
+class CalculationShortageTestCase(TestCase):
+
+    def setUp(self):
+        user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
+
+        calc1 = Calculation.objects.create(name='calc1', user=user1)
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="F",estate="8100",calc=calc1)
+        mother = Mother.objects.create(first_name="Mother", last_name="test", sex="F", calc=calc1)
+        calc1.add_mother(mother)
+        husband = Husband.objects.create(first_name="Husband", last_name="test", sex="M", calc=calc1)
+        calc1.add_husband(husband)
+        daughter1 = Daughter.objects.create(first_name="Daughter1", last_name="test", sex="F", calc=calc1)
+        calc1.add_daughter(daughter1, mother=None, father=husband)
+
+
+    def test_set_calc_Excess(self):
+        calc1 = Calculation.objects.get(name="calc1")
+
+        calc1.compute()
+
+
+        self.assertEquals(calc1.get_fractions(calc1.heir_set.all()), {Fraction(1,6),Fraction(1,4),Fraction(1,2)})
+        self.assertEquals(calc1.get_shares(), 11)
+        self.assertEquals(calc1.shares, 12)
+        self.assertEquals(calc1.shares_shorted, 4)
+        self.assertEquals(calc1.shortage_calc_shares,6)
+        self.assertEquals(calc1.shortage_union_shares,16)
+        self.assertEquals(calc1.get_daughters().first().shorted_share,3)
+        self.assertEquals(calc1.get_daughters().first().shortage_calc_share,3)
+        self.assertEquals(calc1.get_daughters().first().shortage_union_share,9)

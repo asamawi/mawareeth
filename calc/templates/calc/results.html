@@ -29,6 +29,10 @@ Calculation {{ calculation.name}}
             {% if calculation.shortage == True %}
             <th scope="col"  >{%trans "Shortage" %}</th>
             {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <th scope="col"  >{%trans "Shortage calc" %}</th>
+            <th scope="col"  >{%trans "Calc Union" %}</th>
+            {% endif %}
             {% if calculation.correction == True %}
             <th scope="col"  >{%trans "Correction" %}</th>
             {% endif %}
@@ -41,6 +45,11 @@ Calculation {{ calculation.name}}
             {% endif %}
             {% if calculation.shortage == True %}
             <th scope="col" > {{calculation.shares_shorted}}</th>
+            {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <th scope="col" > {{calculation.shortage_calc_shares}}</th>
+            <th scope="col" > {{calculation.shortage_union_shares}}</th>
+
             {% endif %}
             {% if calculation.correction == True %}
             <th scope="col" > {{calculation.shares_corrected}}</th>
@@ -63,6 +72,10 @@ Calculation {{ calculation.name}}
             {% if calculation.shortage == True %}
             <td>{{ heir.shorted_share }}</td>
             {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <td>{{ heir.shortage_calc_share }}</td>
+            <td>{{ heir.shortage_union_share }}</td>
+            {% endif %}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
@@ -83,6 +96,10 @@ Calculation {{ calculation.name}}
             {% endif %}
             {% if calculation.shortage == True %}
             <td>{{ heir.shorted_share }}</td>
+            {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <td>{{ heir.shortage_calc_share }}</td>
+            <td>{{ heir.shortage_union_share }}</td>
             {% endif %}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
@@ -125,6 +142,10 @@ Calculation {{ calculation.name}}
             </td>
             {% endif %}
             {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <td>{{ heir.shortage_calc_share }}</td>
+            <td>{{ heir.shortage_union_share }}</td>
+            {% endif %}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
@@ -144,6 +165,11 @@ Calculation {{ calculation.name}}
             {% endif %}
             {% if calculation.shortage == True %}
             <td>{{ heir.shorted_share }}</td>
+            {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <td>{{ heir.shortage_calc_share }}</td>
+            <td>{{ heir.shortage_union_share }}</td>
+
             {% endif %}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
@@ -197,6 +223,11 @@ Calculation {{ calculation.name}}
             </td>
             {% endif %}
             {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <td>{{ heir.shortage_calc_share }}</td>
+            <td>{{ heir.shortage_union_share }}</td>
+
+            {% endif %}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
@@ -240,6 +271,11 @@ Calculation {{ calculation.name}}
               {{ heir.shorted_share }}
             </td>
             {% endif %}
+            {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <td>{{ heir.shortage_calc_share }}</td>
+            <td>{{ heir.shortage_union_share }}</td>
+
             {% endif %}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
