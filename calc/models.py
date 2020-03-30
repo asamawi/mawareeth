@@ -463,6 +463,7 @@ class Calculation(models.Model):
         self.shares_excess = 0
         self.shares_corrected = 0
         self.shares_shorted = 0
+        self.shortage_calc = False
         self.save()
         for heir in self.heir_set.all():
             heir.clear()
@@ -671,7 +672,10 @@ class Heir(Person):
             if calc.excess == True:
                 amount = estate / calc.shares_excess * self.share
             elif calc.shortage == True:
-                amount = estate / calc.shares_shorted * self.shorted_share
+                if calc.shortage_calc == True:
+                    amount = estate / calc.shortage_union_shares * self.shortage_union_share
+                else:
+                    amount = estate / calc.shares_shorted * self.shorted_share
             else:
                 amount = estate / calc.shares * self.share
         else:
@@ -691,6 +695,7 @@ class Heir(Person):
         self.quote_reason = ""
         self.correction = False
         self.shorted_share = 0
+        self.shortage_calc= False
         self.save()
 
 class Father(Heir):
