@@ -370,17 +370,8 @@ class Calculation(models.Model):
                 self.shares_shorted = shares
                 self.save()
             elif self.has_spouse() == True:
-                heirs = self.get_heirs_no_spouse()
-                denom_list = []
-                fractions_set = self.get_fractions(heirs)
-                for fraction in fractions_set:
-                    denom_list.append(fraction.denominator)
-                if denom_list:
-                    heirs_shares = self.lcm_list(denom_list)
-                    if remainder % heirs_shares == 0:
-                        self.shares_shorted = math.gcd(remainder, heirs_shares) * self.shares
-                    else:
-                        self.shares_shorted = remainder * self.shares
+                spouse = self.get_spouse().first()
+                self.shares_shorted = spouse.get_fraction().denominator
                 self.save()
 
     def set_asaba_quotes(self):
@@ -414,12 +405,13 @@ class Calculation(models.Model):
             self.save()
     def set_shortage_shares(self):
         if self.shortage == True:
-            for heir in self.heir_set.not_instance_of(Husband,Wife):
-                heir.set_shortage_share(self)
             spouse_set =  self.get_spouse()
             for spouse in spouse_set:
-                spouse.shorted_share = spouse.share
+                spouse.shorted_share = spouse.get_fraction().numerator
                 spouse.save()
+            for heir in self.heir_set.not_instance_of(Husband,Wife):
+                heir.set_shortage_share(self)
+
     def clear(self):
         self.shares = 0
         self.excess = False
@@ -500,8 +492,18 @@ class Heir(Person):
         if calc.shortage == True:
             if calc.has_spouse():
                 spouse = calc.get_spouse().first()
-                remainder = calc.shares_shorted - spouse.share
-                self.shorted_share = remainder
+                remainder = calc.shares_shorted - spouse.shorted_share
+                if self.shared_quote == True:
+                    count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
+                    if remainder % count == 0:
+                        self.shorted_share = remainder // count
+                        self.save()
+                    else:
+                        self.correction=True
+                        calc.correction=True
+                        self.shorted_share = remainder
+                        self.save()
+                        calc.save()
             else:
                 self.shorted_share = self.share
         self.save()
@@ -554,30 +556,32 @@ class Heir(Person):
         if calc.correction==True and calc.shares_corrected != 0:
             if calc.excess == True:
                 multiplier = calc.shares_corrected // calc.shares_excess
+                share = self.share
             elif calc.shortage == True:
                 multiplier = calc.shares_corrected // calc.shares_shorted
+                share = self.shorted_share
             else:
                 multiplier = calc.shares_corrected // calc.shares
             if correction_set.count() == 1:
                 if self.shared_quote == True:
-                    self.corrected_share = self.share
+                    self.corrected_share = share
                 else:
-                    self.corrected_share = self.share * multiplier
+                    self.corrected_share = share * multiplier
             elif self.asaba == True and asaba_set.count() == 2 :
                 males = calc.heir_set.filter(asaba=True, sex='M').count()
                 females = calc.heir_set.filter(asaba=True, sex='F').count()
                 asaba_count = calc.heir_set.filter(asaba=True).count()
 
                 if self.sex == "M":
-                    self.corrected_share = self.share * multiplier // (2 * males + females) * 2
+                    self.corrected_share = share * multiplier // (2 * males + females) * 2
                 else:
-                    self.corrected_share = self.share * multiplier // (2 * males + females)
+                    self.corrected_share = share * multiplier // (2 * males + females)
             else :
                 count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
                 if self.shared_quote == True:
-                    self.corrected_share = self.share * multiplier // count
+                    self.corrected_share = share * multiplier // count
                 else:
-                    self.corrected_share = self.share * multiplier
+                    self.corrected_share = share * multiplier
 
             self.save()
             return self.corrected_share
