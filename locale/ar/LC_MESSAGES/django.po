@@ -117,8 +117,6 @@ msgid "Home"
 msgstr "الرئيسية"
 
 #: .\calc\templates\calc\base.html:34 .\calc\templates\calc\home.html:35
-#, fuzzy
-#| msgid "Calculation"
 msgid "Calculations"
 msgstr "مسألة "
 
@@ -286,46 +284,41 @@ msgid "Heir"
 msgstr "وارث"
 
 #: .\calc\templates\calc\home.html:28
-#, fuzzy
-#| msgid "Mawareeth 2.0"
 msgid "Mawareeth"
 msgstr "مواريث 2.0"
 
 #: .\calc\templates\calc\home.html:29
 msgid "Distribution of wealth according to the principles of Islam"
-msgstr ""
+msgstr "تقسيم الارث حسب الشريعة الاسلامية"
 
 #: .\calc\templates\calc\home.html:36
 msgid "Get reliable and simple results for your calculations"
-msgstr ""
+msgstr "احصل على نتائج سهلة و صحيحة للمسائل"
 
 #: .\calc\templates\calc\home.html:42
 msgid "Easy and Simple"
-msgstr ""
+msgstr "سهل و بسيط"
 
 #: .\calc\templates\calc\home.html:43
 msgid "New imporved and interactive user interface"
-msgstr ""
+msgstr "واجهة مستخدم جديدة و مطورة"
 
 #: .\calc\templates\calc\home.html:61
-#, fuzzy
-#| msgid "Mawareeth 2.0"
 msgid "Welcome to Mawareeth 2.0"
-msgstr "مواريث 2.0"
+msgstr "مرحبا بكم في المواريث النسخة 2.0"
 
 #: .\calc\templates\calc\home.html:62
-msgid ""
-"Get started now with our new interface and improved inheritance calculation "
+msgid "Get started now with our new interface and improved inheritance calculation "
 "algorithms."
-msgstr ""
+msgstr "ابدأ الان مع التحسينات الجديدة لموقع المواريث حيث قمنا بتحديث كامل لواجهة المستخدم و طريقة الحساب"
 
 #: .\calc\templates\calc\home.html:64
 msgid "for free or"
-msgstr ""
+msgstr "مجانا أو"
 
 #: .\calc\templates\calc\home.html:68
 msgid "if you are an exiting user."
-msgstr ""
+msgstr "اذا كنت مستخدم حالي"
 
 #: .\calc\templates\calc\index.html:22
 msgid "Create new calculation"
