@@ -37,7 +37,7 @@ class CalculationTestCase(TestCase):
     def test_index(self):
         c = Client()
         logged_in = c.login(username='john', password='johnpassword')
-        response = c.get('/en/',follow=True, secure=True)
+        response = c.get('/en/calc',follow=True, secure=True)
         self.assertTrue(logged_in)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["calculation_list"].count(), 1)
