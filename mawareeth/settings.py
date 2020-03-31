@@ -168,3 +168,11 @@ DEFAULT_FROM_EMAIL = "noreply@mawareeth.com"
 SERVER_EMAIL = "notifications@mawareeth.com"
 
 CRISPY_TEMPLATE_PACK = 'bootstrap4'
+
+SECURE_SSL_REDIRECT = os.environ.get("SSL_REDIRECT",True)
+
+SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE",True)
+
+CSRF_COOKIE_SECURE = os.environ.get("CSRF_COOKIE",True)
+
+SECURE_REFERRER_POLICY = 'same-origin'
