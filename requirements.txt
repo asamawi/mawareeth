@@ -7,3 +7,4 @@ sqlparse
 django-anymail[mailgun]
 django-crispy-forms
 django-icons
+python-decouple

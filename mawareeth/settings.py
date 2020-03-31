@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 import os
 import django_heroku
 from django.utils.translation import gettext_lazy as _
+from decouple import config
+
 
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -169,10 +171,10 @@ SERVER_EMAIL = "notifications@mawareeth.com"
 
 CRISPY_TEMPLATE_PACK = 'bootstrap4'
 
-SECURE_SSL_REDIRECT = os.environ.get("SSL_REDIRECT",True)
+SECURE_SSL_REDIRECT = config("SSL_REDIRECT",default=True, cast=bool)
 
-SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE",True)
+SESSION_COOKIE_SECURE = config("SESSION_COOKIE",default=True, cast=bool)
 
-CSRF_COOKIE_SECURE = os.environ.get("CSRF_COOKIE",True)
+CSRF_COOKIE_SECURE = config("CSRF_COOKIE",default=True, cast=bool)
 
 SECURE_REFERRER_POLICY = 'same-origin'
