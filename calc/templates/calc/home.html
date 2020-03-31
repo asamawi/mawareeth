@@ -1,0 +1,72 @@
+{% extends "calc/base.html" %}
+{% load static %}
+{% load i18n %}
+{% load icons %}
+
+{% block title %}
+
+{% trans "Home" %}
+
+{% endblock %}
+
+{% block css %}
+<link rel="stylesheet" href="{% static 'calc/css/content.css' %}">
+{% endblock %}
+
+{% block body %}
+<header>
+  <div id="carouselExampleIndicators" class="carousel slide" data-ride="carousel">
+    <ol class="carousel-indicators">
+      <li data-target="#carouselExampleIndicators" data-slide-to="0" class="active"></li>
+      <li data-target="#carouselExampleIndicators" data-slide-to="1"></li>
+      <li data-target="#carouselExampleIndicators" data-slide-to="2"></li>
+    </ol>
+    <div class="carousel-inner" role="listbox">
+      <!-- Slide One - Set the background image for this slide in the line below -->
+      <div class="carousel-item active" style="background-image: url('{% static 'calc/img/quran.jpeg' %}')">
+        <div class="carousel-caption d-none d-md-block">
+          <h2 class="display-4">{% trans "Mawareeth" %}</h2>
+          <p class="lead">{% trans "Distribution of wealth according to the principles of Islam" %}</p>
+        </div>
+      </div>
+      <!-- Slide Two - Set the background image for this slide in the line below -->
+      <div class="carousel-item" style="background-image: url('{% static 'calc/img/court.jpg' %}')">
+        <div class="carousel-caption d-none d-md-block">
+          <h2 class="display-4">{% trans "Calculation" %}</h2>
+          <p class="lead">{% trans "Get reliable and simple results for your calculations" %}</p>
+        </div>
+      </div>
+      <!-- Slide Three - Set the background image for this slide in the line below -->
+      <div class="carousel-item" style="background-image: url('{% static 'calc/img/UI.png' %}')">
+        <div class="carousel-caption d-none d-md-block">
+          <h2 class="display-4">{% trans "Easy and Simple" %}</h2>
+          <p class="lead">{% trans "New imporved and interactive user interface" %}</p>
+        </div>
+      </div>
+    </div>
+    <a class="carousel-control-prev" href="#carouselExampleIndicators" role="button" data-slide="prev">
+          <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+          <span class="sr-only">Previous</span>
+        </a>
+    <a class="carousel-control-next" href="#carouselExampleIndicators" role="button" data-slide="next">
+          <span class="carousel-control-next-icon" aria-hidden="true"></span>
+          <span class="sr-only">Next</span>
+        </a>
+  </div>
+</header>
+
+<!-- Page Content -->
+<section class="py-5">
+  <div class="container">
+    <h1 class="display-4">{% trans "Welcome to Mawareeth 2.0" %}</h1>
+    <p class="lead">{% trans "Get started now with our new interface and improved inheritance calculation algorithms." %}
+      <a href="{% url 'calc:signup' %}">{% trans 'Sign Up' %}</a>
+      {% trans "for free or" %}
+      <a href="{% url 'login' %}">
+        {% trans 'login' %}
+      </a>
+      {% trans "if you are an exiting user." %}
+    </p>
+  </div>
+</section>
+{% endblock %}

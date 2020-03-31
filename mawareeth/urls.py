@@ -26,7 +26,8 @@ urlpatterns = [
 ]
 
 calc_patterns = ([
-    path('', calc_views.IndexView.as_view(), name='index'),
+    path('calc/', calc_views.IndexView.as_view(), name='index'),
+    path('', calc_views.HomePage.as_view(), name='home'),
     path('new/', calc_views.new, name='new'),
     path('<int:pk>/', calc_views.DetailView.as_view(), name='detail'),
     path('<int:pk>/delete/', calc_views.delete, name='delete'),

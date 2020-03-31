@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load active_link_tags %}
 <!doctype html>
 <html lang="en">
   <head>
@@ -26,26 +27,15 @@
 
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav mr-auto">
-        <li class="nav-item active">
-          <a class="nav-link" href="{% url 'calc:index' %}"> {% trans "Home" %} <span class="sr-only">(current)</span></a>
+        <li class="nav-item {% active_link 'calc:home' strict=True %}">
+          <a class="nav-link" href="{% url 'calc:home' %}"> {% trans "Home" %} <span class="sr-only">(current)</span></a>
         </li>
-        <!-- <li class="nav-item">
-          <a class="nav-link" href="#"> {% trans "About" %} </a>
-        </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-            {% trans "Dropdown" %}
-          </a>
-          <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-            <a class="dropdown-item" href="#">{% trans "Action" %} </a>
-            <a class="dropdown-item" href="#">{% trans "Another action" %} </a>
-            <div class="dropdown-divider"></div>
-            <a class="dropdown-item" href="#">{% trans "Something else here" %} </a>
-          </div>
+        <li class="nav-item {% active_link 'calc:index' %}">
+          <a class="nav-link" href="{% url 'calc:index' %}"> {% trans "Calculations" %} </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">Disabled</a>
-        </li> -->
+          <a class="nav-link" href="#"> {% trans "About" %} </a>
+        </li>
       </ul>
       {% if user.is_authenticated %}
         {% trans "Welcome " %} {{ user.username }} -- <a href="{% url 'logout' %}">{% trans " logout " %}</a>

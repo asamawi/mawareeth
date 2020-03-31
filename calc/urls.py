@@ -3,7 +3,8 @@ from . import views
 
 app_name = 'calc'
 urlpatterns = [
-	path('', views.IndexView.as_view(), name='index'),
+	path('calc/', views.IndexView.as_view(), name='index'),
+	path('', views.HomePage.as_view(), name='home'),
 	path('new/', views.new, name='new'),
 	path('<int:pk>/', views.DetailView.as_view(), name='detail'),
 	path('<int:pk>/delete/', views.delete, name='delete'),

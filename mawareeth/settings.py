@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'anymail',
     'crispy_forms',
     'django_icons',
+    'active_link',
 ]
 
 MIDDLEWARE = [

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-03-31 01:24+0300\n"
+"POT-Creation-Date: 2020-03-31 22:18+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -31,123 +31,115 @@ msgstr "الاسم الاخير"
 msgid "father already exist"
 msgstr "الاب موجود"
 
-#: .\calc\models.py:66 .\calc\views.py:71
+#: .\calc\models.py:66 .\calc\views.py:74
 msgid "Mother already exist"
 msgstr "الام موجودة"
 
-#: .\calc\models.py:84 .\calc\views.py:125
+#: .\calc\models.py:84 .\calc\views.py:128
 msgid "Husband already exist"
 msgstr "الزوج موجود"
 
-#: .\calc\models.py:94 .\calc\views.py:152
+#: .\calc\models.py:94 .\calc\views.py:155
 msgid "Cann't have more than 4 wifes"
 msgstr "لا يمكن اضافة اكثر من 4 زوجات"
 
-#: .\calc\models.py:623
+#: .\calc\models.py:629
 msgid "residuary for asaba"
 msgstr "الباقي للعصبة"
 
-#: .\calc\models.py:703
+#: .\calc\models.py:713
 msgid "father gets 1/6 prescribed share because of male decendent"
 msgstr "الاب ياخذ السدس لوجود الفرع الوارث"
 
-#: .\calc\models.py:707
+#: .\calc\models.py:717
 msgid "father gets 1/6 plus remainder because of female decendent"
 msgstr "الاب ياخذ السدس و الباقي تعصيبا "
 
-#: .\calc\models.py:710
+#: .\calc\models.py:720
 msgid "father gets the remainder because there is no decendent"
 msgstr "الاب ياخذ الباقي لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:723
+#: .\calc\models.py:733
 msgid "mother gets 1/6 becasue of decendent or siblings"
 msgstr "تاخذ الام السدس لوجود الفرع الوارث او جمع من الاخوة"
 
-#: .\calc\models.py:727
+#: .\calc\models.py:737
 msgid "mother gets 1/3 of the remainder which is 1/4."
 msgstr "تاخذ الام ثلث الباقي اي الربع"
 
-#: .\calc\models.py:730
+#: .\calc\models.py:740
 msgid "mother gets 1/3 of the remainder which is 1/6"
 msgstr "تاخذ الام ثلث الباقي اي السدس"
 
-#: .\calc\models.py:744
+#: .\calc\models.py:754
 msgid "husband gets 1/4 becuase of decendent"
 msgstr "الزوج ياخذ الربع لوجود الفرع الوارث"
 
-#: .\calc\models.py:747
+#: .\calc\models.py:757
 msgid "husband gets 1/2 becuase there is no decendent"
 msgstr "الزوج ياخذ النصف لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:760
+#: .\calc\models.py:770
 msgid "wife gets 1/8 becuase of decendent"
 msgstr "تاخذ الزوجة الثمن لوجود الفرع الوارث"
 
-#: .\calc\models.py:763
+#: .\calc\models.py:773
 msgid "wife gets 1/4 becuase there is no decendent"
 msgstr "تاخذ الزوجة الربع لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:767
+#: .\calc\models.py:777
 msgid "wives share the qoute of 1/8 becuase of decendent"
 msgstr "الزوجات شركاء في الثمن لوجود الفرع الوارث"
 
-#: .\calc\models.py:770
+#: .\calc\models.py:780
 msgid "wives share the quote of 1/4 becuase there is no decendent"
 msgstr "الزوجات شركاء في الربع لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:787
+#: .\calc\models.py:797
 msgid "Daughter gets 1/2 when she has no other sibling/s"
 msgstr "البنت تاخذ النصف اذا انفردت من دون اخوة و اخوات"
 
-#: .\calc\models.py:791
+#: .\calc\models.py:801
 msgid "Daughters share the quote of 2/3 when there is no son/s"
 msgstr "البنات شركاء في الثلثين اذا لم يوجد اخ لهن معصب"
 
-#: .\calc\models.py:804
+#: .\calc\models.py:814
 msgid "Son/s share the remainder or all amount if no other heir exist"
-msgstr "الابن او الابناء عصبة ياخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
+msgstr ""
+"الابن او الابناء عصبة ياخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\templates\calc\base.html:19 .\calc\templates\calc\base.html:22
+#: .\calc\templates\calc\base.html:20 .\calc\templates\calc\base.html:23
 msgid "Mawareeth 2.0"
 msgstr "مواريث 2.0"
 
-#: .\calc\templates\calc\base.html:30 .\calc\templates\calc\index.html:8
+#: .\calc\templates\calc\base.html:31 .\calc\templates\calc\home.html:8
+#: .\calc\templates\calc\index.html:8
 msgid "Home"
 msgstr "الرئيسية"
 
-#: .\calc\templates\calc\base.html:33
+#: .\calc\templates\calc\base.html:34
+#, fuzzy
+#| msgid "Calculation"
+msgid "Calculations"
+msgstr "مسألة "
+
+#: .\calc\templates\calc\base.html:37
 msgid "About"
 msgstr "من نحن"
 
-#: .\calc\templates\calc\base.html:37
-msgid "Dropdown"
-msgstr "قائمة منسدلة"
-
-#: .\calc\templates\calc\base.html:40
-msgid "Action"
-msgstr "اجراء"
-
 #: .\calc\templates\calc\base.html:41
-msgid "Another action"
-msgstr "اجراء اخر"
-
-#: .\calc\templates\calc\base.html:43
-msgid "Something else here"
-msgstr "شي اخر هنا"
-
-#: .\calc\templates\calc\base.html:51
 msgid "Welcome "
 msgstr "اهلا بكم"
 
-#: .\calc\templates\calc\base.html:51
+#: .\calc\templates\calc\base.html:41
 msgid " logout "
 msgstr "تسجيل خروج"
 
-#: .\calc\templates\calc\base.html:53
+#: .\calc\templates\calc\base.html:43 .\calc\templates\calc\home.html:66
 msgid "login"
 msgstr "تسجيل دخول"
 
-#: .\calc\templates\calc\base.html:54
+#: .\calc\templates\calc\base.html:44 .\calc\templates\calc\home.html:63
 #: .\calc\templates\registration\login.html:62
 #: .\calc\templates\registration\signup.html:7
 msgid "Sign Up"
@@ -170,7 +162,7 @@ msgstr "هل انت متاكد من الحذف؟"
 msgid "All heirs will be deleted"
 msgstr "سيتم حذف جميع الورثة"
 
-#: .\calc\templates\calc\detail.html:10
+#: .\calc\templates\calc\detail.html:10 .\calc\templates\calc\home.html:35
 msgid "Calculation"
 msgstr "مسألة "
 
@@ -294,6 +286,48 @@ msgstr "خطاء"
 msgid "Heir"
 msgstr "وارث"
 
+#: .\calc\templates\calc\home.html:28
+#, fuzzy
+#| msgid "Mawareeth 2.0"
+msgid "Mawareeth"
+msgstr "مواريث 2.0"
+
+#: .\calc\templates\calc\home.html:29
+msgid "Distribution of wealth according to the principles of Islam"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:36
+msgid "Get reliable and simple results for your calculations"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:42
+msgid "Easy and Simple"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:43
+msgid "New imporved and interactive user interface"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:61
+#, fuzzy
+#| msgid "Mawareeth 2.0"
+msgid "Welcome to Mawareeth 2.0"
+msgstr "مواريث 2.0"
+
+#: .\calc\templates\calc\home.html:62
+msgid ""
+"Get started now with our new interface and improved inheritance calculation "
+"algorithms."
+msgstr ""
+
+#: .\calc\templates\calc\home.html:64
+msgid "for free or"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:68
+msgid "if you are an exiting user."
+msgstr ""
+
 #: .\calc\templates\calc\index.html:22
 msgid "Create new calculation"
 msgstr "انشاء مسالة جديدة"
@@ -347,7 +381,7 @@ msgid "Amount"
 msgstr "القيمة"
 
 #: .\calc\templates\calc\results.html:188
-#: .\calc\templates\calc\results.html:245
+#: .\calc\templates\calc\results.html:249
 msgid "asaba"
 msgstr "عصبة"
 
@@ -417,21 +451,33 @@ msgstr "تاكيد كلمة المرور:"
 msgid "Already registered"
 msgstr "تم التسجيل سابقا"
 
-#: .\calc\views.py:29
+#: .\calc\views.py:32
 msgid "Decease already exist"
 msgstr "يوجد متوفى"
 
-#: .\calc\views.py:98
+#: .\calc\views.py:101
 msgid "Father already exist"
 msgstr "الاب موجود"
 
-#: .\mawareeth\settings.py:156
+#: .\mawareeth\settings.py:159
 msgid "Arabic"
 msgstr "العربية"
 
-#: .\mawareeth\settings.py:157
+#: .\mawareeth\settings.py:160
 msgid "English"
 msgstr "الانجليزية"
+
+#~ msgid "Dropdown"
+#~ msgstr "قائمة منسدلة"
+
+#~ msgid "Action"
+#~ msgstr "اجراء"
+
+#~ msgid "Another action"
+#~ msgstr "اجراء اخر"
+
+#~ msgid "Something else here"
+#~ msgstr "شي اخر هنا"
 
 #~ msgid "delete"
 #~ msgstr "حذف"
