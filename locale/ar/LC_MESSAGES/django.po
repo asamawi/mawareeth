@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-03-31 22:18+0300\n"
+"POT-Creation-Date: 2020-03-31 22:28+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -105,8 +105,7 @@ msgstr "البنات شركاء في الثلثين اذا لم يوجد اخ ل
 
 #: .\calc\models.py:814
 msgid "Son/s share the remainder or all amount if no other heir exist"
-msgstr ""
-"الابن او الابناء عصبة ياخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
+msgstr "الابن او الابناء عصبة ياخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
 #: .\calc\templates\calc\base.html:20 .\calc\templates\calc\base.html:23
 msgid "Mawareeth 2.0"
@@ -117,7 +116,7 @@ msgstr "مواريث 2.0"
 msgid "Home"
 msgstr "الرئيسية"
 
-#: .\calc\templates\calc\base.html:34
+#: .\calc\templates\calc\base.html:34 .\calc\templates\calc\home.html:35
 #, fuzzy
 #| msgid "Calculation"
 msgid "Calculations"
@@ -162,7 +161,7 @@ msgstr "هل انت متاكد من الحذف؟"
 msgid "All heirs will be deleted"
 msgstr "سيتم حذف جميع الورثة"
 
-#: .\calc\templates\calc\detail.html:10 .\calc\templates\calc\home.html:35
+#: .\calc\templates\calc\detail.html:10
 msgid "Calculation"
 msgstr "مسألة "
 
