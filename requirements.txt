@@ -8,3 +8,4 @@ django-anymail[mailgun]
 django-crispy-forms
 django-icons
 python-decouple
+django-active-link
