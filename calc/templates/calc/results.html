@@ -195,23 +195,21 @@ Calculation {{ calculation.name}}
             {% endif %}
             <td>{{heir|get_class}}</td>
             {% if calculation.correction == True %}
-            {% if forloop.counter == 1%}
-              {% if female_asaba %}
-              <td rowspan="{{ asaba.count }}" class="align-middle">
-                {{ heir.share }}
-              </td>
-              {% else %}
-              <td rowspan="{{ Daughter.count }}" class="align-middle">
-                {{ heir.share }}
-              </td>
+              {% if forloop.counter == 1%}
+                {% if female_asaba %}
+                <td rowspan="{{ asaba.count }}" class="align-middle">
+                  {{ heir.share }}
+                </td>
+                {% else %}
+                <td rowspan="{{ Daughter.count }}" class="align-middle">
+                  {{ heir.share }}
+                </td>
+                {% endif %}
               {% endif %}
-            {% endif %}
             {% else %}
-            {% if forloop.counter == 1%}
-            <td rowspan="{{ Daughter.count }}" class="align-middle">
-              {{ heir.share }}
-            </td>
-            {% endif %}
+              <td>
+                {{ heir.share }}
+              </td>
             {% endif %}
             {% if calculation.excess == True %}
             {% if forloop.counter == 1%}
@@ -252,19 +250,17 @@ Calculation {{ calculation.name}}
             {% endif %}
             <td>{{heir|get_class}}</td>
             {% if calculation.correction == True %}
-            {% if forloop.counter == 1%}
-              {% if not female_asaba %}
-              <td rowspan="{{ Son.count }}" class="align-middle">
+              {% if forloop.counter == 1%}
+                {% if not female_asaba %}
+                <td rowspan="{{ Son.count }}" class="align-middle">
+                  {{ heir.share }}
+                </td>
+                {% endif %}
+              {% endif %}
+            {% else %}
+              <td>
                 {{ heir.share }}
               </td>
-              {% endif %}
-            {% endif %}
-            {% else %}
-            {% if forloop.counter == 1%}
-            <td rowspan="{{ Son.count }}" class="align-middle">
-              {{ heir.share }}
-            </td>
-            {% endif %}
             {% endif %}
             {% if calculation.excess == True %}
             {% if forloop.counter == 1%}
