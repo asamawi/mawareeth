@@ -147,7 +147,7 @@ STATIC_URL = '/static/'
 # Activate Django-Heroku
 django_heroku.settings(locals())
 
-SITE_ID = 1
+SITE_ID = config("SITE_ID",default=1, cast=int)
 
 LOCALE_PATHS = [
     (os.path.join(BASE_DIR,"locale")),
