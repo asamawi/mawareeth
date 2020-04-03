@@ -369,7 +369,9 @@ class Calculation(models.Model):
         if self.shares > shares:
             self.shortage = True
             remainder = self.shares - shares
-            if self.has_spouse() == False:
+            if self.has_father() == True :
+                self.shares_shorted = self.shares
+            elif self.has_spouse() == False:
                 self.shares_shorted = shares
             elif self.has_spouse() == True:
                 spouse = self.get_spouse().first()
@@ -407,12 +409,23 @@ class Calculation(models.Model):
 
     def set_shortage_shares(self):
         if self.shortage == True:
-            spouse_set =  self.get_spouse()
-            for spouse in spouse_set:
-                spouse.shorted_share = spouse.get_fraction().numerator
-                spouse.save()
-            for heir in self.heir_set.not_instance_of(Husband,Wife):
-                heir.set_shortage_share(self)
+            #check for Father
+            if self.has_father():
+                father = self.get_father()
+                remainder = self.shares - self.get_shares()
+                father.shorted_share = father.share + remainder
+                father.save()
+                heirs = self.heir_set.not_instance_of(Father)
+                for heir in heirs:
+                    heir.shorted_share = heir.share
+                    heir.save()
+            else:
+                spouse_set =  self.get_spouse()
+                for spouse in spouse_set:
+                    spouse.shorted_share = spouse.get_fraction().numerator
+                    spouse.save()
+                for heir in self.heir_set.not_instance_of(Husband,Wife):
+                    heir.set_shortage_share(self)
 
     def set_shortage_calc_shares(self):
         if self.shortage_calc == True:
