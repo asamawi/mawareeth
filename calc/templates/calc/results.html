@@ -1,6 +1,8 @@
 {% extends "calc/base.html" %}
 {% load static %}
 {% load i18n %}
+{% load l10n %}
+{% load humanize %}
 {% load calc_extras %}
 
 
@@ -54,7 +56,7 @@ Calculation {{ calculation.name}}
             {% if calculation.correction == True %}
             <th scope="col" > {{calculation.shares_corrected}}</th>
             {% endif %}
-            <th scope="col" > {{calculation.deceased_set.first.estate}}</th>
+            <th scope="col" > {{calculation.deceased_set.first.estate|unlocalize|intcomma}}</th>
           </tr>
         </thead>
         <tbody>
@@ -79,7 +81,7 @@ Calculation {{ calculation.name}}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
-            <td>{{ heir.amount }}</td>
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
           </tr>
           {% endfor %}
           {% endif %}
@@ -104,7 +106,7 @@ Calculation {{ calculation.name}}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
-            <td>{{ heir.amount }}</td>
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
           </tr>
           {% endfor %}
           {% endif %}
@@ -149,7 +151,7 @@ Calculation {{ calculation.name}}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
-            <td>{{ heir.amount }}</td>
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
           </tr>
           {% endfor %}
           {% endif %}
@@ -174,7 +176,7 @@ Calculation {{ calculation.name}}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
-            <td>{{ heir.amount }}</td>
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
           </tr>
           {% endfor %}
           {% endif %}
@@ -233,7 +235,7 @@ Calculation {{ calculation.name}}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
-            <td>{{ heir.amount }}</td>
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
           </tr>
           {% endfor %}
           {% endif %}
@@ -284,7 +286,7 @@ Calculation {{ calculation.name}}
             {% if calculation.correction == True %}
             <td>{{ heir.corrected_share }}</td>
             {% endif %}
-            <td>{{ heir.amount }}</td>
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
           </tr>
           {% endfor %}
           {% endif %}

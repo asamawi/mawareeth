@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',
+    'django.contrib.humanize',
     'mawareeth',
     'polymorphic',
     'anymail',
@@ -129,7 +130,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
 
 LANGUAGE_CODE = config("LANGUAGE_CODE",default='ar')
-
+USE_THOUSAND_SEPARATOR = True
 TIME_ZONE = 'Asia/Riyadh'
 
 USE_I18N = True
