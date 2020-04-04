@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-03-31 22:28+0300\n"
+"POT-Creation-Date: 2020-04-05 02:45+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -43,100 +43,101 @@ msgstr "الزوج موجود"
 msgid "Cann't have more than 4 wifes"
 msgstr "لا يمكن اضافة اكثر من 4 زوجات"
 
-#: .\calc\models.py:629
+#: .\calc\models.py:642
 msgid "residuary for asaba"
 msgstr "الباقي للعصبة"
 
-#: .\calc\models.py:713
+#: .\calc\models.py:726
 msgid "father gets 1/6 prescribed share because of male decendent"
 msgstr "الاب ياخذ السدس لوجود الفرع الوارث"
 
-#: .\calc\models.py:717
+#: .\calc\models.py:730
 msgid "father gets 1/6 plus remainder because of female decendent"
 msgstr "الاب ياخذ السدس و الباقي تعصيبا "
 
-#: .\calc\models.py:720
+#: .\calc\models.py:733
 msgid "father gets the remainder because there is no decendent"
 msgstr "الاب ياخذ الباقي لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:733
+#: .\calc\models.py:746
 msgid "mother gets 1/6 becasue of decendent or siblings"
 msgstr "تاخذ الام السدس لوجود الفرع الوارث او جمع من الاخوة"
 
-#: .\calc\models.py:737
+#: .\calc\models.py:750
 msgid "mother gets 1/3 of the remainder which is 1/4."
 msgstr "تاخذ الام ثلث الباقي اي الربع"
 
-#: .\calc\models.py:740
+#: .\calc\models.py:753
 msgid "mother gets 1/3 of the remainder which is 1/6"
 msgstr "تاخذ الام ثلث الباقي اي السدس"
 
-#: .\calc\models.py:754
+#: .\calc\models.py:767
 msgid "husband gets 1/4 becuase of decendent"
 msgstr "الزوج ياخذ الربع لوجود الفرع الوارث"
 
-#: .\calc\models.py:757
+#: .\calc\models.py:770
 msgid "husband gets 1/2 becuase there is no decendent"
 msgstr "الزوج ياخذ النصف لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:770
+#: .\calc\models.py:783
 msgid "wife gets 1/8 becuase of decendent"
 msgstr "تاخذ الزوجة الثمن لوجود الفرع الوارث"
 
-#: .\calc\models.py:773
+#: .\calc\models.py:786
 msgid "wife gets 1/4 becuase there is no decendent"
 msgstr "تاخذ الزوجة الربع لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:777
+#: .\calc\models.py:790
 msgid "wives share the qoute of 1/8 becuase of decendent"
 msgstr "الزوجات شركاء في الثمن لوجود الفرع الوارث"
 
-#: .\calc\models.py:780
+#: .\calc\models.py:793
 msgid "wives share the quote of 1/4 becuase there is no decendent"
 msgstr "الزوجات شركاء في الربع لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:797
+#: .\calc\models.py:810
 msgid "Daughter gets 1/2 when she has no other sibling/s"
 msgstr "البنت تاخذ النصف اذا انفردت من دون اخوة و اخوات"
 
-#: .\calc\models.py:801
+#: .\calc\models.py:814
 msgid "Daughters share the quote of 2/3 when there is no son/s"
 msgstr "البنات شركاء في الثلثين اذا لم يوجد اخ لهن معصب"
 
-#: .\calc\models.py:814
+#: .\calc\models.py:827
 msgid "Son/s share the remainder or all amount if no other heir exist"
-msgstr "الابن او الابناء عصبة ياخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
+msgstr ""
+"الابن او الابناء عصبة ياخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\templates\calc\base.html:20 .\calc\templates\calc\base.html:23
+#: .\calc\templates\calc\base.html:30 .\calc\templates\calc\base.html:33
 msgid "Mawareeth 2.0"
 msgstr "مواريث 2.0"
 
-#: .\calc\templates\calc\base.html:31 .\calc\templates\calc\home.html:8
+#: .\calc\templates\calc\base.html:41 .\calc\templates\calc\home.html:8
 #: .\calc\templates\calc\index.html:8
 msgid "Home"
 msgstr "الرئيسية"
 
-#: .\calc\templates\calc\base.html:34 .\calc\templates\calc\home.html:35
+#: .\calc\templates\calc\base.html:44 .\calc\templates\calc\home.html:35
 msgid "Calculations"
 msgstr "مسألة "
 
-#: .\calc\templates\calc\base.html:37
+#: .\calc\templates\calc\base.html:47
 msgid "About"
 msgstr "من نحن"
 
-#: .\calc\templates\calc\base.html:41
+#: .\calc\templates\calc\base.html:51
 msgid "Welcome "
 msgstr "اهلا بكم"
 
-#: .\calc\templates\calc\base.html:41
+#: .\calc\templates\calc\base.html:53
 msgid " logout "
 msgstr "تسجيل خروج"
 
-#: .\calc\templates\calc\base.html:43 .\calc\templates\calc\home.html:66
+#: .\calc\templates\calc\base.html:55 .\calc\templates\calc\home.html:66
 msgid "login"
 msgstr "تسجيل دخول"
 
-#: .\calc\templates\calc\base.html:44 .\calc\templates\calc\home.html:63
+#: .\calc\templates\calc\base.html:56 .\calc\templates\calc\home.html:63
 #: .\calc\templates\registration\login.html:62
 #: .\calc\templates\registration\signup.html:7
 msgid "Sign Up"
@@ -227,11 +228,11 @@ msgstr " ابن"
 msgid "Add Deceased"
 msgstr "اضافة الميت"
 
-#: .\calc\templates\calc\detail.html:107 .\calc\templates\calc\results.html:24
+#: .\calc\templates\calc\detail.html:107 .\calc\templates\calc\results.html:26
 msgid "Relation"
 msgstr "القرابة "
 
-#: .\calc\templates\calc\detail.html:108 .\calc\templates\calc\results.html:22
+#: .\calc\templates\calc\detail.html:108 .\calc\templates\calc\results.html:24
 msgid "Name"
 msgstr "الاسم"
 
@@ -308,9 +309,12 @@ msgid "Welcome to Mawareeth 2.0"
 msgstr "مرحبا بكم في المواريث النسخة 2.0"
 
 #: .\calc\templates\calc\home.html:62
-msgid "Get started now with our new interface and improved inheritance calculation "
+msgid ""
+"Get started now with our new interface and improved inheritance calculation "
 "algorithms."
-msgstr "ابدأ الان مع التحسينات الجديدة لموقع المواريث حيث قمنا بتحديث كامل لواجهة المستخدم و طريقة الحساب"
+msgstr ""
+"ابدأ الان مع التحسينات الجديدة لموقع المواريث حيث قمنا بتحديث كامل لواجهة "
+"المستخدم و طريقة الحساب"
 
 #: .\calc\templates\calc\home.html:64
 msgid "for free or"
@@ -340,39 +344,39 @@ msgstr "اضافة و استمرار"
 msgid "Save and add another"
 msgstr "حفظ و اضافة جديدة"
 
-#: .\calc\templates\calc\results.html:23
+#: .\calc\templates\calc\results.html:25
 msgid "Quote"
 msgstr "الفرض"
 
-#: .\calc\templates\calc\results.html:25
+#: .\calc\templates\calc\results.html:27
 msgid "Shares"
 msgstr "السهام"
 
-#: .\calc\templates\calc\results.html:27
+#: .\calc\templates\calc\results.html:29
 msgid "Excess"
 msgstr "العول"
 
-#: .\calc\templates\calc\results.html:30
+#: .\calc\templates\calc\results.html:32
 msgid "Shortage"
 msgstr "الرد"
 
-#: .\calc\templates\calc\results.html:33
+#: .\calc\templates\calc\results.html:35
 msgid "Shortage calc"
 msgstr "مسالة الرد"
 
-#: .\calc\templates\calc\results.html:34
+#: .\calc\templates\calc\results.html:36
 msgid "Calc Union"
 msgstr "الجامعة"
 
-#: .\calc\templates\calc\results.html:37
+#: .\calc\templates\calc\results.html:39
 msgid "Correction"
 msgstr "التصحيح"
 
-#: .\calc\templates\calc\results.html:39
+#: .\calc\templates\calc\results.html:41
 msgid "Amount"
 msgstr "القيمة"
 
-#: .\calc\templates\calc\results.html:188
+#: .\calc\templates\calc\results.html:190
 #: .\calc\templates\calc\results.html:249
 msgid "asaba"
 msgstr "عصبة"
@@ -411,7 +415,7 @@ msgid "Lost password?"
 msgstr "نسيت كلمة المرور"
 
 #: .\calc\templates\registration\signup.html:37
-#: .\calc\templates\registration\signup.html:63
+#: .\calc\templates\registration\signup.html:71
 msgid "Sign up"
 msgstr "تسجيل"
 
@@ -440,6 +444,14 @@ msgid "Password confirmation:"
 msgstr "تاكيد كلمة المرور:"
 
 #: .\calc\templates\registration\signup.html:66
+msgid "Enter email"
+msgstr "ادخل البريد الالكتروني"
+
+#: .\calc\templates\registration\signup.html:67
+msgid "Email:"
+msgstr "ايميل"
+
+#: .\calc\templates\registration\signup.html:74
 msgid "Already registered"
 msgstr "تم التسجيل سابقا"
 
@@ -451,13 +463,33 @@ msgstr "يوجد متوفى"
 msgid "Father already exist"
 msgstr "الاب موجود"
 
-#: .\mawareeth\settings.py:159
+#: .\mawareeth\settings.py:161
 msgid "Arabic"
 msgstr "العربية"
 
-#: .\mawareeth\settings.py:160
+#: .\mawareeth\settings.py:162
 msgid "English"
 msgstr "الانجليزية"
+
+#: .\user_auth\forms.py:9
+msgid "Email address"
+msgstr "عنوان البريد الالكتروني"
+
+#: .\user_auth\forms.py:10
+msgid "Required."
+msgstr "الزامي"
+
+#: .\user_auth\templates\user_auth\profile.html:19
+msgid "Profile Info"
+msgstr "معلومات الملف الشخصي"
+
+#: .\user_auth\templates\user_auth\profile.html:24
+msgid "Update"
+msgstr "تحديث"
+
+#: .\user_auth\views.py:17
+msgid "Your account has been updated!"
+msgstr "تم تحديث بياناتك بنجاح"
 
 #~ msgid "Dropdown"
 #~ msgstr "قائمة منسدلة"

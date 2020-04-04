@@ -17,6 +17,7 @@ from django.conf.urls.i18n import i18n_patterns
 from django.contrib import admin
 from django.urls import include, path
 from calc import views as calc_views
+from user_auth import views as user_auth_views
 
 urlpatterns = [
     #path('admin/', admin.site.urls),
@@ -50,7 +51,11 @@ calc_patterns = ([
 
 ], 'calc')
 
+user_auth_patterns = ([
+    path('profile/', user_auth_views.profile, name='profile')
+], 'user_auth')
 urlpatterns += i18n_patterns(
     path('admin/', admin.site.urls),
     path('', include(calc_patterns,namespace='calc')),
+    path('',include(user_auth_patterns,namespace='user_auth')),
 )

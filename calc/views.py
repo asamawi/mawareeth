@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
 from django.views.generic import View
 from django.contrib import messages
-from django.contrib.auth.forms import UserCreationForm
+from user_auth.forms import UserCreationForm
 from django.urls import reverse_lazy
 from calc.forms import HeirForm, DeceasedForm
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
@@ -17,7 +17,7 @@ from .models import *
 
 class HomePage(TemplateView):
 	template_name="calc/home.html"
-	
+
 class DeceasedCreate(CreateView):
 	model = Deceased
 	fields = ['first_name','last_name','sex', 'estate']
