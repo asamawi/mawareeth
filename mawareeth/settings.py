@@ -208,3 +208,8 @@ SOCIAL_AUTH_FACEBOOK_EXTRA_DATA = [
     ('picture', 'picture'),
     ('link', 'profile_url'),
 ]
+
+SOCIAL_AUTH_INSTAGRAM_KEY = config("INSTAGRAM_KEY",cast=int)         #Client ID
+SOCIAL_AUTH_INSTAGRAM_SECRET = config("INSTAGRAM_SECRET")  #Client SECRET
+SOCIAL_AUTH_INSTAGRAM_EXTRA_DATA = [         ('user', 'user'),
+]
