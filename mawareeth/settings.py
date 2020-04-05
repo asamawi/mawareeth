@@ -201,7 +201,8 @@ SOCIAL_AUTH_FACEBOOK_SCOPE = ['email'
 #, 'user_link'
 ]
 SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
-  'fields': 'id, name, email, picture.type(large), link'
+  'fields': 'id, name, email, picture.type(large)'
+  #, link'
 }
 
 SOCIAL_AUTH_FACEBOOK_EXTRA_DATA = [
