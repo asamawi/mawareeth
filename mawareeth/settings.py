@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'crispy_forms',
     'django_icons',
     'active_link',
+    'social_django',
 ]
 
 MIDDLEWARE = [
@@ -181,3 +182,29 @@ SESSION_COOKIE_SECURE = config("SESSION_COOKIE",default=True, cast=bool)
 CSRF_COOKIE_SECURE = config("CSRF_COOKIE",default=True, cast=bool)
 
 SECURE_REFERRER_POLICY = 'same-origin'
+
+AUTHENTICATION_BACKENDS = [
+    'social_core.backends.linkedin.LinkedinOAuth2',
+    'social_core.backends.instagram.InstagramOAuth2',
+    'social_core.backends.facebook.FacebookOAuth2',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'calc:home'
+LOGOUT_URL = 'logout'
+LOGOUT_REDIRECT_URL = 'login'
+
+SOCIAL_AUTH_FACEBOOK_KEY = config("FACEBOOK_KEY",cast=int)
+SOCIAL_AUTH_FACEBOOK_SECRET = config("FACEBOOK_SECRET")
+SOCIAL_AUTH_FACEBOOK_SCOPE = ['email', 'user_link']
+SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
+  'fields': 'id, name, email, picture.type(large), link'
+}
+
+SOCIAL_AUTH_FACEBOOK_EXTRA_DATA = [
+    ('name', 'name'),
+    ('email', 'email'),
+    ('picture', 'picture'),
+    ('link', 'profile_url'),
+]

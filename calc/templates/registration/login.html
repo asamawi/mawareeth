@@ -4,7 +4,7 @@
 
 {% block title %}
 
-  {% trans "Login" %}
+{% trans "Login" %}
 
 {% endblock %}
 
@@ -16,56 +16,75 @@
 
 {% if form.errors %}
 {% for field in form %}
-    {% for error in field.errors %}
-        <div class="alert alert-danger">
-            <strong>{{ error|escape }}</strong>
-        </div>
-    {% endfor %}
+{% for error in field.errors %}
+<div class="alert alert-danger">
+  <strong>{{ error|escape }}</strong>
+</div>
+{% endfor %}
 {% endfor %}
 {% for error in form.non_field_errors %}
-    <div class="alert alert-danger">
-        <strong>{{ error|escape }}</strong>
-    </div>
+<div class="alert alert-danger">
+  <strong>{{ error|escape }}</strong>
+</div>
 {% endfor %}
 {% endif %}
 
 {% if next %}
-    {% if user.is_authenticated %}
-    <p>{% trans "Your account doesn't have access to this page. To proceed,
-    please login with an account that has access." %}</p>
-    {% else %}
-    <!-- <p>{% trans "Please login to see this page." %}</p> -->
-    {% endif %}
-{% endif %}
-<div class="container">
+{% if user.is_authenticated %}
+<p>{% trans "Your account doesn't have access to this page. To proceed,
+  please login with an account that has access." %}</p>
+  {% else %}
+  <!-- <p>{% trans "Please login to see this page." %}</p> -->
+  {% endif %}
+  {% endif %}
+  <div class="container">
     <div class="row">
       <div class="col-sm-9 col-md-7 col-lg-5 mx-auto">
         <div class="card card-signin my-5">
           <div class="card-body">
             <h5 class="card-title text-center">{% trans "Sign In" %}</h5>
-              <form method="post" action="{% url 'login' %}" class="form-signin">
+            <form method="post" action="{% url 'login' %}" class="form-signin">
               {% csrf_token %}
-                <div class="form-label-group">
-                  <input type="text" id="username" class="form-control"
-                  placeholder="{% trans 'Enter your username' %}"
-                  name="username" required autofocus>
-                  <label for="username">{% trans "Username" %}</label>
-                </div>
-                <div class="form-label-group">
-                  <input type="password" id="password" class="form-control"
-                  placeholder="{% trans 'Password' %}" name="password" required>
-                  <label for="password">{% trans "Password" %}</label>
-                </div>
-              <button class="btn btn-lg btn-primary btn-block text-uppercase" type="submit" value="login">{% trans "Sign in" %}</button>
+              <div class="form-label-group">
+                <input type="text" id="username" class="form-control"
+                placeholder="{% trans 'Enter your username' %}"
+                name="username" required autofocus>
+                <label for="username">{% trans "Username" %}</label>
+              </div>
+              <div class="form-label-group">
+                <input type="password" id="password" class="form-control"
+                placeholder="{% trans 'Password' %}" name="password" required>
+                <label for="password">{% trans "Password" %}</label>
+              </div>
+              <div class="form-label-group">
+                <button class="btn btn-lg btn-primary btn-block text-uppercase" type="submit" value="login">{% trans "Sign in" %}</button>
+              </div>
               <input type="hidden" name="next" value="{{ next }}">
-              </form>
-              <a href="{% url 'calc:signup' %}">{% trans 'Sign Up' %}</a>
-              {# Assumes you setup the password_reset view in your URLconf #}
-              <a href="{% url 'password_reset' %}">{% trans 'Lost password?' %}</a>
-            </div>
+              <div class="form-label-group">
+                <button class="btn btn-danger btn-block ">
+                  <a href="#">Login with Instagram</a>
+                </button>
+              </div>
+              <div class="form-label-group">
+              <button class="btn btn-primary btn-block">
+                <a href="{% url 'social:begin' 'facebook' %}">Login with Facebook
+                </a>
+              </button>
+              </div>
+              <div class="form-label-group">
+              <button class="btn btn-info btn-block">
+                <a href="#">Login with LinkedIn</a>
+              </button>
+              </div>
+              <br />
+            </form>
+            <a href="{% url 'calc:signup' %}">{% trans 'Sign Up' %}</a>
+            {# Assumes you setup the password_reset view in your URLconf #}
+            <a href="{% url 'password_reset' %}">{% trans 'Lost password?' %}</a>
           </div>
         </div>
+      </div>
     </div>
   </div>
 
-{% endblock %}
+  {% endblock %}

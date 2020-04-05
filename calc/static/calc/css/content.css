@@ -135,7 +135,7 @@ body {
   }
 }
 
-.badge-success a {
+.badge-success a, .form-label-group .btn a {
   color: #fff
 }
 

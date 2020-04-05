@@ -24,6 +24,8 @@ urlpatterns = [
     #path('calc/', include('calc.urls')),
     path('i18n/', include('django.conf.urls.i18n')),
     path('accounts/', include('django.contrib.auth.urls')),
+    path('social-auth/', include('social_django.urls', namespace="social")),
+
 ]
 
 calc_patterns = ([
