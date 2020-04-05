@@ -187,7 +187,7 @@ LOGIN_REDIRECT_URL = 'calc:home'
 LOGOUT_URL = 'logout'
 LOGOUT_REDIRECT_URL = 'login'
 
-SOCIAL_AUTH_FACEBOOK_KEY = config("FACEBOOK_KEY",default=" ",cast=int)
+SOCIAL_AUTH_FACEBOOK_KEY = config("FACEBOOK_KEY",default=0,cast=int)
 SOCIAL_AUTH_FACEBOOK_SECRET = config("FACEBOOK_SECRET",default=" ")
 SOCIAL_AUTH_FACEBOOK_SCOPE = ['email'
 #, 'user_link'
@@ -204,7 +204,7 @@ SOCIAL_AUTH_FACEBOOK_EXTRA_DATA = [
     #('link', 'profile_url'), needs app review
 ]
 
-SOCIAL_AUTH_INSTAGRAM_KEY = config("INSTAGRAM_KEY",default=" ",cast=int)
+SOCIAL_AUTH_INSTAGRAM_KEY = config("INSTAGRAM_KEY",default=0,cast=int)
 SOCIAL_AUTH_INSTAGRAM_SECRET = config("INSTAGRAM_SECRET",default=" ")
 SOCIAL_AUTH_INSTAGRAM_EXTRA_DATA = [         ('user', 'user'),
 ]
