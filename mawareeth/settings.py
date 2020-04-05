@@ -209,7 +209,19 @@ SOCIAL_AUTH_FACEBOOK_EXTRA_DATA = [
     ('link', 'profile_url'),
 ]
 
-SOCIAL_AUTH_INSTAGRAM_KEY = config("INSTAGRAM_KEY",cast=int)         #Client ID
-SOCIAL_AUTH_INSTAGRAM_SECRET = config("INSTAGRAM_SECRET")  #Client SECRET
+SOCIAL_AUTH_INSTAGRAM_KEY = config("INSTAGRAM_KEY",cast=int)
+SOCIAL_AUTH_INSTAGRAM_SECRET = config("INSTAGRAM_SECRET")
 SOCIAL_AUTH_INSTAGRAM_EXTRA_DATA = [         ('user', 'user'),
+]
+
+SOCIAL_AUTH_LINKEDIN_OAUTH2_KEY = config("LINKEDIN_KEY",)
+SOCIAL_AUTH_LINKEDIN_OAUTH2_SECRET = config("LINKEDIN_SECRET")
+SOCIAL_AUTH_LINKEDIN_OAUTH2_SCOPE = ['r_liteprofile', 'r_emailaddress']
+SOCIAL_AUTH_LINKEDIN_OAUTH2_FIELD_SELECTORS = ['email-address', 'formatted-name', 'public-profile-url', 'picture-url']
+SOCIAL_AUTH_LINKEDIN_OAUTH2_EXTRA_DATA = [
+    ('id', 'id'),
+    ('formattedName', 'name'),
+    ('emailAddress', 'email_address'),
+    ('pictureUrl', 'picture_url'),
+    ('publicProfileUrl', 'profile_url'),
 ]
