@@ -17,6 +17,10 @@ from .models import *
 
 class HomePage(TemplateView):
 	template_name="calc/home.html"
+class Terms(TemplateView):
+	template_name="calc/terms.html"
+class Privacy(TemplateView):
+	template_name="calc/privacy.html"
 
 class DeceasedCreate(CreateView):
 	model = Deceased

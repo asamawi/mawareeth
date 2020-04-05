@@ -5,6 +5,8 @@ app_name = 'calc'
 urlpatterns = [
 	path('calc/', views.IndexView.as_view(), name='index'),
 	path('', views.HomePage.as_view(), name='home'),
+	path('terms/', views.Terms.as_view(), name='terms'),
+	path('privacy/', views.Privacy.as_view(), name='privacy'),
 	path('new/', views.new, name='new'),
 	path('<int:pk>/', views.DetailView.as_view(), name='detail'),
 	path('<int:pk>/delete/', views.delete, name='delete'),
@@ -23,6 +25,4 @@ urlpatterns = [
     path('<int:pk>/results/', views.ResultsView.as_view(), name='results'),
 	path('error/', views.error, name='error'),
 	path('signup/', views.SignUp.as_view(), name='signup'),
-
-
 ]
