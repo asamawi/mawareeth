@@ -197,7 +197,9 @@ LOGOUT_REDIRECT_URL = 'login'
 
 SOCIAL_AUTH_FACEBOOK_KEY = config("FACEBOOK_KEY",default=" ",cast=int)
 SOCIAL_AUTH_FACEBOOK_SECRET = config("FACEBOOK_SECRET",default=" ")
-SOCIAL_AUTH_FACEBOOK_SCOPE = ['email', 'user_link']
+SOCIAL_AUTH_FACEBOOK_SCOPE = ['email'
+#, 'user_link'
+]
 SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
   'fields': 'id, name, email, picture.type(large), link'
 }
@@ -206,7 +208,7 @@ SOCIAL_AUTH_FACEBOOK_EXTRA_DATA = [
     ('name', 'name'),
     ('email', 'email'),
     ('picture', 'picture'),
-    ('link', 'profile_url'),
+    #('link', 'profile_url'), needs app review
 ]
 
 SOCIAL_AUTH_INSTAGRAM_KEY = config("INSTAGRAM_KEY",default=" ",cast=int)
