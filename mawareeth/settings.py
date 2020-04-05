@@ -195,8 +195,8 @@ LOGIN_REDIRECT_URL = 'calc:home'
 LOGOUT_URL = 'logout'
 LOGOUT_REDIRECT_URL = 'login'
 
-SOCIAL_AUTH_FACEBOOK_KEY = config("FACEBOOK_KEY",cast=int)
-SOCIAL_AUTH_FACEBOOK_SECRET = config("FACEBOOK_SECRET")
+SOCIAL_AUTH_FACEBOOK_KEY = config("FACEBOOK_KEY",default="",cast=int)
+SOCIAL_AUTH_FACEBOOK_SECRET = config("FACEBOOK_SECRET",default="")
 SOCIAL_AUTH_FACEBOOK_SCOPE = ['email', 'user_link']
 SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
   'fields': 'id, name, email, picture.type(large), link'
@@ -209,13 +209,13 @@ SOCIAL_AUTH_FACEBOOK_EXTRA_DATA = [
     ('link', 'profile_url'),
 ]
 
-SOCIAL_AUTH_INSTAGRAM_KEY = config("INSTAGRAM_KEY",cast=int)
-SOCIAL_AUTH_INSTAGRAM_SECRET = config("INSTAGRAM_SECRET")
+SOCIAL_AUTH_INSTAGRAM_KEY = config("INSTAGRAM_KEY",default="",cast=int)
+SOCIAL_AUTH_INSTAGRAM_SECRET = config("INSTAGRAM_SECRET",default="")
 SOCIAL_AUTH_INSTAGRAM_EXTRA_DATA = [         ('user', 'user'),
 ]
 
-SOCIAL_AUTH_LINKEDIN_OAUTH2_KEY = config("LINKEDIN_KEY",)
-SOCIAL_AUTH_LINKEDIN_OAUTH2_SECRET = config("LINKEDIN_SECRET")
+SOCIAL_AUTH_LINKEDIN_OAUTH2_KEY = config("LINKEDIN_KEY",default="")
+SOCIAL_AUTH_LINKEDIN_OAUTH2_SECRET = config("LINKEDIN_SECRET",default="")
 SOCIAL_AUTH_LINKEDIN_OAUTH2_SCOPE = ['r_liteprofile', 'r_emailaddress']
 SOCIAL_AUTH_LINKEDIN_OAUTH2_FIELD_SELECTORS = ['email-address', 'formatted-name', 'public-profile-url', 'picture-url']
 SOCIAL_AUTH_LINKEDIN_OAUTH2_EXTRA_DATA = [
