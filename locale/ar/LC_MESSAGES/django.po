@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-06 06:08+0300\n"
-"PO-Revision-Date: 2020-04-06 06:09+0300\n"
+"POT-Creation-Date: 2020-04-06 06:19+0300\n"
+"PO-Revision-Date: 2020-04-06 06:21+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: ar\n"
@@ -1108,7 +1108,7 @@ msgstr ""
 
 #: .\calc\templates\calc\terms.html:91
 msgid "Approved organizations may hyperlink to our Website as follows:"
-msgstr ""
+msgstr "يمكن للمنظمات المعتمدة الارتباط التشعبي بموقعنا على النحو التالي:"
 
 #: .\calc\templates\calc\terms.html:94
 msgid "By use of our corporate name; or"
@@ -1125,6 +1125,14 @@ msgid ""
 msgstr ""
 "من خلال استخدام أي وصف آخر لموقعنا على الويب الذي يتم ربطه بهذا يكون منطقيًا "
 "في سياق وتنسيق المحتوى على موقع الطرف المرتبط."
+
+#: .\calc\templates\calc\terms.html:99
+msgid ""
+"No use of Mawareeth 2.0's logo or other artwork will be allowed for linking "
+"absent a trademark license agreement."
+msgstr ""
+"لن يُسمح باستخدام شعار موقع المواريث أو أي عمل فني آخر للربط في غياب اتفاقية "
+"ترخيص العلامة التجارية."
 
 #: .\calc\templates\calc\terms.html:101
 msgid "iFrames"
