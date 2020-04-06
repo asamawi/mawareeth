@@ -80,7 +80,21 @@
     {% endfor %}
   </div>
   {% endif %}
+  {% block header%} {% endblock %}
+  <main role="main" class="container">
   {% block body %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+      <div class="container">
+        <a href="{% url 'calc:terms' %}">
+          {% trans "Terms and Conditions" %}
+        </a> |
+        <a href="{% url 'calc:privacy' %}">
+          {% trans "Privacy Policy" %}
+        </a>
+      </div>
+    </footer>
 
   <!-- Optional JavaScript -->
   <!-- jQuery first, then Popper.js, then Bootstrap JS -->
