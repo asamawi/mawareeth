@@ -56,11 +56,7 @@
 
           {% if Mother.count == 1 %}
           {% for heir in Mother %}
-          {% if LANGUAGE_BIDI %}
-          <tr data-toggle="tooltip" data-placement="left" title="{{ heir.quote_reason }}">
-          {% else %}
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
-          {% endif %}
             <td>{{ heir.first_name }}</td>
             <td>{{ heir.get_fraction }}</td>
             <td>{{heir|get_class}}</td>
@@ -85,11 +81,7 @@
 
           {% if Father.count == 1 %}
           {% for heir in Father %}
-          {% if LANGUAGE_BIDI %}
-          <tr data-toggle="tooltip" data-placement="left" title="{{ heir.quote_reason }}">
-          {% else %}
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
-          {% endif %}
             <td>{{ heir.first_name }}</td>
             <td>{{ heir.get_fraction }}</td>
             <td>{{heir|get_class}}</td>
@@ -114,11 +106,7 @@
 
           {% if Wife.count > 0 %}
           {% for heir in Wife %}
-          {% if LANGUAGE_BIDI %}
-          <tr data-toggle="tooltip" data-placement="left" title="{{ heir.quote_reason }}">
-          {% else %}
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
-          {% endif %}
             <td>{{ heir.first_name }}</td>
             {% if forloop.counter == 1%}
             <td rowspan="{{ Wife.count }}" class="align-middle" >
@@ -162,11 +150,7 @@
           {% endif %}
           {% if Husband.count > 0 %}
           {% for heir in Husband %}
-          {% if LANGUAGE_BIDI %}
-          <tr data-toggle="tooltip" data-placement="left" title="{{ heir.quote_reason }}">
-          {% else %}
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
-          {% endif %}
             <td>{{ heir.first_name }}</td>
             <td>{{ heir.get_fraction }}</td>
             <td>{{heir|get_class}}</td>
@@ -191,11 +175,7 @@
           {% endif %}
           {% if Daughter.count > 0 %}
           {% for heir in Daughter %}
-          {% if LANGUAGE_BIDI %}
-          <tr data-toggle="tooltip" data-placement="left" title="{{ heir.quote_reason }}">
-          {% else %}
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
-          {% endif %}
             <td>{{ heir.first_name }}</td>
             {% if forloop.counter == 1%}
               {% if female_asaba %}
@@ -254,11 +234,7 @@
           {% endif %}
           {% if Son.count > 0 %}
           {% for heir in Son %}
-          {% if LANGUAGE_BIDI %}
-          <tr data-toggle="tooltip" data-placement="left" title="{{ heir.quote_reason }}">
-          {% else %}
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
-          {% endif %}
             <td>{{ heir.first_name }}</td>
             {% if forloop.counter == 1 %}
             {% if not female_asaba %}
