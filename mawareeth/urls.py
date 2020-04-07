@@ -33,6 +33,7 @@ calc_patterns = ([
     path('', calc_views.HomePage.as_view(), name='home'),
 	path('terms/', calc_views.Terms.as_view(), name='terms'),
 	path('privacy/', calc_views.Privacy.as_view(), name='privacy'),
+    path('about/', calc_views.About.as_view(), name='about'),
     path('new/', calc_views.new, name='new'),
     path('<int:pk>/', calc_views.DetailView.as_view(), name='detail'),
     path('<int:pk>/delete/', calc_views.delete, name='delete'),

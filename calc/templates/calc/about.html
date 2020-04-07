@@ -1,0 +1,41 @@
+{% extends "calc/base.html" %}
+{% load static %}
+{% load i18n %}
+{% block title %}
+{% trans "About Us" %}
+{% endblock %}
+{% block body %}
+<div class="container">
+  <div class="row">
+    <div class="bg-white col-sm-12 col-md-12 col-lg-12 mx-auto">
+      <h1>
+        {% trans "About Us" %}
+      </h1>
+      <p>
+        {% trans "Mawareeth.com is was first launched in 2008 during which there was a clear and strong need for inheritance distribution software that produce calculation reports as per the inheritance laws and courts requirements." %}
+      </p>
+      <p>
+        {% trans "Mawareeth.com was started to make inheritance learning easier and help people do their own calculations without the need of lawyers saving people time and money." %}
+      </p>
+      <p>
+        {% trans "Mawareeth 2.0 is the latest release for our website and it was started in 2020." %}
+        </p>
+      <h2>
+        {% trans "Our promise" %}
+      </h2>
+      <p>
+        {% trans "We promise to provide the best calculations results with accuracy, clarity and simplicity that is not matched elsewhere. Our goal is to provide to our community the best service they deserve paying attention and responding to their needs." %}
+      </p>
+      <h2>
+        {% trans "Contribution" %}
+      </h2>
+      <p>
+        {% trans "We are open to any contribution you are willing to make. This project is open source and non-profit. To contribute to source code please visit" %}
+        <a href="https://github.com/asamawi/mawareeth">
+          {% trans  "GitHub Repository." %}
+        </a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -21,7 +21,8 @@ class Terms(TemplateView):
 	template_name="calc/terms.html"
 class Privacy(TemplateView):
 	template_name="calc/privacy.html"
-
+class About(TemplateView):
+	template_name="calc/about.html"
 class DeceasedCreate(CreateView):
 	model = Deceased
 	fields = ['first_name','last_name','sex', 'estate']
