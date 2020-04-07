@@ -2,7 +2,11 @@
 {% load static %}
 {% load active_link_tags %}
 <!doctype html>
+{% if LANGUAGE_BIDI %}
+<html lang="en" dir="rtl">
+{% else %}
 <html lang="en">
+{% endif %}
 <head>
   <!-- Global site tag (gtag.js) - Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=UA-30659565-1"></script>
