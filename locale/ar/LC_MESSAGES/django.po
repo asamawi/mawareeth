@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-07 07:17+0300\n"
-"PO-Revision-Date: 2020-04-07 07:19+0300\n"
+"POT-Creation-Date: 2020-04-07 09:02+0300\n"
+"PO-Revision-Date: 2020-04-07 09:20+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: ar\n"
@@ -31,15 +31,15 @@ msgstr "الاسم الاخير"
 msgid "father already exist"
 msgstr "الاب موجود"
 
-#: .\calc\models.py:66 .\calc\views.py:78
+#: .\calc\models.py:66 .\calc\views.py:79
 msgid "Mother already exist"
 msgstr "الام موجودة"
 
-#: .\calc\models.py:84 .\calc\views.py:132
+#: .\calc\models.py:84 .\calc\views.py:133
 msgid "Husband already exist"
 msgstr "الزوج موجود"
 
-#: .\calc\models.py:94 .\calc\views.py:159
+#: .\calc\models.py:94 .\calc\views.py:160
 msgid "Cann't have more than 4 wifes"
 msgstr "لا يمكن اضافة اكثر من 4 زوجات"
 
@@ -112,47 +112,107 @@ msgid "Son/s share the remainder or all amount if no other heir exist"
 msgstr ""
 "الابن او الابناء عصبة ياخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\templates\calc\base.html:32 .\calc\templates\calc\base.html:35
+#: .\calc\templates\calc\about.html:5 .\calc\templates\calc\about.html:12
+msgid "About Us"
+msgstr "من نحن"
+
+#: .\calc\templates\calc\about.html:15
+msgid ""
+"Mawareeth.com is was first launched in 2008 during which there was a clear "
+"and strong need for inheritance distribution software that produce "
+"calculation reports as per the inheritance laws and courts requirements."
+msgstr ""
+"تم إطلاق موقع المواريث لأول مرة في عام 2008 حيث كانت هناك حاجة واضحة وقوية "
+"لبرمجيات توزيع الميراث التي تنتج تقارير حسابية وفقًا لقوانين الميراث ومتطلبات "
+"المحاكم."
+
+#: .\calc\templates\calc\about.html:18
+msgid ""
+"Mawareeth.com was started to make inheritance learning easier and help people "
+"do their own calculations without the need of lawyers saving people time and "
+"money."
+msgstr ""
+"أنشئ موقع المواريث لتسهيل تعلم المواريث ومساعدة الناس بتقسيم التركات بأنفسهم "
+"توفيرا للوقت والمال."
+
+#: .\calc\templates\calc\about.html:21
+msgid ""
+"Mawareeth 2.0 is the latest release for our website and it was started in "
+"2020."
+msgstr "المواريث النسخة 2.0 هو احدث اصدار للموقع و تم البدء فيه في عام 2020."
+
+#: .\calc\templates\calc\about.html:24
+msgid "Our promise"
+msgstr "مهمتنا"
+
+#: .\calc\templates\calc\about.html:27
+msgid ""
+"We promise to provide the best calculations results with accuracy, clarity "
+"and simplicity that is not matched elsewhere. Our goal is to provide to our "
+"community the best service they deserve paying attention and responding to "
+"their needs."
+msgstr ""
+"نعدكم بتقديم أفضل النتائج لتقسيم التركات بدقة ووضوح وبساطة لا مثيل لها في أي "
+"مكان آخر. هدفنا هو أن نقدم للمجتمع أفضل خدمة يستحقها مع الاهتمام باحتياجاته و "
+"التجاوب معها."
+
+#: .\calc\templates\calc\about.html:30
+msgid "Contribution"
+msgstr "المساهمة"
+
+#: .\calc\templates\calc\about.html:33
+msgid ""
+"We are open to any contribution you are willing to make. This project is open "
+"source and non-profit. To contribute to source code please visit"
+msgstr ""
+"نحن منفتحون على أي مساهمة ترغب في تقديمها. هذا المشروع مفتوح المصدر وغير "
+"ربحي. للمساهمة في البرمجة يرجى زيارة"
+
+#: .\calc\templates\calc\about.html:35
+msgid "GitHub Repository."
+msgstr "مستودع جيثب."
+
+#: .\calc\templates\calc\base.html:34 .\calc\templates\calc\base.html:37
 msgid "Mawareeth 2.0"
 msgstr "مواريث 2.0"
 
-#: .\calc\templates\calc\base.html:43 .\calc\templates\calc\home.html:6
+#: .\calc\templates\calc\base.html:45 .\calc\templates\calc\home.html:6
 msgid "Home"
 msgstr "الرئيسية"
 
-#: .\calc\templates\calc\base.html:46 .\calc\templates\calc\home.html:27
+#: .\calc\templates\calc\base.html:48 .\calc\templates\calc\home.html:27
 #: .\calc\templates\calc\index.html:6
 msgid "Calculations"
 msgstr "مسائل"
 
-#: .\calc\templates\calc\base.html:49
+#: .\calc\templates\calc\base.html:51
 msgid "About"
 msgstr "من نحن"
 
-#: .\calc\templates\calc\base.html:53
+#: .\calc\templates\calc\base.html:55
 msgid "Welcome "
 msgstr "اهلا بكم "
 
-#: .\calc\templates\calc\base.html:55
+#: .\calc\templates\calc\base.html:57
 msgid " logout "
 msgstr " تسجيل خروج "
 
-#: .\calc\templates\calc\base.html:57 .\calc\templates\calc\home.html:59
+#: .\calc\templates\calc\base.html:59 .\calc\templates\calc\home.html:59
 msgid "login"
 msgstr "تسجيل دخول"
 
-#: .\calc\templates\calc\base.html:58 .\calc\templates\calc\home.html:56
+#: .\calc\templates\calc\base.html:60 .\calc\templates\calc\home.html:56
 #: .\calc\templates\registration\login.html:86
 #: .\calc\templates\registration\signup.html:7
 msgid "Sign Up"
 msgstr "تسجيل"
 
-#: .\calc\templates\calc\base.html:93 .\calc\templates\calc\terms.html:5
+#: .\calc\templates\calc\base.html:95 .\calc\templates\calc\terms.html:5
 #: .\calc\templates\calc\terms.html:11
 msgid "Terms and Conditions"
 msgstr "الأحكام و الشروط"
 
-#: .\calc\templates\calc\base.html:96
+#: .\calc\templates\calc\base.html:98
 msgid "Privacy Policy"
 msgstr "سياسة الخصوصية"
 
@@ -1375,11 +1435,11 @@ msgstr "ايميل:"
 msgid "Already registered"
 msgstr "تم التسجيل سابقا"
 
-#: .\calc\views.py:36
+#: .\calc\views.py:37
 msgid "Decease already exist"
 msgstr "يوجد متوفى"
 
-#: .\calc\views.py:105
+#: .\calc\views.py:106
 msgid "Father already exist"
 msgstr "الاب موجود"
 
