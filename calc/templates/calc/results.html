@@ -4,16 +4,9 @@
 {% load l10n %}
 {% load humanize %}
 {% load calc_extras %}
-
-
 {% block title %}
-Calculation {{ calculation.name}}
+{% trans "Result" %} {{ calculation.name}}
 {% endblock %}
-
-{% block css %}
-<link rel="stylesheet" href="{% static 'calc/css/content.css' %}">
-{% endblock %}
-
 {% block body %}
 <div class="container">
   <div class="row">

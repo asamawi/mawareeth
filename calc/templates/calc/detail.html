@@ -3,17 +3,9 @@
 {% load i18n %}
 {% load calc_extras %}
 {% load icons %}
-
-
-
 {% block title %}
 {% trans "Calculation" %} | {{ calculation.name}}
 {% endblock %}
-
-{% block css %}
-<link rel="stylesheet" href="{% static 'calc/css/content.css' %}">
-{% endblock %}
-
 {% block body %}
 <div class="container">
   <div class="row">
