@@ -751,6 +751,9 @@ class Mother(Heir):
             else:
                 self.quote = 1/6
                 self.quote_reason = _("mother gets 1/3 of the remainder which is 1/6")
+        else:
+            self.quote = 1/3
+            self.quote_reason = _("mother gets 1/3 becasue no decendent or siblings")
         self.save()
         return self.quote
 
