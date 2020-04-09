@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-07 12:09+0300\n"
-"PO-Revision-Date: 2020-04-07 12:14+0300\n"
+"POT-Creation-Date: 2020-04-09 06:57+0300\n"
+"PO-Revision-Date: 2020-04-09 07:06+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: ar\n"
@@ -202,7 +202,7 @@ msgid "login"
 msgstr "تسجيل دخول"
 
 #: .\calc\templates\calc\base.html:64 .\calc\templates\calc\home.html:56
-#: .\calc\templates\registration\login.html:86
+#: .\calc\templates\registration\login.html:81
 #: .\calc\templates\registration\signup.html:7
 msgid "Sign Up"
 msgstr "تسجيل"
@@ -859,7 +859,7 @@ msgstr "التصحيح"
 msgid "Amount"
 msgstr "القيمة"
 
-#: .\calc\templates\calc\results.html:203 .\calc\templates\calc\results.html:266
+#: .\calc\templates\calc\results.html:183 .\calc\templates\calc\results.html:242
 msgid "asaba"
 msgstr "عصبة"
 
@@ -1386,21 +1386,96 @@ msgstr "كلمة المرور"
 msgid "Sign in"
 msgstr "تسجيل الدخول"
 
-#: .\calc\templates\registration\login.html:66
-msgid "Login with Instagram"
-msgstr "الدخول بانستغرام"
-
-#: .\calc\templates\registration\login.html:73
+#: .\calc\templates\registration\login.html:68
+#: .\calc\templates\registration\signup.html:77
 msgid "Login with Facebook"
 msgstr "الدخول بفيسبوك"
 
-#: .\calc\templates\registration\login.html:80
+#: .\calc\templates\registration\login.html:75
+#: .\calc\templates\registration\signup.html:84
 msgid "Login with LinkedIn"
 msgstr "الدخول بلينكد إن"
 
-#: .\calc\templates\registration\login.html:88
+#: .\calc\templates\registration\login.html:83
 msgid "Lost password?"
 msgstr "نسيت كلمة المرور؟"
+
+#: .\calc\templates\registration\password_reset_complete.html:11
+msgid "Your password has been set. You may go ahead and "
+msgstr "تم تعيين كلمة المرور الخاصة بك. يمكنك المضي قدما و "
+
+#: .\calc\templates\registration\password_reset_complete.html:13
+msgid "sign in"
+msgstr "تسجيل الدخول"
+
+#: .\calc\templates\registration\password_reset_complete.html:15
+msgid "now."
+msgstr "الان."
+
+#: .\calc\templates\registration\password_reset_confirm.html:13
+#: .\calc\templates\registration\password_reset_confirm.html:20
+msgid "Change password"
+msgstr "غيّر كلمة المرور"
+
+#: .\calc\templates\registration\password_reset_confirm.html:26
+msgid ""
+"The password reset link was invalid, possibly because it has already been "
+"used. Please request a new password reset."
+msgstr ""
+"رابط إعادة تعيين كلمة المرور غير صالح ، ربما لأنه تم استخدامه بالفعل. يرجى "
+"طلب إعادة تعيين كلمة مرور جديدة."
+
+#: .\calc\templates\registration\password_reset_done.html:11
+msgid ""
+"We've emailed you instructions for setting your password, if an account "
+"exists with the email you entered. You should receive them shortly."
+msgstr ""
+"لقد أرسلنا إليك عبر البريد الإلكتروني تعليمات حول تعيين كلمة المرور ، إذا كان "
+"هناك حساب بالعنوان الذي أدخلته. سوف تصلك رسالة قريبا."
+
+#: .\calc\templates\registration\password_reset_done.html:14
+msgid ""
+"If you don't receive an email, please make sure you've entered the address "
+"you registered with, and check your spam folder."
+msgstr ""
+"إذا لم تتلق رسالة، فيرجى التأكد من إدخال العنوان الذي قمت بالتسجيل به ، "
+"والتحقق من مجلد الرسائل غير المرغوب فيها."
+
+#: .\calc\templates\registration\password_reset_email.html:4
+msgid "To initiate the password reset process for your"
+msgstr "لبدء عملية إعادة تعيين كلمة المرور الخاصة ب"
+
+#: .\calc\templates\registration\password_reset_email.html:6
+msgid "Mawareeth 2.0 account,"
+msgstr "حسابك في موقع المواريث"
+
+#: .\calc\templates\registration\password_reset_email.html:7
+msgid "click the link below:"
+msgstr "إضغط على الرابط في الأسفل:"
+
+#: .\calc\templates\registration\password_reset_email.html:11
+msgid ""
+"If clicking the link above doesn't work, please copy and paste the URL in a "
+"new browser window instead."
+msgstr ""
+"إذا لم ينجح النقر على الرابط أعلاه ، فيرجى نسخ ولصق الرابط في نافذة متصفح "
+"جديدة بدلاً من ذلك."
+
+#: .\calc\templates\registration\password_reset_email.html:13
+msgid "Sincerely,"
+msgstr "مع تحياتنا"
+
+#: .\calc\templates\registration\password_reset_email.html:14
+msgid "The Mawareeth 2.0 team,"
+msgstr "فريق موقع المواريث,"
+
+#: .\calc\templates\registration\password_reset_form.html:12
+msgid "Forgot password"
+msgstr "نسيت كلمة المرور"
+
+#: .\calc\templates\registration\password_reset_form.html:22
+msgid "submit"
+msgstr "إرسال"
 
 #: .\calc\templates\registration\signup.html:37
 #: .\calc\templates\registration\signup.html:70
@@ -1439,7 +1514,7 @@ msgstr "ادخل البريد الالكتروني"
 msgid "Email:"
 msgstr "ايميل:"
 
-#: .\calc\templates\registration\signup.html:73
+#: .\calc\templates\registration\signup.html:89
 msgid "Already registered"
 msgstr "تم التسجيل سابقا"
 
@@ -1478,6 +1553,9 @@ msgstr "تحديث"
 #: .\user_auth\views.py:17
 msgid "Your account has been updated!"
 msgstr "تم تحديث بياناتك بنجاح!"
+
+#~ msgid "Login with Instagram"
+#~ msgstr "الدخول بانستغرام"
 
 #~ msgid "Dropdown"
 #~ msgstr "قائمة منسدلة"
