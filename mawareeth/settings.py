@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'django_icons',
     'active_link',
     'social_django',
+    'waffle',
 ]
 
 MIDDLEWARE = [
