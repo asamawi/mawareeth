@@ -402,7 +402,7 @@ class SonQuoteTestCase(TestCase):
 
 
 
-    def test_daughter_qet_quote(self):
+    def test_son_qet_quote(self):
         calc1 = Calculation.objects.get(name="calc1")
         calc2 = Calculation.objects.get(name="calc2")
 
@@ -420,6 +420,63 @@ class SonQuoteTestCase(TestCase):
         self.assertEquals(calc2.get_sons().first().asaba, True)
         self.assertEquals(calc2.get_sons().first().shared_quote, True)
         self.assertEquals(calc2.shares,2)
+
+class BrotherQuoteTestCase(TestCase):
+
+    def setUp(self):
+        user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
+        #case 1 where brtother is blocked by son
+        calc1 = Calculation.objects.create(name='calc1', user=user1)
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc1)
+        son1 = Son.objects.create(first_name="Son1", last_name="test", sex="M", calc=calc1)
+        calc1.add_son(son1, mother=None, father=None)
+        daughter1 = Daughter.objects.create(first_name="Daughter1", last_name="test", sex="F", calc=calc1)
+        calc1.add_daughter(daughter1, mother=None, father=None)
+        brother1 = Brother.objects.create(first_name="Brother 1", last_name="test", sex="M", calc=calc1)
+        calc1.add_brother(brother1)
+
+
+        #case 2 where brother is blocked by father
+        calc2 = Calculation.objects.create(name='calc2', user=user1)
+        deceased2 = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="1000",calc=calc2)
+        brother2 = Brother.objects.create(first_name="Brother 2", last_name="test", sex="M", calc=calc2)
+        calc2.add_brother(brother2)
+        father2 = Father.objects.create(first_name="Father2", last_name="test", sex="M", calc=calc2)
+        calc2.add_father(father2)
+
+        #case 3 brother get remainder
+        calc3 = Calculation.objects.create(name='calc3', user=user1)
+        deceased3 = Deceased.objects.create(first_name="Deceased3", last_name="test", sex="M",estate="1000",calc=calc3)
+        brother3 = Brother.objects.create(first_name="Brother 3", last_name="test", sex="M", calc=calc3)
+        calc3.add_brother(brother3)
+        daughter3 = Daughter.objects.create(first_name="Daughter3", last_name="test", sex="F", calc=calc3)
+        calc3.add_daughter(daughter3, mother=None, father=None)
+
+
+
+    def test_brother_qet_quote(self):
+        calc1 = Calculation.objects.get(name="calc1")
+        calc2 = Calculation.objects.get(name="calc2")
+        calc3 = Calculation.objects.get(name="calc3")
+
+
+        calc1.compute()
+        calc2.compute()
+        calc3.compute()
+
+
+        self.assertEquals(calc1.shares,3)
+        self.assertEquals(calc2.shares,1)
+        self.assertEquals(calc3.shares,2)
+
+        self.assertEquals(Fraction(calc1.get_brothers().first().quote).limit_denominator(), Fraction(0,1))
+        self.assertEquals(Fraction(calc2.get_brothers().first().quote).limit_denominator(), Fraction(0,1))
+        self.assertEquals(Fraction(calc3.get_brothers().first().quote).limit_denominator(), Fraction(1,2))
+        self.assertEquals(calc1.get_brothers().first().blocked, True)
+        self.assertEquals(calc2.get_brothers().first().blocked, True)
+        self.assertEquals(calc3.get_brothers().first().blocked, False)
+
+
 class CalculationGetSharesTestCase(TestCase):
 
     def setUp(self):

@@ -3,6 +3,8 @@
 {% load i18n %}
 {% load calc_extras %}
 {% load icons %}
+{% load waffle_tags %}
+
 {% block title %}
 {% trans "Calculation" %} | {{ calculation.name}}
 {% endblock %}
@@ -19,73 +21,80 @@
           >
           <span>{% icon 'edit' %}</span>
         </a>
-        </div>
-        <div class="card-body">
-          {% if calculation.deceased_set.count != 0 %}
-          <div class="card text-white bg-secondary mb-3">
-            <div class="card-header">
-              {% trans "Deceased" %}
-              <a
-              href="{% url 'calc:deceased_delete' calculation.deceased_set.first.id %}"
-              class="float-right btn btn-primary a-btn-slide-text">
-              <span>{% icon 'trash-o' %}</span>
-            </a>
+      </div>
+      <div class="card-body">
+        {% if calculation.deceased_set.count != 0 %}
+        <div class="card text-white bg-secondary mb-3">
+          <div class="card-header">
+            {% trans "Deceased" %}
             <a
-            class="float-right btn btn-primary a-btn-slide-text"
-            href="{% url 'calc:deceased_update' calculation.deceased_set.first.id %}"
-            >
-            <span>{% icon 'edit' %}</span>
+            href="{% url 'calc:deceased_delete' calculation.deceased_set.first.id %}"
+            class="float-right btn btn-primary a-btn-slide-text">
+            <span>{% icon 'trash-o' %}</span>
           </a>
           <a
-          href="{% url 'calc:results' calculation.id %}"
-          class="float-right btn btn-primary a-btn-slide-text">
-          <span>{% icon 'calculator' %}</span>
-          </a>
-        </div>
-        <div class="card-body">
+          class="float-right btn btn-primary a-btn-slide-text"
+          href="{% url 'calc:deceased_update' calculation.deceased_set.first.id %}"
+          >
+          <span>{% icon 'edit' %}</span>
+        </a>
+        <a
+        href="{% url 'calc:results' calculation.id %}"
+        class="float-right btn btn-primary a-btn-slide-text">
+        <span>{% icon 'calculator' %}</span>
+      </a>
+    </div>
+    <div class="card-body">
 
-          {% trans "Deceased name:" %} {{ calculation.deceased_set.first.first_name }} <br />
-          {% trans "Deceased estate:" %} {{ calculation.deceased_set.first.estate }}
-        </div>
-        <div class="card-footer">
-          {% if Mother.count == 0 %}
-          <button type="button" class="btn btn-primary" data-toggle="modal"
-          data-target="#add" data-name="Mother" data-heir="{% trans 'Mother' %}"
-          data-url="{% url 'calc:mother' calculation.id %}">
-          {% icon 'plus' %}{%trans ' Mother' %}
-        </button>
-        {% endif %}
-        {% if Father.count == 0 %}
-        <button type="button" class="btn btn-primary" data-toggle="modal"
-        data-target="#add" data-name="Father" data-heir="{% trans 'Father' %}"
-        data-url="{% url 'calc:father' calculation.id %}">
-        {% icon 'plus' %}{%trans ' Father' %}
-      </button>
-      {% endif %}
-      {% if calculation.deceased_set.first.sex == "M" and Wife.count < 4 %}
+      {% trans "Deceased name:" %} {{ calculation.deceased_set.first.first_name }} <br />
+      {% trans "Deceased estate:" %} {{ calculation.deceased_set.first.estate }}
+    </div>
+    <div class="card-footer">
+      {% if Mother.count == 0 %}
       <button type="button" class="btn btn-primary" data-toggle="modal"
-      data-target="#add" data-name="Wife" data-heir="{% trans 'Wife' %}"
-      data-url="{% url 'calc:wife' calculation.id %}">
-      {% icon 'plus' %}{%trans ' Wife' %}
+      data-target="#add" data-name="Mother" data-heir="{% trans 'Mother' %}"
+      data-url="{% url 'calc:mother' calculation.id %}">
+      {% icon 'plus' %}{%trans ' Mother' %}
     </button>
     {% endif %}
-    {% if calculation.deceased_set.first.sex == "F" and Husband.count == 0 %}
+    {% if Father.count == 0 %}
     <button type="button" class="btn btn-primary" data-toggle="modal"
-    data-target="#add" data-name="Husband" data-heir="{% trans 'Husband' %}"
-    data-url="{% url 'calc:husband' calculation.id %}">
-    {% icon 'plus' %}{%trans ' Husband' %}
+    data-target="#add" data-name="Father" data-heir="{% trans 'Father' %}"
+    data-url="{% url 'calc:father' calculation.id %}">
+    {% icon 'plus' %}{%trans ' Father' %}
   </button>
   {% endif %}
+  {% if calculation.deceased_set.first.sex == "M" and Wife.count < 4 %}
   <button type="button" class="btn btn-primary" data-toggle="modal"
-  data-target="#add" data-name="Daughter" data-heir="{% trans 'Daughter' %}"
-  data-url="{% url 'calc:daughter' calculation.id %}">
-  {% icon 'plus' %}{%trans ' Daughter' %}
+  data-target="#add" data-name="Wife" data-heir="{% trans 'Wife' %}"
+  data-url="{% url 'calc:wife' calculation.id %}">
+  {% icon 'plus' %}{%trans ' Wife' %}
+</button>
+{% endif %}
+{% if calculation.deceased_set.first.sex == "F" and Husband.count == 0 %}
+<button type="button" class="btn btn-primary" data-toggle="modal"
+data-target="#add" data-name="Husband" data-heir="{% trans 'Husband' %}"
+data-url="{% url 'calc:husband' calculation.id %}">
+{% icon 'plus' %}{%trans ' Husband' %}
+</button>
+{% endif %}
+<button type="button" class="btn btn-primary" data-toggle="modal"
+data-target="#add" data-name="Daughter" data-heir="{% trans 'Daughter' %}"
+data-url="{% url 'calc:daughter' calculation.id %}">
+{% icon 'plus' %}{%trans ' Daughter' %}
 </button>
 <button type="button" class="btn btn-primary" data-toggle="modal"
 data-target="#add" data-name="Son" data-heir="{% trans 'Son' %}"
 data-url="{% url 'calc:son' calculation.id %}">
 {% icon 'plus' %}{%trans ' Son' %}
 </button>
+{% flag "Brother" %}
+<button type="button" class="btn btn-primary" data-toggle="modal"
+data-target="#add" data-name="Son" data-heir="{% trans 'Brother' %}"
+data-url="{% url 'calc:brother' calculation.id %}">
+{% icon 'plus' %}{%trans ' Brother' %}
+</button>
+{% endflag %}
 </div>
 </div>
 {% else %}
@@ -99,24 +108,24 @@ data-url="{% url 'calc:son' calculation.id %}">
       <th scope="col">{%trans "Relation" %}</th>
       <th scope="col">{%trans "Name" %}</th>
     </tr>
-{% for heir in Heirs %}
-  <tr>
-    <td>{{heir|get_class}}</td>
-    <td>{{heir.first_name}} {{heir.last_name}}
-      <a
-      href="{% url 'calc:heir_delete' heir.id %}"
-      class="float-right btn btn-primary a-btn-slide-text">
-      <span>{% icon 'trash-o' %}</span>
-    </a>
-
+    {% for heir in Heirs %}
+    <tr>
+      <td>{{heir|get_class}}</td>
+      <td>{{heir.first_name}} {{heir.last_name}}
         <a
-        class="float-right btn btn-primary a-btn-slide-text"
-        href="{% url 'calc:heir_update' heir.id %}"
-        >
-        <span>{% icon 'edit' %}</span></td>
-  </tr>
-{% endfor %}
-</thead>
+        href="{% url 'calc:heir_delete' heir.id %}"
+        class="float-right btn btn-primary a-btn-slide-text">
+        <span>{% icon 'trash-o' %}</span>
+      </a>
+
+      <a
+      class="float-right btn btn-primary a-btn-slide-text"
+      href="{% url 'calc:heir_update' heir.id %}"
+      >
+      <span>{% icon 'edit' %}</span></td>
+    </tr>
+    {% endfor %}
+  </thead>
 </table>
 
 
@@ -151,7 +160,7 @@ data-url="{% url 'calc:son' calculation.id %}">
             <label for="estate" class="col-form-label">{% trans 'Estate:' %}</label>
             <input type="text" class="form-control" id="estate" name="estate">
           </div>
-          {% if Wife.count > 1 %}
+          {% if Wife.count > 0 %}
           <div id="mother-form-group" class="form-group" >
             <label for="mother" class="col-form-label">{% trans 'Mother:' %}</label>
             <select class="form-control" id="mother" name="mother">
@@ -159,8 +168,12 @@ data-url="{% url 'calc:son' calculation.id %}">
                 {% trans '--- Select Mother ---' %}
               </option>
               {% for mother in Wife %}
+              {% if forloop.counter == 1%}
+              <option selected value="{{ mother.pk }}">
+              {% else %}
               <option value="{{ mother.pk }}">
                 {{ mother.first_name }}
+              {% endif %}
               </option>
               {% endfor %}
             </select>

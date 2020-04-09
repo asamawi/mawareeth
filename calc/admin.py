@@ -59,6 +59,12 @@ class SonAdmin(HeirAdmin):
     base_model = Son  # Explicitly set here!
     show_in_index = True
     # define custom features here
+
+@admin.register(Brother)
+class BrotherAdmin(HeirAdmin):
+    base_model = Brother  # Explicitly set here!
+    show_in_index = True
+    # define custom features here
 @admin.register(Person)
 class PersonAdmin(PolymorphicParentModelAdmin):
     """ The parent model admin """
