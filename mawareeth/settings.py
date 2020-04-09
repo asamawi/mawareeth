@@ -204,11 +204,6 @@ SOCIAL_AUTH_FACEBOOK_EXTRA_DATA = [
     #('link', 'profile_url'), needs app review
 ]
 
-SOCIAL_AUTH_INSTAGRAM_KEY = config("INSTAGRAM_KEY",default=0,cast=int)
-SOCIAL_AUTH_INSTAGRAM_SECRET = config("INSTAGRAM_SECRET",default=" ")
-SOCIAL_AUTH_INSTAGRAM_EXTRA_DATA = [         ('user', 'user'),
-]
-
 SOCIAL_AUTH_LINKEDIN_OAUTH2_KEY = config("LINKEDIN_KEY",default=" ")
 SOCIAL_AUTH_LINKEDIN_OAUTH2_SECRET = config("LINKEDIN_SECRET",default=" ")
 SOCIAL_AUTH_LINKEDIN_OAUTH2_SCOPE = ['r_liteprofile', 'r_emailaddress']

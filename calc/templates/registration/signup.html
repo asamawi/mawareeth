@@ -4,7 +4,7 @@
 
 {% block title %}
 
-  {% trans "Sign Up" %}
+{% trans "Sign Up" %}
 
 {% endblock %}
 
@@ -16,23 +16,23 @@
 
 {% if form.errors %}
 {% for field in form %}
-    {% for error in field.errors %}
-        <div class="alert alert-danger">
-            <strong>{{ error|escape }}</strong>
-        </div>
-    {% endfor %}
+{% for error in field.errors %}
+<div class="alert alert-danger">
+  <strong>{{ error|escape }}</strong>
+</div>
+{% endfor %}
 {% endfor %}
 {% for error in form.non_field_errors %}
-    <div class="alert alert-danger">
-        <strong>{{ error|escape }}</strong>
-    </div>
+<div class="alert alert-danger">
+  <strong>{{ error|escape }}</strong>
+</div>
 {% endfor %}
 {% endif %}
 <div class="container">
-    <div class="row">
-      <div class="col-sm-9 col-md-7 col-lg-5 mx-auto">
-        <div class="card card-signin my-5">
-          <div class="card-body">
+  <div class="row">
+    <div class="col-sm-9 col-md-7 col-lg-5 mx-auto">
+      <div class="card card-signin my-5">
+        <div class="card-body">
 
           <h2 class="card-title text-center">{% trans "Sign up" %}</h2>
           <form method="post" class="form-signin">
@@ -40,34 +40,50 @@
             <div class="form-label-group">
               <input type="text" name="username" maxlength="150"
               autocapitalize="none" autocomplete="username" autofocus=""
-              required="" id="id_username" class="form-control"
+              required id="id_username" class="form-control"
               placeholder="{% trans 'Letters, digits and @/./+/-/_ only.' %}">
               <label for="id_username">{% trans 'Username:' %}</label>
 
             </div>
             <div class="form-label-group">
-               <input type="password" name="password1" class="form-control"
-               autocomplete="new-password" required="" id="id_password1"
-               placeholder="{% trans 'min 8 characters. Strong password required' %}">
-               <label for="id_password1">{% trans 'Password:' %}</label>
+              <input type="password" name="password1" class="form-control"
+              autocomplete="new-password" required id="id_password1"
+              placeholder="{% trans 'min 8 characters. Strong password required' %}">
+              <label for="id_password1">{% trans 'Password:' %}</label>
             </div>
             <div class="form-label-group">
-               <input type="password" name="password2" class="form-control"
-               autocomplete="new-password" required=""
-               id="id_password2" placeholder="{% trans 'Enter the same password' %}">
-               <label for="id_password2">{% trans 'Password confirmation:' %}</label>
+              <input type="password" name="password2" class="form-control"
+              autocomplete="new-password" required
+              id="id_password2" placeholder="{% trans 'Enter the same password' %}">
+              <label for="id_password2">{% trans 'Password confirmation:' %}</label>
 
             </div>
             <div class="form-label-group">
               <input type="email" name="email" maxlength="150"
               autocapitalize="none" autocomplete="email" autofocus=""
-              required="" id="id_email" class="form-control"
+              required id="id_email" class="form-control"
               placeholder="{% trans 'Enter email' %}">
               <label for="id_email">{% trans 'Email:' %}</label>
 
             </div>
-            <div>
+            <div class="form-label-group">
               <button class="btn btn-lg btn-primary btn-block text-uppercase" type="submit">{% trans "Sign up" %}</button>
+            </div>
+          </form>
+          <form class="form-signin">
+            <div class="form-label-group">
+              <button class="btn btn-primary btn-block">
+                <a href="{% url 'social:begin' 'facebook' %}">
+                  {% trans "Login with Facebook" %}
+                </a>
+              </button>
+            </div>
+            <div class="form-label-group">
+              <button class="btn btn-info btn-block">
+                <a href="{% url 'social:begin' 'linkedin-oauth2' %}">
+                  {% trans "Login with LinkedIn" %}
+                </a>
+              </button>
             </div>
           </form>
           <a href="{% url 'login' %}">{% trans 'Already registered' %}</a>
@@ -75,7 +91,7 @@
         </div>
       </div>
     </div>
-</div>
+  </div>
 </div>
 
 {% endblock %}
