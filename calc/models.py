@@ -137,6 +137,10 @@ class Person(PolymorphicModel):
         brother.parents=self.parents
         brother.save()
 
+    def add_sister(self, sister):
+        sister.parents=self.parents
+        sister.save()
+
     def __str__(self):
         return f"{self.first_name} id: {self.id}"
 
@@ -175,27 +179,33 @@ class Calculation(models.Model):
     name = models.CharField(max_length=200)
 
     def add_father(self, father):
-        return Father().add(calc=self, father=father)
+        return father.add(calc=self)
 
     def add_mother(self, mother):
-        return Mother().add(calc=self, mother=mother)
+        return mother.add(calc=self)
 
     def add_husband(self, husband):
-        return Husband().add(calc=self, husband=husband)
+        return husband.add(calc=self)
 
     def add_wife(self, wife):
-        return Wife().add(calc=self, wife=wife)
+        return wife.add(calc=self)
 
     def add_daughter(self, daughter, mother, father):
-        return Daughter().add(calc=self, daughter=daughter,mother=mother, father=father)
+        return daughter.add(calc=self, mother=mother, father=father)
 
     def add_son(self, son, mother, father):
-        return Son().add(calc=self, son=son, mother=mother, father=father)
+        return son.add(calc=self, mother=mother, father=father)
 
     def add_brother(self, brother):
         brother.add(calc=self)
         brother.save()
         return brother
+
+    def add_sister(self, sister):
+        sister.add(calc=self)
+        sister.save()
+        return sister
+
     def __str__(self):
         return str(self.name)
 
@@ -236,6 +246,9 @@ class Calculation(models.Model):
     def has_son(self):
         return self.heir_set.instance_of(Son).count() > 0
 
+    def has_brother(self):
+        return self.heir_set.instance_of(Brother).count() > 0
+
     def get_father(self):
         return self.heir_set.instance_of(Father).first()
 
@@ -259,6 +272,9 @@ class Calculation(models.Model):
 
     def get_brothers(self):
         return self.heir_set.instance_of(Brother)
+
+    def get_sisters(self):
+        return self.heir_set.instance_of(Sister)
 
     def get_heirs_no_spouse(self):
         return self.heir_set.not_instance_of(Husband, Wife)
@@ -394,22 +410,25 @@ class Calculation(models.Model):
                 self.shares_shorted = spouse.get_fraction().denominator
             self.save()
     def set_asaba_quotes(self):
-        #check for asaba exclude father with quote
-        asaba = self.heir_set.filter(asaba=True).exclude(quote__gt=0)
-        count = asaba.count()
-        # if no asaba then we have resedual shares to be redistributed
-        if count == 0:
-            pass
-        for heir in asaba:
-            heir.set_asaba_quote(self)
+        #check for residual_shares
+        if self.residual_shares > 0:
+            #check for asaba exclude father with quote
+            asaba = self.heir_set.filter(asaba=True).exclude(quote__gt=0)
+            count = asaba.count()
+            # if no asaba then we have resedual shares to be redistributed
+            if count == 0:
+                return
+            for heir in asaba:
+                heir.set_asaba_quote(self)
 
     def set_amounts(self):
         for heir in self.heir_set.filter(blocked=False):
             heir.set_amount(self)
 
     def set_asaba_shares(self):
-        for heir in self.heir_set.filter(blocked=False):
-            heir.set_asaba_share(self)
+        if self.residual_shares > 0:
+            for heir in self.heir_set.filter(blocked=False):
+                heir.set_asaba_share(self)
 
     def set_remainder(self):
         shares = self.get_shares()
@@ -734,8 +753,8 @@ class Heir(Person):
 
 class Father(Heir):
     """Father class"""
-    def add(self, calc, father):
-        calc.deceased_set.first().add_father(father=father)
+    def add(self, calc):
+        calc.deceased_set.first().add_father(father=self)
     def get_quote(self, calc):
         if calc.has_male_descendent():
             self.quote = 1/6
@@ -753,8 +772,8 @@ class Father(Heir):
 
 class Mother(Heir):
     """Mother class"""
-    def add(self, calc, mother):
-        calc.deceased_set.first().add_mother(mother=mother)
+    def add(self, calc):
+        calc.deceased_set.first().add_mother(mother=self)
 
     def get_quote(self, calc):
         if calc.has_descendent() or calc.has_siblings():
@@ -777,8 +796,8 @@ class Mother(Heir):
 
 class Husband(Heir):
     """Husbnad class"""
-    def add(self, calc, husband):
-        calc.deceased_set.first().add_husband(husband=husband)
+    def add(self, calc):
+        calc.deceased_set.first().add_husband(husband=self)
 
     def get_quote(self, calc):
         if calc.has_descendent():
@@ -792,8 +811,8 @@ class Husband(Heir):
 
 class Wife(Heir):
     """Wife class"""
-    def add(self, calc, wife):
-        calc.deceased_set.first().add_wife(wife=wife)
+    def add(self, calc):
+        calc.deceased_set.first().add_wife(wife=self)
 
     def get_quote(self, calc):
         if calc.heir_set.instance_of(Wife).count() == 1:
@@ -816,8 +835,8 @@ class Wife(Heir):
 
 class Daughter(Heir):
     """Daughter Class"""
-    def add(self, calc, daughter, mother, father):
-        calc.deceased_set.first().add_daughter(daughter=daughter, mother=mother, father=father)
+    def add(self, calc, mother, father):
+        calc.deceased_set.first().add_daughter(daughter=self, mother=mother, father=father)
 
     def get_quote(self, calc):
         if calc.has_son():
@@ -836,8 +855,8 @@ class Daughter(Heir):
 
 class Son(Heir):
     """Son Class"""
-    def add(self, calc, son, mother, father):
-        calc.deceased_set.first().add_son(son=son, mother=mother, father=father)
+    def add(self, calc, mother, father):
+        calc.deceased_set.first().add_son(son=self, mother=mother, father=father)
 
     def get_quote(self, calc):
         if calc.heir_set.instance_of(Son).count() > 1:
@@ -866,7 +885,34 @@ class Brother(Heir):
         return self.quote
 
 class Sister(Heir):
-    pass
+    """Sister Class"""
+    def add(self, calc):
+        calc.deceased_set.first().add_sister(sister=self)
+
+    def get_quote(self, calc):
+        if calc.has_male_descendent():
+            self.blocked = True
+            self.quote_reason = _("Sister/s are blocked by male descendant")
+        elif calc.has_father():
+            self.blocked = True
+            self.quote_reason = _("Sister/s are blocked by father")
+        elif calc.has_brother():
+            self.asaba = True
+            self.quote_reason = _("Sister/s with borther/s share the remainder or all the amount if no other heir exist")
+        elif calc.has_female_descendent():
+            self.asaba = True
+            self.quote_reason = _("Sister/s with female descendant share the remainder")
+        else:
+            sisters = calc.heir_set.instance_of(Sister)
+            if sisters.count() == 1:
+                self.quote = 1/2
+                self.quote_reason = _("Sister gets half when no father or son. ")
+            else:
+                self.shared_quote = True
+                self.quote = 2/3
+                self.quote_reason = -("Sisters share 2/3 when no father or son.")
+        self.save()
+        return self.quote
 
 class GrandFather(Heir):
     pass

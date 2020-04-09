@@ -24,7 +24,8 @@ urlpatterns = [
 	path('<int:calc_id>/daughter', views.DaughterCreate.as_view(), name='daughter'),
 	path('<int:calc_id>/son', views.SonCreate.as_view(), name='son'),
 	path('<int:calc_id>/bother', views.BrotherCreate.as_view(), name='brother'),
-    path('<int:pk>/results/', views.ResultsView.as_view(), name='results'),
+	path('<int:calc_id>/sister', views.SisterCreate.as_view(), name='sister'),
+	path('<int:pk>/results/', views.ResultsView.as_view(), name='results'),
 	path('error/', views.error, name='error'),
 	path('signup/', views.SignUp.as_view(), name='signup'),
 ]

@@ -90,9 +90,16 @@ data-url="{% url 'calc:son' calculation.id %}">
 </button>
 {% flag "Brother" %}
 <button type="button" class="btn btn-primary" data-toggle="modal"
-data-target="#add" data-name="Son" data-heir="{% trans 'Brother' %}"
+data-target="#add" data-name="Brother" data-heir="{% trans 'Brother' %}"
 data-url="{% url 'calc:brother' calculation.id %}">
 {% icon 'plus' %}{%trans ' Brother' %}
+</button>
+{% endflag %}
+{% flag "Sister" %}
+<button type="button" class="btn btn-primary" data-toggle="modal"
+data-target="#add" data-name="Sister" data-heir="{% trans 'Sister' %}"
+data-url="{% url 'calc:sister' calculation.id %}">
+{% icon 'plus' %}{%trans ' Sister' %}
 </button>
 {% endflag %}
 </div>
