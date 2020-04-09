@@ -91,7 +91,7 @@ class Person(PolymorphicModel):
             m.add_female(wife)
             return m
         else:
-            raise _("Cann't have more than 4 wifes")
+            raise _("Can't have more than 4 wives")
 
     def add_daughter(self, daughter, mother, father):
 
@@ -132,6 +132,10 @@ class Person(PolymorphicModel):
                 son.parents=Marriage.objects.create()
                 son.parents.add_male(father)
                 son.parents.add_female(self)
+
+    def add_brother(self, brother):
+        brother.parents=self.parents
+        brother.save()
 
     def __str__(self):
         return f"{self.first_name} id: {self.id}"
@@ -188,6 +192,10 @@ class Calculation(models.Model):
     def add_son(self, son, mother, father):
         return Son().add(calc=self, son=son, mother=mother, father=father)
 
+    def add_brother(self, brother):
+        brother.add(calc=self)
+        brother.save()
+        return brother
     def __str__(self):
         return str(self.name)
 
@@ -221,6 +229,9 @@ class Calculation(models.Model):
 
     def has_father(self):
         return self.heir_set.instance_of(Father).count() > 0
+
+    def has_grandFather(self):
+        return self.heir_set.instance_of(GrandFather).count() > 0
 
     def has_son(self):
         return self.heir_set.instance_of(Son).count() > 0
@@ -256,20 +267,20 @@ class Calculation(models.Model):
         return fractions
 
     def set_calc_shares(self):
-        count = self.heir_set.all().count()
+        count = self.heir_set.filter(blocked=False).count()
         #if all are asaba (agnates)
         if self.heir_set.filter(asaba=True).count() == count:
-            males = self.heir_set.filter(sex='M').count()
-            females = self.heir_set.filter(sex='F').count()
+            males = self.heir_set.filter(sex='M',blocked=False).count()
+            females = self.heir_set.filter(sex='F',blocked=False).count()
             #if all same gender
             if   males == count or females  == count:
                 self.shares = count
             else:
-                for heir in self.heir_set.all():
+                for heir in self.heir_set.filter(blocked=False):
                     self.shares = males * 2 + females
         else:
             denom_list = []
-            fractions_set = self.get_fractions(self.heir_set.all())
+            fractions_set = self.get_fractions(self.heir_set.filter(blocked=False))
             for fraction in fractions_set:
                 denom_list.append(fraction.denominator)
             self.shares = self.lcm_list(denom_list)
@@ -277,12 +288,14 @@ class Calculation(models.Model):
         return self.shares
     def get_shares(self):
         shares = 0
-        for  heir in self.heir_set.filter(correction=False, asaba=False):
+        #first get shares without asaba
+        for  heir in self.heir_set.filter(correction=False, asaba=False, blocked=False):
             shares = shares + heir.share
         if self.correction == True:
             correction_set = self.heir_set.filter(correction=True, asaba=False).values('polymorphic_ctype_id','share').annotate(total=Count('id'))
             for result in correction_set:
                 shares = shares + result["share"]
+        #if there is asaba with need for correction
         asaba = self.heir_set.filter(asaba=True, correction=True).first()
         if asaba:
             shares = shares + asaba.share
@@ -298,7 +311,7 @@ class Calculation(models.Model):
         return shares
 
     def set_shares(self):
-        for heir in self.heir_set.all():
+        for heir in self.heir_set.filter(blocked=False):
             heir.set_share(self)
 
     def set_calc_correction(self):
@@ -360,7 +373,7 @@ class Calculation(models.Model):
     def get_corrected_shares(self):
         if self.correction == True and self.shares_corrected != 0:
             shares = 0
-            for  heir in self.heir_set.all():
+            for  heir in self.heir_set.filter(blocked=False):
                 shares = shares + heir.get_corrected_share(self)
             return shares
 
@@ -388,11 +401,11 @@ class Calculation(models.Model):
             heir.set_asaba_quote(self)
 
     def set_amounts(self):
-        for heir in self.heir_set.all():
+        for heir in self.heir_set.filter(blocked=False):
             heir.set_amount(self)
 
     def set_asaba_shares(self):
-        for heir in self.heir_set.all():
+        for heir in self.heir_set.filter(blocked=False):
             heir.set_asaba_share(self)
 
     def set_remainder(self):
@@ -517,7 +530,7 @@ class Heir(Person):
     shorted_share = models.IntegerField(default=0)
     amount = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     asaba = models.BooleanField(default=False)           #agnate or residuary
-    blocked = models.BooleanField(default=False)         # restrcited from inheritance
+    blocked = models.BooleanField(default=False)         # restricted from inheritance
     quote_reason = models.CharField(max_length=255, default="")
     correction = models.BooleanField(default=False)
     shortage_calc = models.BooleanField(default = False)
@@ -723,14 +736,14 @@ class Father(Heir):
     def get_quote(self, calc):
         if calc.has_male_descendent():
             self.quote = 1/6
-            self.quote_reason = _("father gets 1/6 prescribed share because of male decendent")
+            self.quote_reason = _("father gets 1/6 prescribed share because of male descendant")
         elif calc.has_female_descendent():
             self.quote = 1/6
             #self.asaba = True
-            self.quote_reason = _("father gets 1/6 plus remainder because of female decendent")
+            self.quote_reason = _("father gets 1/6 plus remainder because of female descendant")
         else:
             self.asaba = True
-            self.quote_reason = _("father gets the remainder because there is no decendent")
+            self.quote_reason = _("father gets the remainder because there is no descendant")
         self.save()
         return self.quote
 
@@ -743,7 +756,7 @@ class Mother(Heir):
     def get_quote(self, calc):
         if calc.has_descendent() or calc.has_siblings():
             self.quote = 1/6
-            self.quote_reason = _("mother gets 1/6 becasue of decendent or siblings")
+            self.quote_reason = _("mother gets 1/6 because of descendant or siblings")
         elif calc.has_spouse() and calc.has_father():
             if calc.deceased_set.first().sex == 'M':
                 self.quote = 1/4
@@ -753,7 +766,7 @@ class Mother(Heir):
                 self.quote_reason = _("mother gets 1/3 of the remainder which is 1/6")
         else:
             self.quote = 1/3
-            self.quote_reason = _("mother gets 1/3 becasue no decendent or siblings")
+            self.quote_reason = _("mother gets 1/3 because no descendant or siblings")
         self.save()
         return self.quote
 
@@ -767,10 +780,10 @@ class Husband(Heir):
     def get_quote(self, calc):
         if calc.has_descendent():
             self.quote = 1/4
-            self.quote_reason = _("husband gets 1/4 becuase of decendent")
+            self.quote_reason = _("husband gets 1/4 becuase of descendant")
         else:
             self.quote = 1/2
-            self.quote_reason = _("husband gets 1/2 becuase there is no decendent")
+            self.quote_reason = _("husband gets 1/2 becuase there is no descendant")
         self.save()
         return self.quote
 
@@ -783,17 +796,17 @@ class Wife(Heir):
         if calc.heir_set.instance_of(Wife).count() == 1:
             if calc.has_descendent():
                 self.quote = 1/8
-                self.quote_reason = _("wife gets 1/8 becuase of decendent")
+                self.quote_reason = _("wife gets 1/8 becuase of descendant")
             else:
                 self.quote = 1/4
-                self.quote_reason = _("wife gets 1/4 becuase there is no decendent")
+                self.quote_reason = _("wife gets 1/4 becuase there is no descendant")
         else:
             if calc.has_descendent():
                 self.quote = 1/8
-                self.quote_reason = _("wives share the qoute of 1/8 becuase of decendent")
+                self.quote_reason = _("wives share the qoute of 1/8 becuase of descendant")
             else:
                 self.quote = 1/4
-                self.quote_reason = _("wives share the quote of 1/4 becuase there is no decendent")
+                self.quote_reason = _("wives share the quote of 1/4 becuase there is no descendant")
             self.shared_quote = True
         self.save()
         return self.quote
@@ -832,7 +845,22 @@ class Son(Heir):
         return self.quote
 
 class Brother(Heir):
-    pass
+    """Brother Class"""
+    def add(self, calc):
+        calc.deceased_set.first().add_brother(brother=self)
+
+    def get_quote(self, calc):
+        if calc.has_male_descendent():
+            self.blocked = True
+            self.quote_reason = _("Bother/s are blocked by male descendant")
+        elif calc.has_father():
+            self.blocked = True
+            self.quote_reason = _("Brother/s are blocked by father")
+        else:
+            self.asaba =  True
+            self.quote_reason = _("Brother/s share the remainder or all amount if no other heir exist")
+        self.save()
+        return self.quote
 
 class Sister(Heir):
     pass

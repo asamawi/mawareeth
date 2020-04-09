@@ -86,6 +86,12 @@ data-target="#add" data-name="Son" data-heir="{% trans 'Son' %}"
 data-url="{% url 'calc:son' calculation.id %}">
 {% icon 'plus' %}{%trans ' Son' %}
 </button>
+
+<button type="button" class="btn btn-primary" data-toggle="modal"
+data-target="#add" data-name="Son" data-heir="{% trans 'Brother' %}"
+data-url="{% url 'calc:brother' calculation.id %}">
+{% icon 'plus' %}{%trans ' Brother' %}
+</button>
 </div>
 </div>
 {% else %}

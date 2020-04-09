@@ -14,6 +14,7 @@ from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.utils.translation import gettext as _
 from django.views.generic.base import TemplateView
 from .models import *
+from waffle.decorators import waffle_flag
 
 class HomePage(TemplateView):
 	template_name="calc/home.html"
@@ -248,6 +249,30 @@ class SonCreate(CreateView):
 		form.instance.calc.add_son(self.object, mother=mother, father=father)
 		return super().form_valid(form)
 
+class BrotherCreate(CreateView):
+	model = Brother
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_brother(self.object)
+		return super().form_valid(form)
+
 class HeirUpdate(UpdateView):
 	model = Heir
 	fields = ['first_name','last_name']
@@ -336,7 +361,7 @@ class CalculationUpdate(UpdateView):
 def new(request):
 	name = request.POST["name"]
 	if name == "":
-		messages.error(request,"Must enter a name for your calcualtion" )
+		messages.error(request,_("Must enter a name for your calcualtion") )
 		return HttpResponseRedirect(reverse('calc:error'))
 
 	user = request.user
@@ -360,7 +385,7 @@ def delete(request, pk):
 		calc.delete()
 		return HttpResponseRedirect(reverse('calc:index'))
 	else:
-		messages.error(request,"user not allowed" )
+		messages.error(request,_("user not allowed") )
 		return HttpResponseRedirect(reverse('calc:error'))
 
 def error(request):
