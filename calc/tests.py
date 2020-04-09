@@ -466,11 +466,16 @@ class BrotherQuoteTestCase(TestCase):
 
 
         self.assertEquals(calc1.shares,3)
+        self.assertEquals(calc2.shares,1)
+        self.assertEquals(calc3.shares,2)
 
-        self.assertEquals(Fraction(calc2.get_sons().first().quote).limit_denominator(), Fraction(1,1))
-        self.assertEquals(calc2.get_sons().first().asaba, True)
-        self.assertEquals(calc2.get_sons().first().shared_quote, True)
-        self.assertEquals(calc2.shares,2)
+        self.assertEquals(Fraction(calc1.get_brothers().first().quote).limit_denominator(), Fraction(0,1))
+        self.assertEquals(Fraction(calc2.get_brothers().first().quote).limit_denominator(), Fraction(0,1))
+        self.assertEquals(Fraction(calc3.get_brothers().first().quote).limit_denominator(), Fraction(1,2))
+        self.assertEquals(calc1.get_brothers().first().blocked, True)
+        self.assertEquals(calc2.get_brothers().first().blocked, True)
+        self.assertEquals(calc3.get_brothers().first().blocked, False)
+
 
 class CalculationGetSharesTestCase(TestCase):
 

@@ -14,7 +14,7 @@ from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.utils.translation import gettext as _
 from django.views.generic.base import TemplateView
 from .models import *
-from waffle.decorators import waffle_flag
+from waffle.mixins import WaffleFlagMixin
 
 class HomePage(TemplateView):
 	template_name="calc/home.html"
@@ -249,10 +249,11 @@ class SonCreate(CreateView):
 		form.instance.calc.add_son(self.object, mother=mother, father=father)
 		return super().form_valid(form)
 
-class BrotherCreate(CreateView):
+class BrotherCreate(WaffleFlagMixin, CreateView):
 	model = Brother
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
+	waffle_flag = "Brother"
 
 	def dispatch(self, request, *args, **kwargs):
 		"""

@@ -257,6 +257,9 @@ class Calculation(models.Model):
     def get_sons(self):
         return self.heir_set.instance_of(Son)
 
+    def get_brothers(self):
+        return self.heir_set.instance_of(Brother)
+
     def get_heirs_no_spouse(self):
         return self.heir_set.not_instance_of(Husband, Wife)
 
