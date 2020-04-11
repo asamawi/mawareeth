@@ -155,6 +155,8 @@ prefix_default_language = False
 LANGUAGES = [
   ('ar', _('Arabic')),
   ('en', _('English')),
+  ('fr', _('French')),
+
 ]
 LOGIN_REDIRECT_URL = 'calc:index'
 LOGOUT_REDIRECT_URL = 'calc:index'
