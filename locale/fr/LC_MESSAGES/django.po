@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2020-04-11 17:47+0300\n"
-"PO-Revision-Date: 2020-04-11 17:58+0300\n"
+"PO-Revision-Date: 2020-04-11 19:33+0300\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -60,93 +60,100 @@ msgstr "mère obtient 1/6 en raison de descendant ou de frères et sœurs"
 
 #: .\calc\models.py:784
 msgid "mother gets 1/3 of the remainder which is 1/4."
-msgstr ""
+msgstr "la mère reçoit 1/3 du reste, soit 1/4."
 
 #: .\calc\models.py:787
 msgid "mother gets 1/3 of the remainder which is 1/6"
-msgstr ""
+msgstr "la mère reçoit 1/3 du reste, soit 1/6"
 
 #: .\calc\models.py:790
 msgid "mother gets 1/3 because no descendant or siblings"
-msgstr ""
+msgstr "la mère obtient 1/3 parce qu'aucun descendant ou frère ou sœur"
 
 #: .\calc\models.py:804
 msgid "husband gets 1/4 becuase of descendant"
-msgstr ""
+msgstr "mari obtient 1/4 à cause d'un descendant"
 
 #: .\calc\models.py:807
 msgid "husband gets 1/2 becuase there is no descendant"
-msgstr ""
+msgstr "mari obtient 1/2 parce qu'il n'y a pas de descendant"
 
 #: .\calc\models.py:820
 msgid "wife gets 1/8 becuase of descendant"
-msgstr ""
+msgstr "femme obtient 1/8 parce que de descendant"
 
 #: .\calc\models.py:823
 msgid "wife gets 1/4 becuase there is no descendant"
-msgstr ""
+msgstr "femme obtient 1/4 parce qu'il n'y a pas de descendant"
 
 #: .\calc\models.py:827
 msgid "wives share the qoute of 1/8 becuase of descendant"
-msgstr ""
+msgstr "épouses partagent la qoute de 1/8 parce que de descendant"
 
 #: .\calc\models.py:830
 msgid "wives share the quote of 1/4 becuase there is no descendant"
 msgstr ""
+"les épouses partagent la quote de 1/4 parce qu'il n'y a pas de descendant"
 
 #: .\calc\models.py:847
 msgid "Daughter gets 1/2 when she has no other sibling/s"
-msgstr ""
+msgstr "Fille obtient 1/2 quand elle n'a pas d'autre frère / s"
 
 #: .\calc\models.py:851
 msgid "Daughters share the quote of 2/3 when there is no son/s"
-msgstr ""
+msgstr "Les filles partagent la quote des 2/3 quand il n'y a pas de fils / s"
 
 #: .\calc\models.py:864
 msgid "Son/s share the remainder or all amount if no other heir exist"
 msgstr ""
+"Le ou les fils partagent le reste ou la totalité du montant s'il n'existe "
+"aucun autre héritier"
 
 #: .\calc\models.py:879
 msgid "Bother/s are blocked by male descendant"
-msgstr ""
+msgstr "Les dérangements sont bloqués par un descendant masculin"
 
 #: .\calc\models.py:882
 msgid "Brother/s are blocked by father"
-msgstr ""
+msgstr "Frère / s sont bloqués par le père"
 
 #: .\calc\models.py:885
 msgid "Brother/s share the remainder or all amount if no other heir exist"
 msgstr ""
+"Le frère partage le reste ou la totalité du montant s'il n'existe aucun "
+"autre héritier"
 
 #: .\calc\models.py:900
 msgid "Sister/s are blocked by male descendant"
-msgstr ""
+msgstr "Les sœurs sont bloquées par un descendant masculin"
 
 #: .\calc\models.py:903
 msgid "Sister/s are blocked by father"
-msgstr ""
+msgstr "Les soeurs sont bloquées par le père"
 
 #: .\calc\models.py:906
 msgid ""
 "Sister/s with borther/s share the remainder or all the amount if no other "
 "heir exist"
 msgstr ""
+"Soeur (s) avec frère (s) partageant le reste ou la totalité du montant s'il "
+"n'y a aucun autre héritier"
 
 #: .\calc\models.py:909
 msgid "Sister/s with female descendant share the remainder"
-msgstr ""
+msgstr "La ou les sœurs avec une descendante partagent le reste"
 
 #: .\calc\models.py:913
 msgid "Sister gets half when no father or son. "
-msgstr ""
+msgstr "Sœur obtient la moitié quand il n'y a ni père ni fils. "
 
 #: .\calc\models.py:916
 msgid "Sisters share 2/3 when no father or son."
-msgstr ""
+msgstr "Les sœurs partagent les 2/3 en l'absence de père ou de fils."
 
 #: .\calc\templates\calc\about.html:5 .\calc\templates\calc\about.html:12
 msgid "About Us"
-msgstr ""
+msgstr "A propos de nous"
 
 #: .\calc\templates\calc\about.html:15
 msgid ""
@@ -154,6 +161,10 @@ msgid ""
 "and strong need for inheritance distribution software that produce "
 "calculation reports as per the inheritance laws and courts requirements."
 msgstr ""
+"Mawareeth.com a été lancé pour la première fois en 2008, au cours de "
+"laquelle il y avait un besoin clair et fort de logiciel de distribution "
+"d'héritage qui produise des rapports de calcul conformément aux lois sur les "
+"successions et aux exigences des tribunaux."
 
 #: .\calc\templates\calc\about.html:18
 msgid ""
@@ -161,16 +172,21 @@ msgid ""
 "people do their own calculations without the need of lawyers saving people "
 "time and money."
 msgstr ""
+"Mawareeth.com a été lancé pour faciliter l'apprentissage de l'héritage et "
+"aider les gens à faire leurs propres calculs, ce qui leur fait gagner du "
+"temps et de l'argent."
 
 #: .\calc\templates\calc\about.html:21
 msgid ""
 "Mawareeth 2.0 is the latest release for our website and it was started in "
 "2020."
 msgstr ""
+"Mawareeth 2.0 est la dernière version de notre site Web et elle a été lancée "
+"en 2020."
 
 #: .\calc\templates\calc\about.html:24
 msgid "Our promise"
-msgstr ""
+msgstr "Notre promesse"
 
 #: .\calc\templates\calc\about.html:27
 msgid ""
@@ -179,286 +195,295 @@ msgid ""
 "community the best service they deserve paying attention and responding to "
 "their needs."
 msgstr ""
+"Nous nous engageons à fournir les meilleurs résultats de calcul avec une "
+"précision, une clarté et une simplicité qui ne sont égalées nulle part "
+"ailleurs. Notre objectif est de fournir à notre communauté le meilleur "
+"service qu'elle mérite en prêtant attention et en répondant à ses besoins."
 
 #: .\calc\templates\calc\about.html:30
 msgid "Contribution"
-msgstr ""
+msgstr "Contribution"
 
 #: .\calc\templates\calc\about.html:33
 msgid ""
 "We are open to any contribution you are willing to make. This project is "
 "open source and non-profit. To contribute to source code please visit"
 msgstr ""
+"Nous sommes ouverts à toute contribution que vous souhaitez apporter. Ce "
+"projet est open source et à but non lucratif. Pour contribuer au code "
+"source, veuillez visiter"
 
 #: .\calc\templates\calc\about.html:35
 msgid "GitHub Repository."
-msgstr ""
+msgstr "Référentiel GitHub."
 
 #: .\calc\templates\calc\base.html:38 .\calc\templates\calc\base.html:41
 msgid "Mawareeth 2.0"
-msgstr ""
+msgstr "Mawareeth 2.0"
 
 #: .\calc\templates\calc\base.html:49 .\calc\templates\calc\home.html:6
 msgid "Home"
-msgstr ""
+msgstr "Accueil"
 
 #: .\calc\templates\calc\base.html:52 .\calc\templates\calc\home.html:27
 #: .\calc\templates\calc\index.html:6
 msgid "Calculations"
-msgstr ""
+msgstr "Calculs"
 
 #: .\calc\templates\calc\base.html:55
 msgid "About"
-msgstr ""
+msgstr "À propos"
 
 #: .\calc\templates\calc\base.html:59
 msgid "Welcome "
-msgstr ""
+msgstr "Bienvenue "
 
 #: .\calc\templates\calc\base.html:61
 msgid " logout "
-msgstr ""
+msgstr " Déconnexion "
 
 #: .\calc\templates\calc\base.html:63 .\calc\templates\calc\home.html:59
 msgid "login"
-msgstr ""
+msgstr "s'identifier"
 
 #: .\calc\templates\calc\base.html:64 .\calc\templates\calc\home.html:56
 #: .\calc\templates\registration\login.html:81
 #: .\calc\templates\registration\signup.html:7
 msgid "Sign Up"
-msgstr ""
+msgstr "S'inscrire"
 
 #: .\calc\templates\calc\base.html:99 .\calc\templates\calc\terms.html:5
 #: .\calc\templates\calc\terms.html:11
 msgid "Terms and Conditions"
-msgstr ""
+msgstr "Termes et conditions"
 
 #: .\calc\templates\calc\base.html:102
 msgid "Privacy Policy"
-msgstr ""
+msgstr "Politique de confidentialité"
 
 #: .\calc\templates\calc\calculation_form.html:7
 #: .\calc\templates\calc\detail.html:9
 msgid "Calculation"
-msgstr ""
+msgstr "Calcul"
 
 #: .\calc\templates\calc\deceased_confirm_delete.html:6
 #: .\calc\templates\calc\heir_confirm_delete.html:6
 msgid "Delete"
-msgstr ""
+msgstr "Supprimer"
 
 #: .\calc\templates\calc\deceased_confirm_delete.html:19
 #: .\calc\templates\calc\heir_confirm_delete.html:19
 msgid "Are you sure you want to delete"
-msgstr ""
+msgstr "Etes-vous sûr que vous voulez supprimer"
 
 #: .\calc\templates\calc\deceased_confirm_delete.html:19
 msgid "All heirs will be deleted"
-msgstr ""
+msgstr "Tous les héritiers seront supprimés"
 
 #: .\calc\templates\calc\deceased_form.html:7
 #: .\calc\templates\calc\detail.html:29 .\calc\templates\calc\detail.html:108
 msgid "Deceased"
-msgstr ""
+msgstr "Décédé"
 
 #: .\calc\templates\calc\detail.html:17
 msgid "Calculation name:"
-msgstr ""
+msgstr "Nom du calcul:"
 
 #: .\calc\templates\calc\detail.html:49
 msgid "Deceased name:"
-msgstr ""
+msgstr "Nom décédé:"
 
 #: .\calc\templates\calc\detail.html:50
 msgid "Deceased estate:"
-msgstr ""
+msgstr "Succession décédée:"
 
 #: .\calc\templates\calc\detail.html:55
 msgid "Mother"
-msgstr ""
+msgstr "Mère"
 
 #: .\calc\templates\calc\detail.html:57
 msgid " Mother"
-msgstr ""
+msgstr " Mère"
 
 #: .\calc\templates\calc\detail.html:62
 msgid "Father"
-msgstr ""
+msgstr "Père"
 
 #: .\calc\templates\calc\detail.html:64
 msgid " Father"
-msgstr ""
+msgstr " Père"
 
 #: .\calc\templates\calc\detail.html:69
 msgid "Wife"
-msgstr ""
+msgstr "Femme"
 
 #: .\calc\templates\calc\detail.html:71
 msgid " Wife"
-msgstr ""
+msgstr " Femme"
 
 #: .\calc\templates\calc\detail.html:76
 msgid "Husband"
-msgstr ""
+msgstr "Mari"
 
 #: .\calc\templates\calc\detail.html:78
 msgid " Husband"
-msgstr ""
+msgstr " Mari"
 
 #: .\calc\templates\calc\detail.html:82
 msgid "Daughter"
-msgstr ""
+msgstr "Fille"
 
 #: .\calc\templates\calc\detail.html:84
 msgid " Daughter"
-msgstr ""
+msgstr " Fille"
 
 #: .\calc\templates\calc\detail.html:87
 msgid "Son"
-msgstr ""
+msgstr "Fils"
 
 #: .\calc\templates\calc\detail.html:89
 msgid " Son"
-msgstr ""
+msgstr " Fils"
 
 #: .\calc\templates\calc\detail.html:93
 msgid "Brother"
-msgstr ""
+msgstr "Frère"
 
 #: .\calc\templates\calc\detail.html:95
 msgid " Brother"
-msgstr ""
+msgstr " Frère"
 
 #: .\calc\templates\calc\detail.html:100
 msgid "Sister"
-msgstr ""
+msgstr "Sœur"
 
 #: .\calc\templates\calc\detail.html:102
 msgid " Sister"
-msgstr ""
+msgstr " Sœur"
 
 #: .\calc\templates\calc\detail.html:108
 msgid "Add Deceased"
-msgstr ""
+msgstr "Ajouter décédé"
 
 #: .\calc\templates\calc\detail.html:115 .\calc\templates\calc\results.html:19
 msgid "Relation"
-msgstr ""
+msgstr "Relation"
 
 #: .\calc\templates\calc\detail.html:116 .\calc\templates\calc\results.html:17
 msgid "Name"
-msgstr ""
+msgstr "Nom"
 
 #: .\calc\templates\calc\detail.html:148 .\calc\templates\calc\detail.html:192
 msgid "Add"
-msgstr ""
+msgstr "Ajouter"
 
 #: .\calc\templates\calc\detail.html:152
 msgid "First Name:"
-msgstr ""
+msgstr "Prénom:"
 
 #: .\calc\templates\calc\detail.html:156
 msgid "Last Name:"
-msgstr ""
+msgstr "Nom de famille:"
 
 #: .\calc\templates\calc\detail.html:160
 msgid "Sex:"
-msgstr ""
+msgstr "Sexe:"
 
 #: .\calc\templates\calc\detail.html:162
 msgid "Male"
-msgstr ""
+msgstr "Mâle"
 
 #: .\calc\templates\calc\detail.html:163
 msgid "Female"
-msgstr ""
+msgstr "Femelle"
 
 #: .\calc\templates\calc\detail.html:167
 msgid "Estate:"
-msgstr ""
+msgstr "L'héritage:"
 
 #: .\calc\templates\calc\detail.html:172
 msgid "Mother:"
-msgstr ""
+msgstr "La mère:"
 
 #: .\calc\templates\calc\detail.html:175
 msgid "--- Select Mother ---"
-msgstr ""
+msgstr "--- Sélectionnez la mère ---"
 
 #: .\calc\templates\calc\detail.html:191
 msgid "Close"
-msgstr ""
+msgstr "Fermer"
 
 #: .\calc\templates\calc\error.html:5
 msgid "error"
-msgstr ""
+msgstr "erreur"
 
 #: .\calc\templates\calc\heir_form.html:7
 msgid "Heir"
-msgstr ""
+msgstr "Héritier"
 
 #: .\calc\templates\calc\home.html:20
 msgid "Mawareeth"
-msgstr ""
+msgstr "Mawareeth"
 
 #: .\calc\templates\calc\home.html:21
 msgid "Distribution of wealth according to the principles of Islam"
-msgstr ""
+msgstr "Répartition des richesses selon les principes de l'islam"
 
 #: .\calc\templates\calc\home.html:28
 msgid "Get reliable and simple results for your calculations"
-msgstr ""
+msgstr "Obtenez des résultats fiables et simples pour vos calculs"
 
 #: .\calc\templates\calc\home.html:34
 msgid "Easy and Simple"
-msgstr ""
+msgstr "Facile et simple"
 
 #: .\calc\templates\calc\home.html:35
 msgid "New imporved and interactive user interface"
-msgstr ""
+msgstr "Nouvelle interface utilisateur améliorée et interactive"
 
 #: .\calc\templates\calc\home.html:54
 msgid "Welcome to Mawareeth 2.0"
-msgstr ""
+msgstr "Bienvenue dans Mawareeth 2.0"
 
 #: .\calc\templates\calc\home.html:55
 msgid ""
 "Get started now with our new interface and improved inheritance calculation "
 "algorithms."
 msgstr ""
+"Commencez dès maintenant avec notre nouvelle interface et des algorithmes de "
+"calcul d'héritage améliorés."
 
 #: .\calc\templates\calc\home.html:57
 msgid "for free or"
-msgstr ""
+msgstr "gratuitement ou"
 
 #: .\calc\templates\calc\home.html:61
 msgid "if you are an exiting user."
-msgstr ""
+msgstr "si vous êtes un utilisateur existant."
 
 #: .\calc\templates\calc\index.html:14
 msgid "Create new calculation"
-msgstr ""
+msgstr "Créer un nouveau calcul"
 
 #: .\calc\templates\calc\index.html:18
 msgid "Name your Calculation"
-msgstr ""
+msgstr "Nommez votre calcul"
 
 #: .\calc\templates\calc\index.html:19
 msgid "Calculation name"
-msgstr ""
+msgstr "Nom du calcul"
 
 #: .\calc\templates\calc\index.html:21
 msgid "Submit and continue"
-msgstr ""
+msgstr "Soumettre et continuer"
 
 #: .\calc\templates\calc\index.html:22
 msgid "Save and add another"
-msgstr ""
+msgstr "Enregistrer et ajouter un autre"
 
 #: .\calc\templates\calc\privacy.html:5 .\calc\templates\calc\privacy.html:11
 msgid "Privacy Policy for Mawareeth 2.0"
-msgstr ""
+msgstr "Politique de confidentialité de Mawareeth 2.0"
 
 #: .\calc\templates\calc\privacy.html:13
 msgid ""
@@ -467,12 +492,19 @@ msgid ""
 "contains types of information that is collected and recorded by Mawareeth."
 "com and how we use it."
 msgstr ""
+"Chez Mawareeth.com, accessible depuis https://www.mawareeth.com/, l'une de "
+"nos principales priorités est la confidentialité de nos visiteurs. Ce "
+"document de politique de confidentialité contient les types d'informations "
+"collectées et enregistrées par Mawareeth.com et comment nous les utilisons."
 
 #: .\calc\templates\calc\privacy.html:15
 msgid ""
 "If you have additional questions or require more information about our "
 "Privacy Policy, do not hesitate to contact us."
 msgstr ""
+"Si vous avez des questions supplémentaires ou avez besoin de plus "
+"d'informations sur notre politique de confidentialité, n'hésitez pas à nous "
+"contacter."
 
 #: .\calc\templates\calc\privacy.html:17
 msgid ""
@@ -481,20 +513,27 @@ msgid ""
 "or collect in Mawareeth.com. This policy is not applicable to any "
 "information collected offline or via channels other than this website."
 msgstr ""
+"Cette politique de confidentialité s'applique uniquement à nos activités en "
+"ligne et est valable pour les visiteurs de notre site Web en ce qui concerne "
+"les informations qu'ils ont partagées et / ou collectées sur Mawareeth.com. "
+"Cette politique ne s'applique pas aux informations collectées hors ligne ou "
+"via des canaux autres que ce site Web."
 
 #: .\calc\templates\calc\privacy.html:19
 msgid "Consent"
-msgstr ""
+msgstr "Consentement"
 
 #: .\calc\templates\calc\privacy.html:21
 msgid ""
 "By using our website, you hereby consent to our Privacy Policy and agree to "
 "its terms."
 msgstr ""
+"En utilisant notre site Web, vous acceptez par la présente notre politique "
+"de confidentialité et acceptez ses conditions."
 
 #: .\calc\templates\calc\privacy.html:23
 msgid "Information we collect"
-msgstr ""
+msgstr "Informations que nous collectons"
 
 #: .\calc\templates\calc\privacy.html:25
 msgid ""
@@ -502,6 +541,9 @@ msgid ""
 "you are asked to provide it, will be made clear to you at the point we ask "
 "you to provide your personal information."
 msgstr ""
+"Les informations personnelles que vous êtes invité à fournir, et les raisons "
+"pour lesquelles vous êtes invité à les fournir, vous seront précisées au "
+"moment où nous vous demanderons de fournir vos informations personnelles."
 
 #: .\calc\templates\calc\privacy.html:26
 msgid ""
@@ -510,6 +552,11 @@ msgid ""
 "and/or attachments you may send us, and any other information you may choose "
 "to provide."
 msgstr ""
+"Si vous nous contactez directement, nous pouvons recevoir des informations "
+"supplémentaires vous concernant, telles que votre nom, votre adresse e-mail, "
+"votre numéro de téléphone, le contenu du message et / ou des pièces jointes "
+"que vous pouvez nous envoyer, ainsi que toute autre information que vous "
+"pourriez choisir de fournir."
 
 #: .\calc\templates\calc\privacy.html:27
 msgid ""
@@ -517,30 +564,37 @@ msgid ""
 "including items such as name, company name, address, email address, and "
 "telephone number."
 msgstr ""
+"Lorsque vous vous inscrivez pour un compte, nous pouvons vous demander vos "
+"coordonnées, y compris des éléments tels que le nom, le nom de l'entreprise, "
+"l'adresse, l'adresse e-mail et le numéro de téléphone."
 
 #: .\calc\templates\calc\privacy.html:29
 msgid "How we use your information"
-msgstr ""
+msgstr "Comment nous utilisons vos informations"
 
 #: .\calc\templates\calc\privacy.html:31
 msgid "We use the information we collect in various ways, including to:"
 msgstr ""
+"Nous utilisons les informations que nous collectons de différentes manières, "
+"notamment pour:"
 
 #: .\calc\templates\calc\privacy.html:34
 msgid "Provide, operate, and maintain our webste"
-msgstr ""
+msgstr "Fournir, exploiter et entretenir notre site Web"
 
 #: .\calc\templates\calc\privacy.html:35
 msgid "Improve, personalize, and expand our webste"
-msgstr ""
+msgstr "Améliorez, personnalisez et développez notre site Web"
 
 #: .\calc\templates\calc\privacy.html:36
 msgid "Understand and analyze how you use our webste"
-msgstr ""
+msgstr "Comprendre et analyser la façon dont vous utilisez notre site Web"
 
 #: .\calc\templates\calc\privacy.html:37
 msgid "Develop new products, services, features, and functionality"
 msgstr ""
+"Développer de nouveaux produits, services, caractéristiques et "
+"fonctionnalités"
 
 #: .\calc\templates\calc\privacy.html:38
 msgid ""
@@ -549,18 +603,22 @@ msgid ""
 "information relating to the webste, and for marketing and promotional "
 "purposes"
 msgstr ""
+"Communiquer avec vous, soit directement, soit par l'intermédiaire de l'un de "
+"nos partenaires, y compris pour le service client, pour vous fournir des "
+"mises à jour et d'autres informations relatives au site Web, ainsi qu'à des "
+"fins de marketing et de promotion"
 
 #: .\calc\templates\calc\privacy.html:39
 msgid "Send you emails"
-msgstr ""
+msgstr "Vous envoyer des courriels"
 
 #: .\calc\templates\calc\privacy.html:40
 msgid "Find and prevent fraud"
-msgstr ""
+msgstr "Trouver et prévenir la fraude"
 
 #: .\calc\templates\calc\privacy.html:43
 msgid "Log Files"
-msgstr ""
+msgstr "Fichiers journaux"
 
 #: .\calc\templates\calc\privacy.html:45
 msgid ""
@@ -574,10 +632,21 @@ msgid ""
 "administering the site, tracking users' movement on the website, and "
 "gathering demographic information."
 msgstr ""
+"Mawareeth.com suit une procédure standard d'utilisation des fichiers "
+"journaux. Ces fichiers enregistrent les visiteurs lorsqu'ils visitent des "
+"sites Web. Toutes les sociétés d'hébergement font cela et font partie de "
+"l'analyse des services d'hébergement. Les informations collectées par les "
+"fichiers journaux incluent les adresses de protocole Internet (IP), le type "
+"de navigateur, le fournisseur d'accès Internet (FAI), la date et l'heure, "
+"les pages de renvoi / sortie et éventuellement le nombre de clics. Ceux-ci "
+"ne sont liés à aucune information personnellement identifiable. Le but de "
+"l'information est d'analyser les tendances, d'administrer le site, de suivre "
+"les mouvements des utilisateurs sur le site Web et de recueillir des "
+"informations démographiques."
 
 #: .\calc\templates\calc\privacy.html:47
 msgid "Cookies and Web Beacons"
-msgstr ""
+msgstr "Cookies et balises Web"
 
 #: .\calc\templates\calc\privacy.html:49
 msgid ""
@@ -587,18 +656,24 @@ msgid ""
 "optimize the users' experience by customizing our web page content based on "
 "visitors' browser type and/or other information."
 msgstr ""
+"Comme tout autre site Web, Mawareeth.com utilise des «cookies». Ces cookies "
+"sont utilisés pour stocker des informations, y compris les préférences des "
+"visiteurs, et les pages du site Web auxquelles le visiteur a accédé ou "
+"visité. Les informations sont utilisées pour optimiser l'expérience des "
+"utilisateurs en personnalisant le contenu de notre page Web en fonction du "
+"type de navigateur des visiteurs et / ou d'autres informations."
 
 #: .\calc\templates\calc\privacy.html:51
 msgid "For more general information on cookies, please read"
-msgstr ""
+msgstr "Pour plus d'informations générales sur les cookies, veuillez lire"
 
 #: .\calc\templates\calc\privacy.html:53
 msgid "What Are Cookies"
-msgstr ""
+msgstr "Que sont les cookies"
 
 #: .\calc\templates\calc\privacy.html:57
 msgid "Google DoubleClick DART Cookie"
-msgstr ""
+msgstr "Cookie Google DoubleClick DART"
 
 #: .\calc\templates\calc\privacy.html:59
 msgid ""
@@ -608,10 +683,16 @@ msgid ""
 "may choose to decline the use of DART cookies by visiting the Google ad and "
 "content network Privacy Policy at the following URL –"
 msgstr ""
+"Google est l'un des fournisseurs tiers sur notre site. Il utilise également "
+"des cookies, appelés cookies DART, pour diffuser des annonces aux visiteurs "
+"de notre site en fonction de leur visite sur www.website.com et d'autres "
+"sites sur Internet. Cependant, les visiteurs peuvent choisir de refuser "
+"l'utilisation des cookies DART en visitant la politique de confidentialité "
+"du réseau de publicité et de contenu Google à l'URL suivante -"
 
 #: .\calc\templates\calc\privacy.html:63
 msgid "Our Advertising Partners"
-msgstr ""
+msgstr "Nos partenaires publicitaires"
 
 #: .\calc\templates\calc\privacy.html:65
 msgid ""
@@ -620,20 +701,28 @@ msgid ""
 "their own Privacy Policy for their policies on user data. For easier access, "
 "we hyperlinked to their Privacy Policies below."
 msgstr ""
+"Certains annonceurs de notre site peuvent utiliser des cookies et des "
+"balises Web. Nos partenaires publicitaires sont listés ci-dessous. Chacun de "
+"nos partenaires publicitaires a sa propre politique de confidentialité pour "
+"ses politiques sur les données des utilisateurs. Pour un accès plus facile, "
+"nous avons créé un lien hypertexte vers leurs politiques de confidentialité "
+"ci-dessous."
 
 #: .\calc\templates\calc\privacy.html:69
 msgid "Google"
-msgstr ""
+msgstr "Google"
 
 #: .\calc\templates\calc\privacy.html:74
 msgid "Advertising Partners Privacy Policies"
-msgstr ""
+msgstr "Partenaires publicitaires Politiques de confidentialité"
 
 #: .\calc\templates\calc\privacy.html:76
 msgid ""
 "You may consult this list to find the Privacy Policy for each of the "
 "advertising partners of Mawareeth.com."
 msgstr ""
+"Vous pouvez consulter cette liste pour trouver la politique de "
+"confidentialité de chacun des partenaires publicitaires de Mawareeth.com."
 
 #: .\calc\templates\calc\privacy.html:78
 msgid ""
@@ -645,16 +734,26 @@ msgid ""
 "campaigns and/or to personalize the advertising content that you see on "
 "websites that you visit."
 msgstr ""
+"Les serveurs publicitaires ou réseaux publicitaires tiers utilisent des "
+"technologies telles que les cookies, JavaScript ou les balises Web qui sont "
+"utilisées dans leurs publicités et liens respectifs qui apparaissent sur "
+"Mawareeth.com, qui sont envoyés directement au navigateur des utilisateurs. "
+"Ils reçoivent automatiquement votre adresse IP lorsque cela se produit. Ces "
+"technologies sont utilisées pour mesurer l'efficacité de leurs campagnes "
+"publicitaires et / ou pour personnaliser le contenu publicitaire que vous "
+"voyez sur les sites Web que vous visitez."
 
 #: .\calc\templates\calc\privacy.html:80
 msgid ""
 "Note that Mawareeth.com has no access to or control over these cookies that "
 "are used by third-party advertisers."
 msgstr ""
+"Notez que Mawareeth.com n'a aucun accès ni contrôle sur ces cookies qui sont "
+"utilisés par des annonceurs tiers."
 
 #: .\calc\templates\calc\privacy.html:82
 msgid "Third Party Privacy Policies"
-msgstr ""
+msgstr "Politiques de confidentialité des tiers"
 
 #: .\calc\templates\calc\privacy.html:84
 msgid ""
@@ -665,6 +764,13 @@ msgid ""
 "options. You may find a complete list of these Privacy Policies and their "
 "links here: Privacy Policy Links."
 msgstr ""
+"La politique de confidentialité de Mawareeth.com ne s'applique pas aux "
+"autres annonceurs ou sites Web. Ainsi, nous vous conseillons de consulter "
+"les politiques de confidentialité respectives de ces serveurs publicitaires "
+"tiers pour des informations plus détaillées. Il peut inclure leurs pratiques "
+"et instructions sur la façon de désactiver certaines options. Vous pouvez "
+"trouver une liste complète de ces politiques de confidentialité et leurs "
+"liens ici: Liens de politique de confidentialité."
 
 #: .\calc\templates\calc\privacy.html:86
 msgid ""
@@ -673,15 +779,23 @@ msgid ""
 "browsers, it can be found at the browsers' respective websites. What Are "
 "Cookies?"
 msgstr ""
+"Vous pouvez choisir de désactiver les cookies via vos options de navigateur "
+"individuelles. Pour connaître des informations plus détaillées sur la "
+"gestion des cookies avec des navigateurs Web spécifiques, vous pouvez les "
+"trouver sur les sites Web respectifs des navigateurs. Que sont les cookies?"
 
 #: .\calc\templates\calc\privacy.html:88
 msgid "CCPA Privacy Rights (Do Not Sell My Personal Information)"
 msgstr ""
+"Droits de confidentialité de l'ACCP (ne vendez pas mes renseignements "
+"personnels)"
 
 #: .\calc\templates\calc\privacy.html:90
 msgid ""
 "Under the CCPA, among other rights, California consumers have the right to:"
 msgstr ""
+"En vertu de la CCPA, entre autres droits, les consommateurs californiens ont "
+"le droit de:"
 
 #: .\calc\templates\calc\privacy.html:91
 msgid ""
@@ -689,40 +803,54 @@ msgid ""
 "the categories and specific pieces of personal data that a business has "
 "collected about consumers."
 msgstr ""
+"Demander à une entreprise qui collecte des données personnelles d'un "
+"consommateur de divulguer les catégories et éléments spécifiques de données "
+"personnelles qu'une entreprise a collectés sur les consommateurs."
 
 #: .\calc\templates\calc\privacy.html:92
 msgid ""
 "Request that a business delete any personal data about the consumer that a "
 "business has collected."
 msgstr ""
+"Demander qu'une entreprise supprime toutes les données personnelles sur le "
+"consommateur qu'une entreprise a collectées."
 
 #: .\calc\templates\calc\privacy.html:93
 msgid ""
 "Request that a business that sells a consumer's personal data, not sell the "
 "consumer's personal data."
 msgstr ""
+"Demander à une entreprise qui vend les données personnelles d'un "
+"consommateur de ne pas vendre les données personnelles du consommateur."
 
 #: .\calc\templates\calc\privacy.html:94 .\calc\templates\calc\privacy.html:105
 msgid ""
 "If you make a request, we have one month to respond to you. If you would "
 "like to exercise any of these rights, please contact us."
 msgstr ""
+"Si vous faites une demande, nous avons un mois pour vous répondre. Si vous "
+"souhaitez exercer l'un de ces droits, veuillez nous contacter."
 
 #: .\calc\templates\calc\privacy.html:96
 msgid "GDPR Data Protection Rights"
-msgstr ""
+msgstr "Droits de protection des données GDPR"
 
 #: .\calc\templates\calc\privacy.html:98
 msgid ""
 "We would like to make sure you are fully aware of all of your data "
 "protection rights. Every user is entitled to the following:"
 msgstr ""
+"Nous souhaitons nous assurer que vous êtes pleinement conscient de tous vos "
+"droits en matière de protection des données. Chaque utilisateur a droit à ce "
+"qui suit:"
 
 #: .\calc\templates\calc\privacy.html:99
 msgid ""
 "The right to access – You have the right to request copies of your personal "
 "data. We may charge you a small fee for this service."
 msgstr ""
+"Le droit d'accès - Vous avez le droit de demander des copies de vos données "
+"personnelles. Nous pouvons vous facturer une somme modique pour ce service."
 
 #: .\calc\templates\calc\privacy.html:100
 msgid ""
@@ -730,24 +858,35 @@ msgid ""
 "any information you believe is inaccurate. You also have the right to "
 "request that we complete the information you believe is incomplete."
 msgstr ""
+"Le droit de rectification - Vous avez le droit de demander que nous "
+"corrigions toute information que vous jugez inexacte. Vous avez également le "
+"droit de demander que nous complétions les informations que vous jugez "
+"incomplètes."
 
 #: .\calc\templates\calc\privacy.html:101
 msgid ""
 "The right to erasure – You have the right to request that we erase your "
 "personal data, under certain conditions."
 msgstr ""
+"Le droit à l'effacement - Vous avez le droit de demander que nous effacions "
+"vos données personnelles, sous certaines conditions."
 
 #: .\calc\templates\calc\privacy.html:102
 msgid ""
 "The right to restrict processing – You have the right to request that we "
 "restrict the processing of your personal data, under certain conditions."
 msgstr ""
+"Le droit de restreindre le traitement - Vous avez le droit de nous demander "
+"de restreindre le traitement de vos données personnelles, sous certaines "
+"conditions."
 
 #: .\calc\templates\calc\privacy.html:103
 msgid ""
 "The right to object to processing – You have the right to object to our "
 "processing of your personal data, under certain conditions."
 msgstr ""
+"Le droit de vous opposer au traitement - Vous avez le droit de vous opposer "
+"à notre traitement de vos données personnelles, sous certaines conditions."
 
 #: .\calc\templates\calc\privacy.html:104
 msgid ""
@@ -755,10 +894,13 @@ msgid ""
 "transfer the data that we have collected to another organization, or "
 "directly to you, under certain conditions."
 msgstr ""
+"Le droit à la portabilité des données - Vous avez le droit de demander que "
+"nous transférions les données que nous avons collectées à une autre "
+"organisation, ou directement à vous, sous certaines conditions."
 
 #: .\calc\templates\calc\privacy.html:107
 msgid "Children's Information"
-msgstr ""
+msgstr "Information pour les enfants"
 
 #: .\calc\templates\calc\privacy.html:109
 msgid ""
@@ -766,6 +908,10 @@ msgid ""
 "the internet. We encourage parents and guardians to observe, participate in, "
 "and/or monitor and guide their online activity."
 msgstr ""
+"Une autre partie de notre priorité consiste à ajouter une protection pour "
+"les enfants lors de l'utilisation d'Internet. Nous encourageons les parents "
+"et les tuteurs à observer, participer et / ou surveiller et guider leur "
+"activité en ligne."
 
 #: .\calc\templates\calc\privacy.html:111
 msgid ""
@@ -775,64 +921,73 @@ msgid ""
 "to contact us immediately and we will do our best efforts to promptly remove "
 "such information from our records."
 msgstr ""
+"Mawareeth.com ne collecte sciemment aucune information personnelle "
+"identifiable d'enfants de moins de 13 ans. Si vous pensez que votre enfant a "
+"fourni ce type d'informations sur notre site Web, nous vous encourageons "
+"fortement à nous contacter immédiatement et nous ferons de notre mieux pour "
+"supprimer rapidement ces informations de nos dossiers."
 
 #: .\calc\templates\calc\results.html:8
 msgid "Result"
-msgstr ""
+msgstr "Résultat"
 
 #: .\calc\templates\calc\results.html:18
+#, fuzzy
 msgid "Quote"
-msgstr ""
+msgstr "Quote"
 
 #: .\calc\templates\calc\results.html:20
 msgid "Shares"
-msgstr ""
+msgstr "Parts"
 
 #: .\calc\templates\calc\results.html:22
 msgid "Excess"
-msgstr ""
+msgstr "Excès"
 
 #: .\calc\templates\calc\results.html:25
 msgid "Shortage"
-msgstr ""
+msgstr "Pénurie"
 
 #: .\calc\templates\calc\results.html:28
 msgid "Shortage calc"
-msgstr ""
+msgstr "Pénurie calc"
 
 #: .\calc\templates\calc\results.html:29
 msgid "Calc Union"
-msgstr ""
+msgstr "Calc Union"
 
 #: .\calc\templates\calc\results.html:32
 msgid "Correction"
-msgstr ""
+msgstr "Correction"
 
 #: .\calc\templates\calc\results.html:34
 msgid "Amount"
-msgstr ""
+msgstr "Montant"
 
 #: .\calc\templates\calc\results.html:183
 #: .\calc\templates\calc\results.html:242
 #: .\calc\templates\calc\results.html:293
 #: .\calc\templates\calc\results.html:348
 msgid "asaba"
-msgstr ""
+msgstr "asaba"
 
 #: .\calc\templates\calc\results.html:299
 #: .\calc\templates\calc\results.html:358
 msgid "blocked"
-msgstr ""
+msgstr "bloqué"
 
 #: .\calc\templates\calc\terms.html:13
 msgid "Welcome to Mawareeth.com!"
-msgstr ""
+msgstr "Bienvenue sur Mawareeth.com!"
 
 #: .\calc\templates\calc\terms.html:15
 msgid ""
 "These terms and conditions outline the rules and regulations for the use of "
 "Mawareeth 2.0's Website, located at https://www.mawareeth.com/."
 msgstr ""
+"Ces termes et conditions décrivent les règles et réglementations pour "
+"l'utilisation du site Web de Mawareeth 2.0, situé à https://www.mawareeth."
+"com/."
 
 #: .\calc\templates\calc\terms.html:17
 msgid ""
@@ -840,6 +995,9 @@ msgid ""
 "Do not continue to use Mawareeth.com if you do not agree to take all of the "
 "terms and conditions stated on this page."
 msgstr ""
+"En accédant à ce site Web, nous supposons que vous acceptez ces termes et "
+"conditions. Ne continuez pas à utiliser Mawareeth.com si vous n'acceptez pas "
+"de respecter toutes les conditions générales énoncées sur cette page."
 
 #: .\calc\templates\calc\terms.html:19
 msgid ""
@@ -857,16 +1015,34 @@ msgid ""
 "singular, plural, capitalization and/or he/she or they, are taken as "
 "interchangeable and therefore as referring to same."
 msgstr ""
+"La terminologie suivante s'applique aux présentes conditions générales, à la "
+"déclaration de confidentialité et à la clause de non-responsabilité et à "
+"tous les accords: «client», «vous» et «votre» font référence à vous, la "
+"personne connectée sur ce site Web et conforme aux conditions générales de "
+"la société. «La société», «nous-mêmes», «nous», «notre» et «nous» fait "
+"référence à notre société. «Partie», «Parties» ou «Nous» fait référence à la "
+"fois au Client et à nous-mêmes. Tous les termes se réfèrent à l'offre, "
+"l'acceptation et la considération du paiement nécessaires pour entreprendre "
+"le processus de notre assistance au Client de la manière la plus appropriée "
+"dans le but exprès de répondre aux besoins du Client en ce qui concerne la "
+"fourniture des services déclarés de la Société, conformément à et soumis à "
+"la loi en vigueur des Pays-Bas. Toute utilisation de la terminologie ci-"
+"dessus ou d'autres mots au singulier, au pluriel, en majuscules et / ou il "
+"ou elles, sont considérés comme interchangeables et donc comme faisant "
+"référence à ceux-ci."
 
 #: .\calc\templates\calc\terms.html:21
 msgid "Cookies"
-msgstr ""
+msgstr "Cookies"
 
 #: .\calc\templates\calc\terms.html:23
 msgid ""
 "We employ the use of cookies. By accessing Mawareeth.com, you agreed to use "
 "cookies in agreement with the Mawareeth 2.0's Privacy Policy."
 msgstr ""
+"Nous utilisons des cookies. En accédant à Mawareeth.com, vous avez accepté "
+"d'utiliser des cookies en accord avec la politique de confidentialité de "
+"Mawareeth 2.0."
 
 #: .\calc\templates\calc\terms.html:25
 msgid ""
@@ -875,10 +1051,16 @@ msgid ""
 "of certain areas to make it easier for people visiting our website. Some of "
 "our affiliate/advertising partners may also use cookies."
 msgstr ""
+"La plupart des sites Web interactifs utilisent des cookies pour nous "
+"permettre de récupérer les détails de l'utilisateur pour chaque visite. Les "
+"cookies sont utilisés par notre site Web pour permettre la fonctionnalité de "
+"certaines zones afin de faciliter la navigation des personnes sur notre site "
+"Web. Certains de nos partenaires affiliés / publicitaires peuvent également "
+"utiliser des cookies."
 
 #: .\calc\templates\calc\terms.html:27
 msgid "License"
-msgstr ""
+msgstr "Licence"
 
 #: .\calc\templates\calc\terms.html:29
 msgid ""
@@ -888,30 +1070,35 @@ msgid ""
 "Mawareeth.com for your own personal use subjected to restrictions set in "
 "these terms and conditions."
 msgstr ""
+"Sauf indication contraire, Mawareeth 2.0 et / ou ses concédants de licence "
+"détiennent les droits de propriété intellectuelle pour tout le matériel sur "
+"Mawareeth.com. Tous les droits de propriété intellectuelle sont réservés. "
+"Vous pouvez y accéder à partir de Mawareeth.com pour votre usage personnel "
+"soumis aux restrictions définies dans ces termes et conditions."
 
 #: .\calc\templates\calc\terms.html:31
 msgid "You must not:"
-msgstr ""
+msgstr "Vous ne devez pas:"
 
 #: .\calc\templates\calc\terms.html:33
 msgid "Republish material from Mawareeth.com"
-msgstr ""
+msgstr "Republier le matériel de Mawareeth.com"
 
 #: .\calc\templates\calc\terms.html:34
 msgid "Sell, rent or sub-license material from Mawareeth.com"
-msgstr ""
+msgstr "Vendre, louer ou sous-licencier du matériel de Mawareeth.com"
 
 #: .\calc\templates\calc\terms.html:35
 msgid "Reproduce, duplicate or copy material from Mawareeth.com"
-msgstr ""
+msgstr "Reproduire, dupliquer ou copier du matériel à partir de Mawareeth.com"
 
 #: .\calc\templates\calc\terms.html:36
 msgid "Redistribute content from Mawareeth.com"
-msgstr ""
+msgstr "Redistribuer le contenu de Mawareeth.com"
 
 #: .\calc\templates\calc\terms.html:39
 msgid "This Agreement shall begin on the date hereof."
-msgstr ""
+msgstr "Le présent accord prend effet à la date des présentes."
 
 #: .\calc\templates\calc\terms.html:41
 msgid ""
@@ -925,6 +1112,17 @@ msgid ""
 "any liability, damages or expenses caused and/or suffered as a result of any "
 "use of and/or posting of and/or appearance of the Comments on this website."
 msgstr ""
+"Certaines parties de ce site Web offrent aux utilisateurs la possibilité de "
+"publier et d'échanger des opinions et des informations dans certaines zones "
+"du site Web. Mawareeth 2.0 ne filtre pas, ne modifie pas, ne publie pas et "
+"ne révise pas les commentaires avant leur présence sur le site Web. Les "
+"commentaires ne reflètent pas les vues et opinions de Mawareeth 2.0, de ses "
+"agents et / ou affiliés. Les commentaires reflètent les points de vue et "
+"opinions de la personne qui publie leurs points de vue et opinions. Dans la "
+"mesure permise par les lois applicables, Mawareeth 2.0 ne sera pas "
+"responsable des Commentaires ou de toute responsabilité, dommages ou "
+"dépenses causés et / ou subis du fait de toute utilisation et / ou "
+"publication et / ou apparition des Commentaires sur ce site."
 
 #: .\calc\templates\calc\terms.html:43
 msgid ""
@@ -932,34 +1130,48 @@ msgid ""
 "Comments which can be considered inappropriate, offensive or causes breach "
 "of these Terms and Conditions."
 msgstr ""
+"Mawareeth 2.0 se réserve le droit de surveiller tous les commentaires et de "
+"supprimer tout commentaire pouvant être considéré comme inapproprié, "
+"offensant ou entraînant une violation des présentes conditions générales."
 
 #: .\calc\templates\calc\terms.html:45
 msgid "You warrant and represent that:"
-msgstr ""
+msgstr "Vous garantissez et déclarez que:"
 
 #: .\calc\templates\calc\terms.html:48
 msgid ""
 "You are entitled to post the Comments on our website and have all necessary "
 "licenses and consents to do so;"
 msgstr ""
+"Vous êtes autorisé à publier les commentaires sur notre site Web et à "
+"disposer de toutes les licences et autorisations nécessaires pour le faire;"
 
 #: .\calc\templates\calc\terms.html:49
 msgid ""
 "The Comments do not invade any intellectual property right, including "
 "without limitation copyright, patent or trademark of any third party;"
 msgstr ""
+"Les Commentaires n'empiètent sur aucun droit de propriété intellectuelle, y "
+"compris, sans limitation, le droit d'auteur, le brevet ou la marque d'un "
+"tiers;"
 
 #: .\calc\templates\calc\terms.html:50
 msgid ""
 "The Comments do not contain any defamatory, libelous, offensive, indecent or "
 "otherwise unlawful material which is an invasion of privacy"
 msgstr ""
+"Les commentaires ne contiennent aucun élément diffamatoire, calomnieux, "
+"offensant, indécent ou autrement illégal constituant une atteinte à la vie "
+"privée."
 
 #: .\calc\templates\calc\terms.html:51
 msgid ""
 "The Comments will not be used to solicit or promote business or custom or "
 "present commercial activities or unlawful activity."
 msgstr ""
+"Les commentaires ne seront pas utilisés pour solliciter ou promouvoir des "
+"activités commerciales ou personnalisées ou présenter des activités "
+"commerciales ou des activités illégales."
 
 #: .\calc\templates\calc\terms.html:54
 msgid ""
@@ -967,34 +1179,43 @@ msgid ""
 "edit and authorize others to use, reproduce and edit any of your Comments in "
 "any and all forms, formats or media."
 msgstr ""
+"Par la présente, vous accordez à Mawareeth 2.0 une licence non exclusive "
+"pour utiliser, reproduire, modifier et autoriser d'autres personnes à "
+"utiliser, reproduire et modifier n'importe lequel de vos commentaires sous "
+"toutes formes, formats ou supports."
 
 #: .\calc\templates\calc\terms.html:56
 msgid "Hyperlinking to our Content"
-msgstr ""
+msgstr "Hyperlien vers notre contenu"
 
 #: .\calc\templates\calc\terms.html:58
 msgid ""
 "The following organizations may link to our Website without prior written "
 "approval:"
 msgstr ""
+"Les organisations suivantes peuvent créer un lien vers notre site Web sans "
+"autorisation écrite préalable:"
 
 #: .\calc\templates\calc\terms.html:61
 msgid "Government agencies;"
-msgstr ""
+msgstr "Organismes gouvernementaux;"
 
 #: .\calc\templates\calc\terms.html:62
 msgid "Search engines;"
-msgstr ""
+msgstr "Moteurs de recherche;"
 
 #: .\calc\templates\calc\terms.html:63
 msgid "News organizations;"
-msgstr ""
+msgstr "Organismes de presse;"
 
 #: .\calc\templates\calc\terms.html:64
 msgid ""
 "Online directory distributors may link to our Website in the same manner as "
 "they hyperlink to the Websites of other listed businesses; and"
 msgstr ""
+"Les distributeurs d'annuaires en ligne peuvent créer un lien vers notre site "
+"Web de la même manière qu'ils établissent un lien hypertexte vers les sites "
+"Web d'autres entreprises répertoriées; et"
 
 #: .\calc\templates\calc\terms.html:65
 msgid ""
@@ -1002,6 +1223,10 @@ msgid ""
 "organizations, charity shopping malls, and charity fundraising groups which "
 "may not hyperlink to our Web site."
 msgstr ""
+"Entreprises accréditées à l'échelle du système, à l'exception de la "
+"sollicitation d'organisations à but non lucratif, de centres commerciaux de "
+"bienfaisance et de groupes de collecte de fonds caritatifs qui ne peuvent "
+"pas créer de lien hypertexte vers notre site Web."
 
 #: .\calc\templates\calc\terms.html:68
 msgid ""
@@ -1011,40 +1236,51 @@ msgid ""
 "linking party and its products and/or services; and (c) fits within the "
 "context of the linking party’s site."
 msgstr ""
+"Ces organisations peuvent créer un lien vers notre page d'accueil, des "
+"publications ou d'autres informations du site Web tant que le lien: (a) "
+"n'est en aucun cas trompeur; (b) n'implique pas faussement le parrainage, "
+"l'approbation ou l'approbation de la partie de liaison et de ses produits "
+"et / ou services; et (c) s'inscrit dans le contexte du site de la partie de "
+"liaison."
 
 #: .\calc\templates\calc\terms.html:70
 msgid ""
 "We may consider and approve other link requests from the following types of "
 "organizations:"
 msgstr ""
+"Nous pouvons considérer et approuver d'autres demandes de liens des types "
+"d'organisations suivants:"
 
 #: .\calc\templates\calc\terms.html:73
 msgid "commonly-known consumer and/or business information sources;"
 msgstr ""
+"les sources d'information sur les consommateurs et / ou les entreprises "
+"connues;"
 
 #: .\calc\templates\calc\terms.html:74
 msgid "dot.com community sites;"
-msgstr ""
+msgstr "sites communautaires dot.com;"
 
 #: .\calc\templates\calc\terms.html:75
 msgid "associations or other groups representing charities;"
 msgstr ""
+"les associations ou autres groupes représentant des œuvres de bienfaisance;"
 
 #: .\calc\templates\calc\terms.html:76
 msgid "online directory distributors;"
-msgstr ""
+msgstr "distributeurs d'annuaires en ligne;"
 
 #: .\calc\templates\calc\terms.html:77
 msgid "internet portals;"
-msgstr ""
+msgstr "portails Internet;"
 
 #: .\calc\templates\calc\terms.html:78
 msgid "accounting, law and consulting firms; and"
-msgstr ""
+msgstr "cabinets comptables, juridiques et de conseil; et"
 
 #: .\calc\templates\calc\terms.html:79
 msgid "educational institutions and trade associations."
-msgstr ""
+msgstr "établissements d'enseignement et associations professionnelles."
 
 #: .\calc\templates\calc\terms.html:82
 msgid ""
@@ -1055,6 +1291,12 @@ msgid ""
 "compensates the absence of Mawareeth 2.0; and (d) the link is in the context "
 "of general resource information."
 msgstr ""
+"Nous approuverons les demandes de lien de ces organisations si nous décidons "
+"que: (a) le lien ne nous ferait pas nuire à nous-mêmes ou à nos entreprises "
+"accréditées; (b) l'organisation n'a aucun dossier négatif avec nous; (c) "
+"l'avantage pour nous de la visibilité de l'hyperlien compense l'absence de "
+"Mawareeth 2.0; et (d) le lien se situe dans le contexte des informations "
+"générales sur les ressources."
 
 #: .\calc\templates\calc\terms.html:84
 msgid ""
@@ -1063,6 +1305,11 @@ msgid ""
 "endorsement or approval of the linking party and its products or services; "
 "and (c) fits within the context of the linking party’s site."
 msgstr ""
+"Ces organisations peuvent créer un lien vers notre page d'accueil tant que "
+"le lien: (a) n'est en aucun cas trompeur; (b) n'implique pas faussement le "
+"parrainage, l'approbation ou l'approbation de la partie de liaison et de ses "
+"produits ou services; et (c) s'inscrit dans le contexte du site de la partie "
+"de liaison."
 
 #: .\calc\templates\calc\terms.html:86
 msgid ""
@@ -1073,34 +1320,47 @@ msgid ""
 "which you intend to link to our Website, and a list of the URLs on our site "
 "to which you would like to link. Wait 2-3 weeks for a response."
 msgstr ""
+"Si vous êtes l'une des organisations énumérées au paragraphe 2 ci-dessus et "
+"que vous souhaitez créer un lien vers notre site Web, vous devez nous en "
+"informer en envoyant un e-mail à Mawareeth 2.0. Veuillez inclure votre nom, "
+"le nom de votre organisation, vos coordonnées ainsi que l'URL de votre site, "
+"une liste de toutes les URL à partir desquelles vous avez l'intention de "
+"créer un lien vers notre site Web, et une liste des URL sur notre site vers "
+"lesquelles vous souhaitez lien. Attendez 2-3 semaines pour une réponse."
 
 #: .\calc\templates\calc\terms.html:88
 msgid "Approved organizations may hyperlink to our Website as follows:"
 msgstr ""
+"Les organisations approuvées peuvent créer un lien hypertexte vers notre "
+"site Web comme suit:"
 
 #: .\calc\templates\calc\terms.html:91
 msgid "By use of our corporate name; or"
-msgstr ""
+msgstr "En utilisant notre raison sociale; ou"
 
 #: .\calc\templates\calc\terms.html:92
 msgid "By use of the uniform resource locator being linked to; or"
-msgstr ""
+msgstr "En utilisant le localisateur de ressources uniforme lié à; ou"
 
 #: .\calc\templates\calc\terms.html:93
 msgid ""
 "By use of any other description of our Website being linked to that makes "
 "sense within the context and format of content on the linking party’s site."
 msgstr ""
+"En utilisant toute autre description de notre site Web liée à qui a du sens "
+"dans le contexte et le format du contenu sur le site de la partie de liaison."
 
 #: .\calc\templates\calc\terms.html:96
 msgid ""
 "No use of Mawareeth 2.0's logo or other artwork will be allowed for linking "
 "absent a trademark license agreement."
 msgstr ""
+"Aucune utilisation du logo de Mawareeth 2.0 ou d'autres illustrations ne "
+"sera autorisée pour le lien en l'absence d'un accord de licence de marque."
 
 #: .\calc\templates\calc\terms.html:98
 msgid "iFrames"
-msgstr ""
+msgstr "iFrames"
 
 #: .\calc\templates\calc\terms.html:100
 msgid ""
@@ -1108,10 +1368,13 @@ msgid ""
 "around our Webpages that alter in any way the visual presentation or "
 "appearance of our Website."
 msgstr ""
+"Sans autorisation préalable et autorisation écrite, vous ne pouvez pas créer "
+"de cadres autour de nos pages Web qui altèrent de quelque manière que ce "
+"soit la présentation visuelle ou l'apparence de notre site Web."
 
 #: .\calc\templates\calc\terms.html:102
 msgid "Content Liability"
-msgstr ""
+msgstr "Responsabilité du contenu"
 
 #: .\calc\templates\calc\terms.html:104
 msgid ""
@@ -1122,18 +1385,24 @@ msgid ""
 "violates, or advocates the infringement or other violation of, any third "
 "party rights."
 msgstr ""
+"Nous ne serons pas tenus responsables de tout contenu qui apparaît sur votre "
+"site Web. Vous acceptez de nous protéger et de nous défendre contre toutes "
+"les réclamations qui augmentent sur votre site Web. Aucun lien ne doit "
+"apparaître sur un site Web qui peut être interprété comme diffamatoire, "
+"obscène ou criminel, ou qui viole, viole ou préconise la violation ou toute "
+"autre violation des droits de tiers."
 
 #: .\calc\templates\calc\terms.html:106
 msgid "Your Privacy"
-msgstr ""
+msgstr "Votre vie privée"
 
 #: .\calc\templates\calc\terms.html:108
 msgid "Please read Privacy Policy"
-msgstr ""
+msgstr "Veuillez lire la politique de confidentialité"
 
 #: .\calc\templates\calc\terms.html:110
 msgid "Reservation of Rights"
-msgstr ""
+msgstr "Réserve de droits"
 
 #: .\calc\templates\calc\terms.html:112
 msgid ""
@@ -1144,10 +1413,17 @@ msgid ""
 "our Website, you agree to be bound to and follow these linking terms and "
 "conditions."
 msgstr ""
+"Nous nous réservons le droit de vous demander de supprimer tous les liens ou "
+"tout lien particulier vers notre site Web. Vous acceptez de supprimer "
+"immédiatement tous les liens vers notre site Web sur demande. Nous nous "
+"réservons également le droit de modifier ces termes et conditions et sa "
+"politique de liens à tout moment. En vous connectant en continu à notre site "
+"Web, vous acceptez d'être lié et de suivre ces conditions générales de "
+"liaison."
 
 #: .\calc\templates\calc\terms.html:114
 msgid "Removal of links from our website"
-msgstr ""
+msgstr "Suppression de liens de notre site Web"
 
 #: .\calc\templates\calc\terms.html:116
 msgid ""
@@ -1155,6 +1431,10 @@ msgid ""
 "are free to contact and inform us any moment. We will consider requests to "
 "remove links but we are not obligated to or so or to respond to you directly."
 msgstr ""
+"Si vous trouvez un lien sur notre site Web offensant pour quelque raison que "
+"ce soit, vous êtes libre de nous contacter et de nous informer à tout "
+"moment. Nous prendrons en considération les demandes de suppression de liens "
+"mais nous ne sommes pas obligés de le faire ou de vous répondre directement."
 
 #: .\calc\templates\calc\terms.html:118
 msgid ""
@@ -1163,10 +1443,14 @@ msgid ""
 "website remains available or that the material on the website is kept up to "
 "date."
 msgstr ""
+"Nous ne garantissons pas que les informations sur ce site sont correctes, "
+"nous ne garantissons pas leur exhaustivité ou leur exactitude; nous ne "
+"promettons pas non plus de veiller à ce que le site Web reste disponible ou "
+"à ce que le contenu du site Web soit mis à jour."
 
 #: .\calc\templates\calc\terms.html:120
 msgid "Disclaimer"
-msgstr ""
+msgstr "Avertissement"
 
 #: .\calc\templates\calc\terms.html:122
 msgid ""
@@ -1174,28 +1458,40 @@ msgid ""
 "representations, warranties and conditions relating to our website and the "
 "use of this website. Nothing in this disclaimer will:"
 msgstr ""
+"Dans la mesure maximale permise par la loi applicable, nous excluons toutes "
+"les représentations, garanties et conditions relatives à notre site Web et à "
+"l'utilisation de ce site Web. Rien dans cette clause de non-responsabilité "
+"ne:"
 
 #: .\calc\templates\calc\terms.html:125
 msgid "limit or exclude our or your liability for death or personal injury;"
 msgstr ""
+"limiter ou exclure notre ou votre responsabilité en cas de décès ou de "
+"blessure corporelle;"
 
 #: .\calc\templates\calc\terms.html:126
 msgid ""
 "limit or exclude our or your liability for fraud or fraudulent "
 "misrepresentation;"
 msgstr ""
+"limiter ou exclure notre ou votre responsabilité pour fraude ou fausse "
+"déclaration frauduleuse;"
 
 #: .\calc\templates\calc\terms.html:127
 msgid ""
 "limit any of our or your liabilities in any way that is not permitted under "
 "applicable law; or"
 msgstr ""
+"limiter nos ou vos responsabilités d'une manière non autorisée par la loi "
+"applicable; ou"
 
 #: .\calc\templates\calc\terms.html:128
 msgid ""
 "exclude any of our or your liabilities that may not be excluded under "
 "applicable law."
 msgstr ""
+"exclure tout ou partie de nos responsabilités qui ne peuvent être exclues en "
+"vertu de la loi applicable."
 
 #: .\calc\templates\calc\terms.html:131
 msgid ""
@@ -1204,6 +1500,12 @@ msgid ""
 "and (b) govern all liabilities arising under the disclaimer, including "
 "liabilities arising in contract, in tort and for breach of statutory duty."
 msgstr ""
+"Les limitations et interdictions de responsabilité définies dans cette "
+"section et ailleurs dans cette clause de non-responsabilité: (a) sont "
+"soumises au paragraphe précédent; et (b) régir toutes les responsabilités "
+"découlant de la renonciation, y compris les responsabilités découlant du "
+"contrat, en responsabilité délictuelle et pour manquement à une obligation "
+"légale."
 
 #: .\calc\templates\calc\terms.html:133
 msgid ""
@@ -1211,208 +1513,221 @@ msgid ""
 "provided free of charge, we will not be liable for any loss or damage of any "
 "nature."
 msgstr ""
+"Tant que le site Web et les informations et services sur le site Web sont "
+"fournis gratuitement, nous ne serons pas responsables de toute perte ou "
+"dommage de quelque nature que ce soit."
 
 #: .\calc\templates\registration\login.html:7
 msgid "Login"
-msgstr ""
+msgstr "S'identifier"
 
 #: .\calc\templates\registration\login.html:37
 msgid "Please login to see this page."
-msgstr ""
+msgstr "Veuillez vous connecter pour voir cette page."
 
 #: .\calc\templates\registration\login.html:45
 msgid "Sign In"
-msgstr ""
+msgstr "Se connecter"
 
 #: .\calc\templates\registration\login.html:50
 msgid "Enter your username"
-msgstr ""
+msgstr "Entrez votre nom d'utilisateur"
 
 #: .\calc\templates\registration\login.html:52
 msgid "Username"
-msgstr ""
+msgstr "Nom d'utilisateur"
 
 #: .\calc\templates\registration\login.html:56
 #: .\calc\templates\registration\login.html:57
 msgid "Password"
-msgstr ""
+msgstr "Mot de passe"
 
 #: .\calc\templates\registration\login.html:60
 msgid "Sign in"
-msgstr ""
+msgstr "Se connecter"
 
 #: .\calc\templates\registration\login.html:68
 #: .\calc\templates\registration\signup.html:77
 msgid "Login with Facebook"
-msgstr ""
+msgstr "Se connecter avec Facebook"
 
 #: .\calc\templates\registration\login.html:75
 #: .\calc\templates\registration\signup.html:84
 msgid "Login with LinkedIn"
-msgstr ""
+msgstr "Se connecter avec LinkedIn"
 
 #: .\calc\templates\registration\login.html:83
 msgid "Lost password?"
-msgstr ""
+msgstr "Mot de passe perdu?"
 
 #: .\calc\templates\registration\password_reset_complete.html:11
 msgid "Your password has been set. You may go ahead and "
-msgstr ""
+msgstr "Votre mot de passe a été défini. Vous pouvez continuer et"
 
 #: .\calc\templates\registration\password_reset_complete.html:13
 msgid "sign in"
-msgstr ""
+msgstr "se connecter"
 
 #: .\calc\templates\registration\password_reset_complete.html:15
 msgid "now."
-msgstr ""
+msgstr "maintenant."
 
 #: .\calc\templates\registration\password_reset_confirm.html:13
 #: .\calc\templates\registration\password_reset_confirm.html:20
 msgid "Change password"
-msgstr ""
+msgstr "Changer le mot de passe"
 
 #: .\calc\templates\registration\password_reset_confirm.html:26
 msgid ""
 "The password reset link was invalid, possibly because it has already been "
 "used. Please request a new password reset."
 msgstr ""
+"Le lien de réinitialisation du mot de passe n'était pas valide, peut-être "
+"parce qu'il a déjà été utilisé. Veuillez demander une nouvelle "
+"réinitialisation du mot de passe."
 
 #: .\calc\templates\registration\password_reset_done.html:11
 msgid ""
 "We've emailed you instructions for setting your password, if an account "
 "exists with the email you entered. You should receive them shortly."
 msgstr ""
+"Nous vous avons envoyé par e-mail des instructions pour définir votre mot de "
+"passe, si un compte existe avec l'e-mail que vous avez entré. Vous devriez "
+"les recevoir sous peu."
 
 #: .\calc\templates\registration\password_reset_done.html:14
 msgid ""
 "If you don't receive an email, please make sure you've entered the address "
 "you registered with, and check your spam folder."
 msgstr ""
+"Si vous ne recevez pas d'e-mail, assurez-vous d'avoir entré l'adresse avec "
+"laquelle vous vous êtes enregistré et vérifiez votre dossier spam."
 
 #: .\calc\templates\registration\password_reset_email.html:4
 msgid "To initiate the password reset process for your"
-msgstr ""
+msgstr "Pour lancer le processus de réinitialisation du mot de passe de votre"
 
 #: .\calc\templates\registration\password_reset_email.html:6
 msgid "Mawareeth 2.0 account,"
-msgstr ""
+msgstr "Compte Mawareeth 2.0,"
 
 #: .\calc\templates\registration\password_reset_email.html:7
 msgid "click the link below:"
-msgstr ""
+msgstr "cliquez sur le lien ci-dessous:"
 
 #: .\calc\templates\registration\password_reset_email.html:11
 msgid ""
 "If clicking the link above doesn't work, please copy and paste the URL in a "
 "new browser window instead."
 msgstr ""
+"Si le lien ci-dessus ne fonctionne pas, veuillez copier et coller l'URL dans "
+"une nouvelle fenêtre de navigateur à la place."
 
 #: .\calc\templates\registration\password_reset_email.html:13
 msgid "Sincerely,"
-msgstr ""
+msgstr "Cordialement,"
 
 #: .\calc\templates\registration\password_reset_email.html:14
 msgid "The Mawareeth 2.0 team,"
-msgstr ""
+msgstr "L'équipe Mawareeth 2.0,"
 
 #: .\calc\templates\registration\password_reset_form.html:12
 msgid "Forgot password"
-msgstr ""
+msgstr "Mot de passe oublié"
 
 #: .\calc\templates\registration\password_reset_form.html:22
 msgid "submit"
-msgstr ""
+msgstr "soumettre"
 
 #: .\calc\templates\registration\signup.html:37
 #: .\calc\templates\registration\signup.html:70
 msgid "Sign up"
-msgstr ""
+msgstr "S'inscrire"
 
 #: .\calc\templates\registration\signup.html:44
 msgid "Letters, digits and @/./+/-/_ only."
-msgstr ""
+msgstr "Lettres, chiffres et @ /. / + / - / _ uniquement."
 
 #: .\calc\templates\registration\signup.html:45
 msgid "Username:"
-msgstr ""
+msgstr "Nom d'utilisateur:"
 
 #: .\calc\templates\registration\signup.html:51
 msgid "min 8 characters. Strong password required"
-msgstr ""
+msgstr "min 8 caractères. Mot de passe fort requis"
 
 #: .\calc\templates\registration\signup.html:52
 msgid "Password:"
-msgstr ""
+msgstr "Mot de passe:"
 
 #: .\calc\templates\registration\signup.html:57
 msgid "Enter the same password"
-msgstr ""
+msgstr "Entrez le même mot de passe"
 
 #: .\calc\templates\registration\signup.html:58
 msgid "Password confirmation:"
-msgstr ""
+msgstr "Confirmation mot de passe:"
 
 #: .\calc\templates\registration\signup.html:65
 msgid "Enter email"
-msgstr ""
+msgstr "Entrez votre e-mail"
 
 #: .\calc\templates\registration\signup.html:66
 msgid "Email:"
-msgstr ""
+msgstr "Email:"
 
 #: .\calc\templates\registration\signup.html:89
 msgid "Already registered"
-msgstr ""
+msgstr "Déjà enregistré"
 
 #: .\calc\views.py:38
 msgid "Decease already exist"
-msgstr ""
+msgstr "Le décès existe déjà"
 
 #: .\calc\views.py:107
 msgid "Father already exist"
-msgstr ""
+msgstr "Père existe déjà"
 
 #: .\calc\views.py:161
 msgid "Cann't have more than 4 wifes"
-msgstr ""
+msgstr "Ne peut pas avoir plus de 4 femmes"
 
 #: .\calc\views.py:393
 msgid "Must enter a name for your calcualtion"
-msgstr ""
+msgstr "Doit entrer un nom pour votre calcul"
 
 #: .\calc\views.py:417
 msgid "user not allowed"
-msgstr ""
+msgstr "utilisateur non autorisé"
 
 #: .\mawareeth\settings.py:156
 msgid "Arabic"
-msgstr ""
+msgstr "arabe"
 
 #: .\mawareeth\settings.py:157
 msgid "English"
-msgstr ""
+msgstr "Anglais"
 
 #: .\mawareeth\settings.py:158
 msgid "French"
-msgstr ""
+msgstr "Français"
 
 #: .\user_auth\forms.py:9
 msgid "Email address"
-msgstr ""
+msgstr "Adresse électronique"
 
 #: .\user_auth\forms.py:10
 msgid "Required."
-msgstr ""
+msgstr "Obligatoire."
 
 #: .\user_auth\templates\user_auth\profile.html:19
 msgid "Profile Info"
-msgstr ""
+msgstr "Informations sur le profil"
 
 #: .\user_auth\templates\user_auth\profile.html:24
 msgid "Update"
-msgstr ""
+msgstr "Mise à jour"
 
 #: .\user_auth\views.py:17
 msgid "Your account has been updated!"
-msgstr ""
+msgstr "Votre compte a été mis à jour!"
