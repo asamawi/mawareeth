@@ -674,7 +674,6 @@ class Heir(Person):
             if self.quote == 0:
                 quote = remainder / calc.shares
                 self.quote = quote
-                self.quote_reason = _("residuary for asaba")
                 self.save()
             else:
                 quote = (remainder + self.share )/calc.shares
@@ -872,6 +871,9 @@ class Brother(Heir):
         calc.deceased_set.first().add_brother(brother=self)
 
     def get_quote(self, calc):
+        brothers = calc.heir_set.instance_of(Brother)
+        if brothers.count() > 1:
+            self.shared_quote = True
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Bother/s are blocked by male descendant")
@@ -890,6 +892,9 @@ class Sister(Heir):
         calc.deceased_set.first().add_sister(sister=self)
 
     def get_quote(self, calc):
+        sisters = calc.heir_set.instance_of(Sister)
+        if sisters.count() > 1:
+            self.shared_quote = True
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Sister/s are blocked by male descendant")
@@ -903,14 +908,12 @@ class Sister(Heir):
             self.asaba = True
             self.quote_reason = _("Sister/s with female descendant share the remainder")
         else:
-            sisters = calc.heir_set.instance_of(Sister)
             if sisters.count() == 1:
                 self.quote = 1/2
                 self.quote_reason = _("Sister gets half when no father or son. ")
             else:
-                self.shared_quote = True
                 self.quote = 2/3
-                self.quote_reason = -("Sisters share 2/3 when no father or son.")
+                self.quote_reason = _("Sisters share 2/3 when no father or son.")
         self.save()
         return self.quote
 
