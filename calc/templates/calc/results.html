@@ -178,7 +178,7 @@
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
             <td>{{ heir.first_name }}</td>
             {% if forloop.counter == 1%}
-              {% if female_asaba %}
+              {% if heir.asaba == True %}
               <td rowspan="{{ asaba.count }}" class="align-middle">
                 {% trans "asaba" %}
               </td>
@@ -191,7 +191,7 @@
             <td>{{heir|get_class}}</td>
             {% if calculation.correction == True %}
               {% if forloop.counter == 1%}
-                {% if female_asaba %}
+                {% if heir.asaba == True %}
                 <td rowspan="{{ asaba.count }}" class="align-middle">
                   {{ heir.share }}
                 </td>
@@ -237,7 +237,7 @@
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
             <td>{{ heir.first_name }}</td>
             {% if forloop.counter == 1 %}
-            {% if not female_asaba %}
+            {% if not daughter_asaba %}
             <td rowspan="{{ Son.count }}" class="align-middle">
               {% trans "asaba" %}
             </td>
@@ -246,7 +246,7 @@
             <td>{{heir|get_class}}</td>
             {% if calculation.correction == True %}
               {% if forloop.counter == 1%}
-                {% if not female_asaba %}
+                {% if not daughter_asaba %}
                 <td rowspan="{{ Son.count }}" class="align-middle">
                   {{ heir.share }}
                 </td>
