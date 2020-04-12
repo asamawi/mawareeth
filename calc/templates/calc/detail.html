@@ -105,9 +105,9 @@ data-url="{% url 'calc:sister' calculation.id %}">
 {% flag "GrandFather" %}
 {% if GrandFather.count == 0 %}
 <button type="button" class="btn btn-primary" data-toggle="modal"
-data-target="#add" data-name="GrandFather" data-heir="{% trans 'Grand Father' %}"
+data-target="#add" data-name="GrandFather" data-heir="{% trans 'Grandfather' %}"
 data-url="{% url 'calc:grandFather' calculation.id %}">
-{% icon 'plus' %}{%trans ' Grand Father' %}
+{% icon 'plus' %}{%trans ' Grandfather' %}
 </button>
 {% endif %}
 {% endflag %}
