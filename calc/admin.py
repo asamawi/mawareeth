@@ -72,9 +72,15 @@ class SisterAdmin(HeirAdmin):
     show_in_index = True
     # define custom features here
 
+@admin.register(GrandFather)
+class GrandFatherAdmin(HeirAdmin):
+    base_model = GrandFather  # Explicitly set here!
+    show_in_index = True
+    # define custom features here
+
 @admin.register(Person)
 class PersonAdmin(PolymorphicParentModelAdmin):
     """ The parent model admin """
     base_model = Person  # Optional, explicitly set here.
-    child_models = (Father, Mother, Deceased, Daughter, Son)
+    child_models = (Father, Mother, Deceased, Daughter, Son, Brother, Sister, GrandFather)
     list_filter = (PolymorphicChildModelFilter,)  # This is optional.

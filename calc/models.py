@@ -142,7 +142,7 @@ class Person(PolymorphicModel):
         sister.save()
 
     def add_grandFather(self, grandFather):
-        if self.parents.male:
+        if self.parents and self.parents.male:
             self.parents.male.add_father(grandFather)
         self.save()
 
