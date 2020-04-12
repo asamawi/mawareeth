@@ -83,7 +83,13 @@
           {% for heir in Father %}
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
             <td>{{ heir.first_name }}</td>
+            {% if heir.asaba == True %}
+            <td>
+              {% trans "asaba" %}
+              </td>
+            {% else %}
             <td>{{ heir.get_fraction }}</td>
+            {% endif %}
             <td>{{heir|get_class}}</td>
             <td>{{ heir.share }}</td>
             {% if calculation.excess == True %}
@@ -416,7 +422,17 @@
           {% for heir in GrandFather %}
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
             <td>{{ heir.first_name }}</td>
+            {% if heir.asaba == True %}
+            <td>
+              {% trans "asaba" %}
+              </td>
+            {% elif heir.blocked == True %}
+            <td>
+              {% trans "blocked" %}
+              </td>
+            {% else %}
             <td>{{ heir.get_fraction }}</td>
+            {% endif %}
             <td>{{heir|get_class}}</td>
             <td>{{ heir.share }}</td>
             {% if calculation.excess == True %}

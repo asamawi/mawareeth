@@ -942,16 +942,17 @@ class GrandFather(Heir):
     def get_quote(self, calc):
         if calc.has_father():
             self.blocked = True
+            self.quote_reason = _("Grandfather is blocked by father")
         elif calc.has_male_descendent():
             self.quote = 1/6
-            self.quote_reason = _("Grand father gets 1/6 prescribed share because of male descendant")
+            self.quote_reason = _("Grandfather gets 1/6 prescribed share because of male descendant")
         elif calc.has_female_descendent():
             self.quote = 1/6
             #self.asaba = True
-            self.quote_reason = _("Grand father gets 1/6 plus remainder because of female descendant")
+            self.quote_reason = _("Grandfather gets 1/6 plus remainder because of female descendant")
         else:
             self.asaba = True
-            self.quote_reason = _("Grand father gets the remainder because there is no descendant")
+            self.quote_reason = _("Grandfather gets the remainder because there is no descendant")
         self.save()
         return self.quote
 
