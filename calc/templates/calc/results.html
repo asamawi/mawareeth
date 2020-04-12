@@ -379,12 +379,16 @@
             {% endif %}
             <td>{{heir|get_class}}</td>
             {% if calculation.correction == True %}
-              {% if forloop.counter == 1%}
-                {% if not female_asaba %}
+              {% if not female_asaba %}
+                {% if forloop.counter == 1%}
                   <td rowspan="{{ Brother.count }}" class="align-middle">
                     {{ heir.share }}
                   </td>
                 {% endif %}
+              {% elif heir.blocked == True %}
+              <td>
+                {{ heir.share }}
+                </td>
               {% endif %}
             {% else %}
               <td>
