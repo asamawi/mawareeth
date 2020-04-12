@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2020-04-11 17:47+0300\n"
-"PO-Revision-Date: 2020-04-11 19:33+0300\n"
+"PO-Revision-Date: 2020-04-12 06:29+0300\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -932,9 +932,8 @@ msgid "Result"
 msgstr "Résultat"
 
 #: .\calc\templates\calc\results.html:18
-#, fuzzy
 msgid "Quote"
-msgstr "Quote"
+msgstr "Quotes-parts"
 
 #: .\calc\templates\calc\results.html:20
 msgid "Shares"
@@ -1162,7 +1161,7 @@ msgid ""
 msgstr ""
 "Les commentaires ne contiennent aucun élément diffamatoire, calomnieux, "
 "offensant, indécent ou autrement illégal constituant une atteinte à la vie "
-"privée."
+"privée"
 
 #: .\calc\templates\calc\terms.html:51
 msgid ""
@@ -1562,7 +1561,7 @@ msgstr "Mot de passe perdu?"
 
 #: .\calc\templates\registration\password_reset_complete.html:11
 msgid "Your password has been set. You may go ahead and "
-msgstr "Votre mot de passe a été défini. Vous pouvez continuer et"
+msgstr "Votre mot de passe a été défini. Vous pouvez continuer et "
 
 #: .\calc\templates\registration\password_reset_complete.html:13
 msgid "sign in"
@@ -1702,7 +1701,7 @@ msgstr "utilisateur non autorisé"
 
 #: .\mawareeth\settings.py:156
 msgid "Arabic"
-msgstr "arabe"
+msgstr "Arabe"
 
 #: .\mawareeth\settings.py:157
 msgid "English"
