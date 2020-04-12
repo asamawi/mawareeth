@@ -141,6 +141,13 @@ class Person(PolymorphicModel):
         sister.parents=self.parents
         sister.save()
 
+    def add_grandFather(self, grandFather):
+        if self.parents.male:
+            self.parents.male.add_father(grandFather)
+        self.save()
+
+        return grandFather
+
     def __str__(self):
         return f"{self.first_name} id: {self.id}"
 
@@ -205,6 +212,11 @@ class Calculation(models.Model):
         sister.add(calc=self)
         sister.save()
         return sister
+
+    def add_grandFather(self, grandFather):
+        grandFather.add(calc=self)
+        grandFather.save()
+        return grandFather
 
     def __str__(self):
         return str(self.name)
@@ -881,6 +893,9 @@ class Brother(Heir):
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Brother/s are blocked by father")
+        elif calc.has_grandFather():
+            self.blocked = True
+            self.quote_reason = _("Brother/s are blocked by grandfather")
         else:
             self.asaba =  True
             self.quote_reason = _("Brother/s share the remainder or all amount if no other heir exist")
@@ -902,6 +917,9 @@ class Sister(Heir):
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Sister/s are blocked by father")
+        elif calc.has_grandFather():
+            self.blocked = True
+            self.quote_reason = _("Sister/s are blocked by grandfather")
         elif calc.has_brother():
             self.asaba = True
             self.quote_reason = _("Sister/s with borther/s share the remainder or all the amount if no other heir exist. The brother will receive a share of two sisters")
@@ -919,7 +937,23 @@ class Sister(Heir):
         return self.quote
 
 class GrandFather(Heir):
-    pass
+    def add(self, calc):
+        calc.deceased_set.first().add_grandFather(grandFather=self)
+    def get_quote(self, calc):
+        if calc.has_father():
+            self.blocked = True
+        elif calc.has_male_descendent():
+            self.quote = 1/6
+            self.quote_reason = _("Grand father gets 1/6 prescribed share because of male descendant")
+        elif calc.has_female_descendent():
+            self.quote = 1/6
+            #self.asaba = True
+            self.quote_reason = _("Grand father gets 1/6 plus remainder because of female descendant")
+        else:
+            self.asaba = True
+            self.quote_reason = _("Grand father gets the remainder because there is no descendant")
+        self.save()
+        return self.quote
 
 class GrandMother(Heir):
     pass

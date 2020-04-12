@@ -299,6 +299,34 @@ class SisterCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_sister(self.object)
 		return super().form_valid(form)
 
+class GrandFatherCreate(WaffleFlagMixin, CreateView):
+	model = GrandFather
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "GrandFather"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		if self.calc.heir_set.instance_of(Father).count() >= 1:
+			messages.error(request,_("Father already exist"))
+			return HttpResponseRedirect(reverse( 'calc:error'))
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_grandFather(self.object)
+		return super().form_valid(form)
+
 class HeirUpdate(UpdateView):
 	model = Heir
 	fields = ['first_name','last_name']
@@ -366,6 +394,7 @@ class ResultsView(LoginRequired, generic.DetailView):
 		context['Son'] = self.object.heir_set.instance_of(Son)
 		context['Brother'] = self.object.heir_set.instance_of(Brother)
 		context['Sister'] = self.object.heir_set.instance_of(Sister)
+		context['GrandFather'] = self.object.heir_set.instance_of(GrandFather)
 		context['female_asaba'] = self.object.heir_set.filter(asaba=True,sex="F")
 		context['asaba'] = self.object.heir_set.filter(asaba=True)
 		context['Heirs'] = self.object.heir_set.order_by('polymorphic_ctype_id')

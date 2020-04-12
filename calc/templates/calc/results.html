@@ -411,6 +411,31 @@
           </tr>
           {% endfor %}
           {% endif %}
+
+          {% if GrandFather.count == 1 %}
+          {% for heir in GrandFather %}
+          <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
+            <td>{{ heir.first_name }}</td>
+            <td>{{ heir.get_fraction }}</td>
+            <td>{{heir|get_class}}</td>
+            <td>{{ heir.share }}</td>
+            {% if calculation.excess == True %}
+            <td>{{ heir.share }}</td>
+            {% endif %}
+            {% if calculation.shortage == True %}
+            <td>{{ heir.shorted_share }}</td>
+            {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <td>{{ heir.shortage_calc_share }}</td>
+            <td>{{ heir.shortage_union_share }}</td>
+            {% endif %}
+            {% if calculation.correction == True %}
+            <td>{{ heir.corrected_share }}</td>
+            {% endif %}
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
+          </tr>
+          {% endfor %}
+          {% endif %}
         </tbody>
       </table>
     </div>
