@@ -377,6 +377,9 @@ class DetailView(LoginRequired, generic.DetailView):
 		context['Husband'] = self.object.heir_set.instance_of(Husband)
 		context['Daughter'] = self.object.heir_set.instance_of(Daughter)
 		context['Son'] = self.object.heir_set.instance_of(Son)
+		context['Brother'] = self.object.heir_set.instance_of(Brother)
+		context['Sister'] = self.object.heir_set.instance_of(Sister)
+		context['GrandFather'] = self.object.heir_set.instance_of(GrandFather)
 		context['Heirs'] = self.object.heir_set.order_by('polymorphic_ctype_id')
 		return context
 
