@@ -153,8 +153,8 @@ class Person(PolymorphicModel):
 
 class Marriage(models.Model):
     """Marriage Class"""
-    male = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='male',blank=True)
-    female = models.ForeignKey(Person,null=True, on_delete=models.SET_NULL,related_name='female',blank=True)
+    male = models.ForeignKey(Person,null=True, on_delete=models.CASCADE,related_name='male',blank=True)
+    female = models.ForeignKey(Person,null=True, on_delete=models.CASCADE,related_name='female',blank=True)
 
     def add_male(self, person):
         self.male = person
@@ -288,6 +288,9 @@ class Calculation(models.Model):
     def get_sisters(self):
         return self.heir_set.instance_of(Sister)
 
+    def get_grandFather(self):
+        return self.heir_set.instance_of(GrandFather).first()
+
     def get_heirs_no_spouse(self):
         return self.heir_set.not_instance_of(Husband, Wife)
 
@@ -413,7 +416,7 @@ class Calculation(models.Model):
         if self.shares > shares:
             self.shortage = True
             remainder = self.shares - shares
-            if self.has_father() == True :
+            if self.has_father() or self.has_grandFather() == True :
                 self.shares_shorted = self.shares
             elif self.has_spouse() == False:
                 self.shares_shorted = shares
@@ -463,6 +466,16 @@ class Calculation(models.Model):
                 father.shorted_share = father.share + remainder
                 father.save()
                 heirs = self.heir_set.not_instance_of(Father)
+                for heir in heirs:
+                    heir.shorted_share = heir.share
+                    heir.save()
+            #check for Grandfather
+            elif self.has_grandFather():
+                grandfather = self.get_grandFather()
+                remainder = self.shares - self.get_shares()
+                grandfather.shorted_share = grandfather.share + remainder
+                grandfather.save()
+                heirs = self.heir_set.not_instance_of(GrandFather)
                 for heir in heirs:
                     heir.shorted_share = heir.share
                     heir.save()
