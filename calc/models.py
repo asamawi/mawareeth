@@ -840,6 +840,7 @@ class Daughter(Heir):
     def get_quote(self, calc):
         if calc.has_son():
             self.asaba = True
+            self.quote_reason = _("Daughter/s with Son/s share the residuary. The son will receive a share of two daughters.")
             if calc.heir_set.instance_of(Daughter).count() > 1:
                 self.shared_quote = True
         elif calc.heir_set.instance_of(Daughter).count() == 1:
@@ -903,7 +904,7 @@ class Sister(Heir):
             self.quote_reason = _("Sister/s are blocked by father")
         elif calc.has_brother():
             self.asaba = True
-            self.quote_reason = _("Sister/s with borther/s share the remainder or all the amount if no other heir exist")
+            self.quote_reason = _("Sister/s with borther/s share the remainder or all the amount if no other heir exist. The brother will receive a share of two sisters")
         elif calc.has_female_descendent():
             self.asaba = True
             self.quote_reason = _("Sister/s with female descendant share the remainder")

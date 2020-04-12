@@ -237,11 +237,11 @@
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
             <td>{{ heir.first_name }}</td>
             {% if forloop.counter == 1 %}
-            {% if not daughter_asaba %}
-            <td rowspan="{{ Son.count }}" class="align-middle">
-              {% trans "asaba" %}
-            </td>
-            {% endif %}
+              {% if not female_asaba %}
+              <td rowspan="{{ Son.count }}" class="align-middle">
+                {% trans "asaba" %}
+              </td>
+              {% endif %}
             {% endif %}
             <td>{{heir|get_class}}</td>
             {% if calculation.correction == True %}
@@ -283,68 +283,13 @@
           </tr>
           {% endfor %}
           {% endif %}
-          {% if Brother.count > 0 %}
-          {% for heir in Brother %}
-          <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
-            <td>{{ heir.first_name }}</td>
-            {% if forloop.counter == 1 %}
-            {% if heir.asaba == True %}
-            <td rowspan="{{ Brother.count }}" class="align-middle">
-              {% trans "asaba" %}
-            </td>
-            {% endif %}
-            {% endif %}
-            {% if heir.blocked == True %}
-            <td>
-              {% trans "blocked" %}
-              </td>
-            {% endif %}
-            <td>{{heir|get_class}}</td>
-            {% if calculation.correction == True %}
-              {% if forloop.counter == 1%}
-                <td rowspan="{{ Brother.count }}" class="align-middle">
-                  {{ heir.share }}
-                </td>
-              {% endif %}
-            {% else %}
-              <td>
-                {{ heir.share }}
-              </td>
-            {% endif %}
-            {% if calculation.excess == True %}
-            {% if forloop.counter == 1%}
-            <td rowspan="{{ Brother.count }}" class="align-middle">
-              {{ heir.share }}
-            </td>
-            {% endif %}
-            {% endif %}
-            {% if calculation.shortage == True %}
-            {% if forloop.counter == 1%}
-            <td rowspan="{{ Brother.count }}" class="align-middle">
-              {{ heir.shorted_share }}
-            </td>
-            {% endif %}
-            {% endif %}
-            {% if calculation.shortage_calc == True %}
-            <td>{{ heir.shortage_calc_share }}</td>
-            <td>{{ heir.shortage_union_share }}</td>
-
-            {% endif %}
-            {% if calculation.correction == True %}
-            <td>{{ heir.corrected_share }}</td>
-            {% endif %}
-            <td>{{ heir.amount|unlocalize|intcomma }}</td>
-          </tr>
-          {% endfor %}
-          {% endif %}
-
           {% if Sister.count > 0 %}
           {% for heir in Sister %}
           <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
             <td>{{ heir.first_name }}</td>
             {% if forloop.counter == 1 %}
             {% if heir.asaba == True %}
-            <td rowspan="{{ Sister.count }}" class="align-middle">
+            <td rowspan="{{ asaba.count }}" class="align-middle">
               {% trans "asaba" %}
             </td>
             {% elif heir.quote !=  0 %}
@@ -361,9 +306,15 @@
             <td>{{heir|get_class}}</td>
             {% if calculation.correction == True %}
               {% if forloop.counter == 1%}
-                <td rowspan="{{ Sister.count }}" class="align-middle">
-                  {{ heir.share }}
-                </td>
+                {% if heir.asaba == True %}
+                  <td rowspan="{{ asaba.count }}" class="align-middle">
+                    {{ heir.share }}
+                  </td>
+                {% else %}
+                  <td rowspan="{{ Sister.count }}" class="align-middle">
+                    {{ heir.share }}
+                  </td>
+                {% endif %}
               {% endif %}
             {% else %}
               <td>
@@ -386,6 +337,64 @@
             {% if calculation.shortage == True %}
             {% if forloop.counter == 1%}
             <td rowspan="{{ Sister.count }}" class="align-middle">
+              {{ heir.shorted_share }}
+            </td>
+            {% endif %}
+            {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <td>{{ heir.shortage_calc_share }}</td>
+            <td>{{ heir.shortage_union_share }}</td>
+
+            {% endif %}
+            {% if calculation.correction == True %}
+            <td>{{ heir.corrected_share }}</td>
+            {% endif %}
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
+          </tr>
+          {% endfor %}
+          {% endif %}
+          {% if Brother.count > 0 %}
+          {% for heir in Brother %}
+          <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
+            <td>{{ heir.first_name }}</td>
+            {% if forloop.counter == 1 %}
+              {% if not female_asaba %}
+                {% if heir.asaba == True %}
+                <td rowspan="{{ Brother.count }}" class="align-middle">
+                  {% trans "asaba" %}
+                </td>
+                {% endif %}
+              {% endif %}
+            {% endif %}
+            {% if heir.blocked == True %}
+            <td>
+              {% trans "blocked" %}
+              </td>
+            {% endif %}
+            <td>{{heir|get_class}}</td>
+            {% if not female_asaba %}
+              {% if calculation.correction == True %}
+                {% if forloop.counter == 1%}
+                  <td rowspan="{{ Brother.count }}" class="align-middle">
+                    {{ heir.share }}
+                  </td>
+                {% endif %}
+              {% else %}
+                <td>
+                  {{ heir.share }}
+                </td>
+              {% endif %}
+            {% endif %}
+            {% if calculation.excess == True %}
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ Brother.count }}" class="align-middle">
+              {{ heir.share }}
+            </td>
+            {% endif %}
+            {% endif %}
+            {% if calculation.shortage == True %}
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ Brother.count }}" class="align-middle">
               {{ heir.shorted_share }}
             </td>
             {% endif %}

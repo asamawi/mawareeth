@@ -366,7 +366,7 @@ class ResultsView(LoginRequired, generic.DetailView):
 		context['Son'] = self.object.heir_set.instance_of(Son)
 		context['Brother'] = self.object.heir_set.instance_of(Brother)
 		context['Sister'] = self.object.heir_set.instance_of(Sister)
-		context['daughter_asaba'] = self.object.heir_set.instance_of(Daughter).filter(asaba=True)
+		context['female_asaba'] = self.object.heir_set.filter(asaba=True,sex="F")
 		context['asaba'] = self.object.heir_set.filter(asaba=True)
 		context['Heirs'] = self.object.heir_set.order_by('polymorphic_ctype_id')
 
