@@ -172,14 +172,18 @@ class GrandFatherQuoteTestCase(TestCase):
         calc1 = Calculation.objects.get(name="calc1")
         calc2 = Calculation.objects.get(name="calc2")
         calc3 = Calculation.objects.get(name="calc3")
+        calc4 = Calculation.objects.get(name="calc4")
         calc1.compute()
         calc2.compute()
         calc3.compute()
+        calc4.compute()
         self.assertEquals(Fraction(calc1.get_grandFather().quote).limit_denominator(), Fraction(1,6))
         self.assertEquals(calc1.get_grandFather().asaba, False)
         self.assertEquals(Fraction(calc2.get_grandFather().quote).limit_denominator(), Fraction(1,6))
         self.assertEquals(Fraction(calc3.get_grandFather().quote).limit_denominator(), Fraction(1,1))
         self.assertEquals(calc3.get_grandFather().asaba, True)
+        self.assertEquals(Fraction(calc4.get_grandFather().quote).limit_denominator(), Fraction(0,1))
+        self.assertEquals(calc4.get_grandFather().blocked, True)
 
 class CalculationHasSpouseTestCase(TestCase):
 
