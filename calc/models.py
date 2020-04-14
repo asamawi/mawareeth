@@ -75,7 +75,7 @@ class Person(PolymorphicModel):
 
     def add_husband(self, husband):
         #check for existing marriages
-        if self.male.count() == 0:
+        if self.male_marriages.count() == 0:
             m = Marriage.objects.create()
             m.add_male(husband)
             m.add_female(self)
@@ -85,7 +85,7 @@ class Person(PolymorphicModel):
 
     def add_wife(self, wife):
         #check for existing marriages
-        if self.female.count() < 4:
+        if self.female_marriages.count() < 4:
             m = Marriage.objects.create()
             m.add_male(self)
             m.add_female(wife)
@@ -98,7 +98,7 @@ class Person(PolymorphicModel):
         #check if person is a male
         if self.sex == 'M':
             #check for marriages
-            if self.male.count() != 0:
+            if self.male_marriages.count() != 0:
                 daughter.parents=Marriage.objects.get(male=self, female=mother)
             else:
                 daughter.parents=Marriage.objects.create()
@@ -106,7 +106,7 @@ class Person(PolymorphicModel):
                 daughter.parents.add_female(mother)
 
         elif self.sex == 'F':
-            if self.female.count() != 0:
+            if self.female_marriages.count() != 0:
                 daughter.parents=Marriage.objects.get(female=self, male=father)
             else:
                 daughter.parents=Marriage.objects.create()
@@ -118,7 +118,7 @@ class Person(PolymorphicModel):
         #check if person is a male
         if self.sex == 'M':
             #check for marriages
-            if self.male.count() != 0:
+            if self.male_marriages.count() != 0:
                 son.parents=Marriage.objects.get(male=self, female=mother)
             else:
                 son.parents=Marriage.objects.create()
@@ -126,7 +126,7 @@ class Person(PolymorphicModel):
                 son.parents.add_female(mother)
 
         elif self.sex == 'F':
-            if self.female.count() != 0:
+            if self.female_marriages.count() != 0:
                 son.parents=Marriage.objects.get(female=self, male=father)
             else:
                 son.parents=Marriage.objects.create()
@@ -153,8 +153,8 @@ class Person(PolymorphicModel):
 
 class Marriage(models.Model):
     """Marriage Class"""
-    male = models.ForeignKey(Person,null=True, on_delete=models.CASCADE,related_name='male',blank=True)
-    female = models.ForeignKey(Person,null=True, on_delete=models.CASCADE,related_name='female',blank=True)
+    male = models.ForeignKey(Person,null=True, on_delete=models.CASCADE,related_name='male_marriages',blank=True)
+    female = models.ForeignKey(Person,null=True, on_delete=models.CASCADE,related_name='female_marriages',blank=True)
 
     def add_male(self, person):
         self.male = person

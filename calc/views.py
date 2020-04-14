@@ -311,7 +311,7 @@ class GrandFatherCreate(WaffleFlagMixin, CreateView):
 		before going any further.
 		"""
 		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
-		if self.calc.heir_set.instance_of(Father).count() >= 1:
+		if self.calc.heir_set.instance_of(GrandFather).count() >= 1:
 			messages.error(request,_("Father already exist"))
 			return HttpResponseRedirect(reverse( 'calc:error'))
 		return super().dispatch(request, *args, **kwargs)

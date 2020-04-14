@@ -122,19 +122,64 @@ class FatherQuoteTestCase(TestCase):
         calc3 = Calculation.objects.create(name='calc3', user=user1)
         deceased3 = Deceased.objects.create(first_name="Deceased3", last_name="test", sex="M",estate="1000",calc=calc3)
         father3 = Father.objects.create(first_name="Father3", last_name="test", sex="M", calc=calc3)
+        calc3.add_father(father3)
 
     def test_father_qet_quote(self):
         calc1 = Calculation.objects.get(name="calc1")
         calc2 = Calculation.objects.get(name="calc2")
         calc3 = Calculation.objects.get(name="calc3")
-        calc1.get_quotes()
-        calc2.get_quotes()
-        calc3.get_quotes()
+        calc1.compute()
+        calc2.compute()
+        calc3.compute()
         self.assertEquals(Fraction(calc1.get_father().quote).limit_denominator(), Fraction(1,6))
         self.assertEquals(calc1.get_father().asaba, False)
         self.assertEquals(Fraction(calc2.get_father().quote).limit_denominator(), Fraction(1,6))
-        self.assertEquals(Fraction(calc3.get_father().quote).limit_denominator(), Fraction())
+        self.assertEquals(Fraction(calc3.get_father().quote).limit_denominator(), Fraction(1,1))
         self.assertEquals(calc3.get_father().asaba, True)
+
+class GrandFatherQuoteTestCase(TestCase):
+
+    def setUp(self):
+        user1 = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
+        #case 1 where Grandfather has quote 1/6 only
+        calc1 = Calculation.objects.create(name='calc1', user=user1)
+        deceased = Deceased.objects.create(first_name="Deceased", last_name="test", sex="M",estate="1000",calc=calc1)
+        grandfather = GrandFather.objects.create(first_name="Grandfather", last_name="test", sex="M", calc=calc1)
+        calc1.add_grandFather(grandfather)
+        son1 = Son.objects.create(first_name="Son", last_name="test", sex="M", calc=calc1)
+        calc1.add_son(son1, mother=None, father=None)
+        #case 2 where Grandfather has quote 1/6 and remainder
+        calc2 = Calculation.objects.create(name='calc2', user=user1)
+        deceased2 = Deceased.objects.create(first_name="Deceased2", last_name="test", sex="M",estate="1000",calc=calc2)
+        grandfather2 = GrandFather.objects.create(first_name="Grandfather2", last_name="test", sex="M", calc=calc2)
+        calc2.add_grandFather(grandfather2)
+        daughter = Daughter.objects.create(first_name="Daughter", last_name="test", sex="F", calc=calc2)
+        calc2.add_daughter(daughter, mother=None, father=None)
+        #case 3 where Grandfather has remainder only
+        calc3 = Calculation.objects.create(name='calc3', user=user1)
+        deceased3 = Deceased.objects.create(first_name="Deceased3", last_name="test", sex="M",estate="1000",calc=calc3)
+        grandfather3 = GrandFather.objects.create(first_name="Grandfather3", last_name="test", sex="M", calc=calc3)
+        calc3.add_grandFather(grandfather3)
+        #case 4 where Grandfather is blocked by father
+        calc4 = Calculation.objects.create(name='calc4', user=user1)
+        deceased4 = Deceased.objects.create(first_name="Deceased4", last_name="test", sex="M",estate="1000",calc=calc4)
+        father4 = Father.objects.create(first_name="Father4", last_name="test", sex="M", calc=calc4)
+        calc4.add_father(father4)
+        grandfather4 = GrandFather.objects.create(first_name="Grandfather4", last_name="test", sex="M", calc=calc4)
+        calc4.add_grandFather(grandfather4)
+
+    def test_grandfather_qet_quote(self):
+        calc1 = Calculation.objects.get(name="calc1")
+        calc2 = Calculation.objects.get(name="calc2")
+        calc3 = Calculation.objects.get(name="calc3")
+        calc1.compute()
+        calc2.compute()
+        calc3.compute()
+        self.assertEquals(Fraction(calc1.get_grandFather().quote).limit_denominator(), Fraction(1,6))
+        self.assertEquals(calc1.get_grandFather().asaba, False)
+        self.assertEquals(Fraction(calc2.get_grandFather().quote).limit_denominator(), Fraction(1,6))
+        self.assertEquals(Fraction(calc3.get_grandFather().quote).limit_denominator(), Fraction(1,1))
+        self.assertEquals(calc3.get_grandFather().asaba, True)
 
 class CalculationHasSpouseTestCase(TestCase):
 
@@ -513,7 +558,7 @@ class SisterQuoteTestCase(TestCase):
         self.assertEquals(calc4.get_sisters().first().asaba, True)
         self.assertEquals(calc5.get_sisters().first().asaba, False)
         self.assertEquals(calc6.get_sisters().first().asaba, False)
-        
+
 class BrotherQuoteTestCase(TestCase):
 
     def setUp(self):
