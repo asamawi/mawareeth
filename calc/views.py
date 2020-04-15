@@ -327,6 +327,31 @@ class GrandFatherCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_grandFather(self.object)
 		return super().form_valid(form)
 
+class GrandMotherCreate(WaffleFlagMixin, CreateView):
+	model = GrandMother
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "GrandMother"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_grandMother(self.object)
+		return super().form_valid(form)
+
 class HeirUpdate(UpdateView):
 	model = Heir
 	fields = ['first_name','last_name']
