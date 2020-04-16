@@ -169,6 +169,23 @@ class Person(PolymorphicModel):
     def add_maternalHalfBrother(self, brother):
         pass
 
+    def add_sonOfBrother(self, sonOfBrother):
+        pass
+
+    def add_sonOfPaternalBrother(self, sonOfPaternalBrother):
+        pass
+
+    def add_uncle(self, uncle):
+        pass
+
+    def add_paternalUncle(self, uncle):
+        pass
+
+    def add_sonOfUncle(self, sonOfUncle):
+        pass
+
+    def add_sonOfPaternalUncle(self, sonOfPaternalUncle):
+        pass
 
     def __str__(self):
         return f"{self.first_name} id: {self.id}"
