@@ -300,6 +300,33 @@ class Calculation(models.Model):
     def has_brother(self):
         return self.heir_set.instance_of(Brother).count() > 0
 
+    def has_sister(self):
+        return self.heir_set.instance_of(Sister).count() > 0
+
+    def has_grandFather(self):
+        return self.heir_set.instance_of(GrandFather).count() > 0
+
+    def has_sonOfSon(self):
+        return self.heir_set.instance_of(SonOfSon).count() > 0
+
+    def has_paternalHalfBrother(self):
+        return self.heir_set.instance_of(PaternalHalfBrother).count() > 0
+
+    def has_sonOfBrother(self):
+        return self.heir_set.instance_of(PaternalHalfBrother).count() > 0
+
+    def has_sonOfPaternalBrother(self):
+        return self.heir_set.instance_of(SonOfPaternalBrother).count() > 0
+
+    def has_uncle(self):
+        return self.heir_set.instance_of(Uncle).count() > 0
+
+    def has_paternalUncle(self):
+        return self.heir_set.instance_of(PaternalUncle).count() > 0
+
+    def has_sonOfUncle(self):
+        return self.heir_set.instance_of(SonOfUncle).count() > 0
+
     def get_father(self):
         return self.heir_set.instance_of(Father).first()
 
