@@ -1197,7 +1197,7 @@ class MaternalHalfBrother(Heir):
 class SonOfBrother(Heir):
     """Son of Brother class"""
     def add(self, calc):
-        calc.deceased_set.first().add_paternalHalfBrother(brother=self)
+        calc.deceased_set.first().add_sonOfBrother(sonOfBrother=self)
 
     def get_quote(self, calc):
         sonsOfBrother = calc.heir_set.instance_of(SonOfBrother)
@@ -1227,5 +1227,230 @@ class SonOfBrother(Heir):
         else:
             self.asaba =  True
             self.quote_reason = _("Son/s of Brother share the remainder or all amount if no other heir exist")
+        self.save()
+        return self.quote
+
+class SonOfPaternalBrother(Heir):
+    """Son of Paternal Brother class"""
+    def add(self, calc):
+        calc.deceased_set.first().add_sonOfPaternalBrother(sonOfPaternalBrother=self)
+
+    def get_quote(self, calc):
+        sonsOfPaternalBrother = calc.heir_set.instance_of(SonOfPaternalBrother)
+        if sonsOfPaternalBrother.count() > 1:
+            self.shared_quote = True
+        if calc.has_male_descendent():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Paternal Brother are blocked by male descendant")
+        elif calc.has_father():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Paternal Brother are blocked by father")
+        elif calc.has_grandFather():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Paternal Brother are blocked by grandfather")
+        elif calc.has_brother():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Paternal Brother are blocked by brother/s")
+        elif calc.get_sisters().fliter(asaba=true):
+            self.blocked = True
+            self.quote_reason = _("Son/s of Paternal Brother are blocked by sisters")
+        elif calc.has_paternalHalfBrother():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Paternal Brother are blocked by paternal brother/s")
+        elif calc.get_paternalHalfSisters().fliter(asaba=true):
+            self.blocked = True
+            self.quote_reason = _("Son/s of Paternal Brother are blocked by paternal sister/s")
+        elif calc.has_sonOfBrother():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Paternal Brother are blocked by sons of brother")
+        else:
+            self.asaba =  True
+            self.quote_reason = _("Son/s of Paternal Brother share the remainder or all amount if no other heir exist")
+        self.save()
+        return self.quote
+
+class Uncle(Heir):
+    """Uncle class"""
+    def add(self, calc):
+        calc.deceased_set.first().add_uncle(uncle=self)
+
+    def get_quote(self, calc):
+        unlces = calc.heir_set.instance_of(Uncle)
+        if uncles.count() > 1:
+            self.shared_quote = True
+        if calc.has_male_descendent():
+            self.blocked = True
+            self.quote_reason = _("Uncle/s are blocked by male descendant")
+        elif calc.has_father():
+            self.blocked = True
+            self.quote_reason = _("Uncle/s are blocked by father")
+        elif calc.has_grandFather():
+            self.blocked = True
+            self.quote_reason = _("Uncle/s are blocked by grandfather")
+        elif calc.has_brother():
+            self.blocked = True
+            self.quote_reason = _("Uncle/s are blocked by brother/s")
+        elif calc.get_sisters().fliter(asaba=true):
+            self.blocked = True
+            self.quote_reason = _("Uncle/s are blocked by sisters")
+        elif calc.has_paternalHalfBrother():
+            self.blocked = True
+            self.quote_reason = _("Uncle/s are blocked by paternal brother/s")
+        elif calc.get_paternalHalfSisters().fliter(asaba=true):
+            self.blocked = True
+            self.quote_reason = _("Uncle/s are blocked by paternal sister/s")
+        elif calc.has_sonOfBrother():
+            self.blocked = True
+            self.quote_reason = _("Uncle/s are blocked by sons of brother")
+        elif calc.has_sonOfPaternalBrother():
+            self.blocked = True
+            self.quote_reason = _("Uncle/s are blocked by sons of paternal brother")
+        else:
+            self.asaba =  True
+            self.quote_reason = _("Uncle/s share the remainder or all amount if no other heir exist")
+        self.save()
+        return self.quote
+
+class PaternalUncle(Heir):
+    """Paternal Uncle class"""
+    def add(self, calc):
+        calc.deceased_set.first().add_paternalUncle(uncle=self)
+
+    def get_quote(self, calc):
+        paternalUncles = calc.heir_set.instance_of(PaternalUncle)
+        if paternalUncles.count() > 1:
+            self.shared_quote = True
+        if calc.has_male_descendent():
+            self.blocked = True
+            self.quote_reason = _("Paternal Uncle/s are blocked by male descendant")
+        elif calc.has_father():
+            self.blocked = True
+            self.quote_reason = _("Paternal Uncle/s are blocked by father")
+        elif calc.has_grandFather():
+            self.blocked = True
+            self.quote_reason = _("Paternal Uncle/s are blocked by grandfather")
+        elif calc.has_brother():
+            self.blocked = True
+            self.quote_reason = _("Paternal Uncle/s are blocked by brother/s")
+        elif calc.get_sisters().fliter(asaba=true):
+            self.blocked = True
+            self.quote_reason = _("Paternal Uncle/s are blocked by sisters")
+        elif calc.has_paternalHalfBrother():
+            self.blocked = True
+            self.quote_reason = _("Paternal Uncle/s are blocked by paternal brother/s")
+        elif calc.get_paternalHalfSisters().fliter(asaba=true):
+            self.blocked = True
+            self.quote_reason = _("Paternal Uncle/s are blocked by paternal sister/s")
+        elif calc.has_sonOfBrother():
+            self.blocked = True
+            self.quote_reason = _("Paternal Uncle/s are blocked by sons of brother")
+        elif calc.has_sonOfPaternalBrother():
+            self.blocked = True
+            self.quote_reason = _("Paternal Uncle/s are blocked by sons of paternal brother")
+        elif calc.has_uncle():
+            self.blocked = True
+            self.quote_reason = _("Paternal Uncle/s are blocked by uncle/s")
+        else:
+            self.asaba =  True
+            self.quote_reason = _("Paternal Uncle/s share the remainder or all amount if no other heir exist")
+        self.save()
+        return self.quote
+
+class SonOfUncle(Heir):
+    """Son of Uncle class"""
+    def add(self, calc):
+        calc.deceased_set.first().add_sonOfUncle(sonOfUncle=self)
+
+    def get_quote(self, calc):
+        sonsOfUncle = calc.heir_set.instance_of(SonOfUncle)
+        if sonsOfUncle.count() > 1:
+            self.shared_quote = True
+        if calc.has_male_descendent():
+            self.blocked = True
+            self.quote_reason = _("Son/s of uncle are blocked by male descendant")
+        elif calc.has_father():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Uncle/s are blocked by father")
+        elif calc.has_grandFather():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Uncle/s are blocked by grandfather")
+        elif calc.has_brother():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Uncle/s are blocked by brother/s")
+        elif calc.get_sisters().fliter(asaba=true):
+            self.blocked = True
+            self.quote_reason = _("Son/s of Uncle/s are blocked by sisters")
+        elif calc.has_paternalHalfBrother():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Uncle/s are blocked by paternal brother/s")
+        elif calc.get_paternalHalfSisters().fliter(asaba=true):
+            self.blocked = True
+            self.quote_reason = _("Son/s of Uncle/s are blocked by paternal sister/s")
+        elif calc.has_sonOfBrother():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Uncle/s are blocked by sons of brother")
+        elif calc.has_sonOfPaternalBrother():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Uncle/s are blocked by sons of paternal brother")
+        elif calc.has_uncle():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Uncle/s are blocked by uncle/s")
+        elif calc.has_paternalUncle():
+            self.blocked = True
+            self.quote_reason = _("Son/s of Uncle/s are blocked by paternal uncle/s")
+        else:
+            self.asaba =  True
+            self.quote_reason = _("Son/s of Uncle/s share the remainder or all amount if no other heir exist")
+        self.save()
+        return self.quote
+
+class SonOfPaternalUncle(Heir):
+    """Son of Paternal Uncle class"""
+    def add(self, calc):
+        calc.deceased_set.first().add_sonOfPaternalUncle(sonOfPaternalUncle=self)
+
+    def get_quote(self, calc):
+        sonsOfPaternalUncle = calc.heir_set.instance_of(SonOfPaternalUncle)
+        if sonsOfPaternalUncle.count() > 1:
+            self.shared_quote = True
+        if calc.has_male_descendent():
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal uncle are blocked by male descendant")
+        elif calc.has_father():
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal Uncle/s are blocked by father")
+        elif calc.has_grandFather():
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal Uncle/s are blocked by grandfather")
+        elif calc.has_brother():
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal Uncle/s are blocked by brother/s")
+        elif calc.get_sisters().fliter(asaba=true):
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal Uncle/s are blocked by sisters")
+        elif calc.has_paternalHalfBrother():
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal Uncle/s are blocked by paternal brother/s")
+        elif calc.get_paternalHalfSisters().fliter(asaba=true):
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal Uncle/s are blocked by paternal sister/s")
+        elif calc.has_sonOfBrother():
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal Uncle/s are blocked by sons of brother")
+        elif calc.has_sonOfPaternalBrother():
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal Uncle/s are blocked by sons of paternal brother")
+        elif calc.has_uncle():
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal Uncle/s are blocked by uncle/s")
+        elif calc.has_paternalUncle():
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal Uncle/s are blocked by paternal uncle/s")
+        elif calc.has_sonOfUncle():
+            self.blocked = True
+            self.quote_reason = _("Son/s of paternal Uncle/s are blocked by son/s of uncle/s")
+        else:
+            self.asaba =  True
+            self.quote_reason = _("Son/s of paternal Uncle/s share the remainder or all amount if no other heir exist")
         self.save()
         return self.quote
