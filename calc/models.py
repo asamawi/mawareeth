@@ -426,7 +426,7 @@ class Calculation(models.Model):
         return self.heir_set.instance_of(GrandFather).first()
 
     def get_paternalHalfSisters(self):
-        return self.heir_set.instance_of(PaternalHalfSister)   
+        return self.heir_set.instance_of(PaternalHalfSister)
 
     def get_heirs_no_spouse(self):
         return self.heir_set.not_instance_of(Husband, Wife)
@@ -524,7 +524,7 @@ class Calculation(models.Model):
                             factors.add(math.gcd(count, heir_share))
                         else:
                             factors.add(count)
-                self.shares_corrected = reduce((lambda x, y: x * y), factors) * shares
+                self.shares_corrected = self.lcm_list(factors) * shares
             else:
                 factors = set()
                 for result in correction_set:
@@ -535,7 +535,7 @@ class Calculation(models.Model):
                             factors.add(math.gcd(count, heir_share))
                         else:
                             factors.add(count)
-                self.shares_corrected = reduce((lambda x, y: x * y), factors) * shares
+                self.shares_corrected = self.lcm_list(factors) * shares
 
 
             self.save()
