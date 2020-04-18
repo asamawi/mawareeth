@@ -6,11 +6,11 @@ on:
   pull_request:
     branches: [ master ]
 env:
-  DB: postgres 
-  ENGINE: django.db.backends.postgresql_psycopg2 
-  DATABASE_NAME: mydb_test 
+  DB: postgres
+  ENGINE: django.db.backends.postgresql_psycopg2
+  DATABASE_NAME: mydb_test
   DATABASE_HOST: localhost
-  DJANGO_KEY: ")vzug)78j&h83(=h^&=@n%b(()ai!dryu!88++oij_)gl9oa1_" 
+  DJANGO_KEY: ")vzug)78j&h83(=h^&=@n%b(()ai!dryu!88++oij_)gl9oa1_"
   DEBUG: False
   MAILGUN_ACCESS_KEY: ${{ secrets.MAILGUN_ACCESS_KEY }}
   MAILGUN_SERVER_NAME: ${{ secrets.MAILGUN_SERVER_NAME }}
@@ -18,13 +18,13 @@ env:
   DB_PASS: postgres
   PGPASSWORD: postgres
 jobs:
-  build:   
+  build:
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 4
       matrix:
         python-version: [3.8]
-    
+
     services:
       postgres:
         image: postgres:10.8
