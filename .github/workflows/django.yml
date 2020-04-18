@@ -51,7 +51,6 @@ jobs:
     - name: Set up
       run: |
         psql -p ${{ job.services.postgres.ports[5432] }} -h localhost -c 'create database mydb_test;' -U postgres
-        python3 manage.py waffle_switch Result off --create
         python3 manage.py makemigrations
         python3 manage.py migrate
         python manage.py collectstatic
