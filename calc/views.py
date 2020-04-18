@@ -712,10 +712,7 @@ class DetailView(LoginRequired, generic.DetailView):
 
 class ResultsView(LoginRequired, generic.DetailView):
 	model = Calculation
-	if waffle.switch_is_active('Result'):
-		template_name = 'calc/new_results.html'
-	else:
-		template_name = 'calc/results.html'
+	template_name = 'calc/results.html'
 
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)
