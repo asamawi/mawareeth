@@ -70,11 +70,17 @@
             <td>{{ heir.get_fraction }}</td>
             {% else %}
             <td>
-              
+
               </td>
             {% endif %}
             <td>{{heir|get_class}}</td>
+            {% if heir.shared_quote == False %}
             <td>{{ heir.share }}</td>
+            {% else %}
+            <td>
+
+              </td>
+            {% endif %}
             {% if calculation.excess == True %}
             <td>{{ heir.share }}</td>
             {% endif %}
