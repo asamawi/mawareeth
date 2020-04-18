@@ -425,6 +425,9 @@ class Calculation(models.Model):
     def get_grandFather(self):
         return self.heir_set.instance_of(GrandFather).first()
 
+    def get_paternalHalfSisters(self):
+        return self.heir_set.instance_of(PaternalHalfSister)   
+
     def get_heirs_no_spouse(self):
         return self.heir_set.not_instance_of(Husband, Wife)
 
@@ -1239,7 +1242,7 @@ class PaternalHalfBrother(Heir):
             self.blocked = True
             self.quote_reason = _("Paternal brother/s are blocked by brothers")
         elif calc.has_sister():
-            asaba = calc.get_sisters().fliter(asaba=true)
+            asaba = calc.get_sisters().filter(asaba=True)
             if asaba:
                 self.blocked = True
                 self.quote_reason = _("Paternal brother/s are blocked by sisters")
@@ -1327,13 +1330,13 @@ class SonOfBrother(Heir):
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by brother/s")
-        elif calc.get_sisters().fliter(asaba=true):
+        elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by sisters")
         elif calc.has_paternalHalfBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().fliter(asaba=true):
+        elif calc.get_paternalHalfSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by paternal sister/s")
         else:
@@ -1363,13 +1366,13 @@ class SonOfPaternalBrother(Heir):
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by brother/s")
-        elif calc.get_sisters().fliter(asaba=true):
+        elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by sisters")
         elif calc.has_paternalHalfBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().fliter(asaba=true):
+        elif calc.get_paternalHalfSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by paternal sister/s")
         elif calc.has_sonOfBrother():
@@ -1402,13 +1405,13 @@ class Uncle(Heir):
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by brother/s")
-        elif calc.get_sisters().fliter(asaba=true):
+        elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by sisters")
         elif calc.has_paternalHalfBrother():
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().fliter(asaba=true):
+        elif calc.get_paternalHalfSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by paternal sister/s")
         elif calc.has_sonOfBrother():
@@ -1444,13 +1447,13 @@ class PaternalUncle(Heir):
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by brother/s")
-        elif calc.get_sisters().fliter(asaba=true):
+        elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by sisters")
         elif calc.has_paternalHalfBrother():
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().fliter(asaba=true):
+        elif calc.get_paternalHalfSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by paternal sister/s")
         elif calc.has_sonOfBrother():
@@ -1489,13 +1492,13 @@ class SonOfUncle(Heir):
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by brother/s")
-        elif calc.get_sisters().fliter(asaba=true):
+        elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by sisters")
         elif calc.has_paternalHalfBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().fliter(asaba=true):
+        elif calc.get_paternalHalfSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by paternal sister/s")
         elif calc.has_sonOfBrother():
@@ -1537,13 +1540,13 @@ class SonOfPaternalUncle(Heir):
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by brother/s")
-        elif calc.get_sisters().fliter(asaba=true):
+        elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by sisters")
         elif calc.has_paternalHalfBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().fliter(asaba=true):
+        elif calc.get_paternalHalfSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by paternal sister/s")
         elif calc.has_sonOfBrother():

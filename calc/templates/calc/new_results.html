@@ -66,8 +66,12 @@
             <td>
               {% trans "blocked" %}
             </td>
-            {% else %}
+            {% elif heir.shared_quote == False %}
             <td>{{ heir.get_fraction }}</td>
+            {% else %}
+            <td>
+              
+              </td>
             {% endif %}
             <td>{{heir|get_class}}</td>
             <td>{{ heir.share }}</td>
