@@ -57,24 +57,23 @@
                 <label for="password">{% trans "Password" %}</label>
               </div>
               <div class="form-label-group">
-                <button class="btn btn-lg btn-primary btn-block text-uppercase" type="submit" value="login">{% trans "Sign in" %}</button>
+                <button class="btn btn-lg btn-primary btn-block text-uppercase"
+                type="submit" value="login">
+                {% trans "Sign in" %}
+              </button>
               </div>
               <input type="hidden" name="next" value="{{ next }}">
               </form>
               <form class="form-signin">
               <div class="form-label-group">
-              <button class="btn btn-primary btn-block">
-                <a href="{% url 'social:begin' 'facebook' %}">
+                <a class="btn btn-lg btn-primary btn-block" href="{% url 'social:begin' 'facebook' %}">
                   {% trans "Login with Facebook" %}
                 </a>
-              </button>
               </div>
               <div class="form-label-group">
-              <button class="btn btn-info btn-block">
-                <a href="{% url 'social:begin' 'linkedin-oauth2' %}">
+                <a class="btn btn-lg btn-info btn-block" href="{% url 'social:begin' 'linkedin-oauth2' %}">
                   {% trans "Login with LinkedIn" %}
                 </a>
-              </button>
               </div>
               <br />
             </form>

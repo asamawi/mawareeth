@@ -157,6 +157,20 @@ a.btn:hover {
      -o-transition-duration: 0.5s;
  }
 
+ .form-signin a.btn:hover, .form-signin .btn:hover {
+      -webkit-transform: scale(1.1);
+      -moz-transform: scale(1.1);
+      -o-transform: scale(1.1);
+  }
+  .form-signin a.btn, .form-signin .btn {
+      -webkit-transform: scale(1);
+      -moz-transform: scale(1);
+      -o-transform: scale(1);
+      -webkit-transition-duration: 0.5s;
+      -moz-transition-duration: 0.5s;
+      -o-transition-duration: 0.5s;
+  }
+
  .carousel-item {
    height: 100vh;
    min-height: 350px;
