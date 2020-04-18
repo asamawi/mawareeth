@@ -242,20 +242,85 @@ class Calculation(models.Model):
     def add_son(self, son, mother, father):
         return son.add(calc=self, mother=mother, father=father)
 
-    def add_brother(self, brother):
-        brother.add(calc=self)
-        brother.save()
-        return brother
+    def add_brother(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
 
-    def add_sister(self, sister):
-        sister.add(calc=self)
-        sister.save()
-        return sister
+    def add_sister(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
 
-    def add_grandFather(self, grandFather):
-        grandFather.add(calc=self)
-        grandFather.save()
-        return grandFather
+    def add_grandFather(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_grandMother(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_sonOfSon(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_daughterOfSon(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_paternalHalfSister(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_paternalHalfBrother(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_maternalHalfSister(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_maternalHalfBrother(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_sonOfBrother(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_sonOfPaternalBrother(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_uncle(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_paternalUncle(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_sonOfUncle(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
+
+    def add_sonOfPaternalUncle(self, heir):
+        heir.add(calc=self)
+        heir.save()
+        return heir
 
     def __str__(self):
         return str(self.name)
@@ -293,6 +358,9 @@ class Calculation(models.Model):
 
     def has_grandFather(self):
         return self.heir_set.instance_of(GrandFather).count() > 0
+
+    def has_mohter(self):
+        return self.heir_set.instance_of(Mother).count() > 0
 
     def has_son(self):
         return self.heir_set.instance_of(Son).count() > 0
@@ -1319,7 +1387,7 @@ class Uncle(Heir):
         calc.deceased_set.first().add_uncle(uncle=self)
 
     def get_quote(self, calc):
-        unlces = calc.heir_set.instance_of(Uncle)
+        uncles = calc.heir_set.instance_of(Uncle)
         if uncles.count() > 1:
             self.shared_quote = True
         if calc.has_male_descendent():

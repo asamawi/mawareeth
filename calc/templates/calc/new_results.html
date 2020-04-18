@@ -1,0 +1,202 @@
+{% extends "calc/base.html" %}
+{% load static %}
+{% load i18n %}
+{% load l10n %}
+{% load humanize %}
+{% load calc_extras %}
+{% block title %}
+{% trans "Result" %} {{ calculation.name}}
+{% endblock %}
+{% block body %}
+<div class="container">
+  <div class="row">
+    <div class="bg-white col-sm-10 col-md-9 col-lg-7 mx-auto">
+      <h1> {% trans 'Result' %} {{calculation.name}}</h1>
+      <table class="table table-bordered table-hover table-sm table-light" cellpadding="4" cellspacing="4" {% if LANGUAGE_BIDI %} dir="rtl" {% endif %}>
+        <thead class="thead-light">
+          <tr>
+            <th scope="col"  rowspan="2">{%trans "Name" %}</th>
+            <th scope="col"  rowspan="2">{%trans "Quote" %}</th>
+            <th scope="col"  rowspan="2">{%trans "Relation" %}</th>
+            <th scope="col"  >{%trans "Shares" %}</th>
+            {% if calculation.excess == True %}
+            <th scope="col"  >{%trans "Excess" %}</th>
+            {% endif %}
+            {% if calculation.shortage == True %}
+            <th scope="col"  >{%trans "Shortage" %}</th>
+            {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <th scope="col"  >{%trans "Shortage calc" %}</th>
+            <th scope="col"  >{%trans "Calc Union" %}</th>
+            {% endif %}
+            {% if calculation.correction == True %}
+            <th scope="col"  >{%trans "Correction" %}</th>
+            {% endif %}
+            <th scope="col"  >{%trans "Amount" %}</th>
+          </tr>
+          <tr>
+            <th scope="col" > {{calculation.shares}}</th>
+            {% if calculation.excess == True %}
+            <th scope="col" > {{calculation.shares_excess}}</th>
+            {% endif %}
+            {% if calculation.shortage == True %}
+            <th scope="col" > {{calculation.shares_shorted}}</th>
+            {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <th scope="col" > {{calculation.shortage_calc_shares}}</th>
+            <th scope="col" > {{calculation.shortage_union_shares}}</th>
+
+            {% endif %}
+            {% if calculation.correction == True %}
+            <th scope="col" > {{calculation.shares_corrected}}</th>
+            {% endif %}
+            <th scope="col" > {{calculation.deceased_set.first.estate|unlocalize|intcomma}}</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% if calculation.shortage_calc == False %}
+          {% for heir in Heirs %}
+          <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
+            <td>{{ heir.first_name }}</td>
+            {% if heir.asaba == True %}
+            <td>
+              {% trans "asaba" %}
+            </td>
+            {% elif heir.blocked == True %}
+            <td>
+              {% trans "blocked" %}
+            </td>
+            {% else %}
+            <td>{{ heir.get_fraction }}</td>
+            {% endif %}
+            <td>{{heir|get_class}}</td>
+            <td>{{ heir.share }}</td>
+            {% if calculation.excess == True %}
+            <td>{{ heir.share }}</td>
+            {% endif %}
+            {% if calculation.shortage == True %}
+            <td>{{ heir.shorted_share }}</td>
+            {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <td>{{ heir.shortage_calc_share }}</td>
+            <td>{{ heir.shortage_union_share }}</td>
+            {% endif %}
+            {% if calculation.correction == True %}
+            <td>{{ heir.corrected_share }}</td>
+            {% endif %}
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
+          </tr>
+          {% endfor %}
+          {% for heir in asaba %}
+          <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
+            <td>{{ heir.first_name }}</td>
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ asaba.count }}" class="align-middle">
+              {% trans "asaba" %}
+            </td>
+            {% endif %}
+            <td>{{heir|get_class}}</td>
+            {% if calculation.correction == True %}
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ asaba.count }}" class="align-middle">
+              {{ heir.share }}
+            </td>
+            {% endif %}
+            {% else %}
+            <td>
+              {{ heir.share }}
+            </td>
+            {% endif %}
+            {% if calculation.excess == True %}
+            {% if heir.correction == True %}
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ asaba.count }}" class="align-middle">
+              {{ heir.share }}
+            </td>
+            {% endif %}
+            {% else %}
+            <td>
+              {{ heir.share }}
+            </td>
+            {% endif %}
+            {% endif %}
+            {% if calculation.shortage == True %}
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ asaba.count }}" class="align-middle">
+              {{ heir.shorted_share }}
+            </td>
+            {% endif %}
+            {% endif %}
+            {% if calculation.shortage_calc == True %}
+            <td>{{ heir.shortage_calc_share }}</td>
+            <td>{{ heir.shortage_union_share }}</td>
+
+            {% endif %}
+            {% if calculation.correction == True %}
+            <td>{{ heir.corrected_share }}</td>
+            {% endif %}
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          {% for heir in Spouse %}
+          <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
+            <td>{{ heir.first_name }}</td>
+
+            <td>{{ heir.get_fraction }}</td>
+
+            <td>{{heir|get_class}}</td>
+
+            <td>{{ heir.share }}</td>
+
+            <td>{{ heir.shorted_share }}</td>
+
+            <td>{{ heir.shortage_calc_share }}</td>
+
+            <td>{{ heir.shortage_union_share }}</td>
+
+            {% if calculation.correction == True %}
+            <td>{{ heir.corrected_share }}</td>
+            {% endif %}
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
+          </tr>
+          {% endfor %}
+          {% for heir in No_Spouse %}
+          <tr data-toggle="tooltip" data-placement="right" title="{{ heir.quote_reason }}">
+            <td>{{ heir.first_name }}</td>
+
+            <td>{{ heir.get_fraction }}</td>
+
+            <td>{{heir|get_class}}</td>
+
+            <td>{{ heir.share }}</td>
+            {% if forloop.counter == 1%}
+            <td rowspan="{{ No_Spouse.count }}" class="align-middle">
+              {{ heir.shorted_share }}
+            </td>
+            {% endif %}
+            <td>{{ heir.shortage_calc_share }}</td>
+
+            <td>{{ heir.shortage_union_share }}</td>
+
+            {% if calculation.correction == True %}
+            <td>{{ heir.corrected_share }}</td>
+            {% endif %}
+            <td>{{ heir.amount|unlocalize|intcomma }}</td>
+          </tr>
+      {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script type="text/javascript">
+  $(function () {
+    $('[data-toggle="tooltip"]').tooltip()
+  })
+</script>
+
+{% endblock %}

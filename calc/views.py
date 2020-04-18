@@ -15,6 +15,8 @@ from django.utils.translation import gettext as _
 from django.views.generic.base import TemplateView
 from .models import *
 from waffle.mixins import WaffleFlagMixin
+import waffle
+
 
 class HomePage(TemplateView):
 	template_name="calc/home.html"
@@ -347,9 +349,309 @@ class GrandMotherCreate(WaffleFlagMixin, CreateView):
 		"""
 		form.instance.calc = self.calc
 		self.object = form.save()
-		self.object.sex="M"
+		self.object.sex="F"
 		self.object.save()
 		form.instance.calc.add_grandMother(self.object)
+		return super().form_valid(form)
+
+class SonOfSonCreate(WaffleFlagMixin, CreateView):
+	model = SonOfSon
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "SonOfSon"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_sonOfSon(self.object)
+		return super().form_valid(form)
+
+class DaughterOfSonCreate(WaffleFlagMixin, CreateView):
+	model = DaughterOfSon
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "DaughterOfSon"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="F"
+		self.object.save()
+		form.instance.calc.add_daughterOfSon(self.object)
+		return super().form_valid(form)
+
+class PaternalHalfSisterCreate(WaffleFlagMixin, CreateView):
+	model = PaternalHalfSister
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "PaternalHalfSister"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="F"
+		self.object.save()
+		form.instance.calc.add_paternalHalfSister(self.object)
+		return super().form_valid(form)
+
+class PaternalHalfBrotherCreate(WaffleFlagMixin, CreateView):
+	model = PaternalHalfBrother
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "PaternalHalfBrother"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_paternalHalfBrother(self.object)
+		return super().form_valid(form)
+
+class MaternalHalfSisterCreate(WaffleFlagMixin, CreateView):
+	model = MaternalHalfSister
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "MaternalHalfSister"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="F"
+		self.object.save()
+		form.instance.calc.add_maternalHalfSister(self.object)
+		return super().form_valid(form)
+
+class MaternalHalfBrotherCreate(WaffleFlagMixin, CreateView):
+	model = MaternalHalfBrother
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "MaternalHalfBrother"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_maternalHalfBrother(self.object)
+		return super().form_valid(form)
+
+class SonOfBrotherCreate(WaffleFlagMixin, CreateView):
+	model = SonOfBrother
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "SonOfBrother"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_sonOfBrother(self.object)
+		return super().form_valid(form)
+
+class SonOfPaternalBrotherCreate(WaffleFlagMixin, CreateView):
+	model = SonOfPaternalBrother
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "SonOfPaternalBrother"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_sonOfPaternalBrother(self.object)
+		return super().form_valid(form)
+
+class UncleCreate(WaffleFlagMixin, CreateView):
+	model = Uncle
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "Uncle"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_uncle(self.object)
+		return super().form_valid(form)
+
+class PaternalUncleCreate(WaffleFlagMixin, CreateView):
+	model = PaternalUncle
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "PaternalUncle"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_paternalUncle(self.object)
+		return super().form_valid(form)
+
+class SonOfUncleCreate(WaffleFlagMixin, CreateView):
+	model = SonOfUncle
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "SonOfUncle"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_sonOfUncle(self.object)
+		return super().form_valid(form)
+
+class SonOfPaternalUncleCreate(WaffleFlagMixin, CreateView):
+	model = SonOfPaternalUncle
+	fields = ['first_name','last_name']
+	template_name = 'calc/heir_form.html'
+	waffle_flag = "SonOfPaternalUncle"
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def form_valid(self, form):
+		"""
+		Overridden to add the relation to the calculation instance.
+		"""
+		form.instance.calc = self.calc
+		self.object = form.save()
+		self.object.sex="M"
+		self.object.save()
+		form.instance.calc.add_sonOfPaternalUncle(self.object)
 		return super().form_valid(form)
 
 class HeirUpdate(UpdateView):
@@ -410,7 +712,10 @@ class DetailView(LoginRequired, generic.DetailView):
 
 class ResultsView(LoginRequired, generic.DetailView):
 	model = Calculation
-	template_name = 'calc/results.html'
+	if waffle.switch_is_active('Result'):
+		template_name = 'calc/new_results.html'
+	else:
+		template_name = 'calc/results.html'
 
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)
@@ -424,8 +729,12 @@ class ResultsView(LoginRequired, generic.DetailView):
 		context['Sister'] = self.object.heir_set.instance_of(Sister)
 		context['GrandFather'] = self.object.heir_set.instance_of(GrandFather)
 		context['female_asaba'] = self.object.heir_set.filter(asaba=True,sex="F")
-		context['asaba'] = self.object.heir_set.filter(asaba=True)
-		context['Heirs'] = self.object.heir_set.order_by('polymorphic_ctype_id')
+		context['asaba'] = self.object.heir_set.filter(asaba=True).order_by('polymorphic_ctype_id')
+		context['Heirs'] = self.object.heir_set.filter(asaba=False).order_by('polymorphic_ctype_id')
+		context['Spouse'] = self.object.heir_set.instance_of(Husband, Wife)
+		context['No_Spouse'] = self.object.heir_set.not_instance_of(Husband, Wife)
+
+
 
 
 
