@@ -14,7 +14,8 @@ from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.utils.translation import gettext as _
 from django.views.generic.base import TemplateView
 from .models import *
-from waffle.mixins import WaffleFlagMixin
+from waffle.mixins import WaffleFlagMixin, WaffleSwitchMixin
+
 import waffle
 
 
@@ -733,11 +734,6 @@ class ResultsView(LoginRequired, generic.DetailView):
 		context['Heirs'] = self.object.heir_set.filter(asaba=False).order_by('polymorphic_ctype_id')
 		context['Spouse'] = self.object.heir_set.instance_of(Husband, Wife)
 		context['No_Spouse'] = self.object.heir_set.not_instance_of(Husband, Wife)
-
-
-
-
-
 		return context
 
 	def dispatch(self, request, *args, **kwargs):
