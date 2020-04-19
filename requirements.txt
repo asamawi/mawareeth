@@ -10,4 +10,5 @@ django-icons
 python-decouple
 django-active-link
 social-auth-app-django
+six
 django-waffle
