@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-12 09:52+0300\n"
-"PO-Revision-Date: 2020-04-12 10:05+0300\n"
+"POT-Creation-Date: 2020-04-20 19:02+0300\n"
+"PO-Revision-Date: 2020-04-20 19:03+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: ar\n"
@@ -31,11 +31,11 @@ msgstr "الاسم الاخير"
 msgid "father already exist"
 msgstr "الاب موجود"
 
-#: .\calc\models.py:66 .\calc\views.py:80
+#: .\calc\models.py:66 .\calc\views.py:83
 msgid "Mother already exist"
 msgstr "الام موجودة"
 
-#: .\calc\models.py:84 .\calc\views.py:134
+#: .\calc\models.py:84 .\calc\views.py:137
 msgid "Husband already exist"
 msgstr "الزوج موجود"
 
@@ -43,107 +43,107 @@ msgstr "الزوج موجود"
 msgid "Can't have more than 4 wives"
 msgstr "لا يمكن اضافة اكثر من 4 زوجات"
 
-#: .\calc\models.py:785
+#: .\calc\models.py:924
 msgid "father gets 1/6 prescribed share because of male descendant"
 msgstr "الاب ياخذ السدس لوجود الفرع الوارث"
 
-#: .\calc\models.py:789
+#: .\calc\models.py:928
 msgid "father gets 1/6 plus remainder because of female descendant"
 msgstr "الاب يأخذ السدس و الباقي تعصيبا"
 
-#: .\calc\models.py:792
+#: .\calc\models.py:931
 msgid "father gets the remainder because there is no descendant"
 msgstr "الاب ياخذ الباقي لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:805
+#: .\calc\models.py:944
 msgid "mother gets 1/6 because of descendant or siblings"
 msgstr "تاخذ الام السدس لوجود الفرع الوارث او جمع من الاخوة"
 
-#: .\calc\models.py:809
+#: .\calc\models.py:948
 msgid "mother gets 1/3 of the remainder which is 1/4."
 msgstr "تاخذ الام ثلث الباقي أي الربع."
 
-#: .\calc\models.py:812
+#: .\calc\models.py:951
 msgid "mother gets 1/3 of the remainder which is 1/6"
 msgstr "تاخذ الام ثلث الباقي اي السدس"
 
-#: .\calc\models.py:815
+#: .\calc\models.py:954
 msgid "mother gets 1/3 because no descendant or siblings"
 msgstr "تاخذ الام الثلث لعدم وجود الفرع الوارث او جمع من الاخوة"
 
-#: .\calc\models.py:829
+#: .\calc\models.py:968
 msgid "husband gets 1/4 becuase of descendant"
 msgstr "الزوج ياخذ الربع لوجود الفرع الوارث"
 
-#: .\calc\models.py:832
+#: .\calc\models.py:971
 msgid "husband gets 1/2 becuase there is no descendant"
 msgstr "الزوج ياخذ النصف لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:845
+#: .\calc\models.py:984
 msgid "wife gets 1/8 becuase of descendant"
 msgstr "تاخذ الزوجة الثمن لوجود الفرع الوارث"
 
-#: .\calc\models.py:848
+#: .\calc\models.py:987
 msgid "wife gets 1/4 becuase there is no descendant"
 msgstr "تاخذ الزوجة الربع لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:852
+#: .\calc\models.py:991
 msgid "wives share the qoute of 1/8 becuase of descendant"
 msgstr "الزوجات شركاء في الثمن لوجود الفرع الوارث"
 
-#: .\calc\models.py:855
+#: .\calc\models.py:994
 msgid "wives share the quote of 1/4 becuase there is no descendant"
 msgstr "الزوجات شركاء في الربع لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:868
+#: .\calc\models.py:1007
 msgid ""
 "Daughter/s with Son/s share the residuary. The son will receive a share of "
 "two daughters."
 msgstr "البنات مع الأبناء عصبة يأخذن الباقي. للذكر مثل حظ الانثيين."
 
-#: .\calc\models.py:873
+#: .\calc\models.py:1012
 msgid "Daughter gets 1/2 when she has no other sibling/s"
 msgstr "البنت تاخذ النصف اذا انفردت من دون اخوة و اخوات"
 
-#: .\calc\models.py:877
+#: .\calc\models.py:1016
 msgid "Daughters share the quote of 2/3 when there is no son/s"
 msgstr "البنات شركاء في الثلثين اذا لم يوجد اخ لهن معصب"
 
-#: .\calc\models.py:890
+#: .\calc\models.py:1029
 msgid "Son/s share the remainder or all amount if no other heir exist"
 msgstr ""
 "الابن او الأبناء عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\models.py:905
+#: .\calc\models.py:1044
 msgid "Bother/s are blocked by male descendant"
 msgstr "الأخ او الأخوة محجوبون لوجود الفرع الوارث"
 
-#: .\calc\models.py:908
+#: .\calc\models.py:1047
 msgid "Brother/s are blocked by father"
 msgstr "الأخ او الأخوة محجوبون لوجود الأب"
 
-#: .\calc\models.py:911
+#: .\calc\models.py:1050
 msgid "Brother/s are blocked by grandfather"
 msgstr "الأخ او الأخوة محجوبون لوجود الجد"
 
-#: .\calc\models.py:914
+#: .\calc\models.py:1053
 msgid "Brother/s share the remainder or all amount if no other heir exist"
 msgstr ""
 "الأخ او الأخوة عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\models.py:929
+#: .\calc\models.py:1068
 msgid "Sister/s are blocked by male descendant"
 msgstr "الأخوات محجوبات لوجود الفرع الوارث الذكر"
 
-#: .\calc\models.py:932
+#: .\calc\models.py:1071
 msgid "Sister/s are blocked by father"
 msgstr "الاخوات محجوبون لوجود الأب"
 
-#: .\calc\models.py:935
+#: .\calc\models.py:1074
 msgid "Sister/s are blocked by grandfather"
 msgstr "الأخوات محجوبون لوجود الجد"
 
-#: .\calc\models.py:938
+#: .\calc\models.py:1077
 msgid ""
 "Sister/s with borther/s share the remainder or all the amount if no other "
 "heir exist. The brother will receive a share of two sisters"
@@ -151,33 +151,452 @@ msgstr ""
 "الاخوات مع الاخوة عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة "
 "اخرين. للذكر مثل حظ الانثيين"
 
-#: .\calc\models.py:941
+#: .\calc\models.py:1080
 msgid "Sister/s with female descendant share the remainder"
 msgstr "تأخذ الأخت/الاخوات الباقي بعد فرض البنت/البنات"
 
-#: .\calc\models.py:945
+#: .\calc\models.py:1084
 msgid "Sister gets half when no father or son. "
 msgstr "الأخت تأخذ النصف عند عدم وجود الاب او الابن. "
 
-#: .\calc\models.py:948
+#: .\calc\models.py:1087
 msgid "Sisters share 2/3 when no father or son."
 msgstr "الاخوات شركاء في الثلثين اذا لم يوجد اخ لهن معصب و لم يوجد اب او ابن."
 
-#: .\calc\models.py:958
+#: .\calc\models.py:1099
 msgid "Grandfather is blocked by father"
 msgstr "الجد محجوب لوجود الأب"
 
-#: .\calc\models.py:961
+#: .\calc\models.py:1102
 msgid "Grandfather gets 1/6 prescribed share because of male descendant"
 msgstr "الجد ياخذ السدس لوجود الفرع الوارث"
 
-#: .\calc\models.py:965
+#: .\calc\models.py:1106
 msgid "Grandfather gets 1/6 plus remainder because of female descendant"
 msgstr "الجد يأخذ السدس و الباقي تعصيبا"
 
-#: .\calc\models.py:968
+#: .\calc\models.py:1109
 msgid "Grandfather gets the remainder because there is no descendant"
 msgstr "الجد  ياخذ الباقي لعدم وجود الفرع الوارث"
+
+#: .\calc\models.py:1121
+msgid "Grandmother is blocked by mother"
+msgstr "الجدة محجوبة لوجود الأم"
+
+#: .\calc\models.py:1127
+msgid "Grandmother gets 1/6 if no mother"
+msgstr "الجدة تأخذ السدس في حال عدم وجود الأم"
+
+#: .\calc\models.py:1139
+msgid "Son of son is blocked by Son"
+msgstr "ابن الابن محجوب بالابن"
+
+#: .\calc\models.py:1144
+msgid "Son of son share the remainder or all amount if no other heir exist"
+msgstr "ابن الابن عصبة يأخذ الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
+
+#: .\calc\models.py:1159
+msgid "Daughter of son is blocked by son"
+msgstr "بنت الابن محجوبة بالابن"
+
+#: .\calc\models.py:1162
+msgid ""
+"Daughter/s of son with Son/s of son share the residuary. The son of son will "
+"receive a share of two daughters of son."
+msgstr "بنات الابن مع أبناء الابن عصبة يأخذن الباقي. للذكر مثل حظ الانثيين."
+
+#: .\calc\models.py:1167
+msgid "Daughter of son get 1/6, with daughter"
+msgstr "بنت الابن مع البنت تأخذ السدس باقي فرض الثلثين"
+
+#: .\calc\models.py:1170
+msgid "Daughter/s of son are blocked by daugters"
+msgstr "بنت او بنات الابن محجوبات لوجود البنات"
+
+#: .\calc\models.py:1173
+msgid "Daughter of son gets 1/2 when she has no other sibling/s"
+msgstr "بنت الابن تأخذ النصف اذا انفردت من دون اخوة و اخوات"
+
+#: .\calc\models.py:1176
+msgid "Daughters of son share the quote of 2/3 when there is no son/s of son"
+msgstr "بنات الابن شركاء في الثلثين اذا لم يوجد اخ لهن معصب"
+
+#: .\calc\models.py:1192
+msgid "Paternal sister/s are blocked by male descendant"
+msgstr "الأخوات لأب محجوبات لوجود الفرع الوارث الذكر"
+
+#: .\calc\models.py:1195
+msgid "Paternal sister/s are blocked by father"
+msgstr "الاخوات لأب محجوبات لوجود الأب"
+
+#: .\calc\models.py:1198
+msgid "Paternal sister/s are blocked by grandfather"
+msgstr "الأخوات لأب محجوبات لوجود الجد"
+
+#: .\calc\models.py:1201
+msgid "Paternal sister/s are blocked by borther/s"
+msgstr "الاخوات لأب محجوبات لوجود الأخ الشقيق"
+
+#: .\calc\models.py:1204
+msgid ""
+"Paternal sister/s with paternal half borther/s share the remainder or all the "
+"amount if no other heir exist. The brother will receive a share of two sisters"
+msgstr ""
+"الاخوات لأب مع الاخوة لأب عصبة يأخذون الباقي او كامل التركة في حال عدم وجود "
+"ورثة اخرين. للذكر مثل حظ الانثيين"
+
+#: .\calc\models.py:1209
+msgid "Paternal sister/s get 1/6 with sister"
+msgstr "الأخت / الأخوات لأب يأخذن السدس باقي فرض الثلثين مع الأخت الشقيقة"
+
+#: .\calc\models.py:1212
+msgid "Paternal sisters/s are blocked by sisters"
+msgstr "الاخوات لأب محجوبات لوجود الأخوات الشقيقات"
+
+#: .\calc\models.py:1215
+msgid "Paternal sister/s with female descendant share the remainder"
+msgstr "تأخذ الأخت/الاخوات لأب الباقي بعد فرض البنت/البنات"
+
+#: .\calc\models.py:1218
+msgid "Paternal sister gets half when no father or son. "
+msgstr "الأخت لأب تأخذ النصف عند عدم وجود الاب او الابن. "
+
+#: .\calc\models.py:1221
+msgid "Paternal sisters share 2/3 when no father or son."
+msgstr ""
+"الاخوات لأب شركاء في الثلثين اذا لم يوجد اخ لهن معصب و لم يوجد اب او ابن."
+
+#: .\calc\models.py:1236
+msgid "Paternal brother/s are blocked by male descendant"
+msgstr "الأخ او الأخوة لأب محجوبون لوجود الفرع الوارث"
+
+#: .\calc\models.py:1239
+msgid "Paternal brother/s are blocked by father"
+msgstr "الأخ او الأخوة لأب محجوبون لوجود الأب"
+
+#: .\calc\models.py:1242
+msgid "Paternal brother/s are blocked by grandfather"
+msgstr "الأخ او الأخوة لأب محجوبون لوجود الجد"
+
+#: .\calc\models.py:1245
+msgid "Paternal brother/s are blocked by brothers"
+msgstr "الأخ او الأخوة لأب محجوبون لوجود الأخ الشقيق"
+
+#: .\calc\models.py:1250
+msgid "Paternal brother/s are blocked by sisters"
+msgstr "الأخ او الأخوة لأب محجوبون لوجود الأخت الشقيقة"
+
+#: .\calc\models.py:1253 .\calc\models.py:1256
+msgid ""
+"Paternal brother/s share the remainder or all amount if no other heir exist"
+msgstr ""
+"الأخ او الأخوة لأب عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة "
+"اخرين"
+
+#: .\calc\models.py:1271
+msgid "Maternal sister/s are blocked by descendant"
+msgstr "الأخوات لأم محجوبات لوجود الفرع الوارث"
+
+#: .\calc\models.py:1274
+msgid "Maternal sister/s are blocked by father"
+msgstr "الاخوات لأم محجوبات لوجود الأب"
+
+#: .\calc\models.py:1277
+msgid "Maternal sister/s are blocked by grandfather"
+msgstr "الأخوات لأم محجوبات لوجود الجد"
+
+#: .\calc\models.py:1280
+msgid "Maternal sister get 1/6"
+msgstr "الأخت لأم تأخذ السدس"
+
+#: .\calc\models.py:1283
+msgid "Maternal sisters share 1/3"
+msgstr "الأخوات لأم شركاء في الثلث"
+
+#: .\calc\models.py:1298
+msgid "Maternal brother/s are blocked by descendant"
+msgstr "الأخ او الأخوة لأم محجوبون لوجود الفرع الوارث"
+
+#: .\calc\models.py:1301
+msgid "Maternal brother/s are blocked by father"
+msgstr "الأخ او الأخوة لأم محجوبون لوجود الأب"
+
+#: .\calc\models.py:1304
+msgid "Maternal brother/s are blocked by grandfather"
+msgstr "الأخ او الأخوة لأم محجوبون لوجود الجد"
+
+#: .\calc\models.py:1307
+msgid "Maternal brother get 1/6"
+msgstr "الأخ لأم يأخذ السدس"
+
+#: .\calc\models.py:1310
+msgid "Maternal brothers share 1/3"
+msgstr "الأخوة لأم شركاء في الثلث"
+
+#: .\calc\models.py:1325
+msgid "Son/s of Brother are blocked by male descendant"
+msgstr "ابن او أبناء الأخ محجوبون لوجود الفرع الوارث الذكر"
+
+#: .\calc\models.py:1328
+msgid "Son/s of Brother are blocked by father"
+msgstr "ابن أو أبناء الأخ محجوبون لوجود الأب"
+
+#: .\calc\models.py:1331
+msgid "Son/s of Brother are blocked by grandfather"
+msgstr "ابن او أبناء الأخ محجوبون لوجود الجد"
+
+#: .\calc\models.py:1334
+msgid "Son/s of Brother are blocked by brother/s"
+msgstr "ابن او أبناء الأخ محجوبون لوجود الأخ"
+
+#: .\calc\models.py:1337
+msgid "Son/s of Brother are blocked by sisters"
+msgstr "ابن او أبناء الأخ محجوبون لوجود الأخوات"
+
+#: .\calc\models.py:1340
+msgid "Son/s of Brother are blocked by paternal brother/s"
+msgstr "ابن او أبناء الأخ محجوبون لوجود الأخ لأب"
+
+#: .\calc\models.py:1343
+msgid "Son/s of Brother are blocked by paternal sister/s"
+msgstr "ابن او أبناء الأخ محجوبون لوجود الأخت لأب"
+
+#: .\calc\models.py:1346
+msgid ""
+"Son/s of Brother share the remainder or all amount if no other heir exist"
+msgstr ""
+"ابن أو أبناء الأخ عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
+
+#: .\calc\models.py:1361
+msgid "Son/s of Paternal Brother are blocked by male descendant"
+msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الفرع الوارث الذكر"
+
+#: .\calc\models.py:1364
+msgid "Son/s of Paternal Brother are blocked by father"
+msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الأب"
+
+#: .\calc\models.py:1367
+msgid "Son/s of Paternal Brother are blocked by grandfather"
+msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الجد"
+
+#: .\calc\models.py:1370
+msgid "Son/s of Paternal Brother are blocked by brother/s"
+msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الأخ"
+
+#: .\calc\models.py:1373
+msgid "Son/s of Paternal Brother are blocked by sisters"
+msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الأخوات الشقيقات"
+
+#: .\calc\models.py:1376
+msgid "Son/s of Paternal Brother are blocked by paternal brother/s"
+msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الأخ لأب"
+
+#: .\calc\models.py:1379
+msgid "Son/s of Paternal Brother are blocked by paternal sister/s"
+msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الأخت لأب"
+
+#: .\calc\models.py:1382
+msgid "Son/s of Paternal Brother are blocked by sons of brother"
+msgstr "ابن او أبناء الأخ لأب محجوبون لوجود ابن الأخ الشقيق"
+
+#: .\calc\models.py:1385
+msgid ""
+"Son/s of Paternal Brother share the remainder or all amount if no other heir "
+"exist"
+msgstr ""
+"ابن أو أبناء الأخ لأب عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة "
+"اخرين"
+
+#: .\calc\models.py:1400
+msgid "Uncle/s are blocked by male descendant"
+msgstr "العم محجوب لوجود الفرع الوارث الذكر"
+
+#: .\calc\models.py:1403
+msgid "Uncle/s are blocked by father"
+msgstr "العم محجوب لوجود الأب"
+
+#: .\calc\models.py:1406
+msgid "Uncle/s are blocked by grandfather"
+msgstr "العم محجوب لوجود الجد"
+
+#: .\calc\models.py:1409
+msgid "Uncle/s are blocked by brother/s"
+msgstr "العم محجوب لوجود الأخ الشقيق"
+
+#: .\calc\models.py:1412
+msgid "Uncle/s are blocked by sisters"
+msgstr "العم محجوب لوجود الأخوات الشقيقات"
+
+#: .\calc\models.py:1415
+msgid "Uncle/s are blocked by paternal brother/s"
+msgstr "العم محجوب لوجود الأخ لأب"
+
+#: .\calc\models.py:1418
+msgid "Uncle/s are blocked by paternal sister/s"
+msgstr "العم محجوب لوجود الأخت لأب"
+
+#: .\calc\models.py:1421
+msgid "Uncle/s are blocked by sons of brother"
+msgstr "العم محجوب لوجود ابن الأخ الشقيق"
+
+#: .\calc\models.py:1424
+msgid "Uncle/s are blocked by sons of paternal brother"
+msgstr "العم محجوب لوجود الأخ لأب"
+
+#: .\calc\models.py:1427
+msgid "Uncle/s share the remainder or all amount if no other heir exist"
+msgstr "العم عصبة يأخذ الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
+
+#: .\calc\models.py:1442
+msgid "Paternal Uncle/s are blocked by male descendant"
+msgstr "العم لأب محجوب لوجود الفرع الوارث الذكر"
+
+#: .\calc\models.py:1445
+msgid "Paternal Uncle/s are blocked by father"
+msgstr "العم لأب محجوب لوجود الأب"
+
+#: .\calc\models.py:1448
+msgid "Paternal Uncle/s are blocked by grandfather"
+msgstr "العم لأب محجوب لوجود الجد"
+
+#: .\calc\models.py:1451
+msgid "Paternal Uncle/s are blocked by brother/s"
+msgstr "العم لأب محجوب لوجود الأخ الشقيق"
+
+#: .\calc\models.py:1454
+msgid "Paternal Uncle/s are blocked by sisters"
+msgstr "العم لأب محجوب لوجود الأخوات الشقيقات"
+
+#: .\calc\models.py:1457
+msgid "Paternal Uncle/s are blocked by paternal brother/s"
+msgstr "العم لأب محجوب لوجود الأخ لأب"
+
+#: .\calc\models.py:1460
+msgid "Paternal Uncle/s are blocked by paternal sister/s"
+msgstr "العم لأب محجوب لوجود الأخت لأب"
+
+#: .\calc\models.py:1463
+msgid "Paternal Uncle/s are blocked by sons of brother"
+msgstr "العم لأب محجوب لوجود ابن الأخ الشقيق"
+
+#: .\calc\models.py:1466
+msgid "Paternal Uncle/s are blocked by sons of paternal brother"
+msgstr "العم لأب محجوب لوجود ابن الأخ لأب"
+
+#: .\calc\models.py:1469
+msgid "Paternal Uncle/s are blocked by uncle/s"
+msgstr "العم لأب محجوب لوجود العم الشقيق"
+
+#: .\calc\models.py:1472
+msgid ""
+"Paternal Uncle/s share the remainder or all amount if no other heir exist"
+msgstr "العم لأب عصبة يأخذ الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
+
+#: .\calc\models.py:1487
+msgid "Son/s of uncle are blocked by male descendant"
+msgstr "ابن او أبناء العم محجوبون لوجود الفرع الوارث الذكر"
+
+#: .\calc\models.py:1490
+msgid "Son/s of Uncle/s are blocked by father"
+msgstr "ابن العم محجوب لوجود الأب"
+
+#: .\calc\models.py:1493
+msgid "Son/s of Uncle/s are blocked by grandfather"
+msgstr "ابن او أبناء العم محجوبون لوجود الجد"
+
+#: .\calc\models.py:1496
+msgid "Son/s of Uncle/s are blocked by brother/s"
+msgstr "ابن العم محجوب لوجود الأخ الشقيق"
+
+#: .\calc\models.py:1499
+msgid "Son/s of Uncle/s are blocked by sisters"
+msgstr "ابن العم محجوب لوجود الأخت الشقيقة"
+
+#: .\calc\models.py:1502
+msgid "Son/s of Uncle/s are blocked by paternal brother/s"
+msgstr "ابن او أبناء العم محجوبون لوجود الأخ لأب"
+
+#: .\calc\models.py:1505
+msgid "Son/s of Uncle/s are blocked by paternal sister/s"
+msgstr "ابن او أبناء العم محجوبون لوجود الأخت لأب"
+
+#: .\calc\models.py:1508
+msgid "Son/s of Uncle/s are blocked by sons of brother"
+msgstr "ابن العم محجوب لوجود ابن الأخ"
+
+#: .\calc\models.py:1511
+msgid "Son/s of Uncle/s are blocked by sons of paternal brother"
+msgstr "ابن العم محجوب لوجود ابن الأخ لأب"
+
+#: .\calc\models.py:1514
+msgid "Son/s of Uncle/s are blocked by uncle/s"
+msgstr "ابن العم محجوب لوجود العم"
+
+#: .\calc\models.py:1517
+msgid "Son/s of Uncle/s are blocked by paternal uncle/s"
+msgstr "ابن العم محجوب لوجود العم لأب"
+
+#: .\calc\models.py:1520
+msgid ""
+"Son/s of Uncle/s share the remainder or all amount if no other heir exist"
+msgstr ""
+"ابن أو أبناء العم عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
+
+#: .\calc\models.py:1535
+msgid "Son/s of paternal uncle are blocked by male descendant"
+msgstr "ابن او أبناء العم لأب محجوبون لوجود الفرع الوارث الذكر"
+
+#: .\calc\models.py:1538
+msgid "Son/s of paternal Uncle/s are blocked by father"
+msgstr "ابن العم لأب محجوب لوجود الأب"
+
+#: .\calc\models.py:1541
+msgid "Son/s of paternal Uncle/s are blocked by grandfather"
+msgstr "ابن او أبناء العم لأب محجوبون لوجود الجد"
+
+#: .\calc\models.py:1544
+msgid "Son/s of paternal Uncle/s are blocked by brother/s"
+msgstr "ابن العم لأب محجوب لوجود الأخ الشقيق"
+
+#: .\calc\models.py:1547
+msgid "Son/s of paternal Uncle/s are blocked by sisters"
+msgstr "ابن العم لأب محجوب لوجود الأخوات الشقيقات"
+
+#: .\calc\models.py:1550
+msgid "Son/s of paternal Uncle/s are blocked by paternal brother/s"
+msgstr "ابن او أبناء العم لأب محجوبون لوجود الأخ لأب"
+
+#: .\calc\models.py:1553
+msgid "Son/s of paternal Uncle/s are blocked by paternal sister/s"
+msgstr "ابن او أبناء العم لأب محجوبون لوجود الأخت لأب"
+
+#: .\calc\models.py:1556
+msgid "Son/s of paternal Uncle/s are blocked by sons of brother"
+msgstr "ابن العم لأب محجوب لوجود ابن الأخ الشقيق"
+
+#: .\calc\models.py:1559
+msgid "Son/s of paternal Uncle/s are blocked by sons of paternal brother"
+msgstr "ابن العم لأب محجوب لوجود ابن الأخ لأب"
+
+#: .\calc\models.py:1562
+msgid "Son/s of paternal Uncle/s are blocked by uncle/s"
+msgstr "ابن العم لأب محجوب لوجود العم الشقيق"
+
+#: .\calc\models.py:1565
+msgid "Son/s of paternal Uncle/s are blocked by paternal uncle/s"
+msgstr "ابن العم لأب محجوب لوجود العم لأب"
+
+#: .\calc\models.py:1568
+msgid "Son/s of paternal Uncle/s are blocked by son/s of uncle/s"
+msgstr "ابن العم لأب محجوب بابن العم الشقيق"
+
+#: .\calc\models.py:1571
+msgid ""
+"Son/s of paternal Uncle/s share the remainder or all amount if no other heir "
+"exist"
+msgstr ""
+"ابن أو أبناء العم لأب عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة "
+"اخرين"
 
 #: .\calc\templates\calc\about.html:5 .\calc\templates\calc\about.html:12
 msgid "About Us"
@@ -248,7 +667,7 @@ msgid "Home"
 msgstr "الرئيسية"
 
 #: .\calc\templates\calc\base.html:52 .\calc\templates\calc\home.html:27
-#: .\calc\templates\calc\index.html:6
+#: .\calc\templates\calc\index.html:8
 msgid "Calculations"
 msgstr "مسائل"
 
@@ -269,7 +688,7 @@ msgid "login"
 msgstr "تسجيل دخول"
 
 #: .\calc\templates\calc\base.html:64 .\calc\templates\calc\home.html:56
-#: .\calc\templates\registration\login.html:81
+#: .\calc\templates\registration\login.html:80
 #: .\calc\templates\registration\signup.html:7
 msgid "Sign Up"
 msgstr "تسجيل"
@@ -303,7 +722,7 @@ msgid "All heirs will be deleted"
 msgstr "سيتم حذف جميع الورثة"
 
 #: .\calc\templates\calc\deceased_form.html:7
-#: .\calc\templates\calc\detail.html:29 .\calc\templates\calc\detail.html:117
+#: .\calc\templates\calc\detail.html:29 .\calc\templates\calc\detail.html:239
 msgid "Deceased"
 msgstr "الميت"
 
@@ -311,135 +730,247 @@ msgstr "الميت"
 msgid "Calculation name:"
 msgstr "اسم المسألة:"
 
-#: .\calc\templates\calc\detail.html:49
+#: .\calc\templates\calc\detail.html:55
 msgid "Deceased name:"
 msgstr "اسم الميت:"
 
-#: .\calc\templates\calc\detail.html:50
+#: .\calc\templates\calc\detail.html:56
 msgid "Deceased estate:"
 msgstr "التركة:"
 
-#: .\calc\templates\calc\detail.html:55
+#: .\calc\templates\calc\detail.html:61
 msgid "Mother"
 msgstr "ام"
 
-#: .\calc\templates\calc\detail.html:57
+#: .\calc\templates\calc\detail.html:63
 msgid " Mother"
 msgstr " ام"
 
-#: .\calc\templates\calc\detail.html:62
+#: .\calc\templates\calc\detail.html:68
 msgid "Father"
 msgstr "اب"
 
-#: .\calc\templates\calc\detail.html:64
+#: .\calc\templates\calc\detail.html:70
 msgid " Father"
 msgstr " اب"
 
-#: .\calc\templates\calc\detail.html:69
+#: .\calc\templates\calc\detail.html:75
 msgid "Wife"
 msgstr "زوجة"
 
-#: .\calc\templates\calc\detail.html:71
+#: .\calc\templates\calc\detail.html:77
 msgid " Wife"
 msgstr " زوجة"
 
-#: .\calc\templates\calc\detail.html:76
+#: .\calc\templates\calc\detail.html:82
 msgid "Husband"
 msgstr "زوج"
 
-#: .\calc\templates\calc\detail.html:78
+#: .\calc\templates\calc\detail.html:84
 msgid " Husband"
 msgstr " زوج"
 
-#: .\calc\templates\calc\detail.html:82
+#: .\calc\templates\calc\detail.html:88
 msgid "Daughter"
 msgstr "بنت"
 
-#: .\calc\templates\calc\detail.html:84
+#: .\calc\templates\calc\detail.html:90
 msgid " Daughter"
 msgstr " بنت"
 
-#: .\calc\templates\calc\detail.html:87
+#: .\calc\templates\calc\detail.html:93
 msgid "Son"
 msgstr "ابن"
 
-#: .\calc\templates\calc\detail.html:89
+#: .\calc\templates\calc\detail.html:95
 msgid " Son"
 msgstr " ابن"
 
-#: .\calc\templates\calc\detail.html:93
+#: .\calc\templates\calc\detail.html:101
+msgid " more"
+msgstr " المزيد"
+
+#: .\calc\templates\calc\detail.html:108
 msgid "Brother"
 msgstr "أخ"
 
-#: .\calc\templates\calc\detail.html:95
+#: .\calc\templates\calc\detail.html:110
 msgid " Brother"
 msgstr " أخ"
 
-#: .\calc\templates\calc\detail.html:100
+#: .\calc\templates\calc\detail.html:115
 msgid "Sister"
 msgstr "اخت"
 
-#: .\calc\templates\calc\detail.html:102
+#: .\calc\templates\calc\detail.html:117
 msgid " Sister"
 msgstr " اخت"
 
-#: .\calc\templates\calc\detail.html:108
-msgid "Grandfather"
+#: .\calc\templates\calc\detail.html:123
+msgid "GrandFather"
 msgstr "جد"
 
-#: .\calc\templates\calc\detail.html:110
+#: .\calc\templates\calc\detail.html:125
 msgid " Grandfather"
 msgstr "  جد"
 
-#: .\calc\templates\calc\detail.html:117
+#: .\calc\templates\calc\detail.html:131
+msgid "GrandMother"
+msgstr "جدة"
+
+#: .\calc\templates\calc\detail.html:133
+msgid " Grandmother"
+msgstr "  جدة"
+
+#: .\calc\templates\calc\detail.html:140
+msgid "SonOfSon"
+msgstr "ابن ابن"
+
+#: .\calc\templates\calc\detail.html:142
+msgid " Son of son"
+msgstr " ابن الابن"
+
+#: .\calc\templates\calc\detail.html:149
+msgid "DaughterOfSon"
+msgstr "بنت ابن"
+
+#: .\calc\templates\calc\detail.html:151
+msgid " Daughter of son"
+msgstr " بنت ابن"
+
+#: .\calc\templates\calc\detail.html:157
+msgid "PaternalSister"
+msgstr "أخت لأب"
+
+#: .\calc\templates\calc\detail.html:159
+msgid " Paternal sister"
+msgstr " أخت لأب"
+
+#: .\calc\templates\calc\detail.html:165
+msgid "PaternalBrother"
+msgstr "أخ لأب"
+
+#: .\calc\templates\calc\detail.html:167
+msgid " Paternal brother"
+msgstr " أخ لأب"
+
+#: .\calc\templates\calc\detail.html:173
+msgid "MaternalSister"
+msgstr "أخت لأم"
+
+#: .\calc\templates\calc\detail.html:175
+msgid " Maternal sister"
+msgstr " أخت لأم"
+
+#: .\calc\templates\calc\detail.html:181
+msgid "MaternalBrother"
+msgstr "أخ لأم"
+
+#: .\calc\templates\calc\detail.html:183
+msgid " Maternal brother"
+msgstr " أخ لأم"
+
+#: .\calc\templates\calc\detail.html:189
+msgid "SonOfBrother"
+msgstr "ابن أخ"
+
+#: .\calc\templates\calc\detail.html:191
+msgid " Son of brother"
+msgstr " ابن أخ"
+
+#: .\calc\templates\calc\detail.html:198
+msgid "Son of paternal brother"
+msgstr "ابن أخ لأب"
+
+#: .\calc\templates\calc\detail.html:200
+msgid " Son of paternal brother"
+msgstr " ابن أخ لأب"
+
+#: .\calc\templates\calc\detail.html:206
+msgid "Uncle"
+msgstr "عم"
+
+#: .\calc\templates\calc\detail.html:208
+msgid " Uncle"
+msgstr " عم"
+
+#: .\calc\templates\calc\detail.html:214
+msgid "Paternal uncle"
+msgstr "عم لأب"
+
+#: .\calc\templates\calc\detail.html:216
+msgid " Paternal uncle"
+msgstr " عم لأب"
+
+#: .\calc\templates\calc\detail.html:222
+msgid "Son of uncle"
+msgstr "ابن عم"
+
+#: .\calc\templates\calc\detail.html:224
+msgid " Son of uncle"
+msgstr " ابن عم"
+
+#: .\calc\templates\calc\detail.html:230
+msgid "Son of paternal uncle"
+msgstr "ابن عم لأب"
+
+#: .\calc\templates\calc\detail.html:232
+msgid " Son of paternal uncle"
+msgstr " ابن عم لأب"
+
+#: .\calc\templates\calc\detail.html:239
 msgid "Add Deceased"
 msgstr "اضافة الميت"
 
-#: .\calc\templates\calc\detail.html:124 .\calc\templates\calc\results.html:19
+#: .\calc\templates\calc\detail.html:246
+#: .\calc\templates\calc\new_results.html:20
+#: .\calc\templates\calc\results.html:19
 msgid "Relation"
 msgstr "القرابة"
 
-#: .\calc\templates\calc\detail.html:125 .\calc\templates\calc\results.html:17
+#: .\calc\templates\calc\detail.html:247
+#: .\calc\templates\calc\new_results.html:18
+#: .\calc\templates\calc\results.html:17
 msgid "Name"
 msgstr "الاسم"
 
-#: .\calc\templates\calc\detail.html:157 .\calc\templates\calc\detail.html:201
+#: .\calc\templates\calc\detail.html:279 .\calc\templates\calc\detail.html:323
 msgid "Add"
 msgstr "اضافة"
 
-#: .\calc\templates\calc\detail.html:161
+#: .\calc\templates\calc\detail.html:283
 msgid "First Name:"
 msgstr "الاسم الأول:"
 
-#: .\calc\templates\calc\detail.html:165
+#: .\calc\templates\calc\detail.html:287
 msgid "Last Name:"
 msgstr "الاسم الأخير:"
 
-#: .\calc\templates\calc\detail.html:169
+#: .\calc\templates\calc\detail.html:291
 msgid "Sex:"
 msgstr "الجنس:"
 
-#: .\calc\templates\calc\detail.html:171
+#: .\calc\templates\calc\detail.html:293
 msgid "Male"
 msgstr "ذكر"
 
-#: .\calc\templates\calc\detail.html:172
+#: .\calc\templates\calc\detail.html:294
 msgid "Female"
 msgstr "انثى"
 
-#: .\calc\templates\calc\detail.html:176
+#: .\calc\templates\calc\detail.html:298
 msgid "Estate:"
 msgstr "التركة:"
 
-#: .\calc\templates\calc\detail.html:181
+#: .\calc\templates\calc\detail.html:303
 msgid "Mother:"
 msgstr "ام:"
 
-#: .\calc\templates\calc\detail.html:184
+#: .\calc\templates\calc\detail.html:306
 msgid "--- Select Mother ---"
 msgstr "--- اختر الام ---"
 
-#: .\calc\templates\calc\detail.html:200
+#: .\calc\templates\calc\detail.html:322
 msgid "Close"
 msgstr "الغاء"
 
@@ -491,25 +1022,85 @@ msgstr "مجانا أو"
 msgid "if you are an exiting user."
 msgstr "اذا كنت مستخدم حالي."
 
-#: .\calc\templates\calc\index.html:14
+#: .\calc\templates\calc\index.html:16
 msgid "Create new calculation"
 msgstr "انشاء مسالة جديدة"
 
-#: .\calc\templates\calc\index.html:18
+#: .\calc\templates\calc\index.html:20
 msgid "Name your Calculation"
 msgstr "اعطي اسم للمسالة"
 
-#: .\calc\templates\calc\index.html:19
+#: .\calc\templates\calc\index.html:21
 msgid "Calculation name"
 msgstr "اسم المسألة"
 
-#: .\calc\templates\calc\index.html:21
+#: .\calc\templates\calc\index.html:23
 msgid "Submit and continue"
 msgstr "اضافة و استمرار"
 
-#: .\calc\templates\calc\index.html:22
+#: .\calc\templates\calc\index.html:24
 msgid "Save and add another"
 msgstr "حفظ و اضافة جديدة"
+
+#: .\calc\templates\calc\new_results.html:8
+#: .\calc\templates\calc\new_results.html:14
+#: .\calc\templates\calc\results.html:8
+msgid "Result"
+msgstr "النتيجة"
+
+#: .\calc\templates\calc\new_results.html:19
+#: .\calc\templates\calc\results.html:18
+msgid "Quote"
+msgstr "الفرض"
+
+#: .\calc\templates\calc\new_results.html:21
+#: .\calc\templates\calc\results.html:20
+msgid "Shares"
+msgstr "السهام"
+
+#: .\calc\templates\calc\new_results.html:23
+#: .\calc\templates\calc\results.html:22
+msgid "Excess"
+msgstr "العول"
+
+#: .\calc\templates\calc\new_results.html:26
+#: .\calc\templates\calc\results.html:25
+msgid "Shortage"
+msgstr "الرد"
+
+#: .\calc\templates\calc\new_results.html:29
+#: .\calc\templates\calc\results.html:28
+msgid "Shortage calc"
+msgstr "مسالة الرد"
+
+#: .\calc\templates\calc\new_results.html:30
+#: .\calc\templates\calc\results.html:29
+msgid "Calc Union"
+msgstr "الجامعة"
+
+#: .\calc\templates\calc\new_results.html:33
+#: .\calc\templates\calc\results.html:32
+msgid "Correction"
+msgstr "التصحيح"
+
+#: .\calc\templates\calc\new_results.html:35
+#: .\calc\templates\calc\results.html:34
+msgid "Amount"
+msgstr "القيمة"
+
+#: .\calc\templates\calc\new_results.html:63
+#: .\calc\templates\calc\new_results.html:105
+#: .\calc\templates\calc\results.html:88 .\calc\templates\calc\results.html:189
+#: .\calc\templates\calc\results.html:254 .\calc\templates\calc\results.html:305
+#: .\calc\templates\calc\results.html:376 .\calc\templates\calc\results.html:437
+msgid "asaba"
+msgstr "عصبة"
+
+#: .\calc\templates\calc\new_results.html:67
+#: .\calc\templates\calc\results.html:315 .\calc\templates\calc\results.html:383
+#: .\calc\templates\calc\results.html:441
+msgid "blocked"
+msgstr "محجوب"
 
 #: .\calc\templates\calc\privacy.html:5 .\calc\templates\calc\privacy.html:11
 msgid "Privacy Policy for Mawareeth 2.0"
@@ -913,53 +1504,6 @@ msgstr ""
 "13 عامًا. إذا كنت تعتقد أن طفلك قدم هذا النوع من المعلومات على موقعنا ،فنحن "
 "نشجعك بشدة على الاتصال بنا على الفور وسنبذل قصارى جهدنا من أجل إزالة هذه "
 "المعلومات على الفور من سجلاتنا."
-
-#: .\calc\templates\calc\results.html:8
-msgid "Result"
-msgstr "النتيجة"
-
-#: .\calc\templates\calc\results.html:18
-msgid "Quote"
-msgstr "الفرض"
-
-#: .\calc\templates\calc\results.html:20
-msgid "Shares"
-msgstr "السهام"
-
-#: .\calc\templates\calc\results.html:22
-msgid "Excess"
-msgstr "العول"
-
-#: .\calc\templates\calc\results.html:25
-msgid "Shortage"
-msgstr "الرد"
-
-#: .\calc\templates\calc\results.html:28
-msgid "Shortage calc"
-msgstr "مسالة الرد"
-
-#: .\calc\templates\calc\results.html:29
-msgid "Calc Union"
-msgstr "الجامعة"
-
-#: .\calc\templates\calc\results.html:32
-msgid "Correction"
-msgstr "التصحيح"
-
-#: .\calc\templates\calc\results.html:34
-msgid "Amount"
-msgstr "القيمة"
-
-#: .\calc\templates\calc\results.html:88 .\calc\templates\calc\results.html:189
-#: .\calc\templates\calc\results.html:248 .\calc\templates\calc\results.html:299
-#: .\calc\templates\calc\results.html:370 .\calc\templates\calc\results.html:427
-msgid "asaba"
-msgstr "عصبة"
-
-#: .\calc\templates\calc\results.html:309 .\calc\templates\calc\results.html:377
-#: .\calc\templates\calc\results.html:431
-msgid "blocked"
-msgstr "محجوب"
 
 #: .\calc\templates\calc\terms.html:13
 msgid "Welcome to Mawareeth.com!"
@@ -1480,21 +2024,21 @@ msgstr "اسم المستخدم"
 msgid "Password"
 msgstr "كلمة المرور"
 
-#: .\calc\templates\registration\login.html:60
+#: .\calc\templates\registration\login.html:62
 msgid "Sign in"
 msgstr "تسجيل الدخول"
 
-#: .\calc\templates\registration\login.html:68
-#: .\calc\templates\registration\signup.html:77
+#: .\calc\templates\registration\login.html:70
+#: .\calc\templates\registration\signup.html:76
 msgid "Login with Facebook"
 msgstr "الدخول بفيسبوك"
 
 #: .\calc\templates\registration\login.html:75
-#: .\calc\templates\registration\signup.html:84
+#: .\calc\templates\registration\signup.html:81
 msgid "Login with LinkedIn"
 msgstr "الدخول بلينكد إن"
 
-#: .\calc\templates\registration\login.html:83
+#: .\calc\templates\registration\login.html:82
 msgid "Lost password?"
 msgstr "نسيت كلمة المرور؟"
 
@@ -1612,27 +2156,27 @@ msgstr "ادخل البريد الالكتروني"
 msgid "Email:"
 msgstr "ايميل:"
 
-#: .\calc\templates\registration\signup.html:89
+#: .\calc\templates\registration\signup.html:85
 msgid "Already registered"
 msgstr "تم التسجيل سابقا"
 
-#: .\calc\views.py:38
+#: .\calc\views.py:41
 msgid "Decease already exist"
 msgstr "يوجد متوفى"
 
-#: .\calc\views.py:107 .\calc\views.py:315
+#: .\calc\views.py:110 .\calc\views.py:318
 msgid "Father already exist"
 msgstr "الاب موجود"
 
-#: .\calc\views.py:161
+#: .\calc\views.py:164
 msgid "Cann't have more than 4 wifes"
 msgstr "لا يمكن اضافة اكثر من 4 زوجات"
 
-#: .\calc\views.py:425
+#: .\calc\views.py:784
 msgid "Must enter a name for your calcualtion"
 msgstr "يجيب ادخال اسم للمسألة"
 
-#: .\calc\views.py:449
+#: .\calc\views.py:808
 msgid "user not allowed"
 msgstr "غير مسموح للمستخدم"
 
@@ -1667,6 +2211,9 @@ msgstr "تحديث"
 #: .\user_auth\views.py:17
 msgid "Your account has been updated!"
 msgstr "تم تحديث بياناتك بنجاح!"
+
+#~ msgid "Son of son"
+#~ msgstr "ابن ابن"
 
 #~ msgid "residuary for asaba"
 #~ msgstr "الباقي للعصبة"

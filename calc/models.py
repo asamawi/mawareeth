@@ -157,16 +157,16 @@ class Person(PolymorphicModel):
     def add_daughterOfSon(self, daughter):
         pass
 
-    def add_paternalHalfSister(self, sister):
+    def add_paternalSister(self, sister):
         pass
 
-    def add_paternalHalfBrother(self, brother):
+    def add_paternalBrother(self, brother):
         pass
 
-    def add_maternalHalfSister(self, sister):
+    def add_maternalSister(self, sister):
         pass
 
-    def add_maternalHalfBrother(self, brother):
+    def add_maternalBrother(self, brother):
         pass
 
     def add_sonOfBrother(self, sonOfBrother):
@@ -272,22 +272,22 @@ class Calculation(models.Model):
         heir.save()
         return heir
 
-    def add_paternalHalfSister(self, heir):
+    def add_paternalSister(self, heir):
         heir.add(calc=self)
         heir.save()
         return heir
 
-    def add_paternalHalfBrother(self, heir):
+    def add_paternalBrother(self, heir):
         heir.add(calc=self)
         heir.save()
         return heir
 
-    def add_maternalHalfSister(self, heir):
+    def add_maternalSister(self, heir):
         heir.add(calc=self)
         heir.save()
         return heir
 
-    def add_maternalHalfBrother(self, heir):
+    def add_maternalBrother(self, heir):
         heir.add(calc=self)
         heir.save()
         return heir
@@ -345,7 +345,7 @@ class Calculation(models.Model):
         return self.heir_set.instance_of(Daughter).count() > 0 or self.heir_set.instance_of(DaughterOfSon).count() > 0
 
     def has_siblings(self):
-        return self.heir_set.instance_of(Brother).count() + self.heir_set.instance_of(PaternalHalfBrother).count() + self.heir_set.instance_of(MaternalHalfBrother).count() + self.heir_set.instance_of(Sister).count() + self.heir_set.instance_of(PaternalHalfSister).count() + self.heir_set.instance_of(MaternalHalfSister).count() > 1
+        return self.heir_set.instance_of(Brother).count() + self.heir_set.instance_of(PaternalBrother).count() + self.heir_set.instance_of(MaternalBrother).count() + self.heir_set.instance_of(Sister).count() + self.heir_set.instance_of(PaternalSister).count() + self.heir_set.instance_of(MaternalSister).count() > 1
 
     def has_spouse(self):
         return self.heir_set.instance_of(Wife, Husband).count() > 0
@@ -377,11 +377,11 @@ class Calculation(models.Model):
     def has_sonOfSon(self):
         return self.heir_set.instance_of(SonOfSon).count() > 0
 
-    def has_paternalHalfBrother(self):
-        return self.heir_set.instance_of(PaternalHalfBrother).count() > 0
+    def has_paternalBrother(self):
+        return self.heir_set.instance_of(PaternalBrother).count() > 0
 
     def has_sonOfBrother(self):
-        return self.heir_set.instance_of(PaternalHalfBrother).count() > 0
+        return self.heir_set.instance_of(PaternalBrother).count() > 0
 
     def has_sonOfPaternalBrother(self):
         return self.heir_set.instance_of(SonOfPaternalBrother).count() > 0
@@ -427,8 +427,8 @@ class Calculation(models.Model):
     def get_grandFather(self):
         return self.heir_set.instance_of(GrandFather).first()
 
-    def get_paternalHalfSisters(self):
-        return self.heir_set.instance_of(PaternalHalfSister)
+    def get_paternalSisters(self):
+        return self.heir_set.instance_of(PaternalSister)
 
     def get_heirs_no_spouse(self):
         return self.heir_set.not_instance_of(Husband, Wife)
@@ -1178,14 +1178,14 @@ class DaughterOfSon(Heir):
         return self.quote
 
 
-class PaternalHalfSister(Heir):
-    """PaternalHalfSister Class"""
+class PaternalSister(Heir):
+    """PaternalSister Class"""
     def add(self, calc):
-        calc.deceased_set.first().add_paternalHalfSister(sister=self)
+        calc.deceased_set.first().add_paternalSister(sister=self)
 
     def get_quote(self, calc):
-        paternalHalfSisters = calc.heir_set.instance_of(PaternalHalfSister)
-        if paternalHalfSisters.count() > 1:
+        paternalSisters = calc.heir_set.instance_of(PaternalSister)
+        if paternalSisters.count() > 1:
             self.shared_quote = True
         if calc.has_male_descendent():
             self.blocked = True
@@ -1199,7 +1199,7 @@ class PaternalHalfSister(Heir):
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Paternal sister/s are blocked by borther/s")
-        elif calc.has_paternalHalfBrother():
+        elif calc.has_paternalBrother():
             self.asaba = True
             self.quote_reason = _("Paternal sister/s with paternal half borther/s share the remainder or all the amount if no other heir exist. The brother will receive a share of two sisters")
         elif calc.has_sister():
@@ -1213,7 +1213,7 @@ class PaternalHalfSister(Heir):
         elif calc.has_female_descendent():
             self.asaba = True
             self.quote_reason = _("Paternal sister/s with female descendant share the remainder")
-        elif paternalHalfSisters.count() == 1:
+        elif paternalSisters.count() == 1:
             self.quote = 1/2
             self.quote_reason = _("Paternal sister gets half when no father or son. ")
         else:
@@ -1222,14 +1222,14 @@ class PaternalHalfSister(Heir):
         self.save()
         return self.quote
 
-class PaternalHalfBrother(Heir):
-    """PaternalHalfBrother Class"""
+class PaternalBrother(Heir):
+    """PaternalBrother Class"""
     def add(self, calc):
-        calc.deceased_set.first().add_paternalHalfBrother(brother=self)
+        calc.deceased_set.first().add_paternalBrother(brother=self)
 
     def get_quote(self, calc):
-        paternalHalfBrothers = calc.heir_set.instance_of(PaternalHalfBrother)
-        if paternalHalfBrothers.count() > 1:
+        paternalBrothers = calc.heir_set.instance_of(PaternalBrother)
+        if paternalBrothers.count() > 1:
             self.shared_quote = True
         if calc.has_male_descendent():
             self.blocked = True
@@ -1257,14 +1257,14 @@ class PaternalHalfBrother(Heir):
         self.save()
         return self.quote
 
-class MaternalHalfSister(Heir):
-    """MaternalHalfSister Class"""
+class MaternalSister(Heir):
+    """MaternalSister Class"""
     def add(self, calc):
-        calc.deceased_set.first().add_maternalHalfSister(sister=self)
+        calc.deceased_set.first().add_maternalSister(sister=self)
 
     def get_quote(self, calc):
-        maternalHalfSisters = calc.heir_set.instance_of(MaternalHalfSister)
-        if maternalHalfSisters.count() > 1:
+        maternalSisters = calc.heir_set.instance_of(MaternalSister)
+        if maternalSisters.count() > 1:
             self.shared_quote = True
         if calc.has_descendent():
             self.blocked = True
@@ -1275,7 +1275,7 @@ class MaternalHalfSister(Heir):
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Maternal sister/s are blocked by grandfather")
-        elif maternalHalfSisters.count() == 1:
+        elif maternalSisters.count() == 1:
             self.quote =  1/6
             self.quote_reason = _("Maternal sister get 1/6")
         else:
@@ -1284,14 +1284,14 @@ class MaternalHalfSister(Heir):
         self.save()
         return self.quote
 
-class MaternalHalfBrother(Heir):
-    """MaternalHalfBrother Class"""
+class MaternalBrother(Heir):
+    """MaternalBrother Class"""
     def add(self, calc):
-        calc.deceased_set.first().add_maternalHalfBrother(brother=self)
+        calc.deceased_set.first().add_maternalBrother(brother=self)
 
     def get_quote(self, calc):
-        MaternalHalfBrothers = calc.heir_set.instance_of(MaternalHalfBrother)
-        if MaternalHalfBrothers.count() > 1:
+        MaternalBrothers = calc.heir_set.instance_of(MaternalBrother)
+        if MaternalBrothers.count() > 1:
             self.shared_quote = True
         if calc.has_descendent():
             self.blocked = True
@@ -1302,7 +1302,7 @@ class MaternalHalfBrother(Heir):
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Maternal brother/s are blocked by grandfather")
-        elif MaternalHalfBrothers.count() == 1:
+        elif MaternalBrothers.count() == 1:
             self.quote =  1/6
             self.quote_reason = _("Maternal brother get 1/6")
         else:
@@ -1335,10 +1335,10 @@ class SonOfBrother(Heir):
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by sisters")
-        elif calc.has_paternalHalfBrother():
+        elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().filter(asaba=True):
+        elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by paternal sister/s")
         else:
@@ -1371,10 +1371,10 @@ class SonOfPaternalBrother(Heir):
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by sisters")
-        elif calc.has_paternalHalfBrother():
+        elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().filter(asaba=True):
+        elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by paternal sister/s")
         elif calc.has_sonOfBrother():
@@ -1410,10 +1410,10 @@ class Uncle(Heir):
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by sisters")
-        elif calc.has_paternalHalfBrother():
+        elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().filter(asaba=True):
+        elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by paternal sister/s")
         elif calc.has_sonOfBrother():
@@ -1452,10 +1452,10 @@ class PaternalUncle(Heir):
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by sisters")
-        elif calc.has_paternalHalfBrother():
+        elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().filter(asaba=True):
+        elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by paternal sister/s")
         elif calc.has_sonOfBrother():
@@ -1497,10 +1497,10 @@ class SonOfUncle(Heir):
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by sisters")
-        elif calc.has_paternalHalfBrother():
+        elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().filter(asaba=True):
+        elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by paternal sister/s")
         elif calc.has_sonOfBrother():
@@ -1545,10 +1545,10 @@ class SonOfPaternalUncle(Heir):
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by sisters")
-        elif calc.has_paternalHalfBrother():
+        elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by paternal brother/s")
-        elif calc.get_paternalHalfSisters().filter(asaba=True):
+        elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by paternal sister/s")
         elif calc.has_sonOfBrother():

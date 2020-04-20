@@ -405,11 +405,11 @@ class DaughterOfSonCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_daughterOfSon(self.object)
 		return super().form_valid(form)
 
-class PaternalHalfSisterCreate(WaffleFlagMixin, CreateView):
-	model = PaternalHalfSister
+class PaternalSisterCreate(WaffleFlagMixin, CreateView):
+	model = PaternalSister
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
-	waffle_flag = "PaternalHalfSister"
+	waffle_flag = "PaternalSister"
 
 	def dispatch(self, request, *args, **kwargs):
 		"""
@@ -427,14 +427,14 @@ class PaternalHalfSisterCreate(WaffleFlagMixin, CreateView):
 		self.object = form.save()
 		self.object.sex="F"
 		self.object.save()
-		form.instance.calc.add_paternalHalfSister(self.object)
+		form.instance.calc.add_paternalSister(self.object)
 		return super().form_valid(form)
 
-class PaternalHalfBrotherCreate(WaffleFlagMixin, CreateView):
-	model = PaternalHalfBrother
+class PaternalBrotherCreate(WaffleFlagMixin, CreateView):
+	model = PaternalBrother
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
-	waffle_flag = "PaternalHalfBrother"
+	waffle_flag = "PaternalBrother"
 
 	def dispatch(self, request, *args, **kwargs):
 		"""
@@ -452,14 +452,14 @@ class PaternalHalfBrotherCreate(WaffleFlagMixin, CreateView):
 		self.object = form.save()
 		self.object.sex="M"
 		self.object.save()
-		form.instance.calc.add_paternalHalfBrother(self.object)
+		form.instance.calc.add_paternalBrother(self.object)
 		return super().form_valid(form)
 
-class MaternalHalfSisterCreate(WaffleFlagMixin, CreateView):
-	model = MaternalHalfSister
+class MaternalSisterCreate(WaffleFlagMixin, CreateView):
+	model = MaternalSister
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
-	waffle_flag = "MaternalHalfSister"
+	waffle_flag = "MaternalSister"
 
 	def dispatch(self, request, *args, **kwargs):
 		"""
@@ -477,14 +477,14 @@ class MaternalHalfSisterCreate(WaffleFlagMixin, CreateView):
 		self.object = form.save()
 		self.object.sex="F"
 		self.object.save()
-		form.instance.calc.add_maternalHalfSister(self.object)
+		form.instance.calc.add_maternalSister(self.object)
 		return super().form_valid(form)
 
-class MaternalHalfBrotherCreate(WaffleFlagMixin, CreateView):
-	model = MaternalHalfBrother
+class MaternalBrotherCreate(WaffleFlagMixin, CreateView):
+	model = MaternalBrother
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
-	waffle_flag = "MaternalHalfBrother"
+	waffle_flag = "MaternalBrother"
 
 	def dispatch(self, request, *args, **kwargs):
 		"""
@@ -502,7 +502,7 @@ class MaternalHalfBrotherCreate(WaffleFlagMixin, CreateView):
 		self.object = form.save()
 		self.object.sex="M"
 		self.object.save()
-		form.instance.calc.add_maternalHalfBrother(self.object)
+		form.instance.calc.add_maternalBrother(self.object)
 		return super().form_valid(form)
 
 class SonOfBrotherCreate(WaffleFlagMixin, CreateView):

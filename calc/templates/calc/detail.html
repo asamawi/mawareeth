@@ -120,7 +120,7 @@ data-url="{% url 'calc:sister' calculation.id %}">
 {% flag "GrandFather" %}
 {% if GrandFather.count == 0 %}
 <button type="button" class="btn btn-primary" data-toggle="modal"
-data-target="#add" data-name="GrandFather" data-heir="{% trans 'Grandfather' %}"
+data-target="#add" data-name="GrandFather" data-heir="{% trans 'GrandFather' %}"
 data-url="{% url 'calc:grandFather' calculation.id %}">
 {% icon 'plus' %}{%trans ' Grandfather' %}
 </button>
@@ -128,7 +128,7 @@ data-url="{% url 'calc:grandFather' calculation.id %}">
 {% endflag %}
 {% flag "GrandMother" %}
 <button type="button" class="btn btn-primary" data-toggle="modal"
-data-target="#add" data-name="GrandMother" data-heir="{% trans 'Grandmother' %}"
+data-target="#add" data-name="GrandMother" data-heir="{% trans 'GrandMother' %}"
 data-url="{% url 'calc:grandMother' calculation.id %}">
 {% icon 'plus' %}{%trans ' Grandmother' %}
 </button>
@@ -137,7 +137,7 @@ data-url="{% url 'calc:grandMother' calculation.id %}">
 
 {% flag "SonOfSon" %}
 <button type="button" class="btn btn-primary" data-toggle="modal"
-data-target="#add" data-name="SonOfSon" data-heir="{% trans 'Son of son' %}"
+data-target="#add" data-name="SonOfSon" data-heir="{% trans 'SonOfSon' %}"
 data-url="{% url 'calc:sonOfSon' calculation.id %}">
 {% icon 'plus' %}{%trans ' Son of son' %}
 </button>
@@ -146,47 +146,47 @@ data-url="{% url 'calc:sonOfSon' calculation.id %}">
 
 {% flag "DaughterOfSon" %}
 <button type="button" class="btn btn-primary" data-toggle="modal"
-data-target="#add" data-name="DaughterOfSon" data-heir="{% trans 'Daughter of son' %}"
+data-target="#add" data-name="DaughterOfSon" data-heir="{% trans 'DaughterOfSon' %}"
 data-url="{% url 'calc:daughterOfSon' calculation.id %}">
 {% icon 'plus' %}{%trans ' Daughter of son' %}
 </button>
 {% endflag %}
 
-{% flag "PaternalHalfSister" %}
+{% flag "PaternalSister" %}
 <button type="button" class="btn btn-primary" data-toggle="modal"
-data-target="#add" data-name="PaternalHalfSister" data-heir="{% trans 'Paternal sister' %}"
-data-url="{% url 'calc:paternalHalfSister' calculation.id %}">
+data-target="#add" data-name="PaternalSister" data-heir="{% trans 'PaternalSister' %}"
+data-url="{% url 'calc:paternalSister' calculation.id %}">
 {% icon 'plus' %}{%trans ' Paternal sister' %}
 </button>
 {% endflag %}
 
-{% flag "PaternalHalfBrother" %}
+{% flag "PaternalBrother" %}
 <button type="button" class="btn btn-primary" data-toggle="modal"
-data-target="#add" data-name="PaternalHalfBrother" data-heir="{% trans 'Paternal brother' %}"
-data-url="{% url 'calc:paternalHalfBrother' calculation.id %}">
+data-target="#add" data-name="PaternalBrother" data-heir="{% trans 'PaternalBrother' %}"
+data-url="{% url 'calc:paternalBrother' calculation.id %}">
 {% icon 'plus' %}{%trans ' Paternal brother' %}
 </button>
 {% endflag %}
 
-{% flag "MaternalHalfSister" %}
+{% flag "MaternalSister" %}
 <button type="button" class="btn btn-primary" data-toggle="modal"
-data-target="#add" data-name="MaternalHalfSister" data-heir="{% trans 'Maternal sister' %}"
-data-url="{% url 'calc:maternalHalfSister' calculation.id %}">
+data-target="#add" data-name="MaternalSister" data-heir="{% trans 'MaternalSister' %}"
+data-url="{% url 'calc:maternalSister' calculation.id %}">
 {% icon 'plus' %}{%trans ' Maternal sister' %}
 </button>
 {% endflag %}
 
-{% flag "MaternalHalfBrother" %}
+{% flag "MaternalBrother" %}
 <button type="button" class="btn btn-primary" data-toggle="modal"
-data-target="#add" data-name="MaternalHalfBrother" data-heir="{% trans 'Maternal brother' %}"
-data-url="{% url 'calc:maternalHalfBrother' calculation.id %}">
+data-target="#add" data-name="MaternalBrother" data-heir="{% trans 'MaternalBrother' %}"
+data-url="{% url 'calc:maternalBrother' calculation.id %}">
 {% icon 'plus' %}{%trans ' Maternal brother' %}
 </button>
 {% endflag %}
 
 {% flag "SonOfBrother" %}
 <button type="button" class="btn btn-primary" data-toggle="modal"
-data-target="#add" data-name="SonOfBrother" data-heir="{% trans 'Son of brother' %}"
+data-target="#add" data-name="SonOfBrother" data-heir="{% trans 'SonOfBrother' %}"
 data-url="{% url 'calc:sonOfBrother' calculation.id %}">
 {% icon 'plus' %}{%trans ' Son of brother' %}
 </button>
