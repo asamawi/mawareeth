@@ -40,15 +40,14 @@
         </a>
 
         {% switch "new_results" %}
-        <a href="{% url 'calc:new_results' calculation.id %}"
+        <a class="float-right btn btn-primary a-btn-slide-text" href="{% url 'calc:new_results' calculation.id %}">
         <span>{% icon 'calculator' %}</span>
         </a>
         {% else %}
-        <a href="{% url 'calc:results' calculation.id %}"
+        <a class="float-right btn btn-primary a-btn-slide-text" href="{% url 'calc:results' calculation.id %}">
         <span>{% icon 'calculator' %}</span>
-        </a>    
+        </a>
         {% endswitch %}
-        class="float-right btn btn-primary a-btn-slide-text">
 
     </div>
     <div class="card-body">

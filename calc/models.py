@@ -394,6 +394,8 @@ class Calculation(models.Model):
 
     def has_sonOfUncle(self):
         return self.heir_set.instance_of(SonOfUncle).count() > 0
+    def has_daughter(self):
+        return self.heir_set.instance_of(Daughter).count() > 0
 
     def get_father(self):
         return self.heir_set.instance_of(Father).first()
