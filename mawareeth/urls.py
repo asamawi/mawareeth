@@ -66,6 +66,7 @@ calc_patterns = ([
 	path('<int:calc_id>/sonOfUncle', calc_views.SonOfUncleCreate.as_view(), name='sonOfUncle'),
 	path('<int:calc_id>/sonOfPaternalUncle', calc_views.SonOfPaternalUncleCreate.as_view(), name='sonOfPaternalUncle'),
     path('<int:pk>/results/', calc_views.ResultsView.as_view(), name='results'),
+    path('<int:pk>/new-results/', calc_views.NewResultsView.as_view(), name='new_results'),
     path('error/', calc_views.error, name='error'),
     path('signup/', calc_views.SignUp.as_view(), name='signup'),
 

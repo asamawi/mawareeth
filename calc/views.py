@@ -714,6 +714,7 @@ class DetailView(LoginRequired, generic.DetailView):
 class NewResultsView(WaffleSwitchMixin, LoginRequired, generic.DetailView):
 	model = Calculation
 	template_name = 'calc/new_results.html'
+	waffle_switch= "new_results"
 
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)

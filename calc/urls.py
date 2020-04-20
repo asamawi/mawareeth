@@ -40,6 +40,7 @@ urlpatterns = [
 	path('<int:calc_id>/sonOfUncle', views.SonOfUncleCreate.as_view(), name='sonOfUncle'),
 	path('<int:calc_id>/sonOfPaternalUncle', views.SonOfPaternalUncleCreate.as_view(), name='sonOfPaternalUncle'),
 	path('<int:pk>/results/', views.ResultsView.as_view(), name='results'),
+	path('<int:pk>/new-results/', views.NewResultsView.as_view(), name='new_results'),
 	path('error/', views.error, name='error'),
 	path('signup/', views.SignUp.as_view(), name='signup'),
 ]

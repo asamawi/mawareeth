@@ -2,6 +2,8 @@
 {% load static %}
 {% load i18n %}
 {% load icons %}
+{% load waffle_tags %}
+
 {% block title %}
 {% trans "Calculations" %}
 {% endblock %}
@@ -36,22 +38,28 @@
       {% if calculation_list %}
       {% for calculation in calculation_list %}
       <li class="list-group-item">
-        <a href="{% url 'calc:results' calculation.id %}">
-          {{calculation.name}}
-        </a>
-        <a href="{% url 'calc:delete' calculation.id %}"
-        class="float-right btn btn-primary a-btn-slide-text">
-        <span>{% icon 'trash-o' %}</span>
+        {% switch "new_results" %}
+        <a href="{% url 'calc:new_results' calculation.id %}"> {{calculation.name}}
       </a>
-      <a href="{% url 'calc:detail' calculation.id %}"
-      class="float-right btn btn-primary a-btn-slide-text">
-      <span>{% icon 'edit' %}</span>
+      {% else %}
+      <a href="{% url 'calc:results' calculation.id %}"> {{calculation.name}}
     </a>
-  </li>
-  {% endfor %}
-  {% else %}
-  <li class="list-group-item">No calculation available.</li>
-  {% endif %}
+    {% endswitch %}
+
+
+    <a href="{% url 'calc:delete' calculation.id %}"
+    class="float-right btn btn-primary a-btn-slide-text">
+    <span>{% icon 'trash-o' %}</span>
+  </a>
+  <a href="{% url 'calc:detail' calculation.id %}"
+  class="float-right btn btn-primary a-btn-slide-text">
+  <span>{% icon 'edit' %}</span>
+</a>
+</li>
+{% endfor %}
+{% else %}
+<li class="list-group-item">No calculation available.</li>
+{% endif %}
 </ul>
 </div>
 </div>
