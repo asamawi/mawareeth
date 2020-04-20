@@ -69,16 +69,16 @@
             {% elif heir.shared_quote == False %}
             <td>{{ heir.get_fraction }}</td>
             {% else %}
-            <td>
-
+            <td class="mergefraction" data-ctype="{{heir.polymorphic_ctype_id}}">
+                {{ heir.get_fraction }}
               </td>
             {% endif %}
             <td>{{heir|get_class}}</td>
-            {% if heir.shared_quote == False %}
+            {% if heir.shared_quote == False or heir.correction == False %}
             <td>{{ heir.share }}</td>
             {% else %}
-            <td>
-
+            <td class="mergeshare" data-ctype="{{heir.polymorphic_ctype_id}}">
+              {{ heir.share }}
               </td>
             {% endif %}
             {% if calculation.excess == True %}
@@ -208,5 +208,14 @@
     $('[data-toggle="tooltip"]').tooltip()
   })
 </script>
-
+<script type="text/javascript">
+  var fractioncount =$("td.mergefraction").length;
+  $("td.mergefraction:first").attr('rowspan', fractioncount);
+  $("td.mergefraction").not(":first").remove();
+  $("td.mergefraction:first").attr('class',"align-middle")
+  var sharecount =$("td.mergeshare").length;
+  $("td.mergeshare:first").attr('rowspan', sharecount);
+  $("td.mergeshare").not(":first").remove();
+  $("td.mergeshare:first").attr('class',"align-middle")
+</script>
 {% endblock %}

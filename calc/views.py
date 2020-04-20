@@ -14,7 +14,8 @@ from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.utils.translation import gettext as _
 from django.views.generic.base import TemplateView
 from .models import *
-from waffle.mixins import WaffleFlagMixin
+from waffle.mixins import WaffleFlagMixin, WaffleSwitchMixin
+
 import waffle
 
 
@@ -710,6 +711,38 @@ class DetailView(LoginRequired, generic.DetailView):
 		context['Heirs'] = self.object.heir_set.order_by('polymorphic_ctype_id')
 		return context
 
+class NewResultsView(WaffleSwitchMixin, LoginRequired, generic.DetailView):
+	model = Calculation
+	template_name = 'calc/new_results.html'
+	waffle_switch= "new_results"
+
+	def get_context_data(self, **kwargs):
+		context = super().get_context_data(**kwargs)
+		context['Father'] = self.object.heir_set.instance_of(Father)
+		context['Mother'] = self.object.heir_set.instance_of(Mother)
+		context['Wife'] = self.object.heir_set.instance_of(Wife)
+		context['Husband'] = self.object.heir_set.instance_of(Husband)
+		context['Daughter'] = self.object.heir_set.instance_of(Daughter)
+		context['Son'] = self.object.heir_set.instance_of(Son)
+		context['Brother'] = self.object.heir_set.instance_of(Brother)
+		context['Sister'] = self.object.heir_set.instance_of(Sister)
+		context['GrandFather'] = self.object.heir_set.instance_of(GrandFather)
+		context['female_asaba'] = self.object.heir_set.filter(asaba=True,sex="F")
+		context['asaba'] = self.object.heir_set.filter(asaba=True).order_by('polymorphic_ctype_id')
+		context['Heirs'] = self.object.heir_set.filter(asaba=False).order_by('polymorphic_ctype_id')
+		context['Spouse'] = self.object.heir_set.instance_of(Husband, Wife)
+		context['No_Spouse'] = self.object.heir_set.not_instance_of(Husband, Wife)
+		return context
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_object_or_404(Calculation, pk=kwargs['pk'])
+		self.calc.compute()
+		return super().dispatch(request, *args, **kwargs)
+
 class ResultsView(LoginRequired, generic.DetailView):
 	model = Calculation
 	template_name = 'calc/results.html'
@@ -730,11 +763,6 @@ class ResultsView(LoginRequired, generic.DetailView):
 		context['Heirs'] = self.object.heir_set.filter(asaba=False).order_by('polymorphic_ctype_id')
 		context['Spouse'] = self.object.heir_set.instance_of(Husband, Wife)
 		context['No_Spouse'] = self.object.heir_set.not_instance_of(Husband, Wife)
-
-
-
-
-
 		return context
 
 	def dispatch(self, request, *args, **kwargs):
