@@ -39,7 +39,7 @@
           <span>{% icon 'edit' %}</span>
         </a>
 
-        {% switch "new_results" %}
+        {% flag "new_results" %}
         <a class="float-right btn btn-primary a-btn-slide-text" href="{% url 'calc:new_results' calculation.id %}">
         <span>{% icon 'calculator' %}</span>
         </a>
@@ -47,7 +47,7 @@
         <a class="float-right btn btn-primary a-btn-slide-text" href="{% url 'calc:results' calculation.id %}">
         <span>{% icon 'calculator' %}</span>
         </a>
-        {% endswitch %}
+        {% endflag %}
 
     </div>
     <div class="card-body">

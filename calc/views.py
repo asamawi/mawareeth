@@ -711,10 +711,10 @@ class DetailView(LoginRequired, generic.DetailView):
 		context['Heirs'] = self.object.heir_set.order_by('polymorphic_ctype_id')
 		return context
 
-class NewResultsView(WaffleSwitchMixin, LoginRequired, generic.DetailView):
+class NewResultsView(WaffleFlagMixin, LoginRequired, generic.DetailView):
 	model = Calculation
 	template_name = 'calc/new_results.html'
-	waffle_switch= "new_results"
+	waffle_flag= "new_results"
 
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)

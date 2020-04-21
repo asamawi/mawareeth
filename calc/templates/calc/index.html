@@ -38,13 +38,13 @@
       {% if calculation_list %}
       {% for calculation in calculation_list %}
       <li class="list-group-item">
-        {% switch "new_results" %}
+        {% flag "new_results" %}
         <a href="{% url 'calc:new_results' calculation.id %}"> {{calculation.name}}
       </a>
       {% else %}
       <a href="{% url 'calc:results' calculation.id %}"> {{calculation.name}}
     </a>
-    {% endswitch %}
+    {% endflag %}
 
 
     <a href="{% url 'calc:delete' calculation.id %}"
