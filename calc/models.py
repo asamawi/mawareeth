@@ -220,6 +220,7 @@ class Calculation(models.Model):
     shares_excess = models.IntegerField(default=0)
     shares_corrected = models.IntegerField(default=0)
     shares_shorted = models.IntegerField(default=0)
+    maternal_quote = models.BooleanField(default=False)
 
     user = models.ForeignKey(User,on_delete=models.CASCADE,null=True)
     name = models.CharField(max_length=200)
@@ -394,8 +395,15 @@ class Calculation(models.Model):
 
     def has_sonOfUncle(self):
         return self.heir_set.instance_of(SonOfUncle).count() > 0
+
     def has_daughter(self):
         return self.heir_set.instance_of(Daughter).count() > 0
+
+    def has_maternalSister(self):
+        return self.heir_set.instance_of(MaternalSister).count() > 0
+
+    def has_maternalBrother(self):
+        return self.heir_set.instance_of(MaternalBrother).count() > 0
 
     def get_father(self):
         return self.heir_set.instance_of(Father).first()
@@ -734,7 +742,10 @@ class Heir(Person):
         if self.quote != 0 and self.asaba == False:
             share = calc.shares * self.get_fraction().numerator // self.get_fraction().denominator
             if self.shared_quote == True:
-                count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
+                if calc.maternal_quote == True:
+                    count = calc.heir_set.instance_of(MaternalSister, MaternalBrother).count()
+                else:
+                    count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
                 if share % count == 0:
                     self.share = share // count
                     self.save()
@@ -1275,6 +1286,12 @@ class MaternalSister(Heir):
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Maternal sister/s are blocked by grandfather")
+        elif calc.has_maternalBrother():
+            calc.maternal_quote = True
+            calc.save()
+            self.shared_quote = True
+            self.quote = 1/3
+            self.quote_reason = _("Maternal sister/s with maternal brother/s share 1/3")
         elif maternalSisters.count() == 1:
             self.quote =  1/6
             self.quote_reason = _("Maternal sister get 1/6")
@@ -1302,6 +1319,12 @@ class MaternalBrother(Heir):
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Maternal brother/s are blocked by grandfather")
+        elif calc.has_maternalSister():
+            calc.maternal_quote = True
+            calc.save()
+            self.shared_quote = True
+            self.quote = 1/3
+            self.quote_reason = _("Maternal brother/s with maternal sister/s share 1/3")
         elif MaternalBrothers.count() == 1:
             self.quote =  1/6
             self.quote_reason = _("Maternal brother get 1/6")
