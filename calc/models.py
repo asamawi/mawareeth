@@ -1172,7 +1172,7 @@ class DaughterOfSon(Heir):
             self.asaba = True
             self.quote_reason = _("Daughter/s of son with Son/s of son share the residuary. The son of son will receive a share of two daughters of son.")
         elif calc.has_daughter():
-            daugters = calc.heir_set.instance_of(Daughter)
+            daughters = calc.heir_set.instance_of(Daughter)
             if daughters.count()==1:
                 self.quote = 1/6
                 self.quote_reason = _("Daughter of son get 1/6, with daughter")
