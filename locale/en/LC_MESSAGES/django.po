@@ -7,15 +7,15 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-21 19:36+0300\n"
-"PO-Revision-Date: 2020-04-21 20:06+0300\n"
+"POT-Creation-Date: 2020-04-21 22:29+0300\n"
+"PO-Revision-Date: 2020-04-21 22:31+0300\n"
+"Last-Translator: \n"
+"Language-Team: \n"
 "Language: en\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"Last-Translator: \n"
-"Language-Team: \n"
 "X-Generator: Poedit 2.3\n"
 
 #: .\calc\forms.py:7 .\calc\forms.py:12
@@ -893,8 +893,8 @@ msgid " Son of brother"
 msgstr " Son of brother"
 
 #: .\calc\templates\calc\detail.html:198
-msgid "Son of paternal brother"
-msgstr "Son of paternal brother"
+msgid "SonOfPaternalBrother"
+msgstr "Son of Paternal brother"
 
 #: .\calc\templates\calc\detail.html:200
 msgid " Son of paternal brother"
@@ -909,7 +909,7 @@ msgid " Uncle"
 msgstr " Uncle"
 
 #: .\calc\templates\calc\detail.html:214
-msgid "Paternal uncle"
+msgid "PaternalUncle"
 msgstr "Paternal uncle"
 
 #: .\calc\templates\calc\detail.html:216
@@ -917,7 +917,7 @@ msgid " Paternal uncle"
 msgstr " Paternal uncle"
 
 #: .\calc\templates\calc\detail.html:222
-msgid "Son of uncle"
+msgid "SonOfUncle"
 msgstr "Son of uncle"
 
 #: .\calc\templates\calc\detail.html:224
@@ -925,7 +925,7 @@ msgid " Son of uncle"
 msgstr " Son of uncle"
 
 #: .\calc\templates\calc\detail.html:230
-msgid "Son of paternal uncle"
+msgid "SonOfPaternalUncle"
 msgstr "Son of paternal uncle"
 
 #: .\calc\templates\calc\detail.html:232
@@ -2267,3 +2267,6 @@ msgstr "Update"
 #: .\user_auth\views.py:17
 msgid "Your account has been updated!"
 msgstr "Your account has been updated!"
+
+#~ msgid "Son of paternal brother"
+#~ msgstr "Son of paternal brother"

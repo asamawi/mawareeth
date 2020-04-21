@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-21 19:01+0300\n"
-"PO-Revision-Date: 2020-04-21 21:05+0300\n"
+"POT-Creation-Date: 2020-04-21 22:29+0300\n"
+"PO-Revision-Date: 2020-04-21 22:37+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: fr\n"
@@ -912,8 +912,8 @@ msgid " Son of brother"
 msgstr " Fils de frère"
 
 #: .\calc\templates\calc\detail.html:198
-msgid "Son of paternal brother"
-msgstr "Fils de frère paternel"
+msgid "SonOfPaternalBrother"
+msgstr "Fils du frère paternel"
 
 #: .\calc\templates\calc\detail.html:200
 msgid " Son of paternal brother"
@@ -928,7 +928,7 @@ msgid " Uncle"
 msgstr " Oncle"
 
 #: .\calc\templates\calc\detail.html:214
-msgid "Paternal uncle"
+msgid "PaternalUncle"
 msgstr "Oncle paternel"
 
 #: .\calc\templates\calc\detail.html:216
@@ -936,7 +936,7 @@ msgid " Paternal uncle"
 msgstr " Oncle paternel"
 
 #: .\calc\templates\calc\detail.html:222
-msgid "Son of uncle"
+msgid "SonOfUncle"
 msgstr "Fils d'oncle"
 
 #: .\calc\templates\calc\detail.html:224
@@ -944,7 +944,7 @@ msgid " Son of uncle"
 msgstr " Fils d'oncle"
 
 #: .\calc\templates\calc\detail.html:230
-msgid "Son of paternal uncle"
+msgid "SonOfPaternalUncle"
 msgstr "Fils de l'oncle paternel"
 
 #: .\calc\templates\calc\detail.html:232
@@ -2339,3 +2339,6 @@ msgstr "Mise à jour"
 #: .\user_auth\views.py:17
 msgid "Your account has been updated!"
 msgstr "Votre compte a été mis à jour!"
+
+#~ msgid "Son of paternal brother"
+#~ msgstr "Fils de frère paternel"
