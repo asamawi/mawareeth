@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-20 19:02+0300\n"
+"POT-Creation-Date: 2020-04-21 19:01+0300\n"
 "PO-Revision-Date: 2020-04-12 09:59+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -42,60 +42,60 @@ msgstr "Le mari existe déjà"
 msgid "Can't have more than 4 wives"
 msgstr "Je ne peux pas avoir plus de 4 femmes"
 
-#: .\calc\models.py:924
+#: .\calc\models.py:935
 msgid "father gets 1/6 prescribed share because of male descendant"
 msgstr "père obtient 1/6 part prescrite en raison de descendant masculin"
 
-#: .\calc\models.py:928
+#: .\calc\models.py:939
 msgid "father gets 1/6 plus remainder because of female descendant"
 msgstr "père obtient 1/6 plus le reste en raison de descendant féminin"
 
-#: .\calc\models.py:931
+#: .\calc\models.py:942
 msgid "father gets the remainder because there is no descendant"
 msgstr "père obtient le reste parce qu’il n’y a pas de descendant"
 
-#: .\calc\models.py:944
+#: .\calc\models.py:955
 msgid "mother gets 1/6 because of descendant or siblings"
 msgstr "mère obtient 1/6 en raison de descendant ou de frères et sœurs"
 
-#: .\calc\models.py:948
+#: .\calc\models.py:959
 msgid "mother gets 1/3 of the remainder which is 1/4."
 msgstr "la mère reçoit 1/3 du reste, soit 1/4."
 
-#: .\calc\models.py:951
+#: .\calc\models.py:962
 msgid "mother gets 1/3 of the remainder which is 1/6"
 msgstr "la mère reçoit 1/3 du reste, soit 1/6"
 
-#: .\calc\models.py:954
+#: .\calc\models.py:965
 msgid "mother gets 1/3 because no descendant or siblings"
 msgstr "la mère obtient 1/3 parce qu'aucun descendant ou frère ou sœur"
 
-#: .\calc\models.py:968
+#: .\calc\models.py:979
 msgid "husband gets 1/4 becuase of descendant"
 msgstr "mari obtient 1/4 à cause d'un descendant"
 
-#: .\calc\models.py:971
+#: .\calc\models.py:982
 msgid "husband gets 1/2 becuase there is no descendant"
 msgstr "mari obtient 1/2 parce qu'il n'y a pas de descendant"
 
-#: .\calc\models.py:984
+#: .\calc\models.py:995
 msgid "wife gets 1/8 becuase of descendant"
 msgstr "femme obtient 1/8 parce que de descendant"
 
-#: .\calc\models.py:987
+#: .\calc\models.py:998
 msgid "wife gets 1/4 becuase there is no descendant"
 msgstr "femme obtient 1/4 parce qu'il n'y a pas de descendant"
 
-#: .\calc\models.py:991
+#: .\calc\models.py:1002
 msgid "wives share the qoute of 1/8 becuase of descendant"
 msgstr "épouses partagent la qoute de 1/8 parce que de descendant"
 
-#: .\calc\models.py:994
+#: .\calc\models.py:1005
 msgid "wives share the quote of 1/4 becuase there is no descendant"
 msgstr ""
 "les épouses partagent la quote de 1/4 parce qu'il n'y a pas de descendant"
 
-#: .\calc\models.py:1007
+#: .\calc\models.py:1018
 msgid ""
 "Daughter/s with Son/s share the residuary. The son will receive a share of "
 "two daughters."
@@ -103,51 +103,51 @@ msgstr ""
 "Fille / s avec fils partagent le résidu. Le fils recevra une part de deux "
 "filles."
 
-#: .\calc\models.py:1012
+#: .\calc\models.py:1023
 msgid "Daughter gets 1/2 when she has no other sibling/s"
 msgstr "Fille obtient 1/2 quand elle n'a pas d'autre frère / s"
 
-#: .\calc\models.py:1016
+#: .\calc\models.py:1027
 msgid "Daughters share the quote of 2/3 when there is no son/s"
 msgstr "Les filles partagent la quote des 2/3 quand il n'y a pas de fils / s"
 
-#: .\calc\models.py:1029
+#: .\calc\models.py:1040
 msgid "Son/s share the remainder or all amount if no other heir exist"
 msgstr ""
 "Le ou les fils partagent le reste ou la totalité du montant s'il n'existe "
 "aucun autre héritier"
 
-#: .\calc\models.py:1044
+#: .\calc\models.py:1055
 msgid "Bother/s are blocked by male descendant"
 msgstr "Les dérangements sont bloqués par un descendant masculin"
 
-#: .\calc\models.py:1047
+#: .\calc\models.py:1058
 msgid "Brother/s are blocked by father"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1050
+#: .\calc\models.py:1061
 msgid "Brother/s are blocked by grandfather"
 msgstr "Frère / s sont bloqués par le grand-père"
 
-#: .\calc\models.py:1053
+#: .\calc\models.py:1064
 msgid "Brother/s share the remainder or all amount if no other heir exist"
 msgstr ""
 "Le frère partage le reste ou la totalité du montant s'il n'existe aucun "
 "autre héritier"
 
-#: .\calc\models.py:1068
+#: .\calc\models.py:1079
 msgid "Sister/s are blocked by male descendant"
 msgstr "Les sœurs sont bloquées par un descendant masculin"
 
-#: .\calc\models.py:1071
+#: .\calc\models.py:1082
 msgid "Sister/s are blocked by father"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1074
+#: .\calc\models.py:1085
 msgid "Sister/s are blocked by grandfather"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1077
+#: .\calc\models.py:1088
 msgid ""
 "Sister/s with borther/s share the remainder or all the amount if no other "
 "heir exist. The brother will receive a share of two sisters"
@@ -155,49 +155,49 @@ msgstr ""
 "Soeur (s) avec frère (s) partageant le reste ou la totalité du montant s'il "
 "n'y a aucun autre héritier. Le frère recevra une part de deux sœurs"
 
-#: .\calc\models.py:1080
+#: .\calc\models.py:1091
 msgid "Sister/s with female descendant share the remainder"
 msgstr "La ou les sœurs avec une descendante partagent le reste"
 
-#: .\calc\models.py:1084
+#: .\calc\models.py:1095
 msgid "Sister gets half when no father or son. "
 msgstr "Sœur obtient la moitié quand il n'y a ni père ni fils. "
 
-#: .\calc\models.py:1087
+#: .\calc\models.py:1098
 msgid "Sisters share 2/3 when no father or son."
 msgstr "Les sœurs partagent les 2/3 en l'absence de père ou de fils."
 
-#: .\calc\models.py:1099
+#: .\calc\models.py:1110
 msgid "Grandfather is blocked by father"
 msgstr "Le grand-père est bloqué par le père"
 
-#: .\calc\models.py:1102
+#: .\calc\models.py:1113
 msgid "Grandfather gets 1/6 prescribed share because of male descendant"
 msgstr "Grand-père obtient 1/6 part prescrite en raison de descendant masculin"
 
-#: .\calc\models.py:1106
+#: .\calc\models.py:1117
 msgid "Grandfather gets 1/6 plus remainder because of female descendant"
 msgstr "Grand-père obtient 1/6 plus le reste en raison de descendant féminin"
 
-#: .\calc\models.py:1109
+#: .\calc\models.py:1120
 msgid "Grandfather gets the remainder because there is no descendant"
 msgstr "Grand-père obtient le reste parce qu’il n’y a pas de descendant"
 
-#: .\calc\models.py:1121
+#: .\calc\models.py:1132
 #, fuzzy
 #| msgid "Grandfather is blocked by father"
 msgid "Grandmother is blocked by mother"
 msgstr "Le grand-père est bloqué par le père"
 
-#: .\calc\models.py:1127
+#: .\calc\models.py:1138
 msgid "Grandmother gets 1/6 if no mother"
 msgstr ""
 
-#: .\calc\models.py:1139
+#: .\calc\models.py:1150
 msgid "Son of son is blocked by Son"
 msgstr ""
 
-#: .\calc\models.py:1144
+#: .\calc\models.py:1155
 #, fuzzy
 #| msgid "Son/s share the remainder or all amount if no other heir exist"
 msgid "Son of son share the remainder or all amount if no other heir exist"
@@ -205,11 +205,11 @@ msgstr ""
 "Le ou les fils partagent le reste ou la totalité du montant s'il n'existe "
 "aucun autre héritier"
 
-#: .\calc\models.py:1159
+#: .\calc\models.py:1170
 msgid "Daughter of son is blocked by son"
 msgstr ""
 
-#: .\calc\models.py:1162
+#: .\calc\models.py:1173
 #, fuzzy
 #| msgid ""
 #| "Daughter/s with Son/s share the residuary. The son will receive a share "
@@ -221,53 +221,53 @@ msgstr ""
 "Fille / s avec fils partagent le résidu. Le fils recevra une part de deux "
 "filles."
 
-#: .\calc\models.py:1167
+#: .\calc\models.py:1178
 msgid "Daughter of son get 1/6, with daughter"
 msgstr ""
 
-#: .\calc\models.py:1170
+#: .\calc\models.py:1181
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Daughter/s of son are blocked by daugters"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1173
+#: .\calc\models.py:1184
 #, fuzzy
 #| msgid "Daughter gets 1/2 when she has no other sibling/s"
 msgid "Daughter of son gets 1/2 when she has no other sibling/s"
 msgstr "Fille obtient 1/2 quand elle n'a pas d'autre frère / s"
 
-#: .\calc\models.py:1176
+#: .\calc\models.py:1187
 #, fuzzy
 #| msgid "Daughters share the quote of 2/3 when there is no son/s"
 msgid "Daughters of son share the quote of 2/3 when there is no son/s of son"
 msgstr "Les filles partagent la quote des 2/3 quand il n'y a pas de fils / s"
 
-#: .\calc\models.py:1192
+#: .\calc\models.py:1203
 #, fuzzy
 #| msgid "Sister/s are blocked by male descendant"
 msgid "Paternal sister/s are blocked by male descendant"
 msgstr "Les sœurs sont bloquées par un descendant masculin"
 
-#: .\calc\models.py:1195
+#: .\calc\models.py:1206
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Paternal sister/s are blocked by father"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1198
+#: .\calc\models.py:1209
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Paternal sister/s are blocked by grandfather"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1201
+#: .\calc\models.py:1212
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Paternal sister/s are blocked by borther/s"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1204
+#: .\calc\models.py:1215
 #, fuzzy
 #| msgid ""
 #| "Sister/s with borther/s share the remainder or all the amount if no other "
@@ -280,65 +280,65 @@ msgstr ""
 "Soeur (s) avec frère (s) partageant le reste ou la totalité du montant s'il "
 "n'y a aucun autre héritier. Le frère recevra une part de deux sœurs"
 
-#: .\calc\models.py:1209
+#: .\calc\models.py:1220
 msgid "Paternal sister/s get 1/6 with sister"
 msgstr ""
 
-#: .\calc\models.py:1212
+#: .\calc\models.py:1223
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Paternal sisters/s are blocked by sisters"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1215
+#: .\calc\models.py:1226
 #, fuzzy
 #| msgid "Sister/s with female descendant share the remainder"
 msgid "Paternal sister/s with female descendant share the remainder"
 msgstr "La ou les sœurs avec une descendante partagent le reste"
 
-#: .\calc\models.py:1218
+#: .\calc\models.py:1229
 #, fuzzy
 #| msgid "Sister gets half when no father or son. "
 msgid "Paternal sister gets half when no father or son. "
 msgstr "Sœur obtient la moitié quand il n'y a ni père ni fils. "
 
-#: .\calc\models.py:1221
+#: .\calc\models.py:1232
 #, fuzzy
 #| msgid "Sisters share 2/3 when no father or son."
 msgid "Paternal sisters share 2/3 when no father or son."
 msgstr "Les sœurs partagent les 2/3 en l'absence de père ou de fils."
 
-#: .\calc\models.py:1236
+#: .\calc\models.py:1247
 #, fuzzy
 #| msgid "Bother/s are blocked by male descendant"
 msgid "Paternal brother/s are blocked by male descendant"
 msgstr "Les dérangements sont bloqués par un descendant masculin"
 
-#: .\calc\models.py:1239
+#: .\calc\models.py:1250
 #, fuzzy
 #| msgid "Brother/s are blocked by father"
 msgid "Paternal brother/s are blocked by father"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1242
+#: .\calc\models.py:1253
 #, fuzzy
 #| msgid "Brother/s are blocked by grandfather"
 msgid "Paternal brother/s are blocked by grandfather"
 msgstr "Frère / s sont bloqués par le grand-père"
 
-#: .\calc\models.py:1245
+#: .\calc\models.py:1256
 #, fuzzy
 #| msgid "Brother/s are blocked by father"
 msgid "Paternal brother/s are blocked by brothers"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1250
+#: .\calc\models.py:1261
 #, fuzzy
 #| msgid "Brother/s are blocked by father"
 msgid "Paternal brother/s are blocked by sisters"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1253 .\calc\models.py:1256
+#: .\calc\models.py:1264 .\calc\models.py:1267
 #, fuzzy
 #| msgid "Brother/s share the remainder or all amount if no other heir exist"
 msgid ""
@@ -347,101 +347,113 @@ msgstr ""
 "Le frère partage le reste ou la totalité du montant s'il n'existe aucun "
 "autre héritier"
 
-#: .\calc\models.py:1271
+#: .\calc\models.py:1282
 #, fuzzy
 #| msgid "Sister/s are blocked by male descendant"
 msgid "Maternal sister/s are blocked by descendant"
 msgstr "Les sœurs sont bloquées par un descendant masculin"
 
-#: .\calc\models.py:1274
+#: .\calc\models.py:1285
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Maternal sister/s are blocked by father"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1277
+#: .\calc\models.py:1288
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Maternal sister/s are blocked by grandfather"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1280
+#: .\calc\models.py:1294
+#, fuzzy
+#| msgid "Sister/s with female descendant share the remainder"
+msgid "Maternal sister/s with maternal brother/s share 1/3"
+msgstr "La ou les sœurs avec une descendante partagent le reste"
+
+#: .\calc\models.py:1297
 msgid "Maternal sister get 1/6"
 msgstr ""
 
-#: .\calc\models.py:1283
+#: .\calc\models.py:1300
 msgid "Maternal sisters share 1/3"
 msgstr ""
 
-#: .\calc\models.py:1298
+#: .\calc\models.py:1315
 #, fuzzy
 #| msgid "Bother/s are blocked by male descendant"
 msgid "Maternal brother/s are blocked by descendant"
 msgstr "Les dérangements sont bloqués par un descendant masculin"
 
-#: .\calc\models.py:1301
+#: .\calc\models.py:1318
 #, fuzzy
 #| msgid "Brother/s are blocked by father"
 msgid "Maternal brother/s are blocked by father"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1304
+#: .\calc\models.py:1321
 #, fuzzy
 #| msgid "Brother/s are blocked by grandfather"
 msgid "Maternal brother/s are blocked by grandfather"
 msgstr "Frère / s sont bloqués par le grand-père"
 
-#: .\calc\models.py:1307
+#: .\calc\models.py:1327
+#, fuzzy
+#| msgid "Brother/s are blocked by father"
+msgid "Maternal brother/s with maternal sister/s share 1/3"
+msgstr "Frère / s sont bloqués par le père"
+
+#: .\calc\models.py:1330
 msgid "Maternal brother get 1/6"
 msgstr ""
 
-#: .\calc\models.py:1310
+#: .\calc\models.py:1333
 msgid "Maternal brothers share 1/3"
 msgstr ""
 
-#: .\calc\models.py:1325
+#: .\calc\models.py:1348
 #, fuzzy
 #| msgid "Bother/s are blocked by male descendant"
 msgid "Son/s of Brother are blocked by male descendant"
 msgstr "Les dérangements sont bloqués par un descendant masculin"
 
-#: .\calc\models.py:1328
+#: .\calc\models.py:1351
 #, fuzzy
 #| msgid "Brother/s are blocked by father"
 msgid "Son/s of Brother are blocked by father"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1331
+#: .\calc\models.py:1354
 #, fuzzy
 #| msgid "Brother/s are blocked by grandfather"
 msgid "Son/s of Brother are blocked by grandfather"
 msgstr "Frère / s sont bloqués par le grand-père"
 
-#: .\calc\models.py:1334
+#: .\calc\models.py:1357
 #, fuzzy
 #| msgid "Brother/s are blocked by father"
 msgid "Son/s of Brother are blocked by brother/s"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1337
+#: .\calc\models.py:1360
 #, fuzzy
 #| msgid "Brother/s are blocked by father"
 msgid "Son/s of Brother are blocked by sisters"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1340
+#: .\calc\models.py:1363
 #, fuzzy
 #| msgid "Brother/s are blocked by grandfather"
 msgid "Son/s of Brother are blocked by paternal brother/s"
 msgstr "Frère / s sont bloqués par le grand-père"
 
-#: .\calc\models.py:1343
+#: .\calc\models.py:1366
 #, fuzzy
 #| msgid "Brother/s are blocked by grandfather"
 msgid "Son/s of Brother are blocked by paternal sister/s"
 msgstr "Frère / s sont bloqués par le grand-père"
 
-#: .\calc\models.py:1346
+#: .\calc\models.py:1369
 #, fuzzy
 #| msgid "Brother/s share the remainder or all amount if no other heir exist"
 msgid ""
@@ -450,55 +462,55 @@ msgstr ""
 "Le frère partage le reste ou la totalité du montant s'il n'existe aucun "
 "autre héritier"
 
-#: .\calc\models.py:1361
+#: .\calc\models.py:1384
 #, fuzzy
 #| msgid "Bother/s are blocked by male descendant"
 msgid "Son/s of Paternal Brother are blocked by male descendant"
 msgstr "Les dérangements sont bloqués par un descendant masculin"
 
-#: .\calc\models.py:1364
+#: .\calc\models.py:1387
 #, fuzzy
 #| msgid "Brother/s are blocked by father"
 msgid "Son/s of Paternal Brother are blocked by father"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1367
+#: .\calc\models.py:1390
 #, fuzzy
 #| msgid "Brother/s are blocked by grandfather"
 msgid "Son/s of Paternal Brother are blocked by grandfather"
 msgstr "Frère / s sont bloqués par le grand-père"
 
-#: .\calc\models.py:1370
+#: .\calc\models.py:1393
 #, fuzzy
 #| msgid "Brother/s are blocked by father"
 msgid "Son/s of Paternal Brother are blocked by brother/s"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1373
+#: .\calc\models.py:1396
 #, fuzzy
 #| msgid "Brother/s are blocked by father"
 msgid "Son/s of Paternal Brother are blocked by sisters"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1376
+#: .\calc\models.py:1399
 #, fuzzy
 #| msgid "Brother/s are blocked by grandfather"
 msgid "Son/s of Paternal Brother are blocked by paternal brother/s"
 msgstr "Frère / s sont bloqués par le grand-père"
 
-#: .\calc\models.py:1379
+#: .\calc\models.py:1402
 #, fuzzy
 #| msgid "Brother/s are blocked by grandfather"
 msgid "Son/s of Paternal Brother are blocked by paternal sister/s"
 msgstr "Frère / s sont bloqués par le grand-père"
 
-#: .\calc\models.py:1382
+#: .\calc\models.py:1405
 #, fuzzy
 #| msgid "Brother/s are blocked by father"
 msgid "Son/s of Paternal Brother are blocked by sons of brother"
 msgstr "Frère / s sont bloqués par le père"
 
-#: .\calc\models.py:1385
+#: .\calc\models.py:1408
 #, fuzzy
 #| msgid "Brother/s share the remainder or all amount if no other heir exist"
 msgid ""
@@ -508,61 +520,61 @@ msgstr ""
 "Le frère partage le reste ou la totalité du montant s'il n'existe aucun "
 "autre héritier"
 
-#: .\calc\models.py:1400
+#: .\calc\models.py:1423
 #, fuzzy
 #| msgid "Bother/s are blocked by male descendant"
 msgid "Uncle/s are blocked by male descendant"
 msgstr "Les dérangements sont bloqués par un descendant masculin"
 
-#: .\calc\models.py:1403
+#: .\calc\models.py:1426
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Uncle/s are blocked by father"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1406
+#: .\calc\models.py:1429
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Uncle/s are blocked by grandfather"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1409
+#: .\calc\models.py:1432
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Uncle/s are blocked by brother/s"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1412
+#: .\calc\models.py:1435
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Uncle/s are blocked by sisters"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1415
+#: .\calc\models.py:1438
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Uncle/s are blocked by paternal brother/s"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1418
+#: .\calc\models.py:1441
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Uncle/s are blocked by paternal sister/s"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1421
+#: .\calc\models.py:1444
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Uncle/s are blocked by sons of brother"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1424
+#: .\calc\models.py:1447
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Uncle/s are blocked by sons of paternal brother"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1427
+#: .\calc\models.py:1450
 #, fuzzy
 #| msgid "Son/s share the remainder or all amount if no other heir exist"
 msgid "Uncle/s share the remainder or all amount if no other heir exist"
@@ -570,67 +582,67 @@ msgstr ""
 "Le ou les fils partagent le reste ou la totalité du montant s'il n'existe "
 "aucun autre héritier"
 
-#: .\calc\models.py:1442
+#: .\calc\models.py:1465
 #, fuzzy
 #| msgid "Bother/s are blocked by male descendant"
 msgid "Paternal Uncle/s are blocked by male descendant"
 msgstr "Les dérangements sont bloqués par un descendant masculin"
 
-#: .\calc\models.py:1445
+#: .\calc\models.py:1468
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Paternal Uncle/s are blocked by father"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1448
+#: .\calc\models.py:1471
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Paternal Uncle/s are blocked by grandfather"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1451
+#: .\calc\models.py:1474
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Paternal Uncle/s are blocked by brother/s"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1454
+#: .\calc\models.py:1477
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Paternal Uncle/s are blocked by sisters"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1457
+#: .\calc\models.py:1480
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Paternal Uncle/s are blocked by paternal brother/s"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1460
+#: .\calc\models.py:1483
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Paternal Uncle/s are blocked by paternal sister/s"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1463
+#: .\calc\models.py:1486
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Paternal Uncle/s are blocked by sons of brother"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1466
+#: .\calc\models.py:1489
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Paternal Uncle/s are blocked by sons of paternal brother"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1469
+#: .\calc\models.py:1492
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Paternal Uncle/s are blocked by uncle/s"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1472
+#: .\calc\models.py:1495
 #, fuzzy
 #| msgid "Brother/s share the remainder or all amount if no other heir exist"
 msgid ""
@@ -639,73 +651,73 @@ msgstr ""
 "Le frère partage le reste ou la totalité du montant s'il n'existe aucun "
 "autre héritier"
 
-#: .\calc\models.py:1487
+#: .\calc\models.py:1510
 #, fuzzy
 #| msgid "Bother/s are blocked by male descendant"
 msgid "Son/s of uncle are blocked by male descendant"
 msgstr "Les dérangements sont bloqués par un descendant masculin"
 
-#: .\calc\models.py:1490
+#: .\calc\models.py:1513
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of Uncle/s are blocked by father"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1493
+#: .\calc\models.py:1516
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Son/s of Uncle/s are blocked by grandfather"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1496
+#: .\calc\models.py:1519
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of Uncle/s are blocked by brother/s"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1499
+#: .\calc\models.py:1522
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of Uncle/s are blocked by sisters"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1502
+#: .\calc\models.py:1525
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Son/s of Uncle/s are blocked by paternal brother/s"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1505
+#: .\calc\models.py:1528
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Son/s of Uncle/s are blocked by paternal sister/s"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1508
+#: .\calc\models.py:1531
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of Uncle/s are blocked by sons of brother"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1511
+#: .\calc\models.py:1534
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of Uncle/s are blocked by sons of paternal brother"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1514
+#: .\calc\models.py:1537
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of Uncle/s are blocked by uncle/s"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1517
+#: .\calc\models.py:1540
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of Uncle/s are blocked by paternal uncle/s"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1520
+#: .\calc\models.py:1543
 #, fuzzy
 #| msgid "Son/s share the remainder or all amount if no other heir exist"
 msgid ""
@@ -714,77 +726,77 @@ msgstr ""
 "Le ou les fils partagent le reste ou la totalité du montant s'il n'existe "
 "aucun autre héritier"
 
-#: .\calc\models.py:1535
+#: .\calc\models.py:1558
 #, fuzzy
 #| msgid "Sister/s are blocked by male descendant"
 msgid "Son/s of paternal uncle are blocked by male descendant"
 msgstr "Les sœurs sont bloquées par un descendant masculin"
 
-#: .\calc\models.py:1538
+#: .\calc\models.py:1561
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of paternal Uncle/s are blocked by father"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1541
+#: .\calc\models.py:1564
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Son/s of paternal Uncle/s are blocked by grandfather"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1544
+#: .\calc\models.py:1567
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of paternal Uncle/s are blocked by brother/s"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1547
+#: .\calc\models.py:1570
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of paternal Uncle/s are blocked by sisters"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1550
+#: .\calc\models.py:1573
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Son/s of paternal Uncle/s are blocked by paternal brother/s"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1553
+#: .\calc\models.py:1576
 #, fuzzy
 #| msgid "Sister/s are blocked by grandfather"
 msgid "Son/s of paternal Uncle/s are blocked by paternal sister/s"
 msgstr "Les soeurs sont bloquées par le grand-père"
 
-#: .\calc\models.py:1556
+#: .\calc\models.py:1579
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of paternal Uncle/s are blocked by sons of brother"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1559
+#: .\calc\models.py:1582
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of paternal Uncle/s are blocked by sons of paternal brother"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1562
+#: .\calc\models.py:1585
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of paternal Uncle/s are blocked by uncle/s"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1565
+#: .\calc\models.py:1588
 #, fuzzy
 #| msgid "Sister/s are blocked by father"
 msgid "Son/s of paternal Uncle/s are blocked by paternal uncle/s"
 msgstr "Les soeurs sont bloquées par le père"
 
-#: .\calc\models.py:1568
+#: .\calc\models.py:1591
 msgid "Son/s of paternal Uncle/s are blocked by son/s of uncle/s"
 msgstr ""
 
-#: .\calc\models.py:1571
+#: .\calc\models.py:1594
 #, fuzzy
 #| msgid "Son/s share the remainder or all amount if no other heir exist"
 msgid ""
