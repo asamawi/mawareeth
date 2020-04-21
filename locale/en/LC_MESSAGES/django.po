@@ -1,0 +1,2000 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2020-04-21 19:36+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: .\calc\forms.py:7 .\calc\forms.py:12
+msgid "First Name"
+msgstr ""
+
+#: .\calc\forms.py:8 .\calc\forms.py:13
+msgid "Last Name"
+msgstr ""
+
+#: .\calc\models.py:54
+msgid "father already exist"
+msgstr ""
+
+#: .\calc\models.py:66 .\calc\views.py:83
+msgid "Mother already exist"
+msgstr ""
+
+#: .\calc\models.py:84 .\calc\views.py:137
+msgid "Husband already exist"
+msgstr ""
+
+#: .\calc\models.py:94
+msgid "Can't have more than 4 wives"
+msgstr ""
+
+#: .\calc\models.py:935
+msgid "father gets 1/6 prescribed share because of male descendant"
+msgstr ""
+
+#: .\calc\models.py:939
+msgid "father gets 1/6 plus remainder because of female descendant"
+msgstr ""
+
+#: .\calc\models.py:942
+msgid "father gets the remainder because there is no descendant"
+msgstr ""
+
+#: .\calc\models.py:955
+msgid "mother gets 1/6 because of descendant or siblings"
+msgstr ""
+
+#: .\calc\models.py:959
+msgid "mother gets 1/3 of the remainder which is 1/4."
+msgstr ""
+
+#: .\calc\models.py:962
+msgid "mother gets 1/3 of the remainder which is 1/6"
+msgstr ""
+
+#: .\calc\models.py:965
+msgid "mother gets 1/3 because no descendant or siblings"
+msgstr ""
+
+#: .\calc\models.py:979
+msgid "husband gets 1/4 becuase of descendant"
+msgstr ""
+
+#: .\calc\models.py:982
+msgid "husband gets 1/2 becuase there is no descendant"
+msgstr ""
+
+#: .\calc\models.py:995
+msgid "wife gets 1/8 becuase of descendant"
+msgstr ""
+
+#: .\calc\models.py:998
+msgid "wife gets 1/4 becuase there is no descendant"
+msgstr ""
+
+#: .\calc\models.py:1002
+msgid "wives share the qoute of 1/8 becuase of descendant"
+msgstr ""
+
+#: .\calc\models.py:1005
+msgid "wives share the quote of 1/4 becuase there is no descendant"
+msgstr ""
+
+#: .\calc\models.py:1018
+msgid ""
+"Daughter/s with Son/s share the residuary. The son will receive a share of "
+"two daughters."
+msgstr ""
+
+#: .\calc\models.py:1023
+msgid "Daughter gets 1/2 when she has no other sibling/s"
+msgstr ""
+
+#: .\calc\models.py:1027
+msgid "Daughters share the quote of 2/3 when there is no son/s"
+msgstr ""
+
+#: .\calc\models.py:1040
+msgid "Son/s share the remainder or all amount if no other heir exist"
+msgstr ""
+
+#: .\calc\models.py:1055
+msgid "Bother/s are blocked by male descendant"
+msgstr ""
+
+#: .\calc\models.py:1058
+msgid "Brother/s are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1061
+msgid "Brother/s are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1064
+msgid "Brother/s share the remainder or all amount if no other heir exist"
+msgstr ""
+
+#: .\calc\models.py:1079
+msgid "Sister/s are blocked by male descendant"
+msgstr ""
+
+#: .\calc\models.py:1082
+msgid "Sister/s are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1085
+msgid "Sister/s are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1088
+msgid ""
+"Sister/s with borther/s share the remainder or all the amount if no other "
+"heir exist. The brother will receive a share of two sisters"
+msgstr ""
+
+#: .\calc\models.py:1091
+msgid "Sister/s with female descendant share the remainder"
+msgstr ""
+
+#: .\calc\models.py:1095
+msgid "Sister gets half when no father or son. "
+msgstr ""
+
+#: .\calc\models.py:1098
+msgid "Sisters share 2/3 when no father or son."
+msgstr ""
+
+#: .\calc\models.py:1110
+msgid "Grandfather is blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1113
+msgid "Grandfather gets 1/6 prescribed share because of male descendant"
+msgstr ""
+
+#: .\calc\models.py:1117
+msgid "Grandfather gets 1/6 plus remainder because of female descendant"
+msgstr ""
+
+#: .\calc\models.py:1120
+msgid "Grandfather gets the remainder because there is no descendant"
+msgstr ""
+
+#: .\calc\models.py:1132
+msgid "Grandmother is blocked by mother"
+msgstr ""
+
+#: .\calc\models.py:1138
+msgid "Grandmother gets 1/6 if no mother"
+msgstr ""
+
+#: .\calc\models.py:1150
+msgid "Son of son is blocked by Son"
+msgstr ""
+
+#: .\calc\models.py:1155
+msgid "Son of son share the remainder or all amount if no other heir exist"
+msgstr ""
+
+#: .\calc\models.py:1170
+msgid "Daughter of son is blocked by son"
+msgstr ""
+
+#: .\calc\models.py:1173
+msgid ""
+"Daughter/s of son with Son/s of son share the residuary. The son of son will "
+"receive a share of two daughters of son."
+msgstr ""
+
+#: .\calc\models.py:1178
+msgid "Daughter of son get 1/6, with daughter"
+msgstr ""
+
+#: .\calc\models.py:1181
+msgid "Daughter/s of son are blocked by daugters"
+msgstr ""
+
+#: .\calc\models.py:1184
+msgid "Daughter of son gets 1/2 when she has no other sibling/s"
+msgstr ""
+
+#: .\calc\models.py:1187
+msgid "Daughters of son share the quote of 2/3 when there is no son/s of son"
+msgstr ""
+
+#: .\calc\models.py:1203
+msgid "Paternal sister/s are blocked by male descendant"
+msgstr ""
+
+#: .\calc\models.py:1206
+msgid "Paternal sister/s are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1209
+msgid "Paternal sister/s are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1212
+msgid "Paternal sister/s are blocked by borther/s"
+msgstr ""
+
+#: .\calc\models.py:1215
+msgid ""
+"Paternal sister/s with paternal half borther/s share the remainder or all "
+"the amount if no other heir exist. The brother will receive a share of two "
+"sisters"
+msgstr ""
+
+#: .\calc\models.py:1220
+msgid "Paternal sister/s get 1/6 with sister"
+msgstr ""
+
+#: .\calc\models.py:1223
+msgid "Paternal sisters/s are blocked by sisters"
+msgstr ""
+
+#: .\calc\models.py:1226
+msgid "Paternal sister/s with female descendant share the remainder"
+msgstr ""
+
+#: .\calc\models.py:1229
+msgid "Paternal sister gets half when no father or son. "
+msgstr ""
+
+#: .\calc\models.py:1232
+msgid "Paternal sisters share 2/3 when no father or son."
+msgstr ""
+
+#: .\calc\models.py:1247
+msgid "Paternal brother/s are blocked by male descendant"
+msgstr ""
+
+#: .\calc\models.py:1250
+msgid "Paternal brother/s are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1253
+msgid "Paternal brother/s are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1256
+msgid "Paternal brother/s are blocked by brothers"
+msgstr ""
+
+#: .\calc\models.py:1261
+msgid "Paternal brother/s are blocked by sisters"
+msgstr ""
+
+#: .\calc\models.py:1264 .\calc\models.py:1267
+msgid ""
+"Paternal brother/s share the remainder or all amount if no other heir exist"
+msgstr ""
+
+#: .\calc\models.py:1282
+msgid "Maternal sister/s are blocked by descendant"
+msgstr ""
+
+#: .\calc\models.py:1285
+msgid "Maternal sister/s are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1288
+msgid "Maternal sister/s are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1294
+msgid "Maternal sister/s with maternal brother/s share 1/3"
+msgstr ""
+
+#: .\calc\models.py:1297
+msgid "Maternal sister get 1/6"
+msgstr ""
+
+#: .\calc\models.py:1300
+msgid "Maternal sisters share 1/3"
+msgstr ""
+
+#: .\calc\models.py:1315
+msgid "Maternal brother/s are blocked by descendant"
+msgstr ""
+
+#: .\calc\models.py:1318
+msgid "Maternal brother/s are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1321
+msgid "Maternal brother/s are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1327
+msgid "Maternal brother/s with maternal sister/s share 1/3"
+msgstr ""
+
+#: .\calc\models.py:1330
+msgid "Maternal brother get 1/6"
+msgstr ""
+
+#: .\calc\models.py:1333
+msgid "Maternal brothers share 1/3"
+msgstr ""
+
+#: .\calc\models.py:1348
+msgid "Son/s of Brother are blocked by male descendant"
+msgstr ""
+
+#: .\calc\models.py:1351
+msgid "Son/s of Brother are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1354
+msgid "Son/s of Brother are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1357
+msgid "Son/s of Brother are blocked by brother/s"
+msgstr ""
+
+#: .\calc\models.py:1360
+msgid "Son/s of Brother are blocked by sisters"
+msgstr ""
+
+#: .\calc\models.py:1363
+msgid "Son/s of Brother are blocked by paternal brother/s"
+msgstr ""
+
+#: .\calc\models.py:1366
+msgid "Son/s of Brother are blocked by paternal sister/s"
+msgstr ""
+
+#: .\calc\models.py:1369
+msgid ""
+"Son/s of Brother share the remainder or all amount if no other heir exist"
+msgstr ""
+
+#: .\calc\models.py:1384
+msgid "Son/s of Paternal Brother are blocked by male descendant"
+msgstr ""
+
+#: .\calc\models.py:1387
+msgid "Son/s of Paternal Brother are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1390
+msgid "Son/s of Paternal Brother are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1393
+msgid "Son/s of Paternal Brother are blocked by brother/s"
+msgstr ""
+
+#: .\calc\models.py:1396
+msgid "Son/s of Paternal Brother are blocked by sisters"
+msgstr ""
+
+#: .\calc\models.py:1399
+msgid "Son/s of Paternal Brother are blocked by paternal brother/s"
+msgstr ""
+
+#: .\calc\models.py:1402
+msgid "Son/s of Paternal Brother are blocked by paternal sister/s"
+msgstr ""
+
+#: .\calc\models.py:1405
+msgid "Son/s of Paternal Brother are blocked by sons of brother"
+msgstr ""
+
+#: .\calc\models.py:1408
+msgid ""
+"Son/s of Paternal Brother share the remainder or all amount if no other heir "
+"exist"
+msgstr ""
+
+#: .\calc\models.py:1423
+msgid "Uncle/s are blocked by male descendant"
+msgstr ""
+
+#: .\calc\models.py:1426
+msgid "Uncle/s are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1429
+msgid "Uncle/s are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1432
+msgid "Uncle/s are blocked by brother/s"
+msgstr ""
+
+#: .\calc\models.py:1435
+msgid "Uncle/s are blocked by sisters"
+msgstr ""
+
+#: .\calc\models.py:1438
+msgid "Uncle/s are blocked by paternal brother/s"
+msgstr ""
+
+#: .\calc\models.py:1441
+msgid "Uncle/s are blocked by paternal sister/s"
+msgstr ""
+
+#: .\calc\models.py:1444
+msgid "Uncle/s are blocked by sons of brother"
+msgstr ""
+
+#: .\calc\models.py:1447
+msgid "Uncle/s are blocked by sons of paternal brother"
+msgstr ""
+
+#: .\calc\models.py:1450
+msgid "Uncle/s share the remainder or all amount if no other heir exist"
+msgstr ""
+
+#: .\calc\models.py:1465
+msgid "Paternal Uncle/s are blocked by male descendant"
+msgstr ""
+
+#: .\calc\models.py:1468
+msgid "Paternal Uncle/s are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1471
+msgid "Paternal Uncle/s are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1474
+msgid "Paternal Uncle/s are blocked by brother/s"
+msgstr ""
+
+#: .\calc\models.py:1477
+msgid "Paternal Uncle/s are blocked by sisters"
+msgstr ""
+
+#: .\calc\models.py:1480
+msgid "Paternal Uncle/s are blocked by paternal brother/s"
+msgstr ""
+
+#: .\calc\models.py:1483
+msgid "Paternal Uncle/s are blocked by paternal sister/s"
+msgstr ""
+
+#: .\calc\models.py:1486
+msgid "Paternal Uncle/s are blocked by sons of brother"
+msgstr ""
+
+#: .\calc\models.py:1489
+msgid "Paternal Uncle/s are blocked by sons of paternal brother"
+msgstr ""
+
+#: .\calc\models.py:1492
+msgid "Paternal Uncle/s are blocked by uncle/s"
+msgstr ""
+
+#: .\calc\models.py:1495
+msgid ""
+"Paternal Uncle/s share the remainder or all amount if no other heir exist"
+msgstr ""
+
+#: .\calc\models.py:1510
+msgid "Son/s of uncle are blocked by male descendant"
+msgstr ""
+
+#: .\calc\models.py:1513
+msgid "Son/s of Uncle/s are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1516
+msgid "Son/s of Uncle/s are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1519
+msgid "Son/s of Uncle/s are blocked by brother/s"
+msgstr ""
+
+#: .\calc\models.py:1522
+msgid "Son/s of Uncle/s are blocked by sisters"
+msgstr ""
+
+#: .\calc\models.py:1525
+msgid "Son/s of Uncle/s are blocked by paternal brother/s"
+msgstr ""
+
+#: .\calc\models.py:1528
+msgid "Son/s of Uncle/s are blocked by paternal sister/s"
+msgstr ""
+
+#: .\calc\models.py:1531
+msgid "Son/s of Uncle/s are blocked by sons of brother"
+msgstr ""
+
+#: .\calc\models.py:1534
+msgid "Son/s of Uncle/s are blocked by sons of paternal brother"
+msgstr ""
+
+#: .\calc\models.py:1537
+msgid "Son/s of Uncle/s are blocked by uncle/s"
+msgstr ""
+
+#: .\calc\models.py:1540
+msgid "Son/s of Uncle/s are blocked by paternal uncle/s"
+msgstr ""
+
+#: .\calc\models.py:1543
+msgid ""
+"Son/s of Uncle/s share the remainder or all amount if no other heir exist"
+msgstr ""
+
+#: .\calc\models.py:1558
+msgid "Son/s of paternal uncle are blocked by male descendant"
+msgstr ""
+
+#: .\calc\models.py:1561
+msgid "Son/s of paternal Uncle/s are blocked by father"
+msgstr ""
+
+#: .\calc\models.py:1564
+msgid "Son/s of paternal Uncle/s are blocked by grandfather"
+msgstr ""
+
+#: .\calc\models.py:1567
+msgid "Son/s of paternal Uncle/s are blocked by brother/s"
+msgstr ""
+
+#: .\calc\models.py:1570
+msgid "Son/s of paternal Uncle/s are blocked by sisters"
+msgstr ""
+
+#: .\calc\models.py:1573
+msgid "Son/s of paternal Uncle/s are blocked by paternal brother/s"
+msgstr ""
+
+#: .\calc\models.py:1576
+msgid "Son/s of paternal Uncle/s are blocked by paternal sister/s"
+msgstr ""
+
+#: .\calc\models.py:1579
+msgid "Son/s of paternal Uncle/s are blocked by sons of brother"
+msgstr ""
+
+#: .\calc\models.py:1582
+msgid "Son/s of paternal Uncle/s are blocked by sons of paternal brother"
+msgstr ""
+
+#: .\calc\models.py:1585
+msgid "Son/s of paternal Uncle/s are blocked by uncle/s"
+msgstr ""
+
+#: .\calc\models.py:1588
+msgid "Son/s of paternal Uncle/s are blocked by paternal uncle/s"
+msgstr ""
+
+#: .\calc\models.py:1591
+msgid "Son/s of paternal Uncle/s are blocked by son/s of uncle/s"
+msgstr ""
+
+#: .\calc\models.py:1594
+msgid ""
+"Son/s of paternal Uncle/s share the remainder or all amount if no other heir "
+"exist"
+msgstr ""
+
+#: .\calc\templates\calc\about.html:5 .\calc\templates\calc\about.html:12
+msgid "About Us"
+msgstr ""
+
+#: .\calc\templates\calc\about.html:15
+msgid ""
+"Mawareeth.com is was first launched in 2008 during which there was a clear "
+"and strong need for inheritance distribution software that produce "
+"calculation reports as per the inheritance laws and courts requirements."
+msgstr ""
+
+#: .\calc\templates\calc\about.html:18
+msgid ""
+"Mawareeth.com was started to make inheritance learning easier and help "
+"people do their own calculations without the need of lawyers saving people "
+"time and money."
+msgstr ""
+
+#: .\calc\templates\calc\about.html:21
+msgid ""
+"Mawareeth 2.0 is the latest release for our website and it was started in "
+"2020."
+msgstr ""
+
+#: .\calc\templates\calc\about.html:24
+msgid "Our promise"
+msgstr ""
+
+#: .\calc\templates\calc\about.html:27
+msgid ""
+"We promise to provide the best calculations results with accuracy, clarity "
+"and simplicity that is not matched elsewhere. Our goal is to provide to our "
+"community the best service they deserve paying attention and responding to "
+"their needs."
+msgstr ""
+
+#: .\calc\templates\calc\about.html:30
+msgid "Contribution"
+msgstr ""
+
+#: .\calc\templates\calc\about.html:33
+msgid ""
+"We are open to any contribution you are willing to make. This project is "
+"open source and non-profit. To contribute to source code please visit"
+msgstr ""
+
+#: .\calc\templates\calc\about.html:35
+msgid "GitHub Repository."
+msgstr ""
+
+#: .\calc\templates\calc\base.html:38 .\calc\templates\calc\base.html:41
+msgid "Mawareeth 2.0"
+msgstr ""
+
+#: .\calc\templates\calc\base.html:49 .\calc\templates\calc\home.html:6
+msgid "Home"
+msgstr ""
+
+#: .\calc\templates\calc\base.html:52 .\calc\templates\calc\home.html:27
+#: .\calc\templates\calc\index.html:8
+msgid "Calculations"
+msgstr ""
+
+#: .\calc\templates\calc\base.html:55
+msgid "About"
+msgstr ""
+
+#: .\calc\templates\calc\base.html:59
+msgid "Welcome "
+msgstr ""
+
+#: .\calc\templates\calc\base.html:61
+msgid " logout "
+msgstr ""
+
+#: .\calc\templates\calc\base.html:63 .\calc\templates\calc\home.html:59
+msgid "login"
+msgstr ""
+
+#: .\calc\templates\calc\base.html:64 .\calc\templates\calc\home.html:56
+#: .\calc\templates\registration\login.html:80
+#: .\calc\templates\registration\signup.html:7
+msgid "Sign Up"
+msgstr ""
+
+#: .\calc\templates\calc\base.html:99 .\calc\templates\calc\terms.html:5
+#: .\calc\templates\calc\terms.html:11
+msgid "Terms and Conditions"
+msgstr ""
+
+#: .\calc\templates\calc\base.html:102
+msgid "Privacy Policy"
+msgstr ""
+
+#: .\calc\templates\calc\calculation_form.html:7
+#: .\calc\templates\calc\detail.html:9
+msgid "Calculation"
+msgstr ""
+
+#: .\calc\templates\calc\deceased_confirm_delete.html:6
+#: .\calc\templates\calc\heir_confirm_delete.html:6
+msgid "Delete"
+msgstr ""
+
+#: .\calc\templates\calc\deceased_confirm_delete.html:19
+#: .\calc\templates\calc\heir_confirm_delete.html:19
+msgid "Are you sure you want to delete"
+msgstr ""
+
+#: .\calc\templates\calc\deceased_confirm_delete.html:19
+msgid "All heirs will be deleted"
+msgstr ""
+
+#: .\calc\templates\calc\deceased_form.html:7
+#: .\calc\templates\calc\detail.html:29 .\calc\templates\calc\detail.html:239
+msgid "Deceased"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:17
+msgid "Calculation name:"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:55
+msgid "Deceased name:"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:56
+msgid "Deceased estate:"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:61
+msgid "Mother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:63
+msgid " Mother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:68
+msgid "Father"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:70
+msgid " Father"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:75
+msgid "Wife"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:77
+msgid " Wife"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:82
+msgid "Husband"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:84
+msgid " Husband"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:88
+msgid "Daughter"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:90
+msgid " Daughter"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:93
+msgid "Son"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:95
+msgid " Son"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:101
+msgid " more"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:108
+msgid "Brother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:110
+msgid " Brother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:115
+msgid "Sister"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:117
+msgid " Sister"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:123
+msgid "GrandFather"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:125
+msgid " Grandfather"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:131
+msgid "GrandMother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:133
+msgid " Grandmother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:140
+msgid "SonOfSon"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:142
+msgid " Son of son"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:149
+msgid "DaughterOfSon"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:151
+msgid " Daughter of son"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:157
+msgid "PaternalSister"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:159
+msgid " Paternal sister"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:165
+msgid "PaternalBrother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:167
+msgid " Paternal brother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:173
+msgid "MaternalSister"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:175
+msgid " Maternal sister"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:181
+msgid "MaternalBrother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:183
+msgid " Maternal brother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:189
+msgid "SonOfBrother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:191
+msgid " Son of brother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:198
+msgid "Son of paternal brother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:200
+msgid " Son of paternal brother"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:206
+msgid "Uncle"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:208
+msgid " Uncle"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:214
+msgid "Paternal uncle"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:216
+msgid " Paternal uncle"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:222
+msgid "Son of uncle"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:224
+msgid " Son of uncle"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:230
+msgid "Son of paternal uncle"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:232
+msgid " Son of paternal uncle"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:239
+msgid "Add Deceased"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:246
+#: .\calc\templates\calc\new_results.html:20
+#: .\calc\templates\calc\results.html:19
+msgid "Relation"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:247
+#: .\calc\templates\calc\new_results.html:18
+#: .\calc\templates\calc\results.html:17
+msgid "Name"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:279 .\calc\templates\calc\detail.html:323
+msgid "Add"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:283
+msgid "First Name:"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:287
+msgid "Last Name:"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:291
+msgid "Sex:"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:293
+msgid "Male"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:294
+msgid "Female"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:298
+msgid "Estate:"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:303
+msgid "Mother:"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:306
+msgid "--- Select Mother ---"
+msgstr ""
+
+#: .\calc\templates\calc\detail.html:322
+msgid "Close"
+msgstr ""
+
+#: .\calc\templates\calc\error.html:5
+msgid "error"
+msgstr ""
+
+#: .\calc\templates\calc\heir_form.html:7
+msgid "Heir"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:20
+msgid "Mawareeth"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:21
+msgid "Distribution of wealth according to the principles of Islam"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:28
+msgid "Get reliable and simple results for your calculations"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:34
+msgid "Easy and Simple"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:35
+msgid "New imporved and interactive user interface"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:54
+msgid "Welcome to Mawareeth 2.0"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:55
+msgid ""
+"Get started now with our new interface and improved inheritance calculation "
+"algorithms."
+msgstr ""
+
+#: .\calc\templates\calc\home.html:57
+msgid "for free or"
+msgstr ""
+
+#: .\calc\templates\calc\home.html:61
+msgid "if you are an exiting user."
+msgstr ""
+
+#: .\calc\templates\calc\index.html:16
+msgid "Create new calculation"
+msgstr ""
+
+#: .\calc\templates\calc\index.html:20
+msgid "Name your Calculation"
+msgstr ""
+
+#: .\calc\templates\calc\index.html:21
+msgid "Calculation name"
+msgstr ""
+
+#: .\calc\templates\calc\index.html:23
+msgid "Submit and continue"
+msgstr ""
+
+#: .\calc\templates\calc\index.html:24
+msgid "Save and add another"
+msgstr ""
+
+#: .\calc\templates\calc\new_results.html:8
+#: .\calc\templates\calc\new_results.html:14
+#: .\calc\templates\calc\results.html:8
+msgid "Result"
+msgstr ""
+
+#: .\calc\templates\calc\new_results.html:19
+#: .\calc\templates\calc\results.html:18
+msgid "Quote"
+msgstr ""
+
+#: .\calc\templates\calc\new_results.html:21
+#: .\calc\templates\calc\results.html:20
+msgid "Shares"
+msgstr ""
+
+#: .\calc\templates\calc\new_results.html:23
+#: .\calc\templates\calc\results.html:22
+msgid "Excess"
+msgstr ""
+
+#: .\calc\templates\calc\new_results.html:26
+#: .\calc\templates\calc\results.html:25
+msgid "Shortage"
+msgstr ""
+
+#: .\calc\templates\calc\new_results.html:29
+#: .\calc\templates\calc\results.html:28
+msgid "Shortage calc"
+msgstr ""
+
+#: .\calc\templates\calc\new_results.html:30
+#: .\calc\templates\calc\results.html:29
+msgid "Calc Union"
+msgstr ""
+
+#: .\calc\templates\calc\new_results.html:33
+#: .\calc\templates\calc\results.html:32
+msgid "Correction"
+msgstr ""
+
+#: .\calc\templates\calc\new_results.html:35
+#: .\calc\templates\calc\results.html:34
+msgid "Amount"
+msgstr ""
+
+#: .\calc\templates\calc\new_results.html:63
+#: .\calc\templates\calc\new_results.html:105
+#: .\calc\templates\calc\results.html:88 .\calc\templates\calc\results.html:189
+#: .\calc\templates\calc\results.html:254
+#: .\calc\templates\calc\results.html:305
+#: .\calc\templates\calc\results.html:376
+#: .\calc\templates\calc\results.html:437
+msgid "asaba"
+msgstr ""
+
+#: .\calc\templates\calc\new_results.html:67
+#: .\calc\templates\calc\results.html:315
+#: .\calc\templates\calc\results.html:383
+#: .\calc\templates\calc\results.html:441
+msgid "blocked"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:5 .\calc\templates\calc\privacy.html:11
+msgid "Privacy Policy for Mawareeth 2.0"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:13
+msgid ""
+"At Mawareeth.com, accessible from https://www.mawareeth.com/, one of our "
+"main priorities is the privacy of our visitors. This Privacy Policy document "
+"contains types of information that is collected and recorded by Mawareeth."
+"com and how we use it."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:15
+msgid ""
+"If you have additional questions or require more information about our "
+"Privacy Policy, do not hesitate to contact us."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:17
+msgid ""
+"This Privacy Policy applies only to our online activities and is valid for "
+"visitors to our website with regards to the information that they shared and/"
+"or collect in Mawareeth.com. This policy is not applicable to any "
+"information collected offline or via channels other than this website."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:19
+msgid "Consent"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:21
+msgid ""
+"By using our website, you hereby consent to our Privacy Policy and agree to "
+"its terms."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:23
+msgid "Information we collect"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:25
+msgid ""
+"The personal information that you are asked to provide, and the reasons why "
+"you are asked to provide it, will be made clear to you at the point we ask "
+"you to provide your personal information."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:26
+msgid ""
+"If you contact us directly, we may receive additional information about you "
+"such as your name, email address, phone number, the contents of the message "
+"and/or attachments you may send us, and any other information you may choose "
+"to provide."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:27
+msgid ""
+"When you register for an Account, we may ask for your contact information, "
+"including items such as name, company name, address, email address, and "
+"telephone number."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:29
+msgid "How we use your information"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:31
+msgid "We use the information we collect in various ways, including to:"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:34
+msgid "Provide, operate, and maintain our webste"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:35
+msgid "Improve, personalize, and expand our webste"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:36
+msgid "Understand and analyze how you use our webste"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:37
+msgid "Develop new products, services, features, and functionality"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:38
+msgid ""
+"Communicate with you, either directly or through one of our partners, "
+"including for customer service, to provide you with updates and other "
+"information relating to the webste, and for marketing and promotional "
+"purposes"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:39
+msgid "Send you emails"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:40
+msgid "Find and prevent fraud"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:43
+msgid "Log Files"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:45
+msgid ""
+"Mawareeth.com follows a standard procedure of using log files. These files "
+"log visitors when they visit websites. All hosting companies do this and a "
+"part of hosting services' analytics. The information collected by log files "
+"include internet protocol (IP) addresses, browser type, Internet Service "
+"Provider (ISP), date and time stamp, referring/exit pages, and possibly the "
+"number of clicks. These are not linked to any information that is personally "
+"identifiable. The purpose of the information is for analyzing trends, "
+"administering the site, tracking users' movement on the website, and "
+"gathering demographic information."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:47
+msgid "Cookies and Web Beacons"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:49
+msgid ""
+"Like any other website, Mawareeth.com uses 'cookies'. These cookies are used "
+"to store information including visitors' preferences, and the pages on the "
+"website that the visitor accessed or visited. The information is used to "
+"optimize the users' experience by customizing our web page content based on "
+"visitors' browser type and/or other information."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:51
+msgid "For more general information on cookies, please read"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:53
+msgid "What Are Cookies"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:57
+msgid "Google DoubleClick DART Cookie"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:59
+msgid ""
+"Google is one of a third-party vendor on our site. It also uses cookies, "
+"known as DART cookies, to serve ads to our site visitors based upon their "
+"visit to www.website.com and other sites on the internet. However, visitors "
+"may choose to decline the use of DART cookies by visiting the Google ad and "
+"content network Privacy Policy at the following URL –"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:63
+msgid "Our Advertising Partners"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:65
+msgid ""
+"Some of advertisers on our site may use cookies and web beacons. Our "
+"advertising partners are listed below. Each of our advertising partners has "
+"their own Privacy Policy for their policies on user data. For easier access, "
+"we hyperlinked to their Privacy Policies below."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:69
+msgid "Google"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:74
+msgid "Advertising Partners Privacy Policies"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:76
+msgid ""
+"You may consult this list to find the Privacy Policy for each of the "
+"advertising partners of Mawareeth.com."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:78
+msgid ""
+"Third-party ad servers or ad networks uses technologies like cookies, "
+"JavaScript, or Web Beacons that are used in their respective advertisements "
+"and links that appear on Mawareeth.com, which are sent directly to users' "
+"browser. They automatically receive your IP address when this occurs. These "
+"technologies are used to measure the effectiveness of their advertising "
+"campaigns and/or to personalize the advertising content that you see on "
+"websites that you visit."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:80
+msgid ""
+"Note that Mawareeth.com has no access to or control over these cookies that "
+"are used by third-party advertisers."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:82
+msgid "Third Party Privacy Policies"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:84
+msgid ""
+"Mawareeth.com's Privacy Policy does not apply to other advertisers or "
+"websites. Thus, we are advising you to consult the respective Privacy "
+"Policies of these third-party ad servers for more detailed information. It "
+"may include their practices and instructions about how to opt-out of certain "
+"options. You may find a complete list of these Privacy Policies and their "
+"links here: Privacy Policy Links."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:86
+msgid ""
+"You can choose to disable cookies through your individual browser options. "
+"To know more detailed information about cookie management with specific web "
+"browsers, it can be found at the browsers' respective websites. What Are "
+"Cookies?"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:88
+msgid "CCPA Privacy Rights (Do Not Sell My Personal Information)"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:90
+msgid ""
+"Under the CCPA, among other rights, California consumers have the right to:"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:91
+msgid ""
+"Request that a business that collects a consumer's personal data disclose "
+"the categories and specific pieces of personal data that a business has "
+"collected about consumers."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:92
+msgid ""
+"Request that a business delete any personal data about the consumer that a "
+"business has collected."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:93
+msgid ""
+"Request that a business that sells a consumer's personal data, not sell the "
+"consumer's personal data."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:94 .\calc\templates\calc\privacy.html:105
+msgid ""
+"If you make a request, we have one month to respond to you. If you would "
+"like to exercise any of these rights, please contact us."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:96
+msgid "GDPR Data Protection Rights"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:98
+msgid ""
+"We would like to make sure you are fully aware of all of your data "
+"protection rights. Every user is entitled to the following:"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:99
+msgid ""
+"The right to access – You have the right to request copies of your personal "
+"data. We may charge you a small fee for this service."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:100
+msgid ""
+"The right to rectification – You have the right to request that we correct "
+"any information you believe is inaccurate. You also have the right to "
+"request that we complete the information you believe is incomplete."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:101
+msgid ""
+"The right to erasure – You have the right to request that we erase your "
+"personal data, under certain conditions."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:102
+msgid ""
+"The right to restrict processing – You have the right to request that we "
+"restrict the processing of your personal data, under certain conditions."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:103
+msgid ""
+"The right to object to processing – You have the right to object to our "
+"processing of your personal data, under certain conditions."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:104
+msgid ""
+"The right to data portability – You have the right to request that we "
+"transfer the data that we have collected to another organization, or "
+"directly to you, under certain conditions."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:107
+msgid "Children's Information"
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:109
+msgid ""
+"Another part of our priority is adding protection for children while using "
+"the internet. We encourage parents and guardians to observe, participate in, "
+"and/or monitor and guide their online activity."
+msgstr ""
+
+#: .\calc\templates\calc\privacy.html:111
+msgid ""
+"Mawareeth.com does not knowingly collect any Personal Identifiable "
+"Information from children under the age of 13. If you think that your child "
+"provided this kind of information on our website, we strongly encourage you "
+"to contact us immediately and we will do our best efforts to promptly remove "
+"such information from our records."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:13
+msgid "Welcome to Mawareeth.com!"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:15
+msgid ""
+"These terms and conditions outline the rules and regulations for the use of "
+"Mawareeth 2.0's Website, located at https://www.mawareeth.com/."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:17
+msgid ""
+"By accessing this website we assume you accept these terms and conditions. "
+"Do not continue to use Mawareeth.com if you do not agree to take all of the "
+"terms and conditions stated on this page."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:19
+msgid ""
+"The following terminology applies to these Terms and Conditions, Privacy "
+"Statement and Disclaimer Notice and all Agreements: \"Client\", \"You\" and "
+"\"Your\" refers to you, the person log on this website and compliant to the "
+"Company’s terms and conditions. \"The Company\", \"Ourselves\", \"We\", \"Our"
+"\" and \"Us\", refers to our Company. \"Party\", \"Parties\", or \"Us\", "
+"refers to both the Client and ourselves. All terms refer to the offer, "
+"acceptance and consideration of payment necessary to undertake the process "
+"of our assistance to the Client in the most appropriate manner for the "
+"express purpose of meeting the Client’s needs in respect of provision of the "
+"Company’s stated services, in accordance with and subject to, prevailing law "
+"of Netherlands. Any use of the above terminology or other words in the "
+"singular, plural, capitalization and/or he/she or they, are taken as "
+"interchangeable and therefore as referring to same."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:21
+msgid "Cookies"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:23
+msgid ""
+"We employ the use of cookies. By accessing Mawareeth.com, you agreed to use "
+"cookies in agreement with the Mawareeth 2.0's Privacy Policy."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:25
+msgid ""
+"Most interactive websites use cookies to let us retrieve the user’s details "
+"for each visit. Cookies are used by our website to enable the functionality "
+"of certain areas to make it easier for people visiting our website. Some of "
+"our affiliate/advertising partners may also use cookies."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:27
+msgid "License"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:29
+msgid ""
+"Unless otherwise stated, Mawareeth 2.0 and/or its licensors own the "
+"intellectual property rights for all material on Mawareeth.com. All "
+"intellectual property rights are reserved. You may access this from "
+"Mawareeth.com for your own personal use subjected to restrictions set in "
+"these terms and conditions."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:31
+msgid "You must not:"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:33
+msgid "Republish material from Mawareeth.com"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:34
+msgid "Sell, rent or sub-license material from Mawareeth.com"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:35
+msgid "Reproduce, duplicate or copy material from Mawareeth.com"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:36
+msgid "Redistribute content from Mawareeth.com"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:39
+msgid "This Agreement shall begin on the date hereof."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:41
+msgid ""
+"Parts of this website offer an opportunity for users to post and exchange "
+"opinions and information in certain areas of the website. Mawareeth 2.0 does "
+"not filter, edit, publish or review Comments prior to their presence on the "
+"website. Comments do not reflect the views and opinions of Mawareeth 2.0,its "
+"agents and/or affiliates. Comments reflect the views and opinions of the "
+"person who post their views and opinions. To the extent permitted by "
+"applicable laws, Mawareeth 2.0 shall not be liable for the Comments or for "
+"any liability, damages or expenses caused and/or suffered as a result of any "
+"use of and/or posting of and/or appearance of the Comments on this website."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:43
+msgid ""
+"Mawareeth 2.0 reserves the right to monitor all Comments and to remove any "
+"Comments which can be considered inappropriate, offensive or causes breach "
+"of these Terms and Conditions."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:45
+msgid "You warrant and represent that:"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:48
+msgid ""
+"You are entitled to post the Comments on our website and have all necessary "
+"licenses and consents to do so;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:49
+msgid ""
+"The Comments do not invade any intellectual property right, including "
+"without limitation copyright, patent or trademark of any third party;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:50
+msgid ""
+"The Comments do not contain any defamatory, libelous, offensive, indecent or "
+"otherwise unlawful material which is an invasion of privacy"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:51
+msgid ""
+"The Comments will not be used to solicit or promote business or custom or "
+"present commercial activities or unlawful activity."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:54
+msgid ""
+"You hereby grant Mawareeth 2.0 a non-exclusive license to use, reproduce, "
+"edit and authorize others to use, reproduce and edit any of your Comments in "
+"any and all forms, formats or media."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:56
+msgid "Hyperlinking to our Content"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:58
+msgid ""
+"The following organizations may link to our Website without prior written "
+"approval:"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:61
+msgid "Government agencies;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:62
+msgid "Search engines;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:63
+msgid "News organizations;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:64
+msgid ""
+"Online directory distributors may link to our Website in the same manner as "
+"they hyperlink to the Websites of other listed businesses; and"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:65
+msgid ""
+"System wide Accredited Businesses except soliciting non-profit "
+"organizations, charity shopping malls, and charity fundraising groups which "
+"may not hyperlink to our Web site."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:68
+msgid ""
+"These organizations may link to our home page, to publications or to other "
+"Website information so long as the link: (a) is not in any way deceptive; "
+"(b) does not falsely imply sponsorship, endorsement or approval of the "
+"linking party and its products and/or services; and (c) fits within the "
+"context of the linking party’s site."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:70
+msgid ""
+"We may consider and approve other link requests from the following types of "
+"organizations:"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:73
+msgid "commonly-known consumer and/or business information sources;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:74
+msgid "dot.com community sites;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:75
+msgid "associations or other groups representing charities;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:76
+msgid "online directory distributors;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:77
+msgid "internet portals;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:78
+msgid "accounting, law and consulting firms; and"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:79
+msgid "educational institutions and trade associations."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:82
+msgid ""
+"We will approve link requests from these organizations if we decide that: "
+"(a) the link would not make us look unfavorably to ourselves or to our "
+"accredited businesses; (b) the organization does not have any negative "
+"records with us; (c) the benefit to us from the visibility of the hyperlink "
+"compensates the absence of Mawareeth 2.0; and (d) the link is in the context "
+"of general resource information."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:84
+msgid ""
+"These organizations may link to our home page so long as the link: (a) is "
+"not in any way deceptive; (b) does not falsely imply sponsorship, "
+"endorsement or approval of the linking party and its products or services; "
+"and (c) fits within the context of the linking party’s site."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:86
+msgid ""
+"If you are one of the organizations listed in paragraph 2 above and are "
+"interested in linking to our website, you must inform us by sending an e-"
+"mail to Mawareeth 2.0. Please include your name, your organization name, "
+"contact information as well as the URL of your site, a list of any URLs from "
+"which you intend to link to our Website, and a list of the URLs on our site "
+"to which you would like to link. Wait 2-3 weeks for a response."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:88
+msgid "Approved organizations may hyperlink to our Website as follows:"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:91
+msgid "By use of our corporate name; or"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:92
+msgid "By use of the uniform resource locator being linked to; or"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:93
+msgid ""
+"By use of any other description of our Website being linked to that makes "
+"sense within the context and format of content on the linking party’s site."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:96
+msgid ""
+"No use of Mawareeth 2.0's logo or other artwork will be allowed for linking "
+"absent a trademark license agreement."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:98
+msgid "iFrames"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:100
+msgid ""
+"Without prior approval and written permission, you may not create frames "
+"around our Webpages that alter in any way the visual presentation or "
+"appearance of our Website."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:102
+msgid "Content Liability"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:104
+msgid ""
+"We shall not be hold responsible for any content that appears on your "
+"Website. You agree to protect and defend us against all claims that is "
+"rising on your Website. No link(s) should appear on any Website that may be "
+"interpreted as libelous, obscene or criminal, or which infringes, otherwise "
+"violates, or advocates the infringement or other violation of, any third "
+"party rights."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:106
+msgid "Your Privacy"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:108
+msgid "Please read Privacy Policy"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:110
+msgid "Reservation of Rights"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:112
+msgid ""
+"We reserve the right to request that you remove all links or any particular "
+"link to our Website. You approve to immediately remove all links to our "
+"Website upon request. We also reserve the right to amen these terms and "
+"conditions and it’s linking policy at any time. By continuously linking to "
+"our Website, you agree to be bound to and follow these linking terms and "
+"conditions."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:114
+msgid "Removal of links from our website"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:116
+msgid ""
+"If you find any link on our Website that is offensive for any reason, you "
+"are free to contact and inform us any moment. We will consider requests to "
+"remove links but we are not obligated to or so or to respond to you directly."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:118
+msgid ""
+"We do not ensure that the information on this website is correct, we do not "
+"warrant its completeness or accuracy; nor do we promise to ensure that the "
+"website remains available or that the material on the website is kept up to "
+"date."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:120
+msgid "Disclaimer"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:122
+msgid ""
+"To the maximum extent permitted by applicable law, we exclude all "
+"representations, warranties and conditions relating to our website and the "
+"use of this website. Nothing in this disclaimer will:"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:125
+msgid "limit or exclude our or your liability for death or personal injury;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:126
+msgid ""
+"limit or exclude our or your liability for fraud or fraudulent "
+"misrepresentation;"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:127
+msgid ""
+"limit any of our or your liabilities in any way that is not permitted under "
+"applicable law; or"
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:128
+msgid ""
+"exclude any of our or your liabilities that may not be excluded under "
+"applicable law."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:131
+msgid ""
+"The limitations and prohibitions of liability set in this Section and "
+"elsewhere in this disclaimer: (a) are subject to the preceding paragraph; "
+"and (b) govern all liabilities arising under the disclaimer, including "
+"liabilities arising in contract, in tort and for breach of statutory duty."
+msgstr ""
+
+#: .\calc\templates\calc\terms.html:133
+msgid ""
+"As long as the website and the information and services on the website are "
+"provided free of charge, we will not be liable for any loss or damage of any "
+"nature."
+msgstr ""
+
+#: .\calc\templates\registration\login.html:7
+msgid "Login"
+msgstr ""
+
+#: .\calc\templates\registration\login.html:37
+msgid "Please login to see this page."
+msgstr ""
+
+#: .\calc\templates\registration\login.html:45
+msgid "Sign In"
+msgstr ""
+
+#: .\calc\templates\registration\login.html:50
+msgid "Enter your username"
+msgstr ""
+
+#: .\calc\templates\registration\login.html:52
+msgid "Username"
+msgstr ""
+
+#: .\calc\templates\registration\login.html:56
+#: .\calc\templates\registration\login.html:57
+msgid "Password"
+msgstr ""
+
+#: .\calc\templates\registration\login.html:62
+msgid "Sign in"
+msgstr ""
+
+#: .\calc\templates\registration\login.html:70
+#: .\calc\templates\registration\signup.html:76
+msgid "Login with Facebook"
+msgstr ""
+
+#: .\calc\templates\registration\login.html:75
+#: .\calc\templates\registration\signup.html:81
+msgid "Login with LinkedIn"
+msgstr ""
+
+#: .\calc\templates\registration\login.html:82
+msgid "Lost password?"
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_complete.html:11
+msgid "Your password has been set. You may go ahead and "
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_complete.html:13
+msgid "sign in"
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_complete.html:15
+msgid "now."
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_confirm.html:13
+#: .\calc\templates\registration\password_reset_confirm.html:20
+msgid "Change password"
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_confirm.html:26
+msgid ""
+"The password reset link was invalid, possibly because it has already been "
+"used. Please request a new password reset."
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_done.html:11
+msgid ""
+"We've emailed you instructions for setting your password, if an account "
+"exists with the email you entered. You should receive them shortly."
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_done.html:14
+msgid ""
+"If you don't receive an email, please make sure you've entered the address "
+"you registered with, and check your spam folder."
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_email.html:4
+msgid "To initiate the password reset process for your"
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_email.html:6
+msgid "Mawareeth 2.0 account,"
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_email.html:7
+msgid "click the link below:"
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_email.html:11
+msgid ""
+"If clicking the link above doesn't work, please copy and paste the URL in a "
+"new browser window instead."
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_email.html:13
+msgid "Sincerely,"
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_email.html:14
+msgid "The Mawareeth 2.0 team,"
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_form.html:12
+msgid "Forgot password"
+msgstr ""
+
+#: .\calc\templates\registration\password_reset_form.html:22
+msgid "submit"
+msgstr ""
+
+#: .\calc\templates\registration\signup.html:37
+#: .\calc\templates\registration\signup.html:70
+msgid "Sign up"
+msgstr ""
+
+#: .\calc\templates\registration\signup.html:44
+msgid "Letters, digits and @/./+/-/_ only."
+msgstr ""
+
+#: .\calc\templates\registration\signup.html:45
+msgid "Username:"
+msgstr ""
+
+#: .\calc\templates\registration\signup.html:51
+msgid "min 8 characters. Strong password required"
+msgstr ""
+
+#: .\calc\templates\registration\signup.html:52
+msgid "Password:"
+msgstr ""
+
+#: .\calc\templates\registration\signup.html:57
+msgid "Enter the same password"
+msgstr ""
+
+#: .\calc\templates\registration\signup.html:58
+msgid "Password confirmation:"
+msgstr ""
+
+#: .\calc\templates\registration\signup.html:65
+msgid "Enter email"
+msgstr ""
+
+#: .\calc\templates\registration\signup.html:66
+msgid "Email:"
+msgstr ""
+
+#: .\calc\templates\registration\signup.html:85
+msgid "Already registered"
+msgstr ""
+
+#: .\calc\views.py:41
+msgid "Decease already exist"
+msgstr ""
+
+#: .\calc\views.py:110 .\calc\views.py:318
+msgid "Father already exist"
+msgstr ""
+
+#: .\calc\views.py:164
+msgid "Cann't have more than 4 wifes"
+msgstr ""
+
+#: .\calc\views.py:784
+msgid "Must enter a name for your calcualtion"
+msgstr ""
+
+#: .\calc\views.py:808
+msgid "user not allowed"
+msgstr ""
+
+#: .\mawareeth\settings.py:156
+msgid "Arabic"
+msgstr ""
+
+#: .\mawareeth\settings.py:157
+msgid "English"
+msgstr ""
+
+#: .\mawareeth\settings.py:158
+msgid "French"
+msgstr ""
+
+#: .\user_auth\forms.py:9
+msgid "Email address"
+msgstr ""
+
+#: .\user_auth\forms.py:10
+msgid "Required."
+msgstr ""
+
+#: .\user_auth\templates\user_auth\profile.html:19
+msgid "Profile Info"
+msgstr ""
+
+#: .\user_auth\templates\user_auth\profile.html:24
+msgid "Update"
+msgstr ""
+
+#: .\user_auth\views.py:17
+msgid "Your account has been updated!"
+msgstr ""
