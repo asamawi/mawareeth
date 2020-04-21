@@ -21,6 +21,13 @@ import waffle
 
 class HomePage(TemplateView):
 	template_name="calc/home.html"
+
+	def get(self, request, **kwargs):
+		if request.user.is_authenticated:
+			return HttpResponseRedirect(reverse( 'calc:index'))
+		else:
+			context = self.get_context_data(**kwargs)
+			return self.render_to_response(context)
 class Terms(TemplateView):
 	template_name="calc/terms.html"
 class Privacy(TemplateView):

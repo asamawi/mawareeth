@@ -187,7 +187,7 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = 'calc:home'
+LOGIN_REDIRECT_URL = 'calc:index'
 LOGOUT_URL = 'logout'
 LOGOUT_REDIRECT_URL = 'login'
 
