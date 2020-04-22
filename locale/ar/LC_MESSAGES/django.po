@@ -7,16 +7,16 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-21 22:29+0300\n"
-"PO-Revision-Date: 2020-04-21 22:33+0300\n"
+"POT-Creation-Date: 2020-04-22 14:51+0300\n"
+"PO-Revision-Date: 2020-04-22 14:52+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: ar\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n"
-"%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
+"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && "
+"n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
 "X-Generator: Poedit 2.3\n"
 
 #: .\calc\forms.py:7 .\calc\forms.py:12
@@ -31,11 +31,11 @@ msgstr "الاسم الاخير"
 msgid "father already exist"
 msgstr "الاب موجود"
 
-#: .\calc\models.py:66 .\calc\views.py:83
+#: .\calc\models.py:66 .\calc\views.py:90
 msgid "Mother already exist"
 msgstr "الام موجودة"
 
-#: .\calc\models.py:84 .\calc\views.py:137
+#: .\calc\models.py:84 .\calc\views.py:144
 msgid "Husband already exist"
 msgstr "الزوج موجود"
 
@@ -56,188 +56,192 @@ msgid "father gets the remainder because there is no descendant"
 msgstr "الاب ياخذ الباقي لعدم وجود الفرع الوارث"
 
 #: .\calc\models.py:955
-msgid "mother gets 1/6 because of descendant or siblings"
-msgstr "تاخذ الام السدس لوجود الفرع الوارث او جمع من الاخوة"
+msgid "mother gets 1/6 because of descendant"
+msgstr "تاخذ الام السدس لوجود الفرع الوارث"
 
-#: .\calc\models.py:959
+#: .\calc\models.py:958
+msgid "mother gets 1/6 because of siblings"
+msgstr "تاخذ الام السدس لوجود جمع من الاخوة"
+
+#: .\calc\models.py:962
 msgid "mother gets 1/3 of the remainder which is 1/4."
 msgstr "تاخذ الام ثلث الباقي أي الربع."
 
-#: .\calc\models.py:962
+#: .\calc\models.py:965
 msgid "mother gets 1/3 of the remainder which is 1/6"
 msgstr "تاخذ الام ثلث الباقي اي السدس"
 
-#: .\calc\models.py:965
+#: .\calc\models.py:968
 msgid "mother gets 1/3 because no descendant or siblings"
 msgstr "تاخذ الام الثلث لعدم وجود الفرع الوارث او جمع من الاخوة"
 
-#: .\calc\models.py:979
+#: .\calc\models.py:982
 msgid "husband gets 1/4 becuase of descendant"
 msgstr "الزوج ياخذ الربع لوجود الفرع الوارث"
 
-#: .\calc\models.py:982
+#: .\calc\models.py:985
 msgid "husband gets 1/2 becuase there is no descendant"
 msgstr "الزوج ياخذ النصف لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:995
+#: .\calc\models.py:998
 msgid "wife gets 1/8 becuase of descendant"
 msgstr "تاخذ الزوجة الثمن لوجود الفرع الوارث"
 
-#: .\calc\models.py:998
+#: .\calc\models.py:1001
 msgid "wife gets 1/4 becuase there is no descendant"
 msgstr "تاخذ الزوجة الربع لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:1002
+#: .\calc\models.py:1005
 msgid "wives share the qoute of 1/8 becuase of descendant"
 msgstr "الزوجات شركاء في الثمن لوجود الفرع الوارث"
 
-#: .\calc\models.py:1005
+#: .\calc\models.py:1008
 msgid "wives share the quote of 1/4 becuase there is no descendant"
 msgstr "الزوجات شركاء في الربع لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:1018
+#: .\calc\models.py:1021
 msgid ""
-"Daughter/s with Son/s share the residuary. The son will receive a share of two "
-"daughters."
+"Daughter/s with Son/s share the residuary. The son will receive a share of "
+"two daughters."
 msgstr "البنات مع الأبناء عصبة يأخذن الباقي. للذكر مثل حظ الانثيين."
 
-#: .\calc\models.py:1023
+#: .\calc\models.py:1026
 msgid "Daughter gets 1/2 when she has no other sibling/s"
 msgstr "البنت تاخذ النصف اذا انفردت من دون اخوة و اخوات"
 
-#: .\calc\models.py:1027
+#: .\calc\models.py:1030
 msgid "Daughters share the quote of 2/3 when there is no son/s"
 msgstr "البنات شركاء في الثلثين اذا لم يوجد اخ لهن معصب"
 
-#: .\calc\models.py:1040
+#: .\calc\models.py:1043
 msgid "Son/s share the remainder or all amount if no other heir exist"
 msgstr ""
 "الابن او الأبناء عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\models.py:1055
+#: .\calc\models.py:1058
 msgid "Bother/s are blocked by male descendant"
 msgstr "الأخ او الأخوة محجوبون لوجود الفرع الوارث"
 
-#: .\calc\models.py:1058
+#: .\calc\models.py:1061
 msgid "Brother/s are blocked by father"
 msgstr "الأخ او الأخوة محجوبون لوجود الأب"
 
-#: .\calc\models.py:1061
+#: .\calc\models.py:1064
 msgid "Brother/s are blocked by grandfather"
 msgstr "الأخ او الأخوة محجوبون لوجود الجد"
 
-#: .\calc\models.py:1064
+#: .\calc\models.py:1067
 msgid "Brother/s share the remainder or all amount if no other heir exist"
 msgstr ""
 "الأخ او الأخوة عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\models.py:1079
+#: .\calc\models.py:1082
 msgid "Sister/s are blocked by male descendant"
 msgstr "الأخوات محجوبات لوجود الفرع الوارث الذكر"
 
-#: .\calc\models.py:1082
+#: .\calc\models.py:1085
 msgid "Sister/s are blocked by father"
 msgstr "الاخوات محجوبون لوجود الأب"
 
-#: .\calc\models.py:1085
+#: .\calc\models.py:1088
 msgid "Sister/s are blocked by grandfather"
 msgstr "الأخوات محجوبون لوجود الجد"
 
-#: .\calc\models.py:1088
+#: .\calc\models.py:1091
 msgid ""
-"Sister/s with borther/s share the remainder or all the amount if no other heir "
-"exist. The brother will receive a share of two sisters"
+"Sister/s with borther/s share the remainder or all the amount if no other "
+"heir exist. The brother will receive a share of two sisters"
 msgstr ""
 "الاخوات مع الاخوة عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة "
 "اخرين. للذكر مثل حظ الانثيين"
 
-#: .\calc\models.py:1091
+#: .\calc\models.py:1094
 msgid "Sister/s with female descendant share the remainder"
 msgstr "تأخذ الأخت/الاخوات الباقي بعد فرض البنت/البنات"
 
-#: .\calc\models.py:1095
+#: .\calc\models.py:1098
 msgid "Sister gets half when no father or son. "
 msgstr "الأخت تأخذ النصف عند عدم وجود الاب او الابن. "
 
-#: .\calc\models.py:1098
+#: .\calc\models.py:1101
 msgid "Sisters share 2/3 when no father or son."
 msgstr "الاخوات شركاء في الثلثين اذا لم يوجد اخ لهن معصب و لم يوجد اب او ابن."
 
-#: .\calc\models.py:1110
+#: .\calc\models.py:1113
 msgid "Grandfather is blocked by father"
 msgstr "الجد محجوب لوجود الأب"
 
-#: .\calc\models.py:1113
+#: .\calc\models.py:1116
 msgid "Grandfather gets 1/6 prescribed share because of male descendant"
 msgstr "الجد ياخذ السدس لوجود الفرع الوارث"
 
-#: .\calc\models.py:1117
+#: .\calc\models.py:1120
 msgid "Grandfather gets 1/6 plus remainder because of female descendant"
 msgstr "الجد يأخذ السدس و الباقي تعصيبا"
 
-#: .\calc\models.py:1120
+#: .\calc\models.py:1123
 msgid "Grandfather gets the remainder because there is no descendant"
 msgstr "الجد  ياخذ الباقي لعدم وجود الفرع الوارث"
 
-#: .\calc\models.py:1132
+#: .\calc\models.py:1135
 msgid "Grandmother is blocked by mother"
 msgstr "الجدة محجوبة لوجود الأم"
 
-#: .\calc\models.py:1138
+#: .\calc\models.py:1141
 msgid "Grandmother gets 1/6 if no mother"
 msgstr "الجدة تأخذ السدس في حال عدم وجود الأم"
 
-#: .\calc\models.py:1150
+#: .\calc\models.py:1153
 msgid "Son of son is blocked by Son"
 msgstr "ابن الابن محجوب بالابن"
 
-#: .\calc\models.py:1155
+#: .\calc\models.py:1158
 msgid "Son of son share the remainder or all amount if no other heir exist"
 msgstr "ابن الابن عصبة يأخذ الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\models.py:1170
+#: .\calc\models.py:1173
 msgid "Daughter of son is blocked by son"
 msgstr "بنت الابن محجوبة بالابن"
 
-#: .\calc\models.py:1173
+#: .\calc\models.py:1176
 msgid ""
 "Daughter/s of son with Son/s of son share the residuary. The son of son will "
 "receive a share of two daughters of son."
 msgstr "بنات الابن مع أبناء الابن عصبة يأخذن الباقي. للذكر مثل حظ الانثيين."
 
-#: .\calc\models.py:1178
+#: .\calc\models.py:1181
 msgid "Daughter of son get 1/6, with daughter"
 msgstr "بنت الابن مع البنت تأخذ السدس باقي فرض الثلثين"
 
-#: .\calc\models.py:1181
+#: .\calc\models.py:1184
 msgid "Daughter/s of son are blocked by daugters"
 msgstr "بنت او بنات الابن محجوبات لوجود البنات"
 
-#: .\calc\models.py:1184
+#: .\calc\models.py:1187
 msgid "Daughter of son gets 1/2 when she has no other sibling/s"
 msgstr "بنت الابن تأخذ النصف اذا انفردت من دون اخوة و اخوات"
 
-#: .\calc\models.py:1187
+#: .\calc\models.py:1190
 msgid "Daughters of son share the quote of 2/3 when there is no son/s of son"
 msgstr "بنات الابن شركاء في الثلثين اذا لم يوجد اخ لهن معصب"
 
-#: .\calc\models.py:1203
+#: .\calc\models.py:1206
 msgid "Paternal sister/s are blocked by male descendant"
 msgstr "الأخوات لأب محجوبات لوجود الفرع الوارث الذكر"
 
-#: .\calc\models.py:1206
+#: .\calc\models.py:1209
 msgid "Paternal sister/s are blocked by father"
 msgstr "الاخوات لأب محجوبات لوجود الأب"
 
-#: .\calc\models.py:1209
+#: .\calc\models.py:1212
 msgid "Paternal sister/s are blocked by grandfather"
 msgstr "الأخوات لأب محجوبات لوجود الجد"
 
-#: .\calc\models.py:1212
+#: .\calc\models.py:1215
 msgid "Paternal sister/s are blocked by borther/s"
 msgstr "الاخوات لأب محجوبات لوجود الأخ الشقيق"
 
-#: .\calc\models.py:1215
+#: .\calc\models.py:1218
 msgid ""
 "Paternal sister/s with paternal half borther/s share the remainder or all the "
 "amount if no other heir exist. The brother will receive a share of two sisters"
@@ -245,167 +249,169 @@ msgstr ""
 "الاخوات لأب مع الاخوة لأب عصبة يأخذون الباقي او كامل التركة في حال عدم وجود "
 "ورثة اخرين. للذكر مثل حظ الانثيين"
 
-#: .\calc\models.py:1220
+#: .\calc\models.py:1223
 msgid "Paternal sister/s get 1/6 with sister"
 msgstr "الأخت / الأخوات لأب يأخذن السدس باقي فرض الثلثين مع الأخت الشقيقة"
 
-#: .\calc\models.py:1223
+#: .\calc\models.py:1226
 msgid "Paternal sisters/s are blocked by sisters"
 msgstr "الاخوات لأب محجوبات لوجود الأخوات الشقيقات"
 
-#: .\calc\models.py:1226
+#: .\calc\models.py:1229
 msgid "Paternal sister/s with female descendant share the remainder"
 msgstr "تأخذ الأخت/الاخوات لأب الباقي بعد فرض البنت/البنات"
 
-#: .\calc\models.py:1229
+#: .\calc\models.py:1232
 msgid "Paternal sister gets half when no father or son. "
 msgstr "الأخت لأب تأخذ النصف عند عدم وجود الاب او الابن. "
 
-#: .\calc\models.py:1232
+#: .\calc\models.py:1235
 msgid "Paternal sisters share 2/3 when no father or son."
 msgstr ""
 "الاخوات لأب شركاء في الثلثين اذا لم يوجد اخ لهن معصب و لم يوجد اب او ابن."
 
-#: .\calc\models.py:1247
+#: .\calc\models.py:1250
 msgid "Paternal brother/s are blocked by male descendant"
 msgstr "الأخ او الأخوة لأب محجوبون لوجود الفرع الوارث"
 
-#: .\calc\models.py:1250
+#: .\calc\models.py:1253
 msgid "Paternal brother/s are blocked by father"
 msgstr "الأخ او الأخوة لأب محجوبون لوجود الأب"
 
-#: .\calc\models.py:1253
+#: .\calc\models.py:1256
 msgid "Paternal brother/s are blocked by grandfather"
 msgstr "الأخ او الأخوة لأب محجوبون لوجود الجد"
 
-#: .\calc\models.py:1256
+#: .\calc\models.py:1259
 msgid "Paternal brother/s are blocked by brothers"
 msgstr "الأخ او الأخوة لأب محجوبون لوجود الأخ الشقيق"
 
-#: .\calc\models.py:1261
+#: .\calc\models.py:1264
 msgid "Paternal brother/s are blocked by sisters"
 msgstr "الأخ او الأخوة لأب محجوبون لوجود الأخت الشقيقة"
 
-#: .\calc\models.py:1264 .\calc\models.py:1267
+#: .\calc\models.py:1267 .\calc\models.py:1270
 msgid ""
 "Paternal brother/s share the remainder or all amount if no other heir exist"
 msgstr ""
-"الأخ او الأخوة لأب عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
+"الأخ او الأخوة لأب عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة "
+"اخرين"
 
-#: .\calc\models.py:1282
+#: .\calc\models.py:1285
 msgid "Maternal sister/s are blocked by descendant"
 msgstr "الأخوات لأم محجوبات لوجود الفرع الوارث"
 
-#: .\calc\models.py:1285
+#: .\calc\models.py:1288
 msgid "Maternal sister/s are blocked by father"
 msgstr "الاخوات لأم محجوبات لوجود الأب"
 
-#: .\calc\models.py:1288
+#: .\calc\models.py:1291
 msgid "Maternal sister/s are blocked by grandfather"
 msgstr "الأخوات لأم محجوبات لوجود الجد"
 
-#: .\calc\models.py:1294
+#: .\calc\models.py:1297
 msgid "Maternal sister/s with maternal brother/s share 1/3"
 msgstr "الأخوات لأم مع الأخوة لأم شركاء في الثلث"
 
-#: .\calc\models.py:1297
+#: .\calc\models.py:1300
 msgid "Maternal sister get 1/6"
 msgstr "الأخت لأم تأخذ السدس"
 
-#: .\calc\models.py:1300
+#: .\calc\models.py:1303
 msgid "Maternal sisters share 1/3"
 msgstr "الأخوات لأم شركاء في الثلث"
 
-#: .\calc\models.py:1315
+#: .\calc\models.py:1318
 msgid "Maternal brother/s are blocked by descendant"
 msgstr "الأخ او الأخوة لأم محجوبون لوجود الفرع الوارث"
 
-#: .\calc\models.py:1318
+#: .\calc\models.py:1321
 msgid "Maternal brother/s are blocked by father"
 msgstr "الأخ او الأخوة لأم محجوبون لوجود الأب"
 
-#: .\calc\models.py:1321
+#: .\calc\models.py:1324
 msgid "Maternal brother/s are blocked by grandfather"
 msgstr "الأخ او الأخوة لأم محجوبون لوجود الجد"
 
-#: .\calc\models.py:1327
+#: .\calc\models.py:1330
 msgid "Maternal brother/s with maternal sister/s share 1/3"
 msgstr "الأخوة لأم مع الأخوات لأم شركاء في الثلث"
 
-#: .\calc\models.py:1330
+#: .\calc\models.py:1333
 msgid "Maternal brother get 1/6"
 msgstr "الأخ لأم يأخذ السدس"
 
-#: .\calc\models.py:1333
+#: .\calc\models.py:1336
 msgid "Maternal brothers share 1/3"
 msgstr "الأخوة لأم شركاء في الثلث"
 
-#: .\calc\models.py:1348
+#: .\calc\models.py:1351
 msgid "Son/s of Brother are blocked by male descendant"
 msgstr "ابن او أبناء الأخ محجوبون لوجود الفرع الوارث الذكر"
 
-#: .\calc\models.py:1351
+#: .\calc\models.py:1354
 msgid "Son/s of Brother are blocked by father"
 msgstr "ابن أو أبناء الأخ محجوبون لوجود الأب"
 
-#: .\calc\models.py:1354
+#: .\calc\models.py:1357
 msgid "Son/s of Brother are blocked by grandfather"
 msgstr "ابن او أبناء الأخ محجوبون لوجود الجد"
 
-#: .\calc\models.py:1357
+#: .\calc\models.py:1360
 msgid "Son/s of Brother are blocked by brother/s"
 msgstr "ابن او أبناء الأخ محجوبون لوجود الأخ"
 
-#: .\calc\models.py:1360
+#: .\calc\models.py:1363
 msgid "Son/s of Brother are blocked by sisters"
 msgstr "ابن او أبناء الأخ محجوبون لوجود الأخوات"
 
-#: .\calc\models.py:1363
+#: .\calc\models.py:1366
 msgid "Son/s of Brother are blocked by paternal brother/s"
 msgstr "ابن او أبناء الأخ محجوبون لوجود الأخ لأب"
 
-#: .\calc\models.py:1366
+#: .\calc\models.py:1369
 msgid "Son/s of Brother are blocked by paternal sister/s"
 msgstr "ابن او أبناء الأخ محجوبون لوجود الأخت لأب"
 
-#: .\calc\models.py:1369
-msgid "Son/s of Brother share the remainder or all amount if no other heir exist"
+#: .\calc\models.py:1372
+msgid ""
+"Son/s of Brother share the remainder or all amount if no other heir exist"
 msgstr ""
 "ابن أو أبناء الأخ عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\models.py:1384
+#: .\calc\models.py:1387
 msgid "Son/s of Paternal Brother are blocked by male descendant"
 msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الفرع الوارث الذكر"
 
-#: .\calc\models.py:1387
+#: .\calc\models.py:1390
 msgid "Son/s of Paternal Brother are blocked by father"
 msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الأب"
 
-#: .\calc\models.py:1390
+#: .\calc\models.py:1393
 msgid "Son/s of Paternal Brother are blocked by grandfather"
 msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الجد"
 
-#: .\calc\models.py:1393
+#: .\calc\models.py:1396
 msgid "Son/s of Paternal Brother are blocked by brother/s"
 msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الأخ"
 
-#: .\calc\models.py:1396
+#: .\calc\models.py:1399
 msgid "Son/s of Paternal Brother are blocked by sisters"
 msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الأخوات الشقيقات"
 
-#: .\calc\models.py:1399
+#: .\calc\models.py:1402
 msgid "Son/s of Paternal Brother are blocked by paternal brother/s"
 msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الأخ لأب"
 
-#: .\calc\models.py:1402
+#: .\calc\models.py:1405
 msgid "Son/s of Paternal Brother are blocked by paternal sister/s"
 msgstr "ابن او أبناء الأخ لأب محجوبون لوجود الأخت لأب"
 
-#: .\calc\models.py:1405
+#: .\calc\models.py:1408
 msgid "Son/s of Paternal Brother are blocked by sons of brother"
 msgstr "ابن او أبناء الأخ لأب محجوبون لوجود ابن الأخ الشقيق"
 
-#: .\calc\models.py:1408
+#: .\calc\models.py:1411
 msgid ""
 "Son/s of Paternal Brother share the remainder or all amount if no other heir "
 "exist"
@@ -413,188 +419,190 @@ msgstr ""
 "ابن أو أبناء الأخ لأب عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة "
 "اخرين"
 
-#: .\calc\models.py:1423
+#: .\calc\models.py:1426
 msgid "Uncle/s are blocked by male descendant"
 msgstr "العم محجوب لوجود الفرع الوارث الذكر"
 
-#: .\calc\models.py:1426
+#: .\calc\models.py:1429
 msgid "Uncle/s are blocked by father"
 msgstr "العم محجوب لوجود الأب"
 
-#: .\calc\models.py:1429
+#: .\calc\models.py:1432
 msgid "Uncle/s are blocked by grandfather"
 msgstr "العم محجوب لوجود الجد"
 
-#: .\calc\models.py:1432
+#: .\calc\models.py:1435
 msgid "Uncle/s are blocked by brother/s"
 msgstr "العم محجوب لوجود الأخ الشقيق"
 
-#: .\calc\models.py:1435
+#: .\calc\models.py:1438
 msgid "Uncle/s are blocked by sisters"
 msgstr "العم محجوب لوجود الأخوات الشقيقات"
 
-#: .\calc\models.py:1438
+#: .\calc\models.py:1441
 msgid "Uncle/s are blocked by paternal brother/s"
 msgstr "العم محجوب لوجود الأخ لأب"
 
-#: .\calc\models.py:1441
+#: .\calc\models.py:1444
 msgid "Uncle/s are blocked by paternal sister/s"
 msgstr "العم محجوب لوجود الأخت لأب"
 
-#: .\calc\models.py:1444
+#: .\calc\models.py:1447
 msgid "Uncle/s are blocked by sons of brother"
 msgstr "العم محجوب لوجود ابن الأخ الشقيق"
 
-#: .\calc\models.py:1447
+#: .\calc\models.py:1450
 msgid "Uncle/s are blocked by sons of paternal brother"
 msgstr "العم محجوب لوجود الأخ لأب"
 
-#: .\calc\models.py:1450
+#: .\calc\models.py:1453
 msgid "Uncle/s share the remainder or all amount if no other heir exist"
 msgstr "العم عصبة يأخذ الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\models.py:1465
+#: .\calc\models.py:1468
 msgid "Paternal Uncle/s are blocked by male descendant"
 msgstr "العم لأب محجوب لوجود الفرع الوارث الذكر"
 
-#: .\calc\models.py:1468
+#: .\calc\models.py:1471
 msgid "Paternal Uncle/s are blocked by father"
 msgstr "العم لأب محجوب لوجود الأب"
 
-#: .\calc\models.py:1471
+#: .\calc\models.py:1474
 msgid "Paternal Uncle/s are blocked by grandfather"
 msgstr "العم لأب محجوب لوجود الجد"
 
-#: .\calc\models.py:1474
+#: .\calc\models.py:1477
 msgid "Paternal Uncle/s are blocked by brother/s"
 msgstr "العم لأب محجوب لوجود الأخ الشقيق"
 
-#: .\calc\models.py:1477
+#: .\calc\models.py:1480
 msgid "Paternal Uncle/s are blocked by sisters"
 msgstr "العم لأب محجوب لوجود الأخوات الشقيقات"
 
-#: .\calc\models.py:1480
+#: .\calc\models.py:1483
 msgid "Paternal Uncle/s are blocked by paternal brother/s"
 msgstr "العم لأب محجوب لوجود الأخ لأب"
 
-#: .\calc\models.py:1483
+#: .\calc\models.py:1486
 msgid "Paternal Uncle/s are blocked by paternal sister/s"
 msgstr "العم لأب محجوب لوجود الأخت لأب"
 
-#: .\calc\models.py:1486
+#: .\calc\models.py:1489
 msgid "Paternal Uncle/s are blocked by sons of brother"
 msgstr "العم لأب محجوب لوجود ابن الأخ الشقيق"
 
-#: .\calc\models.py:1489
+#: .\calc\models.py:1492
 msgid "Paternal Uncle/s are blocked by sons of paternal brother"
 msgstr "العم لأب محجوب لوجود ابن الأخ لأب"
 
-#: .\calc\models.py:1492
+#: .\calc\models.py:1495
 msgid "Paternal Uncle/s are blocked by uncle/s"
 msgstr "العم لأب محجوب لوجود العم الشقيق"
 
-#: .\calc\models.py:1495
-msgid "Paternal Uncle/s share the remainder or all amount if no other heir exist"
+#: .\calc\models.py:1498
+msgid ""
+"Paternal Uncle/s share the remainder or all amount if no other heir exist"
 msgstr "العم لأب عصبة يأخذ الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\models.py:1510
+#: .\calc\models.py:1513
 msgid "Son/s of uncle are blocked by male descendant"
 msgstr "ابن او أبناء العم محجوبون لوجود الفرع الوارث الذكر"
 
-#: .\calc\models.py:1513
+#: .\calc\models.py:1516
 msgid "Son/s of Uncle/s are blocked by father"
 msgstr "ابن العم محجوب لوجود الأب"
 
-#: .\calc\models.py:1516
+#: .\calc\models.py:1519
 msgid "Son/s of Uncle/s are blocked by grandfather"
 msgstr "ابن او أبناء العم محجوبون لوجود الجد"
 
-#: .\calc\models.py:1519
+#: .\calc\models.py:1522
 msgid "Son/s of Uncle/s are blocked by brother/s"
 msgstr "ابن العم محجوب لوجود الأخ الشقيق"
 
-#: .\calc\models.py:1522
+#: .\calc\models.py:1525
 msgid "Son/s of Uncle/s are blocked by sisters"
 msgstr "ابن العم محجوب لوجود الأخت الشقيقة"
 
-#: .\calc\models.py:1525
+#: .\calc\models.py:1528
 msgid "Son/s of Uncle/s are blocked by paternal brother/s"
 msgstr "ابن او أبناء العم محجوبون لوجود الأخ لأب"
 
-#: .\calc\models.py:1528
+#: .\calc\models.py:1531
 msgid "Son/s of Uncle/s are blocked by paternal sister/s"
 msgstr "ابن او أبناء العم محجوبون لوجود الأخت لأب"
 
-#: .\calc\models.py:1531
+#: .\calc\models.py:1534
 msgid "Son/s of Uncle/s are blocked by sons of brother"
 msgstr "ابن العم محجوب لوجود ابن الأخ"
 
-#: .\calc\models.py:1534
+#: .\calc\models.py:1537
 msgid "Son/s of Uncle/s are blocked by sons of paternal brother"
 msgstr "ابن العم محجوب لوجود ابن الأخ لأب"
 
-#: .\calc\models.py:1537
+#: .\calc\models.py:1540
 msgid "Son/s of Uncle/s are blocked by uncle/s"
 msgstr "ابن العم محجوب لوجود العم"
 
-#: .\calc\models.py:1540
+#: .\calc\models.py:1543
 msgid "Son/s of Uncle/s are blocked by paternal uncle/s"
 msgstr "ابن العم محجوب لوجود العم لأب"
 
-#: .\calc\models.py:1543
-msgid "Son/s of Uncle/s share the remainder or all amount if no other heir exist"
+#: .\calc\models.py:1546
+msgid ""
+"Son/s of Uncle/s share the remainder or all amount if no other heir exist"
 msgstr ""
 "ابن أو أبناء العم عصبة يأخذون الباقي او كامل التركة في حال عدم وجود ورثة اخرين"
 
-#: .\calc\models.py:1558
+#: .\calc\models.py:1561
 msgid "Son/s of paternal uncle are blocked by male descendant"
 msgstr "ابن او أبناء العم لأب محجوبون لوجود الفرع الوارث الذكر"
 
-#: .\calc\models.py:1561
+#: .\calc\models.py:1564
 msgid "Son/s of paternal Uncle/s are blocked by father"
 msgstr "ابن العم لأب محجوب لوجود الأب"
 
-#: .\calc\models.py:1564
+#: .\calc\models.py:1567
 msgid "Son/s of paternal Uncle/s are blocked by grandfather"
 msgstr "ابن او أبناء العم لأب محجوبون لوجود الجد"
 
-#: .\calc\models.py:1567
+#: .\calc\models.py:1570
 msgid "Son/s of paternal Uncle/s are blocked by brother/s"
 msgstr "ابن العم لأب محجوب لوجود الأخ الشقيق"
 
-#: .\calc\models.py:1570
+#: .\calc\models.py:1573
 msgid "Son/s of paternal Uncle/s are blocked by sisters"
 msgstr "ابن العم لأب محجوب لوجود الأخوات الشقيقات"
 
-#: .\calc\models.py:1573
+#: .\calc\models.py:1576
 msgid "Son/s of paternal Uncle/s are blocked by paternal brother/s"
 msgstr "ابن او أبناء العم لأب محجوبون لوجود الأخ لأب"
 
-#: .\calc\models.py:1576
+#: .\calc\models.py:1579
 msgid "Son/s of paternal Uncle/s are blocked by paternal sister/s"
 msgstr "ابن او أبناء العم لأب محجوبون لوجود الأخت لأب"
 
-#: .\calc\models.py:1579
+#: .\calc\models.py:1582
 msgid "Son/s of paternal Uncle/s are blocked by sons of brother"
 msgstr "ابن العم لأب محجوب لوجود ابن الأخ الشقيق"
 
-#: .\calc\models.py:1582
+#: .\calc\models.py:1585
 msgid "Son/s of paternal Uncle/s are blocked by sons of paternal brother"
 msgstr "ابن العم لأب محجوب لوجود ابن الأخ لأب"
 
-#: .\calc\models.py:1585
+#: .\calc\models.py:1588
 msgid "Son/s of paternal Uncle/s are blocked by uncle/s"
 msgstr "ابن العم لأب محجوب لوجود العم الشقيق"
 
-#: .\calc\models.py:1588
+#: .\calc\models.py:1591
 msgid "Son/s of paternal Uncle/s are blocked by paternal uncle/s"
 msgstr "ابن العم لأب محجوب لوجود العم لأب"
 
-#: .\calc\models.py:1591
+#: .\calc\models.py:1594
 msgid "Son/s of paternal Uncle/s are blocked by son/s of uncle/s"
 msgstr "ابن العم لأب محجوب بابن العم الشقيق"
 
-#: .\calc\models.py:1594
+#: .\calc\models.py:1597
 msgid ""
 "Son/s of paternal Uncle/s share the remainder or all amount if no other heir "
 "exist"
@@ -608,9 +616,9 @@ msgstr "من نحن"
 
 #: .\calc\templates\calc\about.html:15
 msgid ""
-"Mawareeth.com is was first launched in 2008 during which there was a clear and "
-"strong need for inheritance distribution software that produce calculation "
-"reports as per the inheritance laws and courts requirements."
+"Mawareeth.com is was first launched in 2008 during which there was a clear "
+"and strong need for inheritance distribution software that produce "
+"calculation reports as per the inheritance laws and courts requirements."
 msgstr ""
 "تم إطلاق موقع المواريث لأول مرة في عام 2008 حيث كانت هناك حاجة واضحة لبرامج "
 "تقسيم المواريث و التركات التي تنتج تقارير حسابية وفقًا لقوانين الميراث المعمول "
@@ -627,7 +635,8 @@ msgstr ""
 
 #: .\calc\templates\calc\about.html:21
 msgid ""
-"Mawareeth 2.0 is the latest release for our website and it was started in 2020."
+"Mawareeth 2.0 is the latest release for our website and it was started in "
+"2020."
 msgstr "المواريث النسخة 2.0 هو احدث اصدار للموقع و تم البدء فيه في عام 2020."
 
 #: .\calc\templates\calc\about.html:24
@@ -636,8 +645,8 @@ msgstr "مهمتنا"
 
 #: .\calc\templates\calc\about.html:27
 msgid ""
-"We promise to provide the best calculations results with accuracy, clarity and "
-"simplicity that is not matched elsewhere. Our goal is to provide to our "
+"We promise to provide the best calculations results with accuracy, clarity "
+"and simplicity that is not matched elsewhere. Our goal is to provide to our "
 "community the best service they deserve paying attention and responding to "
 "their needs."
 msgstr ""
@@ -654,8 +663,8 @@ msgid ""
 "We are open to any contribution you are willing to make. This project is open "
 "source and non-profit. To contribute to source code please visit"
 msgstr ""
-"نحن منفتحون على أي مساهمة ترغب في تقديمها. هذا المشروع مفتوح المصدر وغير ربحي. "
-"للمساهمة في البرمجة يرجى زيارة"
+"نحن منفتحون على أي مساهمة ترغب في تقديمها. هذا المشروع مفتوح المصدر وغير "
+"ربحي. للمساهمة في البرمجة يرجى زيارة"
 
 #: .\calc\templates\calc\about.html:35
 msgid "GitHub Repository."
@@ -1046,7 +1055,8 @@ msgid "Save and add another"
 msgstr "حفظ و اضافة جديدة"
 
 #: .\calc\templates\calc\new_results.html:8
-#: .\calc\templates\calc\new_results.html:14 .\calc\templates\calc\results.html:8
+#: .\calc\templates\calc\new_results.html:14
+#: .\calc\templates\calc\results.html:8
 msgid "Result"
 msgstr "النتيجة"
 
@@ -1123,11 +1133,11 @@ msgstr ""
 
 #: .\calc\templates\calc\privacy.html:15
 msgid ""
-"If you have additional questions or require more information about our Privacy "
-"Policy, do not hesitate to contact us."
+"If you have additional questions or require more information about our "
+"Privacy Policy, do not hesitate to contact us."
 msgstr ""
-"اذا كان لديكم أي استفسارات او أسئلة حول سياسة الخصوصية الخاصة بنا , لا تترددوا "
-"بالاتصال بنا."
+"اذا كان لديكم أي استفسارات او أسئلة حول سياسة الخصوصية الخاصة بنا , لا "
+"تترددوا بالاتصال بنا."
 
 #: .\calc\templates\calc\privacy.html:17
 msgid ""
@@ -1136,10 +1146,10 @@ msgid ""
 "or collect in Mawareeth.com. This policy is not applicable to any information "
 "collected offline or via channels other than this website."
 msgstr ""
-"سياسة الخصوصية هذه تنطبق على المعاملات الالكترونية من خلال الانترنت الخاصة بنا "
-"و هي صالحة للزائرين لموقعنا بالنسبة للمعلومات التي يشاركونها/او تأخذ في موقع "
-"المواريث. لا تنطبق هذه السياسة على المعلومات التي تأخذ من دون اتصال بالأنترنت "
-"و أي قناة اتصال غير الموقع."
+"سياسة الخصوصية هذه تنطبق على المعاملات الالكترونية من خلال الانترنت الخاصة "
+"بنا و هي صالحة للزائرين لموقعنا بالنسبة للمعلومات التي يشاركونها/او تأخذ في "
+"موقع المواريث. لا تنطبق هذه السياسة على المعلومات التي تأخذ من دون اتصال "
+"بالأنترنت و أي قناة اتصال غير الموقع."
 
 #: .\calc\templates\calc\privacy.html:19
 msgid "Consent"
@@ -1160,8 +1170,8 @@ msgstr "المعلومات التي نجمعها"
 #: .\calc\templates\calc\privacy.html:25
 msgid ""
 "The personal information that you are asked to provide, and the reasons why "
-"you are asked to provide it, will be made clear to you at the point we ask you "
-"to provide your personal information."
+"you are asked to provide it, will be made clear to you at the point we ask "
+"you to provide your personal information."
 msgstr ""
 "المعلومات الشخصية التي تطلب منك و الأسباب التي طلبت من اجلها سوف يتم ايضاحها "
 "في حينها."
@@ -1233,23 +1243,23 @@ msgstr "ملفات السجل"
 
 #: .\calc\templates\calc\privacy.html:45
 msgid ""
-"Mawareeth.com follows a standard procedure of using log files. These files log "
-"visitors when they visit websites. All hosting companies do this and a part of "
-"hosting services' analytics. The information collected by log files include "
-"internet protocol (IP) addresses, browser type, Internet Service Provider "
-"(ISP), date and time stamp, referring/exit pages, and possibly the number of "
-"clicks. These are not linked to any information that is personally "
+"Mawareeth.com follows a standard procedure of using log files. These files "
+"log visitors when they visit websites. All hosting companies do this and a "
+"part of hosting services' analytics. The information collected by log files "
+"include internet protocol (IP) addresses, browser type, Internet Service "
+"Provider (ISP), date and time stamp, referring/exit pages, and possibly the "
+"number of clicks. These are not linked to any information that is personally "
 "identifiable. The purpose of the information is for analyzing trends, "
-"administering the site, tracking users' movement on the website, and gathering "
-"demographic information."
+"administering the site, tracking users' movement on the website, and "
+"gathering demographic information."
 msgstr ""
-"يتبع موقع المواريث اجراء قياسي / نمطي بحفظ ملفات سجل. تسجل هذه الملفات الزائين "
-"عند زيارتهم للموقع. تقوم جميع شركات الاستضافة بهذا الاجراء و جزء من اجراء "
-"تحليل خدمات الاستضافة. تشمل المعلومات التي تسجل عناوين الانترنت IP , نوع "
-"المتصفح, مزود خدمة الانترنت,التاريخ و الوقت, الصفحات المرجعية ,و عدد النقرات. "
-"لا ترتبط هذه المعلومات باي معلومات يمكن التعرف عليها شخصيا.هدف جمع هذه "
-"المعلومات هو تحليل التوجهات, ادارة الموقع, مراقبة تحركات الزوار على الموقع,و "
-"جمع البيانات الديموغرافية."
+"يتبع موقع المواريث اجراء قياسي / نمطي بحفظ ملفات سجل. تسجل هذه الملفات "
+"الزائين عند زيارتهم للموقع. تقوم جميع شركات الاستضافة بهذا الاجراء و جزء من "
+"اجراء تحليل خدمات الاستضافة. تشمل المعلومات التي تسجل عناوين الانترنت IP , "
+"نوع المتصفح, مزود خدمة الانترنت,التاريخ و الوقت, الصفحات المرجعية ,و عدد "
+"النقرات. لا ترتبط هذه المعلومات باي معلومات يمكن التعرف عليها شخصيا.هدف جمع "
+"هذه المعلومات هو تحليل التوجهات, ادارة الموقع, مراقبة تحركات الزوار على "
+"الموقع,و جمع البيانات الديموغرافية."
 
 #: .\calc\templates\calc\privacy.html:47
 msgid "Cookies and Web Beacons"
@@ -1282,11 +1292,11 @@ msgstr "ملفات تعريف ارتباط اعلانات جوجل"
 
 #: .\calc\templates\calc\privacy.html:59
 msgid ""
-"Google is one of a third-party vendor on our site. It also uses cookies, known "
-"as DART cookies, to serve ads to our site visitors based upon their visit to "
-"www.website.com and other sites on the internet. However, visitors may choose "
-"to decline the use of DART cookies by visiting the Google ad and content "
-"network Privacy Policy at the following URL –"
+"Google is one of a third-party vendor on our site. It also uses cookies, "
+"known as DART cookies, to serve ads to our site visitors based upon their "
+"visit to www.website.com and other sites on the internet. However, visitors "
+"may choose to decline the use of DART cookies by visiting the Google ad and "
+"content network Privacy Policy at the following URL –"
 msgstr ""
 "جوجل هو احد الاطراف الاخرى من الموردين في موقعنا. و يستخدم ايضا ملفات ارتباط "
 "تعرف ب DART cookies, وذلك للقيام بتزويدالزائرين للموقع بمحتوى اعلاني استنادا "
@@ -1322,8 +1332,8 @@ msgid ""
 "You may consult this list to find the Privacy Policy for each of the "
 "advertising partners of Mawareeth.com."
 msgstr ""
-"يمكنك الرجوع على هذه اللائحة للحصول على سياسة الخصوصية لكل من الشركاء المعلنين "
-"في موقع المواريث."
+"يمكنك الرجوع على هذه اللائحة للحصول على سياسة الخصوصية لكل من الشركاء "
+"المعلنين في موقع المواريث."
 
 #: .\calc\templates\calc\privacy.html:78
 msgid ""
@@ -1346,8 +1356,8 @@ msgid ""
 "Note that Mawareeth.com has no access to or control over these cookies that "
 "are used by third-party advertisers."
 msgstr ""
-"موقع المواريث ليس لديه أي وصول او تحكم بهذه الملفات التي تستخدم من قبل الأطراف "
-"المعلنة الأخرى."
+"موقع المواريث ليس لديه أي وصول او تحكم بهذه الملفات التي تستخدم من قبل "
+"الأطراف المعلنة الأخرى."
 
 #: .\calc\templates\calc\privacy.html:82
 msgid "Third Party Privacy Policies"
@@ -1356,17 +1366,17 @@ msgstr "سياسات خصوصية الطرف الثالث"
 #: .\calc\templates\calc\privacy.html:84
 msgid ""
 "Mawareeth.com's Privacy Policy does not apply to other advertisers or "
-"websites. Thus, we are advising you to consult the respective Privacy Policies "
-"of these third-party ad servers for more detailed information. It may include "
-"their practices and instructions about how to opt-out of certain options. You "
-"may find a complete list of these Privacy Policies and their links here: "
-"Privacy Policy Links."
+"websites. Thus, we are advising you to consult the respective Privacy "
+"Policies of these third-party ad servers for more detailed information. It "
+"may include their practices and instructions about how to opt-out of certain "
+"options. You may find a complete list of these Privacy Policies and their "
+"links here: Privacy Policy Links."
 msgstr ""
 "سياسة خصوصية لا تنطبق على المعلنين الآخرين أو مواقع الويب. وبالتالي ، ننصحك "
 "بالرجوع إلى سياسات الخصوصية المعنية لخوادم الإعلانات الخاصة بالأطراف الأخرى "
 "للحصول على معلومات أكثر تفصيلاً. قد تتضمن ممارساتهم وتعليماتهم حول كيفية إلغاء "
-"الاشتراك في بعض الميزات. قد تجد قائمة كاملة بسياسات الخصوصية هذه والروابط هنا: "
-"روابط سياسة الخصوصية."
+"الاشتراك في بعض الميزات. قد تجد قائمة كاملة بسياسات الخصوصية هذه والروابط "
+"هنا: روابط سياسة الخصوصية."
 
 #: .\calc\templates\calc\privacy.html:86
 msgid ""
@@ -1376,9 +1386,9 @@ msgid ""
 "Cookies?"
 msgstr ""
 "يمكنك اختيار تعطيل ملفات تعريف الارتباط من خلال خيارات المتصفح الخاصة بك. "
-"لمعرفة المزيد من المعلومات التفصيلية حول إدارة ملفات تعريف الارتباط مع متصفحات "
-"ويب محددة ، يمكن العثور عليها في مواقع الويب الخاصة بالمتصفحات. ما هي ملفات "
-"تعريف الارتباط؟"
+"لمعرفة المزيد من المعلومات التفصيلية حول إدارة ملفات تعريف الارتباط مع "
+"متصفحات ويب محددة ، يمكن العثور عليها في مواقع الويب الخاصة بالمتصفحات. ما هي "
+"ملفات تعريف الارتباط؟"
 
 #: .\calc\templates\calc\privacy.html:88
 msgid "CCPA Privacy Rights (Do Not Sell My Personal Information)"
@@ -1417,8 +1427,8 @@ msgid ""
 "If you make a request, we have one month to respond to you. If you would like "
 "to exercise any of these rights, please contact us."
 msgstr ""
-"اذا قمت بطلب, يتوجب علينا الرد عليك خلال فترة شهر واحد. اذا رغبت بممارسة أي من "
-"هذه الحقوق نرجو التواصل معنا."
+"اذا قمت بطلب, يتوجب علينا الرد عليك خلال فترة شهر واحد. اذا رغبت بممارسة أي "
+"من هذه الحقوق نرجو التواصل معنا."
 
 #: .\calc\templates\calc\privacy.html:96
 msgid "GDPR Data Protection Rights"
@@ -1442,9 +1452,9 @@ msgstr ""
 
 #: .\calc\templates\calc\privacy.html:100
 msgid ""
-"The right to rectification – You have the right to request that we correct any "
-"information you believe is inaccurate. You also have the right to request that "
-"we complete the information you believe is incomplete."
+"The right to rectification – You have the right to request that we correct "
+"any information you believe is inaccurate. You also have the right to request "
+"that we complete the information you believe is incomplete."
 msgstr ""
 "حق التصحيح - يحق لك طلب تصحيح أي معلومات تعتقد أنها غير دقيقة. لديك أيضًا الحق "
 "في أن تطلب استكمال المعلومات التي تعتقد أنها غير مكتملة."
@@ -1473,9 +1483,9 @@ msgstr ""
 
 #: .\calc\templates\calc\privacy.html:104
 msgid ""
-"The right to data portability – You have the right to request that we transfer "
-"the data that we have collected to another organization, or directly to you, "
-"under certain conditions."
+"The right to data portability – You have the right to request that we "
+"transfer the data that we have collected to another organization, or directly "
+"to you, under certain conditions."
 msgstr ""
 "الحق في نقل البيانات - يحق لك طلب نقل البيانات التي جمعناها إلى منظمة أخرى ، "
 "أو مباشرة إليك ، في ظل ظروف معينة."
@@ -1486,26 +1496,26 @@ msgstr "معلومات الأطفال"
 
 #: .\calc\templates\calc\privacy.html:109
 msgid ""
-"Another part of our priority is adding protection for children while using the "
-"internet. We encourage parents and guardians to observe, participate in, and/"
-"or monitor and guide their online activity."
+"Another part of our priority is adding protection for children while using "
+"the internet. We encourage parents and guardians to observe, participate in, "
+"and/or monitor and guide their online activity."
 msgstr ""
-"جزء آخر من أولويتنا هو إضافة حماية للأطفال أثناء استخدام الإنترنت. نشجع الآباء "
-"والأوصياء على مراقبة نشاط الأطفال عبر الإنترنت والمشاركة فيه و / أو مراقبته "
-"وتوجيهه."
+"جزء آخر من أولويتنا هو إضافة حماية للأطفال أثناء استخدام الإنترنت. نشجع "
+"الآباء والأوصياء على مراقبة نشاط الأطفال عبر الإنترنت والمشاركة فيه و / أو "
+"مراقبته وتوجيهه."
 
 #: .\calc\templates\calc\privacy.html:111
 msgid ""
-"Mawareeth.com does not knowingly collect any Personal Identifiable Information "
-"from children under the age of 13. If you think that your child provided this "
-"kind of information on our website, we strongly encourage you to contact us "
-"immediately and we will do our best efforts to promptly remove such "
-"information from our records."
+"Mawareeth.com does not knowingly collect any Personal Identifiable "
+"Information from children under the age of 13. If you think that your child "
+"provided this kind of information on our website, we strongly encourage you "
+"to contact us immediately and we will do our best efforts to promptly remove "
+"such information from our records."
 msgstr ""
-"لا يقوم موقع المواريث بجمع أي معلومات شخصية قابلة للتعريف من الأطفال تحت سن 13 "
-"عامًا. إذا كنت تعتقد أن طفلك قدم هذا النوع من المعلومات على موقعنا ،فنحن نشجعك "
-"بشدة على الاتصال بنا على الفور وسنبذل قصارى جهدنا من أجل إزالة هذه المعلومات "
-"على الفور من سجلاتنا."
+"لا يقوم موقع المواريث بجمع أي معلومات شخصية قابلة للتعريف من الأطفال تحت سن "
+"13 عامًا. إذا كنت تعتقد أن طفلك قدم هذا النوع من المعلومات على موقعنا ،فنحن "
+"نشجعك بشدة على الاتصال بنا على الفور وسنبذل قصارى جهدنا من أجل إزالة هذه "
+"المعلومات على الفور من سجلاتنا."
 
 #: .\calc\templates\calc\terms.html:13
 msgid "Welcome to Mawareeth.com!"
@@ -1523,8 +1533,8 @@ msgstr ""
 #: .\calc\templates\calc\terms.html:17
 msgid ""
 "By accessing this website we assume you accept these terms and conditions. Do "
-"not continue to use Mawareeth.com if you do not agree to take all of the terms "
-"and conditions stated on this page."
+"not continue to use Mawareeth.com if you do not agree to take all of the "
+"terms and conditions stated on this page."
 msgstr ""
 "بدخولك إلى هذا الموقع ، نفترض أنك تقبل هذه الشروط والأحكام. لا تستمر في "
 "استخدام موقع المواريث إذا كنت لا توافق على الاخذ بجميع الشروط والأحكام "
@@ -1540,11 +1550,11 @@ msgid ""
 "refers to both the Client and ourselves. All terms refer to the offer, "
 "acceptance and consideration of payment necessary to undertake the process of "
 "our assistance to the Client in the most appropriate manner for the express "
-"purpose of meeting the Client’s needs in respect of provision of the Company’s "
-"stated services, in accordance with and subject to, prevailing law of "
-"Netherlands. Any use of the above terminology or other words in the singular, "
-"plural, capitalization and/or he/she or they, are taken as interchangeable and "
-"therefore as referring to same."
+"purpose of meeting the Client’s needs in respect of provision of the "
+"Company’s stated services, in accordance with and subject to, prevailing law "
+"of Netherlands. Any use of the above terminology or other words in the "
+"singular, plural, capitalization and/or he/she or they, are taken as "
+"interchangeable and therefore as referring to same."
 msgstr ""
 "تنطبق المصطلحات التالية على هذه الشروط والأحكام وبيان الخصوصية وإشعار إخلاء "
 "المسؤولية وجميع الاتفاقيات: يشير \"العميل\" و \"أنت\" و \"الخاص بك\" إليك ، "
@@ -1566,20 +1576,20 @@ msgid ""
 "We employ the use of cookies. By accessing Mawareeth.com, you agreed to use "
 "cookies in agreement with the Mawareeth 2.0's Privacy Policy."
 msgstr ""
-"نحن نستخدم ملفات تعريف الارتباط. من خلال زيارتك للموقع ، انت موافق على استخدام "
-"ملفات تعريف الارتباط بالتوافق مع سياسة الخصوصية لموقع المواريث."
+"نحن نستخدم ملفات تعريف الارتباط. من خلال زيارتك للموقع ، انت موافق على "
+"استخدام ملفات تعريف الارتباط بالتوافق مع سياسة الخصوصية لموقع المواريث."
 
 #: .\calc\templates\calc\terms.html:25
 msgid ""
 "Most interactive websites use cookies to let us retrieve the user’s details "
-"for each visit. Cookies are used by our website to enable the functionality of "
-"certain areas to make it easier for people visiting our website. Some of our "
-"affiliate/advertising partners may also use cookies."
+"for each visit. Cookies are used by our website to enable the functionality "
+"of certain areas to make it easier for people visiting our website. Some of "
+"our affiliate/advertising partners may also use cookies."
 msgstr ""
 "تستخدم معظم مواقع الويب التفاعلية ملفات تعريف الارتباط للسماح لنا باسترداد "
 "تفاصيل المستخدم لكل زيارة. يتم استخدام ملفات تعريف الارتباط من خلال موقعنا "
-"الإلكتروني لتمكين وظائف مناطق معينة لتسهيل زيارة الأشخاص لموقعنا على الويب. قد "
-"يستخدم بعض شركائنا التابعين / المعلنين ملفات تعريف الارتباط."
+"الإلكتروني لتمكين وظائف مناطق معينة لتسهيل زيارة الأشخاص لموقعنا على الويب. "
+"قد يستخدم بعض شركائنا التابعين / المعلنين ملفات تعريف الارتباط."
 
 #: .\calc\templates\calc\terms.html:27
 msgid "License"
@@ -1590,8 +1600,8 @@ msgid ""
 "Unless otherwise stated, Mawareeth 2.0 and/or its licensors own the "
 "intellectual property rights for all material on Mawareeth.com. All "
 "intellectual property rights are reserved. You may access this from Mawareeth."
-"com for your own personal use subjected to restrictions set in these terms and "
-"conditions."
+"com for your own personal use subjected to restrictions set in these terms "
+"and conditions."
 msgstr ""
 "ما لم ينص على خلاف ذلك ، يمتلك موقع المواريث و / أو المرخصون له حقوق الملكية "
 "الفكرية لجميع المواد على الموقع. جميع حقوق الملكية الفكرية محفوظة. يمكنك "
@@ -1630,17 +1640,18 @@ msgid ""
 "website. Comments do not reflect the views and opinions of Mawareeth 2.0,its "
 "agents and/or affiliates. Comments reflect the views and opinions of the "
 "person who post their views and opinions. To the extent permitted by "
-"applicable laws, Mawareeth 2.0 shall not be liable for the Comments or for any "
-"liability, damages or expenses caused and/or suffered as a result of any use "
-"of and/or posting of and/or appearance of the Comments on this website."
+"applicable laws, Mawareeth 2.0 shall not be liable for the Comments or for "
+"any liability, damages or expenses caused and/or suffered as a result of any "
+"use of and/or posting of and/or appearance of the Comments on this website."
 msgstr ""
 "توفر أجزاء من هذا الموقع فرصة للمستخدمين لنشر وتبادل الآراء والمعلومات في "
-"مناطق معينة من الموقع. لا يقوم موقع  المواريث بتصفية أو تحرير أو نشر أو مراجعة "
-"التعليقات قبل وجودها على الموقع. لا تعكس التعليقات آراء و توجهات موقع المواريث "
-"ووكلائه و / أو الشركات التابعة له. تعكس التعليقات آراء وتوجهات الشخص الذي ينشر "
-"وجهات نظره وآرائه. إلى الحد الذي تسمح به القوانين المعمول بها ، لن يكون موقع "
-"المواريث مسؤول عن التعليقات أو عن أي مسؤولية أو أضرار أو مصروفات نتجت و / أو "
-"تكبدت نتيجة لأي استخدام و / أو نشر و / أو ظهور التعليقات على هذا الموقع."
+"مناطق معينة من الموقع. لا يقوم موقع  المواريث بتصفية أو تحرير أو نشر أو "
+"مراجعة التعليقات قبل وجودها على الموقع. لا تعكس التعليقات آراء و توجهات موقع "
+"المواريث ووكلائه و / أو الشركات التابعة له. تعكس التعليقات آراء وتوجهات الشخص "
+"الذي ينشر وجهات نظره وآرائه. إلى الحد الذي تسمح به القوانين المعمول بها ، لن "
+"يكون موقع المواريث مسؤول عن التعليقات أو عن أي مسؤولية أو أضرار أو مصروفات "
+"نتجت و / أو تكبدت نتيجة لأي استخدام و / أو نشر و / أو ظهور التعليقات على هذا "
+"الموقع."
 
 #: .\calc\templates\calc\terms.html:43
 msgid ""
@@ -1669,7 +1680,8 @@ msgid ""
 "limitation copyright, patent or trademark of any third party;"
 msgstr ""
 "لا تنتهك التعليقات أي حق من حقوق الملكية الفكرية ، بما في ذلك على سبيل المثال "
-"لا الحصر حقوق الطبع والنشر أو براءة الاختراع أو العلامة التجارية لأي طرف ثالث ؛"
+"لا الحصر حقوق الطبع والنشر أو براءة الاختراع أو العلامة التجارية لأي طرف "
+"ثالث ؛"
 
 #: .\calc\templates\calc\terms.html:50
 msgid ""
@@ -1689,9 +1701,9 @@ msgstr ""
 
 #: .\calc\templates\calc\terms.html:54
 msgid ""
-"You hereby grant Mawareeth 2.0 a non-exclusive license to use, reproduce, edit "
-"and authorize others to use, reproduce and edit any of your Comments in any "
-"and all forms, formats or media."
+"You hereby grant Mawareeth 2.0 a non-exclusive license to use, reproduce, "
+"edit and authorize others to use, reproduce and edit any of your Comments in "
+"any and all forms, formats or media."
 msgstr ""
 "بموجب هذا ، فإنك تمنح موقع المواريث ترخيصًا غير حصري لاستخدام وإعادة إنتاج "
 "وتحرير وتفويض الآخرين لاستخدام وإعادة إنتاج وتحرير أي من تعليقاتك في أي وجميع "
@@ -1731,8 +1743,8 @@ msgstr ""
 #: .\calc\templates\calc\terms.html:65
 msgid ""
 "System wide Accredited Businesses except soliciting non-profit organizations, "
-"charity shopping malls, and charity fundraising groups which may not hyperlink "
-"to our Web site."
+"charity shopping malls, and charity fundraising groups which may not "
+"hyperlink to our Web site."
 msgstr ""
 "الشركات المعتمدة على مستوى النظام باستثناء طلب المؤسسات غير الربحية ومراكز "
 "التسوق الخيرية ومجموعات جمع التبرعات الخيرية التي قد لا تكون مرتبطة بموقعنا "
@@ -1743,13 +1755,13 @@ msgid ""
 "These organizations may link to our home page, to publications or to other "
 "Website information so long as the link: (a) is not in any way deceptive; (b) "
 "does not falsely imply sponsorship, endorsement or approval of the linking "
-"party and its products and/or services; and (c) fits within the context of the "
-"linking party’s site."
+"party and its products and/or services; and (c) fits within the context of "
+"the linking party’s site."
 msgstr ""
-"قد ترتبط هذه المنظمات بصفحتنا الرئيسية أو بالمنشورات أو بمعلومات أخرى على موقع "
-"الويب طالما أن الرابط: (أ) ليس خادعًا بأي شكل من الأشكال ؛ (ب) لا يعني او يوحي "
-"رعاية أو تبني أو موافقة الطرف المرتبط ومنتجاته و / أو خدماته ؛ و (ج) يناسب "
-"سياق موقع الطرف المرتبط."
+"قد ترتبط هذه المنظمات بصفحتنا الرئيسية أو بالمنشورات أو بمعلومات أخرى على "
+"موقع الويب طالما أن الرابط: (أ) ليس خادعًا بأي شكل من الأشكال ؛ (ب) لا يعني او "
+"يوحي رعاية أو تبني أو موافقة الطرف المرتبط ومنتجاته و / أو خدماته ؛ و (ج) "
+"يناسب سياق موقع الطرف المرتبط."
 
 #: .\calc\templates\calc\terms.html:70
 msgid ""
@@ -1817,15 +1829,15 @@ msgid ""
 "If you are one of the organizations listed in paragraph 2 above and are "
 "interested in linking to our website, you must inform us by sending an e-mail "
 "to Mawareeth 2.0. Please include your name, your organization name, contact "
-"information as well as the URL of your site, a list of any URLs from which you "
-"intend to link to our Website, and a list of the URLs on our site to which you "
-"would like to link. Wait 2-3 weeks for a response."
+"information as well as the URL of your site, a list of any URLs from which "
+"you intend to link to our Website, and a list of the URLs on our site to "
+"which you would like to link. Wait 2-3 weeks for a response."
 msgstr ""
 "إذا كنت أحد المؤسسات المذكورة في الفقرة 2 أعلاه وترغب في الارتباط بموقعنا ، "
 "فيجب عليك إبلاغنا عن طريق إرسال بريد إلكتروني إلى موقع المواريث. يُرجى تضمين "
-"اسمك واسم مؤسستك ومعلومات الاتصال بالإضافة إلى العنوان الخاص بموقعك وقائمة بأي "
-"عناوين تنوي الارتباط بها على موقعنا الإلكتروني وقائمة بالعناوين على موقعنا "
-"التي ترغب في ربطها. انتظر 2-3 أسابيع للرد."
+"اسمك واسم مؤسستك ومعلومات الاتصال بالإضافة إلى العنوان الخاص بموقعك وقائمة "
+"بأي عناوين تنوي الارتباط بها على موقعنا الإلكتروني وقائمة بالعناوين على "
+"موقعنا التي ترغب في ربطها. انتظر 2-3 أسابيع للرد."
 
 #: .\calc\templates\calc\terms.html:88
 msgid "Approved organizations may hyperlink to our Website as follows:"
@@ -1844,8 +1856,8 @@ msgid ""
 "By use of any other description of our Website being linked to that makes "
 "sense within the context and format of content on the linking party’s site."
 msgstr ""
-"من خلال استخدام أي وصف آخر لموقعنا على الويب الذي يتم ربطه بهذا يكون منطقيًا في "
-"سياق وتنسيق المحتوى على موقع الطرف المرتبط."
+"من خلال استخدام أي وصف آخر لموقعنا على الويب الذي يتم ربطه بهذا يكون منطقيًا "
+"في سياق وتنسيق المحتوى على موقع الطرف المرتبط."
 
 #: .\calc\templates\calc\terms.html:96
 msgid ""
@@ -1875,16 +1887,17 @@ msgstr "مسؤولية المحتوى"
 
 #: .\calc\templates\calc\terms.html:104
 msgid ""
-"We shall not be hold responsible for any content that appears on your Website. "
-"You agree to protect and defend us against all claims that is rising on your "
-"Website. No link(s) should appear on any Website that may be interpreted as "
-"libelous, obscene or criminal, or which infringes, otherwise violates, or "
-"advocates the infringement or other violation of, any third party rights."
+"We shall not be hold responsible for any content that appears on your "
+"Website. You agree to protect and defend us against all claims that is rising "
+"on your Website. No link(s) should appear on any Website that may be "
+"interpreted as libelous, obscene or criminal, or which infringes, otherwise "
+"violates, or advocates the infringement or other violation of, any third "
+"party rights."
 msgstr ""
 "لن نكون مسؤولين عن أي محتوى يظهر على موقع الويب الخاص بك. أنت توافق على "
 "حمايتنا والدفاع عنا ضد جميع المطالبات التي تنشأ على موقع الويب الخاص بك. يجب "
-"ألا يظهر أي رابط (روابط) على أي موقع ويب يمكن تفسيره على أنه تشهيري أو فاحش أو "
-"إجرامي ، أو ينتهك أو ينتهك أو يدعو إلى التعدي أو انتهاك لحقوق أي طرف ثالث."
+"ألا يظهر أي رابط (روابط) على أي موقع ويب يمكن تفسيره على أنه تشهيري أو فاحش "
+"أو إجرامي ، أو ينتهك أو ينتهك أو يدعو إلى التعدي أو انتهاك لحقوق أي طرف ثالث."
 
 #: .\calc\templates\calc\terms.html:106
 msgid "Your Privacy"
@@ -1903,8 +1916,8 @@ msgid ""
 "We reserve the right to request that you remove all links or any particular "
 "link to our Website. You approve to immediately remove all links to our "
 "Website upon request. We also reserve the right to amen these terms and "
-"conditions and it’s linking policy at any time. By continuously linking to our "
-"Website, you agree to be bound to and follow these linking terms and "
+"conditions and it’s linking policy at any time. By continuously linking to "
+"our Website, you agree to be bound to and follow these linking terms and "
 "conditions."
 msgstr ""
 "نحتفظ بالحق في طلب إزالة جميع الروابط أو أي رابط معين إلى موقعنا الإلكتروني. "
@@ -1933,9 +1946,9 @@ msgid ""
 "website remains available or that the material on the website is kept up to "
 "date."
 msgstr ""
-"نحن لا نضمن صحة المعلومات الواردة في هذا الموقع ، ولا نضمن اكتمالها أو دقتها ؛ "
-"كما أننا لا نعد بضمان أن يظل الموقع متاحًا أو أن المواد الموجودة على الموقع "
-"محدثة."
+"نحن لا نضمن صحة المعلومات الواردة في هذا الموقع ، ولا نضمن اكتمالها أو "
+"دقتها ؛ كما أننا لا نعد بضمان أن يظل الموقع متاحًا أو أن المواد الموجودة على "
+"الموقع محدثة."
 
 #: .\calc\templates\calc\terms.html:120
 msgid "Disclaimer"
@@ -1944,8 +1957,8 @@ msgstr "إخلاء المسؤولية"
 #: .\calc\templates\calc\terms.html:122
 msgid ""
 "To the maximum extent permitted by applicable law, we exclude all "
-"representations, warranties and conditions relating to our website and the use "
-"of this website. Nothing in this disclaimer will:"
+"representations, warranties and conditions relating to our website and the "
+"use of this website. Nothing in this disclaimer will:"
 msgstr ""
 "إلى أقصى حد يسمح به القانون المعمول به ، نستبعد جميع الإقرارات والضمانات "
 "والشروط المتعلقة بموقعنا واستخدام هذا الموقع. لا يوجد شيء في بيان إخلاء "
@@ -1981,8 +1994,8 @@ msgstr ""
 msgid ""
 "The limitations and prohibitions of liability set in this Section and "
 "elsewhere in this disclaimer: (a) are subject to the preceding paragraph; and "
-"(b) govern all liabilities arising under the disclaimer, including liabilities "
-"arising in contract, in tort and for breach of statutory duty."
+"(b) govern all liabilities arising under the disclaimer, including "
+"liabilities arising in contract, in tort and for breach of statutory duty."
 msgstr ""
 "قيود وحظر المسئولية المنصوص عليها في هذا القسم وأماكن أخرى في هذا الإخلاء "
 "للمسؤولية: (أ) تخضع للفقرة السابقة ؛ و (ب) تحكم جميع الالتزامات الناشئة بموجب "
@@ -2063,21 +2076,21 @@ msgid ""
 "The password reset link was invalid, possibly because it has already been "
 "used. Please request a new password reset."
 msgstr ""
-"رابط إعادة تعيين كلمة المرور غير صالح ، ربما لأنه تم استخدامه بالفعل. يرجى طلب "
-"إعادة تعيين كلمة مرور جديدة."
+"رابط إعادة تعيين كلمة المرور غير صالح ، ربما لأنه تم استخدامه بالفعل. يرجى "
+"طلب إعادة تعيين كلمة مرور جديدة."
 
 #: .\calc\templates\registration\password_reset_done.html:11
 msgid ""
-"We've emailed you instructions for setting your password, if an account exists "
-"with the email you entered. You should receive them shortly."
+"We've emailed you instructions for setting your password, if an account "
+"exists with the email you entered. You should receive them shortly."
 msgstr ""
 "لقد أرسلنا إليك عبر البريد الإلكتروني تعليمات حول تعيين كلمة المرور ، إذا كان "
 "هناك حساب بالعنوان الذي أدخلته. سوف تصلك رسالة قريبا."
 
 #: .\calc\templates\registration\password_reset_done.html:14
 msgid ""
-"If you don't receive an email, please make sure you've entered the address you "
-"registered with, and check your spam folder."
+"If you don't receive an email, please make sure you've entered the address "
+"you registered with, and check your spam folder."
 msgstr ""
 "إذا لم تتلق رسالة، فيرجى التأكد من إدخال العنوان الذي قمت بالتسجيل به ، "
 "والتحقق من مجلد الرسائل غير المرغوب فيها."
@@ -2159,23 +2172,23 @@ msgstr "ايميل:"
 msgid "Already registered"
 msgstr "تم التسجيل سابقا"
 
-#: .\calc\views.py:41
+#: .\calc\views.py:48
 msgid "Decease already exist"
 msgstr "يوجد متوفى"
 
-#: .\calc\views.py:110 .\calc\views.py:318
+#: .\calc\views.py:117 .\calc\views.py:325
 msgid "Father already exist"
 msgstr "الاب موجود"
 
-#: .\calc\views.py:164
+#: .\calc\views.py:171
 msgid "Cann't have more than 4 wifes"
 msgstr "لا يمكن اضافة اكثر من 4 زوجات"
 
-#: .\calc\views.py:784
+#: .\calc\views.py:791
 msgid "Must enter a name for your calcualtion"
 msgstr "يجيب ادخال اسم للمسألة"
 
-#: .\calc\views.py:808
+#: .\calc\views.py:815
 msgid "user not allowed"
 msgstr "غير مسموح للمستخدم"
 

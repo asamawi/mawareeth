@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-21 22:29+0300\n"
-"PO-Revision-Date: 2020-04-21 22:31+0300\n"
+"POT-Creation-Date: 2020-04-22 14:51+0300\n"
+"PO-Revision-Date: 2020-04-22 14:51+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: en\n"
@@ -30,11 +30,11 @@ msgstr "Last Name"
 msgid "father already exist"
 msgstr "father already exist"
 
-#: .\calc\models.py:66 .\calc\views.py:83
+#: .\calc\models.py:66 .\calc\views.py:90
 msgid "Mother already exist"
 msgstr "Mother already exist"
 
-#: .\calc\models.py:84 .\calc\views.py:137
+#: .\calc\models.py:84 .\calc\views.py:144
 msgid "Husband already exist"
 msgstr "Husband already exist"
 
@@ -55,46 +55,52 @@ msgid "father gets the remainder because there is no descendant"
 msgstr "father gets the remainder because there is no descendant"
 
 #: .\calc\models.py:955
-msgid "mother gets 1/6 because of descendant or siblings"
-msgstr "mother gets 1/6 because of descendant or siblings"
+#| msgid "mother gets 1/6 because of descendant or siblings"
+msgid "mother gets 1/6 because of descendant"
+msgstr "mother gets 1/6 because of descendant"
 
-#: .\calc\models.py:959
+#: .\calc\models.py:958
+#| msgid "mother gets 1/6 because of descendant or siblings"
+msgid "mother gets 1/6 because of siblings"
+msgstr "mother gets 1/6 because of siblings"
+
+#: .\calc\models.py:962
 msgid "mother gets 1/3 of the remainder which is 1/4."
 msgstr "mother gets 1/3 of the remainder which is 1/4."
 
-#: .\calc\models.py:962
+#: .\calc\models.py:965
 msgid "mother gets 1/3 of the remainder which is 1/6"
 msgstr "mother gets 1/3 of the remainder which is 1/6"
 
-#: .\calc\models.py:965
+#: .\calc\models.py:968
 msgid "mother gets 1/3 because no descendant or siblings"
 msgstr "mother gets 1/3 because no descendant or siblings"
 
-#: .\calc\models.py:979
+#: .\calc\models.py:982
 msgid "husband gets 1/4 becuase of descendant"
 msgstr "husband gets 1/4 becuase of descendant"
 
-#: .\calc\models.py:982
+#: .\calc\models.py:985
 msgid "husband gets 1/2 becuase there is no descendant"
 msgstr "husband gets 1/2 becuase there is no descendant"
 
-#: .\calc\models.py:995
+#: .\calc\models.py:998
 msgid "wife gets 1/8 becuase of descendant"
 msgstr "wife gets 1/8 becuase of descendant"
 
-#: .\calc\models.py:998
+#: .\calc\models.py:1001
 msgid "wife gets 1/4 becuase there is no descendant"
 msgstr "wife gets 1/4 becuase there is no descendant"
 
-#: .\calc\models.py:1002
+#: .\calc\models.py:1005
 msgid "wives share the qoute of 1/8 becuase of descendant"
 msgstr "wives share the qoute of 1/8 becuase of descendant"
 
-#: .\calc\models.py:1005
+#: .\calc\models.py:1008
 msgid "wives share the quote of 1/4 becuase there is no descendant"
 msgstr "wives share the quote of 1/4 becuase there is no descendant"
 
-#: .\calc\models.py:1018
+#: .\calc\models.py:1021
 msgid ""
 "Daughter/s with Son/s share the residuary. The son will receive a share of "
 "two daughters."
@@ -102,47 +108,47 @@ msgstr ""
 "Daughter/s with Son/s share the residuary. The son will receive a share of "
 "two daughters."
 
-#: .\calc\models.py:1023
+#: .\calc\models.py:1026
 msgid "Daughter gets 1/2 when she has no other sibling/s"
 msgstr "Daughter gets 1/2 when she has no other sibling/s"
 
-#: .\calc\models.py:1027
+#: .\calc\models.py:1030
 msgid "Daughters share the quote of 2/3 when there is no son/s"
 msgstr "Daughters share the quote of 2/3 when there is no son/s"
 
-#: .\calc\models.py:1040
+#: .\calc\models.py:1043
 msgid "Son/s share the remainder or all amount if no other heir exist"
 msgstr "Son/s share the remainder or all amount if no other heir exist"
 
-#: .\calc\models.py:1055
+#: .\calc\models.py:1058
 msgid "Bother/s are blocked by male descendant"
 msgstr "Bother/s are blocked by male descendant"
 
-#: .\calc\models.py:1058
+#: .\calc\models.py:1061
 msgid "Brother/s are blocked by father"
 msgstr "Brother/s are blocked by father"
 
-#: .\calc\models.py:1061
+#: .\calc\models.py:1064
 msgid "Brother/s are blocked by grandfather"
 msgstr "Brother/s are blocked by grandfather"
 
-#: .\calc\models.py:1064
+#: .\calc\models.py:1067
 msgid "Brother/s share the remainder or all amount if no other heir exist"
 msgstr "Brother/s share the remainder or all amount if no other heir exist"
 
-#: .\calc\models.py:1079
+#: .\calc\models.py:1082
 msgid "Sister/s are blocked by male descendant"
 msgstr "Sister/s are blocked by male descendant"
 
-#: .\calc\models.py:1082
+#: .\calc\models.py:1085
 msgid "Sister/s are blocked by father"
 msgstr "Sister/s are blocked by father"
 
-#: .\calc\models.py:1085
+#: .\calc\models.py:1088
 msgid "Sister/s are blocked by grandfather"
 msgstr "Sister/s are blocked by grandfather"
 
-#: .\calc\models.py:1088
+#: .\calc\models.py:1091
 msgid ""
 "Sister/s with borther/s share the remainder or all the amount if no other "
 "heir exist. The brother will receive a share of two sisters"
@@ -150,55 +156,55 @@ msgstr ""
 "Sister/s with borther/s share the remainder or all the amount if no other "
 "heir exist. The brother will receive a share of two sisters"
 
-#: .\calc\models.py:1091
+#: .\calc\models.py:1094
 msgid "Sister/s with female descendant share the remainder"
 msgstr "Sister/s with female descendant share the remainder"
 
-#: .\calc\models.py:1095
+#: .\calc\models.py:1098
 msgid "Sister gets half when no father or son. "
 msgstr "Sister gets half when no father or son. "
 
-#: .\calc\models.py:1098
+#: .\calc\models.py:1101
 msgid "Sisters share 2/3 when no father or son."
 msgstr "Sisters share 2/3 when no father or son."
 
-#: .\calc\models.py:1110
+#: .\calc\models.py:1113
 msgid "Grandfather is blocked by father"
 msgstr "Grandfather is blocked by father"
 
-#: .\calc\models.py:1113
+#: .\calc\models.py:1116
 msgid "Grandfather gets 1/6 prescribed share because of male descendant"
 msgstr "Grandfather gets 1/6 prescribed share because of male descendant"
 
-#: .\calc\models.py:1117
+#: .\calc\models.py:1120
 msgid "Grandfather gets 1/6 plus remainder because of female descendant"
 msgstr "Grandfather gets 1/6 plus remainder because of female descendant"
 
-#: .\calc\models.py:1120
+#: .\calc\models.py:1123
 msgid "Grandfather gets the remainder because there is no descendant"
 msgstr "Grandfather gets the remainder because there is no descendant"
 
-#: .\calc\models.py:1132
+#: .\calc\models.py:1135
 msgid "Grandmother is blocked by mother"
 msgstr "Grandmother is blocked by mother"
 
-#: .\calc\models.py:1138
+#: .\calc\models.py:1141
 msgid "Grandmother gets 1/6 if no mother"
 msgstr "Grandmother gets 1/6 if no mother"
 
-#: .\calc\models.py:1150
+#: .\calc\models.py:1153
 msgid "Son of son is blocked by Son"
 msgstr "Son of son is blocked by Son"
 
-#: .\calc\models.py:1155
+#: .\calc\models.py:1158
 msgid "Son of son share the remainder or all amount if no other heir exist"
 msgstr "Son of son share the remainder or all amount if no other heir exist"
 
-#: .\calc\models.py:1170
+#: .\calc\models.py:1173
 msgid "Daughter of son is blocked by son"
 msgstr "Daughter of son is blocked by son"
 
-#: .\calc\models.py:1173
+#: .\calc\models.py:1176
 msgid ""
 "Daughter/s of son with Son/s of son share the residuary. The son of son will "
 "receive a share of two daughters of son."
@@ -206,39 +212,39 @@ msgstr ""
 "Daughter/s of son with Son/s of son share the residuary. The son of son will "
 "receive a share of two daughters of son."
 
-#: .\calc\models.py:1178
+#: .\calc\models.py:1181
 msgid "Daughter of son get 1/6, with daughter"
 msgstr "Daughter of son get 1/6, with daughter"
 
-#: .\calc\models.py:1181
+#: .\calc\models.py:1184
 msgid "Daughter/s of son are blocked by daugters"
 msgstr "Daughter/s of son are blocked by daugters"
 
-#: .\calc\models.py:1184
+#: .\calc\models.py:1187
 msgid "Daughter of son gets 1/2 when she has no other sibling/s"
 msgstr "Daughter of son gets 1/2 when she has no other sibling/s"
 
-#: .\calc\models.py:1187
+#: .\calc\models.py:1190
 msgid "Daughters of son share the quote of 2/3 when there is no son/s of son"
 msgstr "Daughters of son share the quote of 2/3 when there is no son/s of son"
 
-#: .\calc\models.py:1203
+#: .\calc\models.py:1206
 msgid "Paternal sister/s are blocked by male descendant"
 msgstr "Paternal sister/s are blocked by male descendant"
 
-#: .\calc\models.py:1206
+#: .\calc\models.py:1209
 msgid "Paternal sister/s are blocked by father"
 msgstr "Paternal sister/s are blocked by father"
 
-#: .\calc\models.py:1209
+#: .\calc\models.py:1212
 msgid "Paternal sister/s are blocked by grandfather"
 msgstr "Paternal sister/s are blocked by grandfather"
 
-#: .\calc\models.py:1212
+#: .\calc\models.py:1215
 msgid "Paternal sister/s are blocked by borther/s"
 msgstr "Paternal sister/s are blocked by borther/s"
 
-#: .\calc\models.py:1215
+#: .\calc\models.py:1218
 msgid ""
 "Paternal sister/s with paternal half borther/s share the remainder or all "
 "the amount if no other heir exist. The brother will receive a share of two "
@@ -248,167 +254,167 @@ msgstr ""
 "the amount if no other heir exist. The brother will receive a share of two "
 "sisters"
 
-#: .\calc\models.py:1220
+#: .\calc\models.py:1223
 msgid "Paternal sister/s get 1/6 with sister"
 msgstr "Paternal sister/s get 1/6 with sister"
 
-#: .\calc\models.py:1223
+#: .\calc\models.py:1226
 msgid "Paternal sisters/s are blocked by sisters"
 msgstr "Paternal sisters/s are blocked by sisters"
 
-#: .\calc\models.py:1226
+#: .\calc\models.py:1229
 msgid "Paternal sister/s with female descendant share the remainder"
 msgstr "Paternal sister/s with female descendant share the remainder"
 
-#: .\calc\models.py:1229
+#: .\calc\models.py:1232
 msgid "Paternal sister gets half when no father or son. "
 msgstr "Paternal sister gets half when no father or son. "
 
-#: .\calc\models.py:1232
+#: .\calc\models.py:1235
 msgid "Paternal sisters share 2/3 when no father or son."
 msgstr "Paternal sisters share 2/3 when no father or son."
 
-#: .\calc\models.py:1247
+#: .\calc\models.py:1250
 msgid "Paternal brother/s are blocked by male descendant"
 msgstr "Paternal brother/s are blocked by male descendant"
 
-#: .\calc\models.py:1250
+#: .\calc\models.py:1253
 msgid "Paternal brother/s are blocked by father"
 msgstr "Paternal brother/s are blocked by father"
 
-#: .\calc\models.py:1253
+#: .\calc\models.py:1256
 msgid "Paternal brother/s are blocked by grandfather"
 msgstr "Paternal brother/s are blocked by grandfather"
 
-#: .\calc\models.py:1256
+#: .\calc\models.py:1259
 msgid "Paternal brother/s are blocked by brothers"
 msgstr "Paternal brother/s are blocked by brothers"
 
-#: .\calc\models.py:1261
+#: .\calc\models.py:1264
 msgid "Paternal brother/s are blocked by sisters"
 msgstr "Paternal brother/s are blocked by sisters"
 
-#: .\calc\models.py:1264 .\calc\models.py:1267
+#: .\calc\models.py:1267 .\calc\models.py:1270
 msgid ""
 "Paternal brother/s share the remainder or all amount if no other heir exist"
 msgstr ""
 "Paternal brother/s share the remainder or all amount if no other heir exist"
 
-#: .\calc\models.py:1282
+#: .\calc\models.py:1285
 msgid "Maternal sister/s are blocked by descendant"
 msgstr "Maternal sister/s are blocked by descendant"
 
-#: .\calc\models.py:1285
+#: .\calc\models.py:1288
 msgid "Maternal sister/s are blocked by father"
 msgstr "Maternal sister/s are blocked by father"
 
-#: .\calc\models.py:1288
+#: .\calc\models.py:1291
 msgid "Maternal sister/s are blocked by grandfather"
 msgstr "Maternal sister/s are blocked by grandfather"
 
-#: .\calc\models.py:1294
+#: .\calc\models.py:1297
 msgid "Maternal sister/s with maternal brother/s share 1/3"
 msgstr "Maternal sister/s with maternal brother/s share 1/3"
 
-#: .\calc\models.py:1297
+#: .\calc\models.py:1300
 msgid "Maternal sister get 1/6"
 msgstr "Maternal sister get 1/6"
 
-#: .\calc\models.py:1300
+#: .\calc\models.py:1303
 msgid "Maternal sisters share 1/3"
 msgstr "Maternal sisters share 1/3"
 
-#: .\calc\models.py:1315
+#: .\calc\models.py:1318
 msgid "Maternal brother/s are blocked by descendant"
 msgstr "Maternal brother/s are blocked by descendant"
 
-#: .\calc\models.py:1318
+#: .\calc\models.py:1321
 msgid "Maternal brother/s are blocked by father"
 msgstr "Maternal brother/s are blocked by father"
 
-#: .\calc\models.py:1321
+#: .\calc\models.py:1324
 msgid "Maternal brother/s are blocked by grandfather"
 msgstr "Maternal brother/s are blocked by grandfather"
 
-#: .\calc\models.py:1327
+#: .\calc\models.py:1330
 msgid "Maternal brother/s with maternal sister/s share 1/3"
 msgstr "Maternal brother/s with maternal sister/s share 1/3"
 
-#: .\calc\models.py:1330
+#: .\calc\models.py:1333
 msgid "Maternal brother get 1/6"
 msgstr "Maternal brother get 1/6"
 
-#: .\calc\models.py:1333
+#: .\calc\models.py:1336
 msgid "Maternal brothers share 1/3"
 msgstr "Maternal brothers share 1/3"
 
-#: .\calc\models.py:1348
+#: .\calc\models.py:1351
 msgid "Son/s of Brother are blocked by male descendant"
 msgstr "Son/s of Brother are blocked by male descendant"
 
-#: .\calc\models.py:1351
+#: .\calc\models.py:1354
 msgid "Son/s of Brother are blocked by father"
 msgstr "Son/s of Brother are blocked by father"
 
-#: .\calc\models.py:1354
+#: .\calc\models.py:1357
 msgid "Son/s of Brother are blocked by grandfather"
 msgstr "Son/s of Brother are blocked by grandfather"
 
-#: .\calc\models.py:1357
+#: .\calc\models.py:1360
 msgid "Son/s of Brother are blocked by brother/s"
 msgstr "Son/s of Brother are blocked by brother/s"
 
-#: .\calc\models.py:1360
+#: .\calc\models.py:1363
 msgid "Son/s of Brother are blocked by sisters"
 msgstr "Son/s of Brother are blocked by sisters"
 
-#: .\calc\models.py:1363
+#: .\calc\models.py:1366
 msgid "Son/s of Brother are blocked by paternal brother/s"
 msgstr "Son/s of Brother are blocked by paternal brother/s"
 
-#: .\calc\models.py:1366
+#: .\calc\models.py:1369
 msgid "Son/s of Brother are blocked by paternal sister/s"
 msgstr "Son/s of Brother are blocked by paternal sister/s"
 
-#: .\calc\models.py:1369
+#: .\calc\models.py:1372
 msgid ""
 "Son/s of Brother share the remainder or all amount if no other heir exist"
 msgstr ""
 "Son/s of Brother share the remainder or all amount if no other heir exist"
 
-#: .\calc\models.py:1384
+#: .\calc\models.py:1387
 msgid "Son/s of Paternal Brother are blocked by male descendant"
 msgstr "Son/s of Paternal Brother are blocked by male descendant"
 
-#: .\calc\models.py:1387
+#: .\calc\models.py:1390
 msgid "Son/s of Paternal Brother are blocked by father"
 msgstr "Son/s of Paternal Brother are blocked by father"
 
-#: .\calc\models.py:1390
+#: .\calc\models.py:1393
 msgid "Son/s of Paternal Brother are blocked by grandfather"
 msgstr "Son/s of Paternal Brother are blocked by grandfather"
 
-#: .\calc\models.py:1393
+#: .\calc\models.py:1396
 msgid "Son/s of Paternal Brother are blocked by brother/s"
 msgstr "Son/s of Paternal Brother are blocked by brother/s"
 
-#: .\calc\models.py:1396
+#: .\calc\models.py:1399
 msgid "Son/s of Paternal Brother are blocked by sisters"
 msgstr "Son/s of Paternal Brother are blocked by sisters"
 
-#: .\calc\models.py:1399
+#: .\calc\models.py:1402
 msgid "Son/s of Paternal Brother are blocked by paternal brother/s"
 msgstr "Son/s of Paternal Brother are blocked by paternal brother/s"
 
-#: .\calc\models.py:1402
+#: .\calc\models.py:1405
 msgid "Son/s of Paternal Brother are blocked by paternal sister/s"
 msgstr "Son/s of Paternal Brother are blocked by paternal sister/s"
 
-#: .\calc\models.py:1405
+#: .\calc\models.py:1408
 msgid "Son/s of Paternal Brother are blocked by sons of brother"
 msgstr "Son/s of Paternal Brother are blocked by sons of brother"
 
-#: .\calc\models.py:1408
+#: .\calc\models.py:1411
 msgid ""
 "Son/s of Paternal Brother share the remainder or all amount if no other heir "
 "exist"
@@ -416,191 +422,191 @@ msgstr ""
 "Son/s of Paternal Brother share the remainder or all amount if no other heir "
 "exist"
 
-#: .\calc\models.py:1423
+#: .\calc\models.py:1426
 msgid "Uncle/s are blocked by male descendant"
 msgstr "Uncle/s are blocked by male descendant"
 
-#: .\calc\models.py:1426
+#: .\calc\models.py:1429
 msgid "Uncle/s are blocked by father"
 msgstr "Uncle/s are blocked by father"
 
-#: .\calc\models.py:1429
+#: .\calc\models.py:1432
 msgid "Uncle/s are blocked by grandfather"
 msgstr "Uncle/s are blocked by grandfather"
 
-#: .\calc\models.py:1432
+#: .\calc\models.py:1435
 msgid "Uncle/s are blocked by brother/s"
 msgstr "Uncle/s are blocked by brother/s"
 
-#: .\calc\models.py:1435
+#: .\calc\models.py:1438
 msgid "Uncle/s are blocked by sisters"
 msgstr "Uncle/s are blocked by sisters"
 
-#: .\calc\models.py:1438
+#: .\calc\models.py:1441
 msgid "Uncle/s are blocked by paternal brother/s"
 msgstr "Uncle/s are blocked by paternal brother/s"
 
-#: .\calc\models.py:1441
+#: .\calc\models.py:1444
 msgid "Uncle/s are blocked by paternal sister/s"
 msgstr "Uncle/s are blocked by paternal sister/s"
 
-#: .\calc\models.py:1444
+#: .\calc\models.py:1447
 msgid "Uncle/s are blocked by sons of brother"
 msgstr "Uncle/s are blocked by sons of brother"
 
-#: .\calc\models.py:1447
+#: .\calc\models.py:1450
 msgid "Uncle/s are blocked by sons of paternal brother"
 msgstr "Uncle/s are blocked by sons of paternal brother"
 
-#: .\calc\models.py:1450
+#: .\calc\models.py:1453
 msgid "Uncle/s share the remainder or all amount if no other heir exist"
 msgstr "Uncle/s share the remainder or all amount if no other heir exist"
 
-#: .\calc\models.py:1465
+#: .\calc\models.py:1468
 msgid "Paternal Uncle/s are blocked by male descendant"
 msgstr "Paternal Uncle/s are blocked by male descendant"
 
-#: .\calc\models.py:1468
+#: .\calc\models.py:1471
 msgid "Paternal Uncle/s are blocked by father"
 msgstr "Paternal Uncle/s are blocked by father"
 
-#: .\calc\models.py:1471
+#: .\calc\models.py:1474
 msgid "Paternal Uncle/s are blocked by grandfather"
 msgstr "Paternal Uncle/s are blocked by grandfather"
 
-#: .\calc\models.py:1474
+#: .\calc\models.py:1477
 msgid "Paternal Uncle/s are blocked by brother/s"
 msgstr "Paternal Uncle/s are blocked by brother/s"
 
-#: .\calc\models.py:1477
+#: .\calc\models.py:1480
 msgid "Paternal Uncle/s are blocked by sisters"
 msgstr "Paternal Uncle/s are blocked by sisters"
 
-#: .\calc\models.py:1480
+#: .\calc\models.py:1483
 msgid "Paternal Uncle/s are blocked by paternal brother/s"
 msgstr "Paternal Uncle/s are blocked by paternal brother/s"
 
-#: .\calc\models.py:1483
+#: .\calc\models.py:1486
 msgid "Paternal Uncle/s are blocked by paternal sister/s"
 msgstr "Paternal Uncle/s are blocked by paternal sister/s"
 
-#: .\calc\models.py:1486
+#: .\calc\models.py:1489
 msgid "Paternal Uncle/s are blocked by sons of brother"
 msgstr "Paternal Uncle/s are blocked by sons of brother"
 
-#: .\calc\models.py:1489
+#: .\calc\models.py:1492
 msgid "Paternal Uncle/s are blocked by sons of paternal brother"
 msgstr "Paternal Uncle/s are blocked by sons of paternal brother"
 
-#: .\calc\models.py:1492
+#: .\calc\models.py:1495
 msgid "Paternal Uncle/s are blocked by uncle/s"
 msgstr "Paternal Uncle/s are blocked by uncle/s"
 
-#: .\calc\models.py:1495
+#: .\calc\models.py:1498
 msgid ""
 "Paternal Uncle/s share the remainder or all amount if no other heir exist"
 msgstr ""
 "Paternal Uncle/s share the remainder or all amount if no other heir exist"
 
-#: .\calc\models.py:1510
+#: .\calc\models.py:1513
 msgid "Son/s of uncle are blocked by male descendant"
 msgstr "Son/s of uncle are blocked by male descendant"
 
-#: .\calc\models.py:1513
+#: .\calc\models.py:1516
 msgid "Son/s of Uncle/s are blocked by father"
 msgstr "Son/s of Uncle/s are blocked by father"
 
-#: .\calc\models.py:1516
+#: .\calc\models.py:1519
 msgid "Son/s of Uncle/s are blocked by grandfather"
 msgstr "Son/s of Uncle/s are blocked by grandfather"
 
-#: .\calc\models.py:1519
+#: .\calc\models.py:1522
 msgid "Son/s of Uncle/s are blocked by brother/s"
 msgstr "Son/s of Uncle/s are blocked by brother/s"
 
-#: .\calc\models.py:1522
+#: .\calc\models.py:1525
 msgid "Son/s of Uncle/s are blocked by sisters"
 msgstr "Son/s of Uncle/s are blocked by sisters"
 
-#: .\calc\models.py:1525
+#: .\calc\models.py:1528
 msgid "Son/s of Uncle/s are blocked by paternal brother/s"
 msgstr "Son/s of Uncle/s are blocked by paternal brother/s"
 
-#: .\calc\models.py:1528
+#: .\calc\models.py:1531
 msgid "Son/s of Uncle/s are blocked by paternal sister/s"
 msgstr "Son/s of Uncle/s are blocked by paternal sister/s"
 
-#: .\calc\models.py:1531
+#: .\calc\models.py:1534
 msgid "Son/s of Uncle/s are blocked by sons of brother"
 msgstr "Son/s of Uncle/s are blocked by sons of brother"
 
-#: .\calc\models.py:1534
+#: .\calc\models.py:1537
 msgid "Son/s of Uncle/s are blocked by sons of paternal brother"
 msgstr "Son/s of Uncle/s are blocked by sons of paternal brother"
 
-#: .\calc\models.py:1537
+#: .\calc\models.py:1540
 msgid "Son/s of Uncle/s are blocked by uncle/s"
 msgstr "Son/s of Uncle/s are blocked by uncle/s"
 
-#: .\calc\models.py:1540
+#: .\calc\models.py:1543
 msgid "Son/s of Uncle/s are blocked by paternal uncle/s"
 msgstr "Son/s of Uncle/s are blocked by paternal uncle/s"
 
-#: .\calc\models.py:1543
+#: .\calc\models.py:1546
 msgid ""
 "Son/s of Uncle/s share the remainder or all amount if no other heir exist"
 msgstr ""
 "Son/s of Uncle/s share the remainder or all amount if no other heir exist"
 
-#: .\calc\models.py:1558
+#: .\calc\models.py:1561
 msgid "Son/s of paternal uncle are blocked by male descendant"
 msgstr "Son/s of paternal uncle are blocked by male descendant"
 
-#: .\calc\models.py:1561
+#: .\calc\models.py:1564
 msgid "Son/s of paternal Uncle/s are blocked by father"
 msgstr "Son/s of paternal Uncle/s are blocked by father"
 
-#: .\calc\models.py:1564
+#: .\calc\models.py:1567
 msgid "Son/s of paternal Uncle/s are blocked by grandfather"
 msgstr "Son/s of paternal Uncle/s are blocked by grandfather"
 
-#: .\calc\models.py:1567
+#: .\calc\models.py:1570
 msgid "Son/s of paternal Uncle/s are blocked by brother/s"
 msgstr "Son/s of paternal Uncle/s are blocked by brother/s"
 
-#: .\calc\models.py:1570
+#: .\calc\models.py:1573
 msgid "Son/s of paternal Uncle/s are blocked by sisters"
 msgstr "Son/s of paternal Uncle/s are blocked by sisters"
 
-#: .\calc\models.py:1573
+#: .\calc\models.py:1576
 msgid "Son/s of paternal Uncle/s are blocked by paternal brother/s"
 msgstr "Son/s of paternal Uncle/s are blocked by paternal brother/s"
 
-#: .\calc\models.py:1576
+#: .\calc\models.py:1579
 msgid "Son/s of paternal Uncle/s are blocked by paternal sister/s"
 msgstr "Son/s of paternal Uncle/s are blocked by paternal sister/s"
 
-#: .\calc\models.py:1579
+#: .\calc\models.py:1582
 msgid "Son/s of paternal Uncle/s are blocked by sons of brother"
 msgstr "Son/s of paternal Uncle/s are blocked by sons of brother"
 
-#: .\calc\models.py:1582
+#: .\calc\models.py:1585
 msgid "Son/s of paternal Uncle/s are blocked by sons of paternal brother"
 msgstr "Son/s of paternal Uncle/s are blocked by sons of paternal brother"
 
-#: .\calc\models.py:1585
+#: .\calc\models.py:1588
 msgid "Son/s of paternal Uncle/s are blocked by uncle/s"
 msgstr "Son/s of paternal Uncle/s are blocked by uncle/s"
 
-#: .\calc\models.py:1588
+#: .\calc\models.py:1591
 msgid "Son/s of paternal Uncle/s are blocked by paternal uncle/s"
 msgstr "Son/s of paternal Uncle/s are blocked by paternal uncle/s"
 
-#: .\calc\models.py:1591
+#: .\calc\models.py:1594
 msgid "Son/s of paternal Uncle/s are blocked by son/s of uncle/s"
 msgstr "Son/s of paternal Uncle/s are blocked by son/s of uncle/s"
 
-#: .\calc\models.py:1594
+#: .\calc\models.py:1597
 msgid ""
 "Son/s of paternal Uncle/s share the remainder or all amount if no other heir "
 "exist"
@@ -2216,23 +2222,23 @@ msgstr "Email:"
 msgid "Already registered"
 msgstr "Already registered"
 
-#: .\calc\views.py:41
+#: .\calc\views.py:48
 msgid "Decease already exist"
 msgstr "Decease already exist"
 
-#: .\calc\views.py:110 .\calc\views.py:318
+#: .\calc\views.py:117 .\calc\views.py:325
 msgid "Father already exist"
 msgstr "Father already exist"
 
-#: .\calc\views.py:164
+#: .\calc\views.py:171
 msgid "Cann't have more than 4 wifes"
 msgstr "Cann't have more than 4 wifes"
 
-#: .\calc\views.py:784
+#: .\calc\views.py:791
 msgid "Must enter a name for your calcualtion"
 msgstr "Must enter a name for your calcualtion"
 
-#: .\calc\views.py:808
+#: .\calc\views.py:815
 msgid "user not allowed"
 msgstr "user not allowed"
 
