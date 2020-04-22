@@ -950,9 +950,12 @@ class Mother(Heir):
         calc.deceased_set.first().add_mother(mother=self)
 
     def get_quote(self, calc):
-        if calc.has_descendent() or calc.has_siblings():
+        if calc.has_descendent():
             self.quote = 1/6
-            self.quote_reason = _("mother gets 1/6 because of descendant or siblings")
+            self.quote_reason = _("mother gets 1/6 because of descendant")
+        elif calc.has_siblings():
+            self.quote = 1/6
+            self.quote_reason = _("mother gets 1/6 because of siblings")
         elif calc.has_spouse() and calc.has_father():
             if calc.deceased_set.first().sex == 'M':
                 self.quote = 1/4
