@@ -327,7 +327,7 @@ class Calculation(models.Model):
         return str(self.name)
 
     def get_quotes(self):
-        for heir in self.heir_set.all():
+        for heir in self.heir_set.all().order_by('polymorphic_ctype_id'):
             heir.get_quote(self)
 
     def lcm(self, a, b):
@@ -677,14 +677,18 @@ class Calculation(models.Model):
         self.shares = 0
         self.excess = False
         self.shortage = False
+        self.residual_shares = 0
         self.correction = False
+        self.shortage_calc = False
+        self.shortage_calc_shares = 0
+        self.shortage_union_shares = 0
         self.shares_excess = 0
         self.shares_corrected = 0
         self.shares_shorted = 0
-        self.shortage_calc = False
-        self.save()
+        self.maternal_quote  = False
         for heir in self.heir_set.all():
             heir.clear()
+        self.save()
 
     def compute(self):
         self.clear()
@@ -706,6 +710,7 @@ class Calculation(models.Model):
         self.set_calc_correction()
         self.get_corrected_shares()
         self.set_amounts()
+        self.save()
 
     def get_absolute_url(self):
         return reverse('calc:detail', args=[self.id])
@@ -916,13 +921,15 @@ class Heir(Person):
         self.shared_quote = False
         self.share = 0
         self.corrected_share = 0
+        self.shorted_share = 0
         self.amount = 0
         self.asaba = False
         self.blocked = False
         self.quote_reason = ""
         self.correction = False
-        self.shorted_share = 0
-        self.shortage_calc= False
+        self.shortage_calc = False
+        self.shortage_calc_share  = 0
+        self.shortage_union_share  = 0
         self.save()
 
 class Father(Heir):
