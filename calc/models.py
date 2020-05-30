@@ -221,6 +221,7 @@ class Calculation(models.Model):
     shares_corrected = models.IntegerField(default=0)
     shares_shorted = models.IntegerField(default=0)
     maternal_quote = models.BooleanField(default=False)
+    common_quote = models.BooleanField(default=False) # siblings share quote with maternal siblings in case of no remainder
 
     user = models.ForeignKey(User,on_delete=models.CASCADE,null=True)
     name = models.CharField(max_length=200)
@@ -484,11 +485,11 @@ class Calculation(models.Model):
             for asaba in self.heir_set.filter(asaba=True, correction=False):
                 shares = shares + asaba.share
         if shares > self.shares:
-            self.excess = True
-            self.shares_excess = shares
-            self.save()
-            return self.shares_excess
-
+            if self.common_quote == False:
+                self.excess = True
+                self.shares_excess = shares
+                self.save()
+                return self.shares_excess
         return shares
 
     def set_shares(self):
@@ -506,8 +507,14 @@ class Calculation(models.Model):
                 shares = self.shares
             correction_set = self.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
             asaba_set = self.heir_set.filter(asaba=True, correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
-
-            if correction_set.count() == 1:
+            if self.common_quote == True:
+                heir_share = self.heir_set.filter(correction=True).first().share
+                count = self.heir_set.filter(correction=True).count()
+                if count % heir_share == 0:
+                    self.shares_corrected = math.gcd(count, heir_share) * shares
+                else:
+                    self.shares_corrected = count * shares
+            elif correction_set.count() == 1:
                 heir_share = self.heir_set.filter(correction=True).first().share
                 count = self.heir_set.filter(correction=True).count()
                 if count % heir_share == 0:
@@ -572,34 +579,32 @@ class Calculation(models.Model):
                 self.shares_shorted = spouse.get_fraction().denominator
             self.save()
     def set_asaba_quotes(self):
-        #check for residual_shares
-        if self.residual_shares > 0:
-            #check for asaba exclude father with quote
-            asaba = self.heir_set.filter(asaba=True).exclude(quote__gt=0)
-            count = asaba.count()
-            # if no asaba then we have resedual shares to be redistributed
-            if count == 0:
-                return
-            for heir in asaba:
-                heir.set_asaba_quote(self)
+        #check for asaba exclude father with quote
+        asaba = self.heir_set.filter(asaba=True).exclude(quote__gt=0)
+        if asaba:
+            #check for residual_shares
+            if self.residual_shares > 0 or self.common_quote == True:
+                for heir in asaba:
+                    heir.set_asaba_quote(self)
 
     def set_amounts(self):
         for heir in self.heir_set.filter(blocked=False):
             heir.set_amount(self)
 
     def set_asaba_shares(self):
-        if self.residual_shares > 0:
+        if self.residual_shares > 0 or self.common_quote == True:
             for heir in self.heir_set.filter(blocked=False):
                 heir.set_asaba_share(self)
 
     def set_remainder(self):
-        shares = self.get_shares()
-        self.residual_shares=  self.shares - shares
-        return self.residual_shares
+        if self.common_quote == False:
+            shares = self.get_shares()
+            self.residual_shares=  self.shares - shares
+            return self.residual_shares
 
     def set_calc_excess(self):
         shares = self.get_shares()
-        if shares > self.shares:
+        if shares > self.shares and self.common_quote == False:
             self.excess = True
             self.shares_excess = shares
             self.save()
@@ -673,6 +678,12 @@ class Calculation(models.Model):
             for heir in heirs:
                 heir.set_shortage_union_share(self)
 
+    def check_common_quote(self):
+        # check for common_quote
+        if self.heir_set.instance_of(MaternalSister, MaternalBrother).filter(quote__gt=0).count() > 1 and self.heir_set.instance_of(Brother).filter(asaba=True).count() >= 1 and self.heir_set.instance_of(Husband).filter(quote__gt=1/4) and self.heir_set.instance_of(Mother).filter(quote__gt=0) :
+            self.common_quote = True
+            self.save()
+
     def clear(self):
         self.shares = 0
         self.excess = False
@@ -686,6 +697,7 @@ class Calculation(models.Model):
         self.shares_corrected = 0
         self.shares_shorted = 0
         self.maternal_quote  = False
+        self.common_quote = False
         for heir in self.heir_set.all():
             heir.clear()
         self.save()
@@ -693,6 +705,7 @@ class Calculation(models.Model):
     def compute(self):
         self.clear()
         self.get_quotes()
+        self.check_common_quote()
         self.set_calc_shares()
         self.set_shares()
         self.set_remainder()
@@ -748,7 +761,13 @@ class Heir(Person):
             share = calc.shares * self.get_fraction().numerator // self.get_fraction().denominator
             if self.shared_quote == True:
                 if calc.maternal_quote == True:
-                    count = calc.heir_set.instance_of(MaternalSister, MaternalBrother).count()
+                    if calc.common_quote == True:
+                        count = calc.heir_set.instance_of(MaternalSister, MaternalBrother, Sister, Brother).count()
+                    else:
+                        count = calc.heir_set.instance_of(MaternalSister, MaternalBrother).count()
+                elif calc.common_quote == True:
+                        count = calc.heir_set.instance_of(MaternalSister, MaternalBrother, Sister, Brother).count()
+
                 else:
                     count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
                 if share % count == 0:
@@ -817,34 +836,47 @@ class Heir(Person):
 
     def set_asaba_share(self,calc):
         if self.asaba == True:
-            shares = calc.shares
-            remainder = calc.residual_shares
-            asaba_count = calc.heir_set.filter(asaba=True).count()
-            if asaba_count == 1:
-                self.share = remainder
+            if calc.common_quote == True:
+                share = calc.shares * self.get_fraction().numerator // self.get_fraction().denominator
+                count = calc.heir_set.instance_of(MaternalSister, MaternalBrother, Sister, Brother).count()
+                if share % count == 0:
+                    self.share = share // count
+                    self.save()
+                else:
+                    self.correction=True
+                    calc.correction=True
+                    self.share = share
+                    self.save()
+                    calc.save()
             else:
-                #check for correction
-                males = calc.heir_set.filter(asaba=True, sex='M').count()
-                females = calc.heir_set.filter(asaba=True, sex='F').count()
-                if males == asaba_count or females == asaba_count:
-                    if remainder % asaba_count == 0:
-                        self.share = remainder // asaba_count
+                shares = calc.shares
+                remainder = calc.residual_shares
+                asaba_count = calc.heir_set.filter(asaba=True).count()
+                if asaba_count == 1:
+                    self.share = remainder
+                else:
+                    #check for correction
+                    males = calc.heir_set.filter(asaba=True, sex='M').count()
+                    females = calc.heir_set.filter(asaba=True, sex='F').count()
+                    if males == asaba_count or females == asaba_count:
+                        if remainder % asaba_count == 0:
+                            self.share = remainder // asaba_count
+                        else:
+                            self.share = remainder
+                            self.correction = True
+                            calc.correction = True
+                            calc.save()
+                    elif remainder % (males*2+females) == 0:
+                        if self.sex == "M":
+                            self.share = remainder // (2 * males + females) * 2
+                        else:
+                            self.share = remainder // (2 * males + females)
                     else:
-                        self.share = remainder
+                        self.share= remainder
                         self.correction = True
                         calc.correction = True
                         calc.save()
-                elif remainder % (males*2+females) == 0:
-                    if self.sex == "M":
-                        self.share = remainder // (2 * males + females) * 2
-                    else:
-                        self.share = remainder // (2 * males + females)
-                else:
-                    self.share= remainder
-                    self.correction = True
-                    calc.correction = True
-                    calc.save()
-            self.save()
+                self.save()
             return self.share
 
     def set_asaba_quote(self, calc):
@@ -859,6 +891,11 @@ class Heir(Person):
                 quote = (remainder + self.share )/calc.shares
                 self.quote = quote
                 self.save()
+        elif calc.common_quote == True:
+            self.quote = 1/3
+            self.quote_reason = _("Asaba with maternal siblings share 1/3")
+            self.shared_quote = True
+            self.save()
 
     def get_corrected_share(self, calc):
         correction_set = calc.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
@@ -873,7 +910,9 @@ class Heir(Person):
             else:
                 multiplier = calc.shares_corrected // calc.shares
                 share = self.share
-            if correction_set.count() == 1:
+            if calc.common_quote == True:
+                self.corrected_share = share
+            elif correction_set.count() == 1:
                 if self.shared_quote == True:
                     self.corrected_share = share
                 else:
