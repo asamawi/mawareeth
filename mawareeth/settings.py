@@ -56,6 +56,10 @@ INSTALLED_APPS = [
     'waffle',
 ]
 
+# Default primary key field type for models
+# See: https://docs.djangoproject.com/en/stable/ref/settings/#default-auto-field
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
