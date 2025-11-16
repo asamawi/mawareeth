@@ -20,6 +20,12 @@ from decouple import config
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Application version (major.minor.patch)
+APP_VERSION_MAJOR = 2
+APP_VERSION_MINOR = 0
+APP_VERSION_PATCH = 1
+APP_VERSION = f"{APP_VERSION_MAJOR}.{APP_VERSION_MINOR}.{APP_VERSION_PATCH}"
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
@@ -89,6 +95,7 @@ TEMPLATES = [
                 'django.template.context_processors.i18n',
                 'social_django.context_processors.backends',
                 'social_django.context_processors.login_redirect',
+                'mawareeth.context_processors.app_version',
             ],
         },
     },
