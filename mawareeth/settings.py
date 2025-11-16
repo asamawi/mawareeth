@@ -23,7 +23,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Application version (major.minor.patch)
 APP_VERSION_MAJOR = 2
 APP_VERSION_MINOR = 0
-APP_VERSION_PATCH = 0
+APP_VERSION_PATCH = 1
 APP_VERSION = f"{APP_VERSION_MAJOR}.{APP_VERSION_MINOR}.{APP_VERSION_PATCH}"
 
 
