@@ -10,6 +10,41 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # First, update foreign keys that reference Person and Marriage so their
+        # underlying column types are compatible with BigAutoField primary keys.
+        migrations.AlterField(
+            model_name='marriage',
+            name='male',
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=models.CASCADE,
+                related_name='male_marriages',
+                to='calc.person',
+            ),
+        ),
+        migrations.AlterField(
+            model_name='marriage',
+            name='female',
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=models.CASCADE,
+                related_name='female_marriages',
+                to='calc.person',
+            ),
+        ),
+        migrations.AlterField(
+            model_name='person',
+            name='parents',
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=models.SET_NULL,
+                to='calc.marriage',
+            ),
+        ),
+        # Then, promote the primary keys themselves to BigAutoField.
         migrations.AlterField(
             model_name='calculation',
             name='id',
