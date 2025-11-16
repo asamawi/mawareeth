@@ -1,4 +1,4 @@
-django
+Django==5.2.8
 gunicorn
 django-heroku
 django-polymorphic
