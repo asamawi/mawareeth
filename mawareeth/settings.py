@@ -109,12 +109,13 @@ WSGI_APPLICATION = 'mawareeth.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': os.environ.get('ENGINE','django.db.backends.postgresql_psycopg2'), #djongo
-        'NAME': os.environ.get('DATABASE_NAME','mydb_mawareeth'),
-        'HOST':   os.environ.get('DATABASE_HOST','localhost'),
-        'USER': os.environ.get('DB_USER','postgres'),
-        'PASSWORD': os.environ.get('DB_PASS','postgres'),
-        'PORT': os.environ.get('POSTGRES_PORT','5432')}
+        'ENGINE': config('ENGINE', default='django.db.backends.postgresql_psycopg2'),
+        'NAME': config('DATABASE_NAME', default='mydb_mawareeth'),
+        'HOST': config('DATABASE_HOST', default='localhost'),
+        'USER': config('DB_USER', default='postgres'),
+        'PASSWORD': config('DB_PASS', default='postgres'),
+        'PORT': config('POSTGRES_PORT', default='5432')
+    }
 }
 
 
@@ -154,19 +155,13 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
-# Database and Heroku Settings
-DATABASES['default'] = dj_database_url.config(
-    conn_max_age=600,
-    default=f'sqlite:///{os.path.join(BASE_DIR, "db.sqlite3")}'
-)
-
-# Additional Heroku settings
-ALLOWED_HOSTS = ['*']  # Update this in production
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-
 # Static files settings
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Heroku settings
+ALLOWED_HOSTS = ['*']  
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 STORAGES = {
     "staticfiles": {
