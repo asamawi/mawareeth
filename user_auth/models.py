@@ -1,7 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 
-User._meta.get_field('email').blank = False
+# Moved email validation to forms to avoid migration warnings
+
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
