@@ -108,14 +108,11 @@ TEMPLATES = [
 WSGI_APPLICATION = 'mawareeth.wsgi.application'
 
 DATABASES = {
-    'default': {
-        'ENGINE': config('ENGINE', default='django.db.backends.postgresql_psycopg2'),
-        'NAME': config('DATABASE_NAME', default='mydb_mawareeth'),
-        'HOST': config('DATABASE_HOST', default='localhost'),
-        'USER': config('DB_USER', default='postgres'),
-        'PASSWORD': config('DB_PASS', default='postgres'),
-        'PORT': config('POSTGRES_PORT', default='5432')
-    }
+    'default': dj_database_url.config(
+        default=config('DATABASE_URL', default='postgres://postgres:postgres@localhost:5432/mydb_mawareeth'),
+        conn_max_age=600,
+        ssl_require=not DEBUG
+    )
 }
 
 
