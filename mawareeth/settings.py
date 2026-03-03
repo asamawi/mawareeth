@@ -11,7 +11,9 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
-import django_heroku
+import dj_database_url
+
+
 from django.utils.translation import gettext_lazy as _
 from decouple import config
 
@@ -31,10 +33,10 @@ APP_VERSION = f"{APP_VERSION_MAJOR}.{APP_VERSION_MINOR}.{APP_VERSION_PATCH}"
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ['DJANGO_KEY']
+SECRET_KEY = config('DJANGO_KEY', default='local-secret-key-for-testing')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ['DEBUG']
+DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = []
 
@@ -68,7 +70,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -150,10 +154,26 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
-STATIC_URL = '/static/'
+# Database and Heroku Settings
+DATABASES['default'] = dj_database_url.config(
+    conn_max_age=600,
+    default=f'sqlite:///{os.path.join(BASE_DIR, "db.sqlite3")}'
+)
 
-# Activate Django-Heroku
-django_heroku.settings(locals())
+# Additional Heroku settings
+ALLOWED_HOSTS = ['*']  # Update this in production
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Static files settings
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage" if not DEBUG else "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
 
 SITE_ID = config("SITE_ID",default=1, cast=int)
 
@@ -172,9 +192,9 @@ LANGUAGES = [
 LOGIN_REDIRECT_URL = 'calc:index'
 LOGOUT_REDIRECT_URL = 'calc:index'
 ANYMAIL = {
-    "MAILGUN_API_KEY" : os.environ['MAILGUN_ACCESS_KEY'],
+    "MAILGUN_API_KEY" : config('MAILGUN_ACCESS_KEY', default='dummy'),
     "MAILGUN_API_URL": "https://api.eu.mailgun.net/v3",
-    "MAILGUN_SENDER_DOMAIN" : os.environ['MAILGUN_SERVER_NAME'],
+    "MAILGUN_SENDER_DOMAIN" : config('MAILGUN_SERVER_NAME', default='dummy'),
 }
 EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
 DEFAULT_FROM_EMAIL = "noreply@mawareeth.com"

@@ -1,6 +1,7 @@
-Django
-gunicorn
-django-heroku
+Django>=4.2,<5.0
+gunicorn>=21.0
+dj-database-url
+whitenoise
 django-polymorphic
 pymongo[srv]
 sqlparse
@@ -11,3 +12,5 @@ python-decouple
 django-active-link
 social-auth-app-django
 django-waffle
+psycopg2-binary
+
