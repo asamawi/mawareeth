@@ -1,0 +1,2328 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mawareeth V3 — Guided Interview Design Directions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    /* ===== RESET & TOKENS ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #1E3A8A;
+      --secondary: #1E40AF;
+      --accent: #B45309;
+      --bg: #F8FAFC;
+      --fg: #0F172A;
+      --muted: #64748B;
+      --border: #E2E8F0;
+      --card: #FFFFFF;
+      --success: #16A34A;
+      --destructive: #DC2626;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(15,23,42,0.05);
+      --shadow-md: 0 2px 8px rgba(15,23,42,0.08);
+      --shadow-lg: 0 4px 16px rgba(15,23,42,0.1);
+      --font-heading: 'Lexend', sans-serif;
+      --font-body: 'Source Sans 3', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ===== STICKY NAV ===== */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: var(--primary);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      height: 56px;
+      gap: 8px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .top-nav .brand {
+      font-family: var(--font-heading);
+      font-weight: 700;
+      font-size: 16px;
+      color: #fff;
+      margin-right: 16px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .top-nav .brand svg { flex-shrink: 0; }
+    .top-nav a {
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.7);
+      text-decoration: none;
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      transition: all 200ms ease;
+      flex-shrink: 0;
+    }
+    .top-nav a:hover, .top-nav a.active {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+    }
+    .top-nav .sep {
+      width: 1px;
+      height: 24px;
+      background: rgba(255,255,255,0.2);
+      flex-shrink: 0;
+    }
+
+    /* ===== SECTION WRAPPER ===== */
+    .direction-section {
+      padding: 48px 24px 64px;
+      border-bottom: 2px solid var(--border);
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .direction-section:last-child { border-bottom: none; }
+
+    .section-header {
+      margin-bottom: 32px;
+    }
+    .section-header .direction-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .section-header h2 {
+      font-family: var(--font-heading);
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+    .section-header p {
+      font-size: 16px;
+      color: var(--muted);
+      max-width: 680px;
+    }
+
+    /* ===== MOCKUP FRAME ===== */
+    .mockup-frame {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+      background: var(--bg);
+    }
+    .mockup-frame .browser-chrome {
+      background: #F1F5F9;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mockup-frame .browser-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .mockup-frame .browser-dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+    .mockup-frame .browser-dots span:first-child { background: #FCA5A5; }
+    .mockup-frame .browser-dots span:nth-child(2) { background: #FDE68A; }
+    .mockup-frame .browser-dots span:nth-child(3) { background: #86EFAC; }
+    .mockup-frame .browser-url {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 4px 12px;
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--font-body);
+    }
+
+    /* ===== COMMON MOCKUP ELEMENTS ===== */
+    .m-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 20px;
+      border-radius: var(--radius-md);
+      border: none;
+      cursor: pointer;
+      transition: all 200ms ease;
+    }
+    .m-btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .m-btn-primary:hover { background: var(--secondary); }
+    .m-btn-outline {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .m-btn-outline:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    .m-btn-accent {
+      background: var(--accent);
+      color: #fff;
+    }
+    .m-btn-accent:hover { background: #92400E; }
+
+    .m-input {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-family: var(--font-body);
+      font-size: 14px;
+      color: var(--fg);
+      background: var(--card);
+      transition: border-color 200ms ease;
+    }
+    .m-input:focus { outline: none; border-color: var(--primary); }
+
+    .m-select {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-family: var(--font-body);
+      font-size: 14px;
+      color: var(--fg);
+      background: var(--card);
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 32px;
+    }
+
+    .m-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg);
+      margin-bottom: 6px;
+    }
+
+    .m-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: #EFF6FF;
+      color: var(--primary);
+    }
+    .m-badge-accent {
+      background: #FEF3C7;
+      color: var(--accent);
+    }
+    .m-badge-success {
+      background: #DCFCE7;
+      color: var(--success);
+    }
+
+    /* ===== SHARED TREE NODE ===== */
+    .tree-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .tree-node-box {
+      background: var(--card);
+      border: 2px solid var(--primary);
+      border-radius: var(--radius-md);
+      padding: 8px 14px;
+      text-align: center;
+      min-width: 100px;
+      transition: box-shadow 200ms ease;
+      cursor: pointer;
+    }
+    .tree-node-box:hover {
+      box-shadow: var(--shadow-md);
+    }
+    .tree-node-box.deceased {
+      background: var(--primary);
+      color: #fff;
+    }
+    .tree-node-box .node-name {
+      font-family: var(--font-heading);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .tree-node-box .node-relation {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .tree-node-box.deceased .node-relation {
+      color: rgba(255,255,255,0.7);
+    }
+    .tree-node-box .node-share {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: 2px;
+    }
+    .tree-node-box.deceased .node-share {
+      color: #FDE68A;
+    }
+
+    /* SVG tree lines */
+    .tree-lines { stroke: var(--primary); stroke-width: 2; fill: none; opacity: 0.3; }
+
+    /* ===== INTRO / HERO ===== */
+    .hero {
+      text-align: center;
+      padding: 64px 24px 48px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .hero h1 {
+      font-family: var(--font-heading);
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 12px;
+    }
+    .hero p {
+      font-size: 17px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .hero .subtitle {
+      font-size: 14px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* ============================================================
+       DIRECTION 1: SPLIT PANEL CLASSIC
+       ============================================================ */
+    .d1-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto 1fr;
+      min-height: 520px;
+    }
+    .d1-progress {
+      grid-column: 1 / -1;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+    .d1-progress-bar {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+    .d1-progress-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .d1-progress-step.active { color: var(--primary); font-weight: 600; }
+    .d1-progress-step.done { color: var(--success); }
+    .d1-progress-step .step-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .d1-progress-step.active .step-circle {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
+    }
+    .d1-progress-step.done .step-circle {
+      border-color: var(--success);
+      background: var(--success);
+      color: #fff;
+    }
+    .d1-progress-connector {
+      flex: 1;
+      height: 2px;
+      background: var(--border);
+      margin: 0 8px;
+      min-width: 24px;
+    }
+    .d1-progress-connector.done { background: var(--success); }
+
+    .d1-left {
+      padding: 28px;
+      border-right: 1px solid var(--border);
+      background: var(--card);
+      display: flex;
+      flex-direction: column;
+    }
+    .d1-left h3 {
+      font-family: var(--font-heading);
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--fg);
+    }
+    .d1-left .subtitle {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .d1-form-group { margin-bottom: 16px; }
+    .d1-heir-list {
+      margin-top: 16px;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+    .d1-heir-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      margin-bottom: 6px;
+      background: #F8FAFC;
+      transition: background 200ms ease;
+      cursor: pointer;
+    }
+    .d1-heir-item:hover { background: #EFF6FF; }
+    .d1-heir-item .heir-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .d1-heir-item .heir-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #EFF6FF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .d1-heir-item .heir-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+    .d1-heir-item .heir-rel {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .d1-heir-item .heir-share {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .d1-actions {
+      margin-top: auto;
+      display: flex;
+      justify-content: space-between;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .d1-right {
+      padding: 28px;
+      background: #FAFBFD;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .d1-right h4 {
+      font-family: var(--font-heading);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 24px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .d1-tree {
+      position: relative;
+      width: 100%;
+      max-width: 440px;
+    }
+    .d1-tree-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .d1-tree-root {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+    }
+    .d1-tree-children {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* ============================================================
+       DIRECTION 2: CENTERED WIZARD
+       ============================================================ */
+    .d2-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 24px;
+      min-height: 560px;
+      background: var(--bg);
+    }
+    .d2-stepper {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 24px;
+    }
+    .d2-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .d2-step.active { color: var(--primary); }
+    .d2-step.done { color: var(--success); }
+    .d2-step .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+    .d2-step.active .dot { background: var(--primary); box-shadow: 0 0 0 4px #DBEAFE; }
+    .d2-step.done .dot { background: var(--success); }
+    .d2-step-line {
+      width: 40px;
+      height: 2px;
+      background: var(--border);
+      margin: 0 6px;
+    }
+    .d2-step-line.done { background: var(--success); }
+
+    .d2-tree-bar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      position: relative;
+      padding-bottom: 12px;
+    }
+    .d2-tree-bar::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 10%;
+      right: 10%;
+      height: 2px;
+      background: var(--border);
+    }
+    .d2-tree-bar .t-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .d2-tree-bar .t-node .t-box {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg);
+      text-align: center;
+      transition: all 200ms ease;
+      cursor: pointer;
+    }
+    .d2-tree-bar .t-node .t-box:hover { border-color: var(--primary); }
+    .d2-tree-bar .t-node .t-box.root {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .d2-tree-bar .t-node .t-share {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .d2-tree-bar .t-node .t-line {
+      width: 2px;
+      height: 12px;
+      background: var(--border);
+    }
+
+    .d2-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      padding: 32px;
+      width: 100%;
+      max-width: 540px;
+    }
+    .d2-card h3 {
+      font-family: var(--font-heading);
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .d2-card .d2-sub {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .d2-card .d2-added {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .d2-card .d2-added h4 {
+      font-family: var(--font-heading);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .d2-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .d2-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: #EFF6FF;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--primary);
+      cursor: pointer;
+      transition: all 200ms ease;
+    }
+    .d2-pill:hover { background: #DBEAFE; }
+    .d2-pill .pill-x {
+      display: flex;
+      align-items: center;
+      opacity: 0.5;
+    }
+    .d2-pill .pill-x:hover { opacity: 1; }
+    .d2-cta {
+      margin-top: 24px;
+      text-align: center;
+    }
+    .d2-cta .m-btn { width: 100%; justify-content: center; padding: 14px 20px; font-size: 16px; }
+
+    /* ============================================================
+       DIRECTION 3: DASHBOARD PROFESSIONAL
+       ============================================================ */
+    .d3-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr 280px;
+      grid-template-rows: auto 1fr;
+      min-height: 540px;
+    }
+    .d3-topbar {
+      grid-column: 1 / -1;
+      background: var(--primary);
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 48px;
+    }
+    .d3-topbar .logo {
+      font-family: var(--font-heading);
+      font-weight: 700;
+      font-size: 15px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .d3-topbar .tb-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .d3-topbar .lang-switch {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.8);
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(255,255,255,0.2);
+      transition: all 200ms ease;
+    }
+    .d3-topbar .lang-switch:hover { border-color: rgba(255,255,255,0.5); }
+
+    .d3-sidebar {
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .d3-sidebar h4 {
+      font-family: var(--font-heading);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+    .d3-sb-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 10px;
+      border-radius: var(--radius-md);
+      margin-bottom: 4px;
+      cursor: pointer;
+      transition: all 200ms ease;
+    }
+    .d3-sb-item:hover { background: #F1F5F9; }
+    .d3-sb-item.selected { background: #EFF6FF; }
+    .d3-sb-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .d3-sb-avatar.male { background: #DBEAFE; color: var(--primary); }
+    .d3-sb-avatar.female { background: #FCE7F3; color: #BE185D; }
+    .d3-sb-info .sb-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+    .d3-sb-info .sb-rel {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .d3-sb-add {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-md);
+      margin-top: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--primary);
+      transition: all 200ms ease;
+    }
+    .d3-sb-add:hover { border-color: var(--primary); background: #EFF6FF; }
+
+    .d3-center {
+      padding: 28px;
+      background: var(--bg);
+    }
+    .d3-center h3 {
+      font-family: var(--font-heading);
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .d3-center .d3-center-sub {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .d3-form-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .d3-form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .d3-form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .d3-right {
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      padding: 16px;
+    }
+    .d3-right h4 {
+      font-family: var(--font-heading);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 16px;
+      padding: 0 4px;
+    }
+    .d3-share-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .d3-share-item:last-child { border-bottom: none; }
+    .d3-share-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+    .d3-share-rel {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .d3-share-pct {
+      text-align: right;
+    }
+    .d3-share-frac {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .d3-share-decimal {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .d3-share-bar {
+      margin-top: 16px;
+      height: 8px;
+      border-radius: 4px;
+      background: var(--border);
+      overflow: hidden;
+      display: flex;
+    }
+    .d3-share-bar div { height: 100%; }
+
+    /* ============================================================
+       DIRECTION 4: BENTO GRID
+       ============================================================ */
+    .d4-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 16px;
+      padding: 24px;
+      min-height: 540px;
+      background: var(--bg);
+    }
+    .d4-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 200ms ease;
+    }
+    .d4-card:hover { box-shadow: var(--shadow-md); }
+    .d4-card-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .d4-tree-card {
+      grid-column: 1 / 3;
+      grid-row: 1 / 2;
+    }
+    .d4-form-card {
+      grid-column: 3 / 4;
+      grid-row: 1 / 3;
+    }
+    .d4-progress-card {
+      grid-column: 1 / 2;
+      grid-row: 2 / 3;
+    }
+    .d4-share-card {
+      grid-column: 2 / 3;
+      grid-row: 2 / 3;
+    }
+
+    .d4-tree-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+      padding: 8px 0;
+    }
+    .d4-tree-children {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .d4-progress-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .d4-p-step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .d4-p-step.done { color: var(--success); }
+    .d4-p-step.active { color: var(--primary); font-weight: 600; }
+    .d4-p-step .p-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .d4-p-step.done .p-dot { background: var(--success); }
+    .d4-p-step.active .p-dot { background: var(--primary); box-shadow: 0 0 0 4px #DBEAFE; }
+
+    .d4-share-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .d4-share-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .d4-share-row .name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+    .d4-share-row .frac {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .d4-madhab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+      padding: 12px;
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* ============================================================
+       DIRECTION 5: CONVERSATIONAL FLOW
+       ============================================================ */
+    .d5-layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      min-height: 560px;
+    }
+    .d5-chat {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+    .d5-chat-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .d5-chat-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .d5-chat-header-info .ch-name {
+      font-family: var(--font-heading);
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .d5-chat-header-info .ch-status {
+      font-size: 12px;
+      color: var(--success);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .d5-chat-header-info .ch-status::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+    }
+    .d5-messages {
+      flex: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+    .d5-msg {
+      display: flex;
+      gap: 8px;
+      max-width: 80%;
+    }
+    .d5-msg.system { align-self: flex-start; }
+    .d5-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+    .d5-msg-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .d5-msg.system .d5-msg-avatar {
+      background: var(--primary);
+      color: #fff;
+    }
+    .d5-msg.user .d5-msg-avatar {
+      background: #DBEAFE;
+      color: var(--primary);
+    }
+    .d5-bubble {
+      padding: 10px 14px;
+      border-radius: var(--radius-lg);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .d5-msg.system .d5-bubble {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: var(--radius-sm);
+    }
+    .d5-msg.user .d5-bubble {
+      background: var(--primary);
+      color: #fff;
+      border-bottom-right-radius: var(--radius-sm);
+    }
+    .d5-input-bar {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--card);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .d5-input-bar .m-input { border-radius: 999px; }
+    .d5-send-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--primary);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 200ms ease;
+      flex-shrink: 0;
+    }
+    .d5-send-btn:hover { background: var(--secondary); }
+
+    .d5-tree-panel {
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    .d5-tree-panel h4 {
+      font-family: var(--font-heading);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .d5-tree-inner {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+    }
+    .d5-tree-children {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    /* ============================================================
+       DIRECTION 6: FULL-SCREEN IMMERSIVE
+       ============================================================ */
+    .d6-layout {
+      position: relative;
+      min-height: 580px;
+      background: linear-gradient(135deg, #F0F4FF 0%, var(--bg) 100%);
+      overflow: hidden;
+    }
+    .d6-heir-pills {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+    .d6-heir-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg);
+      box-shadow: var(--shadow-sm);
+      cursor: pointer;
+      transition: all 200ms ease;
+    }
+    .d6-heir-pill:hover { border-color: var(--primary); box-shadow: var(--shadow-md); }
+    .d6-heir-pill .pill-share {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .d6-tree-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 72px 24px 24px;
+      min-height: 580px;
+    }
+    .d6-tree-root-node {
+      margin-bottom: 0;
+    }
+    .d6-tree-main {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 48px;
+    }
+    .d6-tree-branches {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+    }
+    .d6-t-node {
+      background: var(--card);
+      border: 2px solid var(--primary);
+      border-radius: var(--radius-md);
+      padding: 12px 20px;
+      text-align: center;
+      box-shadow: var(--shadow-md);
+      cursor: pointer;
+      transition: all 200ms ease;
+      min-width: 110px;
+    }
+    .d6-t-node:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+    .d6-t-node.root {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+      padding: 16px 28px;
+    }
+    .d6-t-node .tn-name {
+      font-family: var(--font-heading);
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .d6-t-node .tn-rel {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .d6-t-node.root .tn-rel {
+      color: rgba(255,255,255,0.7);
+    }
+    .d6-t-node .tn-share {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-top: 4px;
+    }
+    .d6-t-node.root .tn-share { color: #FDE68A; }
+
+    .d6-floating-card {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      padding: 24px;
+      width: 340px;
+      z-index: 10;
+    }
+    .d6-floating-card h3 {
+      font-family: var(--font-heading);
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .d6-floating-card .fc-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .d6-floating-card .fc-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .d6-floating-card .fc-actions .m-btn { flex: 1; justify-content: center; }
+
+    .d6-tree-connector {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* ===== RESPONSIVE HINT ===== */
+    @media (max-width: 900px) {
+      .d1-layout { grid-template-columns: 1fr; }
+      .d3-layout { grid-template-columns: 1fr; }
+      .d4-layout { grid-template-columns: 1fr; }
+      .d5-layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== STICKY NAV ===== -->
+<nav class="top-nav">
+  <div class="brand">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Mawareeth V3
+  </div>
+  <div class="sep"></div>
+  <a href="#dir1">1. Split Panel</a>
+  <a href="#dir2">2. Centered Wizard</a>
+  <a href="#dir3">3. Dashboard Pro</a>
+  <a href="#dir4">4. Bento Grid</a>
+  <a href="#dir5">5. Conversational</a>
+  <a href="#dir6">6. Immersive</a>
+</nav>
+
+<!-- ===== HERO ===== -->
+<div class="hero">
+  <h1>Design Directions</h1>
+  <p>Six layout explorations for the Guided Interview screen — the core experience where users add heirs, watch the family tree build, and preview inheritance shares.</p>
+  <div class="subtitle">Mawareeth V3 Islamic Inheritance Calculator</div>
+</div>
+
+<!-- ================================================================
+     DIRECTION 1: SPLIT PANEL CLASSIC
+     ================================================================ -->
+<section class="direction-section" id="dir1">
+  <div class="section-header">
+    <div class="direction-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+      Direction 1
+    </div>
+    <h2>Split Panel Classic</h2>
+    <p>Traditional two-panel layout with the interview form on the left and the family tree visualization on the right. A progress bar at the top anchors the user in the workflow. Clean, spacious, and immediately legible.</p>
+  </div>
+
+  <div class="mockup-frame">
+    <div class="browser-chrome">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">mawareeth.com/case/new/heirs</div>
+    </div>
+    <div class="d1-layout">
+      <!-- Progress bar -->
+      <div class="d1-progress">
+        <div class="d1-progress-bar">
+          <div class="d1-progress-step done">
+            <div class="step-circle">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            Deceased Info
+          </div>
+          <div class="d1-progress-connector done"></div>
+          <div class="d1-progress-step active">
+            <div class="step-circle">2</div>
+            Add Heirs
+          </div>
+          <div class="d1-progress-connector"></div>
+          <div class="d1-progress-step">
+            <div class="step-circle">3</div>
+            Review
+          </div>
+          <div class="d1-progress-connector"></div>
+          <div class="d1-progress-step">
+            <div class="step-circle">4</div>
+            Results
+          </div>
+        </div>
+      </div>
+
+      <!-- Left: Form -->
+      <div class="d1-left">
+        <h3>Add an Heir</h3>
+        <div class="subtitle">Who inherits from Ahmad Hassan?</div>
+
+        <div class="d1-form-group">
+          <label class="m-label">Relationship to Deceased</label>
+          <select class="m-select">
+            <option>Select relationship...</option>
+            <option>Son</option>
+            <option selected>Daughter</option>
+            <option>Wife</option>
+            <option>Father</option>
+            <option>Mother</option>
+          </select>
+        </div>
+        <div class="d1-form-group">
+          <label class="m-label">Full Name</label>
+          <input class="m-input" type="text" placeholder="Enter heir's full name" value="Layla Hassan">
+        </div>
+        <div style="margin-top:8px;">
+          <button class="m-btn m-btn-accent" style="width:100%;justify-content:center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Heir
+          </button>
+        </div>
+
+        <div class="d1-heir-list">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:10px;">Added Heirs (3)</div>
+          <div class="d1-heir-item">
+            <div class="heir-info">
+              <div class="heir-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <div>
+                <div class="heir-name">Fatima Al-Amin</div>
+                <div class="heir-rel">Wife</div>
+              </div>
+            </div>
+            <div class="heir-share">1/8</div>
+          </div>
+          <div class="d1-heir-item">
+            <div class="heir-info">
+              <div class="heir-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <div>
+                <div class="heir-name">Omar Hassan</div>
+                <div class="heir-rel">Son</div>
+              </div>
+            </div>
+            <div class="heir-share">7/16</div>
+          </div>
+          <div class="d1-heir-item">
+            <div class="heir-info">
+              <div class="heir-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <div>
+                <div class="heir-name">Hassan Ibrahim</div>
+                <div class="heir-rel">Father</div>
+              </div>
+            </div>
+            <div class="heir-share">1/6</div>
+          </div>
+        </div>
+
+        <div class="d1-actions">
+          <button class="m-btn m-btn-outline">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            Back
+          </button>
+          <button class="m-btn m-btn-primary">
+            Next: Review
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: Tree -->
+      <div class="d1-right">
+        <h4>Family Tree</h4>
+        <div class="d1-tree">
+          <svg class="d1-tree-svg" viewBox="0 0 440 260" preserveAspectRatio="xMidYMid meet">
+            <!-- Hassan (father) to Ahmad -->
+            <line x1="130" y1="40" x2="220" y2="40" class="tree-lines"/>
+            <line x1="220" y1="40" x2="220" y2="80" class="tree-lines"/>
+            <!-- Ahmad to children line -->
+            <line x1="220" y1="130" x2="220" y2="160" class="tree-lines"/>
+            <line x1="100" y1="160" x2="340" y2="160" class="tree-lines"/>
+            <!-- Drops to children -->
+            <line x1="100" y1="160" x2="100" y2="180" class="tree-lines"/>
+            <line x1="220" y1="160" x2="220" y2="180" class="tree-lines"/>
+            <line x1="340" y1="160" x2="340" y2="180" class="tree-lines"/>
+          </svg>
+          <div class="d1-tree-root">
+            <!-- Father row -->
+            <div style="display:flex;gap:80px;align-items:flex-start;">
+              <div class="tree-node">
+                <div class="tree-node-box">
+                  <div class="node-name">Hassan Ibrahim</div>
+                  <div class="node-relation">Father</div>
+                  <div class="node-share">1/6</div>
+                </div>
+              </div>
+              <div class="tree-node">
+                <div class="tree-node-box deceased">
+                  <div class="node-name">Ahmad Hassan</div>
+                  <div class="node-relation">Deceased</div>
+                </div>
+              </div>
+            </div>
+            <!-- Children row -->
+            <div class="d1-tree-children" style="margin-top:24px;">
+              <div class="tree-node">
+                <div class="tree-node-box">
+                  <div class="node-name">Fatima</div>
+                  <div class="node-relation">Wife</div>
+                  <div class="node-share">1/8</div>
+                </div>
+              </div>
+              <div class="tree-node">
+                <div class="tree-node-box">
+                  <div class="node-name">Omar</div>
+                  <div class="node-relation">Son</div>
+                  <div class="node-share">7/16</div>
+                </div>
+              </div>
+              <div class="tree-node">
+                <div class="tree-node-box" style="border-style:dashed;border-color:var(--accent);">
+                  <div class="node-name" style="color:var(--accent);">Sara</div>
+                  <div class="node-relation">Daughter</div>
+                  <div class="node-share">7/32</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     DIRECTION 2: CENTERED WIZARD
+     ================================================================ -->
+<section class="direction-section" id="dir2">
+  <div class="section-header">
+    <div class="direction-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+      Direction 2
+    </div>
+    <h2>Centered Wizard</h2>
+    <p>A mobile-first, single-column wizard with the family tree displayed horizontally above the central question card. Stepper dots track progress. Designed for maximum simplicity and focus.</p>
+  </div>
+
+  <div class="mockup-frame">
+    <div class="browser-chrome">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">mawareeth.com/case/new/heirs</div>
+    </div>
+    <div class="d2-layout">
+      <!-- Stepper -->
+      <div class="d2-stepper">
+        <div class="d2-step done">
+          <div class="dot"></div>
+          Deceased
+        </div>
+        <div class="d2-step-line done"></div>
+        <div class="d2-step active">
+          <div class="dot"></div>
+          Heirs
+        </div>
+        <div class="d2-step-line"></div>
+        <div class="d2-step">
+          <div class="dot"></div>
+          Review
+        </div>
+        <div class="d2-step-line"></div>
+        <div class="d2-step">
+          <div class="dot"></div>
+          Results
+        </div>
+      </div>
+
+      <!-- Horizontal tree bar -->
+      <div class="d2-tree-bar">
+        <div class="t-node">
+          <div class="t-box">Hassan<br><span style="font-size:10px;font-weight:400;opacity:0.7;">Father</span></div>
+          <div class="t-share">1/6</div>
+          <div class="t-line"></div>
+        </div>
+        <div class="t-node">
+          <div class="t-box">Fatima<br><span style="font-size:10px;font-weight:400;opacity:0.7;">Wife</span></div>
+          <div class="t-share">1/8</div>
+          <div class="t-line"></div>
+        </div>
+        <div class="t-node">
+          <div class="t-box root">Ahmad<br><span style="font-size:10px;font-weight:400;opacity:0.7;">Deceased</span></div>
+          <div class="t-share" style="color:rgba(0,0,0,0);">-</div>
+          <div class="t-line"></div>
+        </div>
+        <div class="t-node">
+          <div class="t-box">Omar<br><span style="font-size:10px;font-weight:400;opacity:0.7;">Son</span></div>
+          <div class="t-share">7/16</div>
+          <div class="t-line"></div>
+        </div>
+        <div class="t-node">
+          <div class="t-box" style="border-style:dashed;border-color:var(--accent);">
+            <span style="color:var(--accent);">Sara</span><br><span style="font-size:10px;font-weight:400;opacity:0.7;">Daughter</span>
+          </div>
+          <div class="t-share">7/32</div>
+          <div class="t-line"></div>
+        </div>
+      </div>
+
+      <!-- Central card -->
+      <div class="d2-card">
+        <h3>Add another heir</h3>
+        <div class="d2-sub">Who else inherits from Ahmad Hassan?</div>
+
+        <div style="margin-bottom:16px;">
+          <label class="m-label">Relationship</label>
+          <select class="m-select">
+            <option>Select relationship...</option>
+            <option>Son</option>
+            <option>Daughter</option>
+            <option>Wife</option>
+            <option>Mother</option>
+          </select>
+        </div>
+        <div>
+          <label class="m-label">Full Name</label>
+          <input class="m-input" type="text" placeholder="Enter heir's full name">
+        </div>
+
+        <div class="d2-added">
+          <h4>Added so far</h4>
+          <div class="d2-pills">
+            <div class="d2-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Fatima (Wife)
+              <span class="pill-x"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+            </div>
+            <div class="d2-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Omar (Son)
+              <span class="pill-x"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+            </div>
+            <div class="d2-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Hassan (Father)
+              <span class="pill-x"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="d2-cta">
+          <button class="m-btn m-btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Heir
+          </button>
+        </div>
+        <div style="text-align:center;margin-top:12px;">
+          <button class="m-btn m-btn-outline" style="font-size:13px;">No more heirs — Continue to Review</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     DIRECTION 3: DASHBOARD PROFESSIONAL
+     ================================================================ -->
+<section class="direction-section" id="dir3">
+  <div class="section-header">
+    <div class="direction-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Direction 3
+    </div>
+    <h2>Dashboard Professional</h2>
+    <p>A dense, information-rich three-column layout designed for estate lawyers like Layla. Left sidebar lists heirs, center holds the form, and the right sidebar shows a live share preview with percentages updating in real time.</p>
+  </div>
+
+  <div class="mockup-frame">
+    <div class="browser-chrome">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">mawareeth.com/dashboard/case/2024-0847/heirs</div>
+    </div>
+    <div class="d3-layout">
+      <!-- Top bar -->
+      <div class="d3-topbar">
+        <div class="logo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Mawareeth
+        </div>
+        <div class="tb-right">
+          <div class="lang-switch">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            EN / AR
+          </div>
+          <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Left sidebar -->
+      <div class="d3-sidebar">
+        <h4>Heirs (3)</h4>
+        <div class="d3-sb-item selected">
+          <div class="d3-sb-avatar female">F</div>
+          <div class="d3-sb-info">
+            <div class="sb-name">Fatima Al-Amin</div>
+            <div class="sb-rel">Wife</div>
+          </div>
+        </div>
+        <div class="d3-sb-item">
+          <div class="d3-sb-avatar male">O</div>
+          <div class="d3-sb-info">
+            <div class="sb-name">Omar Hassan</div>
+            <div class="sb-rel">Son</div>
+          </div>
+        </div>
+        <div class="d3-sb-item">
+          <div class="d3-sb-avatar male">H</div>
+          <div class="d3-sb-info">
+            <div class="sb-name">Hassan Ibrahim</div>
+            <div class="sb-rel">Father</div>
+          </div>
+        </div>
+        <div class="d3-sb-add">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Heir
+        </div>
+
+        <div style="margin-top:24px;">
+          <h4>Case Info</h4>
+          <div style="font-size:12px;color:var(--muted);padding:0 4px;">
+            <div style="margin-bottom:6px;"><strong style="color:var(--fg);">Deceased:</strong> Ahmad Hassan</div>
+            <div style="margin-bottom:6px;"><strong style="color:var(--fg);">Madhab:</strong> Sunni Hanafi</div>
+            <div><strong style="color:var(--fg);">Case #:</strong> 2024-0847</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center -->
+      <div class="d3-center">
+        <h3>Add New Heir</h3>
+        <div class="d3-center-sub">Enter the details of the heir to add to Ahmad Hassan's case.</div>
+        <div class="d3-form-card">
+          <div class="d3-form-row">
+            <div>
+              <label class="m-label">Relationship</label>
+              <select class="m-select">
+                <option>Select...</option>
+                <option>Son</option>
+                <option selected>Daughter</option>
+                <option>Wife</option>
+                <option>Father</option>
+                <option>Mother</option>
+                <option>Brother</option>
+                <option>Sister</option>
+              </select>
+            </div>
+            <div>
+              <label class="m-label">Full Name</label>
+              <input class="m-input" type="text" value="Sara Hassan">
+            </div>
+          </div>
+          <div class="d3-form-row">
+            <div>
+              <label class="m-label">Age</label>
+              <input class="m-input" type="text" placeholder="Optional">
+            </div>
+            <div>
+              <label class="m-label">Notes</label>
+              <input class="m-input" type="text" placeholder="Optional">
+            </div>
+          </div>
+          <div class="d3-form-actions">
+            <button class="m-btn m-btn-outline">Cancel</button>
+            <button class="m-btn m-btn-primary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add to Case
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right sidebar: share preview -->
+      <div class="d3-right">
+        <h4>Live Share Preview</h4>
+        <div class="d3-share-item">
+          <div>
+            <div class="d3-share-name">Fatima Al-Amin</div>
+            <div class="d3-share-rel">Wife</div>
+          </div>
+          <div class="d3-share-pct">
+            <div class="d3-share-frac">1/8</div>
+            <div class="d3-share-decimal">12.50%</div>
+          </div>
+        </div>
+        <div class="d3-share-item">
+          <div>
+            <div class="d3-share-name">Omar Hassan</div>
+            <div class="d3-share-rel">Son</div>
+          </div>
+          <div class="d3-share-pct">
+            <div class="d3-share-frac">7/16</div>
+            <div class="d3-share-decimal">43.75%</div>
+          </div>
+        </div>
+        <div class="d3-share-item">
+          <div>
+            <div class="d3-share-name">Sara Hassan</div>
+            <div class="d3-share-rel">Daughter</div>
+          </div>
+          <div class="d3-share-pct">
+            <div class="d3-share-frac">7/32</div>
+            <div class="d3-share-decimal">21.88%</div>
+          </div>
+        </div>
+        <div class="d3-share-item">
+          <div>
+            <div class="d3-share-name">Hassan Ibrahim</div>
+            <div class="d3-share-rel">Father</div>
+          </div>
+          <div class="d3-share-pct">
+            <div class="d3-share-frac">1/6</div>
+            <div class="d3-share-decimal">16.67%</div>
+          </div>
+        </div>
+
+        <div class="d3-share-bar">
+          <div style="width:12.5%;background:#60A5FA;border-radius:4px 0 0 4px;"></div>
+          <div style="width:43.75%;background:var(--primary);"></div>
+          <div style="width:21.88%;background:#93C5FD;"></div>
+          <div style="width:16.67%;background:var(--accent);border-radius:0 4px 4px 0;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:var(--muted);">
+          <span>Total: 94.80%</span>
+          <span style="color:var(--accent);font-weight:600;">Remainder: 5.20%</span>
+        </div>
+
+        <div style="margin-top:24px;">
+          <h4>Madhab</h4>
+          <div style="padding:10px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--radius-md);font-size:13px;">
+            <div style="font-weight:600;color:var(--accent);display:flex;align-items:center;gap:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+              Sunni Hanafi
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">Based on Lebanese Sunni Personal Status Law</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     DIRECTION 4: BENTO GRID
+     ================================================================ -->
+<section class="direction-section" id="dir4">
+  <div class="section-header">
+    <div class="direction-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+      Direction 4
+    </div>
+    <h2>Bento Grid</h2>
+    <p>A modern card-based grid layout where each functional element lives in its own bento tile. The family tree dominates visually while supporting tiles for the form, progress, share preview, and madhab selection provide context at a glance.</p>
+  </div>
+
+  <div class="mockup-frame">
+    <div class="browser-chrome">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">mawareeth.com/case/new/heirs</div>
+    </div>
+    <div class="d4-layout">
+      <!-- Card 1: Tree (large, spans 2 cols) -->
+      <div class="d4-card d4-tree-card">
+        <div class="d4-card-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Family Tree
+        </div>
+        <div class="d4-tree-inner">
+          <!-- Root -->
+          <div style="display:flex;gap:48px;align-items:flex-end;">
+            <div class="tree-node">
+              <div class="tree-node-box">
+                <div class="node-name">Hassan Ibrahim</div>
+                <div class="node-relation">Father</div>
+                <div class="node-share">1/6</div>
+              </div>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-box deceased">
+                <div class="node-name">Ahmad Hassan</div>
+                <div class="node-relation">Deceased</div>
+              </div>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-box">
+                <div class="node-name">Fatima</div>
+                <div class="node-relation">Wife</div>
+                <div class="node-share">1/8</div>
+              </div>
+            </div>
+          </div>
+          <!-- Children -->
+          <div class="d4-tree-children">
+            <div class="tree-node">
+              <div class="tree-node-box">
+                <div class="node-name">Omar</div>
+                <div class="node-relation">Son</div>
+                <div class="node-share">7/16</div>
+              </div>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-box">
+                <div class="node-name">Sara</div>
+                <div class="node-relation">Daughter</div>
+                <div class="node-share">7/32</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Form (tall, spans 2 rows) -->
+      <div class="d4-card d4-form-card">
+        <div class="d4-card-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          Add Heir
+        </div>
+        <div style="margin-bottom:14px;">
+          <label class="m-label">Relationship</label>
+          <select class="m-select">
+            <option>Select...</option>
+            <option selected>Daughter</option>
+          </select>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label class="m-label">Full Name</label>
+          <input class="m-input" value="Layla Hassan">
+        </div>
+        <button class="m-btn m-btn-accent" style="width:100%;justify-content:center;margin-bottom:16px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Heir
+        </button>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:10px;">Added (3)</div>
+          <div class="d2-pills" style="flex-direction:column;">
+            <div class="d2-pill" style="justify-content:space-between;">
+              <span>Fatima (Wife)</span>
+              <span class="pill-x"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+            </div>
+            <div class="d2-pill" style="justify-content:space-between;">
+              <span>Omar (Son)</span>
+              <span class="pill-x"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+            </div>
+            <div class="d2-pill" style="justify-content:space-between;">
+              <span>Hassan (Father)</span>
+              <span class="pill-x"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:auto;padding-top:16px;">
+          <button class="m-btn m-btn-primary" style="width:100%;justify-content:center;">
+            Continue to Review
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Card 3: Progress -->
+      <div class="d4-card d4-progress-card">
+        <div class="d4-card-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Progress
+        </div>
+        <div class="d4-progress-steps">
+          <div class="d4-p-step done">
+            <div class="p-dot"></div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Deceased information
+          </div>
+          <div class="d4-p-step active">
+            <div class="p-dot"></div>
+            Adding heirs
+          </div>
+          <div class="d4-p-step">
+            <div class="p-dot"></div>
+            Review & confirm
+          </div>
+          <div class="d4-p-step">
+            <div class="p-dot"></div>
+            Calculate results
+          </div>
+        </div>
+        <div class="d4-madhab">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          Sunni Hanafi
+        </div>
+      </div>
+
+      <!-- Card 4: Share Preview -->
+      <div class="d4-card d4-share-card">
+        <div class="d4-card-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>
+          Share Preview
+        </div>
+        <div class="d4-share-list">
+          <div class="d4-share-row">
+            <span class="name">Fatima (Wife)</span>
+            <span class="frac">1/8</span>
+          </div>
+          <div class="d4-share-row">
+            <span class="name">Omar (Son)</span>
+            <span class="frac">7/16</span>
+          </div>
+          <div class="d4-share-row">
+            <span class="name">Sara (Daughter)</span>
+            <span class="frac">7/32</span>
+          </div>
+          <div class="d4-share-row">
+            <span class="name">Hassan (Father)</span>
+            <span class="frac">1/6</span>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--muted);">Total allocated</span>
+          <span style="font-weight:700;color:var(--success);">94.80%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     DIRECTION 5: CONVERSATIONAL FLOW
+     ================================================================ -->
+<section class="direction-section" id="dir5">
+  <div class="section-header">
+    <div class="direction-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Direction 5
+    </div>
+    <h2>Conversational Flow</h2>
+    <p>A chat-inspired interaction pattern where questions appear as message bubbles and the family tree builds in a side panel. Designed to feel approachable and familiar, especially for non-technical users accustomed to messaging apps.</p>
+  </div>
+
+  <div class="mockup-frame">
+    <div class="browser-chrome">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">mawareeth.com/case/new</div>
+    </div>
+    <div class="d5-layout">
+      <!-- Chat panel -->
+      <div class="d5-chat">
+        <div class="d5-chat-header">
+          <div class="d5-chat-avatar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </div>
+          <div class="d5-chat-header-info">
+            <div class="ch-name">Mawareeth Assistant</div>
+            <div class="ch-status">Helping you build the family tree</div>
+          </div>
+        </div>
+        <div class="d5-messages">
+          <!-- System msg 1 -->
+          <div class="d5-msg system">
+            <div class="d5-msg-avatar">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </div>
+            <div class="d5-bubble">Welcome. Let's determine the heirs of <strong>Ahmad Hassan</strong>. Did Ahmad have a wife at the time of his passing?</div>
+          </div>
+          <!-- User reply -->
+          <div class="d5-msg user">
+            <div class="d5-msg-avatar">U</div>
+            <div class="d5-bubble">Yes, his wife is Fatima Al-Amin</div>
+          </div>
+          <!-- System -->
+          <div class="d5-msg system">
+            <div class="d5-msg-avatar">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </div>
+            <div class="d5-bubble">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>
+              <strong>Fatima Al-Amin</strong> added as Wife. Did Ahmad have any sons?
+            </div>
+          </div>
+          <!-- User reply -->
+          <div class="d5-msg user">
+            <div class="d5-msg-avatar">U</div>
+            <div class="d5-bubble">Yes, one son: Omar Hassan</div>
+          </div>
+          <!-- System -->
+          <div class="d5-msg system">
+            <div class="d5-msg-avatar">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </div>
+            <div class="d5-bubble">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>
+              <strong>Omar Hassan</strong> added as Son. Is Ahmad's father still alive?
+            </div>
+          </div>
+          <!-- User reply -->
+          <div class="d5-msg user">
+            <div class="d5-msg-avatar">U</div>
+            <div class="d5-bubble">Yes, his name is Hassan Ibrahim</div>
+          </div>
+          <!-- System -->
+          <div class="d5-msg system">
+            <div class="d5-msg-avatar">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </div>
+            <div class="d5-bubble">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>
+              <strong>Hassan Ibrahim</strong> added as Father. Did Ahmad have any daughters?
+            </div>
+          </div>
+        </div>
+        <div class="d5-input-bar">
+          <input class="m-input" placeholder="Type your answer..." value="Yes, Sara Hassan">
+          <button class="d5-send-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tree panel -->
+      <div class="d5-tree-panel">
+        <h4>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Family Tree
+        </h4>
+        <div class="d5-tree-inner">
+          <div class="tree-node">
+            <div class="tree-node-box deceased" style="padding:10px 16px;">
+              <div class="node-name">Ahmad Hassan</div>
+              <div class="node-relation">Deceased</div>
+            </div>
+          </div>
+          <div class="d5-tree-children">
+            <div class="tree-node">
+              <div class="tree-node-box" style="padding:6px 10px;min-width:80px;">
+                <div class="node-name" style="font-size:12px;">Hassan</div>
+                <div class="node-relation" style="font-size:10px;">Father</div>
+                <div class="node-share" style="font-size:10px;">1/6</div>
+              </div>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-box" style="padding:6px 10px;min-width:80px;">
+                <div class="node-name" style="font-size:12px;">Fatima</div>
+                <div class="node-relation" style="font-size:10px;">Wife</div>
+                <div class="node-share" style="font-size:10px;">1/8</div>
+              </div>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-box" style="padding:6px 10px;min-width:80px;">
+                <div class="node-name" style="font-size:12px;">Omar</div>
+                <div class="node-relation" style="font-size:10px;">Son</div>
+                <div class="node-share" style="font-size:10px;">7/16</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--border);">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;">Share Preview</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;">
+              <span style="color:var(--fg);font-weight:500;">Fatima (Wife)</span>
+              <span style="color:var(--accent);font-weight:700;">1/8</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;">
+              <span style="color:var(--fg);font-weight:500;">Omar (Son)</span>
+              <span style="color:var(--accent);font-weight:700;">7/16</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;">
+              <span style="color:var(--fg);font-weight:500;">Hassan (Father)</span>
+              <span style="color:var(--accent);font-weight:700;">1/6</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     DIRECTION 6: FULL-SCREEN IMMERSIVE
+     ================================================================ -->
+<section class="direction-section" id="dir6">
+  <div class="section-header">
+    <div class="direction-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      Direction 6
+    </div>
+    <h2>Full-Screen Immersive</h2>
+    <p>The family tree IS the interface. A full-viewport visualization dominates the screen with heir pills across the top and a floating interview card in the bottom-left corner. Minimal chrome, maximum visual impact. The tree grows as heirs are added.</p>
+  </div>
+
+  <div class="mockup-frame">
+    <div class="browser-chrome">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">mawareeth.com/case/new/heirs</div>
+    </div>
+    <div class="d6-layout">
+      <!-- Heir pills at top -->
+      <div class="d6-heir-pills">
+        <div class="d6-heir-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Fatima (Wife)
+          <span class="pill-share">1/8</span>
+        </div>
+        <div class="d6-heir-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Omar (Son)
+          <span class="pill-share">7/16</span>
+        </div>
+        <div class="d6-heir-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Hassan (Father)
+          <span class="pill-share">1/6</span>
+        </div>
+      </div>
+
+      <!-- Large tree area -->
+      <div class="d6-tree-area">
+        <div class="d6-tree-main">
+          <!-- SVG connectors -->
+          <svg class="d6-tree-connector" viewBox="0 0 800 580" preserveAspectRatio="xMidYMid meet">
+            <!-- Father to deceased -->
+            <line x1="280" y1="220" x2="400" y2="220" class="tree-lines" stroke-width="2.5"/>
+            <line x1="400" y1="220" x2="400" y2="250" class="tree-lines" stroke-width="2.5"/>
+            <!-- Deceased to wife -->
+            <line x1="400" y1="290" x2="520" y2="290" class="tree-lines" stroke-width="2.5"/>
+            <line x1="520" y1="290" x2="520" y2="250" class="tree-lines" stroke-width="2.5"/>
+            <!-- Deceased down to children connector -->
+            <line x1="400" y1="330" x2="400" y2="380" class="tree-lines" stroke-width="2.5"/>
+            <line x1="300" y1="380" x2="500" y2="380" class="tree-lines" stroke-width="2.5"/>
+            <line x1="300" y1="380" x2="300" y2="400" class="tree-lines" stroke-width="2.5"/>
+            <line x1="500" y1="380" x2="500" y2="400" class="tree-lines" stroke-width="2.5"/>
+          </svg>
+
+          <!-- Father row -->
+          <div style="display:flex;gap:120px;align-items:center;z-index:2;position:relative;">
+            <div class="d6-t-node">
+              <div class="tn-name">Hassan Ibrahim</div>
+              <div class="tn-rel">Father</div>
+              <div class="tn-share">1/6</div>
+            </div>
+            <div class="d6-t-node root">
+              <div class="tn-name">Ahmad Hassan</div>
+              <div class="tn-rel">Deceased</div>
+            </div>
+            <div class="d6-t-node">
+              <div class="tn-name">Fatima Al-Amin</div>
+              <div class="tn-rel">Wife</div>
+              <div class="tn-share">1/8</div>
+            </div>
+          </div>
+
+          <!-- Children row -->
+          <div class="d6-tree-branches" style="z-index:2;position:relative;">
+            <div class="d6-t-node">
+              <div class="tn-name">Omar Hassan</div>
+              <div class="tn-rel">Son</div>
+              <div class="tn-share">7/16</div>
+            </div>
+            <div class="d6-t-node" style="border-style:dashed;border-color:var(--accent);">
+              <div class="tn-name" style="color:var(--accent);">Sara Hassan</div>
+              <div class="tn-rel">Daughter</div>
+              <div class="tn-share">7/32</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating interview card -->
+      <div class="d6-floating-card">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          Add Heir
+        </h3>
+        <div class="fc-sub">Add another heir to Ahmad Hassan's family tree</div>
+        <div style="margin-bottom:12px;">
+          <label class="m-label">Relationship</label>
+          <select class="m-select">
+            <option>Select relationship...</option>
+            <option selected>Daughter</option>
+          </select>
+        </div>
+        <div>
+          <label class="m-label">Full Name</label>
+          <input class="m-input" value="Sara Hassan">
+        </div>
+        <div class="fc-actions">
+          <button class="m-btn m-btn-outline" style="padding:8px 16px;font-size:13px;">
+            Done
+          </button>
+          <button class="m-btn m-btn-accent" style="padding:8px 16px;font-size:13px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add to Tree
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<div style="text-align:center;padding:48px 24px 64px;max-width:600px;margin:0 auto;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin-bottom:8px;">Mawareeth V3</div>
+  <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;color:var(--primary);margin-bottom:8px;">Design Directions for Guided Interview</div>
+  <div style="font-size:14px;color:var(--muted);">6 layout explorations showcasing different information architecture approaches for the core heir-addition and family tree building experience.</div>
+</div>
+
+<!-- ===== MINIMAL JS ===== -->
+<script>
+  // Highlight active nav link on scroll
+  (function() {
+    const nav = document.querySelector('.top-nav');
+    const links = nav.querySelectorAll('a[href^="#"]');
+    const sections = [];
+    links.forEach(function(link) {
+      const id = link.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) sections.push({ link: link, el: el });
+    });
+
+    function onScroll() {
+      const scrollY = window.scrollY + 80;
+      let current = null;
+      for (let i = sections.length - 1; i >= 0; i--) {
+        if (sections[i].el.offsetTop <= scrollY) {
+          current = sections[i];
+          break;
+        }
+      }
+      links.forEach(function(l) { l.classList.remove('active'); });
+      if (current) current.link.classList.add('active');
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
