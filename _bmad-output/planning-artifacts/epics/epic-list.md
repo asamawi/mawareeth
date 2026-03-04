@@ -1,117 +1,39 @@
----
-stepsCompleted:
-  - step-01-validate-prerequisites
-  - step-02-design-epics
-  - step-03-create-stories
-  - step-04-final-validation
-inputDocuments:
-  - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/architecture.md
-  - _bmad-output/planning-artifacts/ux-design-specification.md
----
+# Epic List
 
-# mawareeth - Epic Breakdown
+Implementation note: The approved architecture baseline (Next.js App Router + shadcn/ui frontend and Cookiecutter Django backend) is a delivery prerequisite, not a user-valued story. Planning assumes a hybrid delivery context: implementation starts from the approved starter baseline while integrating into this existing repository and artifact set.
 
-## Overview
-
-This document provides the complete epic and story breakdown for mawareeth, decomposing the requirements from the PRD, UX Design if it exists, and Architecture requirements into implementable stories.
-
-## Requirements Inventory
-
-### Functional Requirements
-
-FR1: System calculates shares for all 4 Sunni Madhabs and the Jafari (Shia) school.
-FR2: System performs recursive calculations for multi-generational Manasikhat.
-FR3: System generates deterministic mathematical proofs for every share distribution.
-FR4: System identifies and flags invalid kinship inputs based on fiqh constraints.
-FR5: Users input family data via interactive, step-by-step kinship discovery.
-FR6: Interview adapts questions dynamically based on the selected Madhab/Sect.
-FR7: Users can preview calculated shares in real-time during the interview.
-FR8: System generates PDF reports formatted to Lebanese Hasr al-Irth standards.
-FR9: Results and reports include exact fiqh citations, and the results experience includes a visual kinship graph.
-FR10: System embeds Preliminary or Verified watermarks based on review status.
-FR11: Verified lawyers can review and digitally certify calculation results.
-FR12: System prevents manual overrides of engine-calculated mathematical output.
-FR13: System maintains an audit log of all human verifications and engine discrepancies.
-FR14: Users can perform privacy-first calculations without persisting PII.
-FR15: System anonymizes sensitive financial data while preserving kinship logic.
-
-### NonFunctional Requirements
-
-NFR1: Standard calculations return in <200ms; complex Manasikhat in <1s.
-NFR2: Maintain 99.9% uptime for both API and Web App.
-NFR3: 100% deterministic logic ensured via versioned engine updates.
-NFR4: Dual-state storage: ephemeral default sessions; persistent encrypted records for certified cases.
-NFR5: End-to-end encryption: AES-256 at rest; TLS 1.3 in transit.
-NFR6: Reports include scannable QR codes for court-side verification.
-NFR7: WCAG 2.1 AA compliance with high-contrast, high-legibility Arabic fonts.
-NFR8: Optimized for mobile browser performance on 3G/4G Lebanese networks.
-
-### Additional Requirements
-
-- Starter templates: Next.js App Router + Tailwind + shadcn/ui (frontend) and Cookiecutter Django (backend).
-- Backend stack: Python 3.12 + Django + DRF; versioned REST API under /api/v1 with OpenAPI docs.
-- Auth: Django auth + Google OAuth + email/password with MFA (email + TOTP + WhatsApp via Meta Cloud API).
-- Error handling: RFC 7807 Problem+JSON responses.
-- Data: PostgreSQL 17.x (fallback 16.x); optional Redis 8 series for cache/session/rate-limiting.
-- Deployment: Hetzner VM + Docker Compose + Caddy + GitHub Actions CI/CD; dev/staging/prod separation.
-- i18n/RTL: next-intl; RTL/LTR switching using logical properties.
-- UI state: React Query for server state; Zustand for UI state.
-- Visualization: React Flow initially, with migration path to custom SVG/d3 if performance issues.
-- Deterministic engine boundary: engine is pure domain module, no DB writes, no manual overrides.
-- Contract tests to ensure UI and engine alignment; Playwright E2E emphasis.
-- UX: zero-friction start (no signup before calculation); optional signup after results and always available in navbar.
-- UX: real-time family tree visualization with smooth add/remove feedback and share previews.
-- UX: WhatsApp-first sharing, link/email sharing, and court-ready PDF generation.
-- UX: certification badge states (Preliminary/Certified) and fiqh citations available on results.
-- UX: accessibility and keyboard navigation, plus reduced-motion support.
-
-### FR Coverage Map
-
-FR1: Epic 2 - Deterministic Inheritance Engine
-FR2: Epic 2 - Deterministic Inheritance Engine
-FR3: Epic 2 - Deterministic Inheritance Engine
-FR4: Epic 1 - Guided Interview & Family Tree Capture
-FR5: Epic 1 - Guided Interview & Family Tree Capture
-FR6: Epic 1 - Guided Interview & Family Tree Capture
-FR7: Epic 1 - Guided Interview & Family Tree Capture
-FR8: Epic 3 - Results & Court-Ready Report
-FR9: Epic 3 - Results & Court-Ready Report
-FR10: Epic 3 - Results & Court-Ready Report
-FR11: Epic 7 - Lawyer Marketplace, Certification Purchase, and Audit
-FR12: Epic 2 - Deterministic Inheritance Engine
-FR13: Epic 7 - Lawyer Marketplace, Certification Purchase, and Audit
-FR14: Epic 4 - Save, Share, and Privacy
-FR15: Epic 4 - Save, Share, and Privacy
-
-## Epic List
-
-### Epic 1: Guided Interview & Family Tree Capture
+## Epic 1: Guided Interview & Family Tree Capture
 Users can enter family data via a guided interview, visualize the tree, and preview shares in real time.
-**FRs covered:** FR4, FR5, FR6, FR7
+**FRs covered:** FR-04, FR-05, FR-06, FR-07
 
-### Story 1.1: Initialize Project from Approved Starter Templates
+## Story 1.1: Zero-Signup Case Start
 
-**Implements:** Architecture starter template requirement
+**Implements:** FR-05
 
-As a developer,
-I want to initialize the frontend and backend from the approved starter templates,
-So that implementation begins on the architecture baseline defined for the project.
+As a visitor,
+I want to begin a new inheritance case immediately without creating an account,
+So that I can reach the guided interview with no signup friction.
 
 **Acceptance Criteria:**
 
-**Given** the approved architecture selects Next.js, shadcn/ui, and Cookiecutter Django
-**When** the project setup story is executed
-**Then** the frontend and backend are scaffolded from those starter templates
-**And** the baseline dependencies and project structure are created successfully
+**Given** I arrive at the application for the first time
+**When** I choose to start a new case
+**Then** the system creates an anonymous working session for my case
+**And** I am taken directly into the guided interview flow
 
-**Given** the starter templates are initialized
-**When** the repository is prepared for feature work
-**Then** the project can support subsequent interview, engine, and reporting stories without re-scaffolding
+**Given** I have not created an account
+**When** I start a case
+**Then** I can proceed with the interview without authentication
+**And** optional signup remains available in the navbar without blocking progress
 
-### Story 1.2: Start Interview + Madhab Selection
+**Given** an anonymous case session has been started
+**When** I continue through the interview
+**Then** the case state remains available for the duration of the active session
+**And** later stories may use that same session for tree, preview, and results features
 
-**Implements:** FR6
+## Story 1.2: Start Interview + Madhab Selection
+
+**Implements:** FR-06
 
 As a visitor,
 I want to start the guided interview and choose my Madhab,
@@ -133,9 +55,9 @@ So that the system can apply the correct inheritance rules.
 **When** the start screen re-renders
 **Then** all labels update and the layout direction switches correctly
 
-### Story 1.3: Deceased Info + Add Heirs via Guided Interview Form
+## Story 1.3: Deceased Info + Add Heirs via Guided Interview Form
 
-**Implements:** FR5
+**Implements:** FR-05
 
 As a visitor,
 I want to enter the deceased's information and then add heirs through a guided form,
@@ -167,9 +89,9 @@ So that the system can build my family tree accurately and apply rules correctly
 **When** I view the bequest in the UI
 **Then** it can be displayed as amount and as derived percentage or kirat
 
-### Story 1.4: Family Tree Visualization (Basic Render + Updates)
+## Story 1.4: Family Tree Visualization (Basic Render + Updates)
 
-**Implements:** FR5
+**Implements:** FR-05, FR-09
 
 As a visitor,
 I want to see a visual family tree that updates as I add heirs,
@@ -192,9 +114,9 @@ So that I can confirm the system understands my family structure.
 **Then** I see a single deceased node with a clear prompt to add heirs
 **And** the visual kinship graph is ready to expand as heirs are added
 
-### Story 1.5: Real-Time Share Preview (Simplified)
+## Story 1.5: Real-Time Share Preview from Supported Engine Cases
 
-**Implements:** FR7
+**Implements:** FR-07
 
 As a visitor,
 I want to see share previews update in real time as I add heirs,
@@ -202,21 +124,29 @@ So that I can understand the impact of each change immediately.
 
 **Acceptance Criteria:**
 
-**Given** I have saved deceased info and added at least one heir
+**Given** I have saved deceased info and added at least one heir in a preview-supported case
 **When** I add or edit heirs
-**Then** the UI shows updated share previews within the interview flow
+**Then** the UI requests a preview from the deterministic calculation engine using the current anonymous case state
+**And** the UI shows the returned preview shares within the interview flow
 
-**Given** the full engine is not yet integrated
-**When** share preview is displayed
-**Then** the UI clearly indicates it is a preliminary preview (not final)
+**Given** the current case falls outside the preview-supported ruleset
+**When** the preview is requested
+**Then** the UI clearly states that live preview is unavailable for this case yet
+**And** the user can continue the interview without being shown misleading provisional numbers
 
-**Given** the calculation fails or is unavailable
-**When** the preview attempts to update
+**Given** preview output is shown during the interview
+**When** automated tests run
+**Then** contract tests verify the preview payload shape against the engine response
+**And** representative fixtures confirm that the displayed preview matches the engine output for supported cases
+
+**Given** the preview request fails or times out
+**When** the interview remains active
 **Then** I see a graceful message and can continue the interview
+**And** no stale preview is presented as current
 
-### Story 1.6: Fiqh-Aware Validation + Hajb (Blocking Heirs)
+## Story 1.6: Fiqh-Aware Validation + Hajb (Blocking Heirs)
 
-**Implements:** FR4
+**Implements:** FR-04
 
 As a visitor,
 I want the system to prevent invalid heir combinations and hide blocked heirs,
@@ -241,101 +171,103 @@ So that I only add heirs who are eligible under fiqh.
 **When** I submit
 **Then** I see all relevant errors without losing my entered data
 
-### Epic 2: Deterministic Inheritance Engine
-Users receive correct inheritance calculations across Madhabs, including Manasikhat, with deterministic proofs and no manual overrides.
-**FRs covered:** FR1, FR2, FR3, FR12
+## Epic 2: Multi-School Deterministic Inheritance Engine
+Users receive deterministic inheritance calculations for all 4 Sunni Madhabs and the Jafari school, with measurable rule coverage, proof output, and no manual overrides.
+**FRs covered:** FR-01, FR-02, FR-03, FR-16
 
-### Story 2.1: Hanbali Core Share Engine for Primary Heirs
+## Story 2.1: Standard Share Calculation Across All Required Schools
 
-**Implements:** FR1, FR12
+**Implements:** FR-01, FR-16
 
 As a legal user,
-I want the system to calculate Hanbali inheritance shares for the primary heirs,
-So that I can get a correct first-version result under Saudi Arabia's default fiqh basis.
+I want standard inheritance cases calculated across all 4 Sunni Madhabs and the Jafari school,
+So that the platform fulfills the required school coverage for first-level inheritance cases.
 
 **Acceptance Criteria:**
 
-**Given** a valid case with deceased details and supported primary heirs
-**When** the calculation engine runs
-**Then** the system returns deterministic Hanbali shares for the eligible heirs
-**And** the same input always produces the same output
+**Given** a supported standard inheritance case
+**When** I select any of the 4 Sunni Madhabs or the Jafari school
+**Then** the system calculates the case according to the selected school
+**And** the result differs where school rules differ
 
-**Given** blocked or otherwise invalid heir data reaches the engine
-**When** the engine validates the case input
-**Then** the calculation is rejected with a validation failure
-**And** no share distribution is produced from invalid input
+**Given** a school-specific rule changes eligibility or share amount
+**When** the calculation completes
+**Then** the output reflects the selected school's rule set deterministically
 
-**Given** a case includes an unsupported heir pattern or rule not yet implemented
-**When** the engine runs
-**Then** the system returns a clear unsupported-case response
-**And** it does not produce a misleading final distribution
+**Given** blocked or invalid heir data reaches the engine
+**When** validation runs
+**Then** the calculation fails safely
+**And** no manual override path is available
 
-**Given** the engine completes a calculation
+## Story 2.2: Deterministic Proof Output for Multi-School Results
+
+**Implements:** FR-03
+
+As a legal user,
+I want each supported school calculation to include deterministic proof output,
+So that every result can be traced to the selected legal rule set.
+
+**Acceptance Criteria:**
+
+**Given** a supported calculation is completed for any required school
 **When** the result is returned
-**Then** each heir result includes the share basis needed for later display as fraction, percentage, or kirat
+**Then** the system includes structured proof output for the selected school
+**And** the same input and school selection always produce the same proof structure
 
-### Story 2.2: Hanbali Deterministic Proof Output for Eligible Heirs
+**Given** two schools differ on the same supported case
+**When** the user compares outputs
+**Then** the proof output reflects the school-specific legal basis for the difference
 
-**Implements:** FR3
+## Story 2.3: Expanded Multi-School Coverage Beyond Standard Cases
+
+**Implements:** FR-01
 
 As a legal user,
-I want each Hanbali calculation to include a structured proof for eligible heirs only,
-So that I can understand how the final shares were derived.
+I want broader supported inheritance scenarios across all required schools,
+So that the engine handles more than a narrow primary-heir subset.
 
 **Acceptance Criteria:**
 
-**Given** the engine calculates a supported Hanbali case
-**When** the result is returned
-**Then** the system includes a structured explanation for each eligible heir's outcome
-**And** it shows whether the heir received a fixed share or residuary share
-
-**Given** a calculation result is used by the UI or reporting layer
-**When** proof data is consumed
-**Then** the explanation is returned in a structured format suitable for later rendering in Arabic and English
-
-**Given** the same valid case is recalculated
-**When** proof output is generated
-**Then** the proof structure and reasoning remain deterministic
-
-**Given** invalid or blocked heir data somehow reaches the engine
-**When** the engine validates the input
-**Then** the system returns a validation failure
-**And** no distribution result is produced
-
-### Story 2.3: Hanbali Expanded Case Support
-
-**Implements:** FR1, FR2
-
-As a legal user,
-I want the engine to support more valid Hanbali family combinations beyond the primary heirs,
-So that the system can handle a broader range of real inheritance cases.
-
-**Acceptance Criteria:**
-
-**Given** a valid Hanbali case with supported extended heir combinations
+**Given** a supported non-trivial inheritance scenario
 **When** the engine runs
-**Then** the system returns the correct deterministic distribution
+**Then** the system returns a deterministic result for the selected required school
 
-**Given** the case includes supported partial exclusions or share interactions
-**When** the engine calculates
-**Then** the result applies the correct Hanbali rules without manual adjustment
-
-**Given** a new supported case type is added
-**When** automated tests run
-**Then** the test suite includes representative fixtures for that case type
-**And** expected outputs are verified
-
-**Given** a case still falls outside supported Hanbali coverage
+**Given** a scenario is not yet supported
 **When** the engine evaluates it
 **Then** the system returns a clear unsupported-case response
+**And** it does not silently degrade to an incorrect result
 
-### Epic 3: Results & Court-Ready Report
+## Story 2.4: Full Recursive Manasikhat Calculation
+
+**Implements:** FR-02, FR-03
+
+As a legal user,
+I want the engine to resolve full recursive multi-generational Manasikhat cases,
+So that complex successive inheritance cascades are handled correctly end to end.
+
+**Acceptance Criteria:**
+
+**Given** a supported recursive Manasikhat case spanning multiple inheritance layers
+**When** the engine executes the calculation
+**Then** the system resolves the full cascade recursively
+**And** produces deterministic final shares for the surviving eligible heirs
+
+**Given** the same recursive case is recalculated
+**When** the engine runs again
+**Then** the result and proof output are identical
+
+**Given** a recursive case exceeds currently supported boundaries
+**When** the engine evaluates it
+**Then** the system returns a clear unsupported-case response
+**And** identifies that the failure is due to unsupported recursion scope rather than generic engine failure
+
+## Epic 3: Results & Court-Ready Report
 Users can view results and generate a draft or certified PDF report with clear certification status and disclaimers.
-**FRs covered:** FR8, FR9, FR10
+**FRs covered:** FR-08, FR-09, FR-10
 
-### Story 3.1: Results View for Eligible Heirs
+## Story 3.1: Results View for Eligible Heirs
 
-**Implements:** FR9
+**Implements:** FR-09
 
 As a visitor,
 I want to see the calculated inheritance results on screen,
@@ -358,9 +290,9 @@ So that I can review the distribution before saving, printing, or sharing.
 **Then** I see a clear empty or error state
 **And** I am guided back to correct the case input
 
-### Story 3.2: Draft PDF Report Generation with Certification Disclaimer
+## Story 3.2: Draft PDF Report Generation with Certification Disclaimer
 
-**Implements:** FR8, FR9, FR10
+**Implements:** FR-08, FR-09, FR-10
 
 As a visitor,
 I want to generate a formal PDF report for the calculated case,
@@ -387,13 +319,13 @@ So that I can keep, review, or share a draft inheritance report.
 **Then** I see a clear failure message
 **And** I can retry without losing the calculation result
 
-### Epic 4: Save, Share, and Privacy
+## Epic 4: Save, Share, and Privacy
 Users can save cases optionally, share reports, and control privacy/anonymization.
-**FRs covered:** FR14, FR15
+**FRs covered:** FR-18, FR-19
 
-### Story 4.1: Account Creation Gate for Save and Sharing
+## Story 4.1: Account Creation Gate for Save and Sharing
 
-**Implements:** FR14
+**Implements:** FR-18
 
 As a visitor,
 I want to be prompted to register before using persistence or protected sharing features,
@@ -410,9 +342,9 @@ So that sensitive case data is only stored or shared from an authenticated accou
 **When** I return to the interrupted action
 **Then** I can continue without losing the current calculation context
 
-### Story 4.2: Save Draft Report to Registered Account
+## Story 4.2: Save Draft Report to Registered Account
 
-**Implements:** FR14, FR15
+**Implements:** FR-18, FR-19
 
 As a registered user,
 I want to save a draft case and its report to my account,
@@ -429,9 +361,9 @@ So that I can return to it later securely.
 **When** I choose to save the case
 **Then** I am required to register or sign in before the save completes
 
-### Story 4.3: Private Link Sharing with Explicit Public Consent
+## Story 4.3: Private Link Sharing with Explicit Public Consent
 
-**Implements:** FR14, FR15
+**Implements:** FR-18, FR-19
 
 As a registered user,
 I want shared links to remain private by default and require explicit consent before making them public,
@@ -453,9 +385,9 @@ So that I do not accidentally expose private family information.
 **When** the report is shown
 **Then** the draft or certification status remains clearly visible
 
-### Story 4.4: Share Report with Registered Users or Email Invitees
+## Story 4.4: Share Report with Registered Users or Email Invitees
 
-**Implements:** FR14, FR15
+**Implements:** FR-18, FR-19
 
 As a registered user,
 I want to share a report with specific users or email recipients who must register,
@@ -476,9 +408,9 @@ So that I can control who can access private inheritance data.
 **When** access rules are updated
 **Then** previously unauthorized users can no longer access the shared report
 
-### Story 4.5: WhatsApp Share for Registered Users
+## Story 4.5: WhatsApp Share for Registered Users
 
-**Implements:** FR14, FR15
+**Implements:** FR-18, FR-19
 
 As a registered user,
 I want to share a draft report through WhatsApp,
@@ -501,13 +433,13 @@ So that I can send the result to selected recipients from my account.
 **Then** I see a clear fallback message
 **And** I can return to the report without losing progress
 
-### Epic 5: Lawyer Registration and Approval
+## Epic 5: Lawyer Registration and Approval
 Lawyers can apply for professional access, administrators can review applications, and only approved lawyers gain certification privileges.
-**FRs covered:** Supporting epic for certification readiness
+**FRs covered:** FR-11
 
-### Story 5.1: Public Lawyer Application
+## Story 5.1: Public Lawyer Application
 
-**Implements:** Supporting story for FR11 readiness
+**Implements:** FR-11
 
 As a lawyer applicant,
 I want to register and submit my professional details for review,
@@ -525,9 +457,9 @@ So that I can request access to certification features.
 **Then** I see clear validation errors
 **And** the application is not submitted until required fields are complete
 
-### Story 5.2: Internal Lawyer Approval Workflow
+## Story 5.2: Internal Lawyer Approval Workflow
 
-**Implements:** Supporting story for FR11 readiness
+**Implements:** FR-11
 
 As an internal administrator,
 I want to review lawyer applications and approve or reject them,
@@ -549,9 +481,9 @@ So that only verified professionals can gain certification access.
 **Then** the lawyer cannot access certification actions
 **And** the rejected status is visible on the account
 
-### Story 5.3: Certification Access Control by Lawyer Status
+## Story 5.3: Certification Access Control by Lawyer Status
 
-**Implements:** Supporting story for FR11 readiness
+**Implements:** FR-11
 
 As an approved lawyer,
 I want certification actions to appear only when my professional status allows it,
@@ -572,13 +504,14 @@ So that certification capability is restricted to authorized accounts.
 **Then** the system blocks certification access
 **And** shows my current approval status clearly
 
-### Epic 6: Lawyer Membership, Pricing, and Sponsorship
+## Epic 6: Lawyer Membership, Pricing, and Sponsorship
 Approved lawyers can manage their commercial setup, including membership plan, pricing model, sponsorship, and earned badge eligibility.
-**FRs covered:** Supporting epic for certification marketplace readiness
+**FRs covered:** FR-12, FR-14
+**Sequencing note:** This epic is part of the planned Phase 1 certification flow, but should start after the anonymous calculation, core engine, results, and save/privacy flows are stable enough to support paid certification demand.
 
-### Story 6.1: Default Free Membership with Commission Rules
+## Story 6.1: Default Free Membership with Commission Rules
 
-**Implements:** Supporting story for FR11 readiness
+**Implements:** Supporting commercialization prerequisite for Phase 1 certification flow
 
 As an approved lawyer,
 I want to start on a default free membership plan,
@@ -596,9 +529,9 @@ So that I can offer certifications immediately under the platform's base commiss
 **Then** the commission and processing fees are applied deterministically
 **And** the lawyer can see the expected net amount
 
-### Story 6.2: Membership Upgrade to Internal Tiers
+## Story 6.2: Membership Upgrade to Internal Tiers
 
-**Implements:** Supporting story for FR11 readiness
+**Implements:** Supporting commercialization prerequisite for Phase 1 certification flow
 
 As an approved lawyer,
 I want to upgrade to a higher membership tier with fixed monthly fees and lower commission rates,
@@ -615,9 +548,9 @@ So that I can choose a commercial plan that fits my expected certification volum
 **Then** future transactions use the new commission rules
 **And** the membership tier remains internal and is not shown as a public trust badge
 
-### Story 6.3: Lawyer-Defined Certification Pricing Model
+## Story 6.3: Lawyer-Defined Certification Pricing Model
 
-**Implements:** Supporting story for FR11 readiness
+**Implements:** FR-12
 
 As an approved lawyer,
 I want to configure my certification pricing model,
@@ -635,9 +568,9 @@ So that I can set my own market rate without platform-controlled pricing.
 **Then** the platform may show guidance
 **And** the final listed price remains lawyer-controlled
 
-### Story 6.4: Sponsored Fixed Position Management
+## Story 6.4: Sponsored Fixed Position Management
 
-**Implements:** Supporting story for FR11 readiness
+**Implements:** FR-14
 
 As an approved lawyer,
 I want to purchase fixed sponsored placement positions,
@@ -655,9 +588,9 @@ So that I can receive labeled priority visibility in the lawyer marketplace.
 **Then** the system prevents oversubscription
 **And** shows that no slot is currently available
 
-### Story 6.5: Earned Badge Eligibility Rules
+## Story 6.5: Earned Badge Eligibility Rules
 
-**Implements:** Supporting story for FR11 readiness
+**Implements:** FR-14
 
 As a system owner,
 I want public lawyer badges to be earned from real service performance,
@@ -674,13 +607,14 @@ So that users see meaningful trust signals rather than paid status markers.
 **When** the underlying metrics change
 **Then** badge eligibility updates according to the defined rules
 
-### Epic 7: Lawyer Marketplace, Certification Purchase, and Audit
+## Epic 7: Lawyer Marketplace, Certification Purchase, and Audit
 Users can unlock lawyer pricing, choose an approved lawyer, purchase certification, and rely on auditable certification outcomes.
-**FRs covered:** FR11, FR13
+**FRs covered:** FR-13, FR-15, FR-17
+**Sequencing note:** This epic is in the Phase 1 certification flow and depends on Epic 6 commercial setup plus the reporting flows from Epic 3 and Epic 4.
 
-### Story 7.1: Bequest Amount Gate for Lawyer Pricing
+## Story 7.1: Bequest Amount Gate for Lawyer Pricing
 
-**Implements:** FR11
+**Implements:** FR-13
 
 As a user seeking certification,
 I want lawyer prices hidden until I provide the bequest amount,
@@ -698,9 +632,9 @@ So that all lawyer prices are computed fairly on the same declared basis.
 **Then** lawyer prices are computed from the declared amount
 **And** price comparison becomes available across the visible lawyers
 
-### Story 7.2: Lawyer Marketplace Listing with Sponsored and Earned Signals
+## Story 7.2: Lawyer Marketplace Listing with Sponsored and Earned Signals
 
-**Implements:** FR11
+**Implements:** FR-13, FR-14
 
 As a user seeking certification,
 I want to browse approved lawyers with clear sponsored labeling and earned trust signals,
@@ -718,9 +652,9 @@ So that I can choose a lawyer without being misled by hidden ranking rules.
 **Then** I can see differentiating signals such as ratings, review counts, response time, or earned badges
 **And** internal membership tiers are not displayed
 
-### Story 7.3: Verified Review and Rating Generation
+## Story 7.3: Verified Review and Rating Generation
 
-**Implements:** Supporting story for FR11 readiness
+**Implements:** FR-14
 
 As a system owner,
 I want lawyer ratings and reviews to come only from verified completed certification orders,
@@ -736,9 +670,9 @@ So that marketplace evaluations remain credible and resistant to abuse.
 **When** a user attempts to rate a lawyer
 **Then** the system prevents the review from being created
 
-### Story 7.4: Certification Purchase and Lawyer Selection
+## Story 7.4: Certification Purchase and Lawyer Selection
 
-**Implements:** FR11
+**Implements:** FR-13
 
 As a user seeking certification,
 I want to choose a lawyer and pay for certification,
@@ -756,9 +690,9 @@ So that my draft report can enter the lawyer certification process.
 **Then** the report enters the lawyer certification workflow
 **And** the user can track the certification request status
 
-### Story 7.5: Certify Draft Report as Approved Lawyer
+## Story 7.5: Certify Draft Report as Approved Lawyer
 
-**Implements:** FR11
+**Implements:** FR-15
 
 As an approved lawyer,
 I want to certify an eligible purchased draft report,
@@ -776,9 +710,9 @@ So that the report can move from draft status to lawyer-certified status.
 **Then** the action is blocked
 **And** the report remains uncertified
 
-### Story 7.6: Audit Trail for Certification Actions
+## Story 7.6: Audit Trail for Certification Actions
 
-**Implements:** FR13
+**Implements:** FR-17
 
 As a system owner,
 I want all certification-related actions recorded in an audit trail,

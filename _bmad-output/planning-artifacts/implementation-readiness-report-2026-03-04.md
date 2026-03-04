@@ -6,18 +6,11 @@ stepsCompleted:
   - step-04-ux-alignment
   - step-05-epic-quality-review
   - step-06-final-assessment
-filesIncluded:
-  prd:
-    - /home/ahmad/mawareeth/_bmad-output/planning-artifacts/prd.md
-  architecture:
-    - /home/ahmad/mawareeth/_bmad-output/planning-artifacts/architecture.md
-  epics:
-    - /home/ahmad/mawareeth/_bmad-output/planning-artifacts/epics.md
-  ux:
-    - /home/ahmad/mawareeth/_bmad-output/planning-artifacts/ux-design-specification.md
-  additional:
-    - /home/ahmad/mawareeth/_bmad-output/planning-artifacts/ux-design-directions.html
-    - /home/ahmad/mawareeth/_bmad-output/planning-artifacts/validation-report-2026-03-04T07-23-23+03-00.md
+includedFiles:
+  prd: /home/ahmad/mawareeth/_bmad-output/planning-artifacts/prd.md
+  architecture: /home/ahmad/mawareeth/_bmad-output/planning-artifacts/architecture.md
+  epics: /home/ahmad/mawareeth/_bmad-output/planning-artifacts/epics.md
+  ux: /home/ahmad/mawareeth/_bmad-output/planning-artifacts/ux-design-specification.md
 ---
 # Implementation Readiness Assessment Report
 
@@ -26,100 +19,77 @@ filesIncluded:
 
 ## Document Discovery
 
-### PRD Files Found
+Files selected for assessment:
 
-**Whole Documents:**
-- `/home/ahmad/mawareeth/_bmad-output/planning-artifacts/prd.md` (8227 bytes, modified 2026-03-03 09:41 +0300)
+### PRD
+- `/home/ahmad/mawareeth/_bmad-output/planning-artifacts/prd.md`
 
-**Sharded Documents:**
-- None found
+### Architecture
+- `/home/ahmad/mawareeth/_bmad-output/planning-artifacts/architecture.md`
 
-### Architecture Files Found
+### Epics
+- `/home/ahmad/mawareeth/_bmad-output/planning-artifacts/epics.md`
 
-**Whole Documents:**
-- `/home/ahmad/mawareeth/_bmad-output/planning-artifacts/architecture.md` (19019 bytes, modified 2026-03-04 01:26 +0300)
+### UX
+- `/home/ahmad/mawareeth/_bmad-output/planning-artifacts/ux-design-specification.md`
 
-**Sharded Documents:**
-- None found
-
-### Epics & Stories Files Found
-
-**Whole Documents:**
-- `/home/ahmad/mawareeth/_bmad-output/planning-artifacts/epics.md` (31198 bytes, modified 2026-03-04 07:14 +0300)
-
-**Sharded Documents:**
-- None found
-
-### UX Design Files Found
-
-**Whole Documents:**
-- `/home/ahmad/mawareeth/_bmad-output/planning-artifacts/ux-design-specification.md` (76748 bytes, modified 2026-03-03 23:18 +0300)
-
-**Sharded Documents:**
-- None found
-
-### Additional Planning Artifacts
-
-- `/home/ahmad/mawareeth/_bmad-output/planning-artifacts/ux-design-directions.html`
-- `/home/ahmad/mawareeth/_bmad-output/planning-artifacts/validation-report-2026-03-04T07-23-23+03-00.md`
-
-### Discovery Assessment
-
-No duplicate whole versus sharded document formats were found. The assessment will use the whole-document versions listed above.
+Issues Found:
+- No duplicate whole vs sharded documents
+- No missing core planning documents
 
 ## PRD Analysis
 
 ### Functional Requirements
 
-FR1: System calculates shares for all 4 Sunni Madhabs and the Jafari (Shia) school.
-FR2: System performs recursive calculations for multi-generational Manasikhat.
-FR3: System generates deterministic mathematical proofs for every share distribution.
-FR4: System identifies and flags invalid kinship inputs based on fiqh constraints.
-FR5: Users input family data via interactive, step-by-step kinship discovery.
-FR6: Interview adapts questions dynamically based on the selected Madhab/Sect.
-FR7: Users can preview calculated shares in real-time during the interview.
-FR8: System generates PDF reports formatted to Lebanese Hasr al-Irth standards.
-FR9: Reports include exact fiqh citations and visual kinship graphs.
-FR10: System embeds Preliminary or Verified watermarks based on review status.
-FR11: Verified lawyers can review and digitally certify calculation results.
-FR12: System prevents manual overrides of engine-calculated mathematical output.
-FR13: System maintains an audit log of all human verifications and engine discrepancies.
-FR14: Users can perform privacy-first calculations without persisting PII.
-FR15: System anonymizes sensitive financial data while preserving kinship logic.
+FR-01: System calculates shares for all 4 Sunni Madhabs and the Jafari (Shia) school.
+FR-02: System performs recursive calculations for multi-generational Manasikhat.
+FR-03: System generates deterministic mathematical proofs for every share distribution.
+FR-04: System identifies and flags invalid kinship inputs based on fiqh constraints.
+FR-05: Users input family data via interactive, step-by-step kinship discovery.
+FR-06: Interview adapts questions dynamically based on the selected Madhab/Sect.
+FR-07: Users can preview calculated shares in real-time during the interview.
+FR-08: System generates PDF reports formatted to Lebanese Hasr al-Irth standards.
+FR-09: Reports include exact fiqh citations and visual kinship graphs.
+FR-10: System embeds Preliminary or Verified watermarks based on review status.
+FR-11: Lawyers can apply for marketplace participation, submit verification details, and gain approval before offering certification services.
+FR-12: Approved lawyers can define certification pricing using a minimum fee, percentage of bequest, or the higher of the two.
+FR-13: Users can unlock lawyer pricing by entering the bequest amount, compare approved lawyers, and purchase certification through the platform.
+FR-14: The lawyer marketplace can show clearly labeled sponsored placements and verified review signals without exposing internal membership tiers as public trust badges.
+FR-15: Approved lawyers can review and digitally certify calculation results.
+FR-16: System prevents manual overrides of engine-calculated mathematical output.
+FR-17: System maintains an audit log of all human verifications, certification actions, and engine discrepancies.
+FR-18: Users can perform privacy-first calculations without persisting PII.
+FR-19: System anonymizes sensitive financial data while preserving kinship logic.
 
-Total FRs: 15
+Total FRs: 19
 
 ### Non-Functional Requirements
 
-NFR1: Standard calculations return in less than 200ms; complex Manasikhat calculations return in less than 1 second.
-NFR2: Maintain 99.9% uptime for both API and web app.
-NFR3: Ensure 100% deterministic logic through versioned engine updates.
-NFR4: Use dual-state storage with ephemeral default sessions and persistent encrypted records for certified cases.
-NFR5: Use AES-256 for data at rest and TLS 1.3 for data in transit.
-NFR6: Reports include scannable QR codes for court-side verification.
-NFR7: Achieve WCAG 2.1 AA compliance with high-contrast, high-legibility Arabic fonts.
-NFR8: Optimize mobile browser performance for 3G/4G Lebanese networks.
+NFR-01: Standard calculations return in <200ms; complex Manasikhat in <1s.
+NFR-02: Maintain 99.9% uptime for both API and Web App.
+NFR-03: 100% deterministic logic ensured via versioned engine updates.
+NFR-04: Dual-state storage: ephemeral default sessions; persistent encrypted records for certified cases.
+NFR-05: End-to-end encryption: AES-256 for data at rest; TLS 1.3 for transit.
+NFR-06: Reports include scannable QR codes for court-side verification.
+NFR-07: WCAG 2.1 AA compliance with high-contrast, high-legibility Arabic fonts.
+NFR-08: Optimized for mobile browser performance on 3G/4G Lebanese networks.
+NFR-09: Certification checkout, sponsored placement labeling, and final lawyer pricing must be presented with clear disclosure before purchase confirmation.
+NFR-10: Marketplace reviews and ratings must be restricted to verified completed certification orders and protected against duplicate or anonymous submission.
 
-Total NFRs: 8
+Total NFRs: 10
 
 ### Additional Requirements
 
-- The platform must serve heirs, lawyers, and courts in Lebanon and the global diaspora.
-- The product must bridge Sunni, Shia, and Lebanese multi-faith legal rules within a single modular architecture.
-- The MVP architecture is experience-first, with a Next.js SPA/SSG frontend and a stable Islamic Core backend trunk.
-- The backend is a decoupled Django/Python 3.12 service exposed through a versioned REST API.
-- The system must support a dual-state legal model of Preliminary versus Certified outputs.
-- Mandatory disclaimers for algorithm-only results must be non-removable.
-- Terminology must align precisely with Lebanese Hasr al-Irth court standards.
-- Logic-as-code is mandatory: no manual mathematical overrides are allowed.
-- Playwright end-to-end validation must confirm frontend behavior matches backend math.
-- The UI must support mobile-first responsiveness and high-legibility Arabic typography.
-- The product roadmap includes continuous rollout of Christian, Druze, and civil law modules.
-- The product roadmap also anticipates public OpenAPI/SDK integrations and multilingual Arabic, English, and French support.
+- Project context is now explicitly hybrid.
+- Phase 1 includes verified lawyer onboarding, lawyer selection, paid certification purchase, and auditable certified report delivery.
+- Phase 2 adds membership tiers, sponsored placements, earned reviews, and marketplace optimization.
+- Marketplace pricing remains hidden until bequest amount is entered.
+- Marketplace trust signals may show earned review metrics but not internal membership tiers.
+- Deterministic validation relies on Playwright end-to-end coverage matching frontend and backend math.
 
 ### PRD Completeness Assessment
 
-The PRD is structurally complete enough for traceability work: it contains a clear product vision, explicit FR and NFR sections, user journeys, success criteria, constraints, and architecture direction. The main gap for implementation readiness is not in the PRD itself, but whether the epics and stories provide full coverage for the 15 functional requirements, 8 non-functional requirements, and the compliance and integration constraints captured outside the numbered lists.
+The PRD is complete enough for implementation readiness validation. It explicitly covers the inheritance engine, interview flow, reporting, privacy, certification workflow, lawyer marketplace, and commercial marketplace behavior. The remaining readiness question is alignment of sequencing and story traceability, not missing PRD scope.
 
 ## Epic Coverage Validation
 
@@ -127,30 +97,34 @@ The PRD is structurally complete enough for traceability work: it contains a cle
 
 | FR Number | PRD Requirement | Epic Coverage | Status |
 | --------- | --------------- | ------------- | ------ |
-| FR1 | System calculates shares for all 4 Sunni Madhabs and the Jafari (Shia) school. | Epic 2 - Deterministic Inheritance Engine | Covered |
-| FR2 | System performs recursive calculations for multi-generational Manasikhat. | Epic 2 - Deterministic Inheritance Engine | Covered |
-| FR3 | System generates deterministic mathematical proofs for every share distribution. | Epic 2 - Deterministic Inheritance Engine | Covered |
-| FR4 | System identifies and flags invalid kinship inputs based on fiqh constraints. | Epic 1 - Guided Interview & Family Tree Capture | Covered |
-| FR5 | Users input family data via interactive, step-by-step kinship discovery. | Epic 1 - Guided Interview & Family Tree Capture | Covered |
-| FR6 | Interview adapts questions dynamically based on the selected Madhab/Sect. | Epic 1 - Guided Interview & Family Tree Capture | Covered |
-| FR7 | Users can preview calculated shares in real-time during the interview. | Epic 1 - Guided Interview & Family Tree Capture | Covered |
-| FR8 | System generates PDF reports formatted to Lebanese Hasr al-Irth standards. | Epic 3 - Results & Court-Ready Report | Covered |
-| FR9 | Reports include exact fiqh citations and visual kinship graphs. | Epic 3 - Results & Court-Ready Report | Covered |
-| FR10 | System embeds Preliminary or Verified watermarks based on review status. | Epic 3 - Results & Court-Ready Report | Covered |
-| FR11 | Verified lawyers can review and digitally certify calculation results. | Epic 7 - Lawyer Marketplace, Certification Purchase, and Audit | Covered |
-| FR12 | System prevents manual overrides of engine-calculated mathematical output. | Epic 2 - Deterministic Inheritance Engine | Covered |
-| FR13 | System maintains an audit log of all human verifications and engine discrepancies. | Epic 7 - Lawyer Marketplace, Certification Purchase, and Audit | Covered |
-| FR14 | Users can perform privacy-first calculations without persisting PII. | Epic 4 - Save, Share, and Privacy | Covered |
-| FR15 | System anonymizes sensitive financial data while preserving kinship logic. | Epic 4 - Save, Share, and Privacy | Covered |
+| FR-01 | All 4 Sunni Madhabs + Jafari calculation | Epic 2, Stories 2.1 and 2.3 | Covered |
+| FR-02 | Recursive multi-generational Manasikhat | Epic 2, Story 2.4 | Covered |
+| FR-03 | Deterministic mathematical proofs | Epic 2, Stories 2.2 and 2.4 | Covered |
+| FR-04 | Invalid kinship detection | Epic 1, Story 1.6 | Covered |
+| FR-05 | Guided kinship discovery | Epic 1, Stories 1.1, 1.3, 1.4 | Covered |
+| FR-06 | Madhab-adaptive interview | Epic 1, Story 1.2 | Covered |
+| FR-07 | Real-time share preview | Epic 1, Story 1.5 | Covered |
+| FR-08 | Lebanese-standard PDF reports | Epic 3, Story 3.2 | Covered |
+| FR-09 | Fiqh citations and visual kinship graphs | Epic 1, Story 1.4 and Epic 3, Stories 3.1 and 3.2 | Covered |
+| FR-10 | Preliminary/Verified watermarks | Epic 3, Story 3.2 and Epic 7, Story 7.5 | Covered |
+| FR-11 | Lawyer application and approval | Epic 5, Stories 5.1 to 5.3 | Covered |
+| FR-12 | Lawyer-defined pricing model | Epic 6, Story 6.3 | Covered |
+| FR-13 | Unlock pricing, compare lawyers, purchase certification | Epic 7, Stories 7.1, 7.2, 7.4 | Covered |
+| FR-14 | Sponsored placements and verified review signals | Epic 6, Stories 6.4, 6.5 and Epic 7, Stories 7.2, 7.3 | Covered |
+| FR-15 | Approved lawyers certify results | Epic 7, Story 7.5 | Covered |
+| FR-16 | No manual override of engine output | Epic 2, Story 2.1 | Covered |
+| FR-17 | Audit log for verification, certification, discrepancies | Epic 7, Story 7.6 | Covered |
+| FR-18 | Privacy-first calculations without persisted PII | Epic 1, Story 1.1 and Epic 4, Stories 4.1 and 4.2 | Covered |
+| FR-19 | Anonymize sensitive financial data | Epic 4, Stories 4.2 to 4.4 | Covered |
 
 ### Missing Requirements
 
-No functional requirements from the PRD are missing from the epics document.
+No PRD functional requirements are missing from the epics and stories document.
 
 ### Coverage Statistics
 
-- Total PRD FRs: 15
-- FRs covered in epics: 15
+- Total PRD FRs: 19
+- FRs covered in epics/stories: 19
 - Coverage percentage: 100%
 
 ## UX Alignment Assessment
@@ -161,68 +135,68 @@ Found: `/home/ahmad/mawareeth/_bmad-output/planning-artifacts/ux-design-specific
 
 ### Alignment Issues
 
-- PRD, UX, and architecture align on the core guided interview flow, dynamic Madhab-based branching, family tree visualization, real-time previews, court-ready reporting, lawyer certification, privacy-first access, multilingual RTL/LTR support, and constrained-network performance.
-- The UX specification defines a stronger interaction model for the interview than the architecture currently names explicitly, including one-question-per-screen progression, visible progress indicators, and contextual fiqh tooltips. These are consistent with the chosen frontend stack, but they are not yet reflected as explicit architecture modules or API contracts.
-- The UX specification expects one-tap sharing via WhatsApp, link, and email directly from results. The architecture mentions WhatsApp and email integration, but link-sharing mechanics, access-token strategy, and permission boundaries for private versus public links are not yet made explicit.
-- The UX specification expects auto-save every 30 seconds, seamless resume, and locally preserved progress during errors or session timeout. The architecture covers ephemeral sessions and persistence on save, but it does not yet define the client-side draft persistence model or recovery behavior for anonymous users.
-- The UX specification defines report and proof presentation in more detail than the architecture, including progressive disclosure of fiqh citations and mathematical proofs, mobile-optimized report viewing, and split-view PDF preview on desktop. The architecture supports reporting as a service boundary, but the PDF rendering pipeline and report-view interaction model are still underspecified.
-- The UX specification explicitly requires reduced-motion support and keyboard-first interaction patterns for the tree and interview. The architecture mentions WCAG 2.1 AA and RTL, which is directionally correct, but does not yet translate those into implementation rules for motion control, focus behavior, and accessibility testing gates.
+- UX, PRD, and architecture align on zero-signup entry, guided interview, family-tree-centric interaction, real-time previews, fiqh citations, certification states, RTL/LTR behavior, and WhatsApp-oriented sharing.
+- UX expects WhatsApp, link, and email sharing directly from results, while the epic plan keeps protected sharing and WhatsApp sharing behind authenticated save/share flows. This is acceptable, but the product copy and UX states must explain why some share actions require registration.
+- UX treats certification flow and lawyer workbench as meaningful user journeys. The PRD and epic sequencing now both place certification flow in Phase 1, so the previous sequencing contradiction is resolved.
+- UX shows live share fractions closely integrated with the family tree. Epic 1 now covers the tree and live preview separately, but implementation should explicitly decide whether preview values are rendered on the tree, beside the tree, or both.
 
 ### Warnings
 
-- No blocking contradiction was found between UX, PRD, and architecture.
-- Implementation readiness would improve if the architecture is amended with explicit decisions for anonymous draft persistence, share-link authorization, PDF generation/rendering approach, and accessibility enforcement details such as reduced-motion and keyboard navigation acceptance gates.
+- The UX spec remains richer than the current story set in lawyer dashboard depth and result-sharing polish. This is not a readiness blocker, but story grooming should prevent implied UX scope from quietly expanding implementation.
+- The architecture supports the core UX requirements with Next.js App Router, React Flow, next-intl RTL support, backend-owned PDF generation, opaque share-link authorization, and Playwright-based accessibility and contract testing.
 
 ## Epic Quality Review
 
-### Critical Violations
+### Best Practices Findings by Severity
 
-- Story `1.1` is a technical setup milestone, not a user-valued story. "Initialize Project from Approved Starter Templates" does not deliver end-user value and violates the requirement that stories be independently valuable.
-- FR1 is decomposed inconsistently with the PRD. The PRD requires support for all 4 Sunni Madhabs plus Jafari, but Epic 2 stories only specify Hanbali implementation. The FR coverage map overstates implementation readiness.
-- FR2 is only partially represented. The PRD requires recursive multi-generational Manasikhat support, but no story explicitly commits to full recursive cascade handling as a standalone deliverable with acceptance criteria.
+#### 🔴 Critical Violations
 
-### Major Issues
+None.
 
-- Epics 5, 6, and parts of 7 introduce marketplace, sponsorship, pricing, ratings, and commercial membership behaviors that are not stated in the PRD functional requirements. This is scope expansion rather than traceable decomposition.
-- Traceability is weak for several stories and epics marked as "supporting story for FR11 readiness" or "supporting epic for certification marketplace readiness" instead of mapping directly to approved requirements. This makes readiness validation ambiguous.
-- The epic set mixes MVP-critical functionality with later-stage business model features. Membership tiers, sponsorship slots, and lawyer ratings can delay delivery of the core inheritance, reporting, and certification workflow without being necessary for first user value.
-- Story `1.5` explicitly states that the full engine is not yet integrated. That can be acceptable for an incremental slice, but the acceptance criteria need to define what data source powers the preview and how the story remains testable and valuable on its own.
-- The decomposition does not include an early CI/CD or environment baseline story even though the architecture defines GitHub Actions and a deployment baseline. For a project using starter templates, this is an implementation-readiness gap.
+#### 🟠 Major Issues
 
-### Minor Concerns
+1. Story 1.1 still deviates from the workflow's literal starter-template rule.
+- Evidence: The architecture names explicit starter templates, and the workflow states that if a starter template is specified, Epic 1 Story 1 should be initial setup from that template.
+- Counterpoint: The planning set now explicitly classifies the project as hybrid and keeps setup as an implementation note rather than a user story, which is the stronger product decomposition.
+- Impact: This is now a workflow-rule tension rather than a product-readiness gap.
+- Recommendation: Accept the hybrid implementation note approach, or document a separate technical prerequisite artifact outside the story list if strict workflow compliance is required.
 
-- The epics document labels some coverage at epic level only, without consistently identifying the specific stories that satisfy each FR end to end.
-- There is a project-context tension between the PRD metadata marking the project as brownfield and the epic plan leading with greenfield scaffolding from starter templates. That should be reconciled before sprint execution.
+#### 🟡 Minor Concerns
 
-### Recommendations
+1. Story 1.5 is now testable, but the exact first-release list of preview-supported case types is still not enumerated.
+- Impact: Story grooming will still need to define the supported preview fixture set before implementation starts.
+- Recommendation: Add the initial supported preview case list during sprint planning or story elaboration.
 
-- Replace Story `1.1` with a user-valued walking skeleton story, or move setup work into implementation tasks under the first user-facing story.
-- Rewrite Epic 2 so the story set explicitly covers all required madhabs and a dedicated Manasikhat recursion story with measurable acceptance criteria.
-- Split scope into MVP versus post-MVP. Move membership tiers, sponsorship, ratings, and similar marketplace features into a later epic set unless they are formally added to the PRD.
-- Strengthen traceability by mapping every story to one or more approved FRs, NFRs, or documented architectural constraints.
-- Add an early engineering-enablement story for CI/CD, environment setup, and contract-test scaffolding if those are required before feature delivery.
+2. Stories 6.1 and 6.2 are intentionally treated as commercialization prerequisites rather than direct PRD requirement implementations.
+- Impact: This is acceptable, but if stricter traceability is required, the PRD may need an explicit requirement for membership economics rather than leaving them as Phase 2 marketplace growth detail.
+- Recommendation: Either keep them as enabling stories or add explicit PRD language for membership economics in a later PRD revision.
+
+### Epic-by-Epic Assessment
+
+- Epic 1: Delivers clear user value and strong onboarding into the guided calculation flow.
+- Epic 2: Correctly covers all required schools, deterministic proofs, no-manual-override behavior, and full recursive Manasikhat.
+- Epic 3: Delivers visible results and reporting value with appropriate certification-state handling.
+- Epic 4: Defines a coherent privacy and authenticated-sharing boundary consistent with architecture.
+- Epic 5: Valid lawyer onboarding and access control epic with clear user and admin value.
+- Epic 6: Commercial setup is logically structured and now aligned with Phase 1 sequencing assumptions.
+- Epic 7: Marketplace, certification purchase, and audit flow are coherent and traceable to the PRD.
 
 ## Summary and Recommendations
 
 ### Overall Readiness Status
 
-NEEDS WORK
+READY
 
 ### Critical Issues Requiring Immediate Action
 
-- The epic decomposition does not faithfully implement the PRD requirement for all 4 Sunni Madhabs plus Jafari. Current engine stories only name Hanbali coverage.
-- The epic decomposition does not yet provide a dedicated, testable story for recursive multi-generational Manasikhat support.
-- Story `1.1` is a technical setup milestone rather than a user-valued story, which weakens sprint execution and violates epic/story quality standards.
-- Scope control is currently weak. Marketplace pricing, sponsorship, and rating features extend beyond the approved PRD and should not remain in the MVP plan unless the PRD is updated.
+None.
 
 ### Recommended Next Steps
 
-1. Rework `epics.md` so Epic 2 explicitly covers all mandated madhabs and full Manasikhat recursion with measurable acceptance criteria.
-2. Remove or defer non-PRD marketplace scope from the MVP epic set, especially membership tiers, sponsorship slots, and ratings.
-3. Convert technical setup work into enabling tasks or a walking skeleton story that still produces visible user value.
-4. Amend the architecture with explicit decisions for anonymous draft persistence, share-link authorization, PDF generation strategy, and accessibility enforcement.
-5. Re-run implementation readiness validation after the epics and architecture are updated.
+1. During sprint planning, define the first-release list of preview-supported case types for Story 1.5 so implementation and testing use the same fixture set.
+2. If strict workflow compliance matters, capture starter-template setup as a technical prerequisite or implementation checklist outside the user-story sequence.
+3. Keep Epic 6 membership-economics details under review during implementation; if they become more central, formalize them as explicit PRD requirements in a later revision.
 
 ### Final Note
 
-This assessment identified 10 issues across 3 categories: epic/story quality, scope and traceability, and UX-to-architecture implementation detail. The core planning set is promising and mostly aligned at the document level, but the current epic decomposition is not yet strong enough to start implementation without avoidable rework.
+This assessment identified 3 minor follow-up items across implementation detail, workflow compliance, and commercialization traceability. There are no remaining functional coverage gaps, no unresolved sequencing contradictions, and no blocking epic-quality defects. The planning set is ready for implementation.

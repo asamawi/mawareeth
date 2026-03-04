@@ -1,0 +1,87 @@
+# generated: 2026-03-04 09:18:51
+# project: mawareeth
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /home/ahmad/mawareeth/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created (via create-story)
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-03-04 09:18:51
+project: mawareeth
+project_key: NOKEY
+tracking_system: file-system
+story_location: /home/ahmad/mawareeth/_bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: backlog
+  1-1-zero-signup-case-start: backlog
+  1-2-start-interview-madhab-selection: backlog
+  1-3-deceased-info-add-heirs-via-guided-interview-form: backlog
+  1-4-family-tree-visualization-basic-render-updates: backlog
+  1-5-real-time-share-preview-from-supported-engine-cases: backlog
+  1-6-fiqh-aware-validation-hajb-blocking-heirs: backlog
+  epic-1-retrospective: optional
+  epic-2: backlog
+  2-1-standard-share-calculation-across-all-required-schools: backlog
+  2-2-deterministic-proof-output-for-multi-school-results: backlog
+  2-3-expanded-multi-school-coverage-beyond-standard-cases: backlog
+  2-4-full-recursive-manasikhat-calculation: backlog
+  epic-2-retrospective: optional
+  epic-3: backlog
+  3-1-results-view-for-eligible-heirs: backlog
+  3-2-draft-pdf-report-generation-with-certification-disclaimer: backlog
+  epic-3-retrospective: optional
+  epic-4: backlog
+  4-1-account-creation-gate-for-save-and-sharing: backlog
+  4-2-save-draft-report-to-registered-account: backlog
+  4-3-private-link-sharing-with-explicit-public-consent: backlog
+  4-4-share-report-with-registered-users-or-email-invitees: backlog
+  4-5-whatsapp-share-for-registered-users: backlog
+  epic-4-retrospective: optional
+  epic-5: backlog
+  5-1-public-lawyer-application: backlog
+  5-2-internal-lawyer-approval-workflow: backlog
+  5-3-certification-access-control-by-lawyer-status: backlog
+  epic-5-retrospective: optional
+  epic-6: backlog
+  6-1-default-free-membership-with-commission-rules: backlog
+  6-2-membership-upgrade-to-internal-tiers: backlog
+  6-3-lawyer-defined-certification-pricing-model: backlog
+  6-4-sponsored-fixed-position-management: backlog
+  6-5-earned-badge-eligibility-rules: backlog
+  epic-6-retrospective: optional
+  epic-7: backlog
+  7-1-bequest-amount-gate-for-lawyer-pricing: backlog
+  7-2-lawyer-marketplace-listing-with-sponsored-and-earned-signals: backlog
+  7-3-verified-review-and-rating-generation: backlog
+  7-4-certification-purchase-and-lawyer-selection: backlog
+  7-5-certify-draft-report-as-approved-lawyer: backlog
+  7-6-audit-trail-for-certification-actions: backlog
+  epic-7-retrospective: optional
