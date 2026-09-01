@@ -1,0 +1,108 @@
+- id: "0-1"
+  title: Capture and verify the Heroku inventory
+  description: >-
+    Inventory the live Heroku database, add-ons, configuration, domains, and DNS required by CAP-6.
+    Produce a redacted, verified migration baseline that blocks cutover when any dependency is unknown.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Perform read-only discovery. Redact secrets from every artifact and log.
+
+- id: "0-2"
+  title: Make Django production-ready
+  description: >-
+    Prepare the existing monolith for the production gates in CAP-1, CAP-4, and CAP-5.
+    Upgrade the supported runtime and close settings, database, static-asset, migration, and health-check blockers.
+  spec_checkpoint: true
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Upgrade to Django 5.2 LTS; fix database TLS policy, production hosts and origins,
+    static build failure handling, and dependency-aware health endpoints.
+
+- id: "0-3"
+  title: Build immutable CI artifacts
+  description: >-
+    Implement the CI-owned artifact path required by CAP-1 and CAP-3.
+    Test once, build once, publish by digest, and emit the bound release manifest consumed by deployment.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Build in GitHub Actions, publish to GHCR by digest, and bind the release manifest.
+    Never embed secrets in images or artifacts.
+
+- id: "0-4"
+  title: Create the secured Hetzner host baseline
+  description: >-
+    Implement the reproducible CX33 and Ubuntu 24.04 host baseline required by CAP-8.
+    Cover restricted administration, firewalling, Docker installation, patching, and protected runtime secrets.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Produce idempotent provisioning artifacts for CX33 and Ubuntu 24.04.
+    Do not provision live infrastructure without separate authorization.
+
+- id: "0-5"
+  title: Build the private Compose runtime
+  description: >-
+    Implement the single-host runtime for CAP-2 with Caddy, PostgreSQL, and interchangeable app slots.
+    Preserve durable database identity while keeping Django and PostgreSQL private.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Configure Caddy, the stable PostgreSQL external volume, and blue-green app slots.
+    Expose only Caddy publicly.
+
+- id: "0-6"
+  title: Implement safe blue-green deployment
+  description: >-
+    Implement the release and schema handover contract in CAP-3 and CAP-4.
+    Preserve a healthy active release across failed health, migration, routing, verification, or process-recovery paths.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Include deployment locking, migration compatibility gates, atomic routing,
+    production-TLS verification, graceful draining, and crash recovery.
+
+- id: "0-7"
+  title: Implement encrypted backup and restore
+  description: >-
+    Implement the off-host PostgreSQL recovery capability in CAP-7.
+    Enforce the approved retention and prove recoverability through automated isolated restores.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Use Restic and BX11 with 7 daily, 4 weekly, and 6 monthly retention.
+    Automate monthly isolated verification against the 24-hour RPO and 4-hour RTO.
+
+- id: "0-8"
+  title: Add monitoring and operational controls
+  description: >-
+    Implement the failure-detection and bounded-telemetry requirements in CAP-5.
+    Alert the operator for public outage and disk pressure, and make the notification path drillable.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Add bounded container logs, external uptime checks, disk alerts,
+    and a drillable operator notification path.
+
+- id: "0-9"
+  title: Rehearse capacity, restore, and cutover
+  description: >-
+    Exercise CAP-2, CAP-6, and CAP-7 in an isolated production-shaped environment.
+    Validate CX33 headroom, timed data migration, restore objectives, DNS rollback, and the write-freeze threshold.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Use isolated staging. Require explicit authorization before accessing live Heroku
+    or changing DNS, and switch the runbook to replication if restore rehearsal exceeds 20 minutes.
+
+- id: "0-10"
+  title: Execute production cutover and retire Heroku
+  description: >-
+    Perform the approved CAP-6 cutover after every production gate passes.
+    Verify production identity, data integrity, monitoring, backup, and absence of split writes before retiring Heroku.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Go-live requires separate explicit authorization. Preserve the last safe rollback point
+    and verify no split writes before decommissioning Heroku.

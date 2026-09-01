@@ -33,13 +33,26 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-03-04 09:18:51
+generated: '2026-03-04 09:18:51'
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
 story_location: /home/ahmad/mawareeth/_bmad-output/implementation-artifacts
 
 development_status:
+  epic-0: backlog
+  0-1-capture-and-verify-the-heroku-inventory: backlog
+  0-2-make-django-production-ready: backlog
+  0-3-build-immutable-ci-artifacts: backlog
+  0-4-create-the-secured-hetzner-host-baseline: backlog
+  0-5-build-the-private-compose-runtime: backlog
+  0-6-implement-safe-blue-green-deployment: backlog
+  0-7-implement-encrypted-backup-and-restore: backlog
+  0-8-add-monitoring-and-operational-controls: backlog
+  0-9-rehearse-capacity-restore-and-cutover: backlog
+  0-10-execute-production-cutover-and-retire-heroku: backlog
+  epic-0-retrospective: optional
+
   epic-1: backlog
   1-1-zero-signup-case-start: backlog
   1-2-start-interview-madhab-selection: backlog
@@ -48,16 +61,19 @@ development_status:
   1-5-real-time-share-preview-from-supported-engine-cases: backlog
   1-6-fiqh-aware-validation-hajb-blocking-heirs: backlog
   epic-1-retrospective: optional
+
   epic-2: backlog
   2-1-standard-share-calculation-across-all-required-schools: backlog
   2-2-deterministic-proof-output-for-multi-school-results: backlog
   2-3-expanded-multi-school-coverage-beyond-standard-cases: backlog
   2-4-full-recursive-manasikhat-calculation: backlog
   epic-2-retrospective: optional
+
   epic-3: backlog
   3-1-results-view-for-eligible-heirs: backlog
   3-2-draft-pdf-report-generation-with-certification-disclaimer: backlog
   epic-3-retrospective: optional
+
   epic-4: backlog
   4-1-account-creation-gate-for-save-and-sharing: backlog
   4-2-save-draft-report-to-registered-account: backlog
@@ -65,11 +81,13 @@ development_status:
   4-4-share-report-with-registered-users-or-email-invitees: backlog
   4-5-whatsapp-share-for-registered-users: backlog
   epic-4-retrospective: optional
+
   epic-5: backlog
   5-1-public-lawyer-application: backlog
   5-2-internal-lawyer-approval-workflow: backlog
   5-3-certification-access-control-by-lawyer-status: backlog
   epic-5-retrospective: optional
+
   epic-6: backlog
   6-1-default-free-membership-with-commission-rules: backlog
   6-2-membership-upgrade-to-internal-tiers: backlog
@@ -77,6 +95,7 @@ development_status:
   6-4-sponsored-fixed-position-management: backlog
   6-5-earned-badge-eligibility-rules: backlog
   epic-6-retrospective: optional
+
   epic-7: backlog
   7-1-bequest-amount-gate-for-lawyer-pricing: backlog
   7-2-lawyer-marketplace-listing-with-sponsored-and-earned-signals: backlog
@@ -85,3 +104,4 @@ development_status:
   7-5-certify-draft-report-as-approved-lawyer: backlog
   7-6-audit-trail-for-certification-actions: backlog
   epic-7-retrospective: optional
+last_updated: 09-02-2026 01:47

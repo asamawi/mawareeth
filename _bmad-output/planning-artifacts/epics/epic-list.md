@@ -1,4 +1,4 @@
-# Epic List
+# Product Plan
 
 Implementation note: The approved architecture baseline (Next.js App Router + shadcn/ui frontend and Cookiecutter Django backend) is a delivery prerequisite, not a user-valued story. Planning assumes a hybrid delivery context: implementation starts from the approved starter baseline while integrating into this existing repository and artifact set.
 
