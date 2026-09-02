@@ -17,11 +17,15 @@ from django.conf.urls.i18n import i18n_patterns
 from django.contrib import admin
 from django.urls import include, path
 from calc import views as calc_views
+from mawareeth import ops_views
 from user_auth import views as user_auth_views
 
 urlpatterns = [
     #path('admin/', admin.site.urls),
     #path('calc/', include('calc.urls')),
+    path('health/live/', ops_views.live, name='ops-live'),
+    path('health/ready/', ops_views.ready, name='ops-ready'),
+    path('health/release/', ops_views.release, name='ops-release'),
     path('i18n/', include('django.conf.urls.i18n')),
     path('accounts/', include('django.contrib.auth.urls')),
     path('social-auth/', include('social_django.urls', namespace="social")),

@@ -1,16 +1,1 @@
-Django>=4.2,<5.0
-gunicorn>=21.0
-dj-database-url
-whitenoise
-django-polymorphic
-pymongo[srv]
-sqlparse
-django-anymail[mailgun]
-django-crispy-forms
-django-icons
-python-decouple
-django-active-link
-social-auth-app-django
-django-waffle
-psycopg2-binary
-
+-r requirements.lock
