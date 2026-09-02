@@ -86,22 +86,27 @@ The core innovation is a "Modular Madhab" architecture that isolates sect-specif
 
 ## Project Scoping & Phased Development
 
-### MVP Strategy: "Experience-First Continuous Authority"
-We lead with high-fidelity UI/UX (Next.js/UUPM) and a stable "Islamic Core" (Sunni/Shia) trunk, deploying new legal modules continuously as they pass validation.
+### MVP Strategy: "Migration-First, Product-Safe Delivery"
+The current sprint is the Heroku-to-Hetzner migration of the existing Django application. Product modernization remains in scope, but it is not a prerequisite for the migration sprint.
 
-#### Phase 1: Core Protocol (Current Sprint)
-*   **Foundation:** Next.js SPA/SSG, UI UX Pro Max design system, and shadcn/ui.
-*   **Logic:** Recursive **Manasikhat (المناسخات)** Graph-Solver (Sunni/Shia).
-*   **API:** REST API contract between Next.js and Python 3.12 logic hub.
+#### Phase 1: Infrastructure Stabilization and Heroku Exit (Current Sprint)
+*   **Foundation:** Preserve the current Django monolith as one deployable WSGI service.
+*   **Delivery:** Containerize the existing app, publish immutable artifacts, deploy through Caddy plus Docker Compose, and prove backup, monitoring, and blue-green release safety.
+*   **Scope Boundary:** Do not require Next.js, DRF extraction, or a `web/` plus `api/` repository split during this phase.
+
+#### Phase 2: Core Product Delivery (Post-Migration)
+*   **Logic:** Recursive **Manasikhat (المناسخات)** graph-solver and deterministic inheritance engine across the required schools.
+*   **Experience:** Guided interview, family tree visualization, proof-rich results, privacy-first case handling, and accessibility-compliant multilingual UX.
 *   **Certification Flow:** Verified lawyer onboarding, lawyer selection, paid certification purchase, and auditable certified report delivery.
+*   **Modernization Decision:** If a split frontend/backend architecture is still desired, approve it as a separate modernization initiative before implementation.
 
-#### Phase 2: Universal Expansion (Growth)
+#### Phase 3: Universal Expansion (Growth)
 *   **Multi-Faith:** Continuous rollout of Christian (Maronite/Orthodox), Druze, and Civil Law modules.
 *   **Ecosystem:** Public OpenAPI/SDKs for banking and legal tech integration.
 *   **Localization:** Professional Arabic, English, and French UI.
 *   **Marketplace Growth:** Membership tiers, sponsored placements, earned reviews, and expanded lawyer marketplace optimization.
 
-#### Phase 3: Visionary Intelligence (Future)
+#### Phase 4: Visionary Intelligence (Future)
 *   **AI Validator:** LLM-based scholarly oversight integrated into the CI/CD loop.
 *   **Blockchain:** Immutable recording of verified distributions for permanent integrity.
 
@@ -170,7 +175,7 @@ We lead with high-fidelity UI/UX (Next.js/UUPM) and a stable "Islamic Core" (Sun
 
 ### 1. Performance & Reliability
 *   **NFR-01:** Standard calculations return in **<200ms**; complex Manasikhat in **<1s**.
-*   **NFR-02:** Maintain **99.9% uptime** for both API and Web App.
+*   **NFR-02:** Phase 1 tracks toward a **99.9% availability objective** for the public service, but the single-node topology is not a redundancy guarantee. Zero-downtime applies to routine application deployments only until a later high-availability phase is approved.
 *   **NFR-03:** 100% Deterministic logic ensured via versioned engine updates.
 
 ### 2. Security & Trust

@@ -1,3 +1,5 @@
+> Status note (2026-09-02): This file reflects the March 2026 product-architecture analysis. For the current Heroku-to-Hetzner migration sprint, the migration SPEC and September 2, 2026 architecture spine take precedence where they conflict.
+
 # Project Context Analysis
 
 ## Requirements Overview
@@ -11,7 +13,7 @@
 
 **Non-Functional Requirements:**
 - Performance: standard <200ms, complex Manasikhat <1s.
-- Reliability: 99.9% uptime and deterministic logic via versioned engine updates.
+- Reliability: a 99.9% availability objective with deterministic logic via versioned engine updates; the single-node migration phase is not a host-level HA guarantee.
 - Security: TLS 1.3, AES-256 at rest, dual-state storage, QR verification.
 - Accessibility: WCAG 2.1 AA with RTL/LTR support and mobile-first performance.
 
@@ -22,7 +24,7 @@
 
 ## Technical Constraints & Dependencies
 
-- Frontend: Next.js App Router, shadcn/ui, Tailwind, React Hook Form, Zod.
+- Future modernization candidate: Next.js App Router, shadcn/ui, Tailwind, React Hook Form, Zod.
 - Backend: Python 3.12 + Django; versioned REST API.
 - Deterministic "logic-as-code" policy: no manual overrides.
 - Testing emphasis: Playwright E2E for UI/logic alignment.

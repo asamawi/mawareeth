@@ -1,6 +1,6 @@
 # Product Plan
 
-Implementation note: The approved architecture baseline (Next.js App Router + shadcn/ui frontend and Cookiecutter Django backend) is a delivery prerequisite, not a user-valued story. Planning assumes a hybrid delivery context: implementation starts from the approved starter baseline while integrating into this existing repository and artifact set.
+Implementation note: For the Heroku-to-Hetzner phase, the authoritative implementation contract is `_bmad-output/specs/spec-heroku-to-hetzner/SPEC.md` and its companion architecture spine. Epic 0 executes against the existing Django monolith and must not require a `web/` plus `api/` split. Product Epics 1 through 7 remain the roadmap after migration stabilization; any Next.js or DRF modernization must be separately approved before it becomes a delivery prerequisite.
 
 ## Epic 1: Guided Interview & Family Tree Capture
 Users can enter family data via a guided interview, visualize the tree, and preview shares in real time.

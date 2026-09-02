@@ -1,3 +1,5 @@
+> Status note (2026-09-02): This document validates the March 2026 product architecture as a product reference. It is not the authoritative implementation contract for the current Heroku-to-Hetzner migration sprint.
+
 # Architecture Validation Results
 
 ## Coherence Validation ✅
@@ -30,12 +32,12 @@
 ## Implementation Readiness Validation ✅
 
 **Decision Completeness:**
-- All critical decisions documented; auth and API contracts defined.
+- The March 2026 product decisions are documented, but the current migration sprint follows the September 2, 2026 migration SPEC and architecture spine where they conflict.
 - Anonymous draft persistence, share-link authorization, PDF generation ownership, and accessibility enforcement are now explicitly defined.
 - Minor: version pinning for core services can be formalized at implementation.
 
 **Structure Completeness:**
-- Directory structure is complete for frontend, backend, CI/CD, and infra.
+- The product-reference structure is complete for frontend, backend, CI/CD, and infra, but starter-based repo restructuring is not the current sprint contract.
 
 **Pattern Completeness:**
 - Naming, formatting, and error handling rules defined with examples.
@@ -90,7 +92,7 @@
 
 ## Architecture Readiness Assessment
 
-**Overall Status:** READY FOR IMPLEMENTATION
+**Overall Status:** CONDITIONAL
 
 **Confidence Level:** High
 
@@ -107,10 +109,11 @@
 
 **AI Agent Guidelines:**
 
-- Follow all architectural decisions exactly as documented
+- For the current migration sprint, follow `_bmad-output/specs/spec-heroku-to-hetzner/SPEC.md` and the September 2, 2026 architecture spine where they conflict with this document
 - Use implementation patterns consistently across all components
 - Respect project structure and boundaries
 - Refer to this document for all architectural questions
 
 **First Implementation Priority:**
-- Initialize starter templates and scaffold baseline repo structure.
+- Execute Epic 0 migration work against the existing Django monolith using the migration SPEC and September 2, 2026 architecture spine.
+- Treat starter-template initialization and repo restructuring as deferred until separately approved.

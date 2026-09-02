@@ -1,8 +1,10 @@
+> Status note (2026-09-02): This evaluation is retained as a future product-modernization candidate. It is superseded for the current Heroku-to-Hetzner migration by the brownfield-preservation SPEC and architecture spine.
+
 # Starter Template Evaluation
 
 ## Primary Technology Domain
 
-Full-stack web application (interactive Next.js frontend + Django REST backend + deterministic compute engine)
+Future product-modernization candidate: interactive frontend plus deterministic Django-backed platform
 
 ## Starter Options Considered
 
@@ -16,14 +18,14 @@ Full-stack web application (interactive Next.js frontend + Django REST backend +
 3. **Cookiecutter Django**
    - Production-ready Django starter with Postgres, DRF, CI options, and optional Docker.
 
-## Selected Starter: Next.js + shadcn/ui (frontend) + Cookiecutter Django (backend)
+## Deferred Modernization Candidate: Next.js + shadcn/ui (frontend) + Cookiecutter Django (backend)
 
 **Rationale for Selection:**
 - Matches stated stack preferences (Next.js App Router, Tailwind, TypeScript, Django, Postgres).
 - Provides a clean, maintainable base without over-committing to SaaS boilerplates (payments later).
 - Supports CI/CD workflows from day one (frontend via standard CI, backend via cookiecutter options).
 
-**Initialization Commands:**
+**Potential Initialization Commands:**
 
 Frontend (Next.js App Router + TS + Tailwind):
 ```bash
@@ -40,7 +42,7 @@ Backend (Django + DRF + Postgres via Cookiecutter):
 pipx run cookiecutter gh:cookiecutter/cookiecutter-django
 ```
 
-**Architectural Decisions Provided by Starters:**
+**Architectural Decisions Proposed by These Starters:**
 
 **Language & Runtime:**
 - Frontend: TypeScript + React (Next.js App Router).
