@@ -101,6 +101,8 @@ celerybeat.pid
 
 # Environments
 .env
+deploy/host-baseline.env
+deploy/runtime/
 .venv
 env/
 venv/
