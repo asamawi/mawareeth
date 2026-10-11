@@ -103,6 +103,8 @@ celerybeat.pid
 .env
 deploy/host-baseline.env
 deploy/runtime/
+deploy/heroku-inventory*.json
+deploy/heroku-inventory*.raw
 .venv
 env/
 venv/
