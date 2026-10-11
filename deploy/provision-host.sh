@@ -8,7 +8,18 @@ die() { printf 'provision: %s\n' "$*" >&2; exit 1; }
 require_command() { command -v "$1" >/dev/null 2>&1 || die "required command is unavailable: $1"; }
 config_file="${HOST_BASELINE_CONFIG:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/host-baseline.env}"
 [[ -f "$config_file" ]] || die 'operator configuration is required; copy deploy/host-baseline.env.example outside version control'
-[[ "$(stat -c '%U:%a' "$config_file")" == "$(id -un):600" ]] || die 'operator configuration must be owned by the invoking user and mode 0600'
+# Portable (GNU/BSD/macOS) ownership+mode check via python3, already a required dependency.
+python3 - "$config_file" "$(id -un)" <<'PY' || die 'operator configuration must be owned by the invoking user and mode 0600'
+import os
+import pwd
+import sys
+path, expected_user = sys.argv[1], sys.argv[2]
+st = os.stat(path)
+mode = oct(st.st_mode & 0o777)[2:].zfill(3)
+owner = pwd.getpwuid(st.st_uid).pw_name
+if owner != expected_user or mode != '600':
+    sys.exit(1)
+PY
 # shellcheck disable=SC1090
 source "$config_file"
 
@@ -19,11 +30,13 @@ validate_cidrs() {
   ((${#cidrs[@]} > 0)) || die 'SSH_ALLOWED_CIDRS must contain at least one CIDR'
   for cidr in "${cidrs[@]}"; do
     [[ -n "$cidr" ]] || die 'SSH_ALLOWED_CIDRS contains an empty CIDR'
-    [[ "$cidr" != '0.0.0.0/0' && "$cidr" != '::/0' ]] || die 'SSH_ALLOWED_CIDRS must not permit unrestricted SSH access'
-    python3 - "$cidr" <<'PY' || die 'SSH_ALLOWED_CIDRS contains an invalid CIDR'
+    python3 - "$cidr" <<'PY' || die 'SSH_ALLOWED_CIDRS contains an invalid or excessively broad CIDR'
 import ipaddress
 import sys
-ipaddress.ip_network(sys.argv[1], strict=False)
+net = ipaddress.ip_network(sys.argv[1], strict=False)
+min_prefix = 8 if net.version == 4 else 32
+if net.prefixlen < min_prefix:
+    sys.exit(1)
 PY
   done
 }
@@ -35,6 +48,7 @@ done
 [[ "$(grep -c '[^[:space:]]' "$SSH_PUBLIC_KEY")" -eq 1 ]] || die 'SSH_PUBLIC_KEY must contain exactly one key on a single line'
 [[ -r "$ADMIN_SSH_PRIVATE_KEY" ]] || die 'ADMIN_SSH_PRIVATE_KEY must name a readable private-key file'
 [[ "$SERVER_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]] || die 'SERVER_NAME is invalid'
+[[ "$HETZNER_SSH_KEY_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$ ]] || die 'HETZNER_SSH_KEY_NAME is invalid'
 require_command python3
 validate_cidrs
 require_command hcloud
@@ -45,6 +59,7 @@ require_command scp
 require_command ssh-keygen
 export HCLOUD_TOKEN="$HETZNER_TOKEN"
 FIREWALL_NAME="${FIREWALL_NAME:-${SERVER_NAME}-edge}"
+[[ "$FIREWALL_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$ ]] || die 'FIREWALL_NAME is invalid'
 ADMIN_USER="${ADMIN_USER:-mawareeth-admin}"
 [[ "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die 'ADMIN_USER is invalid'
 
@@ -76,7 +91,10 @@ if ! hcloud ssh-key describe "$HETZNER_SSH_KEY_NAME" >/dev/null 2>&1; then
   hcloud ssh-key create --name "$HETZNER_SSH_KEY_NAME" --public-key-from-file "$SSH_PUBLIC_KEY" >/dev/null
 else
   existing_key="$(hcloud ssh-key describe "$HETZNER_SSH_KEY_NAME" --output json | jq -r '.ssh_key.public_key')"
-  [[ "$configured_key" == "$existing_key" ]] || die 'existing SSH-key identity has different public key; operator decision required'
+  # Compare only type and base64 data, matching the private-key comparison above:
+  # Hetzner may normalize or drop the comment, producing a false mismatch otherwise.
+  IFS=' ' read -r existing_type existing_data _ <<<"$existing_key"
+  [[ "$configured_type $configured_data" == "$existing_type $existing_data" ]] || die 'existing SSH-key identity has different public key; operator decision required'
 fi
 
 # Replace the rule set atomically: public web only, and SSH only from explicit CIDRs.
@@ -100,11 +118,20 @@ else
 fi
 firewall_json="$(hcloud firewall describe "$FIREWALL_NAME" --output json)"
 firewall_id="$(jq -r '.firewall.id' <<<"$firewall_json")"
+# Pass the bearer token via a curl config file rather than argv, so it is not
+# visible to other processes on this workstation through `ps`/`/proc`.
+curl_auth_config="$(mktemp)"
+trap 'rm -f "$curl_auth_config"' EXIT
+printf 'header = "Authorization: Bearer %s"\n' "$HETZNER_TOKEN" > "$curl_auth_config"
+chmod 600 "$curl_auth_config"
 action_json="$(curl --fail --silent --show-error --request POST \
-  --header "Authorization: Bearer $HETZNER_TOKEN" \
+  --config "$curl_auth_config" \
+  --connect-timeout 10 --max-time 30 \
   --header 'Content-Type: application/json' \
   --data "$rules_payload" \
   "https://api.hetzner.cloud/v1/firewalls/${firewall_id}/actions/set_rules")"
+rm -f "$curl_auth_config"
+trap - EXIT
 action_id="$(jq -r '.action.id // empty' <<<"$action_json")"
 [[ -n "$action_id" ]] || die 'firewall rule update did not return an action id'
 hcloud action wait "$action_id" >/dev/null
@@ -132,10 +159,10 @@ for _attempt in $(seq 1 30); do
   if ssh "${ssh_opts[@]}" "root@${server_ip}" true >/dev/null 2>&1; then remote_user=root; break; fi
   sleep 10
 done
-[[ -n "$remote_user" ]] || die "timed out waiting for SSH to become reachable on ${server_ip}"
+[[ -n "$remote_user" ]] || die "timed out waiting for SSH to become reachable on ${server_ip} as ${ADMIN_USER} or root after 5 minutes; check that the host finished booting, that this workstation's address is included in SSH_ALLOWED_CIDRS, and that the Hetzner firewall/network path to ${server_ip}:22 is reachable"
 scp "${ssh_opts[@]}" "$script_dir/bootstrap-host.sh" "$remote_user@${server_ip}:/tmp/mawareeth-bootstrap-host.sh"
 bootstrap_cmd="SSH_ALLOWED_CIDRS=$(printf %q "$SSH_ALLOWED_CIDRS") ADMIN_USER=$(printf %q "$ADMIN_USER") ADMIN_PUBLIC_KEY=$(printf %q "$configured_key") bash /tmp/mawareeth-bootstrap-host.sh"
 if [[ "$remote_user" != root ]]; then bootstrap_cmd="sudo $bootstrap_cmd"; fi
 ssh "${ssh_opts[@]}" "$remote_user@${server_ip}" "$bootstrap_cmd"
-ssh "${ssh_opts[@]}" "$ADMIN_USER@${server_ip}" 'sudo rm -f /tmp/mawareeth-bootstrap-host.sh'
+ssh "${ssh_opts[@]}" "$ADMIN_USER@${server_ip}" 'sudo rm -f /tmp/mawareeth-bootstrap-host.sh' || true
 printf '%s\n' 'Provisioning reconciliation completed.'

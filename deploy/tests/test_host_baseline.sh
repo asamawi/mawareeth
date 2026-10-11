@@ -15,10 +15,12 @@ need "$provision" 'enable-protection'
 need "$provision" 'port: "80"'
 need "$provision" 'port: "443"'
 need "$provision" 'port: "22"'
+# Match the port as a standalone number anywhere in either script, not just the
+# two literal spellings above -- catches a multiport dports list, a port range,
+# or a differently quoted/worded allow rule that would otherwise slip through.
+contains_port() { grep -Eq -- "(^|[^0-9])$1([^0-9]|\$)" "$provision" "$bootstrap"; }
 for forbidden_port in 2375 5432 8000; do
-  if grep -Fq -- "port: \"$forbidden_port\"" "$provision" || grep -Fq -- "allow $forbidden_port" "$bootstrap"; then
-    fail "forbidden public port $forbidden_port is present in the baseline"
-  fi
+  contains_port "$forbidden_port" && fail "forbidden public port $forbidden_port is present in the baseline"
 done
 need "$bootstrap" 'PasswordAuthentication no'
 need "$bootstrap" 'PermitRootLogin no'
@@ -131,3 +133,51 @@ need "$log" '"port": "443"'
 sed 's/SSH_ALLOWED_CIDRS=198.51.100.0\/24/SSH_ALLOWED_CIDRS=0.0.0.0\/0/' "$tmp/valid-config" > "$tmp/unrestricted-config"
 chmod 600 "$tmp/unrestricted-config"
 if TEST_LOG="$log" TEST_STATE="$state" TEST_PUBLIC_KEY="$pub" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$tmp/unrestricted-config" bash "$provision" >/dev/null 2>&1; then fail 'unrestricted SSH CIDR was accepted'; fi
+
+# Conflict/drift detection: an existing server, SSH key, or firewall that does not
+# match this baseline must abort for an operator decision, never silently mutate.
+mismatch_stub="$tmp/mismatch-stub"
+mkdir -p "$mismatch_stub"
+cat > "$mismatch_stub/hcloud" <<'EOF'
+#!/usr/bin/env bash
+set -e
+echo "hcloud $*" >> "$TEST_LOG"
+server_type=cx33; [[ "${MISMATCH_MODE:-}" == server ]] && server_type=cx22
+key_value="$TEST_PUBLIC_KEY"; [[ "${MISMATCH_MODE:-}" == key ]] && key_value='ssh-ed25519 AAAADIFFERENTKEYDATA different@test'
+case "$1 $2 $3" in
+  "ssh-key describe baseline-test-key") printf '{"ssh_key":{"public_key":"%s"}}\n' "$key_value" ;;
+  "firewall describe baseline-test-edge") printf '{"firewall":{"id":1,"applied_to":[]}}\n' ;;
+  "server describe baseline-test") printf '{"server":{"id":2,"server_type":{"name":"%s"},"datacenter":{"location":{"name":"nbg1"}},"image":{"name":"ubuntu-24.04"},"labels":{"mawareeth_host_baseline":"1"}}}\n' "$server_type" ;;
+  *) exit 0 ;;
+esac
+EOF
+cat > "$mismatch_stub/jq" <<'EOF'
+#!/usr/bin/env bash
+args="$*"
+server_type=cx33; [[ "${MISMATCH_MODE:-}" == server ]] && server_type=cx22
+key_value="$TEST_PUBLIC_KEY"; [[ "${MISMATCH_MODE:-}" == key ]] && key_value='ssh-ed25519 AAAADIFFERENTKEYDATA different@test'
+case "$args" in
+  *'.ssh_key.public_key'*) printf '%s\n' "$key_value" ;;
+  *'.server.server_type.name'*) printf '%s\n' "$server_type" ;;
+  *'.server.datacenter.location.name'*) printf 'nbg1\n' ;;
+  *'.server.image.name'*) printf 'ubuntu-24.04\n' ;;
+  *'.server.labels.mawareeth_host_baseline'*) printf '1\n' ;;
+  *'length > 0'*) exit 1 ;;
+  *'all(.firewall.applied_to'*) if [[ "${MISMATCH_MODE:-}" == firewall ]]; then exit 1; else exit 0; fi ;;
+  *) cat ;;
+esac
+EOF
+cat > "$mismatch_stub/curl" <<'EOF'
+#!/usr/bin/env bash
+echo "curl $*" >> "$TEST_LOG"
+printf '{"action":{"id":1}}\n'
+EOF
+chmod +x "$mismatch_stub"/*
+for mode in server key firewall; do
+  mismatch_log="$tmp/mismatch-log-$mode"
+  if MISMATCH_MODE="$mode" TEST_LOG="$mismatch_log" TEST_PUBLIC_KEY="$pub" PATH="$mismatch_stub:$PATH" HOST_BASELINE_CONFIG="$tmp/valid-config" bash "$provision" >/dev/null 2>&1; then
+    fail "conflicting $mode was accepted instead of aborting for an operator decision"
+  fi
+  grep -Eq -- 'server create|enable-protection|apply-to-resource|^curl ' "$mismatch_log" 2>/dev/null && fail "conflict detection for $mode mutated provider state instead of aborting first"
+done
+printf '%s\n' 'conflict/drift detection checks passed'

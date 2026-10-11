@@ -3,7 +3,7 @@ title: 'Create the Secured Hetzner Host Baseline'
 type: 'feature'
 created: '2026-09-02'
 status: 'done'
-review_loop_iteration: 0
+review_loop_iteration: 1
 baseline_commit: '788d6cf517286557055b90a0301e47c2fe1ff8bb'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-0-context.md'
@@ -62,6 +62,27 @@ context:
 - Given a host is bootstrapped, when SSH and secret storage are inspected, then password/root login is disabled, authorized keys are required, and runtime secrets are root-owned with restrictive permissions and absent from repository/CI output.
 - Given invalid or incomplete operator configuration, when an operator starts provisioning, then the scripts fail before provider or host mutation and redact all sensitive values.
 
+### Review Findings
+
+- [x] [Review][Patch] Docker Engine/Compose installed unpinned from the "stable" apt channel vs. the Architecture Spine's pinned Stack table (Docker Engine 29.7.2, Compose plugin 5.5.0) — resolved 2026-10-11: accept floating-within-major drift via unattended-upgrades; updated the Architecture Spine's Stack table wording to describe this as the policy instead of implying exact pins. [deploy/bootstrap-host.sh:58; architecture-mawareeth-2026-09-02/ARCHITECTURE-SPINE.md Stack table]
+- [x] [Review][Patch] Repeat-provision fails once root SSH is disabled: `sudo` strips the `SSH_ALLOWED_CIDRS`/`ADMIN_USER`/`ADMIN_PUBLIC_KEY` env-var assignments on its command line (no `SETENV`/`env_keep` grant), so `bootstrap-host.sh` dies on "SSH_ALLOWED_CIDRS is required" on every run after the first — breaking the "run it twice" acceptance criterion. Fixed: added `Defaults:$ADMIN_USER env_keep += "SSH_ALLOWED_CIDRS ADMIN_USER ADMIN_PUBLIC_KEY"` to the sudoers file bootstrap-host.sh writes. [deploy/provision-host.sh:164-165; deploy/bootstrap-host.sh:116]
+- [x] [Review][Patch] Existing-Hetzner-key comparison does a full raw-string compare, unlike the type+data-only compare used a few lines above for the private-key match — a differing SSH comment on the already-stored key falsely reports "different public key" and aborts a legitimate repeat run. Fixed: applied the same type+data-only comparison. [deploy/provision-host.sh:93-97]
+- [x] [Review][Patch] Guest firewall (`ufw`) is fully off for the whole window between `ufw --force reset` and the final `ufw --force enable`; any failure in between leaves the host without a guest-level firewall until the next successful run (Hetzner's cloud firewall remains the primary control, so impact is defense-in-depth only). Fixed: added an `ERR` trap over that window that forces deny-all-incoming and re-enables `ufw` before the script exits. [deploy/bootstrap-host.sh:131-146]
+- [x] [Review][Patch] CIDR validation only blocklisted the two literal strings `0.0.0.0/0` and `::/0`; a functionally-unrestricted range expressed another way (e.g. two /1s) passed both scripts' checks. Fixed: now rejects any IPv4 prefix shorter than /8 or IPv6 prefix shorter than /32, in both scripts. [deploy/provision-host.sh:26-42; deploy/bootstrap-host.sh:10-26]
+- [x] [Review][Patch] `deploy/README.md`'s "Audit checks" section never told the operator to verify `mawareeth-docker-firewall.service` is active or inspect the `DOCKER-USER` chain. Fixed: added that check, including the IPv6 chain and a note to re-check after `systemctl restart docker`. [deploy/README.md]
+- [x] [Review][Patch] Hetzner API token was passed as a literal `curl --header "Authorization: Bearer $HETZNER_TOKEN"` argument, visible in the operator workstation's own process list for the call's duration. Fixed: token now goes through a short-lived, mode-600 curl config file instead of argv. [deploy/provision-host.sh:120-134]
+- [x] [Review][Patch] No timeout on the `curl` call to the Hetzner firewall API; a network partition would hang the script indefinitely. Fixed: added `--connect-timeout 10 --max-time 30`. [deploy/provision-host.sh:127-132]
+- [x] [Review][Patch] Config-permission guard used GNU-only `stat -c '%U:%a'`; running from macOS/BSD failed this check (and the script) outright. Fixed: replaced with a portable python3 `os.stat`/`pwd` check (python3 is already a required dependency). [deploy/provision-host.sh:9-22]
+- [x] [Review][Patch] `HETZNER_SSH_KEY_NAME` and `FIREWALL_NAME` had no format validation (unlike `SERVER_NAME`/`ADMIN_USER`). Fixed: added matching regex validation for both. [deploy/provision-host.sh:51,62]
+- [x] [Review][Patch] Conflict/drift-detection `die` branches (foreign server, mismatched SSH key, shared firewall) were real but entirely untested — every `hcloud`/`jq` test stub was hardcoded to the "already matches" case. Fixed: added three new stubbed scenarios asserting each `die` branch triggers with no provider mutation. [deploy/tests/test_host_baseline.sh]
+- [x] [Review][Patch] `ufw --force reset` already cleared every rule; the three subsequent `ufw --force delete allow 22/80/443` calls were dead code with a stale comment. Fixed: removed the dead calls and rewrote the comment to match the new fail-closed trap behavior. [deploy/bootstrap-host.sh:131-146]
+- [x] [Review][Patch] Best-effort remote cleanup (`ssh ... 'sudo rm -f /tmp/mawareeth-bootstrap-host.sh'`) had no `|| true`; a transient SSH hiccup on this cleanup-only call reported a fully successful provision+bootstrap as a failure. Fixed: appended `|| true`. [deploy/provision-host.sh:167]
+- [x] [Review][Patch] Several "Suggested Review Order" line-anchors in this spec file didn't point at the statement they described (e.g. `provision-host.sh:36`, `.gitignore:103`). Fixed: corrected every anchor against the final file state. [spec-0-4-create-secured-hetzner-host-baseline.md: Suggested Review Order]
+- [x] [Review][Patch] Forbidden-port test only grepped for literal strings (`port: "2375"` / `allow 2375`); an equivalent rule expressed differently would not have been caught. Fixed: now matches the port as a standalone number anywhere in either script. [deploy/tests/test_host_baseline.sh]
+- [x] [Review][Patch] 5-minute SSH-reachability poll reported only a generic timeout message. Fixed: the timeout message now names the three likely causes (still booting, operator IP not in `SSH_ALLOWED_CIDRS`, unreachable). [deploy/provision-host.sh:162]
+- [x] [Review][Patch] `useradd --create-home` assumed a pre-existing `$ADMIN_USER` has home `/home/$ADMIN_USER`. Fixed: resolves the real home directory via `getent passwd` first. [deploy/bootstrap-host.sh:109-115]
+- [x] [Review][Patch] Docker-port iptables backstop only touched the IPv4 `DOCKER-USER` chain, never `ip6tables`. Fixed: mirrors the same rules onto `ip6tables` when available. [deploy/bootstrap-host.sh:76-91]
+
 ## Spec Change Log
 
 ## Design Notes
@@ -85,51 +106,51 @@ Use a two-stage operator flow: the provisioner owns Hetzner resource reconciliat
 
 **SSH key-pair validation (bug fixed during review)**
 
-- Compares only the key type and base64 data on both sides — `ssh-keygen -y` echoes back any comment embedded in the private key, so comparing full lines produced false "keys don't match" failures on the common case of a commented ed25519 key.
-  [`provision-host.sh:56`](../../deploy/provision-host.sh#L56)
+- Compares only the key type and base64 data on both sides — `ssh-keygen -y` echoes back any comment embedded in the private key, so comparing full lines produced false "keys don't match" failures on the common case of a commented ed25519 key. The same fix was applied to the existing-Hetzner-key comparison a few lines below it in this review round.
+  [`provision-host.sh:71`](../../deploy/provision-host.sh#L71)
 
 - Guards against a multi-key or multi-line `SSH_PUBLIC_KEY` file before it reaches the comparison above.
-  [`provision-host.sh:35`](../../deploy/provision-host.sh#L35)
+  [`provision-host.sh:48`](../../deploy/provision-host.sh#L48)
 
 **SSH source-range & admin-key validation**
 
-- Rejects unrestricted `0.0.0.0/0`/`::/0` SSH ranges before any Hetzner call.
-  [`provision-host.sh:22`](../../deploy/provision-host.sh#L22)
+- Rejects any CIDR broader than `/8` (IPv4) or `/32` (IPv6) before any Hetzner call — not just the literal `0.0.0.0/0`/`::/0` strings, closing a bypass (e.g. two `/1` ranges) found during this review round.
+  [`provision-host.sh:33`](../../deploy/provision-host.sh#L33)
 
 - Mirrors the same rejection on the guest side, closing a gap where `bootstrap-host.sh` validated CIDRs independently but skipped this one check.
   [`bootstrap-host.sh:17`](../../deploy/bootstrap-host.sh#L17)
 
 - Broadens the admin public-key check beyond `ssh-*` so valid ECDSA/FIDO2 key types aren't rejected.
-  [`bootstrap-host.sh:37`](../../deploy/bootstrap-host.sh#L37)
+  [`bootstrap-host.sh:39`](../../deploy/bootstrap-host.sh#L39)
 
 **Provisioning ordering & reachability**
 
 - Checks for `python3` before the CIDR validation that depends on it, so a missing interpreter reports the real cause instead of a misleading "invalid CIDR".
-  [`provision-host.sh:36`](../../deploy/provision-host.sh#L36)
+  [`provision-host.sh:52`](../../deploy/provision-host.sh#L52)
 
 - Polls both the admin and root accounts for up to five minutes instead of probing once, since a freshly created host needs time to finish booting before `sshd` answers.
-  [`provision-host.sh:126`](../../deploy/provision-host.sh#L126)
+  [`provision-host.sh:157`](../../deploy/provision-host.sh#L157)
 
 **Hetzner resource reconciliation**
 
-- Inspects an existing server's type/location/image/ownership label before touching it, so a same-named but foreign server aborts for an operator decision instead of being silently adopted.
-  [`provision-host.sh:63`](../../deploy/provision-host.sh#L63)
+- Inspects an existing server's type/location/image/ownership label before touching it, so a same-named but foreign server aborts for an operator decision instead of being silently adopted. This review round added test coverage exercising this path (and the matching SSH-key and firewall-sharing checks), since every stub had previously been hardcoded to the already-matching case.
+  [`provision-host.sh:79`](../../deploy/provision-host.sh#L79)
 
 **Guest hardening**
 
-- Key-only SSH plus a default-deny `ufw` policy that only opens 80/443 and the configured admin CIDRs.
-  [`bootstrap-host.sh:108`](../../deploy/bootstrap-host.sh#L108)
+- Key-only SSH plus a default-deny `ufw` policy that only opens 80/443 and the configured admin CIDRs, now wrapped in an `ERR` trap so a failure mid-sequence forces deny-all-incoming and re-enables `ufw` rather than leaving the guest unfiltered.
+  [`bootstrap-host.sh:131`](../../deploy/bootstrap-host.sh#L131)
 
-- A systemd oneshot backstops `ufw` by restricting Docker's own iptables rules to the same public ports, since Docker manipulates `DOCKER-USER` independently of `ufw`.
-  [`bootstrap-host.sh:75`](../../deploy/bootstrap-host.sh#L75)
+- A systemd oneshot backstops `ufw` by restricting Docker's own iptables rules to the same public ports on both the IPv4 and IPv6 `DOCKER-USER` chains, since Docker manipulates them independently of `ufw`.
+  [`bootstrap-host.sh:76`](../../deploy/bootstrap-host.sh#L76)
 
 **Peripherals**
 
-- Operator-facing runbook: prerequisites, first/repeat-run behavior, and the exact audit commands that prove no app/DB port is public.
+- Operator-facing runbook: prerequisites, first/repeat-run behavior, and the exact audit commands that prove no app/DB port is public, including verifying the Docker-port firewall backstop service is active.
   [`README.md:1`](../../deploy/README.md#L1)
 
 - Local operator config and runtime-secret paths excluded from Git while the safe example stays tracked.
-  [`.gitignore:103`](../../.gitignore#L103)
+  [`.gitignore:104`](../../.gitignore#L104)
 
 - Offline contract tests, including the three stub/assertion bugs fixed during this review (stdin-draining race under `pipefail`, an ambiguous `applied_to` stub match, and a mismatched log assertion) that had masked each other and the key-pair bug above until now.
   [`test_host_baseline.sh:1`](../../deploy/tests/test_host_baseline.sh#L1)

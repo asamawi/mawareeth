@@ -147,8 +147,8 @@ flowchart LR
 | Gunicorn | 26.2.0 target, subject to test-suite and graceful-drain smoke gate |
 | PostgreSQL | 17.11 target, pinned by image digest |
 | Caddy | 2.11.4, pinned by image digest |
-| Docker Engine | 29.7.2 from Docker stable repository; security patches within major 29 |
-| Docker Compose plugin | 5.5.0; Compose Specification |
+| Docker Engine | Installed unpinned from Docker's official stable apt repository; floats to whatever "stable" currently resolves to and advances via `unattended-upgrades`. 29.7.2 was the version current at authoring time, not an enforced pin. |
+| Docker Compose plugin | Installed unpinned alongside Docker Engine from the same stable repository, for the same reason; 5.5.0 was current at authoring time. Compose Specification |
 | Container registry | GitHub Container Registry; deploy by immutable digest |
 
 ## Structural Seed
