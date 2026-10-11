@@ -58,7 +58,9 @@
     {% if user.is_authenticated %}
     {% trans "Welcome " %}
     <a href="{% url 'user_auth:profile' %}">{{ user.username }}</a>
-    -- <a href="{% url 'logout' %}">{% trans " logout " %}</a>
+    -- <form action="{% url 'logout' %}" method="post" class="d-inline">{% csrf_token %}
+      <button type="submit" class="btn btn-link nav-link d-inline p-0" style="border:none;">{% trans " logout " %}</button>
+    </form>
     {% else %}
     <a href="{% url 'login' %}">{% trans 'login' %}</a> |
     <a href="{% url 'calc:signup' %}">{% trans 'Sign Up' %}</a>
