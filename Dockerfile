@@ -1,22 +1,24 @@
-FROM python:3.12.14-slim@sha256:2fe5997d249a808b8eeea52c58a1dbffbba28754dc11699ef5c029f2d818ce79 AS builder
+FROM python:3.12.15-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS builder
 
 ARG RELEASE_VERSION=build
 ARG RELEASE_COMMIT_SHA=build
 
+COPY --from=ghcr.io/astral-sh/uv:0.9.28@sha256:59240a65d6b57e6c507429b45f01b8f2c7c0bbeee0fb697c41a39c6a8e3a4cfb /uv /bin/uv
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
+    UV_NO_CACHE=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
     VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
 
-RUN python -m venv "$VIRTUAL_ENV"
+COPY pyproject.toml uv.lock .python-version ./
 
-COPY requirements.txt requirements.lock ./
-
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+RUN uv sync --locked --no-default-groups
 
 COPY . .
 
@@ -45,7 +47,7 @@ RUN DJANGO_ENV=production \
     RELEASE_COMMIT_SHA="$RELEASE_COMMIT_SHA" \
     python manage.py check --deploy --fail-level WARNING
 
-FROM python:3.12.14-slim@sha256:2fe5997d249a808b8eeea52c58a1dbffbba28754dc11699ef5c029f2d818ce79 AS runtime
+FROM python:3.12.15-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS runtime
 
 ARG RELEASE_VERSION=build
 ARG RELEASE_COMMIT_SHA=build

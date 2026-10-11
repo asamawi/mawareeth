@@ -1,0 +1,43 @@
+[project]
+name = "mawareeth"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "asgiref==3.10.0",
+    "certifi==2025.11.12",
+    "cffi==2.0.0",
+    "charset-normalizer==3.4.4",
+    "crispy-bootstrap4==2025.6",
+    "cryptography==50.0.0",
+    "defusedxml==0.7.1",
+    "dj-database-url==3.0.1",
+    "django==5.2.17",
+    "django-active-link==0.3.0",
+    "django-anymail[mailgun]==13.1",
+    "django-crispy-forms==2.5",
+    "django-icons==25.3",
+    "django-polymorphic==4.1.0",
+    "django-waffle==5.0.0",
+    "dnspython==2.8.0",
+    "gunicorn==26.2.0",
+    "idna==3.15",
+    "oauthlib==4.0.0",
+    "packaging==25.0",
+    "psycopg2-binary==2.9.11",
+    "pycparser==3.0",
+    "pyjwt==2.15.0",
+    "pymongo==4.18.2",
+    "python-decouple==3.8",
+    "python3-openid==3.2.0",
+    "requests==2.34.2",
+    "requests-oauthlib==2.0.0",
+    "social-auth-app-django==6.0.0",
+    "social-auth-core==5.0.0",
+    "sqlparse==0.6.0",
+    "tzdata==2025.2",
+    "urllib3==2.8.0",
+    "whitenoise==6.11.0",
+]
+
+[tool.uv]
+package = false
