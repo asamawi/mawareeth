@@ -7,6 +7,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,7 +20,15 @@ REQUIRED_CONFIRMATIONS = (
     "config_keys_reviewed",
     "domains_and_dns_reviewed",
 )
+REQUIRED_SECTIONS = ("app", "processes", "database", "addons", "config_keys", "domains", "dns")
 APP_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*$")
+COMMAND_TIMEOUT_SECONDS = 60
+WILDCARD_PROBE_LABEL = "inventory-wildcard-probe"
+# Process commands are persisted verbatim, so reject anything that looks like an inline credential.
+SECRET_PATTERNS = (
+    re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^/\s:@]+:[^@\s]+@"),
+    re.compile(r"(?<![A-Za-z0-9_{:-])[A-Z][A-Z0-9_]*=\S"),
+)
 
 
 class DiscoveryError(Exception):
@@ -49,18 +58,34 @@ class HerokuClient:
             return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", command_line]
         return [executable, *arguments]
 
+    @staticmethod
+    def classify_failure(stderr):
+        # Only a fixed remediation message is returned; CLI output is never echoed.
+        message = (stderr or "").lower()
+        if any(marker in message for marker in ("credentials", "logged in", "login", "unauthorized")):
+            return "Heroku authentication failed; run `heroku login` and retry."
+        if any(marker in message for marker in ("couldn't find that app", "not found", "do not have access")):
+            return "Heroku app was not found or is not accessible; verify the app identifier and account access."
+        return "Heroku command failed; authenticate and verify the app identifier."
+
     def _run(self, arguments):
         try:
             result = self.executor(
                 self.build_command(self.executable, arguments),
                 check=False,
                 capture_output=True,
+                stdin=subprocess.DEVNULL,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=COMMAND_TIMEOUT_SECONDS,
             )
+        except subprocess.TimeoutExpired as exc:
+            raise DiscoveryError("Heroku command timed out.") from exc
         except OSError as exc:
             raise DiscoveryError("Heroku CLI is unavailable.") from exc
         if result.returncode != 0:
-            raise DiscoveryError("Heroku command failed; authenticate and verify the app identifier.")
+            raise DiscoveryError(self.classify_failure(result.stderr))
         return result.stdout
 
     def json(self, arguments):
@@ -93,52 +118,69 @@ def _text(value):
     return value if isinstance(value, str) and value else None
 
 
+def _require_dicts(raw, label):
+    if not isinstance(raw, list):
+        raise DiscoveryError(f"{label} information has an unexpected shape.")
+    if any(not isinstance(item, dict) for item in raw):
+        raise DiscoveryError(f"{label} information contains an unexpected item.")
+    return raw
+
+
+def _contains_secret(value):
+    return any(pattern.search(value) for pattern in SECRET_PATTERNS)
+
+
 def sanitize_app_info(raw):
     if not isinstance(raw, dict):
         raise DiscoveryError("App information has an unexpected shape.")
     if isinstance(raw.get("app"), dict):
         raw = raw["app"]
-    return {
+    app = {
         "name": _text(raw.get("name")),
         "maintenance": raw.get("maintenance") if isinstance(raw.get("maintenance"), bool) else None,
         "region": _text(raw.get("region")) or _text(_nested(raw, "region", "name")),
         "stack": _text(raw.get("stack")) or _text(_nested(raw, "stack", "name")),
         "web_url": _text(raw.get("web_url")),
     }
+    if app["name"] is None:
+        raise DiscoveryError("App information is incomplete.")
+    return app
 
 
 def sanitize_processes(raw):
-    if not isinstance(raw, list):
-        raise DiscoveryError("Process information has an unexpected shape.")
     processes = []
-    for item in raw:
-        if not isinstance(item, dict):
+    for item in _require_dicts(raw, "Process"):
+        process_type = _text(item.get("type")) or _text(item.get("process_type"))
+        # One-off dynos carry operator-typed commands and are not part of the process model.
+        if process_type == "run" or (_text(item.get("name")) or "").startswith("run."):
             continue
         process = {
             "command": _text(item.get("command")),
             "size": _text(item.get("size")),
             "state": _text(item.get("state")),
-            "type": _text(item.get("type")) or _text(item.get("process_type")),
+            "type": process_type,
         }
+        if process["type"] is None or process["command"] is None:
+            raise DiscoveryError("Process information is incomplete.")
+        if _contains_secret(process["command"]):
+            raise DiscoveryError("A process command appears to contain a credential; review it manually.")
         processes.append({key: value for key, value in process.items() if value is not None})
-    return sorted(processes, key=lambda item: (item.get("type", ""), item.get("command", "")))
+    return sorted(processes, key=lambda item: (item["type"], item["command"]))
 
 
 def sanitize_addons(raw):
-    if not isinstance(raw, list):
-        raise DiscoveryError("Add-on information has an unexpected shape.")
     addons = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
+    for item in _require_dicts(raw, "Add-on"):
         addon = {
             "name": _text(item.get("name")),
             "plan": _text(_nested(item, "plan", "name")) or _text(item.get("plan")),
             "service": _text(_nested(item, "addon_service", "name")) or _text(item.get("service")),
             "state": _text(item.get("state")),
         }
+        if addon["name"] is None or (addon["service"] is None and addon["plan"] is None):
+            raise DiscoveryError("Add-on information is incomplete.")
         addons.append({key: value for key, value in addon.items() if value is not None})
-    return sorted(addons, key=lambda item: (item.get("service", ""), item.get("name", "")))
+    return sorted(addons, key=lambda item: (item.get("service", ""), item["name"]))
 
 
 def sanitize_config_keys(raw):
@@ -148,12 +190,8 @@ def sanitize_config_keys(raw):
 
 
 def sanitize_domains(raw):
-    if not isinstance(raw, list):
-        raise DiscoveryError("Domain information has an unexpected shape.")
     domains = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
+    for item in _require_dicts(raw, "Domain"):
         domain = {
             "acm_status": _text(item.get("acm_status")),
             "cname": _text(item.get("cname")),
@@ -161,33 +199,10 @@ def sanitize_domains(raw):
             "kind": _text(item.get("kind")),
             "status": _text(item.get("status")),
         }
+        if domain["hostname"] is None:
+            raise DiscoveryError("Domain information is incomplete.")
         domains.append({key: value for key, value in domain.items() if value is not None})
-    return sorted(domains, key=lambda item: item.get("hostname", ""))
-
-
-def sanitize_database(raw):
-    if not isinstance(raw, dict):
-        raise DiscoveryError("Database information has an unexpected shape.")
-    safe_names = {
-        "add-on", "addon", "attachments", "database", "pg version", "plan", "status", "version"
-    }
-    databases = []
-    for attachment, details in raw.items():
-        if not isinstance(details, dict):
-            continue
-        database = {"attachment": str(attachment)}
-        for key, value in details.items():
-            normalized_key = str(key).strip().lower()
-            if normalized_key not in safe_names:
-                continue
-            if isinstance(value, (str, int, float, bool)) and value != "":
-                database[normalized_key.replace(" ", "_")] = value
-            elif isinstance(value, list):
-                database[normalized_key.replace(" ", "_")] = sorted(
-                    str(item) for item in value if isinstance(item, (str, int, float, bool))
-                )
-        databases.append(database)
-    return sorted(databases, key=lambda item: item["attachment"])
+    return sorted(domains, key=lambda item: item["hostname"])
 
 
 def sanitize_database_text(raw):
@@ -215,9 +230,11 @@ def sanitize_database_text(raw):
 
 
 def resolve_domain(hostname):
+    # A wildcard domain cannot be looked up directly; resolve a probe label it covers instead.
+    lookup = f"{WILDCARD_PROBE_LABEL}.{hostname[2:]}" if hostname.startswith("*.") else hostname
     try:
-        records = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
-    except socket.gaierror as exc:
+        records = socket.getaddrinfo(lookup, None, type=socket.SOCK_STREAM)
+    except (socket.gaierror, UnicodeError) as exc:
         raise DiscoveryError(f"DNS lookup failed for {hostname}.") from exc
     answers = {"A": [], "AAAA": []}
     for family, _socket_type, _protocol, _canonical_name, address in records:
@@ -231,11 +248,12 @@ def resolve_domain(hostname):
     return answers
 
 
-def capture_inventory(app, client=None, resolver=resolve_domain, captured_at=None):
+def capture_inventory(app, client=None, resolver=resolve_domain, captured_at=None, on_error=None):
     if not APP_PATTERN.fullmatch(app):
         raise DiscoveryError("The Heroku app identifier is invalid.")
     client = client or HerokuClient()
     captured_at = captured_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    report_error = on_error or (lambda _section, _message: None)
     report = {
         "schema_version": SCHEMA_VERSION,
         "captured_at": captured_at,
@@ -256,15 +274,17 @@ def capture_inventory(app, client=None, resolver=resolve_domain, captured_at=Non
     )
     try:
         report["tool_versions"]["heroku"] = client.version()
-    except DiscoveryError:
+    except DiscoveryError as exc:
         report["unknown_sections"].append("tool_versions")
+        report_error("tool_versions", str(exc))
 
     for section, discover in discoveries:
         try:
             report["inventory"][section] = discover()
-        except DiscoveryError:
+        except DiscoveryError as exc:
             report["inventory"][section] = None
             report["unknown_sections"].append(section)
+            report_error(section, str(exc))
 
     dns_inventory = []
     domains = report["inventory"].get("domains")
@@ -273,16 +293,15 @@ def capture_inventory(app, client=None, resolver=resolve_domain, captured_at=Non
         report["unknown_sections"].append("dns")
     else:
         for domain in domains:
-            hostname = domain.get("hostname")
-            if not hostname:
-                continue
+            hostname = domain["hostname"]
             try:
                 dns_inventory.append({"hostname": hostname, "records": resolver(hostname)})
-            except DiscoveryError:
+            except DiscoveryError as exc:
                 report["unknown_sections"].append(f"dns:{hostname}")
+                report_error(f"dns:{hostname}", str(exc))
         report["inventory"]["dns"] = sorted(dns_inventory, key=lambda item: item["hostname"])
 
-    for section in ("app", "processes", "database", "addons", "config_keys", "domains", "dns"):
+    for section in REQUIRED_SECTIONS:
         if report["inventory"].get(section) in (None, [], {}):
             report["unknown_sections"].append(section)
     report["unknown_sections"] = sorted(set(report["unknown_sections"]))
@@ -293,15 +312,25 @@ def verification_errors(report):
     errors = []
     if report.get("schema_version") != SCHEMA_VERSION:
         errors.append("schema_version")
-    if report.get("unknown_sections"):
-        errors.extend(f"unknown:{section}" for section in report["unknown_sections"])
+    if not _text(report.get("captured_at")):
+        errors.append("missing:captured_at")
+    if not _text(_nested(report, "tool_versions", "heroku")):
+        errors.append("missing:tool_versions")
+    unknown_sections = report.get("unknown_sections")
+    if not isinstance(unknown_sections, list):
+        errors.append("unknown_sections")
+    else:
+        errors.extend(f"unknown:{section}" for section in unknown_sections)
     inventory = report.get("inventory")
     if not isinstance(inventory, dict):
         errors.append("inventory")
     else:
-        for section in ("app", "processes", "database", "addons", "config_keys", "domains", "dns"):
+        for section in REQUIRED_SECTIONS:
             if inventory.get(section) in (None, [], {}):
                 errors.append(f"missing:{section}")
+        app_name = _nested(inventory, "app", "name")
+        if app_name is not None and app_name != report.get("target_app"):
+            errors.append("app_name_mismatch")
     confirmations = report.get("confirmations")
     if not isinstance(confirmations, dict):
         errors.append("confirmations")
@@ -325,8 +354,16 @@ def load_report(path):
 def write_report(path, report):
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with destination.open("w", encoding="utf-8", newline="\n") as output:
+    # Write beside the destination and swap in place so an interrupted write never truncates a reviewed report.
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", newline="\n", dir=destination.parent, prefix=f".{destination.name}.", delete=False
+    ) as output:
         output.write(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    try:
+        os.replace(output.name, destination)
+    except OSError:
+        os.unlink(output.name)
+        raise
 
 
 def build_parser():
@@ -347,23 +384,29 @@ def build_parser():
     return parser
 
 
-def main(argv=None):
+def _print_error(section, message):
+    print(f"{section}: {message}", file=sys.stderr)
+
+
+def main(argv=None, client=None, resolver=resolve_domain):
     arguments = build_parser().parse_args(argv)
     try:
         if arguments.command == "capture":
-            report = capture_inventory(arguments.app)
+            report = capture_inventory(arguments.app, client, resolver, on_error=_print_error)
             write_report(arguments.output, report)
-            errors = verification_errors(report)
             print(f"Redacted inventory written to {arguments.output}.")
-            if errors:
-                print("Inventory is incomplete; review unknown sections and record confirmations.")
+            if report["unknown_sections"]:
+                print("Inventory is incomplete; unknown sections: " + ", ".join(report["unknown_sections"]))
                 return 2
-            return 0
+            print("Inventory captured; review every section and record the operator confirmations.")
+            return 3
         if arguments.command == "confirm":
             report = load_report(arguments.input)
             confirmations = report.get("confirmations")
             if not isinstance(confirmations, dict):
                 raise DiscoveryError("The inventory confirmations section is malformed.")
+            if report.get("unknown_sections") != []:
+                raise DiscoveryError("Resolve unknown sections by recapturing before recording confirmations.")
             for name in arguments.confirmation:
                 confirmations[name] = True
             destination = arguments.output or arguments.input
@@ -377,8 +420,8 @@ def main(argv=None):
             return 2
         print("Inventory verification passed.")
         return 0
-    except DiscoveryError as exc:
-        print(str(exc), file=sys.stderr)
+    except (DiscoveryError, OSError) as exc:
+        print(str(exc) if isinstance(exc, DiscoveryError) else "The inventory report could not be written.", file=sys.stderr)
         return 2
 
 

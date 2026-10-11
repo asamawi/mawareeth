@@ -105,7 +105,6 @@ deploy/host-baseline.env
 deploy/runtime/
 deploy/heroku-inventory*.json
 deploy/heroku-inventory*.raw
-docs/operations/heroku-inventory.redacted.json
 .venv
 env/
 venv/

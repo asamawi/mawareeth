@@ -44,13 +44,15 @@ Use an ignored local path for the first capture:
 python deploy/heroku_inventory.py capture --app HEROKU_APP --output deploy/heroku-inventory.local.json
 ```
 
-Capture exits non-zero until all evidence is available and reviewed. It writes only allow-listed app/process/database/add-on/domain fields, configuration key names, DNS answers, observation time, and the Heroku CLI version. Raw Heroku responses are never written. Do not redirect CLI debugging output or save raw API responses; they may contain database URLs or credentials.
+Capture never exits zero, because a fresh report always lacks operator confirmations. Exit `2` means evidence is missing: the unknown sections are listed on stdout and each failure reason, such as authentication, app access, timeout or DNS, is printed to stderr without any Heroku output. Exit `3` means every section was captured and the report now needs review and confirmations. Capture writes only allow-listed app/process/database/add-on/domain fields, configuration key names, DNS A/AAAA answers, observation time, and the Heroku CLI version. Raw Heroku responses are never written. One-off `run` dynos are excluded, and a process command that looks like it carries an inline credential marks the processes section unknown instead of being written. Do not redirect CLI debugging output or save raw API responses; they may contain database URLs or credentials.
 
-Review every section against the Heroku dashboard and the responsible operator's knowledge. Record confirmations explicitly after that review:
+`captured_at`, dyno `state`, and DNS answers are observation metadata: they can change between otherwise identical captures, so compare repeated captures on the remaining fields. A wildcard domain is resolved through an `inventory-wildcard-probe` label it covers.
+
+Review every section against the Heroku dashboard and the responsible operator's knowledge. `confirm` refuses a report with unknown sections; recapture first. Record confirmations explicitly after that review:
 
 ```console
 python deploy/heroku_inventory.py confirm --input deploy/heroku-inventory.local.json --confirmation target_app_confirmed --confirmation database_reviewed --confirmation addons_reviewed --confirmation config_keys_reviewed --confirmation domains_and_dns_reviewed
 python deploy/heroku_inventory.py verify --input deploy/heroku-inventory.local.json
 ```
 
-Verification fails closed when a required section is missing, malformed, unresolved, or unconfirmed. Never replace an unknown value with a repository default. Before proposing a reviewed baseline for source control, inspect the complete file and search for database URL schemes, credentials, tokens, cookies, private keys, certificate material, and configuration values. The default local output and `docs/operations/heroku-inventory.redacted.json` are ignored deliberately; adding a live baseline requires explicit operator approval and a forced add after review.
+Verification fails closed when a required section is missing, malformed, unresolved, or unconfirmed, when the capture time or Heroku CLI version is absent, or when the captured app name differs from the target app. Never replace an unknown value with a repository default. Before proposing a reviewed baseline for source control, inspect the complete file and search for database URL schemes, credentials, tokens, cookies, private keys, certificate material, and configuration values. The default local output is ignored deliberately. The reviewed baseline at `docs/operations/heroku-inventory.redacted.json` is tracked, and the automated tests verify it and scan it for secret material, so any change to it must pass `python manage.py test` and operator review before merge.
