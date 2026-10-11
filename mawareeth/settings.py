@@ -150,6 +150,14 @@ INSTALLED_APPS = [
 # See: https://docs.djangoproject.com/en/stable/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Templates use {% icon 'name' %} against the Font Awesome 4.7.0 CSS loaded in
+# calc/base.html, which needs the "fa fa-<name>" class pair, not a bare name.
+DJANGO_ICONS = {
+    'DEFAULTS': {
+        'renderer': 'fontawesome4',
+    },
+}
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
