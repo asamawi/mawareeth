@@ -10,6 +10,10 @@ permissions:
   contents: read
   packages: write
 
+env:
+  CONFIGURATION_SCHEMA_VERSION: "1"
+  MIGRATION_CONTRACT: expand-migrate-contract-v1
+
 jobs:
   publish:
     if: >-
@@ -17,55 +21,129 @@ jobs:
       github.event.workflow_run.event == 'push' &&
       contains(fromJson('["dev","main","master"]'), github.event.workflow_run.head_branch)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
+      - name: Derive immutable image identity
+        id: image
+        shell: bash
+        run: |
+          repository="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "repository=$repository" >> "$GITHUB_OUTPUT"
+          echo "tag=$repository:${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Derive image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=sha,format=long,prefix=
-
-      - name: Build and publish image
-        id: build
-        uses: docker/build-push-action@v6
+      - name: Build release image once
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          load: true
+          push: false
+          tags: ${{ steps.image.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
           build-args: |
             RELEASE_VERSION=${{ github.event.workflow_run.head_sha }}
             RELEASE_COMMIT_SHA=${{ github.event.workflow_run.head_sha }}
 
-      - name: Write release metadata
+      - name: Smoke-test release image
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          cat > release-metadata.json <<'EOF'
-          {
-            "git_sha": "${{ github.event.workflow_run.head_sha }}",
-            "image": "${{ steps.meta.outputs.tags }}",
-            "digest": "${{ steps.build.outputs.digest }}",
-            "workflow": "Django CI",
-            "workflow_run_id": "${{ github.event.workflow_run.id }}"
+          set -euo pipefail
+          container="mawareeth-release-smoke"
+          cleanup() {
+            docker logs "$container" 2>&1 || true
+            docker rm -f "$container" >/dev/null 2>&1 || true
           }
-          EOF
+          trap cleanup EXIT
+          docker run --detach --name "$container" --publish 127.0.0.1::8000 \
+            --env DJANGO_ENV=production \
+            --env DJANGO_KEY=ci-smoke-validation-key-with-sufficient-length-0123456789 \
+            --env DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost \
+            --env DJANGO_CSRF_TRUSTED_ORIGINS=https://localhost \
+            --env DATABASE_URL=sqlite:////tmp/mawareeth-smoke.sqlite3 \
+            --env DATABASE_SSL_MODE=disable \
+            --env MAILGUN_ACCESS_KEY=build-only \
+            --env MAILGUN_SERVER_NAME=build.example.invalid \
+            "$IMAGE_TAG"
+          port="$(docker port "$container" 8000/tcp | head -n 1 | sed 's/.*://')"
+          for attempt in {1..30}; do
+            if [ "$(docker inspect --format '{{.State.Running}}' "$container")" != "true" ]; then
+              exit 1
+            fi
+            if curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:$port/health/live/" >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              exit 1
+            fi
+            sleep 1
+          done
+          curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:$port/health/release/" > release-identity.json
+          python3 -c 'import json, os; data=json.load(open("release-identity.json", encoding="utf-8")); expected=os.environ["EXPECTED_SHA"]; assert data["release"] == expected and data["commit"] == expected'
 
-      - name: Upload release metadata
-        uses: actions/upload-artifact@v4
+      # Reject unsupported contract inputs before anything reaches the registry;
+      # the placeholder digest is replaced by the pushed digest below.
+      - name: Preflight release manifest inputs
+        shell: bash
+        run: |
+          python3 deploy/release_manifest.py build \
+            --git-sha "${{ github.event.workflow_run.head_sha }}" \
+            --image-repository "${{ steps.image.outputs.repository }}" \
+            --image-digest "sha256:0000000000000000000000000000000000000000000000000000000000000000" \
+            --configuration-schema "$CONFIGURATION_SCHEMA_VERSION" \
+            --migration-contract "$MIGRATION_CONTRACT" \
+            --workflow-run-id "${{ github.event.workflow_run.id }}" \
+            --expected-repository "${{ steps.image.outputs.repository }}" \
+            --output "$RUNNER_TEMP/release-manifest-preflight.json"
+
+      - name: Push smoke-tested image
+        id: push
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE_TAG" | tee docker-push.log
+          digest="$(sed -nE 's/^.*digest: (sha256:[0-9a-f]{64}).*$/\1/p' docker-push.log | tail -n 1)"
+          test -n "$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Build and validate release manifest
+        shell: bash
+        run: |
+          python3 deploy/release_manifest.py build \
+            --git-sha "${{ github.event.workflow_run.head_sha }}" \
+            --image-repository "${{ steps.image.outputs.repository }}" \
+            --image-digest "${{ steps.push.outputs.digest }}" \
+            --configuration-schema "$CONFIGURATION_SCHEMA_VERSION" \
+            --migration-contract "$MIGRATION_CONTRACT" \
+            --workflow-run-id "${{ github.event.workflow_run.id }}" \
+            --expected-repository "${{ steps.image.outputs.repository }}" \
+            --output release-manifest.json
+          python3 deploy/release_manifest.py validate --input release-manifest.json \
+            --expected-repository "${{ steps.image.outputs.repository }}"
+
+      - name: Upload release manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: release-metadata
-          path: release-metadata.json
+          name: release-manifest-${{ github.event.workflow_run.head_sha }}
+          path: release-manifest.json
+          if-no-files-found: error
+          retention-days: 90

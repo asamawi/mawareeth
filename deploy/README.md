@@ -2,6 +2,18 @@
 
 This directory creates the secure substrate only. It does not install Compose services, Caddy, Django, PostgreSQL, backups, DNS, monitoring, or deploy an application.
 
+## Immutable release artifacts
+
+`Django CI` remains the application validation authority. After a successful push run on an allowed release branch, `.github/workflows/deploy.yml` checks out that run's exact commit, builds the application image once, starts that local image, and verifies both liveness and the baked release identity before pushing the same tag to GHCR. A failed build, smoke probe, identity assertion, registry push, or manifest validation prevents publication of a deployable manifest.
+
+The workflow uploads `release-manifest-<commit>` containing `release-manifest.json`. Its `application.image` is the only production-consumable image identity and has the canonical form `ghcr.io/<owner>/<repository>@sha256:<digest>`; branch names and tags are not deployment inputs. The manifest also binds the same 40-character commit as the human release identity and deployment-bundle revision, plus configuration schema `1`, migration contract `expand-migrate-contract-v1`, and the successful `Django CI` workflow run. The deployment-bundle commit identifies all tracked Compose, Caddy, and deploy files added by later stories.
+
+`deploy/release_manifest.py validate --input release-manifest.json --expected-repository ghcr.io/<owner>/<repository>` fails closed on missing, extra, duplicate, malformed, or inconsistent fields, on an image from any other repository, and on configuration schemas or migration contracts outside the supported sets in `release_manifest.py`. Consumers must always pass `--expected-repository`. The manifest compatibility version, configuration schema, and migration contract are release interfaces: change them only through an explicit compatibility decision, by updating both the workflow `env` and the supported sets.
+
+The workflow validates the manifest inputs before pushing, so an unsupported contract never reaches GHCR. A registry push that succeeds before a later step fails can still leave a `:<commit>` tag without a manifest; never deploy by tag. Re-running the workflow rebuilds and re-pushes that tag with a new digest. Earlier manifests still name their own digests, so keep GHCR cleanup from deleting untagged versions that a retained manifest references. Manifest artifacts are kept for 90 days; archive any manifest you may need to roll back to after that.
+
+`deploy.yml` runs from the default branch (a `workflow_run` rule), but it checks out and executes `deploy/release_manifest.py` from the released commit. Keep the script's CLI backward compatible with the default branch's workflow, or merge workflow and CLI changes together. The manifest contains identities and contract versions only. Runtime credentials, environment values, secret material, host deployment logic, and mutable source references must never be added. Stories 0.5 and 0.6 consume and verify this contract; this workflow does not contact or deploy to the production host.
+
 ## Prerequisites and inputs
 
 Run only from an administrator workstation, never CI, with `bash`, `python3`, `jq`, OpenSSH, and the Hetzner `hcloud` CLI installed. Use a minimally scoped Hetzner token that can manage the one SSH key, firewall, and server. Agree the server name, key identity, SSH source CIDRs, and a weekly maintenance window before running.

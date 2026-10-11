@@ -273,19 +273,51 @@ class WorkflowContractTests(SimpleTestCase):
             r" +python manage\.py check --deploy --fail-level WARNING\n",
         )
 
-    def test_publish_workflow_builds_image_after_validation(self):
+    def test_publish_workflow_gates_untrusted_runs(self):
         workflow = (PROJECT_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
-        required_snippets = [
-            "workflow_run:",
-            "Django CI",
-            "docker/build-push-action",
-            "push: true",
-            "release-metadata.json",
-            "steps.build.outputs.digest",
-            "build-args:",
-            "RELEASE_VERSION=${{ github.event.workflow_run.head_sha }}",
-            "RELEASE_COMMIT_SHA=${{ github.event.workflow_run.head_sha }}",
-        ]
+        required_snippets = (
+            "github.event.workflow_run.conclusion == 'success'",
+            "github.event.workflow_run.event == 'push'",
+            "contains(fromJson('[\"dev\",\"main\",\"master\"]'), github.event.workflow_run.head_branch)",
+            "ref: ${{ github.event.workflow_run.head_sha }}",
+        )
         for snippet in required_snippets:
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, workflow)
+
+    def test_publish_workflow_builds_smokes_pushes_and_manifests_in_order(self):
+        workflow = (PROJECT_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+        ordered_steps = (
+            "- name: Build release image once",
+            "- name: Smoke-test release image",
+            "- name: Preflight release manifest inputs",
+            "- name: Push smoke-tested image",
+            "- name: Build and validate release manifest",
+            "- name: Upload release manifest",
+        )
+        positions = [workflow.index(step) for step in ordered_steps]
+
+        self.assertEqual(positions, sorted(positions))
+        self.assertEqual(workflow.count("docker/build-push-action@"), 1)
+        self.assertIn("load: true", workflow)
+        self.assertIn("push: false", workflow)
+        self.assertIn("/health/live/", workflow)
+        self.assertIn("/health/release/", workflow)
+        self.assertIn('data["release"] == expected and data["commit"] == expected', workflow)
+        self.assertIn('docker push "$IMAGE_TAG"', workflow)
+        self.assertIn("steps.push.outputs.digest", workflow)
+        self.assertIn("release_manifest.py validate --input release-manifest.json", workflow)
+        self.assertEqual(workflow.count('--expected-repository "${{ steps.image.outputs.repository }}"'), 3)
+        self.assertNotIn("release-metadata.json", workflow)
+
+    def test_workflows_pin_third_party_actions(self):
+        for name in ("deploy.yml", "django.yml"):
+            workflow = (PROJECT_ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+            action_references = re.findall(r"(?m)^\s*(?:-\s+)?uses:\s*(\S+)", workflow)
+
+            with self.subTest(workflow=name):
+                self.assertTrue(action_references)
+                self.assertEqual(len(action_references), workflow.count("uses:"))
+            for reference in action_references:
+                with self.subTest(workflow=name, reference=reference):
+                    self.assertRegex(reference, r"^[^@]+@[0-9a-f]{40}$")
