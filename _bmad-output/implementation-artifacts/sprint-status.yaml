@@ -43,7 +43,7 @@ development_status:
   epic-0: in-progress
   0-1-capture-and-verify-the-heroku-inventory: done
   0-2-make-django-production-ready: done
-  0-3-build-immutable-ci-artifacts: backlog
+  0-3-build-immutable-ci-artifacts: done
   0-4-create-the-secured-hetzner-host-baseline: done
   0-5-build-the-private-compose-runtime: backlog
   0-6-implement-safe-blue-green-deployment: backlog
