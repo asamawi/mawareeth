@@ -31,3 +31,6 @@
 - source_spec: none
   summary: `_bmad-output/implementation-artifacts/sprint-status.yaml`'s `generated` timestamp (`2026-03-04 09:18:51`) fails `sprint_plan.py validate` because it includes seconds, which none of the tool's accepted formats support.
   evidence: Pre-existing — confirmed by running `sprint_plan.py validate` after this story's changes; the `generated` field was untouched by this story's diff, so this is not caused by it.
+- source_spec: none
+  summary: Bump `oauthlib` (3.3.1 → ≥4.0.0) and `social-auth-core` (4.8.1 → ≥5.0.0) to close 7 Dependabot alerts (1 high, 6 medium, including a social-auth-core account-takeover and a login-CSRF finding), with real end-to-end testing of the OAuth/social-login flow before shipping.
+  evidence: Both are major-version bumps directly backing `mawareeth/settings.py`'s social-login configuration; flattening `requirements.txt` (this story's earlier fix) made GitHub's dependency graph visible for the first time, surfacing these alerts. Deferred rather than bumped blind because a regression here breaks login, not just a lint check, and this environment has no way to exercise the live OAuth flow end-to-end.
