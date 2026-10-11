@@ -33,3 +33,24 @@ Django trusts `X-Forwarded-Proto` from its upstream, so it must stay reachable o
 On the host, `sudo ufw status numbered` must show TCP 22 only from the configured CIDRs and TCP 80/443 only; it must not show app, Docker, or PostgreSQL ports. In Hetzner, inspect the attached edge firewall for the same allow-list. Confirm `sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|pubkeyauthentication'`, `docker --version`, `docker compose version`, `stat -c '%U %G %a' /etc/mawareeth/runtime.env`, and `hcloud server describe SERVER` (deletion protection). Public checks must find only ports 80 and 443; port 22 is reachable only from an approved source.
 
 Also confirm the Docker-port backstop is active and in effect: `systemctl is-active mawareeth-docker-firewall.service` must report `active`, and `sudo iptables -L DOCKER-USER -n` (plus `sudo ip6tables -L DOCKER-USER -n` where IPv6 is enabled) must show only the established-traffic accept, the 80/443 accept, and the trailing drop. Re-check this after any `systemctl restart docker`, since Docker recreates its own chain independently of `ufw`.
+
+## Heroku migration inventory
+
+Capture the live migration baseline only from an operator workstation with Python dependencies installed, the Heroku CLI installed, and an authenticated account that has read access to the production app. Confirm the exact app identifier before running. The utility performs only read operations against Heroku and public DNS; it does not connect to PostgreSQL or change the app, configuration, add-ons, domains, DNS, releases, or data.
+
+Use an ignored local path for the first capture:
+
+```console
+python deploy/heroku_inventory.py capture --app HEROKU_APP --output deploy/heroku-inventory.local.json
+```
+
+Capture exits non-zero until all evidence is available and reviewed. It writes only allow-listed app/process/database/add-on/domain fields, configuration key names, DNS answers, observation time, and the Heroku CLI version. Raw Heroku responses are never written. Do not redirect CLI debugging output or save raw API responses; they may contain database URLs or credentials.
+
+Review every section against the Heroku dashboard and the responsible operator's knowledge. Record confirmations explicitly after that review:
+
+```console
+python deploy/heroku_inventory.py confirm --input deploy/heroku-inventory.local.json --confirmation target_app_confirmed --confirmation database_reviewed --confirmation addons_reviewed --confirmation config_keys_reviewed --confirmation domains_and_dns_reviewed
+python deploy/heroku_inventory.py verify --input deploy/heroku-inventory.local.json
+```
+
+Verification fails closed when a required section is missing, malformed, unresolved, or unconfirmed. Never replace an unknown value with a repository default. Before proposing a reviewed baseline for source control, inspect the complete file and search for database URL schemes, credentials, tokens, cookies, private keys, certificate material, and configuration values. The default local output and `docs/operations/heroku-inventory.redacted.json` are ignored deliberately; adding a live baseline requires explicit operator approval and a forced add after review.

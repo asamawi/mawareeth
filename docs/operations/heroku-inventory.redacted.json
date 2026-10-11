@@ -1,0 +1,135 @@
+{
+  "captured_at": "2026-10-11T17:00:18+00:00",
+  "confirmations": {
+    "addons_reviewed": true,
+    "config_keys_reviewed": true,
+    "database_reviewed": true,
+    "domains_and_dns_reviewed": true,
+    "target_app_confirmed": true
+  },
+  "inventory": {
+    "addons": [
+      {
+        "name": "postgresql-adjacent-11016",
+        "plan": "heroku-postgresql:essential-1",
+        "service": "heroku-postgresql",
+        "state": "provisioned"
+      }
+    ],
+    "app": {
+      "maintenance": false,
+      "name": "mawareeth",
+      "region": "eu",
+      "stack": "heroku-24",
+      "web_url": "https://mawareeth.herokuapp.com/"
+    },
+    "config_keys": [
+      "CSRF_COOKIE",
+      "DATABASE_HOST",
+      "DATABASE_NAME",
+      "DATABASE_SSL_MODE",
+      "DATABASE_URL",
+      "DB",
+      "DEBUG",
+      "DJANGO_ALLOWED_HOSTS",
+      "DJANGO_CSRF_TRUSTED_ORIGINS",
+      "DJANGO_ENV",
+      "DJANGO_KEY",
+      "ENGINE",
+      "FACEBOOK_KEY",
+      "FACEBOOK_SECRET",
+      "HEROKU_POSTGRESQL_JADE_URL",
+      "INSTAGRAM_KEY",
+      "INSTAGRAM_SECRET",
+      "LINKEDIN_KEY",
+      "LINKEDIN_SECRET",
+      "MAILGUN_ACCESS_KEY",
+      "MAILGUN_SERVER_NAME",
+      "SESSION_COOKIE",
+      "SITE_ID",
+      "SSL_REDIRECT"
+    ],
+    "database": [
+      {
+        "add_on": "postgresql-adjacent-11016",
+        "attachments": [
+          "DATABASE_URL",
+          "HEROKU_POSTGRESQL_JADE_URL"
+        ],
+        "pg_version": "17.10",
+        "plan": "essential-1",
+        "status": "Available"
+      }
+    ],
+    "dns": [
+      {
+        "hostname": "mawareeth.com",
+        "records": {
+          "A": [
+            "15.197.129.158",
+            "75.2.43.161",
+            "76.223.11.49",
+            "99.83.217.1"
+          ]
+        }
+      },
+      {
+        "hostname": "mawareeth.herokuapp.com",
+        "records": {
+          "A": [
+            "166.117.10.166",
+            "166.117.125.185",
+            "35.71.139.13",
+            "99.83.231.39"
+          ]
+        }
+      },
+      {
+        "hostname": "www.mawareeth.com",
+        "records": {
+          "A": [
+            "15.197.129.158",
+            "75.2.43.161",
+            "76.223.11.49",
+            "99.83.217.1"
+          ]
+        }
+      }
+    ],
+    "domains": [
+      {
+        "acm_status": "cert issued",
+        "cname": "current-cephalopod-rm7p1szj48m64pfhzv4pkvtv.herokudns.com",
+        "hostname": "mawareeth.com",
+        "kind": "custom",
+        "status": "succeeded"
+      },
+      {
+        "hostname": "mawareeth.herokuapp.com",
+        "kind": "heroku",
+        "status": "succeeded"
+      },
+      {
+        "acm_status": "cert issued",
+        "cname": "systematic-atoll-kcfkhlnr33zt8cx690rykb3n.herokudns.com",
+        "hostname": "www.mawareeth.com",
+        "kind": "custom",
+        "status": "succeeded"
+      }
+    ],
+    "processes": [
+      {
+        "command": "gunicorn mawareeth.wsgi:application --bind 0.0.0.0:${PORT:-8000} --access-logfile - --log-file -",
+        "size": "Basic",
+        "state": "up",
+        "type": "web"
+      }
+    ]
+  },
+  "schema_version": 1,
+  "target_app": "mawareeth",
+  "tool_versions": {
+    "heroku": "heroku/11.0.0 win32-x64 node-v22.22.1"
+  },
+  "unknown_sections": []
+}

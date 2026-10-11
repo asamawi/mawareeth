@@ -41,7 +41,7 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   epic-0: in-progress
-  0-1-capture-and-verify-the-heroku-inventory: backlog
+  0-1-capture-and-verify-the-heroku-inventory: in-progress
   0-2-make-django-production-ready: done
   0-3-build-immutable-ci-artifacts: backlog
   0-4-create-the-secured-hetzner-host-baseline: done
@@ -104,4 +104,4 @@ development_status:
   7-5-certify-draft-report-as-approved-lawyer: backlog
   7-6-audit-trail-for-certification-actions: backlog
   epic-7-retrospective: optional
-last_updated: 10-11-2026 19:30
+last_updated: 10-11-2026 19:54
