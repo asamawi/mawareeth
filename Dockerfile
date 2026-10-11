@@ -28,6 +28,8 @@ RUN DJANGO_ENV=production \
     DJANGO_CSRF_TRUSTED_ORIGINS=https://build.example.invalid \
     DATABASE_URL=sqlite:////tmp/mawareeth-build.sqlite3 \
     DATABASE_SSL_MODE=disable \
+    MAILGUN_ACCESS_KEY=build-only \
+    MAILGUN_SERVER_NAME=build.example.invalid \
     RELEASE_VERSION="$RELEASE_VERSION" \
     RELEASE_COMMIT_SHA="$RELEASE_COMMIT_SHA" \
     python manage.py collectstatic --noinput && \
@@ -37,9 +39,11 @@ RUN DJANGO_ENV=production \
     DJANGO_CSRF_TRUSTED_ORIGINS=https://build.example.invalid \
     DATABASE_URL=sqlite:////tmp/mawareeth-build.sqlite3 \
     DATABASE_SSL_MODE=disable \
+    MAILGUN_ACCESS_KEY=build-only \
+    MAILGUN_SERVER_NAME=build.example.invalid \
     RELEASE_VERSION="$RELEASE_VERSION" \
     RELEASE_COMMIT_SHA="$RELEASE_COMMIT_SHA" \
-    python manage.py check --deploy
+    python manage.py check --deploy --fail-level WARNING
 
 FROM python:3.12.14-slim@sha256:2fe5997d249a808b8eeea52c58a1dbffbba28754dc11699ef5c029f2d818ce79 AS runtime
 

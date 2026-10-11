@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.db import connections
+from django.db.migrations.executor import MigrationExecutor
 from django.http import JsonResponse
+from django.views.decorators.cache import never_cache
 
 
 def _database_ready():
@@ -12,14 +14,25 @@ def _database_ready():
     return bool(row and row[0] == 1)
 
 
+def _schema_ready():
+    # Ready only when every migration this release ships has been applied.
+    # Migrations applied by a newer release are ignored, so an older slot
+    # stays ready across a compatible expand/migrate handover.
+    executor = MigrationExecutor(connections["default"])
+    targets = executor.loader.graph.leaf_nodes()
+    return not executor.migration_plan(targets)
+
+
+@never_cache
 def live(request):
     return JsonResponse({"status": "ok", "service": "mawareeth"})
 
 
+@never_cache
 def ready(request):
     try:
-        if _database_ready():
-            return JsonResponse({"status": "ok", "database": "ok"})
+        if _database_ready() and _schema_ready():
+            return JsonResponse({"status": "ok", "database": "ok", "schema": "ok"})
     except Exception:
         # Readiness must remain safe for public probes: do not expose driver,
         # database, or configuration details when its dependency is unavailable.
@@ -27,6 +40,7 @@ def ready(request):
     return JsonResponse({"status": "error"}, status=503)
 
 
+@never_cache
 def release(request):
     payload = {
         "status": "ok",
