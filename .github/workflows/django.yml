@@ -62,7 +62,7 @@ jobs:
       - name: Run deploy checks
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
-        run: python manage.py check --deploy
+        run: python manage.py check --deploy --fail-level WARNING
 
       - name: Run tests
         env:

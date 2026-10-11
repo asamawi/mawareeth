@@ -24,6 +24,10 @@ if DJANGO_ENV not in VALID_DJANGO_ENVS:
     raise ImproperlyConfigured(f"DJANGO_ENV must be one of: {allowed}.")
 IS_PRODUCTION = DJANGO_ENV == "production"
 VALID_DATABASE_SSL_MODES = {"disable", "prefer", "require", "verify-ca", "verify-full"}
+VERIFIED_DATABASE_SSL_MODES = {"verify-ca", "verify-full"}
+# "require" stays allowed while production still runs on Heroku Postgres,
+# which does not support certificate verification. Drop it once off Heroku.
+PRODUCTION_DATABASE_SSL_MODES = {"disable", "require"} | VERIFIED_DATABASE_SSL_MODES
 
 
 def _csv_setting(name, *, required=False):
@@ -70,7 +74,33 @@ def _database_ssl_mode():
     if mode not in VALID_DATABASE_SSL_MODES:
         allowed = ", ".join(sorted(VALID_DATABASE_SSL_MODES))
         raise ImproperlyConfigured(f"DATABASE_SSL_MODE must be one of: {allowed}.")
+    if IS_PRODUCTION and mode not in PRODUCTION_DATABASE_SSL_MODES:
+        # "prefer" silently falls back to plaintext; production must state
+        # either private non-TLS ("disable") or an intentional TLS mode.
+        allowed = ", ".join(sorted(PRODUCTION_DATABASE_SSL_MODES))
+        raise ImproperlyConfigured(
+            f"DATABASE_SSL_MODE must be one of {allowed} when DJANGO_ENV=production."
+        )
     return mode
+
+
+def _database_ssl_root_cert(ssl_mode):
+    root_cert = config("DATABASE_SSL_ROOT_CERT", default="").strip()
+    if IS_PRODUCTION and ssl_mode in VERIFIED_DATABASE_SSL_MODES:
+        if not root_cert:
+            raise ImproperlyConfigured(
+                f"DATABASE_SSL_ROOT_CERT must be set when DATABASE_SSL_MODE={ssl_mode}."
+            )
+        if not os.access(root_cert, os.R_OK) or not Path(root_cert).is_file():
+            raise ImproperlyConfigured("DATABASE_SSL_ROOT_CERT must be the path of a readable CA file.")
+    return root_cert
+
+
+def _required_production_setting(name, default):
+    value = config(name, default="").strip()
+    if IS_PRODUCTION and not value:
+        raise ImproperlyConfigured(f"{name} must be set when DJANGO_ENV=production.")
+    return value or default
 
 
 def _require_secret_key():
@@ -85,6 +115,7 @@ def _build_database_config():
     database_url = config("DATABASE_URL", default="")
     connect_timeout = config("DATABASE_CONNECT_TIMEOUT", default=5, cast=int)
     ssl_mode = _database_ssl_mode()
+    ssl_root_cert = _database_ssl_root_cert(ssl_mode)
 
     if connect_timeout <= 0:
         raise ImproperlyConfigured("DATABASE_CONNECT_TIMEOUT must be a positive integer.")
@@ -108,6 +139,8 @@ def _build_database_config():
     if "postgresql" in database.get("ENGINE", ""):
         database.setdefault("OPTIONS", {})
         database["OPTIONS"]["sslmode"] = ssl_mode
+        if ssl_root_cert:
+            database["OPTIONS"]["sslrootcert"] = ssl_root_cert
         database["OPTIONS"].setdefault("connect_timeout", connect_timeout)
 
     return {"default": database}
@@ -159,6 +192,9 @@ DJANGO_ICONS = {
 }
 
 MIDDLEWARE = [
+    # Must stay first: private health probes bypass host validation and the
+    # HTTPS redirect applied by everything below it.
+    'mawareeth.middleware.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -263,9 +299,9 @@ LANGUAGES = [
 LOGIN_REDIRECT_URL = 'calc:index'
 LOGOUT_REDIRECT_URL = 'calc:index'
 ANYMAIL = {
-    "MAILGUN_API_KEY" : config('MAILGUN_ACCESS_KEY', default='dummy'),
+    "MAILGUN_API_KEY" : _required_production_setting('MAILGUN_ACCESS_KEY', default='dummy'),
     "MAILGUN_API_URL": "https://api.eu.mailgun.net/v3",
-    "MAILGUN_SENDER_DOMAIN" : config('MAILGUN_SERVER_NAME', default='dummy'),
+    "MAILGUN_SENDER_DOMAIN" : _required_production_setting('MAILGUN_SERVER_NAME', default='dummy'),
 }
 EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
 DEFAULT_FROM_EMAIL = "noreply@mawareeth.com"

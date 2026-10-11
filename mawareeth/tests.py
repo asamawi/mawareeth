@@ -2,10 +2,13 @@ import importlib.util
 import os
 import re
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from uuid import uuid4
 
 from django.core.exceptions import ImproperlyConfigured
+from django.db import connection
+from django.db.migrations.recorder import MigrationRecorder
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
@@ -86,9 +89,55 @@ class ProductionSettingsTests(SimpleTestCase):
             load_settings_module({"DATABASE_CONNECT_TIMEOUT": "0"})
 
     def test_explicit_database_ssl_mode_is_applied(self):
-        module = load_settings_module({"DATABASE_SSL_MODE": "require"})
-        self.assertEqual(module.DATABASES["default"]["OPTIONS"]["sslmode"], "require")
-        self.assertFalse(module.DEBUG)
+        # "require" is what Heroku Postgres supports today.
+        for mode in ("disable", "require"):
+            with self.subTest(mode=mode):
+                module = load_settings_module({"DATABASE_SSL_MODE": mode})
+                self.assertEqual(module.DATABASES["default"]["OPTIONS"]["sslmode"], mode)
+                self.assertFalse(module.DEBUG)
+
+    def test_opportunistic_database_ssl_mode_raises(self):
+        with self.assertRaisesRegex(ImproperlyConfigured, "DATABASE_SSL_MODE"):
+            load_settings_module({"DATABASE_SSL_MODE": "prefer"})
+
+    def test_opportunistic_database_ssl_mode_allowed_outside_production(self):
+        module = load_settings_module({"DJANGO_ENV": "development", "DATABASE_SSL_MODE": "prefer"})
+        self.assertEqual(module.DATABASES["default"]["OPTIONS"]["sslmode"], "prefer")
+
+    def test_verified_database_ssl_mode_without_root_cert_raises(self):
+        for mode in ("verify-ca", "verify-full"):
+            with self.subTest(mode=mode), self.assertRaisesRegex(ImproperlyConfigured, "DATABASE_SSL_ROOT_CERT"):
+                load_settings_module({"DATABASE_SSL_MODE": mode})
+
+    def test_verified_database_ssl_mode_with_missing_root_cert_file_raises(self):
+        with self.assertRaisesRegex(ImproperlyConfigured, "DATABASE_SSL_ROOT_CERT"):
+            load_settings_module(
+                {"DATABASE_SSL_MODE": "verify-full", "DATABASE_SSL_ROOT_CERT": str(PROJECT_ROOT / "missing-ca.pem")}
+            )
+
+    def test_verified_database_ssl_mode_without_root_cert_allowed_outside_production(self):
+        module = load_settings_module({"DJANGO_ENV": "development", "DATABASE_SSL_MODE": "verify-full"})
+        self.assertNotIn("sslrootcert", module.DATABASES["default"]["OPTIONS"])
+
+    def test_verified_database_ssl_mode_applies_root_cert(self):
+        with TemporaryDirectory() as directory:
+            root_cert = Path(directory) / "db-ca.pem"
+            root_cert.write_text("test CA", encoding="utf-8")
+            module = load_settings_module(
+                {"DATABASE_SSL_MODE": "verify-full", "DATABASE_SSL_ROOT_CERT": str(root_cert)}
+            )
+        options = module.DATABASES["default"]["OPTIONS"]
+        self.assertEqual(options["sslmode"], "verify-full")
+        self.assertEqual(options["sslrootcert"], str(root_cert))
+
+    def test_missing_mailgun_credentials_raise(self):
+        for name in ("MAILGUN_ACCESS_KEY", "MAILGUN_SERVER_NAME"):
+            with self.subTest(name=name), self.assertRaisesRegex(ImproperlyConfigured, name):
+                load_settings_module({name: ""})
+
+    def test_health_middleware_runs_before_host_and_https_enforcement(self):
+        module = load_settings_module({})
+        self.assertEqual(module.MIDDLEWARE[0], "mawareeth.middleware.HealthCheckMiddleware")
 
 
 class OpsEndpointTests(TestCase):
@@ -100,7 +149,7 @@ class OpsEndpointTests(TestCase):
     def test_readiness_endpoint_returns_ok(self):
         response = self.client.get(reverse("ops-ready"), secure=True)
         self.assertEqual(response.status_code, 200)
-        self.assertJSONEqual(response.content, {"status": "ok", "database": "ok"})
+        self.assertJSONEqual(response.content, {"status": "ok", "database": "ok", "schema": "ok"})
 
     def test_readiness_endpoint_returns_503_without_diagnostics(self):
         with patch("mawareeth.ops_views._database_ready", return_value=False):
@@ -109,10 +158,35 @@ class OpsEndpointTests(TestCase):
         self.assertJSONEqual(response.content, {"status": "error"})
 
     def test_readiness_endpoint_hides_database_exception(self):
-        with patch("mawareeth.ops_views._database_ready", side_effect=RuntimeError("password leaked")):
+        with (
+            patch("mawareeth.ops_views._database_ready", side_effect=RuntimeError("password leaked")),
+            self.assertLogs("mawareeth.ops_views", level="ERROR") as logs,
+        ):
             response = self.client.get(reverse("ops-ready"), secure=True)
         self.assertEqual(response.status_code, 503)
         self.assertJSONEqual(response.content, {"status": "error"})
+        self.assertIn("password leaked", "\n".join(logs.output))
+
+    def test_readiness_endpoint_returns_503_with_unapplied_migrations(self):
+        with (
+            patch(
+                "mawareeth.ops_views.MigrationExecutor.migration_plan",
+                return_value=[("pending-migration", False)],
+            ),
+            self.assertLogs("mawareeth.ops_views", level="WARNING") as logs,
+        ):
+            response = self.client.get(reverse("ops-ready"), secure=True)
+        self.assertEqual(response.status_code, 503)
+        self.assertJSONEqual(response.content, {"status": "error"})
+        self.assertIn("unapplied migrations", "\n".join(logs.output))
+
+    def test_readiness_ignores_migrations_applied_by_a_newer_release(self):
+        # During expand/migrate the new release records migrations this
+        # release's graph does not contain; the old slot must stay ready.
+        MigrationRecorder(connection).record_applied("calc", "9999_applied_by_newer_release")
+        response = self.client.get(reverse("ops-ready"), secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(response.content, {"status": "ok", "database": "ok", "schema": "ok"})
 
     @override_settings(RELEASE_VERSION="build-2026-09-02", RELEASE_COMMIT_SHA="abc1234")
     def test_release_identity_endpoint_returns_expected_markers(self):
@@ -122,6 +196,57 @@ class OpsEndpointTests(TestCase):
         self.assertEqual(response.json()["release"], "build-2026-09-02")
         self.assertEqual(response.json()["commit"], "abc1234")
 
+    def test_health_responses_are_not_cacheable(self):
+        for name in ("ops-live", "ops-ready", "ops-release"):
+            with self.subTest(name=name):
+                response = self.client.get(reverse(name), secure=True)
+                self.assertIn("no-store", response["Cache-Control"])
+
+
+@override_settings(ALLOWED_HOSTS=["mawareeth.example"], SECURE_SSL_REDIRECT=True)
+class PrivateHealthProbeTests(TestCase):
+    """Probes from inside the Compose network use plain HTTP and slot hostnames."""
+
+    def test_private_probes_bypass_host_validation_and_https_redirect(self):
+        for host in ("app-blue:8000", "localhost:8000", "mawareeth.example"):
+            for name in ("ops-live", "ops-ready", "ops-release"):
+                with self.subTest(host=host, name=name):
+                    response = self.client.get(reverse(name), HTTP_HOST=host)
+                    self.assertEqual(response.status_code, 200)
+
+    def test_head_probe_is_answered(self):
+        response = self.client.head(reverse("ops-live"), HTTP_HOST="app-green:8000")
+        self.assertEqual(response.status_code, 200)
+
+    def test_probes_without_trailing_slash_are_answered(self):
+        for path in ("/health/live", "/health/ready", "/health/release"):
+            with self.subTest(path=path):
+                response = self.client.get(path, HTTP_HOST="app-blue:8000")
+                self.assertEqual(response.status_code, 200)
+
+    def test_probe_responses_keep_security_headers(self):
+        response = self.client.get(reverse("ops-live"), HTTP_HOST="app-blue:8000")
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response["Referrer-Policy"], "same-origin")
+
+    @override_settings(SECURE_HSTS_SECONDS=31536000)
+    def test_public_https_probe_responses_carry_hsts(self):
+        response = self.client.get(reverse("ops-live"), HTTP_HOST="mawareeth.example", secure=True)
+        self.assertIn("max-age=31536000", response["Strict-Transport-Security"])
+
+    def test_other_paths_still_enforce_allowed_hosts(self):
+        response = self.client.get("/health/live/extra", HTTP_HOST="app-blue:8000")
+        self.assertEqual(response.status_code, 400)
+
+    def test_non_read_methods_on_health_paths_are_not_bypassed(self):
+        response = self.client.post(reverse("ops-live"), HTTP_HOST="app-blue:8000")
+        self.assertEqual(response.status_code, 400)
+
+    def test_public_requests_still_redirect_to_https(self):
+        response = self.client.get(reverse("calc:home"), HTTP_HOST="mawareeth.example")
+        self.assertEqual(response.status_code, 301)
+        self.assertTrue(response["Location"].startswith("https://mawareeth.example/"))
+
 
 class WorkflowContractTests(SimpleTestCase):
     def test_validation_workflow_contains_required_release_gates(self):
@@ -130,7 +255,7 @@ class WorkflowContractTests(SimpleTestCase):
             "python manage.py makemigrations --check --dry-run",
             "python manage.py migrate --noinput",
             "python manage.py collectstatic --noinput",
-            "python manage.py check --deploy",
+            "python manage.py check --deploy --fail-level WARNING",
             "python manage.py test",
         ]
         for command in required_commands:
@@ -139,6 +264,14 @@ class WorkflowContractTests(SimpleTestCase):
                 match = re.search(executable_step, workflow)
                 self.assertIsNotNone(match)
                 self.assertNotRegex(match.group(0), r"(?m)^ +if: false$")
+
+    def test_image_build_fails_on_static_or_deploy_check_errors(self):
+        dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        self.assertRegex(
+            dockerfile,
+            r"python manage\.py collectstatic --noinput && \\\n(?:.*\\\n)*?"
+            r" +python manage\.py check --deploy --fail-level WARNING\n",
+        )
 
     def test_publish_workflow_builds_image_after_validation(self):
         workflow = (PROJECT_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")

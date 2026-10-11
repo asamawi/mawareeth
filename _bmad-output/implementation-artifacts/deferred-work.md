@@ -34,3 +34,24 @@
 - source_spec: none
   summary: Bump `oauthlib` (3.3.1 → ≥4.0.0) and `social-auth-core` (4.8.1 → ≥5.0.0) to close 7 Dependabot alerts (1 high, 6 medium, including a social-auth-core account-takeover and a login-CSRF finding), with real end-to-end testing of the OAuth/social-login flow before shipping.
   evidence: Both are major-version bumps directly backing `mawareeth/settings.py`'s social-login configuration; flattening `requirements.txt` (this story's earlier fix) made GitHub's dependency graph visible for the first time, surfacing these alerts. Deferred rather than bumped blind because a regression here breaks login, not just a lint check, and this environment has no way to exercise the live OAuth flow end-to-end.
+
+## Deferred from: code review of spec-0-2-make-django-production-ready (2026-10-11)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
+  summary: Bound the readiness probe's DB queries (`SELECT 1`, `django_migrations` read) with a statement/lock timeout so a stalled PostgreSQL returns 503 fast instead of pinning a gunicorn worker until its 60s timeout.
+  evidence: `mawareeth/ops_views.py` relies only on `connect_timeout`; the gap pre-dates this story (`_database_ready`).
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
+  summary: Execute the Dockerfile's build-time `collectstatic && check --deploy --fail-level WARNING` (e.g. `docker build --target builder`, no push) on pull requests, not only in the post-merge publish workflow.
+  evidence: The only pre-merge check is a regex contract test over the Dockerfile text; a missing build-only env var would surface only on the release branch. Belongs to 0-3 (build immutable CI artifacts).
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
+  summary: Deploy-check the real runtime configuration (e.g. `DJANGO_KEY` strength, `security.W009`), not just build placeholders.
+  evidence: Image build and CI both run `check --deploy` with placeholder values; the runtime only enforces presence. Pre-existing.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
+  summary: Decide whether `/health/release/` (exact version + commit SHA) should be reachable from the internet or only privately.
+  evidence: The endpoint pre-dates this story; this story made it bypass `ALLOWED_HOSTS` but did not change its exposure.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
+  summary: Make sure Caddy overwrites any client-supplied `X-Forwarded-Proto` and that Django is reachable only through Caddy, and document both in the runtime contract.
+  evidence: `SECURE_PROXY_SSL_HEADER` trusts the header from any peer; enforcement belongs to 0-5 (private Compose runtime).
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
+  summary: Remove `require` from `PRODUCTION_DATABASE_SSL_MODES` once production no longer runs on Heroku Postgres, so production accepts only `disable` (private Compose) or `verify-ca`/`verify-full`.
+  evidence: Heroku Postgres (AWS RDS endpoint) cannot verify certificates; setting `DATABASE_SSL_MODE=verify-full` there on 2026-10-11 failed every connection ("root certificate file ... does not exist") until it was reverted to `require`.
