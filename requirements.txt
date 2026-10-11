@@ -27,10 +27,10 @@ pymongo==4.18.2
 pycparser==3.0
 python-decouple==3.8
 python3-openid==3.2.0
-requests==2.32.5
+requests==2.34.2
 requests-oauthlib==2.0.0
-social-auth-app-django==5.6.0
-social-auth-core==4.8.1
+social-auth-app-django==6.0.0
+social-auth-core==5.0.0
 sqlparse==0.6.0
 tzdata==2025.2
 urllib3==2.8.0
