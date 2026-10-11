@@ -16,7 +16,7 @@ class SocialLoginTestCase(TestCase):
 
     def test_login_and_signup_pages_post_to_begin_view(self):
         for page in (reverse("login"), reverse("calc:signup")):
-            html = self.client.get(page).content.decode()
+            html = self.client.get(page, secure=True).content.decode()
             for backend in self.BACKENDS:
                 begin = reverse("social:begin", args=[backend])
                 self.assertIn(f'method="post" action="{begin}"', html)
@@ -24,6 +24,6 @@ class SocialLoginTestCase(TestCase):
 
     def test_post_to_begin_view_redirects_to_provider(self):
         for backend, provider in self.BACKENDS.items():
-            response = self.client.post(reverse("social:begin", args=[backend]))
+            response = self.client.post(reverse("social:begin", args=[backend]), secure=True)
             self.assertEqual(response.status_code, 302)
             self.assertTrue(response["Location"].startswith(provider))
