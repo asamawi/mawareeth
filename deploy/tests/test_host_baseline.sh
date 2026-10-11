@@ -45,6 +45,7 @@ SSH_PUBLIC_KEY=$tmp/id.pub
 ADMIN_SSH_PRIVATE_KEY=$tmp/id
 SSH_ALLOWED_CIDRS=not-a-cidr
 EOF
+chmod 600 "$tmp/config"
 if HOST_BASELINE_CONFIG="$tmp/config" bash "$provision" >/dev/null 2>&1; then fail 'malformed CIDR was accepted'; fi
 printf '%s\n' 'host baseline offline checks passed'
 
@@ -53,6 +54,7 @@ printf '%s\n' 'host baseline offline checks passed'
 stub="$tmp/stub"
 mkdir -p "$stub"
 state="$tmp/state" log="$tmp/log"
+mkdir -p "$state"
 cat > "$stub/hcloud" <<'EOF'
 #!/usr/bin/env bash
 set -e
@@ -87,10 +89,12 @@ case "$args" in
   *'.server.image.name'*) printf 'ubuntu-24.04\n' ;;
   *'.server.labels.mawareeth_host_baseline'*) printf '1\n' ;;
   *'.action.id'*) printf '1\n' ;;
+  *'length > 0'*) exit 1 ;;
+  *'all(.firewall.applied_to'*) exit 0 ;;
   *'applied_to'*) exit 1 ;;
-  *'--argjson ssh_sources'*) printf '{"rules":[{"port":"80"},{"port":"443"},{"port":"22"}]}' ;;
+  *'--argjson ssh_sources'*) printf '{"rules": [{"port": "80"}, {"port": "443"}, {"port": "22"}]}' ;;
   *'-R .'*) cat | sed 's/.*/"&"/' ;;
-  *'-s .'*) printf '["198.51.100.0/24"]' ;;
+  *'-s .'*) cat >/dev/null; printf '["198.51.100.0/24"]' ;;
   *) cat ;;
 esac
 EOF
@@ -98,6 +102,7 @@ cat > "$stub/ssh" <<'EOF'
 #!/usr/bin/env bash
 echo "ssh $*" >> "$TEST_LOG"
 [[ "$*" == *'mawareeth-admin@'*' true' ]] && exit 1
+exit 0
 EOF
 cat > "$stub/scp" <<'EOF'
 #!/usr/bin/env bash
@@ -120,9 +125,9 @@ TEST_LOG="$log" TEST_STATE="$state" TEST_PUBLIC_KEY="$pub" PATH="$stub:$PATH" HO
 [[ "$(grep -c 'server create' "$log")" == 1 ]] || fail 'repeat provision created a duplicate server'
 need "$log" 'action wait 1'
 need "$log" 'server enable-protection baseline-test delete'
-need "$log" 'server apply-to-resource baseline-test-edge --type server --server baseline-test'
-need "$log" 'port: "80"'
-need "$log" 'port: "443"'
+need "$log" 'firewall apply-to-resource baseline-test-edge --type server --server baseline-test'
+need "$log" '"port": "80"'
+need "$log" '"port": "443"'
 sed 's/SSH_ALLOWED_CIDRS=198.51.100.0\/24/SSH_ALLOWED_CIDRS=0.0.0.0\/0/' "$tmp/valid-config" > "$tmp/unrestricted-config"
 chmod 600 "$tmp/unrestricted-config"
 if TEST_LOG="$log" TEST_STATE="$state" TEST_PUBLIC_KEY="$pub" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$tmp/unrestricted-config" bash "$provision" >/dev/null 2>&1; then fail 'unrestricted SSH CIDR was accepted'; fi

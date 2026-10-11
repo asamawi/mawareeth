@@ -32,10 +32,11 @@ for required in HETZNER_TOKEN SERVER_NAME HETZNER_SSH_KEY_NAME SSH_PUBLIC_KEY AD
   [[ -n "${!required:-}" ]] || die "$required is required"
 done
 [[ -r "$SSH_PUBLIC_KEY" ]] || die 'SSH_PUBLIC_KEY must name a readable public-key file'
+[[ "$(grep -c '[^[:space:]]' "$SSH_PUBLIC_KEY")" -eq 1 ]] || die 'SSH_PUBLIC_KEY must contain exactly one key on a single line'
 [[ -r "$ADMIN_SSH_PRIVATE_KEY" ]] || die 'ADMIN_SSH_PRIVATE_KEY must name a readable private-key file'
 [[ "$SERVER_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]] || die 'SERVER_NAME is invalid'
-validate_cidrs
 require_command python3
+validate_cidrs
 require_command hcloud
 require_command jq
 require_command curl
@@ -49,7 +50,13 @@ ADMIN_USER="${ADMIN_USER:-mawareeth-admin}"
 
 configured_key="$(tr -d '\r\n' < "$SSH_PUBLIC_KEY")"
 private_key="$(ssh-keygen -y -f "$ADMIN_SSH_PRIVATE_KEY")" || die 'ADMIN_SSH_PRIVATE_KEY is not a usable private key'
-[[ "${configured_key% *}" == "$private_key" ]] || die 'configured public and private SSH keys do not match'
+# Compare only the key type and base64 data; ssh-keygen -y echoes back whatever
+# comment is embedded in the private key (notably always for ed25519), so
+# comparing full lines or assuming one side is bare produces false mismatches.
+IFS=' ' read -r configured_type configured_data _ <<<"$configured_key"
+IFS=' ' read -r private_type private_data _ <<<"$private_key"
+[[ -n "$configured_type" && -n "$configured_data" ]] || die 'SSH_PUBLIC_KEY must contain a key type and base64 key data'
+[[ "$configured_type $configured_data" == "$private_type $private_data" ]] || die 'configured public and private SSH keys do not match'
 
 # Inspect an existing host before changing any provider resource. A matching name
 # must be explicitly labelled as a baseline host before this script may reconcile it.
@@ -116,9 +123,16 @@ fi
 server_ip="$(hcloud server ip "$SERVER_NAME")"
 [[ -n "$server_ip" ]] || die 'could not determine server address'
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-ssh_opts=(-i "$ADMIN_SSH_PRIVATE_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new)
-remote_user="$ADMIN_USER"
-if ! ssh "${ssh_opts[@]}" "$remote_user@${server_ip}" true >/dev/null 2>&1; then remote_user=root; fi
+ssh_opts=(-i "$ADMIN_SSH_PRIVATE_KEY" -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new)
+# A freshly created host needs time to finish booting before sshd answers;
+# poll both accounts for up to five minutes before giving up.
+remote_user=""
+for _attempt in $(seq 1 30); do
+  if ssh "${ssh_opts[@]}" "$ADMIN_USER@${server_ip}" true >/dev/null 2>&1; then remote_user="$ADMIN_USER"; break; fi
+  if ssh "${ssh_opts[@]}" "root@${server_ip}" true >/dev/null 2>&1; then remote_user=root; break; fi
+  sleep 10
+done
+[[ -n "$remote_user" ]] || die "timed out waiting for SSH to become reachable on ${server_ip}"
 scp "${ssh_opts[@]}" "$script_dir/bootstrap-host.sh" "$remote_user@${server_ip}:/tmp/mawareeth-bootstrap-host.sh"
 bootstrap_cmd="SSH_ALLOWED_CIDRS=$(printf %q "$SSH_ALLOWED_CIDRS") ADMIN_USER=$(printf %q "$ADMIN_USER") ADMIN_PUBLIC_KEY=$(printf %q "$configured_key") bash /tmp/mawareeth-bootstrap-host.sh"
 if [[ "$remote_user" != root ]]; then bootstrap_cmd="sudo $bootstrap_cmd"; fi

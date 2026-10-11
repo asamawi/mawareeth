@@ -14,6 +14,7 @@ validate_cidrs() {
   ((${#cidrs[@]} > 0)) || die 'SSH_ALLOWED_CIDRS must contain at least one CIDR'
   for cidr in "${cidrs[@]}"; do
     [[ -n "$cidr" ]] || die 'SSH_ALLOWED_CIDRS contains an empty CIDR'
+    [[ "$cidr" != '0.0.0.0/0' && "$cidr" != '::/0' ]] || die 'SSH_ALLOWED_CIDRS must not permit unrestricted SSH access'
     python3 - "$cidr" <<'PY' || die 'SSH_ALLOWED_CIDRS contains an invalid CIDR'
 import ipaddress
 import sys
@@ -33,7 +34,7 @@ validate_cidrs
 ADMIN_USER="${ADMIN_USER:-}" 
 ADMIN_PUBLIC_KEY="${ADMIN_PUBLIC_KEY:-}"
 [[ "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die 'ADMIN_USER is required and must be valid'
-[[ "$ADMIN_PUBLIC_KEY" == ssh-*' '* ]] || die 'ADMIN_PUBLIC_KEY is required'
+[[ "$ADMIN_PUBLIC_KEY" =~ ^(ssh-[a-z0-9]+|ecdsa-sha2-[a-z0-9]+|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-[a-z0-9]+@openssh\.com)[[:space:]] ]] || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
 if [[ -e /etc/mawareeth ]] && [[ "$(stat -c '%U:%G:%a' /etc/mawareeth)" != root:root:700 ]]; then
   die 'refusing unsafe ownership or mode on /etc/mawareeth'
 fi

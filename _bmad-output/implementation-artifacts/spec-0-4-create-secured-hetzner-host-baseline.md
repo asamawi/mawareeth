@@ -2,7 +2,7 @@
 title: 'Create the Secured Hetzner Host Baseline'
 type: 'feature'
 created: '2026-09-02'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: '788d6cf517286557055b90a0301e47c2fe1ff8bb'
 context:
@@ -75,3 +75,61 @@ Use a two-stage operator flow: the provisioner owns Hetzner resource reconciliat
 - `bash deploy/tests/test_host_baseline.sh` -- expected: offline contract checks pass without Hetzner credentials or network mutation.
 - `shellcheck deploy/provision-host.sh deploy/bootstrap-host.sh deploy/tests/test_host_baseline.sh` -- expected: no shell-safety findings, when ShellCheck is installed.
 - `git check-ignore -v deploy/host-baseline.env deploy/runtime/production.env` -- expected: local operator and runtime-secret paths are ignored while the example file remains tracked.
+
+## Suggested Review Order
+
+**Entry point**
+
+- Operator-run reconciliation script: validates input, then owns Hetzner server/firewall state and delegates guest hardening to `bootstrap-host.sh`.
+  [`provision-host.sh:1`](../../deploy/provision-host.sh#L1)
+
+**SSH key-pair validation (bug fixed during review)**
+
+- Compares only the key type and base64 data on both sides — `ssh-keygen -y` echoes back any comment embedded in the private key, so comparing full lines produced false "keys don't match" failures on the common case of a commented ed25519 key.
+  [`provision-host.sh:56`](../../deploy/provision-host.sh#L56)
+
+- Guards against a multi-key or multi-line `SSH_PUBLIC_KEY` file before it reaches the comparison above.
+  [`provision-host.sh:35`](../../deploy/provision-host.sh#L35)
+
+**SSH source-range & admin-key validation**
+
+- Rejects unrestricted `0.0.0.0/0`/`::/0` SSH ranges before any Hetzner call.
+  [`provision-host.sh:22`](../../deploy/provision-host.sh#L22)
+
+- Mirrors the same rejection on the guest side, closing a gap where `bootstrap-host.sh` validated CIDRs independently but skipped this one check.
+  [`bootstrap-host.sh:17`](../../deploy/bootstrap-host.sh#L17)
+
+- Broadens the admin public-key check beyond `ssh-*` so valid ECDSA/FIDO2 key types aren't rejected.
+  [`bootstrap-host.sh:37`](../../deploy/bootstrap-host.sh#L37)
+
+**Provisioning ordering & reachability**
+
+- Checks for `python3` before the CIDR validation that depends on it, so a missing interpreter reports the real cause instead of a misleading "invalid CIDR".
+  [`provision-host.sh:36`](../../deploy/provision-host.sh#L36)
+
+- Polls both the admin and root accounts for up to five minutes instead of probing once, since a freshly created host needs time to finish booting before `sshd` answers.
+  [`provision-host.sh:126`](../../deploy/provision-host.sh#L126)
+
+**Hetzner resource reconciliation**
+
+- Inspects an existing server's type/location/image/ownership label before touching it, so a same-named but foreign server aborts for an operator decision instead of being silently adopted.
+  [`provision-host.sh:63`](../../deploy/provision-host.sh#L63)
+
+**Guest hardening**
+
+- Key-only SSH plus a default-deny `ufw` policy that only opens 80/443 and the configured admin CIDRs.
+  [`bootstrap-host.sh:108`](../../deploy/bootstrap-host.sh#L108)
+
+- A systemd oneshot backstops `ufw` by restricting Docker's own iptables rules to the same public ports, since Docker manipulates `DOCKER-USER` independently of `ufw`.
+  [`bootstrap-host.sh:75`](../../deploy/bootstrap-host.sh#L75)
+
+**Peripherals**
+
+- Operator-facing runbook: prerequisites, first/repeat-run behavior, and the exact audit commands that prove no app/DB port is public.
+  [`README.md:1`](../../deploy/README.md#L1)
+
+- Local operator config and runtime-secret paths excluded from Git while the safe example stays tracked.
+  [`.gitignore:103`](../../.gitignore#L103)
+
+- Offline contract tests, including the three stub/assertion bugs fixed during this review (stdin-draining race under `pipefail`, an ambiguous `applied_to` stub match, and a mismatched log assertion) that had masked each other and the key-pair bug above until now.
+  [`test_host_baseline.sh:1`](../../deploy/tests/test_host_baseline.sh#L1)
