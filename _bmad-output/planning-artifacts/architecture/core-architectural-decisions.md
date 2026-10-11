@@ -1,8 +1,17 @@
 # Core Architectural Decisions
 
+## Scope and Precedence
+
+This document captures the March 2026 product-architecture baseline. For the current Heroku-to-Hetzner migration sprint, `_bmad-output/specs/spec-heroku-to-hetzner/SPEC.md` and `_bmad-output/planning-artifacts/architecture/architecture-mawareeth-2026-09-02/ARCHITECTURE-SPINE.md` are authoritative where they conflict with this file.
+
 ## Decision Priority Analysis
 
-**Critical Decisions (Block Implementation):**
+**Current Migration Blockers:**
+- Preserve the existing Django monolith as one deployable WSGI service.
+- Publish immutable CI-built artifacts and deploy them through Caddy plus Docker Compose on Hetzner.
+- Keep PostgreSQL as the durable transactional store with private networking, rehearsed backup and restore, and blue-green release safety.
+
+**Product Modernization Decisions (Not Current Migration Blockers Unless Re-Approved):**
 - Database: PostgreSQL 17.x (fallback 16.x if provider lags).
 - Auth: Django auth + Google OAuth + email/password with MFA (email + TOTP + WhatsApp via Meta Cloud API).
 - API: REST + versioned routes (/api/v1) with OpenAPI docs.
@@ -80,19 +89,20 @@
 - Deployment: Docker Compose multi-container stack.
 - Reverse proxy/TLS: Caddy with automatic HTTPS.
 - CI/CD: GitHub Actions build/test/deploy.
-- Environments: dev / staging / prod separation.
+- Phase 1 environment separation: local Compose for development, disposable CI services, and on-demand staging with isolated data and secrets.
+- Availability semantics: blue-green protects routine application deployments; it does not by itself guarantee host-level high availability.
+- Durable legal artifacts: canonical PDFs, verification uploads, and legal evidence require an approved durable storage or reproducible-regeneration policy before those features launch.
+- Encryption-at-rest evidence: document the exact production and backup encryption-at-rest control before public launch.
 
 ## Decision Impact Analysis
 
-**Implementation Sequence:**
-- Establish repo structure + baseline starters.
-- Stand up Django API with auth + Postgres.
-- Implement Next.js interview UI + API contracts.
-- Implement browser-local anonymous draft persistence and draft promotion flow before save/share features.
-- Add reporting pipeline and PDF generation.
-- Add share-link issuance, revocation, and authorization enforcement.
-- Add accessibility CI gates before broad feature expansion.
-- Add WhatsApp notification flow (Meta Cloud API).
+**Implementation Sequence for the Current Migration Phase:**
+- Capture the Heroku inventory and verify source dependencies, data, and DNS.
+- Upgrade the existing Django application to its approved production baseline.
+- Build immutable CI artifacts from the current application.
+- Provision the Hetzner host baseline, private Compose runtime, blue-green release flow, monitoring, and off-host backups.
+- Rehearse cutover, restore, rollback, and capacity before production migration.
+- After migration stabilization, decide whether product delivery continues on the current Django baseline or moves to a separately approved modernization architecture.
 
 **Cross-Component Dependencies:**
 - Auth decisions affect API permissions and UI flows.

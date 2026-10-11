@@ -25,7 +25,7 @@ FR-19: System anonymizes sensitive financial data while preserving kinship logic
 ## NonFunctional Requirements
 
 NFR-01: Standard calculations return in <200ms; complex Manasikhat in <1s.
-NFR-02: Maintain 99.9% uptime for both API and Web App.
+NFR-02: Phase 1 tracks toward a 99.9% availability objective for the public service, but the accepted single-node topology is not a redundancy guarantee.
 NFR-03: 100% deterministic logic ensured via versioned engine updates.
 NFR-04: Dual-state storage: ephemeral default sessions; persistent encrypted records for certified cases.
 NFR-05: End-to-end encryption: AES-256 at rest; TLS 1.3 in transit.
@@ -37,12 +37,15 @@ NFR-10: Marketplace reviews and ratings must be restricted to verified completed
 
 ## Additional Requirements
 
-- Starter templates: Next.js App Router + Tailwind + shadcn/ui (frontend) and Cookiecutter Django (backend).
+- Product modernization candidate: if the team later approves a frontend/backend rewrite after migration stabilization, evaluate Next.js App Router + Tailwind + shadcn/ui with a Django/DRF backend as a separate initiative rather than a Phase 1 prerequisite.
 - Backend stack: Python 3.12 + Django + DRF; versioned REST API under /api/v1 with OpenAPI docs.
 - Auth: Django auth + Google OAuth + email/password with MFA (email + TOTP + WhatsApp via Meta Cloud API).
 - Error handling: RFC 7807 Problem+JSON responses.
 - Data: PostgreSQL 17.x (fallback 16.x); optional Redis 8 series for cache/session/rate-limiting.
-- Deployment: Hetzner VM + Docker Compose + Caddy + GitHub Actions CI/CD; dev/staging/prod separation.
+- Deployment: Hetzner VM + Docker Compose + Caddy + GitHub Actions CI/CD.
+- Phase 1 environment separation: local Compose for development, disposable CI services, and on-demand staging with isolated data and secrets; no permanent staging host is required in Phase 1.
+- Durable artifact policy: canonical PDFs, lawyer verification uploads, and other legal evidence must either be reproducibly regenerated from immutable inputs or stored durably with backup coverage before those features launch.
+- Encryption-at-rest evidence: before production launch, document the exact AES-256-at-rest control for production data and off-host backups.
 - i18n/RTL: next-intl; RTL/LTR switching using logical properties.
 - UI state: React Query for server state; Zustand for UI state.
 - Visualization: React Flow initially, with migration path to custom SVG/d3 if performance issues.

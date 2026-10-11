@@ -1,3 +1,5 @@
+> Status note (2026-09-02): This folder captures the March 2026 product-architecture baseline. For the current Heroku-to-Hetzner migration, the authoritative implementation contract is `_bmad-output/specs/spec-heroku-to-hetzner/SPEC.md` with companion `_bmad-output/planning-artifacts/architecture/architecture-mawareeth-2026-09-02/ARCHITECTURE-SPINE.md`. Where these documents conflict, the migration SPEC and spine take precedence.
+
 # Architecture Decision Document
 
 ## Table of Contents
@@ -10,7 +12,7 @@
   - [Starter Template Evaluation](./starter-template-evaluation.md)
     - [Primary Technology Domain](./starter-template-evaluation.md#primary-technology-domain)
     - [Starter Options Considered](./starter-template-evaluation.md#starter-options-considered)
-    - [Selected Starter: Next.js + shadcn/ui (frontend) + Cookiecutter Django (backend)](./starter-template-evaluation.md#selected-starter-nextjs-shadcnui-frontend-cookiecutter-django-backend)
+    - [Deferred Modernization Candidate: Next.js + shadcn/ui (frontend) + Cookiecutter Django (backend)](./starter-template-evaluation.md#deferred-modernization-candidate-nextjs--shadcnui-frontend--cookiecutter-django-backend)
   - [Core Architectural Decisions](./core-architectural-decisions.md)
     - [Decision Priority Analysis](./core-architectural-decisions.md#decision-priority-analysis)
     - [Data Architecture](./core-architectural-decisions.md#data-architecture)

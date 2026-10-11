@@ -1,10 +1,6 @@
 ---
 name: bmad-editorial-review-structure
-description: Execute editorial-review-structure
+description: 'Deprecated — forwards to bmad-review.'
 ---
 
-# editorial-review-structure
-
-Read the entire task file at: {project-root}/_bmad/core/tasks/editorial-review-structure.xml
-
-Follow all instructions in the task file exactly as written.
+Merged into `bmad-review`. Invoke the `bmad-review` skill on the same content with only the `structure` lens, passing through the same inputs and any `also_consider` areas. Present the findings in the legacy report shape: a `## Document Summary` block (purpose, audience, reader type, structure model, current length), a `## Recommendations` list of numbered `[CUT/MERGE/MOVE/CONDENSE/QUESTION/PRESERVE]` entries each with rationale and word impact, and a closing `## Summary` (total recommendations, estimated reduction) — not the findings table. If no structural issues are found, output exactly: `No substantive changes recommended`.
