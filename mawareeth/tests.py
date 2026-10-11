@@ -2,10 +2,13 @@ import importlib.util
 import os
 import re
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from uuid import uuid4
 
 from django.core.exceptions import ImproperlyConfigured
+from django.db import connection
+from django.db.migrations.recorder import MigrationRecorder
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
@@ -86,30 +89,50 @@ class ProductionSettingsTests(SimpleTestCase):
             load_settings_module({"DATABASE_CONNECT_TIMEOUT": "0"})
 
     def test_explicit_database_ssl_mode_is_applied(self):
-        module = load_settings_module({"DATABASE_SSL_MODE": "require"})
-        self.assertEqual(module.DATABASES["default"]["OPTIONS"]["sslmode"], "require")
+        module = load_settings_module({"DATABASE_SSL_MODE": "disable"})
+        self.assertEqual(module.DATABASES["default"]["OPTIONS"]["sslmode"], "disable")
         self.assertFalse(module.DEBUG)
 
-    def test_opportunistic_database_ssl_mode_raises(self):
-        with self.assertRaises(ImproperlyConfigured):
-            load_settings_module({"DATABASE_SSL_MODE": "prefer"})
+    def test_unverified_database_ssl_modes_raise(self):
+        for mode in ("prefer", "require"):
+            with self.subTest(mode=mode), self.assertRaisesRegex(ImproperlyConfigured, "DATABASE_SSL_MODE"):
+                load_settings_module({"DATABASE_SSL_MODE": mode})
+
+    def test_unverified_database_ssl_modes_allowed_outside_production(self):
+        for mode in ("prefer", "require"):
+            with self.subTest(mode=mode):
+                module = load_settings_module({"DJANGO_ENV": "development", "DATABASE_SSL_MODE": mode})
+                self.assertEqual(module.DATABASES["default"]["OPTIONS"]["sslmode"], mode)
 
     def test_verified_database_ssl_mode_without_root_cert_raises(self):
         for mode in ("verify-ca", "verify-full"):
-            with self.subTest(mode=mode), self.assertRaises(ImproperlyConfigured):
+            with self.subTest(mode=mode), self.assertRaisesRegex(ImproperlyConfigured, "DATABASE_SSL_ROOT_CERT"):
                 load_settings_module({"DATABASE_SSL_MODE": mode})
 
+    def test_verified_database_ssl_mode_with_missing_root_cert_file_raises(self):
+        with self.assertRaisesRegex(ImproperlyConfigured, "DATABASE_SSL_ROOT_CERT"):
+            load_settings_module(
+                {"DATABASE_SSL_MODE": "verify-full", "DATABASE_SSL_ROOT_CERT": str(PROJECT_ROOT / "missing-ca.pem")}
+            )
+
+    def test_verified_database_ssl_mode_without_root_cert_allowed_outside_production(self):
+        module = load_settings_module({"DJANGO_ENV": "development", "DATABASE_SSL_MODE": "verify-full"})
+        self.assertNotIn("sslrootcert", module.DATABASES["default"]["OPTIONS"])
+
     def test_verified_database_ssl_mode_applies_root_cert(self):
-        module = load_settings_module(
-            {"DATABASE_SSL_MODE": "verify-full", "DATABASE_SSL_ROOT_CERT": "/run/secrets/db-ca.pem"}
-        )
+        with TemporaryDirectory() as directory:
+            root_cert = Path(directory) / "db-ca.pem"
+            root_cert.write_text("test CA", encoding="utf-8")
+            module = load_settings_module(
+                {"DATABASE_SSL_MODE": "verify-full", "DATABASE_SSL_ROOT_CERT": str(root_cert)}
+            )
         options = module.DATABASES["default"]["OPTIONS"]
         self.assertEqual(options["sslmode"], "verify-full")
-        self.assertEqual(options["sslrootcert"], "/run/secrets/db-ca.pem")
+        self.assertEqual(options["sslrootcert"], str(root_cert))
 
     def test_missing_mailgun_credentials_raise(self):
         for name in ("MAILGUN_ACCESS_KEY", "MAILGUN_SERVER_NAME"):
-            with self.subTest(name=name), self.assertRaises(ImproperlyConfigured):
+            with self.subTest(name=name), self.assertRaisesRegex(ImproperlyConfigured, name):
                 load_settings_module({name: ""})
 
     def test_health_middleware_runs_before_host_and_https_enforcement(self):
@@ -135,19 +158,35 @@ class OpsEndpointTests(TestCase):
         self.assertJSONEqual(response.content, {"status": "error"})
 
     def test_readiness_endpoint_hides_database_exception(self):
-        with patch("mawareeth.ops_views._database_ready", side_effect=RuntimeError("password leaked")):
-            response = self.client.get(reverse("ops-ready"), secure=True)
-        self.assertEqual(response.status_code, 503)
-        self.assertJSONEqual(response.content, {"status": "error"})
-
-    def test_readiness_endpoint_returns_503_with_unapplied_migrations(self):
-        with patch(
-            "mawareeth.ops_views.MigrationExecutor.migration_plan",
-            return_value=[("pending-migration", False)],
+        with (
+            patch("mawareeth.ops_views._database_ready", side_effect=RuntimeError("password leaked")),
+            self.assertLogs("mawareeth.ops_views", level="ERROR") as logs,
         ):
             response = self.client.get(reverse("ops-ready"), secure=True)
         self.assertEqual(response.status_code, 503)
         self.assertJSONEqual(response.content, {"status": "error"})
+        self.assertIn("password leaked", "\n".join(logs.output))
+
+    def test_readiness_endpoint_returns_503_with_unapplied_migrations(self):
+        with (
+            patch(
+                "mawareeth.ops_views.MigrationExecutor.migration_plan",
+                return_value=[("pending-migration", False)],
+            ),
+            self.assertLogs("mawareeth.ops_views", level="WARNING") as logs,
+        ):
+            response = self.client.get(reverse("ops-ready"), secure=True)
+        self.assertEqual(response.status_code, 503)
+        self.assertJSONEqual(response.content, {"status": "error"})
+        self.assertIn("unapplied migrations", "\n".join(logs.output))
+
+    def test_readiness_ignores_migrations_applied_by_a_newer_release(self):
+        # During expand/migrate the new release records migrations this
+        # release's graph does not contain; the old slot must stay ready.
+        MigrationRecorder(connection).record_applied("calc", "9999_applied_by_newer_release")
+        response = self.client.get(reverse("ops-ready"), secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(response.content, {"status": "ok", "database": "ok", "schema": "ok"})
 
     @override_settings(RELEASE_VERSION="build-2026-09-02", RELEASE_COMMIT_SHA="abc1234")
     def test_release_identity_endpoint_returns_expected_markers(self):
@@ -178,6 +217,22 @@ class PrivateHealthProbeTests(TestCase):
     def test_head_probe_is_answered(self):
         response = self.client.head(reverse("ops-live"), HTTP_HOST="app-green:8000")
         self.assertEqual(response.status_code, 200)
+
+    def test_probes_without_trailing_slash_are_answered(self):
+        for path in ("/health/live", "/health/ready", "/health/release"):
+            with self.subTest(path=path):
+                response = self.client.get(path, HTTP_HOST="app-blue:8000")
+                self.assertEqual(response.status_code, 200)
+
+    def test_probe_responses_keep_security_headers(self):
+        response = self.client.get(reverse("ops-live"), HTTP_HOST="app-blue:8000")
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response["Referrer-Policy"], "same-origin")
+
+    @override_settings(SECURE_HSTS_SECONDS=31536000)
+    def test_public_https_probe_responses_carry_hsts(self):
+        response = self.client.get(reverse("ops-live"), HTTP_HOST="mawareeth.example", secure=True)
+        self.assertIn("max-age=31536000", response["Strict-Transport-Security"])
 
     def test_other_paths_still_enforce_allowed_hosts(self):
         response = self.client.get("/health/live/extra", HTTP_HOST="app-blue:8000")

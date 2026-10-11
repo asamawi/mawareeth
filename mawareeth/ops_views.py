@@ -1,8 +1,12 @@
+import logging
+
 from django.conf import settings
 from django.db import connections
 from django.db.migrations.executor import MigrationExecutor
 from django.http import JsonResponse
 from django.views.decorators.cache import never_cache
+
+logger = logging.getLogger(__name__)
 
 
 def _database_ready():
@@ -31,12 +35,17 @@ def live(request):
 @never_cache
 def ready(request):
     try:
-        if _database_ready() and _schema_ready():
+        if not _database_ready():
+            logger.warning("Readiness check failed: database did not answer SELECT 1.")
+        elif not _schema_ready():
+            logger.warning("Readiness check failed: unapplied migrations for this release.")
+        else:
             return JsonResponse({"status": "ok", "database": "ok", "schema": "ok"})
     except Exception:
         # Readiness must remain safe for public probes: do not expose driver,
         # database, or configuration details when its dependency is unavailable.
-        pass
+        # The cause is logged server-side only.
+        logger.exception("Readiness check failed.")
     return JsonResponse({"status": "error"}, status=503)
 
 

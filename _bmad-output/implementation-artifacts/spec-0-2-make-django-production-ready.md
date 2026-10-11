@@ -2,7 +2,7 @@
 title: 'Make Django Production-Ready'
 type: 'feature'
 created: '2026-10-11'
-status: 'review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: 'e1159a7a42fc326efed8d3eed17b5afe7f1fa2ce'
 context:
@@ -47,3 +47,20 @@ context:
 
 - Before this reaches a branch Heroku deploys from, confirm via the 0-1 inventory that Heroku sets `MAILGUN_ACCESS_KEY`, `MAILGUN_SERVER_NAME`, and a non-`prefer` `DATABASE_SSL_MODE` whenever `DJANGO_ENV=production`; otherwise the dyno will refuse to boot.
 - Readiness runs a migration-graph load per probe; acceptable at probe intervals, revisit if probe frequency rises sharply.
+
+### Review Findings
+
+- [x] [Review][Decision] Merging to `master` can stop the live Heroku dyno from booting before 0-1 inventory exists — production now fails closed without `MAILGUN_ACCESS_KEY`/`MAILGUN_SERVER_NAME` or with `DATABASE_SSL_MODE=prefer`; 0-1 is still `backlog` and `master` is a deploy branch (`Procfile`, `deploy.yml`). The spec's own follow-up is unresolved. **Resolved (2026-10-11):** Ahmad confirmed Heroku production sets the required vars; merge as-is.
+- [x] [Review][Decision] Production still accepts `DATABASE_SSL_MODE=require` — resolved: restrict production to `disable` or `verify-*` (now a patch below).
+- [x] [Review][Patch] Reject `DATABASE_SSL_MODE=require` in production; allow only `disable` or `verify-ca`/`verify-full` (update README and `test_explicit_database_ssl_mode_is_applied`) [mawareeth/settings.py:74]
+- [x] [Review][Patch] Health responses skip every response-side security header (HSTS, nosniff, Referrer-Policy, COOP) because `HealthCheckMiddleware` returns before `SecurityMiddleware` [mawareeth/middleware.py:166]
+- [x] [Review][Patch] `ready()` swallows every exception without logging, so a dead DB, pending migrations and a broken loader can't be told apart [mawareeth/ops_views.py:37]
+- [x] [Review][Patch] The "newer-release migrations are ignored" blue/green property is untested; add a test that records an unknown applied migration and asserts 200 [mawareeth/tests.py:143]
+- [x] [Review][Patch] New settings tests use bare `assertRaises`; use `assertRaisesRegex` on the setting name, and add non-production negatives (`prefer`, and `verify-*` without a cert, are allowed) [mawareeth/tests.py:307]
+- [x] [Review][Patch] `DATABASE_SSL_ROOT_CERT` isn't checked to be a readable file in production; the README should say it is a mounted file path [mawareeth/settings.py:241]
+- [x] [Review][Patch] The health bypass matches exact trailing-slash paths only; a slashless probe such as `/health/ready` on a slot hostname gets 400 [mawareeth/middleware.py:165]
+- [x] [Review][Defer] Readiness DB queries are bounded only by `connect_timeout`, with no statement timeout; a stalled DB can hold a gunicorn worker [mawareeth/ops_views.py:8] — deferred, pre-existing
+- [x] [Review][Defer] The Dockerfile's build-time `collectstatic`/`check --deploy` env is only regex-checked before merge, not executed [Dockerfile:28] — deferred, belongs to 0-3 (CI artifacts)
+- [x] [Review][Defer] `check --deploy` runs against build placeholders, so runtime config (e.g. `DJANGO_KEY` strength, W009) is never deploy-checked [Dockerfile:44] — deferred, pre-existing
+- [x] [Review][Defer] `/health/release/` exposes the exact version and commit SHA publicly; no decision on record [mawareeth/ops_views.py:44] — deferred, pre-existing
+- [x] [Review][Defer] Runtime contract relies on Caddy overwriting a client-supplied `X-Forwarded-Proto`; document and enforce it in the Caddy config [deploy/README.md:26] — deferred, belongs to 0-5

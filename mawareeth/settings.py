@@ -25,6 +25,7 @@ if DJANGO_ENV not in VALID_DJANGO_ENVS:
 IS_PRODUCTION = DJANGO_ENV == "production"
 VALID_DATABASE_SSL_MODES = {"disable", "prefer", "require", "verify-ca", "verify-full"}
 VERIFIED_DATABASE_SSL_MODES = {"verify-ca", "verify-full"}
+PRODUCTION_DATABASE_SSL_MODES = {"disable"} | VERIFIED_DATABASE_SSL_MODES
 
 
 def _csv_setting(name, *, required=False):
@@ -71,19 +72,26 @@ def _database_ssl_mode():
     if mode not in VALID_DATABASE_SSL_MODES:
         allowed = ", ".join(sorted(VALID_DATABASE_SSL_MODES))
         raise ImproperlyConfigured(f"DATABASE_SSL_MODE must be one of: {allowed}.")
-    if IS_PRODUCTION and mode == "prefer":
-        # "prefer" silently falls back to plaintext; production must state
-        # either private non-TLS ("disable") or an intentional TLS mode.
-        raise ImproperlyConfigured("DATABASE_SSL_MODE=prefer is not allowed when DJANGO_ENV=production.")
+    if IS_PRODUCTION and mode not in PRODUCTION_DATABASE_SSL_MODES:
+        # "prefer" silently falls back to plaintext and "require" never checks
+        # the server certificate; production must state either private non-TLS
+        # ("disable") or verified TLS.
+        allowed = ", ".join(sorted(PRODUCTION_DATABASE_SSL_MODES))
+        raise ImproperlyConfigured(
+            f"DATABASE_SSL_MODE must be one of {allowed} when DJANGO_ENV=production."
+        )
     return mode
 
 
 def _database_ssl_root_cert(ssl_mode):
     root_cert = config("DATABASE_SSL_ROOT_CERT", default="").strip()
-    if IS_PRODUCTION and ssl_mode in VERIFIED_DATABASE_SSL_MODES and not root_cert:
-        raise ImproperlyConfigured(
-            f"DATABASE_SSL_ROOT_CERT must be set when DATABASE_SSL_MODE={ssl_mode}."
-        )
+    if IS_PRODUCTION and ssl_mode in VERIFIED_DATABASE_SSL_MODES:
+        if not root_cert:
+            raise ImproperlyConfigured(
+                f"DATABASE_SSL_ROOT_CERT must be set when DATABASE_SSL_MODE={ssl_mode}."
+            )
+        if not os.access(root_cert, os.R_OK) or not Path(root_cert).is_file():
+            raise ImproperlyConfigured("DATABASE_SSL_ROOT_CERT must be the path of a readable CA file.")
     return root_cert
 
 

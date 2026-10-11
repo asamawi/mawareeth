@@ -1,3 +1,5 @@
+from django.middleware.security import SecurityMiddleware
+
 from mawareeth import ops_views
 
 HEALTH_VIEWS = {
@@ -16,13 +18,19 @@ class HealthCheckMiddleware:
     would otherwise be rejected by ALLOWED_HOSTS (400) or redirected by
     SECURE_SSL_REDIRECT (301). Health responses never echo request data, so
     skipping those two controls for these exact read-only paths is safe.
+    SecurityMiddleware's response headers (HSTS, nosniff, referrer and
+    cross-origin policies) are still applied.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
+        self.security = SecurityMiddleware(get_response)
 
     def __call__(self, request):
-        view = HEALTH_VIEWS.get(request.path_info)
+        path = request.path_info
+        # Probes may omit the trailing slash; APPEND_SLASH cannot help them
+        # because its redirect runs after host validation.
+        view = HEALTH_VIEWS.get(path if path.endswith("/") else f"{path}/")
         if view is not None and request.method in ("GET", "HEAD"):
-            return view(request)
+            return self.security.process_response(request, view(request))
         return self.get_response(request)
