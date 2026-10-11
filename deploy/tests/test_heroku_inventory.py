@@ -125,7 +125,18 @@ class InventoryTests(unittest.TestCase):
         serialized = json.dumps(first, sort_keys=True)
         self.assertNotIn("super-secret-value", serialized)
         self.assertNotIn("postgres://", serialized)
-        self.assertEqual(first["inventory"]["config_keys"], ["DATABASE_URL", "DJANGO_KEY"])
+        self.assertEqual(
+            first["inventory"],
+            {
+                "addons": [{"name": "postgresql-shaped-name", "plan": "essential-0", "service": "heroku-postgresql", "state": "provisioned"}],
+                "app": {"maintenance": False, "name": app, "region": "eu", "stack": "heroku-24", "web_url": "https://www.mawareeth.com/"},
+                "config_keys": ["DATABASE_URL", "DJANGO_KEY"],
+                "database": [{"add_on": "postgresql-shaped-name", "attachments": ["DATABASE_URL"], "pg_version": "17", "plan": "essential-0", "status": "Available"}],
+                "dns": [{"hostname": "www.mawareeth.com", "records": {"A": ["192.0.2.10"]}}],
+                "domains": [{"hostname": "www.mawareeth.com", "kind": "custom", "status": "succeeded"}],
+                "processes": [{"command": "gunicorn mawareeth.wsgi", "size": "basic", "state": "up", "type": "web"}],
+            },
+        )
         self.assertEqual(first["unknown_sections"], [])
 
     def test_partial_discovery_fails_closed_without_exposing_command_output(self):
@@ -254,7 +265,15 @@ class InventoryTests(unittest.TestCase):
         self.assertNotIn("pw@host", json.dumps(report))
 
     def test_process_command_with_inline_credential_is_not_written(self):
-        for command in ("worker postgres://user:pw@host/db", "SECRET_KEY=abc gunicorn app"):
+        for command in (
+            "worker postgres://user:pw@host/db",
+            "SECRET_KEY=abc gunicorn app",
+            "worker --password hunter2",
+            "worker --api-key=abc123",
+            "worker --authorization 'Bearer abc123'",
+            "worker https://example.test/?token=abc123",
+            "password=abc123 worker",
+        ):
             with self.subTest(command=command):
                 app, responses, texts = complete_responses()
                 responses[("ps", "--app", app)] = [{"type": "worker", "command": command, "state": "up"}]
@@ -324,8 +343,57 @@ class InventoryTests(unittest.TestCase):
 
         self.assertEqual(
             heroku_inventory.verification_errors(report),
-            ["app_name_mismatch", "missing:captured_at", "missing:tool_versions", "unknown_sections"],
+            ["app_name_mismatch", "malformed:captured_at", "missing:tool_versions", "unknown_sections"],
         )
+
+    def test_verification_rejects_malformed_inventory_sections(self):
+        app, responses, texts = complete_responses()
+        original = confirmed(
+            heroku_inventory.capture_inventory(
+                app, FakeClient(responses, texts), resolved_dns, "2026-10-11T00:00:00+00:00"
+            )
+        )
+        mutations = {
+            "app": "not-an-object",
+            "processes": [{"type": "web"}],
+            "database": [{"attachments": "DATABASE_URL", "pg_version": "17", "plan": "essential-0"}],
+            "addons": [{"name": "postgresql-shaped-name"}],
+            "config_keys": ["VALID", "not-valid"],
+            "domains": [{"hostname": ""}],
+            "dns": [{"hostname": "www.mawareeth.com", "records": {"TXT": ["value"]}}],
+        }
+        for section, malformed in mutations.items():
+            with self.subTest(section=section):
+                report = json.loads(json.dumps(original))
+                report["inventory"][section] = malformed
+                self.assertIn(f"malformed:{section}", heroku_inventory.verification_errors(report))
+
+    def test_verification_rejects_invalid_timestamp_and_unknown_fields(self):
+        app, responses, texts = complete_responses()
+        report = confirmed(
+            heroku_inventory.capture_inventory(app, FakeClient(responses, texts), resolved_dns, "not-a-time")
+        )
+        report["unexpected"] = True
+
+        self.assertIn("malformed:captured_at", heroku_inventory.verification_errors(report))
+        self.assertIn("report_shape", heroku_inventory.verification_errors(report))
+
+    def test_cli_confirm_refuses_structurally_invalid_report(self):
+        app, responses, texts = complete_responses()
+        report = heroku_inventory.capture_inventory(
+            app, FakeClient(responses, texts), resolved_dns, "2026-10-11T00:00:00+00:00"
+        )
+        report["inventory"]["app"] = "not-an-object"
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "inventory.json"
+            heroku_inventory.write_report(output, report)
+            code, _stdout, stderr = run_main(
+                ["confirm", "--input", str(output), "--confirmation", "target_app_confirmed"]
+            )
+
+            self.assertEqual(code, 2)
+            self.assertIn("malformed:app", stderr)
+            self.assertFalse(heroku_inventory.load_report(output)["confirmations"]["target_app_confirmed"])
 
     def test_cli_capture_reports_missing_evidence_with_exit_2(self):
         app, responses, texts = complete_responses()

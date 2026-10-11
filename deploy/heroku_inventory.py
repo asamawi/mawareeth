@@ -28,6 +28,9 @@ WILDCARD_PROBE_LABEL = "inventory-wildcard-probe"
 SECRET_PATTERNS = (
     re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^/\s:@]+:[^@\s]+@"),
     re.compile(r"(?<![A-Za-z0-9_{:-])[A-Z][A-Z0-9_]*=\S"),
+    re.compile(r"(?i)(?:--?(?:password|passwd|token|secret|api[-_]?key)|bearer)\s*(?:=|\s)\s*\S+"),
+    re.compile(r"(?i)[?&](?:password|passwd|token|secret|api[-_]?key)=[^&\s]+"),
+    re.compile(r"(?i)(?:password|passwd|token|secret|api[-_]?key)\s*=\s*\S+"),
 )
 
 
@@ -127,7 +130,91 @@ def _require_dicts(raw, label):
 
 
 def _contains_secret(value):
-    return any(pattern.search(value) for pattern in SECRET_PATTERNS)
+    return isinstance(value, str) and any(pattern.search(value) for pattern in SECRET_PATTERNS)
+
+
+def _valid_timestamp(value):
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
+
+
+def _valid_object(value, required, optional=()):
+    if not isinstance(value, dict):
+        return False
+    allowed = set(required) | set(optional)
+    return set(value).issubset(allowed) and all(key in value for key in required)
+
+
+def _valid_string_list(value, allow_empty=False):
+    return (
+        isinstance(value, list)
+        and (allow_empty or bool(value))
+        and all(isinstance(item, str) and bool(item) for item in value)
+    )
+
+
+def _inventory_section_errors(inventory):
+    errors = []
+    if not _valid_object(inventory.get("app"), ("name", "maintenance", "region", "stack", "web_url")):
+        errors.append("malformed:app")
+    else:
+        app = inventory["app"]
+        if not all(isinstance(app[key], str) and app[key] for key in ("name", "region", "stack", "web_url")):
+            errors.append("malformed:app")
+        if not isinstance(app["maintenance"], bool):
+            errors.append("malformed:app")
+
+    list_schemas = {
+        "processes": (("command", "type"), ("size", "state")),
+        "database": (("attachments", "pg_version", "plan"), ("add_on", "status")),
+        "addons": (("name",), ("plan", "service", "state")),
+        "domains": (("hostname",), ("acm_status", "cname", "kind", "status")),
+        "dns": (("hostname", "records"), ()),
+    }
+    for section, (required, optional) in list_schemas.items():
+        values = inventory.get(section)
+        if not isinstance(values, list) or not values:
+            errors.append(f"malformed:{section}")
+            continue
+        for item in values:
+            if not _valid_object(item, required, optional):
+                errors.append(f"malformed:{section}")
+                break
+            if section == "database":
+                if not _valid_string_list(item["attachments"]):
+                    errors.append("malformed:database")
+                    break
+                string_keys = set(item) - {"attachments"}
+            elif section == "dns":
+                records = item["records"]
+                if not isinstance(records, dict) or not records or not set(records).issubset({"A", "AAAA"}):
+                    errors.append("malformed:dns")
+                    break
+                if any(not _valid_string_list(addresses) for addresses in records.values()):
+                    errors.append("malformed:dns")
+                    break
+                string_keys = {"hostname"}
+            else:
+                string_keys = set(item)
+            if any(not isinstance(item[key], str) or not item[key] for key in string_keys):
+                errors.append(f"malformed:{section}")
+                break
+            if section == "addons" and not ({"plan", "service"} & set(item)):
+                errors.append("malformed:addons")
+                break
+            if section == "processes" and _contains_secret(item["command"]):
+                errors.append("secret:processes")
+                break
+
+    config_keys = inventory.get("config_keys")
+    if not _valid_string_list(config_keys) or any(not re.fullmatch(r"[A-Z][A-Z0-9_]*", key) for key in config_keys):
+        errors.append("malformed:config_keys")
+    return errors
 
 
 def sanitize_app_info(raw):
@@ -308,12 +395,19 @@ def capture_inventory(app, client=None, resolver=resolve_domain, captured_at=Non
     return report
 
 
-def verification_errors(report):
+def verification_errors(report, require_confirmations=True):
     errors = []
+    if not _valid_object(
+        report,
+        ("schema_version", "captured_at", "target_app", "tool_versions", "inventory", "unknown_sections", "confirmations"),
+    ):
+        errors.append("report_shape")
     if report.get("schema_version") != SCHEMA_VERSION:
         errors.append("schema_version")
-    if not _text(report.get("captured_at")):
-        errors.append("missing:captured_at")
+    if not _valid_timestamp(report.get("captured_at")):
+        errors.append("malformed:captured_at")
+    if not isinstance(report.get("target_app"), str) or not APP_PATTERN.fullmatch(report["target_app"]):
+        errors.append("malformed:target_app")
     if not _text(_nested(report, "tool_versions", "heroku")):
         errors.append("missing:tool_versions")
     unknown_sections = report.get("unknown_sections")
@@ -325,18 +419,25 @@ def verification_errors(report):
     if not isinstance(inventory, dict):
         errors.append("inventory")
     else:
+        if set(inventory) != set(REQUIRED_SECTIONS):
+            errors.append("inventory_shape")
         for section in REQUIRED_SECTIONS:
             if inventory.get(section) in (None, [], {}):
                 errors.append(f"missing:{section}")
+        errors.extend(_inventory_section_errors(inventory))
         app_name = _nested(inventory, "app", "name")
-        if app_name is not None and app_name != report.get("target_app"):
+        if app_name != report.get("target_app"):
             errors.append("app_name_mismatch")
     confirmations = report.get("confirmations")
     if not isinstance(confirmations, dict):
         errors.append("confirmations")
     else:
+        if set(confirmations) != set(REQUIRED_CONFIRMATIONS):
+            errors.append("confirmations_shape")
         for name in REQUIRED_CONFIRMATIONS:
-            if confirmations.get(name) is not True:
+            if not isinstance(confirmations.get(name), bool):
+                errors.append(f"malformed:confirmation:{name}")
+            elif require_confirmations and confirmations[name] is not True:
                 errors.append(f"confirmation:{name}")
     return sorted(set(errors))
 
@@ -407,6 +508,9 @@ def main(argv=None, client=None, resolver=resolve_domain):
                 raise DiscoveryError("The inventory confirmations section is malformed.")
             if report.get("unknown_sections") != []:
                 raise DiscoveryError("Resolve unknown sections by recapturing before recording confirmations.")
+            structural_errors = verification_errors(report, require_confirmations=False)
+            if structural_errors:
+                raise DiscoveryError("The inventory report is malformed: " + ", ".join(structural_errors))
             for name in arguments.confirmation:
                 confirmations[name] = True
             destination = arguments.output or arguments.input

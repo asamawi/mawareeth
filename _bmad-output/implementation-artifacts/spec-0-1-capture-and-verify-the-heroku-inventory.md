@@ -2,7 +2,7 @@
 title: 'Story 0.1: Capture and Verify the Heroku Inventory'
 type: 'chore'
 created: '2026-10-11'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: 'c00324b694c984090689af0be6a3f94056040e0d'
 context:
@@ -77,3 +77,40 @@ The utility must parse command output in memory and immediately project it throu
 **Manual checks (if no CLI):**
 - Confirm Heroku CLI installation/authentication and the exact production app identifier before live discovery; this environment currently has neither.
 - Inspect the generated baseline before commit and confirm every configuration entry is a key name only and no database URL, credential, token, or secret value appears.
+
+## Suggested Review Order
+
+**Capture Boundary**
+
+- Start with the read-only orchestration and deterministic report contract.
+  [`heroku_inventory.py:338`](../../deploy/heroku_inventory.py#L338)
+
+- Follow the CLI modes that separate capture, confirmation, and verification.
+  [`heroku_inventory.py:492`](../../deploy/heroku_inventory.py#L492)
+
+**Fail-Closed Validation**
+
+- Review strict nested schemas and process-command secret rejection.
+  [`heroku_inventory.py:161`](../../deploy/heroku_inventory.py#L161)
+
+- Confirm verification rejects malformed evidence before operator approval.
+  [`heroku_inventory.py:398`](../../deploy/heroku_inventory.py#L398)
+
+**Operator Workflow**
+
+- Check exact safe commands and production-metadata handling guidance.
+  [`README.md:44`](../../deploy/README.md#L44)
+
+- Inspect the reviewed, redacted live baseline consumed by migration planning.
+  [`heroku-inventory.redacted.json:1`](../../docs/operations/heroku-inventory.redacted.json#L1)
+
+**Verification Evidence**
+
+- Validate complete capture shape, determinism, and redaction assertions.
+  [`test_heroku_inventory.py:115`](../../deploy/tests/test_heroku_inventory.py#L115)
+
+- Review malformed-report and confirmation-gating regression coverage.
+  [`test_heroku_inventory.py:349`](../../deploy/tests/test_heroku_inventory.py#L349)
+
+- Confirm generated and raw discovery artifacts remain ignored by default.
+  [`.gitignore:106`](../../.gitignore#L106)
