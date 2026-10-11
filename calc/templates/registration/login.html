@@ -74,7 +74,7 @@
                 </button>
               </div>
             </form>
-              <form method="post" action="{% url 'social:begin' 'linkedin-oauth2' %}" class="form-signin">
+              <form method="post" action="{% url 'social:begin' 'linkedin-openidconnect' %}" class="form-signin">
               {% csrf_token %}
               <input type="hidden" name="next" value="{{ next }}">
               <div class="form-label-group">

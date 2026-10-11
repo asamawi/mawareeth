@@ -321,7 +321,7 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = IS_PRODUCTION or config("SECURE_HSTS_INCLUDE_SU
 SECURE_HSTS_PRELOAD = IS_PRODUCTION or config("SECURE_HSTS_PRELOAD", default=False, cast=bool)
 
 AUTHENTICATION_BACKENDS = [
-    'social_core.backends.linkedin.LinkedinOAuth2',
+    'social_core.backends.linkedin.LinkedinOpenIdConnect',
     'social_core.backends.instagram.InstagramOAuth2',
     'social_core.backends.facebook.FacebookOAuth2',
     'django.contrib.auth.backends.ModelBackend',
@@ -345,17 +345,11 @@ SOCIAL_AUTH_FACEBOOK_EXTRA_DATA = [
     ('picture', 'picture'),
 ]
 
-SOCIAL_AUTH_LINKEDIN_OAUTH2_KEY = config("LINKEDIN_KEY",default=" ")
-SOCIAL_AUTH_LINKEDIN_OAUTH2_SECRET = config("LINKEDIN_SECRET",default=" ")
-SOCIAL_AUTH_LINKEDIN_OAUTH2_SCOPE = ['r_liteprofile', 'r_emailaddress']
-SOCIAL_AUTH_LINKEDIN_OAUTH2_FIELD_SELECTORS = ['emailAddress', 'formatted-name', 'public-profile-url', 'picture-url']
-SOCIAL_AUTH_LINKEDIN_OAUTH2_EXTRA_DATA = [
-    ('id', 'id'),
-    ('formattedName', 'name'),
-    ('emailAddress', 'emailAddress'),
-    ('pictureUrl', 'picture_url'),
-    ('publicProfileUrl', 'profile_url'),
-]
+# LinkedIn retired the OAuth2 r_liteprofile/r_emailaddress scopes in 2023;
+# "Sign In with LinkedIn using OpenID Connect" grants openid/profile/email,
+# which is the backend's default scope.
+SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_KEY = config("LINKEDIN_KEY",default=" ")
+SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_SECRET = config("LINKEDIN_SECRET",default=" ")
 
 SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.social_details',
