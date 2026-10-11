@@ -52,3 +52,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Make sure Caddy overwrites any client-supplied `X-Forwarded-Proto` and that Django is reachable only through Caddy, and document both in the runtime contract.
   evidence: `SECURE_PROXY_SSL_HEADER` trusts the header from any peer; enforcement belongs to 0-5 (private Compose runtime).
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
+  summary: Remove `require` from `PRODUCTION_DATABASE_SSL_MODES` once production no longer runs on Heroku Postgres, so production accepts only `disable` (private Compose) or `verify-ca`/`verify-full`.
+  evidence: Heroku Postgres (AWS RDS endpoint) cannot verify certificates; setting `DATABASE_SSL_MODE=verify-full` there on 2026-10-11 failed every connection ("root certificate file ... does not exist") until it was reverted to `require`.

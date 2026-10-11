@@ -51,8 +51,8 @@ context:
 ### Review Findings
 
 - [x] [Review][Decision] Merging to `master` can stop the live Heroku dyno from booting before 0-1 inventory exists — production now fails closed without `MAILGUN_ACCESS_KEY`/`MAILGUN_SERVER_NAME` or with `DATABASE_SSL_MODE=prefer`; 0-1 is still `backlog` and `master` is a deploy branch (`Procfile`, `deploy.yml`). The spec's own follow-up is unresolved. **Resolved (2026-10-11):** Ahmad confirmed Heroku production sets the required vars; merge as-is.
-- [x] [Review][Decision] Production still accepts `DATABASE_SSL_MODE=require` — resolved: restrict production to `disable` or `verify-*` (now a patch below).
-- [x] [Review][Patch] Reject `DATABASE_SSL_MODE=require` in production; allow only `disable` or `verify-ca`/`verify-full` (update README and `test_explicit_database_ssl_mode_is_applied`) [mawareeth/settings.py:74]
+- [x] [Review][Decision] Production still accepts `DATABASE_SSL_MODE=require` — resolved: restrict production to `disable` or `verify-*` (now a patch below). **Reversed (2026-10-11):** Heroku Postgres (AWS RDS endpoint) cannot verify certificates; setting `verify-full` there took the live app down. `require` is allowed again in production until the Heroku exit; `prefer` stays rejected.
+- [x] [Review][Patch] ~~Reject `DATABASE_SSL_MODE=require` in production~~ — applied, then reverted for Heroku compatibility (see decision above) [mawareeth/settings.py:28]
 - [x] [Review][Patch] Health responses skip every response-side security header (HSTS, nosniff, Referrer-Policy, COOP) because `HealthCheckMiddleware` returns before `SecurityMiddleware` [mawareeth/middleware.py:166]
 - [x] [Review][Patch] `ready()` swallows every exception without logging, so a dead DB, pending migrations and a broken loader can't be told apart [mawareeth/ops_views.py:37]
 - [x] [Review][Patch] The "newer-release migrations are ignored" blue/green property is untested; add a test that records an unknown applied migration and asserts 200 [mawareeth/tests.py:143]
@@ -64,3 +64,4 @@ context:
 - [x] [Review][Defer] `check --deploy` runs against build placeholders, so runtime config (e.g. `DJANGO_KEY` strength, W009) is never deploy-checked [Dockerfile:44] — deferred, pre-existing
 - [x] [Review][Defer] `/health/release/` exposes the exact version and commit SHA publicly; no decision on record [mawareeth/ops_views.py:44] — deferred, pre-existing
 - [x] [Review][Defer] Runtime contract relies on Caddy overwriting a client-supplied `X-Forwarded-Proto`; document and enforce it in the Caddy config [deploy/README.md:26] — deferred, belongs to 0-5
+- [x] [Review][Defer] Reject `DATABASE_SSL_MODE=require` in production once off Heroku Postgres [mawareeth/settings.py:28] — deferred, blocked on Heroku exit
