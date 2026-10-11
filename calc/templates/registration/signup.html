@@ -66,16 +66,21 @@
                 %}</button>
             </div>
           </form>
-          <form class="form-signin">
+          {# social-auth-app-django 6 only starts the OAuth flow on POST #}
+          <form method="post" action="{% url 'social:begin' 'facebook' %}" class="form-signin">
+            {% csrf_token %}
             <div class="form-label-group">
-              <a class="btn btn-lg btn-primary btn-block" href="{% url 'social:begin' 'facebook' %}">
+              <button class="btn btn-lg btn-primary btn-block" type="submit">
                 {% trans "Login with Facebook" %}
-              </a>
+              </button>
             </div>
+          </form>
+          <form method="post" action="{% url 'social:begin' 'linkedin-oauth2' %}" class="form-signin">
+            {% csrf_token %}
             <div class="form-label-group">
-              <a class="btn btn-lg btn-info btn-block" href="{% url 'social:begin' 'linkedin-oauth2' %}">
+              <button class="btn btn-lg btn-info btn-block" type="submit">
                 {% trans "Login with LinkedIn" %}
-              </a>
+              </button>
             </div>
           </form>
           <a href="{% url 'login' %}">{% trans 'Already registered' %}</a>
