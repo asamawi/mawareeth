@@ -328,3 +328,41 @@ SOCIAL_AUTH_PIPELINE = (
 WAFFLE_CREATE_MISSING_FLAGS = True
 WAFFLE_CREATE_MISSING_SWITCHES = True
 WAFFLE_CREATE_MISSING_SAMPLES = True
+
+# Django's own default logging only sends request-handling errors to the
+# console when DEBUG=True, and ADMINS is unset here, so with DEBUG=False
+# (always the case in production) unhandled-exception 500s were invisible
+# in Heroku's log stream. Route them to stdout unconditionally -- Heroku
+# captures stdout/stderr regardless of DEBUG.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{levelname}] {asctime} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+        "django.security": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+}
