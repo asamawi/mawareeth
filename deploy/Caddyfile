@@ -1,0 +1,12 @@
+{
+	admin off
+}
+
+{$DOMAIN:unprepared.invalid} {
+	encode zstd gzip
+	import /etc/caddy/routes/*.caddy
+}
+
+http://127.0.0.1 {
+	respond /health/caddy 200
+}

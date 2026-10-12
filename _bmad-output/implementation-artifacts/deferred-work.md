@@ -55,3 +55,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Remove `require` from `PRODUCTION_DATABASE_SSL_MODES` once production no longer runs on Heroku Postgres, so production accepts only `disable` (private Compose) or `verify-ca`/`verify-full`.
   evidence: Heroku Postgres (AWS RDS endpoint) cannot verify certificates; setting `DATABASE_SSL_MODE=verify-full` there on 2026-10-11 failed every connection ("root certificate file ... does not exist") until it was reverted to `require`.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-5-build-the-private-compose-runtime.md`
+  summary: Add the Compose runtime contract, resolved-model check, and Linux root-permission tests to the normal GitHub Actions path.
+  evidence: This is independently shippable CI enforcement; Story 0-5 retains executable offline tests and local Compose validation, while pipeline wiring can be reviewed separately without changing runtime behavior.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-5-build-the-private-compose-runtime.md`
+  summary: Add an operator-approved retention and cleanup workflow for superseded content-addressed runtime snapshots after secret rotation.
+  evidence: Snapshot lifecycle is a distinct operational policy requiring rollback-retention decisions; Story 0-5 safely creates immutable snapshots but does not delete prior secret material automatically.

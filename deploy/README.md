@@ -1,6 +1,28 @@
 # Secured Hetzner host baseline
 
-This directory creates the secure substrate only. It does not install Compose services, Caddy, Django, PostgreSQL, backups, DNS, monitoring, or deploy an application.
+This directory contains the secured host baseline and the private Compose runtime. It does not automate migrations, route switching, rollback, backups, DNS, monitoring, or cutover.
+
+## Private Compose runtime
+
+Run runtime operations as root with `sudo`; Docker-group access is root-equivalent and is not the supported operator boundary. Copy the directly installable `runtime.env.example` to `/etc/mawareeth/runtime.env`, keep it `root:root` mode `0600`, and edit it with `sudoedit`. Values use a strict raw `KEY=VALUE` schema: no comments, blank lines, control characters, shell expansion, or extra keys. Compose consumes the generated app snapshot with `env_file.format: raw`, so values are passed literally rather than interpolated. PostgreSQL passwords must contain only URL-safe unreserved characters (`A-Z`, `a-z`, `0-9`, `.`, `_`, `~`, `-`) because the same value is embedded in `DATABASE_URL` without lossy transformation. Keep `DOMAIN` lowercase and within DNS label/total-length limits; `MAILGUN_SERVER_NAME` must also be a valid hostname.
+
+Download a trusted `release-manifest.json` out of band, verify its provenance, and keep it at an absolute root-owned mode-0600 path. The root-owned image lock remains mode 0644. The manifest's deployment-bundle SHA must equal the checked-out repository commit, its repository must equal `APP_IMAGE_REPOSITORY`, and its application identity must be a canonical GHCR digest. Load images on a connected trusted workstation with `docker pull REPOSITORY@sha256:DIGEST`, verify `docker image inspect --format '{{join .RepoDigests "\n"}}' REPOSITORY@sha256:DIGEST` contains the exact requested `REPOSITORY@sha256:DIGEST`, then transfer with `docker save` over an approved channel. On the offline host, use `docker load`, repeat the exact `RepoDigests` inspection, and run preflight. Never substitute a matching digest reported under a different repository. The runtime never builds or pulls and uses `pull_policy: never`.
+
+Prepare and inspect the runtime before starting it:
+
+```console
+sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/runtime.sh prepare
+sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/runtime.sh config
+sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/runtime.sh up
+sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/runtime.sh status
+sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/runtime.sh logs --tail 200
+```
+
+Preparation validates every input, local image, and the fully resolved Compose model before durable mutation. `config` performs that inspection with a protected temporary snapshot and creates no volumes or persistent snapshot. Preparation creates fixed external volumes `mawareeth-postgres-data`, `mawareeth-caddy-data`, and `mawareeth-caddy-config` only when absent, validates labels after creation or concurrent appearance, and refuses foreign labels or inspection failures. An existing PostgreSQL volume is accepted only when `PG_VERSION` is absent (empty/new) or major version `17`; the runtime never replaces or upgrades durable state. Repeated preparation reuses volumes and the content-addressed snapshot.
+
+The generated `deploy/runtime/<sha256>.snapshot.env` is one app-only, root-owned mode-0600 snapshot shared by both slots. Creation is atomic and existing content or permission drift aborts. Snapshots are intentionally not cleaned up automatically: retain those referenced by rollback releases, audit them by filename and metadata without printing content, and remove obsolete snapshots only during a separately approved operation. The runtime source file, snapshots, certificates, and volume data are ignored and must never be committed.
+
+Only Caddy publishes TCP host ports 80/443; HTTP/3/UDP is not enabled. PostgreSQL remains on an internal database network, while Caddy's app network permits outbound ACME traffic. Before startup, public DNS A/AAAA records must point to the host as intended, outbound TCP 443 and DNS resolution must work, and inbound TCP 80/443 must reach Caddy for ACME challenges and HTTPS. Caddy starts only after blue is healthy. `deploy/caddy/active-slot.caddy` is the persisted route authority and initially targets blue. This story never edits that route at runtime and never runs migrations. Container health is visible through `runtime.sh status`; bounded JSON logs are available through `runtime.sh logs`. Audit with `deploy/runtime.sh status`, `docker volume inspect` for all three fixed names, and `docker ps --format '{{.Names}} {{.Ports}}'` to confirm no app/database binding exists.
 
 ## Immutable release artifacts
 
