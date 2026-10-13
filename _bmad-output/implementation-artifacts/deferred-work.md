@@ -55,3 +55,25 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Remove `require` from `PRODUCTION_DATABASE_SSL_MODES` once production no longer runs on Heroku Postgres, so production accepts only `disable` (private Compose) or `verify-ca`/`verify-full`.
   evidence: Heroku Postgres (AWS RDS endpoint) cannot verify certificates; setting `DATABASE_SSL_MODE=verify-full` there on 2026-10-11 failed every connection ("root certificate file ... does not exist") until it was reverted to `require`.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-5-build-the-private-compose-runtime.md`
+  summary: Add the Compose runtime contract, resolved-model check, and Linux root-permission tests to the normal GitHub Actions path.
+  evidence: This is independently shippable CI enforcement; Story 0-5 retains executable offline tests and local Compose validation, while pipeline wiring can be reviewed separately without changing runtime behavior.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-5-build-the-private-compose-runtime.md`
+  summary: Add an operator-approved retention and cleanup workflow for superseded content-addressed runtime snapshots after secret rotation.
+  evidence: Snapshot lifecycle is a distinct operational policy requiring rollback-retention decisions; Story 0-5 safely creates immutable snapshots but does not delete prior secret material automatically.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
+  summary: Add a deploy gate that refuses contract-phase migration operations (remove/delete/rename field or model, detected from `migrate --plan`) unless the operator passes `--allow-contract`.
+  evidence: Split from 0.6 at the token-budget check; the core deploy runs forward-only migrations and documents expand-migrate-contract rules, so this gate is independent hardening.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
+  summary: Add `deploy/release.sh recover`, which reads the deploy journal after a crash, restores the prior or verified route, reloads Caddy, stops the non-active candidate, and resets the journal (required before story 0.6 is done).
+  evidence: Split from 0.6 at the token-budget check; the core deploy already writes the journal and refuses to run when it is not idle, so automated recovery can follow separately.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
+  summary: Run `deploy/tests/test_release.sh` (and the other deploy shell suites, with `bash -n` and ShellCheck) in GitHub Actions on changes under `deploy/**`.
+  evidence: Review of 0.6 found that no workflow references the shell suites; `django.yml` runs only `manage.py test`, so a routing or rollback regression can merge with green CI. This extends the existing 0.5 CI-enforcement deferral.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
+  summary: Add a supported, phased runtime-configuration rotation operation (new snapshot adopted by both slots with overlap for compatibility-affecting keys) and document it.
+  evidence: 0.6 `release.sh deploy` and `runtime.sh up` correctly refuse snapshot drift with "rotate configuration separately", but no command or runbook exists, so any secret change currently requires hand-editing root-only slot records.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
+  summary: Make `validate_compose_model` in `deploy/runtime.sh` remove its temporary secret-bearing snapshot when `compose config` fails.
+  evidence: The RETURN trap from 0.5 does not run when `die` or `set -e` exits inside the function, so a failed validation leaves an app snapshot with secrets in the system temp directory.
