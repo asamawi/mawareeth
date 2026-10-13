@@ -45,8 +45,8 @@ development_status:
   0-2-make-django-production-ready: done
   0-3-build-immutable-ci-artifacts: done
   0-4-create-the-secured-hetzner-host-baseline: done
-  0-5-build-the-private-compose-runtime: review
-  0-6-implement-safe-blue-green-deployment: backlog
+  0-5-build-the-private-compose-runtime: done
+  0-6-implement-safe-blue-green-deployment: review
   0-7-implement-encrypted-backup-and-restore: backlog
   0-8-add-monitoring-and-operational-controls: backlog
   0-9-rehearse-capacity-restore-and-cutover: backlog
@@ -104,4 +104,4 @@ development_status:
   7-5-certify-draft-report-as-approved-lawyer: backlog
   7-6-audit-trail-for-certification-actions: backlog
   epic-7-retrospective: optional
-last_updated: 10-12-2026 00:00
+last_updated: 10-13-2026 00:00

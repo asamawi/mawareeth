@@ -1,7 +1,6 @@
 name: mawareeth
 
 x-app: &app
-  image: ${APP_IMAGE:?use deploy/runtime.sh as the supported entrypoint}
   pull_policy: never
   env_file:
     - path: ${APP_SNAPSHOT:?use deploy/runtime.sh as the supported entrypoint}
@@ -13,6 +12,7 @@ x-app: &app
     - app
     - database
   restart: unless-stopped
+  stop_grace_period: 35s
   healthcheck:
     test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready/', timeout=3)"]
     interval: 10s
@@ -50,12 +50,14 @@ services:
 
   app-blue:
     <<: *app
+    image: ${APP_BLUE_IMAGE:?use deploy/runtime.sh as the supported entrypoint}
     depends_on:
       postgres:
         condition: service_healthy
 
   app-green:
     <<: *app
+    image: ${APP_GREEN_IMAGE:?use deploy/runtime.sh as the supported entrypoint}
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,15 +72,12 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy:/etc/caddy/routes:ro
+      - ${ROUTES_DIR:?use deploy/runtime.sh as the supported entrypoint}:/etc/caddy/routes:ro
       - caddy-data:/data
       - caddy-config:/config
     networks:
       - app
     restart: unless-stopped
-    depends_on:
-      app-blue:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health/caddy"]
       interval: 30s

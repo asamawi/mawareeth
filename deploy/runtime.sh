@@ -10,8 +10,21 @@ lock_file="${MAWAREETH_RUNTIME_IMAGE_LOCK:-$deploy_dir/runtime-images.lock}"
 runtime_file="${MAWAREETH_RUNTIME_FILE:-/etc/mawareeth/runtime.env}"
 manifest_file="${MAWAREETH_RELEASE_MANIFEST:-}"
 state_dir="${MAWAREETH_RUNTIME_DIR:-$deploy_dir/runtime}"
+routes_dir="$state_dir/routes"
+route_file="$routes_dir/active-slot.caddy"
+route_seed="$deploy_dir/caddy/active-slot.caddy"
+slots_dir="$state_dir/slots"
+journal_file="$state_dir/deploy.journal"
+deploy_lock_file="$state_dir/deploy.lock"
+startup_timeout="${MAWAREETH_RUNTIME_WAIT_TIMEOUT:-300}"
 project=mawareeth
 postgres_major=17
+APP_IMAGE=''
+APP_COMMIT=''
+APP_SNAPSHOT=''
+APP_BLUE_IMAGE=''
+APP_GREEN_IMAGE=''
+ROUTES_DIR=''
 
 die() { printf 'runtime: %s\n' "$*" >&2; exit 2; }
 info() { printf 'runtime: %s\n' "$*" >&2; }
@@ -113,6 +126,8 @@ PY
   local bundle_sha="${values#*$'\n'}" current_sha
   current_sha="$(git -C "$root" rev-parse HEAD 2>/dev/null)" || die 'deployment bundle must be a Git checkout'
   [[ "$bundle_sha" == "$current_sha" ]] || die 'release manifest deployment bundle does not match this checkout'
+  # The manifest validator guarantees release.commit_sha equals the bundle SHA.
+  APP_COMMIT="$bundle_sha"
 }
 
 validate_image() {
@@ -184,17 +199,48 @@ MAILGUN_ACCESS_KEY=${runtime_values[MAILGUN_ACCESS_KEY]}
 MAILGUN_SERVER_NAME=${runtime_values[MAILGUN_SERVER_NAME]}"
 }
 
+# snapshot_hash prints the content address of the current snapshot and fails
+# rather than hashing empty output when the content cannot be rendered.
+snapshot_hash() {
+  local content hash
+  content="$(snapshot_content)" || return 1
+  [[ -n "$content" ]] || return 1
+  hash="$(printf '%s\n' "$content" | sha256sum | awk '{print $1}')" || return 1
+  [[ "$hash" =~ ^[0-9a-f]{64}$ ]] || return 1
+  printf '%s\n' "$hash"
+}
+
+# ensure_state_dir [create|existing] validates the root-only state directory,
+# creating it only in create mode.
+ensure_state_dir() {
+  if [[ -e "$state_dir" || -L "$state_dir" ]]; then
+    [[ -d "$state_dir" && ! -L "$state_dir" ]] || die 'runtime state path must be a directory'
+    [[ "$(stat -c '%u:%g:%a' "$state_dir")" == '0:0:700' ]] || die 'runtime state directory must be root:root mode 0700'
+  elif [[ "${1:-create}" == create ]]; then
+    install -d -o root -g root -m 0700 "$state_dir" || die 'could not create runtime state directory'
+  else
+    die 'runtime state directory is missing; run deploy/runtime.sh prepare first'
+  fi
+}
+
+# use_existing_snapshot sets APP_SNAPSHOT to the already published snapshot for
+# the current configuration without creating one.
+use_existing_snapshot() {
+  local hash target
+  hash="$(snapshot_hash)" || die 'cannot hash the runtime configuration'
+  target="$state_dir/$hash.snapshot.env"
+  [[ -e "$target" || -L "$target" ]] || die 'no runtime snapshot exists for the current configuration; run deploy/runtime.sh prepare first'
+  file_metadata "$target" 600 'runtime snapshot'
+  [[ "$(sha256sum "$target" | awk '{print $1}')" == "$hash" ]] || die 'existing runtime snapshot content drifted'
+  APP_SNAPSHOT="$target"
+}
+
 write_snapshot() {
   local content hash target temporary
   content="$(snapshot_content)"
   hash="$(printf '%s\n' "$content" | sha256sum | awk '{print $1}')"
   target="$state_dir/$hash.snapshot.env"
-  if [[ -e "$state_dir" ]]; then
-    [[ -d "$state_dir" && ! -L "$state_dir" ]] || die 'runtime state path must be a directory'
-    [[ "$(stat -c '%u:%g:%a' "$state_dir")" == '0:0:700' ]] || die 'runtime state directory must be root:root mode 0700'
-  else
-    install -d -o root -g root -m 0700 "$state_dir" || die 'could not create runtime state directory'
-  fi
+  ensure_state_dir create
   if [[ -e "$target" ]]; then
     file_metadata "$target" 600 'existing runtime snapshot'
     [[ "$(sha256sum "$target" | awk '{print $1}')" == "$hash" ]] || die 'existing runtime snapshot content drifted'
@@ -202,7 +248,7 @@ write_snapshot() {
     temporary="$(mktemp "$state_dir/.snapshot.XXXXXX")" || die 'could not allocate atomic snapshot'
     trap 'rm -f -- "${temporary:-}"' RETURN
     printf '%s\n' "$content" > "$temporary"
-    chown root:root "$temporary" && chmod 0600 "$temporary" || die 'could not protect runtime snapshot'
+    { chown root:root "$temporary" && chmod 0600 "$temporary"; } || die 'could not protect runtime snapshot'
     [[ "$(sha256sum "$temporary" | awk '{print $1}')" == "$hash" ]] || die 'runtime snapshot validation failed'
     if ! ln -- "$temporary" "$target" 2>/dev/null; then
       file_metadata "$target" 600 'concurrently published runtime snapshot'
@@ -224,7 +270,9 @@ validate_compose_model() {
   snapshot_content > "$temporary_snapshot"
   chmod 0600 "$temporary_snapshot" || die 'could not protect temporary Compose validation snapshot'
   APP_SNAPSHOT="$temporary_snapshot"
-  compose config --quiet
+  APP_BLUE_IMAGE="$APP_IMAGE"; APP_GREEN_IMAGE="$APP_IMAGE"; ROUTES_DIR="$temporary_dir"
+  compose config --quiet >/dev/null || die 'the resolved Compose model is invalid'
+  APP_SNAPSHOT=''; ROUTES_DIR=''
   rm -rf -- "$temporary_dir"
   temporary_dir=''
   trap - RETURN
@@ -233,6 +281,7 @@ validate_compose_model() {
 preflight() {
   [[ ${EUID:-999} -eq 0 ]] || die 'must run as root'
   require_command docker; require_command python3; require_command git; require_command stat; require_command sha256sum; require_command install; require_command ln
+  require_command timeout; require_command mktemp; require_command mv; require_command sync
   docker compose version >/dev/null 2>&1 || die 'Docker Compose plugin is unavailable'
   safe_path "$runtime_file" MAWAREETH_RUNTIME_FILE
   safe_path "$manifest_file" MAWAREETH_RELEASE_MANIFEST
@@ -250,20 +299,249 @@ preflight() {
   validate_image "${locked[POSTGRES_IMAGE]}"
 }
 
-compose() {
-  env -i PATH="$PATH" HOME="${HOME:-/root}" APP_IMAGE="$APP_IMAGE" APP_SNAPSHOT="$APP_SNAPSHOT" DOMAIN="${runtime_values[DOMAIN]}" \
+compose() { compose_bounded '' "$@"; }
+
+# compose_bounded SECONDS ARGS... runs Compose with a sanitized environment that
+# carries both slot images and the persisted route directory and, unless
+# SECONDS is empty, under a hard time limit. Docker never inherits the deploy
+# lock descriptor.
+compose_bounded() {
+  local limit="$1"; shift
+  local -a runner=()
+  [[ -z "$limit" ]] || runner=(timeout --kill-after=5 "$limit")
+  env -i PATH="$PATH" HOME="${HOME:-/root}" APP_BLUE_IMAGE="$APP_BLUE_IMAGE" APP_GREEN_IMAGE="$APP_GREEN_IMAGE" \
+    APP_SNAPSHOT="$APP_SNAPSHOT" ROUTES_DIR="$ROUTES_DIR" DOMAIN="${runtime_values[DOMAIN]}" \
     POSTGRES_DB="${runtime_values[POSTGRES_DB]}" POSTGRES_USER="${runtime_values[POSTGRES_USER]}" POSTGRES_PASSWORD="${runtime_values[POSTGRES_PASSWORD]}" \
     CADDY_IMAGE="${locked[CADDY_IMAGE]}" POSTGRES_IMAGE="${locked[POSTGRES_IMAGE]}" \
-    docker compose --project-name "$project" --project-directory "$deploy_dir" -f "$compose_file" "$@"
+    "${runner[@]}" docker compose --project-name "$project" --project-directory "$deploy_dir" -f "$compose_file" "$@" 9>&-
 }
 
-command="${1:-}"
-case "$command" in
-  prepare) preflight; validate_compose_model; prepare_volumes; write_snapshot; info "prepared immutable runtime snapshot ${APP_SNAPSHOT##*/}" ;;
-  up) preflight; validate_compose_model; prepare_volumes; write_snapshot; compose up -d --no-build --pull never ;;
-  config) preflight; validate_compose_model ;;
-  status) preflight; write_snapshot; compose ps ;;
-  logs) shift; preflight; write_snapshot; compose logs "$@" ;;
-  down) preflight; write_snapshot; compose down ;;
-  *) die 'usage: runtime.sh {prepare|up|config|status|logs|down}' ;;
-esac
+other_slot() {
+  case "$1" in blue) printf 'green\n' ;; green) printf 'blue\n' ;; *) return 1 ;; esac
+}
+
+# The canonical persisted route for a slot. Every proxied response is stamped
+# with the serving slot so edge verification cannot pass against the wrong one.
+route_content() {
+  printf 'reverse_proxy app-%s:8000 {\n\thealth_uri /health/ready/\n\thealth_interval 10s\n\thealth_timeout 3s\n\thealth_status 200\n\theader_down X-Mawareeth-Slot %s\n}\n' "$1" "$1"
+}
+
+# atomic_write TARGET MODE CONTENT publishes CONTENT and a final newline through
+# a same-directory temporary file that is fsynced before the rename; the
+# directory is fsynced after it, so readers and crash recovery see either the
+# old or the new file.
+atomic_write() {
+  local target="$1" mode="$2" content="$3" temporary
+  temporary="$(mktemp "${target%/*}/.tmp.XXXXXX")" || return 1
+  if printf '%s\n' "$content" > "$temporary" && chmod "$mode" "$temporary" && sync -- "$temporary" \
+    && mv -f -- "$temporary" "$target" && sync -- "${target%/*}"; then
+    return 0
+  fi
+  rm -f -- "$temporary"
+  return 1
+}
+
+state_subdir() {
+  local path="$1" mode="$2" create="$3"
+  if [[ -e "$path" || -L "$path" ]]; then
+    [[ -d "$path" && ! -L "$path" ]] || die "runtime state path ${path##*/} must be a directory"
+    [[ "$(stat -c '%u:%g:%a' "$path")" == "0:0:$mode" ]] || die "runtime state directory ${path##*/} must be root:root mode $mode"
+  elif [[ "$create" == create ]]; then
+    install -d -o root -g root -m "$mode" "$path" || die "could not create runtime state directory ${path##*/}"
+  else
+    die "runtime state directory ${path##*/} is missing; run deploy/runtime.sh prepare first"
+  fi
+}
+
+# ensure_state_subdirs create|existing
+ensure_state_subdirs() {
+  state_subdir "$slots_dir" 700 "$1"
+  state_subdir "$routes_dir" 755 "$1"
+  ROUTES_DIR="$routes_dir"
+}
+
+any_slot_record() {
+  local slot
+  for slot in blue green; do
+    [[ ! -e "$slots_dir/$slot.env" && ! -L "$slots_dir/$slot.env" ]] || return 0
+  done
+  return 1
+}
+
+route_seed_content() {
+  [[ -f "$route_seed" && ! -L "$route_seed" ]] || die "tracked route seed $route_seed is missing; restore it from the deployment bundle"
+  [[ "$(tr -d '\r' < "$route_seed")"$'\n' == "$(route_content blue)"$'\n' ]] || die 'tracked route seed must be the canonical blue route'
+  route_content blue
+}
+
+# seed_route publishes the tracked blue seed as the persisted route only when no
+# route exists and no release has ever been recorded.
+seed_route() {
+  local content
+  if [[ -e "$route_file" || -L "$route_file" ]]; then return 0; fi
+  ! any_slot_record || die "persisted route $route_file is missing but slot records exist; follow the manual recovery steps in deploy/README.md"
+  content="$(route_seed_content)"
+  atomic_write "$route_file" 0644 "$content" || die 'could not seed the persisted route'
+  info 'seeded the persisted route to blue'
+}
+
+# read_active_slot sets ACTIVE_SLOT from the persisted route file, the
+# active-slot authority; returns 1 when the route file is absent.
+read_active_slot() {
+  local content slot candidate
+  # Caddy imports every routes/*.caddy, so any other file would be served too.
+  for candidate in "$routes_dir"/*.caddy; do
+    [[ ! -e "$candidate" && ! -L "$candidate" ]] || [[ "$candidate" == "$route_file" ]] \
+      || die "unexpected route file ${candidate##*/} in $routes_dir; only active-slot.caddy may exist there"
+  done
+  [[ -e "$route_file" || -L "$route_file" ]] || return 1
+  file_metadata "$route_file" 644 'persisted route file'
+  content="$(< "$route_file")" || die 'cannot read the persisted route file'
+  for slot in blue green; do
+    if [[ "$content"$'\n' == "$(route_content "$slot")"$'\n' ]]; then ACTIVE_SLOT="$slot"; return 0; fi
+  done
+  die 'persisted route file is not a recognized blue/green route'
+}
+
+slot_record_content() { printf 'IMAGE=%s\nCOMMIT=%s\nSNAPSHOT=%s\n' "$1" "$2" "$3"; }
+
+# read_slot_record SLOT [SUFFIX] sets SLOT_IMAGE, SLOT_COMMIT and SLOT_SNAPSHOT;
+# returns 1 when the record is absent.
+read_slot_record() {
+  local file="$slots_dir/$1.env${2:-}" content pattern
+  [[ -e "$file" || -L "$file" ]] || return 1
+  file_metadata "$file" 600 "$1 slot record"
+  content="$(< "$file")" || die "cannot read the $1 slot record"
+  pattern='^IMAGE=(ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64})'$'\n''COMMIT=([0-9a-f]{40})'$'\n''SNAPSHOT=([0-9a-f]{64}\.snapshot\.env)$'
+  [[ "$content" =~ $pattern ]] || die "the $1 slot record is malformed"
+  SLOT_IMAGE="${BASH_REMATCH[1]}"
+  SLOT_COMMIT="${BASH_REMATCH[2]}"
+  SLOT_SNAPSHOT="${BASH_REMATCH[3]}"
+}
+
+# Compose interpolates both slot images. An unrecorded slot borrows FALLBACK;
+# runtime commands never start the idle slot.
+load_slot_images() {
+  local fallback="$1" slot image
+  for slot in blue green; do
+    image="$fallback"
+    if [[ -d "$slots_dir" ]] && read_slot_record "$slot"; then image="$SLOT_IMAGE"; fi
+    if [[ "$slot" == blue ]]; then APP_BLUE_IMAGE="$image"; else APP_GREEN_IMAGE="$image"; fi
+  done
+  ROUTES_DIR="$routes_dir"
+}
+
+# journal_status returns 0 when the deploy journal is absent or idle, 1 when it
+# records an unfinished deploy, and 2 when it is unsafe or malformed.
+journal_status() {
+  local content pattern
+  [[ -e "$journal_file" || -L "$journal_file" ]] || return 0
+  [[ -f "$journal_file" && ! -L "$journal_file" ]] || return 2
+  [[ "$(stat -c '%u:%g:%a' "$journal_file" 2>/dev/null)" == '0:0:600' ]] || return 2
+  content="$(< "$journal_file")" || return 2
+  pattern='^phase=(idle|candidate-starting|migrating|candidate-ready|switching|verifying|draining|restore-failed)'$'\n'
+  pattern+='prior_slot=(blue|green)?'$'\n''candidate_slot=(blue|green)'$'\n'
+  pattern+='manifest_commit=([0-9a-f]{40})'$'\n''prior_commit=([0-9a-f]{40})?'$'\n'
+  pattern+='result=(in-progress|verified|success|failed:[a-z-]+)'$'\n'
+  pattern+='started_at=([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)'$'\n'
+  pattern+='updated_at=([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)'$'\n'
+  pattern+='deploy_log=(/[^[:cntrl:]]+)'$'\n''migrate_log=(/[^[:cntrl:]]+)$'
+  [[ "$content" =~ $pattern ]] || return 2
+  [[ "${BASH_REMATCH[1]}" == idle ]] || return 1
+}
+
+journal_refusal() {
+  printf '%s\n' "deploy journal $journal_file $1: an earlier deploy did not finish cleanly.
+Manual recovery (deploy/README.md): read the journal and $route_file, confirm the routed slot is healthy,
+reload Caddy, stop the slot that is not routed, fix its slot record, then reset the journal to idle."
+}
+
+# acquire_deploy_lock holds an exclusive non-blocking lock on descriptor 9 for
+# the rest of the process; returns 1 when another operation holds it.
+acquire_deploy_lock() {
+  require_command flock
+  exec 9>>"$deploy_lock_file" || die "cannot open $deploy_lock_file"
+  flock -n 9
+}
+
+# Mutating runtime commands serialize with deploys and refuse to act while an
+# unfinished deploy is journaled.
+guard_mutation() {
+  local status=0
+  ensure_state_dir create
+  acquire_deploy_lock || die "another deploy or runtime operation holds $deploy_lock_file"
+  journal_status || status=$?
+  case "$status" in
+    0) ;;
+    1) die "$(journal_refusal 'is not idle')" ;;
+    *) die "$(journal_refusal 'is unsafe or malformed')" ;;
+  esac
+}
+
+runtime_prepare() {
+  preflight; validate_compose_model
+  guard_mutation
+  prepare_volumes; write_snapshot
+  ensure_state_subdirs create; seed_route
+  info "prepared immutable runtime snapshot ${APP_SNAPSHOT##*/}"
+}
+
+# up restarts the recorded active release only; releases change through
+# deploy/release.sh deploy, which also bootstraps the first one.
+runtime_up() {
+  local active hash
+  [[ "$startup_timeout" =~ ^[1-9][0-9]{0,3}$ ]] || die 'MAWAREETH_RUNTIME_WAIT_TIMEOUT must be 1-9999 seconds'
+  preflight; validate_compose_model
+  guard_mutation
+  ensure_state_subdirs existing
+  read_active_slot || die 'no persisted route exists; run deploy/runtime.sh prepare, then bootstrap with deploy/release.sh deploy'
+  active="$ACTIVE_SLOT"
+  read_slot_record "$active" || die "app-$active has no release record; bootstrap the first release with deploy/release.sh deploy"
+  [[ "$SLOT_IMAGE" == "$APP_IMAGE" ]] || die "app-$active records a different image than the manifest; use deploy/release.sh deploy to change releases"
+  [[ "$SLOT_COMMIT" == "$APP_COMMIT" ]] || die "app-$active records a different commit than the manifest; use deploy/release.sh deploy to change releases"
+  hash="$(snapshot_hash)" || die 'cannot hash the runtime configuration'
+  [[ "$SLOT_SNAPSHOT" == "$hash.snapshot.env" ]] || die 'runtime configuration differs from the active slot snapshot; rotate configuration separately'
+  prepare_volumes; use_existing_snapshot
+  load_slot_images "$APP_IMAGE"
+  compose up -d --no-build --pull never --wait --wait-timeout "$startup_timeout" postgres || die 'PostgreSQL did not become healthy'
+  compose up -d --no-build --pull never --no-deps --wait --wait-timeout "$startup_timeout" "app-$active" || die "app-$active did not become healthy"
+  compose up -d --no-build --pull never --no-deps caddy || die 'Caddy did not start'
+}
+
+# status and logs are read-only: they never create state or snapshots and
+# tolerate configuration drift. Compose only needs some readable env file, so
+# use the current snapshot, else the active slot's recorded one, else a
+# protected temporary rendering removed on exit.
+inspect_tmp=''
+runtime_inspect() {
+  local hash candidate
+  preflight
+  APP_SNAPSHOT=''
+  if hash="$(snapshot_hash)" && [[ -f "$state_dir/$hash.snapshot.env" ]]; then
+    APP_SNAPSHOT="$state_dir/$hash.snapshot.env"
+  elif [[ -d "$slots_dir" ]]; then
+    for candidate in blue green; do
+      if read_slot_record "$candidate" && [[ -f "$state_dir/$SLOT_SNAPSHOT" ]]; then APP_SNAPSHOT="$state_dir/$SLOT_SNAPSHOT"; break; fi
+    done
+  fi
+  if [[ -z "$APP_SNAPSHOT" ]]; then
+    inspect_tmp="$(mktemp -d)" || die 'could not allocate a temporary inspection directory'
+    trap 'rm -rf -- "${inspect_tmp:-}"' EXIT
+    snapshot_content > "$inspect_tmp/app.snapshot.env" || die 'could not render a temporary inspection snapshot'
+    APP_SNAPSHOT="$inspect_tmp/app.snapshot.env"
+  fi
+  load_slot_images "$APP_IMAGE"
+}
+
+# Sourced by deploy/release.sh; dispatch only when executed directly.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  case "${1:-}" in
+    prepare) runtime_prepare ;;
+    up) runtime_up ;;
+    config) preflight; validate_compose_model ;;
+    status) runtime_inspect; compose ps ;;
+    logs) shift; runtime_inspect; compose logs "$@" ;;
+    down) preflight; validate_compose_model; guard_mutation; write_snapshot; load_slot_images "$APP_IMAGE"; compose down ;;
+    *) die 'usage: runtime.sh {prepare|up|config|status|logs|down}' ;;
+  esac
+fi

@@ -1,5 +1,8 @@
 {
-	admin off
+	# Deliberate decision (story 0.6): the admin API listens only on the
+	# container loopback so `caddy reload` can apply route switches. Port 2019
+	# is never published; only TCP 80/443 leave the container.
+	admin localhost:2019
 }
 
 {$DOMAIN:unprepared.invalid} {
