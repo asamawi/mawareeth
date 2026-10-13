@@ -77,3 +77,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
   summary: Make `validate_compose_model` in `deploy/runtime.sh` remove its temporary secret-bearing snapshot when `compose config` fails.
   evidence: The RETURN trap from 0.5 does not run when `die` or `set -e` exits inside the function, so a failed validation leaves an app snapshot with secrets in the system temp directory.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
+  summary: Back up host state needed for a fast rebuild (`/etc/mawareeth/runtime.env`, `<state dir>/slots/`, `<state dir>/routes/`) as an encrypted Restic snapshot alongside each nightly database dump, and document using it in the host-rebuild runbook.
+  evidence: Split from 0.7 at the token-budget check; the database dump, restore verification, and write gate satisfy the story's acceptance criteria on their own, while host-state capture only shortens rebuild time and can follow before the 0.9 rehearsal.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
+  summary: Run `deploy/tests/test_backup.sh` (with the other deploy shell suites) in GitHub Actions on changes under `deploy/**`.
+  evidence: Review of 0.7 confirmed no workflow references `deploy/tests/*.sh`; `django.yml` runs only `manage.py test`, so regressions in snapshot consistency, RPO/RTO checks, or gate freshness can merge with green CI.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
+  summary: Strengthen restore verification beyond exact row counts with per-table content checksums on key tables and an application-level check (e.g. `manage.py migrate --check` against the restored database).
+  evidence: Review of 0.7 noted that a dump restoring with corrupted values but correct row counts would pass; counts satisfy the story's acceptance criteria but do not prove content integrity.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
+  summary: Back up PostgreSQL roles and globals (`pg_dumpall --globals-only`) and record the server major version in the backup manifest, refusing a restore into a different major.
+  evidence: Review of 0.7 found roles/grants are excluded (`--no-owner --no-acl`) and the dump's PostgreSQL major is never recorded; harmless with today's single owner role and pinned 17.x image, but a gap once extra roles or a major upgrade appear.

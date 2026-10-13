@@ -1,6 +1,6 @@
 # Secured Hetzner host baseline
 
-This directory contains the secured host baseline, the private Compose runtime, and blue-green release deployment. It does not automate crash recovery, contract-migration detection, backups, DNS, monitoring, or cutover.
+This directory contains the secured host baseline, the private Compose runtime, blue-green release deployment, and encrypted off-host database backup with restore verification. It does not automate deploy crash recovery, contract-migration detection, host-state backup, DNS, monitoring, alerting, or cutover.
 
 ## Private Compose runtime
 
@@ -99,6 +99,109 @@ Hangup, interrupt, and termination signals are trapped. Before the first mutatio
 5. Make `$STATE/slots/<slot>.env` match what each slot runs: for an abandoned candidate restore `<slot>.env.prev` to `<slot>.env` (or remove the record if the candidate had none before). Records are root-owned mode 0600; publish them with `install -o root -g root -m 0600` to a temporary file in `$STATE/slots`, `sync`, and `mv`.
 6. Stop the slot that is not routed with `docker compose -p mawareeth stop -t 35 app-<slot>`.
 7. Reset the journal atomically: write the same ten lines with `phase=idle` (keep `result` as a `failed:<phase>` or `success` value), publish it with `install -o root -g root -m 0600` to a temporary file in `$STATE`, `sync`, and `mv` it over `deploy.journal`, or remove the journal.
+
+## Encrypted backup and restore
+
+`deploy/backup.sh` backs PostgreSQL up off-host into a client-side encrypted [Restic](https://restic.net/) repository on a dedicated Hetzner BX11 Storage Box sub-account, proves monthly that the latest dump restores, and gates irreplaceable writes on that proof. Restic runs only from the `RESTIC_IMAGE` pinned by digest in `runtime-images.lock` (load it like the other runtime images and check its `RepoDigests`); the script never builds or pulls. It never takes the deploy lock and never touches slots, routes, the deploy journal, or runtime snapshots. Run every command as root.
+
+### One-time setup
+
+1. **Storage Box.** Order a BX11 Storage Box, enable SSH support, and create a dedicated sub-account (for example `u123456-sub1`) whose home directory holds only this repository; do not share it with any other data or host. Generate a passphrase-less key on the host with `ssh-keygen -t ed25519 -N '' -f /etc/mawareeth/storagebox_ed25519`, install its public half for the sub-account (`.ssh/authorized_keys` on the Storage Box, port 23), and keep the private key `root:root` mode 0600.
+2. **Host key pin.** Fetch the Storage Box host key once (`ssh-keyscan -p 23 u123456.your-storagebox.de`), compare its fingerprint with the fingerprints Hetzner publishes for Storage Boxes, and only then save it as `/etc/mawareeth/storagebox_known_hosts` (`root:root`, mode 0600 or 0644). Restic connects with `ssh -p 23 ... -o StrictHostKeyChecking=yes`, so an unknown or changed host key fails the run.
+3. **Configuration.** Copy `backup.env.example` to `/etc/mawareeth/backup.env` (`root:root` 0600). It uses the same strict raw `KEY=VALUE` format as `runtime.env` and accepts exactly `STORAGE_BOX_USER`, `STORAGE_BOX_HOST`, and `RESTIC_REPOSITORY_PATH` (a path relative to the sub-account home). Restic secrets never go into `runtime.env`, CI, logs, or command lines.
+4. **Repository password.** Create a long random password, e.g. `(umask 077; head -c 32 /dev/urandom | base64 > /etc/mawareeth/restic.password)` (`root:root` 0600). Without it the backups are unreadable.
+5. **Escrow all four secrets before the first backup.** A lost host loses every copy on it, so store `backup.env`, `restic.password`, `storagebox_ed25519`, and `storagebox_known_hosts` off-host in an approved secret store, and keep the **password in two independent off-host places** (for example two password managers, or one password manager plus a sealed offline copy) held by different people. Record where they are, and test one password copy during each restore rehearsal. If the SSH key is lost with the host, regain access by generating a new key on the replacement host and registering its public key for the sub-account in Hetzner Robot (Storage Box → sub-account → SSH keys, or by resetting the sub-account password and installing the key over SFTP); the repository itself only needs the escrowed password.
+6. **Initialise, prove, schedule.**
+
+   ```console
+   sudo deploy/backup.sh init
+   sudo deploy/backup.sh backup
+   sudo deploy/backup.sh verify-restore
+   sudo deploy/backup.sh install
+   sudo deploy/backup.sh status
+   ```
+
+   Run the first `verify-restore` by hand right after the first successful backup so the gate opens immediately; do not wait for the monthly timer. `install` writes `mawareeth-backup.{service,timer}` (daily at 02:30 with `RandomizedDelaySec=15m`, `Persistent=true`) and `mawareeth-restore-check.{service,timer}` (monthly, on the 1st at 04:00, `Persistent=true`) to `/etc/systemd/system`, then enables both timers. Both services set `HOME=/root`, pin the current checkout, state directory, runtime file, image lock, and configuration directory, and run at low priority (`Nice=10`, `IOSchedulingClass=idle`, `CPUSchedulingPolicy=batch`; this applies to the script and Docker clients, not to work inside containers) with `TimeoutStartSec=5h` and `TimeoutStopSec=900`. The restore check retries failures hourly (`Restart=on-failure`, `RestartSec=1h`, at most 7 starts in 12h), so a check blocked by a running backup (exit 3) or failing as `stale` after one bad night does not leave the gate closed for a month; configuration refusals (exit 2) are not retried. Re-run `install` after moving the checkout. Inspect runs with `systemctl list-timers 'mawareeth-*'` and `journalctl -u mawareeth-backup.service`.
+
+**Bumping the Restic pin.** Change the `RESTIC_IMAGE` line in `runtime-images.lock` and the matching allowlist value in `load_lock` in `runtime.sh` in the same commit (the lock is refused otherwise), load and inspect the new image on the host, then run `backup` and `verify-restore` by hand.
+
+### What each command does
+
+- **`backup`** takes a non-blocking lock on `<state dir>/backup.lock` (exit 3 if held), removes Restic containers left by earlier runs (and fails if one is still running), forgets snapshots left `pending` by earlier failed runs, and finds the one running Compose PostgreSQL container by its labels. In one `psql` session it opens a `REPEATABLE READ` transaction, exports its snapshot, and takes an exact `count(*)` of every user table except other sessions' temporary schemas, keyed by `format('%I.%I')`; the manifest must include `public.django_migrations`. `pg_dump -Fc --snapshot=<id>` then streams that same snapshot straight into Restic (`mawareeth.dump`), so dump and counts describe the same data. `psql` and `pg_dump` run under `timeout` inside the container too. The counts are stored as `manifest.tsv`. Both snapshots are tagged `pending,run:<UTC stamp>`; the whole stored dump is read back (verifying every blob) and must start with `PGDMP` before both are re-tagged `complete`. `restic tag` rewrites snapshots under new IDs, so the new IDs are re-read and recorded. Retention is `forget --tag complete --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune`. Unencrypted dump bytes never touch the host disk. Every stage is capped against one 4-hour budget, and every Restic container has a deterministic name and is force-removed if its client fails or times out. Any failed stage before retention forgets every snapshot of the run.
+- **`verify-restore`** runs `restic check` (metadata, not `--read-data`), picks the newest `complete` dump that has exactly one manifest of the same run, refuses a dump older than 24 hours or dated more than 5 minutes in the future (RPO, clock skew), requires free space on Docker's data root of at least 3× the dump size, restores it with `pg_restore --exit-on-error --no-owner --no-acl` into a throwaway PostgreSQL from the pinned image with `--network none`, a labelled temporary volume, and a random password, compares every table count (including `django_migrations`) with the manifest, and requires the whole run to finish within 4 hours (RTO; every stage is capped against that budget and an exhausted budget is `slow`). The throwaway container and volume are removed on every exit path; a removal failure is reported as `CRITICAL`. It never touches the production database or volume.
+- **`gate`** exits 0 only when the restore evidence says `pass` and is at most 35 days old **and** the last backup is `ok` and at most 26 hours old; otherwise it exits 1 and names each unmet condition. Malformed timestamps fail closed.
+- **`status`** prints the last backup status, the restore evidence, and the gate verdict.
+
+| Exit | Meaning |
+|------|---------|
+| 0 | Success (gate: recovery is proven) |
+| 1 | Gate not satisfied |
+| 2 | Refused before any change: invalid configuration, unsafe file ownership or mode, unpinned or wrongly pinned image |
+| 3 | Another backup operation holds the backup lock |
+| 5 | Backup failed; `last-backup` has `result=failed:<stage>`: `setup` (cache volume or a still-running leftover Restic container), `repository` (unreachable, host key rejected, or stale-pending cleanup failed), `postgres` (zero or several PostgreSQL containers), `dump` (snapshot transaction, counting, `pg_dump`, or storing the dump), `manifest` (no tables, no `public.django_migrations`, or storing the manifest), `verify` (snapshot IDs or `PGDMP` read-back), `tag`, or `retention` (the run's complete snapshots are kept). The terminal never shows Restic or SSH output; `init` failures also exit 5 |
+| 6 | Restore verification failed; `restore-verified` has `result=fail:<reason>`: `no-backup` (no complete dump), `manifest` (no dump with exactly one manifest, or an empty, malformed, or `django_migrations`-less manifest), `repository` (unreachable, `restic check` failed, unparseable listing, or a read failed), `stale` (older than 24h or future-dated), `setup` (disk space, volume inspection or creation, container start, readiness, or a refusal mid-run), `restore` (`pg_restore` failed), `count` (counting failed), `count-mismatch`, `cleanup`, `slow` (RTO exceeded), or `interrupted` (signal) |
+| 129, 130, 143 | Hangup, interrupt, or termination before the operation started (afterwards a signal maps to 5 or 6) |
+
+**Evidence.** The root-only (0700) directory `<state dir>/backup/` holds `last-backup` and `restore-verified`, each a mode-0600 `key=value` file published atomically. `last-backup` records the result, run, finish time, and the dump and manifest snapshot IDs. `restore-verified` records the result, verification time, backup run, snapshot IDs, dump time and age, duration, table count, RPO/RTO, and its log. Per-run diagnostic logs (Restic, SSH, and PostgreSQL output) are kept in `<state dir>/backup/logs/` (0600). Like the deploy logs they are never rotated automatically: prune old ones deliberately as root and redact them before sharing.
+
+**Real RPO.** A nightly run starts between 02:30 and 02:45 and the dump takes its own time, so successive recovery points are about 24 hours apart plus that jitter and the dump time; the gate tolerates 26 hours. One failed night means 48 hours or more without a new recovery point, and nothing alerts on it until story 0.8, so check `backup.sh status` daily until then.
+
+**Cutover precondition.** `sudo deploy/backup.sh gate` must exit 0 before production accepts irreplaceable writes (story 0.10).
+
+### Manual restore runbook
+
+For a real recovery (a rebuilt host, or a deliberate data rollback), run as root from the deployment checkout on a host with the runtime images loaded and the four secrets under `/etc/mawareeth` restored from escrow. Set `STATE` to the absolute state directory (default `<checkout>/deploy/runtime`).
+
+1. Stop the timers and the writers:
+
+   ```console
+   systemctl stop mawareeth-backup.timer mawareeth-restore-check.timer mawareeth-backup.service mawareeth-restore-check.service
+   docker compose -p mawareeth stop app-blue app-green caddy
+   ```
+
+2. Define the helpers. Restic runs exactly like the script (secrets stay in mounted files, same SSH options) and holds `backup.lock` for each call:
+
+   ```console
+   STATE="$(realpath deploy/runtime)"; LOCK="$STATE/backup.lock"
+   U="$(sed -n 's/^STORAGE_BOX_USER=//p' /etc/mawareeth/backup.env)"; H="$(sed -n 's/^STORAGE_BOX_HOST=//p' /etc/mawareeth/backup.env)"
+   P="$(sed -n 's/^RESTIC_REPOSITORY_PATH=//p' /etc/mawareeth/backup.env)"; IMAGE="$(sed -n 's/^RESTIC_IMAGE=//p' deploy/runtime-images.lock)"
+   PGU="$(sed -n 's/^POSTGRES_USER=//p' /etc/mawareeth/runtime.env)"; PGD="$(sed -n 's/^POSTGRES_DB=//p' /etc/mawareeth/runtime.env)"
+   restic() { RESTIC_REPOSITORY="sftp:$U@$H:$P" flock -n "$LOCK" docker run --rm -i -e RESTIC_REPOSITORY -e RESTIC_PASSWORD_FILE=/run/mawareeth/restic.password \
+     -v /etc/mawareeth/restic.password:/run/mawareeth/restic.password:ro -v /etc/mawareeth/storagebox_ed25519:/run/mawareeth/storagebox_ed25519:ro \
+     -v /etc/mawareeth/storagebox_known_hosts:/run/mawareeth/known_hosts:ro "$IMAGE" \
+     -o "sftp.command=ssh -p 23 -i /run/mawareeth/storagebox_ed25519 -o UserKnownHostsFile=/run/mawareeth/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=4 $U@$H -s sftp" "$@"; }
+   pg() { docker exec -i "$(docker ps -q --filter label=com.docker.compose.project=mawareeth --filter label=com.docker.compose.service=postgres)" "$@"; }
+   restic snapshots --tag complete
+   ```
+
+3. Choose the dump snapshot `ID` and the manifest snapshot `MANIFEST_ID` that share its `run:` tag.
+4. **Data rollback on an existing host: never destroy the current data.** Take a final backup (`deploy/backup.sh backup`, with the timers still stopped), stop PostgreSQL (`docker compose -p mawareeth stop postgres`), and keep the current volume: copy it into a retained volume such as `mawareeth-postgres-data-before-<date>` (`docker volume create mawareeth-postgres-data-before-<date>` then `docker run --rm --network none -v mawareeth-postgres-data:/from:ro -v mawareeth-postgres-data-before-<date>:/to IMAGE_POSTGRES sh -c 'cp -a /from/. /to/'`). Only after the copy is verified, remove `mawareeth-postgres-data` so `runtime.sh prepare` creates a fresh empty one. On a rebuilt host the volume is already new and empty.
+5. Start only PostgreSQL on the empty volume (`deploy/runtime.sh prepare`, then `docker compose -p mawareeth start postgres` or `runtime.sh up` with the release manifest and stop the slot again) and stream the dump in without writing it to disk:
+
+   ```console
+   restic dump ID /mawareeth.dump | pg pg_restore --exit-on-error --no-owner --no-acl -U "$PGU" -d "$PGD"
+   ```
+
+6. Compare the counts with the manifest; the output must be identical:
+
+   ```console
+   restic dump MANIFEST_ID /manifest.tsv > /dev/shm/manifest.tsv
+   pg psql -X -q -A -t -F "$(printf '\t')" -v ON_ERROR_STOP=1 -U "$PGU" -d "$PGD" > /dev/shm/restored.tsv <<'SQL'
+   SELECT format('SELECT %L, count(*) FROM %I.%I', CASE WHEN k ~ '[[:cntrl:]]' THEN 'hex:' || encode(convert_to(k, 'UTF8'), 'hex') ELSE k END, schemaname, tablename) FROM (SELECT schemaname, tablename, format('%I.%I', schemaname, tablename) AS k FROM pg_catalog.pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND schemaname !~ '^pg_(toast_)?temp_') AS t ORDER BY schemaname, tablename \gexec
+   SQL
+   diff /dev/shm/manifest.tsv /dev/shm/restored.tsv && echo counts match; rm -f /dev/shm/manifest.tsv /dev/shm/restored.tsv
+   ```
+
+7. Deploy the matching release with `release.sh deploy` and verify the edge.
+8. Re-enable the timers (`systemctl start mawareeth-backup.timer mawareeth-restore-check.timer`), then run `backup.sh backup` and `backup.sh verify-restore` and confirm `backup.sh gate` before reopening writes. Keep the retained volume until the restored data has been accepted, then remove it in a separately approved step.
+
+### Known limits (deferred)
+
+- The host holds the repository password and an SSH key with write access, so a compromised host can delete or prune the backups; the repository is not append-only (append-only or object-locked storage is deferred).
+- Only the application database is backed up. Roles and other cluster globals are not (`pg_dump` covers one database; restores use `--no-owner --no-acl`), and host state (`/etc/mawareeth`, slot records, routes) is not; host rebuild is story 0.9 and host-state backup is deferred.
+- Verification compares exact row counts, not row contents: a restore with the right counts but different data would pass.
+- There is no WAL archiving or point-in-time recovery (see Real RPO).
+- Automated alerting is story 0.8. Logs under `<state dir>/backup/logs/` are pruned manually.
 
 ## Immutable release artifacts
 
