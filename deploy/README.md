@@ -1,6 +1,6 @@
 # Secured Hetzner host baseline
 
-This directory contains the secured host baseline, the private Compose runtime, blue-green release deployment, and encrypted off-host database backup with restore verification. It does not automate deploy crash recovery, contract-migration detection, host-state backup, DNS, monitoring, alerting, or cutover.
+This directory contains the secured host baseline, the private Compose runtime, blue-green release deployment, encrypted off-host database backup with restore verification, and host monitoring with alerting through SCDF's Prometheus/Alertmanager plus an external Better Stack probe. It does not automate deploy crash recovery, contract-migration detection, host-state backup, DNS, the alert-path drill, or cutover.
 
 ## Private Compose runtime
 
@@ -144,7 +144,7 @@ Hangup, interrupt, and termination signals are trapped. Before the first mutatio
 
 **Evidence.** The root-only (0700) directory `<state dir>/backup/` holds `last-backup` and `restore-verified`, each a mode-0600 `key=value` file published atomically. `last-backup` records the result, run, finish time, and the dump and manifest snapshot IDs. `restore-verified` records the result, verification time, backup run, snapshot IDs, dump time and age, duration, table count, RPO/RTO, and its log. Per-run diagnostic logs (Restic, SSH, and PostgreSQL output) are kept in `<state dir>/backup/logs/` (0600). Like the deploy logs they are never rotated automatically: prune old ones deliberately as root and redact them before sharing.
 
-**Real RPO.** A nightly run starts between 02:30 and 02:45 and the dump takes its own time, so successive recovery points are about 24 hours apart plus that jitter and the dump time; the gate tolerates 26 hours. One failed night means 48 hours or more without a new recovery point, and nothing alerts on it until story 0.8, so check `backup.sh status` daily until then.
+**Real RPO.** A nightly run starts between 02:30 and 02:45 and the dump takes its own time, so successive recovery points are about 24 hours apart plus that jitter and the dump time; the gate tolerates 26 hours. One failed night means 48 hours or more without a new recovery point; `MawareethBackupUnhealthy` emails the operator when the last backup is not `ok` or its last success is older than 26 hours (see [Monitoring and alerting](#monitoring-and-alerting)).
 
 **Cutover precondition.** `sudo deploy/backup.sh gate` must exit 0 before production accepts irreplaceable writes (story 0.10).
 
@@ -201,7 +201,114 @@ For a real recovery (a rebuilt host, or a deliberate data rollback), run as root
 - Only the application database is backed up. Roles and other cluster globals are not (`pg_dump` covers one database; restores use `--no-owner --no-acl`), and host state (`/etc/mawareeth`, slot records, routes) is not; host rebuild is story 0.9 and host-state backup is deferred.
 - Verification compares exact row counts, not row contents: a restore with the right counts but different data would pass.
 - There is no WAL archiving or point-in-time recovery (see Real RPO).
-- Automated alerting is story 0.8. Logs under `<state dir>/backup/logs/` are pruned manually.
+- Alerting on failed or stale backups and restore checks is in [Monitoring and alerting](#monitoring-and-alerting). Logs under `<state dir>/backup/logs/` are pruned manually.
+
+## Monitoring and alerting
+
+Mawareeth reuses SCDF's monitoring stack instead of running its own. This host runs only Ubuntu's `prometheus-node-exporter`, bound to its Tailscale IPv4 on port 9100. SCDF's Prometheus and Alertmanager on `p1` scrape it over Tailscale and email SCDF's existing `SMTP_TO` address through a `project=mawareeth` route. Better Stack probes the public readiness endpoint from outside. Prometheus and Alertmanager never run on this host, and port 9100 is never public: the Hetzner cloud firewall is unchanged, and UFW admits 9100/tcp only `in on tailscale0` from `100.64.0.0/10`. Run every command as root. `monitor.sh` never takes the deploy or backup locks and never touches slots, routes, or the database.
+
+### Host setup
+
+1. **Install.** `sudo deploy/monitor.sh install` first requires `ufw status` to report `Status: active` (otherwise it exits 1 before changing anything; run the host baseline first). It then does the following:
+   - Adds Tailscale's official signed noble repository (`/etc/apt/keyrings/tailscale-archive-keyring.gpg`, `/etc/apt/sources.list.d/tailscale.list`).
+   - Installs `tailscale` and `prometheus-node-exporter` (the exporter comes from the Ubuntu archive).
+   - Writes `/usr/local/sbin/mawareeth-node-exporter` and the drop-in `/etc/systemd/system/prometheus-node-exporter.service.d/10-mawareeth.conf` (`After=tailscaled.service`, `Restart=always`, `RestartSec=15`). The wrapper reads `tailscale ip -4` and starts the exporter with `--web.listen-address=<that IP>:9100 --collector.textfile.directory=/var/lib/prometheus/node-exporter`. Without a Tailscale IPv4 in `100.64.0.0/10` it exits 1 and systemd retries every 15 seconds. It never falls back to `0.0.0.0` or another address. The drop-in replaces the packaged `ExecStart`, so `ARGS` in `/etc/default/prometheus-node-exporter` is ignored.
+   - Adds the UFW rule `allow in on tailscale0 from 100.64.0.0/10 to any port 9100 proto tcp`.
+   - Writes `/etc/systemd/journald.conf.d/50-mawareeth.conf` (`SystemMaxUse=500M`, `SystemKeepFree=1G`, `MaxRetentionSec=30day`) and restarts journald.
+   - Writes and enables `mawareeth-monitor-collect.{service,timer}` (`OnCalendar=*:0/5`, `Persistent=true`) and publishes the first metrics.
+
+   Re-run `install` after moving the checkout.
+2. **Join the tailnet interactively.** Run `sudo tailscale up --hostname=mawareeth-prod` and open the printed login URL as an SCDF tailnet admin. Never pass an auth key on the command line, and never put one in this repository, CI, or a log. In the Tailscale admin console, disable key expiry for this node, and restrict the tailnet ACL so that only `p1` may reach `mawareeth-prod:9100`. Then run `sudo systemctl restart prometheus-node-exporter` (otherwise it starts within 15 seconds anyway).
+3. **Check the host.** All of these must hold:
+   - `tailscale ip -4` prints a `100.x` address.
+   - `sudo ss -ltnp 'sport = :9100'` shows only that address, never `0.0.0.0` or `*`.
+   - `sudo ufw status numbered` shows 9100/tcp only on `tailscale0` from `100.64.0.0/10`.
+   - `curl -s http://$(tailscale ip -4):9100/metrics | grep '^mawareeth_'` lists the five metrics.
+   - `systemctl list-timers mawareeth-monitor-collect.timer` shows the timer.
+
+**Collector.** `monitor.sh collect` runs every 5 minutes. It reads `<state dir>/backup/last-backup` and `restore-verified` with the same strict reader as `backup.sh gate`: root-owned, mode 0600, `key=value` lines. It then atomically writes `/var/lib/prometheus/node-exporter/mawareeth.prom` (0644). That file holds these gauges:
+- `mawareeth_backup_last_result_ok` and `mawareeth_backup_last_ok_timestamp_seconds` (the finish time when the result is `ok`).
+- `mawareeth_restore_last_result_pass` and `mawareeth_restore_last_pass_timestamp_seconds` (the verification time when the result is `pass`).
+- `mawareeth_monitor_collect_timestamp_seconds`.
+
+A missing, mis-owned, or malformed record, or one with a non-decimal epoch, publishes 0, so the matching alert fires. The collector still exits 0 in that case. Ages are judged by the rules on `p1` (`time() - metric`). `monitor.sh status` prints what a collect would publish and the current file. Exit codes: 0 success, 1 an install step failed, 2 refused (bad input or environment), 3 another monitor operation holds `<state dir>/monitor.lock`.
+
+### Wiring `p1`
+
+Ask before changing anything on `p1`. Merge the three snippets under `deploy/monitoring/` into SCDF's configuration there, using SCDF's usual procedure for its own rule and route changes:
+
+1. Add the `mawareeth-node` job from `prometheus-scrape.yml` to `scrape_configs`, with `<tailscale-ip>` replaced by the host's `tailscale ip -4`. The job carries the labels `alias=mawareeth-prod` and `project=mawareeth`.
+2. Copy `mawareeth-alerts.yml` next to SCDF's rule files and list it under `rule_files`.
+3. From `alertmanager-route.yml`:
+   - Add the `project="mawareeth"` route as the **first** child of `route.routes`, so no catch-all takes it.
+   - Add the `mawareeth-email` receiver, with `${SMTP_TO}` set to the same address SCDF's receiver uses. SMTP host and credentials come from `p1`'s existing `global.smtp_*` settings and never from this repository.
+   - Add both `inhibit_rules`.
+
+   Emails arrive with the subject `[MAWAREETH <severity>] <alertname>`.
+4. Validate before reloading. Alertmanager does not expand environment variables, so `grep -n '\${' alertmanager.yml` must print nothing: no literal `${SMTP_TO}` or other `${...}` may remain. Then run `promtool check config prometheus.yml`, `promtool check rules mawareeth-alerts.yml`, `amtool check-config alertmanager.yml`, and `amtool config routes test --config.file=alertmanager.yml --verify.receivers=mawareeth-email project=mawareeth`. Then reload both services. Under Prometheus → Targets, `mawareeth-node` must be `UP`.
+5. **If the Tailscale IPv4 changes.** It stays fixed while the node keeps its registration. If the node re-registers with Tailscale (for example after a logout, key expiry, or rebuild) and `tailscale ip -4` changes, update the `<tailscale-ip>` target in p1's scrape job and reload Prometheus, then run `sudo systemctl restart prometheus-node-exporter` on this host. A running exporter does not rebind on its own.
+
+| Alert | Fires when | Severity |
+|-------|-----------|----------|
+| `MawareethHostDown` | `up == 0`, or no `up` series at all (the scrape job is missing or renamed), for 2 minutes; inhibits every other Mawareeth alert | critical |
+| `MawareethBackupUnhealthy` | Last backup not `ok`, record unusable, last success older than 26 hours, or more than 5 minutes in the future (clock skew, which also closes `backup.sh gate`) | critical |
+| `MawareethRestoreUnhealthy` | Last restore check not `pass`, record unusable, last pass older than 35 days, or more than 5 minutes in the future | critical |
+| `MawareethDiskWarning` | An ext4/xfs/btrfs filesystem more than 75% used for 5 minutes | warning |
+| `MawareethDiskCritical` | More than 85% used for 5 minutes (inhibits the warning on the same mountpoint) | critical |
+| `MawareethCollectorStale` | `mawareeth.prom` older than 20 minutes, absent, or unparseable (`node_textfile_scrape_error == 1`) | warning |
+
+`deploy/tests/test_monitor.sh` unit-tests these rules with `promtool test rules` and checks the route snippet with `amtool check-config` and `amtool config routes test`. Those checks run only when `promtool` and `amtool` are installed (otherwise only static checks run); with `CI` set, a missing tool fails the suite. The end-to-end alert-path drill is deferred (`deferred-work.md`) and must pass before cutover.
+
+### Better Stack uptime probe
+
+Create one Better Stack Uptime monitor:
+- Type "URL returns a status code", URL `https://DOMAIN/health/ready/`, expected status 200.
+- Check frequency 3 minutes, confirmation period 3 minutes (so two failed checks in a row alert), request timeout 15 seconds.
+- Email notification to the same `SMTP_TO` address, with the monitor name prefixed `MAWAREETH`.
+
+`/health/ready/` returns 200 only when PostgreSQL answers and the schema is current. Otherwise it returns 503 with no diagnostics, so a down edge, a dead slot, or a broken database all alert. Keep the Better Stack account credentials in the operator's password manager. Better Stack needs no host change: it reaches the public HTTPS edge.
+
+### Log bounds
+
+- Each of the four containers (`postgres`, `app-blue`, `app-green`, `caddy`) uses Docker's `json-file` driver capped at `max-size: 10m` × `max-file: 5` in `compose.yaml`. That is at most 50 MB each and 200 MB in total.
+- journald is capped at 500 MB, stops growing once less than 1 GB of the filesystem would remain free (`SystemKeepFree` limits journald's own use; it does not guarantee free space), and keeps at most 30 days.
+- Deploy and backup diagnostic logs under `<state dir>` are pruned manually (see above).
+- Rotating logs are not durable evidence.
+
+### Runbooks
+
+<a id="runbook-mawareethhostdown"></a>
+**MawareethHostDown.**
+1. Check from `p1` with `tailscale ping mawareeth-prod`.
+2. If Tailscale answers, SSH in and check `systemctl status prometheus-node-exporter tailscaled`, then `journalctl -u prometheus-node-exporter -n 50`. "no Tailscale IPv4 address" means Tailscale is logged out: run `sudo tailscale up` interactively. If the address changed, update p1's scrape target (see [Wiring `p1`](#wiring-p1)).
+3. If nothing answers, check the server in the Hetzner console (power, CPU, rescue) and whether Better Stack is also alerting.
+4. While this fires, the other Mawareeth alerts are suppressed. Re-check them after recovery.
+
+<a id="runbook-mawareethbackupunhealthy"></a>
+**MawareethBackupUnhealthy.**
+1. Run `sudo deploy/backup.sh status`, then `journalctl -u mawareeth-backup.service`.
+2. The `result=failed:<stage>` value and the run log named in `last-backup` identify the failing stage (see the exit-code table above).
+3. If the record is absent or unusable, check `ls -l <state dir>/backup/`: the record must be `root:root` 0600.
+4. Fix the cause, then run `sudo deploy/backup.sh backup` by hand. The resolution arrives after the next collect, scrape, rule evaluation, and Alertmanager group interval, typically within about 15 minutes.
+
+<a id="runbook-mawareethrestoreunhealthy"></a>
+**MawareethRestoreUnhealthy.**
+1. Run `sudo deploy/backup.sh status`, then `journalctl -u mawareeth-restore-check.service`. The `fail:<reason>` value maps to the exit-6 table above.
+2. Fix the cause, then run `sudo deploy/backup.sh verify-restore`.
+3. While this fires, `backup.sh gate` is closed, so do not accept irreplaceable writes.
+
+<a id="runbook-mawareethdisk"></a>
+**MawareethDiskWarning / MawareethDiskCritical.**
+1. Run `df -h` and `sudo du -xh --max-depth=2 / | sort -h | tail`, then `docker system df`.
+2. Usual causes are old images, prunable deploy or backup logs under `<state dir>`, and PostgreSQL growth.
+3. Remove unused images with `docker image prune` (never volumes), and prune old logs deliberately.
+4. A restore check needs 3× the dump size free. If growth is structural, plan a resize in the maintenance window.
+
+<a id="runbook-mawareethcollectorstale"></a>
+**MawareethCollectorStale.**
+1. Run `systemctl list-timers mawareeth-monitor-collect.timer`, then `journalctl -u mawareeth-monitor-collect.service -n 50`, then `sudo deploy/monitor.sh status`.
+2. Exit 2 means a refusal (for example, the state or textfile directory is missing). Exit 3 means another monitor run holds the lock.
+3. Re-run `sudo deploy/monitor.sh install` if the units are missing or the checkout moved.
 
 ## Immutable release artifacts
 

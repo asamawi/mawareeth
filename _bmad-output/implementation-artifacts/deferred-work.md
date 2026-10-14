@@ -89,3 +89,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
   summary: Back up PostgreSQL roles and globals (`pg_dumpall --globals-only`) and record the server major version in the backup manifest, refusing a restore into a different major.
   evidence: Review of 0.7 found roles/grants are excluded (`--no-owner --no-acl`) and the dump's PostgreSQL major is never recorded; harmless with today's single owner role and pinned 17.x image, but a gap once extra roles or a major upgrade appear.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`
+  summary: Operator alert-path drill for Story 0.8 — `monitor.sh drill start|confirm` (two-phase Alertmanager drill email plus manual Better Stack test alert), 0600 drill evidence under `$state_dir/monitor/`, `mawareeth_drill_active`/`mawareeth_drill_last_pass_timestamp_seconds` metrics, `MawareethAlertDrill` and `MawareethDrillOverdue` (>92d quarterly reminder) rules, and the README drill procedure; must pass before launch (0.8 AC "launch drill and quarterly schedule").
+  evidence: Split at spec checkpoint because the full 0.8 spec was ~2000 tokens; the drill builds on the collector and p1 routing delivered by the narrowed spec and can be reviewed and merged separately before cutover (Story 0.10 gate).
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`
+  summary: Extend the Mawareeth Prometheus rules beyond disk bytes to inode exhaustion, read-only filesystems, memory/swap pressure and OOM kills, failed systemd units, host clock sync (`node_timex_sync_status`/offset), and enable Better Stack SSL/domain-expiry checks.
+  evidence: Review of 0.8 found only byte-level disk usage is alerted; a host out of inodes, remounted read-only, OOM-looping, or with a drifting clock (which also skews the backup/restore age rules) would fail silently. These exceed 0.8's acceptance criteria, which name only probe and disk thresholds.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`
+  summary: Add a dead-man's switch for the shared p1 alert path (an always-firing Watchdog routed to an external heartbeat service) so a stopped SCDF Prometheus, Alertmanager, or SMTP relay is itself detected.
+  evidence: Review of 0.8 noted every host-side Mawareeth alert depends on p1's Prometheus/Alertmanager/SMTP; if any stops, all Mawareeth alerts go silent while Better Stack covers only the public endpoint. Complements the deferred alert-path drill.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`
+  summary: Pin the expected OpenPGP fingerprints of third-party apt signing keys (Docker in `bootstrap-host.sh`, Tailscale in `monitor.sh`) and refuse to install a downloaded key that does not match.
+  evidence: Review of 0.8 found `monitor.sh install` trusts whatever key `pkgs.tailscale.com` serves over HTTPS; `bootstrap-host.sh` already does the same for Docker, so this is a pre-existing pattern best fixed for both at once.

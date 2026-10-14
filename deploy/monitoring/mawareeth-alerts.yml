@@ -1,0 +1,84 @@
+# Mawareeth alert rules for SCDF's Prometheus on p1. Copy this file next to
+# p1's other rule files and list it under rule_files (deploy/README.md,
+# "Monitoring and alerting"). Every rule carries project=mawareeth, which the
+# Alertmanager child route in alertmanager-route.yml matches, and a runbook
+# annotation pointing at the matching README runbook. Staleness is judged here
+# with time() - metric, so the host-side collector never compares clocks.
+groups:
+  - name: mawareeth
+    rules:
+      - alert: MawareethHostDown
+        expr: up{job="mawareeth-node"} == 0 or absent(up{job="mawareeth-node"})
+        for: 2m
+        labels:
+          severity: critical
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth host {{ $labels.alias }} is not answering scrapes over Tailscale'
+          description: 'Prometheus on p1 has not scraped {{ $labels.instance }} for 2 minutes, or the mawareeth-node job is missing. Other Mawareeth alerts are inhibited while this fires.'
+          runbook: 'deploy/README.md#runbook-mawareethhostdown'
+
+      - alert: MawareethBackupUnhealthy
+        expr: |
+          mawareeth_backup_last_result_ok{job="mawareeth-node"} == 0
+            or (time() - mawareeth_backup_last_ok_timestamp_seconds{job="mawareeth-node"}) > 26 * 3600
+            or (mawareeth_backup_last_ok_timestamp_seconds{job="mawareeth-node"} - time()) > 300
+        labels:
+          severity: critical
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth backup is failed, missing, unreadable, older than 26 hours, or future-dated'
+          description: 'The last-backup record is not ok, is unusable, its last successful finish is older than 26 hours, or it is more than 5 minutes in the future (clock skew), which also closes backup.sh gate.'
+          runbook: 'deploy/README.md#runbook-mawareethbackupunhealthy'
+
+      - alert: MawareethRestoreUnhealthy
+        expr: |
+          mawareeth_restore_last_result_pass{job="mawareeth-node"} == 0
+            or (time() - mawareeth_restore_last_pass_timestamp_seconds{job="mawareeth-node"}) > 35 * 86400
+            or (mawareeth_restore_last_pass_timestamp_seconds{job="mawareeth-node"} - time()) > 300
+        labels:
+          severity: critical
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth restore verification failed, is missing or unreadable, is older than 35 days, or is future-dated'
+          description: 'The restore-verified record is not pass, is unusable, its last pass is older than 35 days, or it is more than 5 minutes in the future (clock skew); the write gate is closed.'
+          runbook: 'deploy/README.md#runbook-mawareethrestoreunhealthy'
+
+      - alert: MawareethDiskWarning
+        expr: |
+          100 * (1 - node_filesystem_avail_bytes{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"}
+            / node_filesystem_size_bytes{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"}) > 75
+        for: 5m
+        labels:
+          severity: warning
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth disk {{ $labels.mountpoint }} is {{ $value | printf "%.0f" }}% used (warning above 75%)'
+          description: 'Filesystem {{ $labels.mountpoint }} on {{ $labels.alias }} has been more than 75% used for 5 minutes.'
+          runbook: 'deploy/README.md#runbook-mawareethdisk'
+
+      - alert: MawareethDiskCritical
+        expr: |
+          100 * (1 - node_filesystem_avail_bytes{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"}
+            / node_filesystem_size_bytes{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"}) > 85
+        for: 5m
+        labels:
+          severity: critical
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth disk {{ $labels.mountpoint }} is {{ $value | printf "%.0f" }}% used (critical above 85%)'
+          description: 'Filesystem {{ $labels.mountpoint }} on {{ $labels.alias }} has been more than 85% used for 5 minutes.'
+          runbook: 'deploy/README.md#runbook-mawareethdisk'
+
+      - alert: MawareethCollectorStale
+        expr: |
+          (time() - mawareeth_monitor_collect_timestamp_seconds{job="mawareeth-node"}) > 20 * 60
+            or absent(mawareeth_monitor_collect_timestamp_seconds{job="mawareeth-node"})
+            or node_textfile_scrape_error{job="mawareeth-node"} == 1
+        labels:
+          severity: warning
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth monitoring collector is stale, absent, or unreadable'
+          description: 'mawareeth.prom is older than 20 minutes, absent, or could not be parsed by the textfile collector, so the backup and restore metrics cannot be trusted.'
+          runbook: 'deploy/README.md#runbook-mawareethcollectorstale'

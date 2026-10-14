@@ -1,0 +1,42 @@
+# Merge into SCDF's alertmanager.yml on p1 (deploy/README.md, "Monitoring and
+# alerting"):
+#   - add the route as the FIRST entry of route.routes, before any catch-all;
+#   - add the receiver to receivers;
+#   - add the inhibit rules to inhibit_rules.
+# The receiver mails the same SMTP_TO address SCDF's existing receiver uses and
+# relies on p1's global smtp_* settings. Substitute SMTP_TO exactly as SCDF's
+# own config generation does; never commit the address's credentials or any
+# SMTP secret here.
+route:
+  routes:
+    - receiver: mawareeth-email
+      matchers:
+        - project="mawareeth"
+      group_by: [alertname, severity, alias]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      continue: false
+
+receivers:
+  - name: mawareeth-email
+    email_configs:
+      - to: '${SMTP_TO}'
+        send_resolved: true
+        headers:
+          Subject: '[MAWAREETH {{ .CommonLabels.severity }}] {{ .CommonLabels.alertname }} ({{ .Status }})'
+
+inhibit_rules:
+  # An unreachable host makes every other Mawareeth signal meaningless.
+  - source_matchers:
+      - alertname="MawareethHostDown"
+    target_matchers:
+      - project="mawareeth"
+      - alertname!="MawareethHostDown"
+    equal: [project]
+  # Critical disk usage supersedes the warning on the same filesystem.
+  - source_matchers:
+      - alertname="MawareethDiskCritical"
+    target_matchers:
+      - alertname="MawareethDiskWarning"
+    equal: [project, mountpoint]
