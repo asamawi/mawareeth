@@ -19,9 +19,33 @@ need "$provision" 'port: "22"'
 # two literal spellings above -- catches a multiport dports list, a port range,
 # or a differently quoted/worded allow rule that would otherwise slip through.
 contains_port() { grep -Eq -- "(^|[^0-9])$1([^0-9]|\$)" "$provision" "$bootstrap"; }
-for forbidden_port in 2375 5432 8000; do
+for forbidden_port in 2375 5432 8000 9100; do
   contains_port "$forbidden_port" && fail "forbidden public port $forbidden_port is present in the baseline"
 done
+# node_exporter (9100) may be opened only on tailscale0 from the tailnet range,
+# by exactly one rule in deploy/monitor.sh; no other script may open it.
+tailnet_rule='allow in on tailscale0 from 100.64.0.0/10 to any port 9100 proto tcp'
+# The only other permitted mention is the exporter wrapper's exec line, matched
+# whole so nothing appended to it can slip through.
+exporter_exec='exec /usr/bin/prometheus-node-exporter --web.listen-address="\$ip:9100" --collector.textfile.directory=$textfile_dir'
+monitor_prefix="$root/deploy/monitor.sh:"
+while IFS= read -r hit; do
+  line="${hit#"$monitor_prefix"}"
+  if [[ "$line" != "$hit" && "$line" =~ ^[0-9]+:(.*)$ ]]; then
+    line="${BASH_REMATCH[1]}"
+    [[ "$line" == "ufw_rule=(${tailnet_rule})" || "$line" == "$exporter_exec" ]] && continue
+  fi
+  fail "9100 is opened outside 'in on tailscale0': $hit"
+done < <(grep -En -- '(ufw|iptables|ip6tables|nft|firewall|port|allow|dport|listen).*(^|[^0-9])9100([^0-9]|$)' "$root"/deploy/*.sh | grep -Ev ':[0-9]+:[[:space:]]*#' || true)
+# Compose and other deploy YAML (not the p1 snippets in deploy/monitoring/)
+# must never publish or expose 9100.
+shopt -s nullglob
+for file in "$root"/deploy/*.yaml "$root"/deploy/*.yml; do
+  ! grep -Ev '^[[:space:]]*#' "$file" | grep -Eq '(^|[^0-9])9100([^0-9]|$)' || fail "$file publishes or exposes port 9100"
+done
+shopt -u nullglob
+grep -Fq "ufw_rule=(${tailnet_rule})" "$root/deploy/monitor.sh" || fail 'monitor.sh must open 9100 only with the tailscale0 rule'
+grep -Fq 'ufw "${ufw_rule[@]}"' "$root/deploy/monitor.sh" || fail 'monitor.sh must apply its tailscale0 UFW rule'
 need "$bootstrap" 'PasswordAuthentication no'
 need "$bootstrap" 'PermitRootLogin no'
 need "$bootstrap" 'PubkeyAuthentication yes'

@@ -906,4 +906,8 @@ main() {
   esac
 }
 
-main "$@"
+# Sourced by deploy/monitor.sh for its record readers; dispatch only when
+# executed directly.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

@@ -1,0 +1,11 @@
+# Merge this job into scrape_configs in SCDF's prometheus.yml on p1, replacing
+# <tailscale-ip> with the Mawareeth host's address from `tailscale ip -4`. The
+# exporter listens only on that address, and UFW admits 9100/tcp only on
+# tailscale0 from 100.64.0.0/10. Also add mawareeth-alerts.yml to rule_files.
+scrape_configs:
+  - job_name: mawareeth-node
+    static_configs:
+      - targets: ['<tailscale-ip>:9100']
+        labels:
+          alias: mawareeth-prod
+          project: mawareeth
