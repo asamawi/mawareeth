@@ -90,13 +90,15 @@ load_lock() {
   local line key value
   declare -gA locked=()
   while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ "$line" =~ ^(CADDY_IMAGE|POSTGRES_IMAGE)=([^[:space:]]+)$ ]] || die 'runtime image lock is malformed'
+    [[ "$line" =~ ^(CADDY_IMAGE|POSTGRES_IMAGE|RESTIC_IMAGE)=([^[:space:]]+)$ ]] || die 'runtime image lock is malformed'
     key="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
     [[ -z "${locked[$key]+x}" ]] || die "runtime image lock contains duplicate key: $key"
     locked[$key]="$value"
   done < "$lock_file"
   [[ "${locked[CADDY_IMAGE]:-}" == 'docker.io/library/caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52' ]] || die 'Caddy image is outside the allowlist'
   [[ "${locked[POSTGRES_IMAGE]:-}" == 'docker.io/library/postgres:17.11@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3' ]] || die 'PostgreSQL image is outside the allowlist'
+  # Optional: only deploy/backup.sh runs Restic, and it requires the entry.
+  [[ -z "${locked[RESTIC_IMAGE]+x}" || "${locked[RESTIC_IMAGE]}" == 'docker.io/restic/restic:0.18.1@sha256:39d9072fb5651c80d75c7a811612eb60b4c06b32ffe87c2e9f3c7222e1797e76' ]] || die 'Restic image is outside the allowlist'
 }
 
 validate_manifest() {
