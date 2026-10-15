@@ -2,10 +2,11 @@
 # Safe blue-green release deployment for the private Compose runtime.
 #
 #   sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/release.sh deploy
+#   sudo deploy/release.sh recover [--dry-run]
 #
-# Exit codes: 0 deployed and verified; 2 refused before any mutation; 3 another
-# deploy or runtime operation holds the lock; 4 the journal is not idle or is
-# unsafe (manual recovery required); 5 the candidate failed before routing
+# deploy exit codes: 0 deployed and verified; 2 refused before any mutation; 3
+# another deploy or runtime operation holds the lock; 4 the journal is not idle
+# or is unsafe (run recover); 5 the candidate failed before routing
 # (route unchanged, candidate stopped); 6 the switch or production TLS
 # verification failed and the prior state was restored (bootstrap: Caddy
 # stopped); 7 restoring the prior state failed or could not be confirmed
@@ -13,6 +14,18 @@
 # the deploy could not finish draining or journaling (journal left non-idle);
 # 129/130/143 a hangup, interrupt, or termination arrived before any mutation
 # (nothing changed). Signals after mutation begins map to 5, 6 or 8.
+#
+# recover exit codes: 0 recovered, or nothing to recover (journal absent or
+# idle), or a dry run printed its plan; 2 refused before any mutation (invalid
+# arguments or input; the journal is malformed, unsafe, in the legacy ten-line
+# format, or non-idle with result=success; slot records contradict it; the
+# target's recorded snapshot is missing or drifted; the target's image is not
+# loaded; or the runtime configuration differs from the target's recorded
+# snapshot; recover manually); 3 another operation holds the lock (possibly a
+# leftover process of the crashed deploy); 7 CRITICAL: recovery failed, or a
+# signal arrived, after it began changing state (journal left unchanged; fix
+# the cause and run recover again); 129/130/143 a signal arrived before any
+# mutation (nothing changed).
 release_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=deploy/runtime.sh
 source "$release_dir/runtime.sh"
@@ -39,6 +52,7 @@ candidate_record_backup=''
 prev_had=0
 prev_backup=''
 route_written=0
+records_state=untouched
 stage=preflight
 handling_failure=0
 deadline=''
@@ -66,9 +80,12 @@ bounded_seconds() {
   [[ "$1" =~ ^[1-9][0-9]{0,3}$ ]] || fail_with 2 "$2 must be 1-9999 seconds"
 }
 
+# records= stays untouched until the candidate's .prev holds its pre-deploy
+# record and becomes replaced from then on; recover restores the candidate
+# record from .prev only when it reads replaced.
 journal_content() {
-  printf 'phase=%s\nprior_slot=%s\ncandidate_slot=%s\nmanifest_commit=%s\nprior_commit=%s\nresult=%s\nstarted_at=%s\nupdated_at=%s\ndeploy_log=%s\nmigrate_log=%s\n' \
-    "$1" "$prior_slot" "$candidate_slot" "$APP_COMMIT" "$prior_commit" "$2" "$started_at" "$(now)" "$deploy_log" "$migrate_log"
+  printf 'phase=%s\nprior_slot=%s\ncandidate_slot=%s\nmanifest_commit=%s\nprior_commit=%s\nresult=%s\nstarted_at=%s\nupdated_at=%s\ndeploy_log=%s\nmigrate_log=%s\nrecords=%s\n' \
+    "$1" "$prior_slot" "$candidate_slot" "$APP_COMMIT" "$prior_commit" "$2" "$started_at" "$(now)" "$deploy_log" "$migrate_log" "$records_state"
 }
 
 # journal PHASE [RESULT] publishes the phase atomically before the caller acts
@@ -227,11 +244,21 @@ stop_service() {
   compose_bounded $((stop_seconds + 30)) stop -t "$stop_seconds" "$1" >>"$deploy_log" 2>&1
 }
 
-# Put the candidate's record and its .prev back exactly as they were.
+# Put the candidate's record and its .prev back exactly as they were. While the
+# journal says records=replaced, recover would restore the record from .prev,
+# so .prev keeps the pre-deploy record until the journal says untouched again.
 restore_candidate_records() {
   local record="$slots_dir/$candidate_slot.env"
   if ((candidate_had_record)); then atomic_write "$record" 0600 "$candidate_record_backup" || return 1
   else rm -f -- "$record" || return 1; fi
+  if [[ "$records_state" == replaced ]]; then
+    records_state=untouched
+    if ! journal "$phase"; then
+      records_state=replaced
+      say "WARNING: $journal_file still says records=replaced, so $candidate_slot.env.prev keeps the pre-deploy record"
+      return 0
+    fi
+  fi
   if ((prev_had)); then atomic_write "$record.prev" 0600 "$prev_backup" || return 1
   else rm -f -- "$record.prev" || return 1; fi
 }
@@ -254,7 +281,7 @@ restore_failed() {
   local failed_phase="$1"; shift
   journal restore-failed "failed:$failed_phase" || true
   say "CRITICAL: $*"
-  say "follow the manual recovery steps in deploy/README.md using $journal_file; diagnostics: $deploy_log"
+  say "run deploy/release.sh recover now (see deploy/README.md); journal: $journal_file; diagnostics: $deploy_log"
   exit 7
 }
 
@@ -460,6 +487,13 @@ deploy() {
   else
     rm -f -- "$slots_dir/$candidate_slot.env.prev" || abort_switch "cannot clear the stale $candidate_slot.env.prev record"
   fi
+  # .prev now holds the pre-deploy record (or is absent when there was none),
+  # so recover may restore the candidate record from it. A failed write may
+  # still have been published (only the directory sync failed), so keep
+  # assuming replaced: the rollback then re-journals untouched before it puts
+  # back the older .prev.
+  records_state=replaced
+  journal switching || abort_switch "cannot write $journal_file"
   atomic_write "$slots_dir/$candidate_slot.env" 0600 "$(slot_record_content "$APP_IMAGE" "$APP_COMMIT" "${APP_SNAPSHOT##*/}")" \
     || abort_switch "cannot record the $candidate_slot slot release"
   route_written=1
@@ -485,7 +519,298 @@ deploy() {
   say "deployed $APP_COMMIT on app-$candidate_slot; app-$prior_slot drained"
 }
 
+# --- Crash recovery ------------------------------------------------------------
+# recover [--dry-run] finishes or rolls back the deploy a non-idle journal
+# describes, using only the journal and the slot records (no manifest).
+recover_target=''
+recover_commit=''
+recover_record_action=none
+recover_record_content=''
+
+recover_refuse() {
+  fail_with 2 "$*; nothing changed. Follow the manual recovery steps in deploy/README.md"
+}
+
+# After mutation began: leave the journal as it is so recover can simply be
+# run again once the cause is fixed.
+recover_failed() {
+  handling_failure=1
+  trap '' INT TERM HUP
+  say "CRITICAL: $*"
+  say "the journal $journal_file is unchanged; fix the cause and run deploy/release.sh recover again; diagnostics: $deploy_log"
+  exit 7
+}
+
+recover_tmp=''
+recover_cleanup() { [[ -z "$recover_tmp" ]] || rm -rf -- "$recover_tmp"; }
+
+recover_on_exit() {
+  local status=$?
+  recover_cleanup
+  ((status != 0 && handling_failure == 0)) || return 0
+  [[ "$stage" == recovering ]] || return 0
+  recover_failed "recover stopped unexpectedly (status $status)"
+}
+
+open_recover_log() {
+  local logs_dir="$state_dir/logs" file
+  state_subdir "$logs_dir" 700 create
+  file="$logs_dir/recover-$(date -u +%Y%m%dT%H%M%SZ)-$$.log"
+  (set -C; : > "$file") 2>/dev/null || die "cannot create diagnostic log $file"
+  { chown root:root "$file" && chmod 0600 "$file"; } || die "cannot protect diagnostic log $file"
+  file_metadata "$file" 600 'diagnostic log'
+  deploy_log="$file"
+}
+
+# snapshot_valid FILE succeeds for a root-only snapshot whose content matches
+# its content-addressed name.
+snapshot_valid() {
+  local file="$1"
+  [[ "${file##*/}" =~ ^[0-9a-f]{64}\.snapshot\.env$ && -f "$file" && ! -L "$file" ]] || return 1
+  [[ "$(stat -c '%u:%g:%a' "$file" 2>/dev/null)" == '0:0:600' ]] || return 1
+  [[ "$(sha256sum "$file" | awk '{print $1}')" == "$(basename -- "$file" .snapshot.env)" ]]
+}
+
+# Start PostgreSQL (bounded) when it is not running; the target cannot become
+# ready without it, and runtime.sh up refuses while the journal is not idle.
+recover_postgres() {
+  local id
+  id="$(compose_bounded "$command_timeout" ps --quiet postgres 2>>"$deploy_log")" \
+    || recover_failed 'cannot inspect PostgreSQL; nothing was changed by recover'
+  [[ -z "${id//[[:space:]]/}" ]] || return 0
+  say 'starting PostgreSQL'
+  compose_bounded $((startup_timeout + 30)) up -d --no-build --pull never --wait --wait-timeout "$startup_timeout" postgres >>"$deploy_log" 2>&1 \
+    || recover_failed "PostgreSQL did not become healthy within ${startup_timeout}s; the route, slot records and slots were not changed"
+}
+
+recover_target_ready() { slot_ready "$recover_target"; }
+recover_target_identity() {
+  local body
+  body="$(probe "$recover_target" /health/release/)" || return 1
+  [[ "$(json_commit <<<"$body")" == "$recover_commit" ]]
+}
+recover_target_edge() { edge_serves "$recover_target" "$recover_commit"; }
+
+# Put the abandoned candidate's record back from .prev, or remove it when the
+# slot had no record before the deploy. Idempotent, so a rerun is safe.
+recover_records() {
+  local record="$slots_dir/$candidate_slot.env"
+  case "$recover_record_action" in
+    restore) atomic_write "$record" 0600 "$recover_record_content" ;;
+    remove) rm -f -- "$record" ;;
+    *) return 0 ;;
+  esac
+}
+
+# Reset the journal to idle with the deploy's own identity and log paths; the
+# records now match what runs, so records=untouched.
+recover_journal_idle() {
+  local own_log="$deploy_log" status=0
+  records_state=untouched
+  deploy_log="${journal_values[deploy_log]}"; migrate_log="${journal_values[migrate_log]}"
+  journal idle "$1" || status=1
+  deploy_log="$own_log"
+  return "$status"
+}
+
+recover() {
+  local dry_run="$1" status=0 verified=0 current_route='' other='' snapshot image fallback slot final_result
+  local record_file current_content caddy_status target_image='' hash
+  [[ ${EUID:-999} -eq 0 ]] || fail_with 2 'must run as root'
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap '' PIPE
+  require_command flock; require_command curl; require_command timeout; require_command sync
+  bounded_seconds "$ready_timeout" MAWAREETH_DEPLOY_READY_TIMEOUT
+  bounded_seconds "$verify_timeout" MAWAREETH_DEPLOY_VERIFY_TIMEOUT
+  bounded_seconds "$poll_interval" MAWAREETH_DEPLOY_POLL_INTERVAL
+  bounded_seconds "$startup_timeout" MAWAREETH_RUNTIME_WAIT_TIMEOUT
+  safe_path "$state_dir" MAWAREETH_RUNTIME_DIR
+  if [[ ! -e "$state_dir" && ! -L "$state_dir" ]]; then
+    say "nothing to recover: the runtime state directory $state_dir does not exist"
+    return 0
+  fi
+  ensure_state_dir existing
+
+  acquire_deploy_lock || fail_with 3 "another deploy or runtime operation holds $deploy_lock_file"
+  journal_status || status=$?
+  case "$status" in
+    0) say "nothing to recover: $journal_file is absent or idle"; return 0 ;;
+    1) ;;
+    *) recover_refuse "deploy journal $journal_file is unsafe or malformed" ;;
+  esac
+  [[ -n "${journal_values[records]}" ]] \
+    || recover_refuse "deploy journal $journal_file uses the legacy ten-line format without records=, so recover cannot tell whether slot records were replaced"
+  prior_slot="${journal_values[prior_slot]}"; candidate_slot="${journal_values[candidate_slot]}"
+  APP_COMMIT="${journal_values[manifest_commit]}"; prior_commit="${journal_values[prior_commit]}"
+  started_at="${journal_values[started_at]}"; records_state="${journal_values[records]}"
+  [[ "$prior_slot" != "$candidate_slot" ]] || recover_refuse 'the journal names the same slot as prior and candidate'
+  [[ -z "$prior_slot" && -z "$prior_commit" || -n "$prior_slot" && -n "$prior_commit" ]] \
+    || recover_refuse 'the journal has a prior slot without a prior commit, or the reverse'
+  [[ "${journal_values[result]}" != success ]] \
+    || recover_refuse "the journal is not idle but says result=success, which a deploy never writes"
+  if [[ "${journal_values[result]}" == verified || "${journal_values[phase]}" == draining ]]; then verified=1; fi
+  if ((verified)); then final_result=success
+  elif [[ "${journal_values[result]}" == failed:* ]]; then final_result="${journal_values[result]}"
+  else final_result="failed:${journal_values[phase]}"; fi
+
+  preflight_runtime
+  ensure_state_subdirs existing
+  if read_active_slot; then current_route="$ACTIVE_SLOT"; fi
+
+  # The candidate record an abandoned deploy must end with.
+  record_file="$slots_dir/$candidate_slot.env"
+  if ((verified == 0)) && [[ "$records_state" == replaced ]]; then
+    if read_slot_record "$candidate_slot" .prev; then
+      recover_record_action=restore
+      recover_record_content="$(slot_record_content "$SLOT_IMAGE" "$SLOT_COMMIT" "$SLOT_SNAPSHOT")"
+    else
+      recover_record_action=remove
+    fi
+    if read_slot_record "$candidate_slot"; then
+      current_content="$(slot_record_content "$SLOT_IMAGE" "$SLOT_COMMIT" "$SLOT_SNAPSHOT")"
+      [[ "$SLOT_COMMIT" == "$APP_COMMIT" || "$current_content" == "$recover_record_content" ]] \
+        || recover_refuse "the $candidate_slot slot record matches neither the journal's manifest commit nor $candidate_slot.env.prev"
+    fi
+  fi
+
+  if ((verified)); then recover_target="$candidate_slot"; recover_commit="$APP_COMMIT"
+  elif [[ -n "$prior_slot" ]]; then recover_target="$prior_slot"; recover_commit="$prior_commit"; fi
+
+  if [[ -n "$recover_target" ]]; then
+    read_slot_record "$recover_target" || recover_refuse "app-$recover_target must serve but has no slot record"
+    [[ "$SLOT_COMMIT" == "$recover_commit" ]] \
+      || recover_refuse "the $recover_target slot record names commit $SLOT_COMMIT but the journal expects $recover_commit"
+    target_image="$SLOT_IMAGE"; snapshot="$state_dir/$SLOT_SNAPSHOT"
+    if ((verified)) && [[ -n "$prior_slot" ]]; then
+      read_slot_record "$prior_slot" && [[ "$SLOT_COMMIT" == "$prior_commit" ]] \
+        || recover_refuse "the $prior_slot slot record does not match the journal's prior commit $prior_commit"
+    fi
+    [[ -e "$snapshot" || -L "$snapshot" ]] || recover_refuse "the runtime snapshot ${snapshot##*/} recorded for app-$recover_target is missing"
+    file_metadata "$snapshot" 600 'runtime snapshot'
+    [[ "$(sha256sum "$snapshot" | awk '{print $1}')" == "$(basename -- "$snapshot" .snapshot.env)" ]] \
+      || recover_refuse "the runtime snapshot ${snapshot##*/} recorded for app-$recover_target drifted"
+    hash="$(snapshot_hash)" || recover_refuse 'cannot hash the runtime configuration'
+    [[ "$hash.snapshot.env" == "${snapshot##*/}" ]] \
+      || recover_refuse "the runtime configuration differs from the snapshot ${snapshot##*/} recorded for app-$recover_target; restore the runtime file matching the recorded snapshot (rotate configuration separately)"
+    APP_SNAPSHOT="$snapshot"
+    validate_image "$target_image"
+    other="$(other_slot "$recover_target")"
+  else
+    # Unverified bootstrap: no release was ever recorded before this deploy.
+    [[ ! -e "$slots_dir/$(other_slot "$candidate_slot").env" ]] \
+      || recover_refuse "the journal describes a bootstrap but app-$(other_slot "$candidate_slot") has a slot record"
+    [[ "$records_state" == replaced || ! -e "$record_file" ]] \
+      || recover_refuse "the journal says records=untouched for a bootstrap but app-$candidate_slot has a slot record"
+    # Only stop runs, so Compose just needs a readable snapshot: the
+    # candidate's recorded one, else its .prev's, else a protected temporary
+    # rendering (prepare, the remedy for a missing one, refuses this journal).
+    for slot in '' .prev; do
+      if [[ -e "$record_file$slot" ]] && read_slot_record "$candidate_slot" "$slot" && snapshot_valid "$state_dir/$SLOT_SNAPSHOT"; then
+        APP_SNAPSHOT="$state_dir/$SLOT_SNAPSHOT"; break
+      fi
+    done
+    if [[ -z "$APP_SNAPSHOT" ]]; then
+      trap recover_cleanup EXIT
+      recover_tmp="$(mktemp -d)" || recover_refuse 'could not allocate a temporary snapshot directory'
+      chmod 0700 "$recover_tmp" || recover_refuse 'could not protect the temporary snapshot directory'
+      (umask 077; snapshot_content > "$recover_tmp/app.snapshot.env") || recover_refuse 'could not render a temporary snapshot'
+      APP_SNAPSHOT="$recover_tmp/app.snapshot.env"
+    fi
+  fi
+
+  # Compose interpolates both slot images; only the target is ever started.
+  # A slot without a record borrows the target image, or for a bootstrap the
+  # locked Caddy image, purely for interpolation (it is only ever stopped).
+  fallback="${target_image:-${locked[CADDY_IMAGE]}}"
+  for slot in blue green; do
+    if [[ "$slot" == "$recover_target" ]]; then image="$target_image"
+    elif read_slot_record "$slot"; then image="$SLOT_IMAGE"
+    else image="$fallback"; fi
+    if [[ "$slot" == blue ]]; then APP_BLUE_IMAGE="$image"; else APP_GREEN_IMAGE="$image"; fi
+  done
+  ROUTES_DIR="$routes_dir"
+
+  printf 'recover plan for %s (phase=%s result=%s records=%s):\n' "$journal_file" "${journal_values[phase]}" "${journal_values[result]}" "$records_state"
+  if [[ -n "$recover_target" ]]; then
+    if ((verified)); then printf '  serve:   app-%s at %s (the candidate was verified at the edge)\n' "$recover_target" "$recover_commit"
+    else printf '  serve:   app-%s at %s (the prior slot; candidate app-%s was never verified)\n' "$recover_target" "$recover_commit" "$candidate_slot"; fi
+  else
+    printf '  serve:   nothing (unverified bootstrap); Caddy stays stopped\n'
+  fi
+  if [[ -n "$recover_target" ]]; then
+    printf '  start:   PostgreSQL if it is not running, then app-%s on its recorded image if it is not already running it\n' "$recover_target"
+    if [[ "$current_route" == "$recover_target" ]]; then printf '  route:   keep the route to app-%s\n' "$recover_target"
+    elif [[ -n "$current_route" ]]; then printf '  route:   write the route to app-%s (currently app-%s)\n' "$recover_target" "$current_route"
+    else printf '  route:   write the route to app-%s (currently absent)\n' "$recover_target"; fi
+    printf '  caddy:   reload (or start) Caddy and confirm X-Mawareeth-Slot %s and commit %s at https://%s\n' "$recover_target" "$recover_commit" "${runtime_values[DOMAIN]}"
+    printf '  stop:    app-%s after the edge confirms\n' "$other"
+  else
+    printf '  stop:    Caddy (confirmed stopped), then app-%s\n' "$candidate_slot"
+  fi
+  case "$recover_record_action" in
+    restore) printf '  records: restore %s.env from %s.env.prev\n' "$candidate_slot" "$candidate_slot" ;;
+    remove) printf '  records: remove %s.env (the slot had no record before the deploy)\n' "$candidate_slot" ;;
+    *) printf '  records: leave slot records unchanged\n' ;;
+  esac
+  printf '  journal: reset to idle with result=%s\n' "$final_result"
+  if ((dry_run)); then
+    say 'dry run: nothing changed'
+    return 0
+  fi
+
+  open_recover_log
+  trap recover_on_exit EXIT
+  stage=recovering
+  say "recovering the deploy journaled in $journal_file; diagnostics: $deploy_log"
+  if [[ -z "$recover_target" ]]; then
+    stop_service caddy || recover_failed "Caddy could not be stopped and may serve unverified app-$candidate_slot"
+    caddy_status=0; caddy_running || caddy_status=$?
+    ((caddy_status == 1)) || recover_failed "Caddy is not confirmed stopped and may serve unverified app-$candidate_slot"
+    stop_service "app-$candidate_slot" || recover_failed "app-$candidate_slot could not be stopped"
+    recover_records || recover_failed "the $candidate_slot slot records could not be restored"
+  else
+    # Records are restored last, so if recover fails midway they still
+    # describe what runs and a rerun starts from the same state.
+    local unchanged="slot records and app-$other were not changed"
+    recover_postgres
+    if ! running_image_matches "app-$recover_target" "$target_image"; then
+      say "starting app-$recover_target on its recorded image"
+      compose_bounded "$command_timeout" up -d --no-build --pull never --no-deps "app-$recover_target" >>"$deploy_log" 2>&1 \
+        || recover_failed "app-$recover_target could not be started; the route, $unchanged"
+      running_image_matches "app-$recover_target" "$target_image" \
+        || recover_failed "app-$recover_target is not running its recorded image $target_image; the route, $unchanged"
+    fi
+    wait_until "$ready_timeout" recover_target_ready \
+      || recover_failed "app-$recover_target did not become ready within ${ready_timeout}s; the route, $unchanged (no fallback to another slot)"
+    wait_until "$ready_timeout" recover_target_identity \
+      || recover_failed "app-$recover_target does not report release commit $recover_commit; the route, $unchanged"
+    if [[ "$current_route" != "$recover_target" ]]; then
+      atomic_write "$route_file" 0644 "$(route_content "$recover_target")" \
+        || recover_failed "cannot write the persisted route (the previous route file is unchanged); $unchanged"
+    fi
+    apply_route || recover_failed "Caddy could not load the route to app-$recover_target (the route file now targets it); $unchanged"
+    wait_until "$verify_timeout" recover_target_edge \
+      || recover_failed "the edge does not confirm app-$recover_target at $recover_commit over verified TLS within ${verify_timeout}s (the route file targets it); $unchanged"
+    stop_service "app-$other" \
+      || recover_failed "app-$recover_target serves and is confirmed at the edge, but app-$other could not be stopped; slot records were not changed"
+    recover_records \
+      || recover_failed "app-$recover_target serves and app-$other is stopped, but the $candidate_slot slot records could not be restored"
+  fi
+  recover_journal_idle "$final_result" || recover_failed "recovery finished but $journal_file could not be reset to idle"
+  stage=complete
+  if [[ -n "$recover_target" ]]; then say "recovered: app-$recover_target serves $recover_commit; app-$other stopped; journal idle ($final_result)"
+  else say "recovered: unverified bootstrap rolled back, Caddy and app-$candidate_slot stopped; journal idle ($final_result)"; fi
+}
+
+usage='usage: release.sh deploy | release.sh recover [--dry-run]'
 case "${1:-}" in
-  deploy) shift; [[ $# -eq 0 ]] || fail_with 2 'usage: release.sh deploy'; deploy ;;
-  *) fail_with 2 'usage: release.sh deploy' ;;
+  deploy) shift; [[ $# -eq 0 ]] || fail_with 2 "$usage"; deploy ;;
+  recover)
+    shift
+    if [[ $# -eq 0 ]]; then recover 0
+    elif [[ $# -eq 1 && "$1" == --dry-run ]]; then recover 1
+    else fail_with 2 "$usage"; fi ;;
+  *) fail_with 2 "$usage" ;;
 esac
