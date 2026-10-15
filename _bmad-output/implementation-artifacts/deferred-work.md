@@ -16,6 +16,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-4-create-secured-hetzner-host-baseline.md`
   summary: Wire `deploy/tests/test_host_baseline.sh` (and ShellCheck) into a CI job that runs whenever `deploy/` changes.
   evidence: The script is pure offline validation (no Hetzner contact, not a CI-from-host violation), but today it only runs manually; a regression in the security contract (e.g. a public 0.0.0.0/0 SSH rule) would merge with a green CI check.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-ci-deploy-shell-suites.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-4-create-secured-hetzner-host-baseline.md`
   summary: Document the admin user's passwordless sudo grant and the first-connection TOFU host-key acceptance (`StrictHostKeyChecking=accept-new`) as deliberate tradeoffs, and add a break-glass recovery procedure for an SSH lockout.
   evidence: Both are real, currently-undocumented security-relevant decisions in `bootstrap-host.sh`/`provision-host.sh`; `deploy/README.md` only warns "do not remove the only permitted CIDR" with no recovery path if it happens anyway.
@@ -58,6 +59,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-5-build-the-private-compose-runtime.md`
   summary: Add the Compose runtime contract, resolved-model check, and Linux root-permission tests to the normal GitHub Actions path.
   evidence: This is independently shippable CI enforcement; Story 0-5 retains executable offline tests and local Compose validation, while pipeline wiring can be reviewed separately without changing runtime behavior.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-ci-deploy-shell-suites.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-5-build-the-private-compose-runtime.md`
   summary: Add an operator-approved retention and cleanup workflow for superseded content-addressed runtime snapshots after secret rotation.
   evidence: Snapshot lifecycle is a distinct operational policy requiring rollback-retention decisions; Story 0-5 safely creates immutable snapshots but does not delete prior secret material automatically.
@@ -71,6 +73,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
   summary: Run `deploy/tests/test_release.sh` (and the other deploy shell suites, with `bash -n` and ShellCheck) in GitHub Actions on changes under `deploy/**`.
   evidence: Review of 0.6 found that no workflow references the shell suites; `django.yml` runs only `manage.py test`, so a routing or rollback regression can merge with green CI. This extends the existing 0.5 CI-enforcement deferral.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-ci-deploy-shell-suites.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
   summary: Add a supported, phased runtime-configuration rotation operation (new snapshot adopted by both slots with overlap for compatibility-affecting keys) and document it.
   evidence: 0.6 `release.sh deploy` and `runtime.sh up` correctly refuse snapshot drift with "rotate configuration separately", but no command or runbook exists, so any secret change currently requires hand-editing root-only slot records.
@@ -83,6 +86,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
   summary: Run `deploy/tests/test_backup.sh` (with the other deploy shell suites) in GitHub Actions on changes under `deploy/**`.
   evidence: Review of 0.7 confirmed no workflow references `deploy/tests/*.sh`; `django.yml` runs only `manage.py test`, so regressions in snapshot consistency, RPO/RTO checks, or gate freshness can merge with green CI.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-ci-deploy-shell-suites.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
   summary: Strengthen restore verification beyond exact row counts with per-table content checksums on key tables and an application-level check (e.g. `manage.py migrate --check` against the restored database).
   evidence: Review of 0.7 noted that a dump restoring with corrupted values but correct row counts would pass; counts satisfy the story's acceptance criteria but do not prove content integrity.
@@ -101,3 +105,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`
   summary: Pin the expected OpenPGP fingerprints of third-party apt signing keys (Docker in `bootstrap-host.sh`, Tailscale in `monitor.sh`) and refuse to install a downloaded key that does not match.
   evidence: Review of 0.8 found `monitor.sh install` trusts whatever key `pkgs.tailscale.com` serves over HTTPS; `bootstrap-host.sh` already does the same for Docker, so this is a pre-existing pattern best fixed for both at once.
+- source_spec: `_bmad-output/implementation-artifacts/spec-ci-deploy-shell-suites.md`
+  summary: Make `deploy/backup.sh` run tags unique (e.g. a random or PID suffix on the second-resolution `run_stamp`) so a failed run's `discard_run` → `forget_matching "run:$run_stamp"` can never delete another run's complete snapshots, and add a test that a failed run leaves an earlier same-second run intact.
+  evidence: Running the suites on Linux in CI exposed it: two back-to-back backups in the same UTC second share a tag, and the failed one forgot the first run's complete dump and manifest. The test now waits for the next second to avoid it; production runs take minutes, so the window is small but real (e.g. an operator re-running immediately after a fast failure).

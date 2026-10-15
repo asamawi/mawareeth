@@ -163,6 +163,7 @@ done
 scp "${ssh_opts[@]}" "$script_dir/bootstrap-host.sh" "$remote_user@${server_ip}:/tmp/mawareeth-bootstrap-host.sh"
 bootstrap_cmd="SSH_ALLOWED_CIDRS=$(printf %q "$SSH_ALLOWED_CIDRS") ADMIN_USER=$(printf %q "$ADMIN_USER") ADMIN_PUBLIC_KEY=$(printf %q "$configured_key") bash /tmp/mawareeth-bootstrap-host.sh"
 if [[ "$remote_user" != root ]]; then bootstrap_cmd="sudo $bootstrap_cmd"; fi
+# shellcheck disable=SC2029 # bootstrap_cmd is %q-quoted here and must expand client-side.
 ssh "${ssh_opts[@]}" "$remote_user@${server_ip}" "$bootstrap_cmd"
 ssh "${ssh_opts[@]}" "$ADMIN_USER@${server_ip}" 'sudo rm -f /tmp/mawareeth-bootstrap-host.sh' || true
 printf '%s\n' 'Provisioning reconciliation completed.'

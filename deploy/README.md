@@ -259,6 +259,8 @@ Ask before changing anything on `p1`. Merge the three snippets under `deploy/mon
 
 `deploy/tests/test_monitor.sh` unit-tests these rules with `promtool test rules` and checks the route snippet with `amtool check-config` and `amtool config routes test`. Those checks run only when `promtool` and `amtool` are installed (otherwise only static checks run); with `CI` set, a missing tool fails the suite. The end-to-end alert-path drill is deferred (`deferred-work.md`) and must pass before cutover.
 
+The `deploy-shell` job in the `Django CI` workflow (`.github/workflows/django.yml`) installs pinned, checksum-verified ShellCheck, `promtool`, and `amtool`, runs ShellCheck over `deploy/*.sh` and `deploy/tests/*.sh`, and runs every `deploy/tests/*.sh` suite twice: unprivileged and as root. A failure there fails `Django CI`, so `Publish Release Image` does not publish.
+
 ### Better Stack uptime probe
 
 Create one Better Stack Uptime monitor:

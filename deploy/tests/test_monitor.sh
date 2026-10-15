@@ -45,6 +45,7 @@ done
 monitor="$bundle/deploy/monitor.sh"; backup="$bundle/deploy/backup.sh"
 
 # Every stubbed command appends its argv to calls.log.
+# shellcheck disable=SC2043 # single-entry list kept so more stubs can be added.
 for command in systemctl; do
   printf '#!/usr/bin/env bash\nprintf %%s\\\\n "%s $*" >> %q\n' "$command" "$S/calls.log" > "$stub/$command"
 done
@@ -157,6 +158,7 @@ expect_metric mawareeth_backup_last_ok_timestamp_seconds "$((now - 3600))" healt
 expect_metric mawareeth_restore_last_result_pass 1 healthy
 expect_metric mawareeth_restore_last_pass_timestamp_seconds "$((now - 86400))" healthy
 collected="$(metric mawareeth_monitor_collect_timestamp_seconds)"
+# shellcheck disable=SC2015 # fail exits, so it runs only when the check fails.
 [[ "$collected" =~ ^[1-9][0-9]+$ ]] && (( collected >= now && collected <= now + 120 )) || fail "collect timestamp $collected is not the current time"
 
 # Prom text format: HELP, TYPE gauge, then one sample, for exactly five metrics.
@@ -205,7 +207,9 @@ healthy_records; rm -f "$backup_rec"; unusable 'absent record'
 set_meta "$backup_rec" 0:0:644; unusable 'world-readable record'
 set_meta "$backup_rec" 1000:1000:600; unusable 'mis-owned record'
 rm -f "$backup_rec"; printf 'result=ok\n' > "$tmp/elsewhere"; ln -s "$tmp/elsewhere" "$backup_rec"
-if [[ -L "$backup_rec" ]]; then unusable 'symlinked record'; else rm -f "$backup_rec"; healthy_records; fi
+# Remove the link afterwards: later writes would otherwise go through it.
+if [[ -L "$backup_rec" ]]; then unusable 'symlinked record'; fi
+rm -f "$backup_rec"; healthy_records
 write_record "$backup_rec" "result=ok"$'\n'"finished_epoch=$((now - 60))"$'\n'"not a key value line"; unusable 'malformed line'
 write_record "$backup_rec" "result=ok"$'\n'"finished_epoch=0x10"; unusable 'non-decimal epoch'
 write_record "$backup_rec" "result=ok"$'\n'"finished_epoch=0$((now - 60))"; unusable 'octal-looking epoch'
@@ -331,6 +335,7 @@ done
 [[ "$(grep -c '^ *- alert:' "$alerts")" == 6 ]] || fail 'expected exactly six alert rules'
 [[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 6 ]] || fail 'every rule needs a project: mawareeth label'
 [[ "$(grep -c '^ *runbook: ' "$alerts")" == 6 ]] || fail 'every rule needs a runbook annotation'
+# shellcheck disable=SC2013 # anchors are single words without spaces.
 for anchor in $(grep -o 'README.md#runbook-[a-z]*' "$alerts" | sort -u | cut -d# -f2); do
   need "$root/deploy/README.md" "<a id=\"$anchor\"></a>"
 done
