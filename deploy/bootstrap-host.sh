@@ -27,6 +27,7 @@ PY
 
 [[ ${EUID:-999} -eq 0 ]] || die 'must run as root'
 [[ -r /etc/os-release ]] || die 'cannot determine operating system'
+# shellcheck source=/dev/null # host OS metadata, read at runtime only.
 . /etc/os-release
 [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 ]] || die 'Ubuntu 24.04 is required'
 require_command apt-get
@@ -52,6 +53,7 @@ install -d -m 0755 /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
 chmod a+r /etc/apt/keyrings/docker.gpg
 arch="$(dpkg --print-architecture)"
+# shellcheck source=/dev/null # host OS metadata, read at runtime only.
 codename="$( . /etc/os-release && printf '%s' "$VERSION_CODENAME" )"
 printf '%s\n' "deb [arch=$arch signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $codename stable" > /etc/apt/sources.list.d/docker.list
 apt-get update

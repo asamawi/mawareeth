@@ -27,6 +27,7 @@ done
 tailnet_rule='allow in on tailscale0 from 100.64.0.0/10 to any port 9100 proto tcp'
 # The only other permitted mention is the exporter wrapper's exec line, matched
 # whole so nothing appended to it can slip through.
+# shellcheck disable=SC2016 # literal $ text matched against monitor.sh.
 exporter_exec='exec /usr/bin/prometheus-node-exporter --web.listen-address="\$ip:9100" --collector.textfile.directory=$textfile_dir'
 monitor_prefix="$root/deploy/monitor.sh:"
 while IFS= read -r hit; do
@@ -45,6 +46,7 @@ for file in "$root"/deploy/*.yaml "$root"/deploy/*.yml; do
 done
 shopt -u nullglob
 grep -Fq "ufw_rule=(${tailnet_rule})" "$root/deploy/monitor.sh" || fail 'monitor.sh must open 9100 only with the tailscale0 rule'
+# shellcheck disable=SC2016 # literal $ text matched against monitor.sh.
 grep -Fq 'ufw "${ufw_rule[@]}"' "$root/deploy/monitor.sh" || fail 'monitor.sh must apply its tailscale0 UFW rule'
 need "$bootstrap" 'PasswordAuthentication no'
 need "$bootstrap" 'PermitRootLogin no'
@@ -108,7 +110,8 @@ cat > "$stub/jq" <<'EOF'
 #!/usr/bin/env bash
 args="$*"
 case "$args" in
-  *'.ssh_key.public_key'*) printf '%s\n' "$TEST_PUBLIC_KEY" ;;
+  # Piped from hcloud: drain stdin so the writer never gets SIGPIPE under pipefail.
+  *'.ssh_key.public_key'*) cat >/dev/null; printf '%s\n' "$TEST_PUBLIC_KEY" ;;
   *'.firewall.id'*) printf '1\n' ;;
   *'.server.server_type.name'*) printf 'cx33\n' ;;
   *'.server.datacenter.location.name'*) printf 'nbg1\n' ;;
@@ -181,7 +184,8 @@ args="$*"
 server_type=cx33; [[ "${MISMATCH_MODE:-}" == server ]] && server_type=cx22
 key_value="$TEST_PUBLIC_KEY"; [[ "${MISMATCH_MODE:-}" == key ]] && key_value='ssh-ed25519 AAAADIFFERENTKEYDATA different@test'
 case "$args" in
-  *'.ssh_key.public_key'*) printf '%s\n' "$key_value" ;;
+  # Piped from hcloud: drain stdin so the writer never gets SIGPIPE under pipefail.
+  *'.ssh_key.public_key'*) cat >/dev/null; printf '%s\n' "$key_value" ;;
   *'.server.server_type.name'*) printf '%s\n' "$server_type" ;;
   *'.server.datacenter.location.name'*) printf 'nbg1\n' ;;
   *'.server.image.name'*) printf 'ubuntu-24.04\n' ;;

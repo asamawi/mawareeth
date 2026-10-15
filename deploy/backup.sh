@@ -453,13 +453,13 @@ dump_and_count() {
   # exits; the originals are closed so COMMIT plus EOF ends the session.
   exec {psql_in}>&"$coproc_in" {psql_out}<&"$coproc_out"
   exec {coproc_in}>&- {coproc_out}<&-
-  printf '%s\n' 'BEGIN ISOLATION LEVEL REPEATABLE READ;' 'SELECT pg_export_snapshot();' >&"$psql_in" 2>>"$run_log" \
+  printf '%s\n' 'BEGIN ISOLATION LEVEL REPEATABLE READ;' 'SELECT pg_export_snapshot();' 1>&"$psql_in" 2>>"$run_log" \
     || backup_fail dump 'PostgreSQL did not accept the snapshot transaction'
   IFS= read -r -t "$read_timeout" -u "$psql_out" snapshot_id || backup_fail dump 'PostgreSQL did not export a snapshot'
   snapshot_id="${snapshot_id%$'\r'}"
   [[ "$snapshot_id" =~ ^[0-9A-Fa-f]+-[0-9A-Fa-f]+(-[0-9]+)?$ ]] || backup_fail dump 'PostgreSQL returned an invalid snapshot identifier'
 
-  printf '%s\n' "$count_sql" "SELECT '$counts_end';" >&"$psql_in" 2>>"$run_log" || backup_fail dump 'PostgreSQL did not accept the count query'
+  printf '%s\n' "$count_sql" "SELECT '$counts_end';" 1>&"$psql_in" 2>>"$run_log" || backup_fail dump 'PostgreSQL did not accept the count query'
   manifest=''
   cap "$backup_timeout"; deadline=$((SECONDS + cap_value))
   while :; do
@@ -485,7 +485,7 @@ dump_and_count() {
   [[ "${pipe[0]}" == 0 ]] || backup_fail dump "pg_dump failed (status ${pipe[0]})"
   [[ "${pipe[1]}" == 0 ]] || backup_fail dump "storing the dump in the repository failed (status ${pipe[1]})"
 
-  printf '%s\n' 'COMMIT;' >&"$psql_in" 2>>"$run_log" || backup_fail dump 'PostgreSQL did not accept COMMIT'
+  printf '%s\n' 'COMMIT;' 1>&"$psql_in" 2>>"$run_log" || backup_fail dump 'PostgreSQL did not accept COMMIT'
   close_psql
   status=0
   wait "$psql_pid" || status=$?

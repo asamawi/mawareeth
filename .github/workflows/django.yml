@@ -73,3 +73,63 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
         run: python manage.py test
+
+  deploy-shell:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      SHELLCHECK_VERSION: "0.11.0"
+      SHELLCHECK_SHA256: b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
+      PROMETHEUS_VERSION: "3.15.0"
+      PROMETHEUS_SHA256: 2a542df32eac02ee17b9d844fb2aa1de00dafa5476579ba8a3ba862e9d572ea0
+      ALERTMANAGER_VERSION: "0.34.1"
+      ALERTMANAGER_SHA256: 265b9d1e55ef0d5306a436018af6d2b686c2ce051f03d968f7464ecb1372a7e8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install pinned ShellCheck, promtool and amtool
+        run: |
+          dl="$RUNNER_TEMP/tools-dl"; bin="$RUNNER_TEMP/tools-bin"
+          mkdir -p "$dl" "$bin"
+          cd "$dl"
+          sc="shellcheck-v${SHELLCHECK_VERSION}"
+          prom="prometheus-${PROMETHEUS_VERSION}.linux-amd64"
+          am="alertmanager-${ALERTMANAGER_VERSION}.linux-amd64"
+          fetch() { curl -fsSL --retry 3 --retry-connrefused -o "$1" "$2"; }
+          fetch "$sc.tar.gz" "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/$sc.linux.x86_64.tar.gz"
+          fetch "$prom.tar.gz" "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/$prom.tar.gz"
+          fetch "$am.tar.gz" "https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/$am.tar.gz"
+          printf '%s  %s\n' "$SHELLCHECK_SHA256" "$sc.tar.gz" "$PROMETHEUS_SHA256" "$prom.tar.gz" \
+            "$ALERTMANAGER_SHA256" "$am.tar.gz" | sha256sum -c -
+          tar -xzf "$sc.tar.gz" "$sc/shellcheck"
+          tar -xzf "$prom.tar.gz" "$prom/promtool"
+          tar -xzf "$am.tar.gz" "$am/amtool"
+          install -m 0755 "$sc/shellcheck" "$prom/promtool" "$am/amtool" "$bin/"
+          echo "$bin" >> "$GITHUB_PATH"
+
+      - name: Verify tools
+        run: |
+          "$RUNNER_TEMP/tools-bin/shellcheck" --version
+          promtool --version
+          amtool --version
+
+      - name: ShellCheck deploy scripts
+        run: '"$RUNNER_TEMP/tools-bin/shellcheck" deploy/*.sh deploy/tests/*.sh'
+
+      - name: Run deploy suites unprivileged
+        run: |
+          for suite in deploy/tests/test_*.sh; do
+            echo "::group::$suite (unprivileged)"
+            bash "$suite" || { echo "::endgroup::"; echo "::error::$suite failed (unprivileged)"; exit 1; }
+            echo "::endgroup::"
+          done
+
+      - name: Run deploy suites as root
+        run: |
+          for suite in deploy/tests/test_*.sh; do
+            echo "::group::$suite (root)"
+            sudo --preserve-env=CI env "PATH=$PATH" bash "$suite" || { echo "::endgroup::"; echo "::error::$suite failed (root)"; exit 1; }
+            echo "::endgroup::"
+          done

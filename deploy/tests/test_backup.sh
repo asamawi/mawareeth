@@ -26,6 +26,8 @@ case "$tmp" in "$root"/*) fail 'temporary directory must be outside the checkout
 trap '[[ -n "${KEEP_TMP:-}" ]] || rm -rf "$tmp"' EXIT
 stub="$tmp/bin"; S="$tmp/docker-state"; state="$tmp/state"; bundle="$tmp/bundle"; etc="$tmp/etc"; units="$tmp/systemd"
 mkdir -p "$stub" "$S/docker-root" "$state" "$bundle/deploy" "$etc" "$units"
+# Root-only like the state directory runtime.sh prepare creates (checked for real as root).
+chmod 700 "$state"
 
 # A disposable bundle; only the root execution gate is relaxed when unprivileged.
 cp "$root/deploy/runtime-images.lock" "$bundle/deploy/"
@@ -324,10 +326,15 @@ fi
 
 base_env=(PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$etc/runtime.env" MAWAREETH_RUNTIME_DIR="$state" MAWAREETH_BACKUP_CONFIG_DIR="$etc"
   MAWAREETH_SYSTEMD_DIR="$units" MAWAREETH_BACKUP_START_TIMEOUT=5 MAWAREETH_BACKUP_POLL_INTERVAL=1 MAWAREETH_BACKUP_TIMEOUT=60 MAWAREETH_BACKUP_REPO_TIMEOUT=60)
-rc=0
+rc=0; last_backup_end=0
 # run [ENV=VALUE...] COMMAND
+# backup.sh tags a run by its UTC start second and a failed run forgets every
+# snapshot with its tag, so two backups must never start in the same second.
 run() {
   local pid
+  if [[ "${*: -1}" == backup ]]; then
+    while (( $("$real_date" -u +%s) <= last_backup_end )); do sleep 0.1; done
+  fi
   : > "$S/calls.log"
   set +e
   env "${base_env[@]}" "${@:1:$#-1}" bash "$backup" "${@: -1}" > "$tmp/out" 2>&1 &
@@ -335,6 +342,7 @@ run() {
   printf '%s\n' "$pid" > "$S/backup.pid"
   wait "$pid"
   rc=$?
+  last_backup_end="$("$real_date" -u +%s)"
   set -e
 }
 expect_rc() { [[ "$rc" == "$1" ]] || fail "$2: expected exit $1, got $rc"; }
@@ -359,8 +367,8 @@ need "$tmp/out" 'no readable root-only restore evidence'
 need "$tmp/out" 'no readable root-only backup status'
 
 # --- Refusals before mutation ------------------------------------------------
-printf '0:0:644\n' > "$S/mode-restic.password"
-run backup; rm -f "$S/mode-restic.password"
+if [[ ${EUID:-999} -eq 0 ]]; then chmod 644 "$etc/restic.password"; else printf '0:0:644\n' > "$S/mode-restic.password"; fi
+run backup; rm -f "$S/mode-restic.password"; chmod 600 "$etc/restic.password"
 expect_rc 2 'world-readable Restic password'
 [[ "$(docker_mutations)" == 0 ]] || fail 'a refused backup ran Docker'
 cp "$etc/backup.env" "$tmp/backup.env.good"
@@ -409,6 +417,7 @@ run_tag="run:$(field "$state/backup/last-backup" run)"
 [[ "$(snaps_with "$run_tag")" == 2 ]] || fail 'dump and manifest do not share the run tag'
 for key in dump_snapshot manifest_snapshot; do
   id="$(field "$state/backup/last-backup" "$key")"
+  # shellcheck disable=SC2015 # fail exits, so it runs only when the check fails.
   [[ -n "$id" && -d "$S/repo/snaps/$id" ]] && grep -qx complete "$S/repo/snaps/$id/tags" || fail "last-backup $key does not name a complete snapshot after tagging"
 done
 dump_dir="$(snap_dir_of "$run_tag" /mawareeth.dump)"; manifest_dir="$(snap_dir_of "$run_tag" /manifest.tsv)"
