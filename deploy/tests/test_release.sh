@@ -141,6 +141,7 @@ if [[ "${1:-}" == compose ]]; then
         printf '%s %s\n' "$service" "$*" >> "$S/migrations"
         if [[ -e "$S/prior-unready-after-migrate" ]]; then touch "$S/fail-ready-$(< "$S/prior-unready-after-migrate")"; rm -f "$S/prior-unready-after-migrate"; fi
         signal_release term-on-migrate
+        if [[ -e "$S/kill-on-migrate" ]]; then rm -f "$S/kill-on-migrate"; kill -KILL "$(< "$S/release.pid")"; exit 1; fi
         if [[ -e "$S/fail-migrate" ]]; then
           printf 'FATAL: password authentication failed for postgresql://mawareeth:LongUrlSafePassword_123456@postgres\n'
           exit 1
@@ -197,6 +198,8 @@ cat > "$stub/curl" <<'EOF'
 S='__S__'
 printf 'curl %s\n' "$*" >> "$S/calls.log"
 if [[ -e "$S/term-on-curl" ]]; then rm -f "$S/term-on-curl"; kill -TERM "$(< "$S/release.pid")"; fi
+# A crash (SIGKILL, so no trap runs) on the first edge request.
+if [[ -e "$S/kill-on-curl" ]]; then rm -f "$S/kill-on-curl"; kill -KILL "$(< "$S/release.pid")"; exit 7; fi
 args=" $* "
 [[ "$args" == *' --resolve example.com:443:127.0.0.1 '* && "$args" == *" --proto =https "* ]] || exit 2
 [[ "$args" != *' -k '* && "$args" != *' --insecure '* ]] || exit 2
@@ -228,6 +231,19 @@ cat > "$stub/mv" <<'EOF'
 if [[ -e '__S__/fail-journal-phase' && "${*: -1}" == *deploy.journal ]] \
   && grep -qx "phase=$(< '__S__/fail-journal-phase')" "${*: -2:1}"; then exit 1; fi
 if [[ -e '__S__/fail-record-mv-once' && "${*: -1}" == */slots/blue.env ]]; then rm -f '__S__/fail-record-mv-once'; exit 1; fi
+# The rollback's journal write that resets records=replaced to untouched can be
+# made to fail, or to crash (SIGKILL) right after it is published.
+if [[ "${*: -1}" == *deploy.journal ]] && grep -qx 'records=untouched' "${*: -2:1}" \
+  && grep -Eqx 'phase=(switching|verifying)' "${*: -2:1}" && grep -qx 'records=replaced' "${*: -1}" 2>/dev/null; then
+  if [[ -e '__S__/fail-records-reset' ]]; then rm -f '__S__/fail-records-reset'; exit 1; fi
+  if [[ -e '__S__/kill-after-records-reset' ]]; then
+    rm -f '__S__/kill-after-records-reset'; '__MV__' "$@" || exit 1; kill -KILL "$(< '__S__/release.pid')"; exit 0
+  fi
+fi
+# A crash (SIGKILL) right after a chosen state file is published.
+if [[ -e '__S__/kill-after-mv' && "${*: -1}" == */"$(< '__S__/kill-after-mv')" ]]; then
+  rm -f '__S__/kill-after-mv'; '__MV__' "$@" || exit 1; kill -KILL "$(< '__S__/release.pid')"; exit 0
+fi
 exec '__MV__' "$@"
 EOF
 sed -i "s|__S__|$S|g; s|__MV__|$real_mv|g" "$stub/docker" "$stub/curl" "$stub/mv"
@@ -290,20 +306,40 @@ prev_unchanged() {
 }
 # run SCRIPT ARG MANIFEST [ENV...] checks out the manifest's bundle commit first
 # and records the script's PID so stubs can signal it.
+# ARG may hold several words (for example "recover --dry-run").
 run() {
   local script="$1" arg="$2" manifest="$3" pid; shift 3
+  local -a words
+  read -ra words <<<"$arg"
   case "$manifest" in manifest-a|manifest-b-at-a) use_bundle "$commit_a" ;; *) use_bundle "$commit_b" ;; esac
   [[ ! -d "$state/slots" ]] || save_prev
   set +e
-  env "${base_env[@]}" MAWAREETH_RELEASE_MANIFEST="$tmp/$manifest.json" "$@" bash "$script" "$arg" > "$tmp/out" 2>&1 &
+  env "${base_env[@]}" MAWAREETH_RELEASE_MANIFEST="$tmp/$manifest.json" "$@" bash "$script" "${words[@]}" > "$tmp/out" 2>&1 &
   pid=$!
   printf '%s\n' "$pid" > "$S/release.pid"
-  wait "$pid"
+  { wait "$pid"; } 2>/dev/null
   rc=$?
   set -e
 }
 run_release() { local manifest="$1"; shift; run "$release" deploy "$manifest" "$@"; }
 run_runtime() { local arg="$1" manifest="$2"; shift 2; run "$runtime" "$arg" "$manifest" "$@"; }
+# recover never reads a manifest: the path given to it does not exist.
+run_recover() { local arg="recover${1:+ $1}"; shift || true; run "$release" "$arg" no-such-manifest "$@"; }
+# After a SIGKILL a stub child may hold the lock descriptor for a moment.
+settle() {
+  local tries
+  if [[ -n "$real_flock" ]]; then
+    "$real_flock" -w 10 "$state/deploy.lock" true || fail 'lock still held after SIGKILL'
+    return 0
+  fi
+  # Without flock(1), wait (bounded) until the killed script and the stub that
+  # killed it are gone.
+  for ((tries = 0; tries < 50; tries++)); do
+    if ! kill -0 "$(< "$S/release.pid")" 2>/dev/null && ! pgrep -f "$stub/" >/dev/null 2>&1; then return 0; fi
+    sleep 0.2
+  done
+  fail 'the killed deploy or its stub is still running after SIGKILL'
+}
 expect_rc() { [[ "$rc" == "$1" ]] || fail "$2: expected exit $1, got $rc"; }
 mutations() { grep -cE '^docker compose .* (up|stop|down)( |$)|manage\.py migrate|caddy reload' "$S/calls.log" 2>/dev/null || true; }
 route_is() { [[ "$(< "$state/routes/active-slot.caddy")" == *"reverse_proxy app-$1:8000"*"header_down X-Mawareeth-Slot $1"* ]] || fail "route does not target $1"; }
@@ -322,8 +358,41 @@ write_journal() {
   (umask 077; printf 'phase=%s\nprior_slot=green\ncandidate_slot=blue\nmanifest_commit=%s\nprior_commit=%s\nresult=in-progress\nstarted_at=2026-01-01T00:00:00Z\nupdated_at=2026-01-01T00:00:00Z\ndeploy_log=/var/log/deploy.log\nmigrate_log=/var/log/migrate.log\n' "$1" "$commit_a" "$commit_b" > "$state/deploy.journal")
 }
 plant_prev() { (umask 077; printf 'IMAGE=%s\nCOMMIT=%s\nSNAPSHOT=%s\n' "$image_b" "$commit_b" "$(printf '%064d' 7).snapshot.env" > "$state/slots/$1.env.prev"); }
+# write_journal11 PHASE PRIOR CANDIDATE MANIFEST_COMMIT PRIOR_COMMIT RESULT RECORDS
+write_journal11() {
+  (umask 077; printf 'phase=%s\nprior_slot=%s\ncandidate_slot=%s\nmanifest_commit=%s\nprior_commit=%s\nresult=%s\nstarted_at=2026-01-01T00:00:00Z\nupdated_at=2026-01-01T00:00:00Z\ndeploy_log=/var/log/deploy.log\nmigrate_log=/var/log/migrate.log\nrecords=%s\n' "$@" > "$state/deploy.journal")
+}
+# A recover that fails after it began must leave the journal byte for byte.
+journal_kept() { cmp -s "$state/deploy.journal" "$tmp/journal.crashed" || fail "$1 changed the journal"; }
+# An abandoned blue candidate was rolled back to green.
+assert_recovered_to_green() {
+  expect_rc 0 "$1"
+  route_is green; caddy_is green
+  running green || fail "$1 stopped the prior slot"
+  ! running blue || fail "$1 left the abandoned candidate running"
+  cmp -s "$state/slots/blue.env" "$2" || fail "$1 did not restore the blue slot record"
+  # After restoring from .prev, .prev equals the restored record (the older
+  # .prev was overwritten by the deploy's switching step, as documented).
+  if [[ "${3:-}" == prev ]]; then cmp -s "$state/slots/blue.env.prev" "$2" || fail "$1: .prev differs from the restored record"; fi
+  journal_failed_idle "$1"
+  [[ "$(journal_field records)" == untouched ]] || fail "$1 did not journal records=untouched"
+  no_temporaries "$1"; no_secrets "$1"
+}
+recover_again_is_noop() {
+  local calls
+  calls="$(mutations)"; cp "$state/deploy.journal" "$tmp/journal.recovered"
+  run_recover
+  expect_rc 0 "$1 (second recover)"
+  need "$tmp/out" 'nothing to recover'
+  [[ "$(mutations)" == "$calls" ]] || fail "$1: a second recover mutated Docker state"
+  cmp -s "$state/deploy.journal" "$tmp/journal.recovered" || fail "$1: a second recover touched the journal"
+}
 
 # --- Preparation and bootstrap -------------------------------------------------
+run_recover
+expect_rc 0 'recover before any state exists'
+need "$tmp/out" 'nothing to recover'
+[[ ! -e "$state" ]] || fail 'recover created runtime state'
 run_runtime prepare manifest-a
 expect_rc 0 'runtime prepare'
 route_is blue
@@ -353,6 +422,7 @@ expect_rc 5 'bootstrap with unready candidate'
 [[ ! -e "$state/slots/blue.env" ]] || fail 'bootstrap failure recorded an unverified release'
 prev_unchanged blue || fail 'bootstrap failure changed an existing .prev'
 journal_failed_idle 'bootstrap with unready candidate'
+[[ "$(journal_field records)" == untouched ]] || fail 'a failure before switching journaled replaced records'
 [[ "$(journal_field prior_slot)" == '' && "$(journal_field candidate_slot)" == blue ]] || fail 'bootstrap journal identity is wrong'
 [[ "$(journal_field deploy_log)" == "$state"/logs/deploy-*.log && -f "$(journal_field deploy_log)" ]] || fail 'journal does not name the deploy log'
 [[ "$(journal_field migrate_log)" == "$state"/logs/migrate-*.log && -n "$(journal_field started_at)" ]] || fail 'journal does not name the migrate log and start time'
@@ -367,6 +437,37 @@ prev_unchanged blue || fail 'bootstrap rollback did not restore the existing .pr
 journal_failed_idle 'bootstrap with failed TLS verification'
 no_temporaries 'bootstrap rollback'; no_secrets 'bootstrap rollback'
 
+# --- recover: a bootstrap that crashed while verifying ------------------------
+touch "$S/kill-on-curl"; run_release manifest-a; rm -f "$S/kill-on-curl"; settle
+expect_rc 137 'bootstrap killed during verification'
+[[ "$(journal_field phase)" == verifying && "$(journal_field records)" == replaced ]] || fail 'the crashed bootstrap journal is wrong'
+[[ -e "$S/running-caddy" ]] && running blue && [[ -e "$state/slots/blue.env" ]] || fail 'the crashed bootstrap did not leave Caddy, blue and its record'
+cp "$state/deploy.journal" "$tmp/journal.crashed"
+before="$(mutations)"
+run_recover --dry-run
+expect_rc 0 'recover dry run after a crashed bootstrap'
+need "$tmp/out" 'serve:   nothing (unverified bootstrap)'
+need "$tmp/out" 'records: remove blue.env'
+need "$tmp/out" 'stop:    Caddy (confirmed stopped), then app-blue'
+need "$tmp/out" 'dry run: nothing changed'
+[[ "$(mutations)" == "$before" ]] || fail 'recover --dry-run mutated Docker state'
+journal_kept 'recover --dry-run'
+[[ -e "$state/slots/blue.env" && -e "$S/running-caddy" ]] || fail 'recover --dry-run changed state'
+touch "$S/fail-stop-caddy"; run_recover; rm -f "$S/fail-stop-caddy"
+expect_rc 7 'recover when Caddy cannot be stopped'
+need "$tmp/out" 'CRITICAL'
+journal_kept 'a failed bootstrap recover'
+run_recover
+expect_rc 0 'recover of a crashed bootstrap'
+[[ ! -e "$S/running-caddy" ]] || fail 'bootstrap recover left Caddy running'
+! running blue || fail 'bootstrap recover left the unverified candidate running'
+[[ ! -e "$state/slots/blue.env" && ! -e "$state/slots/green.env" ]] || fail 'bootstrap recover kept an unverified record'
+journal_failed_idle 'bootstrap recover'
+[[ "$(journal_field result)" == failed:verifying && "$(journal_field records)" == untouched ]] || fail 'bootstrap recover journaled the wrong result'
+no_temporaries 'bootstrap recover'; no_secrets 'bootstrap recover'
+recover_again_is_noop 'bootstrap recover'
+
+# A deploy after a bootstrap recover succeeds.
 : > "$S/calls.log"; before_migrations="$(migrations)"
 run_release manifest-a
 expect_rc 0 'bootstrap'
@@ -382,6 +483,18 @@ need "$state/slots/blue.env" "COMMIT=$commit_a"
 [[ "$(line_of 'up .*postgres$')" -lt "$(line_of 'up .*app-blue$')" && "$(line_of 'up .*app-blue$')" -lt "$(line_of 'up .*caddy$')" ]] \
   || fail 'bootstrap did not start PostgreSQL, the candidate, then Caddy'
 [[ "$(line_of 'manage.py migrate')" -lt "$(line_of 'up .*caddy$')" ]] || fail 'bootstrap routed before migrating'
+
+# recover of a verified bootstrap (it stopped before resetting the journal):
+# the candidate keeps serving and the journal becomes idle success.
+write_journal11 verifying '' blue "$commit_a" '' verified replaced
+run_recover
+expect_rc 0 'recover of a verified bootstrap'
+route_is blue; caddy_is blue
+running blue && [[ "$(< "$S/running-app-blue")" == "$image_a" ]] || fail 'verified bootstrap recover changed the serving release'
+need "$state/slots/blue.env" "COMMIT=$commit_a"
+[[ ! -e "$state/slots/green.env" ]] || fail 'verified bootstrap recover recorded the idle slot'
+[[ "$(journal_field phase)" == idle && "$(journal_field result)" == success && "$(journal_field records)" == untouched ]] \
+  || fail 'verified bootstrap recover did not reset the journal to idle success'
 
 # --- Happy deploy: release B into idle green ---------------------------------
 plant_prev green
@@ -408,6 +521,7 @@ need "$state/slots/green.env" "COMMIT=$commit_b"
 need "$state/slots/blue.env" "IMAGE=$image_a"
 [[ ! -e "$state/slots/green.env.prev" ]] || fail 'a stale .prev survived a first deploy to green'
 [[ "$(journal_field phase)" == idle && "$(journal_field result)" == success ]] || fail 'journal is not idle after success'
+[[ "$(journal_field records)" == replaced && "$(wc -l < "$state/deploy.journal" | tr -d ' ')" == 11 ]] || fail 'the journal lacks the records= line'
 [[ "$(journal_field prior_slot)" == blue && "$(journal_field candidate_slot)" == green ]] || fail 'journal lacks slot identity'
 [[ "$(journal_field manifest_commit)" == "$commit_b" && "$(journal_field prior_commit)" == "$commit_a" ]] || fail 'journal lacks commit identity'
 [[ "$(snapshot_count)" == 1 ]] || fail 'deploy changed runtime snapshots'
@@ -451,18 +565,26 @@ assert_untouched() {
   no_secrets "$1"
 }
 
+run_recover
+expect_rc 0 'recover with an idle journal'
+need "$tmp/out" 'nothing to recover'
+assert_untouched 'recover with an idle journal'
+
 if [[ -n "$real_flock" ]]; then
   exec 8>>"$state/deploy.lock"; "$real_flock" -n 8
   run_release manifest-a; rc_release="$rc"
   run_runtime up manifest-b; rc_runtime="$rc"
+  run_recover; rc_recover="$rc"
   exec 8>&-
 else
   touch "$S/lock-held"
   run_release manifest-a; rc_release="$rc"
   run_runtime up manifest-b; rc_runtime="$rc"
+  run_recover; rc_recover="$rc"
   rm -f "$S/lock-held"
 fi
 rc="$rc_release"; expect_rc 3 'concurrent deploy'
+rc="$rc_recover"; expect_rc 3 'recover while the lock is held'
 [[ "$rc_runtime" != 0 ]] || fail 'runtime up ran while the deploy lock was held'
 assert_untouched 'concurrent deploy'
 
@@ -470,7 +592,14 @@ write_journal switching
 cp "$state/deploy.journal" "$tmp/journal.interrupted"
 run_release manifest-a
 expect_rc 4 'non-idle journal'
-need "$tmp/out" "$state/deploy.journal is not idle"; need "$tmp/out" 'Manual recovery'
+need "$tmp/out" "$state/deploy.journal is not idle"; need "$tmp/out" 'Run deploy/release.sh recover'
+# A legacy ten-line journal is still accepted (and refused as not idle) by the
+# deploy and runtime, but recover will not guess whether records were replaced.
+for arg in '' --dry-run; do
+  run_recover "$arg"
+  expect_rc 2 "recover ${arg:-without options} of a legacy journal"
+  need "$tmp/out" 'legacy ten-line format'; need "$tmp/out" 'manual recovery steps'
+done
 for command in up prepare down; do
   run_runtime "$command" manifest-b
   [[ "$rc" != 0 ]] || fail "runtime $command ran with a non-idle journal"
@@ -482,6 +611,51 @@ cmp -s "$state/deploy.journal" "$tmp/journal.interrupted" || fail 'refusal rewro
 run_release manifest-a
 expect_rc 4 'malformed journal'
 need "$tmp/out" 'is unsafe or malformed'
+run_recover
+expect_rc 2 'recover of a malformed journal'
+need "$tmp/out" 'is unsafe or malformed'
+# Records that contradict the journal: green records commit B, not A.
+write_journal11 switching green blue "$commit_a" "$commit_a" in-progress replaced
+run_recover
+expect_rc 2 'recover with records that contradict the journal'
+need "$tmp/out" 'but the journal expects'
+write_journal11 switching green green "$commit_a" "$commit_b" in-progress replaced
+run_recover
+expect_rc 2 'recover of a journal naming one slot twice'
+# refuse_recover NAME MESSAGE [RECOVER-ARG [ENV...]]: exit 2 and nothing changes.
+refuse_recover() {
+  local name="$1" message="$2" calls; shift 2
+  calls="$(mutations)"
+  cp "$state/deploy.journal" "$tmp/journal.refused"
+  cp "$state/slots/blue.env" "$tmp/blue.refused"; cp "$state/slots/green.env" "$tmp/green.refused"
+  run_recover "$@"
+  expect_rc 2 "$name"
+  need "$tmp/out" "$message"
+  [[ "$(mutations)" == "$calls" ]] || fail "$name mutated Docker state"
+  cmp -s "$state/deploy.journal" "$tmp/journal.refused" || fail "$name touched the journal"
+  cmp -s "$state/slots/blue.env" "$tmp/blue.refused" || fail "$name changed the blue slot record"
+  cmp -s "$state/slots/green.env" "$tmp/green.refused" || fail "$name changed the green slot record"
+  route_is green; caddy_is green; running green || fail "$name stopped production"
+}
+write_journal11 switching green blue "$commit_b" "$commit_b" in-progress replaced
+refuse_recover 'candidate record matching neither the manifest commit nor .prev' 'matches neither the journal'
+write_journal11 verifying green blue "$commit_a" "$commit_a" verified replaced
+refuse_recover 'verified journal whose prior record differs' "does not match the journal's prior commit"
+write_journal11 verifying green blue "$commit_a" "$commit_b" success replaced
+refuse_recover 'non-idle journal with result=success' 'result=success'
+write_journal11 switching '' blue "$commit_a" '' in-progress replaced
+refuse_recover 'bootstrap journal while the other slot has a record' 'describes a bootstrap'
+write_journal11 switching green blue "$commit_a" "$commit_b" in-progress untouched
+green_snapshot="$state/$(sed -n 's/^SNAPSHOT=//p' "$state/slots/green.env")"
+mv "$green_snapshot" "$tmp/snapshot.away"
+refuse_recover 'missing target snapshot' 'is missing'
+mv "$tmp/snapshot.away" "$green_snapshot"
+cp -p "$green_snapshot" "$tmp/snapshot.copy"; printf 'EXTRA=1\n' >> "$green_snapshot"
+refuse_recover 'drifted target snapshot' 'drifted'
+cp -p "$tmp/snapshot.copy" "$green_snapshot"
+refuse_recover 'runtime configuration drift' 'restore the runtime file matching the recorded snapshot' '' MAWAREETH_RUNTIME_FILE="$tmp/drift.env"
+refuse_recover 'an unknown recover option' 'usage: release.sh' --bogus
+refuse_recover 'an extra recover argument' 'usage: release.sh' '--dry-run extra'
 cp "$tmp/journal.before" "$state/deploy.journal"
 if ((privileged)); then chmod 644 "$state/deploy.journal"; else printf '0:0:644\n' > "$S/mode-deploy.journal"; fi
 run_release manifest-a
@@ -614,11 +788,22 @@ expect_rc 7 'persistent Compose ps failure'
 need "$tmp/out" 'cannot determine whether Caddy is running'
 [[ "$(journal_field phase)" == restore-failed ]] || fail 'Compose ps failure was treated as a stopped Caddy'
 ! grep -E '^docker compose .* up .*caddy$' "$S/calls.log" >/dev/null || fail 'a Compose ps failure started a second Caddy'
-cp "$tmp/journal.before" "$state/deploy.journal"   # operator manual recovery
-rm -f "$S/running-app-blue"; cp "$tmp/blue.before" "$state/slots/blue.env"; cp "$tmp/prev-before-blue" "$state/slots/blue.env.prev"
+[[ "$(journal_field records)" == replaced ]] || fail 'the switch did not journal records=replaced'
+cp "$state/deploy.journal" "$tmp/journal.crashed"
+run_recover --dry-run
+expect_rc 0 'recover dry run after a failed restore'
+need "$tmp/out" 'serve:   app-green at'; need "$tmp/out" 'records: restore blue.env from blue.env.prev'
+need "$tmp/out" 'route:   keep the route to app-green'; need "$tmp/out" 'stop:    app-blue after the edge confirms'
+journal_kept 'recover --dry-run'; running blue || fail 'recover --dry-run stopped the candidate'
+run_recover
+assert_recovered_to_green 'recover after a persistent Compose ps failure' "$tmp/blue.before" prev
+[[ "$(journal_field result)" == failed:switching ]] || fail 'recover did not keep the failed phase'
+recover_again_is_noop 'recover after a persistent Compose ps failure'
 
-# Restore also fails: a distinct exit code and a non-idle journal.
-touch "$S/fail-reload-all"; run_release manifest-a; rm -f "$S/fail-reload-all"
+# Restore also fails: a distinct exit code and a non-idle journal. A recover
+# that hits the same fault fails without touching the journal; once the fault
+# clears, running it again completes.
+touch "$S/fail-reload-all"; run_release manifest-a
 expect_rc 7 'failed restore'
 need "$tmp/out" 'CRITICAL'
 route_is green
@@ -626,16 +811,100 @@ route_is green
 no_secrets 'failed restore'
 run_release manifest-a
 expect_rc 4 'deploy after failed restore'
-cp "$tmp/journal.before" "$state/deploy.journal"   # operator manual recovery
-rm -f "$S/running-app-blue"; cp "$tmp/blue.before" "$state/slots/blue.env"; cp "$tmp/prev-before-blue" "$state/slots/blue.env.prev"
+cp "$state/deploy.journal" "$tmp/journal.crashed"; cp "$state/slots/blue.env" "$tmp/blue.prefail"
+run_recover
+expect_rc 7 'recover while Caddy cannot reload'
+need "$tmp/out" 'CRITICAL'; need "$tmp/out" 'run deploy/release.sh recover again'
+journal_kept 'a recover that could not reload Caddy'
+running blue || fail 'a failed recover stopped the candidate before the edge confirmed the prior slot'
+cmp -s "$state/slots/blue.env" "$tmp/blue.prefail" || fail 'a failed recover restored records before the edge confirmed the prior slot'
+rm -f "$S/fail-reload-all"
+run_recover
+assert_recovered_to_green 'recover rerun after the reload fault cleared' "$tmp/blue.before" prev
 
-touch "$S/break-tls-on-reload"; run_release manifest-a; rm -f "$S/fail-tls-all" "$S/break-tls-on-reload"
+touch "$S/break-tls-on-reload"; run_release manifest-a; rm -f "$S/break-tls-on-reload"
 expect_rc 7 'unconfirmed restore'
 need "$tmp/out" 'does not confirm app-green'
 [[ "$(journal_field phase)" == restore-failed ]] || fail 'unconfirmed restore reset the journal'
 route_is green; caddy_is green
-cp "$tmp/journal.before" "$state/deploy.journal"   # operator manual recovery
-rm -f "$S/running-app-blue"; cp "$tmp/blue.before" "$state/slots/blue.env"; cp "$tmp/prev-before-blue" "$state/slots/blue.env.prev"
+cp "$state/deploy.journal" "$tmp/journal.crashed"
+run_recover
+expect_rc 7 'recover while the edge is broken'
+need "$tmp/out" 'does not confirm app-green'
+journal_kept 'a recover the edge did not confirm'
+running blue || fail 'an unconfirmed recover stopped the candidate'
+rm -f "$S/fail-tls-all"
+run_recover
+assert_recovered_to_green 'recover rerun after the edge recovered' "$tmp/blue.before" prev
+
+# --- recover after crashes (SIGKILL) during the switch ------------------------
+# A distinct pre-deploy blue record makes the record write observable.
+(umask 077; printf 'IMAGE=%s\nCOMMIT=%s\nSNAPSHOT=%s\n' "$image_a" "$commit_a" "$(printf '%064d' 5).snapshot.env" > "$state/slots/blue.env")
+cp "$state/slots/blue.env" "$tmp/blue.planted"
+
+# A crash before switching (here during the migration): records=untouched.
+cp "$state/slots/blue.env.prev" "$tmp/prev.premigrate"
+touch "$S/kill-on-migrate"; run_release manifest-a; rm -f "$S/kill-on-migrate"; settle
+expect_rc 137 'deploy killed during the migration'
+[[ "$(journal_field phase)" == migrating && "$(journal_field records)" == untouched ]] || fail 'the journal after a crash during the migration is wrong'
+run_recover
+assert_recovered_to_green 'recover after a crash during the migration' "$tmp/blue.planted"
+need "$tmp/out" 'records: leave slot records unchanged'
+cmp -s "$state/slots/blue.env.prev" "$tmp/prev.premigrate" || fail 'recover after an early crash changed .prev'
+[[ "$(journal_field result)" == failed:migrating ]] || fail 'recover after an early crash journaled the wrong result'
+
+crash_switch() {
+  printf '%s\n' "$1" > "$S/kill-after-mv"; run_release manifest-a; rm -f "$S/kill-after-mv"; settle
+  expect_rc 137 "deploy killed after publishing $1"
+  [[ "$(journal_field phase)" == switching && "$(journal_field records)" == "$2" ]] || fail "the journal after a crash at $1 is wrong"
+  running blue || fail "the crash at $1 did not leave the candidate running"
+  cp "$state/deploy.journal" "$tmp/journal.crashed"
+}
+crash_switch slots/blue.env.prev untouched
+cmp -s "$state/slots/blue.env.prev" "$tmp/blue.planted" || fail 'the crash did not happen after the .prev write'
+run_recover
+assert_recovered_to_green 'recover after a crash after the .prev write' "$tmp/blue.planted"
+need "$tmp/out" 'records: leave slot records unchanged'
+crash_switch slots/blue.env replaced
+! cmp -s "$state/slots/blue.env" "$tmp/blue.planted" || fail 'the crash did not happen after the record write'
+run_recover
+assert_recovered_to_green 'recover after a crash after the record write' "$tmp/blue.planted" prev
+crash_switch routes/active-slot.caddy replaced
+route_is blue; caddy_is green
+run_recover
+assert_recovered_to_green 'recover after a crash after the route write' "$tmp/blue.planted" prev
+need "$tmp/out" 'route:   write the route to app-green (currently app-blue)'
+recover_again_is_noop 'recover after a crash after the route write'
+
+# Inside an exit-6 rollback the record is restored first, then the journal
+# says records=untouched, and only then is the older .prev put back.
+plant_prev blue
+touch "$S/fail-tls-blue" "$S/kill-after-records-reset"; run_release manifest-a
+rm -f "$S/fail-tls-blue" "$S/kill-after-records-reset"; settle
+expect_rc 137 'deploy killed after the rollback journaled records=untouched'
+[[ "$(journal_field phase)" == verifying && "$(journal_field records)" == untouched ]] || fail 'the rollback did not journal records=untouched'
+cmp -s "$state/slots/blue.env" "$tmp/blue.planted" || fail 'the rollback journaled records=untouched before restoring the record'
+cmp -s "$state/slots/blue.env.prev" "$tmp/blue.planted" || fail 'the rollback put back the older .prev before journaling records=untouched'
+run_recover
+assert_recovered_to_green 'recover after a crash inside the rollback' "$tmp/blue.planted"
+plant_prev blue
+touch "$S/fail-tls-blue" "$S/fail-records-reset"; run_release manifest-a; rm -f "$S/fail-tls-blue" "$S/fail-records-reset"
+expect_rc 6 'rollback whose records=untouched journal write fails'
+need "$tmp/out" 'WARNING'; need "$tmp/out" 'keeps the pre-deploy record'
+cmp -s "$state/slots/blue.env" "$tmp/blue.planted" || fail 'the rollback did not restore the record'
+cmp -s "$state/slots/blue.env.prev" "$tmp/blue.planted" || fail 'the rollback put back the older .prev while the journal still said replaced'
+route_is green; caddy_is green; ! running blue || fail 'the rollback left the candidate running'
+journal_failed_idle 'rollback whose records=untouched journal write fails'
+
+# Deploys succeed after rollback recovers: A into blue, then B back into green.
+cp "$tmp/blue.before" "$state/slots/blue.env"
+run_release manifest-a
+expect_rc 0 'deploy after rollback recovers'
+route_is blue; caddy_is blue; ! running green || fail 'deploy after recover did not drain green'
+run_release manifest-b
+expect_rc 0 'second deploy after rollback recovers'
+route_is green; caddy_is green; ! running blue || fail 'second deploy after recover did not drain blue'
+cmp -s "$state/slots/blue.env" "$tmp/blue.before" || fail 'the blue record is not release A'
 
 # --- Drain failure: the verified release serves, journal left non-idle --------
 touch "$S/fail-stop-app-green"; run_release manifest-a; rm -f "$S/fail-stop-app-green"
@@ -644,16 +913,51 @@ route_is blue; caddy_is blue
 running green || fail 'drain failure claims the old slot stopped'
 [[ "$(journal_field phase)" == draining && "$(journal_field result)" == verified ]] || fail 'drain failure reset the journal'
 need "$state/slots/blue.env" "COMMIT=$commit_a"
-cp "$tmp/journal.before" "$state/deploy.journal"   # operator manual recovery
-rm -f "$S/running-app-green"
+run_recover --dry-run
+expect_rc 0 'recover dry run after a drain failure'
+need "$tmp/out" 'serve:   app-blue at'; need "$tmp/out" 'the candidate was verified at the edge'
+running green || fail 'recover --dry-run drained the old slot'
+cp "$state/deploy.journal" "$tmp/journal.crashed"
+touch "$S/fail-ready-app-blue"; run_recover; rm -f "$S/fail-ready-app-blue"
+expect_rc 7 'recover while the verified candidate is not ready'
+need "$tmp/out" 'did not become ready'; need "$tmp/out" 'no fallback'
+journal_kept 'recover while the verified candidate is not ready'
+route_is blue; caddy_is blue
+running green || fail 'recover stopped the old slot while the candidate was not ready'
+running blue || fail 'recover stopped the candidate while it was not ready'
+touch "$S/wrong-commit-app-blue"; run_recover; rm -f "$S/wrong-commit-app-blue"
+expect_rc 7 'recover while the target reports the wrong commit'
+need "$tmp/out" 'does not report release commit'
+journal_kept 'recover while the target reports the wrong commit'
+route_is blue; caddy_is blue; running green || fail 'recover stopped the old slot while the target reported the wrong commit'
+# The target slot and PostgreSQL are stopped (for example after a reboot):
+# recover starts PostgreSQL, then the target on its recorded image.
+rm -f "$S/running-app-blue" "$S/running-postgres"
+: > "$S/calls.log"
+run_recover
+expect_rc 0 'recover after a drain failure'
+grep -E '^docker compose .* up -d --no-build --pull never --wait --wait-timeout [0-9]+ postgres$' "$S/calls.log" >/dev/null || fail 'recover did not start PostgreSQL'
+grep -E '^docker compose .* up -d --no-build --pull never --no-deps app-blue$' "$S/calls.log" >/dev/null || fail 'recover did not start the stopped target slot'
+[[ "$(line_of 'up .*postgres$')" -lt "$(line_of 'up .*app-blue$')" ]] || fail 'recover started the target before PostgreSQL'
+! grep -E '^docker compose .* up .*app-green$' "$S/calls.log" >/dev/null || fail 'recover started the other slot'
+route_is blue; caddy_is blue
+running blue && [[ "$(< "$S/running-app-blue")" == "$image_a" ]] || fail 'recover changed the verified release'
+! running green || fail 'recover did not drain the old slot'
+[[ "$(journal_field phase)" == idle && "$(journal_field result)" == success ]] || fail 'recover did not reset the journal to success'
+need "$state/slots/blue.env" "COMMIT=$commit_a"; need "$state/slots/green.env" "COMMIT=$commit_b"
+recover_again_is_noop 'recover after a drain failure'
 
 printf 'draining\n' > "$S/fail-journal-phase"; run_release manifest-b; rm -f "$S/fail-journal-phase"
 expect_rc 8 'journal failure before draining'
 route_is green; caddy_is green
 running blue || fail 'old slot stopped without a draining journal entry'
 [[ "$(journal_field phase)" == verifying && "$(journal_field result)" == verified ]] || fail 'the verified marker was not journaled before draining'
-cp "$tmp/journal.before" "$state/deploy.journal"   # operator manual recovery
-rm -f "$S/running-app-blue"
+run_recover
+expect_rc 0 'recover after a journal failure before draining'
+route_is green; caddy_is green
+running green || fail 'recover stopped the verified release'
+! running blue || fail 'recover did not drain the old slot'
+[[ "$(journal_field phase)" == idle && "$(journal_field result)" == success ]] || fail 'recover did not reset the journal to success'
 
 # --- Rollback by redeploying the previous manifest, with transient faults -------
 : > "$S/calls.log"

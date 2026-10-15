@@ -70,6 +70,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
   summary: Add `deploy/release.sh recover`, which reads the deploy journal after a crash, restores the prior or verified route, reloads Caddy, stops the non-active candidate, and resets the journal (required before story 0.6 is done).
   evidence: Split from 0.6 at the token-budget check; the core deploy already writes the journal and refuses to run when it is not idle, so automated recovery can follow separately.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-release-recover.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
   summary: Run `deploy/tests/test_release.sh` (and the other deploy shell suites, with `bash -n` and ShellCheck) in GitHub Actions on changes under `deploy/**`.
   evidence: Review of 0.6 found that no workflow references the shell suites; `django.yml` runs only `manage.py test`, so a routing or rollback regression can merge with green CI. This extends the existing 0.5 CI-enforcement deferral.

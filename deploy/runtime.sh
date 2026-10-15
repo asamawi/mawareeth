@@ -280,25 +280,33 @@ validate_compose_model() {
   trap - RETURN
 }
 
-preflight() {
+# preflight_runtime validates everything except the release manifest: the
+# runtime file, the image lock, and the locked Caddy and PostgreSQL images.
+# deploy/release.sh recover needs no manifest and uses only this part.
+preflight_runtime() {
   [[ ${EUID:-999} -eq 0 ]] || die 'must run as root'
   require_command docker; require_command python3; require_command git; require_command stat; require_command sha256sum; require_command install; require_command ln
   require_command timeout; require_command mktemp; require_command mv; require_command sync
   docker compose version >/dev/null 2>&1 || die 'Docker Compose plugin is unavailable'
   safe_path "$runtime_file" MAWAREETH_RUNTIME_FILE
-  safe_path "$manifest_file" MAWAREETH_RELEASE_MANIFEST
   safe_path "$lock_file" MAWAREETH_RUNTIME_IMAGE_LOCK
   safe_path "$state_dir" MAWAREETH_RUNTIME_DIR
   file_metadata "$runtime_file" 600 'runtime file'
   load_raw_env "$runtime_file"
   validate_values
-  [[ -n "$manifest_file" ]] || die 'MAWAREETH_RELEASE_MANIFEST is required'
   file_metadata "$lock_file" 644 'runtime image lock'
   load_lock
-  validate_manifest
-  validate_image "$APP_IMAGE"
   validate_image "${locked[CADDY_IMAGE]}"
   validate_image "${locked[POSTGRES_IMAGE]}"
+}
+
+preflight() {
+  [[ ${EUID:-999} -eq 0 ]] || die 'must run as root'
+  safe_path "$manifest_file" MAWAREETH_RELEASE_MANIFEST
+  preflight_runtime
+  [[ -n "$manifest_file" ]] || die 'MAWAREETH_RELEASE_MANIFEST is required'
+  validate_manifest
+  validate_image "$APP_IMAGE"
 }
 
 compose() { compose_bounded '' "$@"; }
@@ -434,9 +442,15 @@ load_slot_images() {
 }
 
 # journal_status returns 0 when the deploy journal is absent or idle, 1 when it
-# records an unfinished deploy, and 2 when it is unsafe or malformed.
+# records an unfinished deploy, and 2 when it is unsafe or malformed. Both the
+# current eleven-line format and the legacy ten-line one (without the final
+# records= line) are accepted. The parsed fields are left in journal_values;
+# journal_values[records] is empty for a legacy journal.
+declare -gA journal_values=()
 journal_status() {
-  local content pattern
+  local content pattern index name
+  local -a names=(phase prior_slot candidate_slot manifest_commit prior_commit result started_at updated_at deploy_log migrate_log)
+  journal_values=()
   [[ -e "$journal_file" || -L "$journal_file" ]] || return 0
   [[ -f "$journal_file" && ! -L "$journal_file" ]] || return 2
   [[ "$(stat -c '%u:%g:%a' "$journal_file" 2>/dev/null)" == '0:0:600' ]] || return 2
@@ -447,15 +461,20 @@ journal_status() {
   pattern+='result=(in-progress|verified|success|failed:[a-z-]+)'$'\n'
   pattern+='started_at=([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)'$'\n'
   pattern+='updated_at=([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)'$'\n'
-  pattern+='deploy_log=(/[^[:cntrl:]]+)'$'\n''migrate_log=(/[^[:cntrl:]]+)$'
+  pattern+='deploy_log=(/[^[:cntrl:]]+)'$'\n''migrate_log=(/[^[:cntrl:]]+)('$'\n''records=(untouched|replaced))?$'
   [[ "$content" =~ $pattern ]] || return 2
-  [[ "${BASH_REMATCH[1]}" == idle ]] || return 1
+  for index in "${!names[@]}"; do
+    name="${names[$index]}"
+    journal_values[$name]="${BASH_REMATCH[$((index + 1))]}"
+  done
+  journal_values[records]="${BASH_REMATCH[12]}"
+  [[ "${journal_values[phase]}" == idle ]] || return 1
 }
 
 journal_refusal() {
   printf '%s\n' "deploy journal $journal_file $1: an earlier deploy did not finish cleanly.
-Manual recovery (deploy/README.md): read the journal and $route_file, confirm the routed slot is healthy,
-reload Caddy, stop the slot that is not routed, fix its slot record, then reset the journal to idle."
+Run deploy/release.sh recover as root (preview with deploy/release.sh recover --dry-run). If recover refuses,
+for example for a legacy ten-line journal, follow the manual recovery steps in deploy/README.md."
 }
 
 # acquire_deploy_lock holds an exclusive non-blocking lock on descriptor 9 for
