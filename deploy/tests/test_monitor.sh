@@ -83,7 +83,21 @@ if [[ -z "$real_flock" ]]; then
   printf '#!/usr/bin/env bash\n[[ ! -e %q ]]\n' "$S/lock-held" > "$stub/flock"
 fi
 printf 'probe\n' > "$tmp/sync-probe"
-if ! "$real_sync" -- "$tmp/sync-probe" 2>/dev/null; then printf '#!/usr/bin/env bash\nexit 0\n' > "$stub/sync"; fi
+sync_works=0; if "$real_sync" -- "$tmp/sync-probe" 2>/dev/null; then sync_works=1; fi
+# sync fails for the drill history while "$S/sync-fail-history" exists; it is
+# a no-op where the real one cannot sync single files.
+cat > "$stub/sync" <<EOF
+#!/usr/bin/env bash
+if [[ -e '$S/sync-fail-history' && "\${*: -1}" == */drill-history ]]; then exit 1; fi
+if (( $sync_works )); then exec '$real_sync' "\$@"; fi
+EOF
+# mktemp fails in the textfile directory while "$S/mktemp-fail-textfile" exists.
+real_mktemp="$(command -v mktemp)"
+cat > "$stub/mktemp" <<EOF
+#!/usr/bin/env bash
+if [[ -e '$S/mktemp-fail-textfile' && "\${*: -1}" == '$textfile/'* ]]; then exit 1; fi
+exec '$real_mktemp' "\$@"
+EOF
 chmod 600 "$tmp/sync-probe"; modes_work=0
 [[ "$("$real_stat" -c %a "$tmp/sync-probe")" != 600 ]] || modes_work=1
 # Unprivileged runs report root ownership with the modes root would establish;
@@ -157,13 +171,15 @@ expect_metric mawareeth_backup_last_result_ok 1 healthy
 expect_metric mawareeth_backup_last_ok_timestamp_seconds "$((now - 3600))" healthy
 expect_metric mawareeth_restore_last_result_pass 1 healthy
 expect_metric mawareeth_restore_last_pass_timestamp_seconds "$((now - 86400))" healthy
+expect_metric mawareeth_drill_active_code 0 'absent drill record'
+expect_metric mawareeth_drill_last_pass_timestamp_seconds 0 'absent drill record'
 collected="$(metric mawareeth_monitor_collect_timestamp_seconds)"
 # shellcheck disable=SC2015 # fail exits, so it runs only when the check fails.
 [[ "$collected" =~ ^[1-9][0-9]+$ ]] && (( collected >= now && collected <= now + 120 )) || fail "collect timestamp $collected is not the current time"
 
-# Prom text format: HELP, TYPE gauge, then one sample, for exactly five metrics.
-[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 5 ]] || fail 'expected five gauges'
-[[ "$(grep -vc '^#' "$prom")" == 5 ]] || fail 'expected five samples'
+# Prom text format: HELP, TYPE gauge, then one sample, for exactly seven metrics.
+[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 7 ]] || fail 'expected seven gauges'
+[[ "$(grep -vc '^#' "$prom")" == 7 ]] || fail 'expected seven samples'
 while read -r name; do
   [[ "$(grep -A2 -x "# HELP $name .*" "$prom" | sed -n 2,3p)" == "# TYPE $name gauge"$'\n'"$name "* ]] || fail "$name lacks HELP/TYPE/sample order"
 done < <(grep -v '^#' "$prom" | cut -d' ' -f1)
@@ -248,6 +264,214 @@ expect_rc 2 'status with a relative state directory'
 run "$monitor" MAWAREETH_TEXTFILE_DIR='relative/dir' status
 expect_rc 2 'status with a relative textfile directory'
 
+# --- Alert-path drill: every drill row of the matrix -------------------------------
+drill_rec="$state/monitor/drill"; drill_hist="$state/monitor/drill-history"
+# drill ARGS... runs monitor.sh drill with the base environment.
+drill() {
+  : > "$S/calls.log"
+  set +e
+  env "${base_env[@]}" bash "$monitor" drill "$@" > "$tmp/out" 2>&1
+  rc=$?
+  set -e
+}
+# drill_locked ARGS... runs the drill while another process holds the monitor lock.
+drill_locked() {
+  if [[ -n "$real_flock" ]]; then
+    exec 7>>"$state/monitor.lock"; "$real_flock" -n 7
+    drill "$@"
+    exec 7>&-
+  else
+    touch "$S/lock-held"; drill "$@"; rm -f "$S/lock-held"
+  fi
+}
+field() { sed -n "s/^$1=//p" "$drill_rec"; }
+unchanged() {
+  cmp -s "$tmp/drill-before" "$drill_rec" || fail "$1 changed the drill record"
+  cmp -s "$tmp/hist-before" "$drill_hist" || fail "$1 changed the drill history"
+  cmp -s "$tmp/prom-before" "$prom" || fail "$1 changed mawareeth.prom"
+}
+snapshot() { cp "$drill_rec" "$tmp/drill-before"; cp "$drill_hist" "$tmp/hist-before"; cp "$prom" "$tmp/prom-before"; }
+
+for args in '' bogus 'start extra' 'abort extra' confirm 'confirm 123456 --better-stack-received extra'; do
+  # shellcheck disable=SC2086 # word splitting builds the argument list.
+  drill $args; expect_rc 2 "drill '$args'"; need "$tmp/out" 'usage: monitor.sh drill'
+done
+[[ ! -e "$state/monitor" ]] || fail 'a refused drill created the drill directory'
+run "$monitor" status; expect_rc 0 'status with no drill record'
+need "$tmp/out" "== $drill_rec"; need "$tmp/out" '(absent: no drill has run)'
+
+# Confirm and abort on a fresh state directory refuse without creating anything.
+cp "$prom" "$tmp/prom-before"
+drill confirm 123456 --better-stack-received; expect_rc 2 'drill confirm on a fresh host'; need "$tmp/out" 'no drill is active'
+drill abort; expect_rc 2 'drill abort on a fresh host'; need "$tmp/out" 'no drill is active'
+[[ ! -e "$state/monitor" ]] || fail 'a refused confirm or abort created the drill directory'
+cmp -s "$tmp/prom-before" "$prom" || fail 'a refused confirm or abort changed mawareeth.prom'
+
+# A drill directory that is a symlink or has the wrong mode is refused.
+mkdir "$tmp/elsewhere-dir"; ln -s "$tmp/elsewhere-dir" "$state/monitor"
+if [[ -L "$state/monitor" ]]; then
+  drill start; expect_rc 2 'drill start with a symlinked drill directory'; need "$tmp/out" 'must be a directory'
+  [[ -z "$(ls -A "$tmp/elsewhere-dir")" ]] || fail 'drill start wrote through a symlinked drill directory'
+fi
+rm -rf "$state/monitor"
+mkdir "$state/monitor"; set_meta "$state/monitor" 0:0:755
+drill start; expect_rc 2 'drill start with a mode-0755 drill directory'; need "$tmp/out" 'mode 0700'
+[[ -z "$(ls -A "$state/monitor")" ]] || fail 'drill start wrote into a wrong-mode drill directory'
+set_meta "$state/monitor" 0:0:700; rmdir "$state/monitor"
+
+# Lock held before any drill: nothing is created.
+cp "$prom" "$tmp/prom-before"
+drill_locked start; expect_rc 3 'drill start while the monitor lock is held'
+[[ ! -e "$drill_rec" ]] || fail 'a locked-out drill start wrote a record'
+cmp -s "$tmp/prom-before" "$prom" || fail 'a locked-out drill start changed mawareeth.prom'
+
+# Start from an absent record.
+drill start; expect_rc 0 'drill start'
+code="$(field code)"
+[[ "$code" =~ ^[1-9][0-9]{5}$ ]] || fail "drill code $code is not six digits"
+need "$tmp/out" "code $code"
+[[ "$(field state)" == active ]] || fail 'drill start must record state=active'
+started="$(field started_epoch)"
+(( started >= now && started <= now + 600 )) || fail "drill started_epoch $started is not the current time"
+expect_metric mawareeth_drill_active_code "$code" 'drill start'
+expect_metric mawareeth_drill_last_pass_timestamp_seconds 0 'drill start before any pass'
+expect_metric mawareeth_backup_last_result_ok 1 'drill start republishes the other metrics'
+[[ "$(wc -l < "$drill_hist")" == 1 ]] || fail 'drill start must append one history line'; need "$drill_hist" "event=start code=$code"
+grep -Eq ' by=[A-Za-z0-9._-]+$' "$drill_hist" || fail 'drill history lines must name the operator'
+[[ -z "$(find "$state/monitor" -name '.tmp.*' -print -quit)" ]] || fail 'drill start left a temporary file'
+if (( modes_work )); then
+  for path in "$drill_rec" "$drill_hist"; do [[ "$("$real_stat" -c %a "$path")" == 600 ]] || fail "$path must be mode 0600"; done
+  [[ "$("$real_stat" -c %a "$state/monitor")" == 700 ]] || fail 'the drill directory must be mode 0700'
+fi
+need "$prom" '# TYPE mawareeth_drill_active_code gauge'
+[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 7 ]] || fail 'drill publishing must keep seven gauges'
+
+# Refusals while active leave everything unchanged.
+snapshot
+drill start; expect_rc 2 'drill start while active'; need "$tmp/out" 'already active'; unchanged 'a second drill start'
+wrong=100000; [[ "$code" != "$wrong" ]] || wrong=100001
+drill confirm "$wrong" --better-stack-received; expect_rc 2 'drill confirm with a wrong code'; unchanged 'a wrong-code confirm'
+drill confirm "$code"; expect_rc 2 'drill confirm without --better-stack-received'; need "$tmp/out" 'Better Stack'; unchanged 'a confirm without the flag'
+drill confirm "$code" --better-stack; expect_rc 2 'drill confirm with a misspelt flag'; unchanged 'a confirm with a misspelt flag'
+drill confirm 0"$code" --better-stack-received; expect_rc 2 'drill confirm with a malformed code'; unchanged 'a malformed-code confirm'
+drill_locked confirm "$code" --better-stack-received; expect_rc 3 'drill confirm while the monitor lock is held'; unchanged 'a locked-out confirm'
+[[ "$(field state)" == active ]] || fail 'the drill must still be active after refused confirms'
+[[ ! -e "$state/backup.lock" && ! -e "$state/deploy.lock" ]] || fail 'monitor.sh drill opened the backup or deploy lock'
+
+# A history path that is a symlink, a directory, or the wrong mode is refused
+# before the record is touched.
+mv "$drill_hist" "$tmp/hist-saved"
+ln -s "$tmp/elsewhere" "$drill_hist"
+if [[ -L "$drill_hist" ]]; then
+  drill confirm "$code" --better-stack-received; expect_rc 2 'drill confirm with a symlinked history'
+  cmp -s "$tmp/drill-before" "$drill_rec" || fail 'a refused confirm (symlinked history) changed the drill record'
+fi
+rm -f "$drill_hist"; mkdir "$drill_hist"
+drill abort; expect_rc 2 'drill abort with a directory as history'
+cmp -s "$tmp/drill-before" "$drill_rec" || fail 'a refused abort (history directory) changed the drill record'
+rmdir "$drill_hist"; mv "$tmp/hist-saved" "$drill_hist"; set_meta "$drill_hist" 0:0:644
+drill confirm "$code" --better-stack-received; expect_rc 2 'drill confirm with a world-readable history'
+set_meta "$drill_hist" 0:0:600; chmod 600 "$drill_hist"
+unchanged 'refusals on a bad history path'
+
+# A failed history append restores the record and trims the history.
+touch "$S/sync-fail-history"
+drill confirm "$code" --better-stack-received; rm -f "$S/sync-fail-history"
+expect_rc 1 'drill confirm whose history append fails'; need "$tmp/out" 'the drill record was restored'
+unchanged 'a confirm whose history append failed'
+
+# Confirm passes.
+drill confirm "$code" --better-stack-received; expect_rc 0 'drill confirm'
+[[ "$(field state)" == idle && -z "$(field code)" && "$(field last_result)" == pass ]] || fail 'drill confirm must leave state=idle, an empty code, and last_result=pass'
+passed="$(field last_pass_epoch)"
+(( passed >= now && passed <= now + 600 )) || fail "last_pass_epoch $passed is not the current time"
+[[ "$(field last_pass_at)" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || fail 'last_pass_at must be an ISO UTC time'
+[[ "$(field started_epoch)" == "$started" ]] || fail 'drill confirm must keep started_epoch'
+expect_metric mawareeth_drill_active_code 0 'drill confirm'
+expect_metric mawareeth_drill_last_pass_timestamp_seconds "$passed" 'drill confirm'
+[[ "$(wc -l < "$drill_hist")" == 2 ]] || fail 'drill confirm must append one history line'; need "$drill_hist" "event=pass code=$code"
+run "$monitor" status; expect_rc 0 'status after a pass'
+grep -Eq '^last_pass_at=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' "$tmp/out" || fail 'status must show last_pass_at after a pass'
+
+# Confirm or abort while idle are refused.
+snapshot
+drill confirm "$code" --better-stack-received; expect_rc 2 'drill confirm while idle'; unchanged 'a confirm while idle'
+drill abort; expect_rc 2 'drill abort while idle'; unchanged 'an abort while idle'
+
+# Abort keeps the previous pass.
+drill start; expect_rc 0 'second drill start'
+code2="$(field code)"; expect_metric mawareeth_drill_active_code "$code2" 'second drill start'
+expect_metric mawareeth_drill_last_pass_timestamp_seconds "$passed" 'second drill start keeps the last pass'
+drill abort; expect_rc 0 'drill abort'
+[[ "$(field state)" == idle && -z "$(field code)" && "$(field last_result)" == aborted && "$(field last_pass_epoch)" == "$passed" ]] \
+  || fail 'drill abort must leave state=idle, last_result=aborted, and the previous pass'
+expect_metric mawareeth_drill_active_code 0 'drill abort'
+expect_metric mawareeth_drill_last_pass_timestamp_seconds "$passed" 'drill abort'
+[[ "$(wc -l < "$drill_hist")" == 4 ]] || fail 'drill abort must append one history line'; need "$drill_hist" "event=aborted code=$code2"
+if (( modes_work )); then
+  for path in "$drill_rec" "$drill_hist"; do [[ "$("$real_stat" -c %a "$path")" == 600 ]] || fail "$path must stay mode 0600"; done
+fi
+
+# status shows the drill record.
+run "$monitor" status; expect_rc 0 'status with a drill record'
+need "$tmp/out" "== $drill_rec"; need "$tmp/out" 'state=idle'; need "$tmp/out" 'last_result=aborted'
+
+# Unusable drill records publish 0 for both drill metrics; drill commands refuse them.
+drill_unusable() {
+  local label="$1"
+  run "$monitor" collect; expect_rc 0 "$label collect"
+  expect_metric mawareeth_drill_active_code 0 "$label"
+  expect_metric mawareeth_drill_last_pass_timestamp_seconds 0 "$label"
+}
+active_rec="state=active"$'\n'"code=123456"$'\n'"started_epoch=$now"$'\n'"last_result=pass"$'\n'"last_pass_epoch=$((now - 60))"$'\n'"last_pass_at=x"
+write_record "$drill_rec" "$active_rec"
+run "$monitor" collect; expect_rc 0 'active drill collect'
+expect_metric mawareeth_drill_active_code 123456 'active drill record'
+expect_metric mawareeth_drill_last_pass_timestamp_seconds "$((now - 60))" 'active drill record'
+set_meta "$drill_rec" 0:0:644; drill_unusable 'world-readable drill record'
+run "$monitor" status; expect_rc 0 'status with a world-readable drill record'
+need "$tmp/out" '(unusable'; lacks "$tmp/out" 'state='
+snapshot; drill abort; expect_rc 2 'drill abort with an unusable record'; unchanged 'a drill abort on an unusable record'
+drill start; expect_rc 2 'drill start with an unusable record'; unchanged 'a drill start on an unusable record'
+set_meta "$drill_rec" 1000:1000:600; drill_unusable 'mis-owned drill record'
+write_record "$drill_rec" "$active_rec"$'\n'"not a key value line"; drill_unusable 'malformed drill record'
+rm -f "$drill_rec"; ln -s "$tmp/elsewhere" "$drill_rec"
+if [[ -L "$drill_rec" ]]; then
+  drill_unusable 'symlinked drill record'
+  run "$monitor" status; expect_rc 0 'status with a symlinked drill record'
+  need "$tmp/out" '(unusable'; lacks "$tmp/out" 'state='
+fi
+rm -f "$drill_rec"
+write_record "$drill_rec" "state=active"$'\n'"code=012345"$'\n'"last_pass_epoch=0x10"; drill_unusable 'bad code and epoch'
+write_record "$drill_rec" "state=active"$'\n'"code=1234567"$'\n'"last_pass_epoch=0$now"; drill_unusable 'long code and octal-looking epoch'
+# Commands refuse records the collector would only partly use.
+for bad in "state=active"$'\n'"code=012345" "state=active"$'\n'"code=123456"$'\n'"started_epoch=0x10" \
+  "state=active"$'\n'"code=123456"$'\n'"last_pass_epoch=0$now" "state=active"$'\n'"code=123456"$'\n'"last_result=maybe" \
+  "state=idle"$'\n'"code=123456"; do
+  write_record "$drill_rec" "$bad"; snapshot
+  drill abort; expect_rc 2 "drill abort on an inconsistent record"; need "$tmp/out" 'unusable'; unchanged 'an abort on an inconsistent record'
+  drill confirm 123456 --better-stack-received; expect_rc 2 "drill confirm on an inconsistent record"; unchanged 'a confirm on an inconsistent record'
+done
+write_record "$drill_rec" "state=idle"$'\n'"code=123456"$'\n'"last_pass_epoch=$((now - 60))"
+run "$monitor" collect; expect_rc 0 'idle drill with a stale code collect'
+expect_metric mawareeth_drill_active_code 0 'an idle record never publishes its code'
+expect_metric mawareeth_drill_last_pass_timestamp_seconds "$((now - 60))" 'idle drill record'
+write_record "$drill_rec" "state=paused"$'\n'"code=123456"
+snapshot
+drill start; expect_rc 2 'drill start with an unknown state'; unchanged 'a drill start on an unknown state'
+drill confirm 123456 --better-stack-received; expect_rc 2 'drill confirm with an unknown state'; unchanged 'a drill confirm on an unknown state'
+drill abort; expect_rc 2 'drill abort with an unknown state'; unchanged 'a drill abort on an unknown state'
+rm -f "$drill_rec"
+
+# A failed publish after the record changed exits 1 and says the state changed.
+touch "$S/mktemp-fail-textfile"
+drill start; rm -f "$S/mktemp-fail-textfile"
+expect_rc 1 'drill start whose publish fails'; need "$tmp/out" 'the drill state WAS changed'; lacks "$tmp/out" 'nothing was changed'
+[[ "$(field state)" == active ]] || fail 'a drill start whose publish failed must still be recorded'
+need "$drill_hist" "event=start code=$(field code)"
+drill abort; expect_rc 0 'abort after a failed publish'
+rm -f "$drill_rec"
+
 # --- install: units, drop-ins, apt, UFW, journald --------------------------------
 printf 'ID=debian\nVERSION_ID="12"\n' > "$tmp/other-os"
 run "$monitor" MAWAREETH_OS_RELEASE="$tmp/other-os" install
@@ -319,6 +543,7 @@ need "$route" 'project="mawareeth"'
 need "$route" "Subject: '[MAWAREETH {{ .CommonLabels.severity }}]"
 need "$route" '${SMTP_TO}'
 need "$route" 'alertname="MawareethHostDown"'
+need "$route" 'send_resolved: true'
 # Exact receiver wiring and inhibit rules.
 need "$route" '    - receiver: mawareeth-email'
 need "$route" '  - name: mawareeth-email'
@@ -329,12 +554,12 @@ need "$route" '      - alertname="MawareethDiskCritical"'
 need "$route" '      - alertname="MawareethDiskWarning"'
 need "$route" '    equal: [project, mountpoint]'
 [[ "$(grep -c '^ *- receiver: ' "$route")" == 1 && "$(grep -c '^  - name: ' "$route")" == 1 ]] || fail 'the route snippet must define exactly one route and one receiver'
-for name in MawareethHostDown MawareethBackupUnhealthy MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical MawareethCollectorStale; do
+for name in MawareethHostDown MawareethBackupUnhealthy MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue; do
   need "$alerts" "alert: $name"
 done
-[[ "$(grep -c '^ *- alert:' "$alerts")" == 6 ]] || fail 'expected exactly six alert rules'
-[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 6 ]] || fail 'every rule needs a project: mawareeth label'
-[[ "$(grep -c '^ *runbook: ' "$alerts")" == 6 ]] || fail 'every rule needs a runbook annotation'
+[[ "$(grep -c '^ *- alert:' "$alerts")" == 8 ]] || fail 'expected exactly eight alert rules'
+[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 8 ]] || fail 'every rule needs a project: mawareeth label'
+[[ "$(grep -c '^ *runbook: ' "$alerts")" == 8 ]] || fail 'every rule needs a runbook annotation'
 # shellcheck disable=SC2013 # anchors are single words without spaces.
 for anchor in $(grep -o 'README.md#runbook-[a-z]*' "$alerts" | sort -u | cut -d# -f2); do
   need "$root/deploy/README.md" "<a id=\"$anchor\"></a>"
@@ -343,7 +568,13 @@ for text in 'up{job="mawareeth-node"} == 0 or absent(up{job="mawareeth-node"})' 
   '(mawareeth_backup_last_ok_timestamp_seconds{job="mawareeth-node"} - time()) > 300' \
   '(mawareeth_restore_last_pass_timestamp_seconds{job="mawareeth-node"} - time()) > 300' \
   'node_textfile_scrape_error{job="mawareeth-node"} == 1' 'for: 2m' '> 26 * 3600' '> 35 * 86400' '> 75' '> 85' '> 20 * 60' \
-  'absent(mawareeth_monitor_collect_timestamp_seconds{job="mawareeth-node"})'; do need "$alerts" "$text"; done
+  'absent(mawareeth_monitor_collect_timestamp_seconds{job="mawareeth-node"})' \
+  'expr: mawareeth_drill_active_code{job="mawareeth-node"} > 0' '{{ $value | printf "%.0f" }}' \
+  '(time() - mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"}) > 92 * 86400' \
+  'or (mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"} - time()) > 300' \
+  'or absent(mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"})' \
+  'severity: info'; do need "$alerts" "$text"; done
+[[ "$(grep -c '^ *for: ' "$alerts")" == 3 ]] || fail 'only HostDown and the disk alerts may have a for: delay (the drill fires at once)'
 [[ "$(grep -c 'for: 5m' "$alerts")" == 2 ]] || fail 'both disk alerts need for: 5m'
 
 # Under CI the external validators are mandatory.
@@ -369,8 +600,11 @@ if command -v promtool >/dev/null 2>&1; then
     printf "      - {series: 'mawareeth_monitor_collect_timestamp_seconds{%s}', values: '0+60x40'}\n" "$labels"
     printf "      - {series: 'node_filesystem_size_bytes{%s,%s}', values: '100x40'}\n" "$labels" "$disk"
     printf "      - {series: 'node_filesystem_avail_bytes{%s,%s}', values: '50x40'}\n" "$labels" "$disk"
+    printf "      - {series: 'mawareeth_drill_active_code{%s}', values: '0x40'}\n" "$labels"
+    printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '0x40'}\n" "$labels"
     printf '    alert_rule_test:\n'
-    for name in MawareethHostDown MawareethBackupUnhealthy MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical MawareethCollectorStale; do
+    for name in MawareethHostDown MawareethBackupUnhealthy MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical MawareethCollectorStale \
+      MawareethAlertDrill MawareethDrillOverdue; do
       printf '      - {eval_time: 30m, alertname: %s, exp_alerts: []}\n' "$name"
     done
     # Backup and restore failures fire at once; old successes fire past 26h/35d.
@@ -447,7 +681,53 @@ if command -v promtool >/dev/null 2>&1; then
     printf '    alert_rule_test:\n'
     printf '      - {eval_time: 0m, alertname: MawareethCollectorStale, exp_alerts: []}\n'
     printf '      - eval_time: 2m\n        alertname: MawareethCollectorStale\n        exp_alerts:\n'; alert_labels warning MawareethCollectorStale
+    # Drill: fires at once while a code is published, silent at 0.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'mawareeth_drill_active_code{%s}', values: '0x2 123456x5 0x3'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 1m, alertname: MawareethAlertDrill, exp_alerts: []}\n'
+    printf '      - eval_time: 3m\n        alertname: MawareethAlertDrill\n        exp_alerts:\n'; alert_labels info MawareethAlertDrill
+    printf '      - {eval_time: 9m, alertname: MawareethAlertDrill, exp_alerts: []}\n'
+    # Overdue: a pass at day 1 is due until day 93; never passed (0) fires past
+    # 92 days from the epoch; future-dated beyond 300s fires, within it not.
+    printf '  - interval: 1d\n    input_series:\n'
+    printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '86400x100'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 92d, alertname: MawareethDrillOverdue, exp_alerts: []}\n'
+    printf '      - eval_time: 94d\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n'; alert_labels warning MawareethDrillOverdue
+    printf '  - interval: 1d\n    input_series:\n'
+    printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '0x100'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - eval_time: 93d\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n'; alert_labels warning MawareethDrillOverdue
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '1000x5'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - eval_time: 1m\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n'; alert_labels warning MawareethDrillOverdue
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '300x5'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 1m, alertname: MawareethDrillOverdue, exp_alerts: []}\n'
+    # The drill metric is missing while the host is scraped: Overdue fires.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'up{%s}', values: '1x5'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - eval_time: 1m\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethDrillOverdue, job: mawareeth-node}\n'
   } > "$tmp/alerts.test.yml"
+  # The drill email carries the code: check the rendered summary against the
+  # unstripped rules.
+  cp "$alerts" "$tmp/drill-alerts.yml"
+  {
+    printf 'rule_files: [drill-alerts.yml]\nevaluation_interval: 1m\ntests:\n'
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'mawareeth_drill_active_code{%s}', values: '654321x5'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - eval_time: 1m\n        alertname: MawareethAlertDrill\n        exp_alerts:\n'; alert_labels info MawareethAlertDrill
+    printf "            exp_annotations:\n"
+    printf "              summary: 'Mawareeth alert-path drill code 654321'\n"
+    printf "              description: '%s'\n" "$(sed -n '/alert: MawareethAlertDrill/,/runbook:/s/^ *description: '"'"'\(.*\)'"'"'$/\1/p' "$alerts" | sed 's/{{ $labels.alias }}/mawareeth-prod/')"
+    printf "              runbook: 'deploy/README.md#runbook-mawareethalertdrill'\n"
+  } > "$tmp/drill.test.yml"
+  promtool test rules "$tmp/drill.test.yml" > "$tmp/out" 2>&1 || fail 'promtool drill annotation test failed (the email must carry the code)'
   # Rule paths resolve relative to the test file. Annotations (checked
   # statically above) are dropped so expectations compare labels only.
   sed '/^        annotations:$/,/^          runbook: /d' "$alerts" > "$tmp/mawareeth-alerts.yml"
@@ -472,6 +752,8 @@ if command -v amtool >/dev/null 2>&1; then
   amtool check-config "$tmp/alertmanager.yml" > "$tmp/out" 2>&1 || fail 'amtool check-config rejected the route snippet'
   amtool config routes test --config.file="$tmp/alertmanager.yml" --verify.receivers=mawareeth-email project=mawareeth > "$tmp/out" 2>&1 \
     || fail 'project=mawareeth does not route to mawareeth-email'
+  amtool config routes test --config.file="$tmp/alertmanager.yml" --verify.receivers=mawareeth-email \
+    project=mawareeth severity=info alertname=MawareethAlertDrill > "$tmp/out" 2>&1 || fail 'the info-severity drill alert does not route to mawareeth-email'
   amtool config routes test --config.file="$tmp/alertmanager.yml" --verify.receivers=scdf-default project=scdf > "$tmp/out" 2>&1 \
     || fail 'the Mawareeth route captured another project'
   printf 'amtool route checks passed\n'

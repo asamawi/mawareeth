@@ -5,9 +5,20 @@
 #                                    IPv4 only, UFW, journald bounds, collector
 #   sudo deploy/monitor.sh collect   publish backup/restore records as metrics
 #   sudo deploy/monitor.sh status    print the metrics a collect would publish
+#                                    and the drill record
+#   sudo deploy/monitor.sh drill start
+#   sudo deploy/monitor.sh drill confirm CODE --better-stack-received
+#   sudo deploy/monitor.sh drill abort
+#                                    alert-path drill: start publishes a random
+#                                    six-digit code that MawareethAlertDrill
+#                                    emails through the project=mawareeth route;
+#                                    confirm records a pass only for that code
+#                                    and the operator's assertion that the
+#                                    manual Better Stack test alert arrived
 #
-# Exit codes: 0 success; 1 an install step failed; 2 refused (invalid input,
-# environment, or usage); 3 another monitor operation holds the monitor lock.
+# Exit codes: 0 success; 1 an install or drill write step failed; 2 refused
+# (invalid input, environment, usage, or drill state; nothing was changed);
+# 3 another monitor operation holds the monitor lock.
 # `collect` exits 0 even when a record is absent, mis-owned, or malformed: the
 # record's metrics are published as 0 so the matching alert fires. Staleness is
 # judged by the Prometheus rules (time() - metric); this script never compares
@@ -33,6 +44,11 @@ tailscale_key_url=https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
 tailscale_repo='https://pkgs.tailscale.com/stable/ubuntu noble main'
 ufw_rule=(allow in on tailscale0 from 100.64.0.0/10 to any port 9100 proto tcp)
 epoch_re='^[1-9][0-9]{0,11}$'
+drill_code_re='^[1-9][0-9]{5}$'
+drill_dir="$state_dir/monitor"
+drill_file="$drill_dir/drill"
+drill_history_file="$drill_dir/drill-history"
+drill_usage='usage: monitor.sh drill {start|confirm CODE --better-stack-received|abort}'
 
 die() { printf 'monitor: %s\n' "$*" >&2; exit 2; }
 say() { if ! printf 'monitor: %s\n' "$*" >&2 2>/dev/null; then :; fi; }
@@ -73,7 +89,21 @@ render_metrics() {
   record_metrics "$evidence_file" result pass verified_epoch
   gauge mawareeth_restore_last_pass_timestamp_seconds 'Verification time of the last restore check when it passed; 0 if the record is unusable or not pass.' "$metric_ts"
   gauge mawareeth_restore_last_result_pass '1 when the last restore verification record is usable and its result is pass.' "$metric_ok"
+  drill_metrics
+  gauge mawareeth_drill_active_code 'Code of the active alert-path drill; 0 when none is active or the drill record is unusable.' "$drill_code"
+  gauge mawareeth_drill_last_pass_timestamp_seconds 'Time of the last passed alert-path drill; 0 if none passed or the drill record is unusable.' "$drill_last_pass"
   gauge mawareeth_monitor_collect_timestamp_seconds 'Time this file was last written by monitor.sh collect.' "$now"
+}
+
+# drill_metrics sets drill_code and drill_last_pass from the drill record with
+# the same fail-closed reader: both 0 unless the record is usable; the code only
+# while state=active with a six-digit code; the last pass only as a plain
+# decimal epoch.
+drill_metrics() {
+  drill_code=0; drill_last_pass=0
+  read_record "$drill_file" || return 0
+  if [[ "${record[state]:-}" == active && "${record[code]:-}" =~ $drill_code_re ]]; then drill_code=$((10#${record[code]})); fi
+  if [[ "${record[last_pass_epoch]:-}" =~ $epoch_re ]]; then drill_last_pass=$((10#${record[last_pass_epoch]})); fi
 }
 
 check_textfile_dir() {
@@ -107,6 +137,168 @@ cmd_status() {
   render_metrics
   printf '== %s\n' "$prom_file"
   if [[ -f "$prom_file" ]]; then cat -- "$prom_file"; else printf '(absent)\n'; fi
+  printf '== %s\n' "$drill_file"
+  if read_record "$drill_file"; then
+    printf 'state=%s\nstarted_epoch=%s\nlast_result=%s\nlast_pass_at=%s\n' \
+      "${record[state]:-}" "${record[started_epoch]:-}" "${record[last_result]:-}" "${record[last_pass_at]:-}"
+  elif [[ -e "$drill_file" || -L "$drill_file" ]]; then
+    printf '(unusable: it must be a root:root 0600 file of key=value lines)\n'
+  else
+    printf '(absent: no drill has run)\n'
+  fi
+}
+
+# --- Alert-path drill -------------------------------------------------------------
+# Refusals (exit 2) happen before anything is written. Only a start creates the
+# drill directory; confirm and abort never create anything. The record and its
+# history line are written together: if the history append fails, the previous
+# record is restored and the command exits 1.
+
+# drill_check_dir refuses a drill directory that exists but is not a root:root
+# 0700 directory.
+drill_check_dir() {
+  if [[ ! -e "$drill_dir" && ! -L "$drill_dir" ]]; then return 0; fi
+  [[ -d "$drill_dir" && ! -L "$drill_dir" ]] || die "$drill_dir must be a directory; nothing was changed"
+  [[ "$(stat -c '%u:%g:%a' "$drill_dir" 2>/dev/null)" == 0:0:700 ]] || die "$drill_dir must be root:root mode 0700; nothing was changed"
+}
+
+# drill_check_history refuses a history path that exists but is not a
+# root:root 0600 regular file.
+drill_check_history() {
+  if [[ ! -e "$drill_history_file" && ! -L "$drill_history_file" ]]; then return 0; fi
+  [[ -f "$drill_history_file" && ! -L "$drill_history_file" ]] || die "$drill_history_file must be a regular file; nothing was changed"
+  [[ "$(stat -c '%u:%g:%a' "$drill_history_file" 2>/dev/null)" == 0:0:600 ]] || die "$drill_history_file must be root:root mode 0600; nothing was changed"
+}
+
+# drill_load fills drill[] and drill_previous from the record (idle and empty
+# when there is none). An unusable or inconsistent record is refused, never
+# overwritten.
+drill_load() {
+  declare -gA drill=([state]=idle [code]='' [started_epoch]='' [last_result]='' [last_pass_epoch]='' [last_pass_at]='')
+  drill_previous=''; drill_had_record=0
+  if [[ ! -e "$drill_file" && ! -L "$drill_file" ]]; then return 0; fi
+  local unusable="the drill record $drill_file is unusable; inspect it and move it aside; nothing was changed"
+  read_record "$drill_file" || die "$unusable (it must be a root:root 0600 file of key=value lines)"
+  local key
+  for key in state code started_epoch last_result last_pass_epoch last_pass_at; do drill[$key]="${record[$key]:-}"; done
+  case "${drill[state]}" in
+    active) [[ "${drill[code]}" =~ $drill_code_re ]] || die "$unusable (an active drill needs a six-digit code)" ;;
+    idle) [[ -z "${drill[code]}" ]] || die "$unusable (an idle drill must have no code)" ;;
+    *) die "$unusable (unknown state)" ;;
+  esac
+  for key in started_epoch last_pass_epoch; do
+    [[ -z "${drill[$key]}" || "${drill[$key]}" =~ $epoch_re ]] || die "$unusable ($key is not a plain epoch)"
+  done
+  case "${drill[last_result]}" in '' | pass | aborted) ;; *) die "$unusable (unknown last_result)" ;; esac
+  drill_previous="$(cat -- "$drill_file")" || die "$unusable"
+  drill_had_record=1
+}
+
+drill_content() {
+  printf 'state=%s\ncode=%s\nstarted_epoch=%s\nlast_result=%s\nlast_pass_epoch=%s\nlast_pass_at=%s' \
+    "${drill[state]}" "${drill[code]}" "${drill[started_epoch]}" "${drill[last_result]}" "${drill[last_pass_epoch]}" "${drill[last_pass_at]}"
+}
+
+# drill_commit EVENT CODE writes the record, then appends the history line
+# (created under umask 077); a failed append restores the previous record and
+# trims the history back to its previous length.
+drill_commit() {
+  local operator="${SUDO_USER:-root}" history_size=''
+  operator="${operator//[^A-Za-z0-9._-]/_}"
+  if [[ -e "$drill_history_file" ]]; then
+    history_size="$(stat -c %s -- "$drill_history_file")" && [[ "$history_size" =~ ^[0-9]+$ ]]       || die "cannot read the size of $drill_history_file; nothing was changed"
+  fi
+  atomic_write "$drill_file" 0600 "$(drill_content)" || install_fail "could not write $drill_file; the drill state was not changed"
+  if (umask 077 && printf 'at=%s event=%s code=%s started_epoch=%s by=%s\n' "$drill_iso" "$1" "$2" "${drill[started_epoch]}" "$operator" \
+    >> "$drill_history_file" && sync -- "$drill_history_file"); then
+    return 0
+  fi
+  if [[ -n "$history_size" ]]; then
+    truncate -s "$history_size" -- "$drill_history_file" || say "could not trim $drill_history_file back; its last line may describe a change that was undone"
+  else
+    rm -f -- "$drill_history_file" || say "could not remove the new $drill_history_file"
+  fi
+  if [[ "$drill_had_record" == 1 ]]; then
+    atomic_write "$drill_file" 0600 "$drill_previous" || install_fail "could not append to $drill_history_file and could not restore $drill_file; inspect both"
+  else
+    rm -f -- "$drill_file" || install_fail "could not append to $drill_history_file and could not remove the new $drill_file; inspect both"
+  fi
+  install_fail "could not append to $drill_history_file; the drill record was restored and the drill state was not changed"
+}
+
+# The drill state is already committed here, so a failed publish exits 1, not
+# 2: the next timed collect publishes it.
+drill_publish() {
+  local content
+  if content="$(render_metrics)" && atomic_write "$prom_file" 0644 "${content%$'\n'}"; then return 0; fi
+  install_fail "the drill state WAS changed, but $prom_file could not be written; the drill metrics publish at the next collect (within 5 minutes)"
+}
+
+# A code in 100000-999999 from four bytes of /dev/urandom.
+drill_new_code() {
+  local random
+  random="$(od -An -N4 -tu4 /dev/urandom)" || die 'cannot read /dev/urandom; nothing was changed'
+  random="${random//[[:space:]]/}"
+  [[ "$random" =~ ^[0-9]{1,10}$ ]] || die 'cannot read /dev/urandom; nothing was changed'
+  drill_new=$((100000 + 10#$random % 900000))
+}
+
+cmd_drill() {
+  require_root
+  local action="${1:-}" code=''
+  case "$action" in
+    start | abort) (($# == 1)) || die "$drill_usage" ;;
+    confirm)
+      (($# >= 2 && $# <= 3)) || die "$drill_usage"
+      code="$2"
+      [[ "$code" =~ $drill_code_re ]] || die 'the code must be the six digits from the MawareethAlertDrill email; nothing was changed'
+      [[ "${3:-}" == --better-stack-received ]] \
+        || die 'send the Better Stack test notification first and pass --better-stack-received once it has arrived; nothing was changed'
+      ;;
+    *) die "$drill_usage" ;;
+  esac
+  require_command flock; require_command mktemp; require_command sync; require_command od; require_command truncate
+  clean_path "$state_dir" MAWAREETH_RUNTIME_DIR
+  clean_path "$textfile_dir" MAWAREETH_TEXTFILE_DIR
+  acquire_monitor_lock
+  check_textfile_dir
+  drill_check_dir
+  drill_load
+  local now
+  now="$(now_epoch)" || die 'cannot read the clock; nothing was changed'
+  [[ "$now" =~ $epoch_re ]] || die 'the system clock is unreadable; nothing was changed'
+  drill_iso="$(date -u -d "@$now" +%Y-%m-%dT%H:%M:%SZ)" || die 'cannot read the clock; nothing was changed'
+  case "$action" in
+    start)
+      [[ "${drill[state]}" != active ]] || die 'a drill is already active; confirm or abort it first; nothing was changed'
+      drill_check_history
+      drill_new_code
+      if [[ ! -e "$drill_dir" ]]; then
+        mkdir -m 0700 -- "$drill_dir" || die "could not create $drill_dir; nothing was changed"
+        drill_check_dir
+      fi
+      drill[state]=active; drill[code]="$drill_new"; drill[started_epoch]="$now"
+      drill_commit start "$drill_new"; drill_publish
+      printf 'drill started; code %s\n' "$drill_new"
+      say "expect '[MAWAREETH info] MawareethAlertDrill' carrying this code within about 10 minutes; also send the Better Stack test notification, then run: monitor.sh drill confirm <code from the email> --better-stack-received"
+      ;;
+    confirm)
+      [[ "${drill[state]}" == active ]] || die 'no drill is active; nothing was changed'
+      [[ "${drill[code]}" == "$code" ]] || die 'the code does not match the active drill; nothing was changed'
+      drill_check_history
+      drill[state]=idle; drill[code]=''; drill[last_result]=pass; drill[last_pass_epoch]="$now"; drill[last_pass_at]="$drill_iso"
+      drill_commit pass "$code"; drill_publish
+      say "drill passed at $drill_iso; a resolved email follows"
+      ;;
+    abort)
+      [[ "${drill[state]}" == active ]] || die 'no drill is active; nothing was changed'
+      drill_check_history
+      code="${drill[code]}"
+      drill[state]=idle; drill[code]=''; drill[last_result]=aborted
+      drill_commit aborted "$code"; drill_publish
+      say 'drill aborted; the last pass is unchanged'
+      ;;
+  esac
 }
 
 # The exporter is started through this wrapper so it binds only the Tailscale
@@ -220,7 +412,8 @@ monitor_main() {
     install) cmd_install ;;
     collect) cmd_collect ;;
     status) cmd_status ;;
-    *) die 'usage: monitor.sh {install|collect|status}' ;;
+    drill) shift; cmd_drill "$@" ;;
+    *) die 'usage: monitor.sh {install|collect|status|drill}' ;;
   esac
 }
 

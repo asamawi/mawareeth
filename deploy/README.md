@@ -1,6 +1,6 @@
 # Secured Hetzner host baseline
 
-This directory contains the secured host baseline, the private Compose runtime, blue-green release deployment, encrypted off-host database backup with restore verification, and host monitoring with alerting through SCDF's Prometheus/Alertmanager plus an external Better Stack probe. Crash recovery after an interrupted deploy is automated by `release.sh recover`. It does not automate contract-migration detection, host-state backup, DNS, the alert-path drill, or cutover.
+This directory contains the secured host baseline, the private Compose runtime, blue-green release deployment, encrypted off-host database backup with restore verification, and host monitoring with alerting through SCDF's Prometheus/Alertmanager plus an external Better Stack probe. Crash recovery after an interrupted deploy is automated by `release.sh recover`, and `monitor.sh drill` records the operator's alert-path drill. It does not automate contract-migration detection, host-state backup, DNS, or cutover.
 
 ## Private Compose runtime
 
@@ -250,15 +250,16 @@ Mawareeth reuses SCDF's monitoring stack instead of running its own. This host r
    - `tailscale ip -4` prints a `100.x` address.
    - `sudo ss -ltnp 'sport = :9100'` shows only that address, never `0.0.0.0` or `*`.
    - `sudo ufw status numbered` shows 9100/tcp only on `tailscale0` from `100.64.0.0/10`.
-   - `curl -s http://$(tailscale ip -4):9100/metrics | grep '^mawareeth_'` lists the five metrics.
+   - `curl -s http://$(tailscale ip -4):9100/metrics | grep '^mawareeth_'` lists the seven metrics.
    - `systemctl list-timers mawareeth-monitor-collect.timer` shows the timer.
 
 **Collector.** `monitor.sh collect` runs every 5 minutes. It reads `<state dir>/backup/last-backup` and `restore-verified` with the same strict reader as `backup.sh gate`: root-owned, mode 0600, `key=value` lines. It then atomically writes `/var/lib/prometheus/node-exporter/mawareeth.prom` (0644). That file holds these gauges:
 - `mawareeth_backup_last_result_ok` and `mawareeth_backup_last_ok_timestamp_seconds` (the finish time when the result is `ok`).
 - `mawareeth_restore_last_result_pass` and `mawareeth_restore_last_pass_timestamp_seconds` (the verification time when the result is `pass`).
+- `mawareeth_drill_active_code` (the code of the active alert-path drill, otherwise 0) and `mawareeth_drill_last_pass_timestamp_seconds` (the last passed drill), read from `<state dir>/monitor/drill` (see [Alert-path drill](#alert-path-drill)).
 - `mawareeth_monitor_collect_timestamp_seconds`.
 
-A missing, mis-owned, or malformed record, or one with a non-decimal epoch, publishes 0, so the matching alert fires. The collector still exits 0 in that case. Ages are judged by the rules on `p1` (`time() - metric`). `monitor.sh status` prints what a collect would publish and the current file. Exit codes: 0 success, 1 an install step failed, 2 refused (bad input or environment), 3 another monitor operation holds `<state dir>/monitor.lock`.
+A missing, mis-owned, or malformed record, or one with a non-decimal epoch, publishes 0, so the matching alert fires. The collector still exits 0 in that case. Ages are judged by the rules on `p1` (`time() - metric`). `monitor.sh status` prints what a collect would publish, the current file, and the drill state. Exit codes: 0 success, 1 an install or drill write step failed, 2 refused (bad input or environment), 3 another monitor operation holds `<state dir>/monitor.lock`.
 
 ### Wiring `p1`
 
@@ -283,8 +284,10 @@ Ask before changing anything on `p1`. Merge the three snippets under `deploy/mon
 | `MawareethDiskWarning` | An ext4/xfs/btrfs filesystem more than 75% used for 5 minutes | warning |
 | `MawareethDiskCritical` | More than 85% used for 5 minutes (inhibits the warning on the same mountpoint) | critical |
 | `MawareethCollectorStale` | `mawareeth.prom` older than 20 minutes, absent, or unparseable (`node_textfile_scrape_error == 1`) | warning |
+| `MawareethAlertDrill` | An alert-path drill is active (`mawareeth_drill_active_code > 0`); fires at once and carries the code in its summary | info |
+| `MawareethDrillOverdue` | The last passed drill is older than 92 days, none has passed (or the drill record is unusable), the metric is absent, or it is more than 5 minutes in the future | warning |
 
-`deploy/tests/test_monitor.sh` unit-tests these rules with `promtool test rules` and checks the route snippet with `amtool check-config` and `amtool config routes test`. Those checks run only when `promtool` and `amtool` are installed (otherwise only static checks run); with `CI` set, a missing tool fails the suite. The end-to-end alert-path drill is deferred (`deferred-work.md`) and must pass before cutover.
+`deploy/tests/test_monitor.sh` unit-tests these rules with `promtool test rules` and checks the route snippet with `amtool check-config` and `amtool config routes test`. Those checks run only when `promtool` and `amtool` are installed (otherwise only static checks run); with `CI` set, a missing tool fails the suite. The end-to-end path is proven by the operator's [alert-path drill](#alert-path-drill), which must pass before cutover and then every quarter.
 
 The `deploy-shell` job in the `Django CI` workflow (`.github/workflows/django.yml`) installs pinned, checksum-verified ShellCheck, `promtool`, and `amtool`, runs ShellCheck over `deploy/*.sh` and `deploy/tests/*.sh`, and runs every `deploy/tests/*.sh` suite twice: unprivileged and as root. A failure there fails `Django CI`, so `Publish Release Image` does not publish.
 
@@ -296,6 +299,29 @@ Create one Better Stack Uptime monitor:
 - Email notification to the same `SMTP_TO` address, with the monitor name prefixed `MAWAREETH`.
 
 `/health/ready/` returns 200 only when PostgreSQL answers and the schema is current. Otherwise it returns 503 with no diagnostics, so a down edge, a dead slot, or a broken database all alert. Keep the Better Stack account credentials in the operator's password manager. Better Stack needs no host change: it reaches the public HTTPS edge.
+
+### Alert-path drill
+
+The drill proves that a host alert reaches the operator's inbox through `p1` and that Better Stack can notify the same inbox. It uses the existing `project=mawareeth` route and `mawareeth-email` receiver unchanged. Run it once before cutover (the launch drill) and then at least every quarter: `MawareethDrillOverdue` warns once the last pass is older than 92 days, and it warns on a fresh host until the launch drill passes.
+
+1. Run `sudo deploy/monitor.sh drill start`. It prints a random six-digit code and republishes `mawareeth.prom` at once with `mawareeth_drill_active_code` set to that code.
+2. Within about 10 minutes (scrape, rule evaluation, and Alertmanager `group_wait`), an email with the subject `[MAWAREETH info] MawareethAlertDrill (firing)` arrives at `SMTP_TO`. Its summary reads `Mawareeth alert-path drill code <code>`. Until the drill is confirmed or aborted it re-sends every 4 hours (`repeat_interval`).
+3. In Better Stack, open the `MAWAREETH` monitor and use **Send test notification**. Check that the test alert reaches the same inbox. This step is manual; nothing here calls Better Stack's API.
+4. Run `sudo deploy/monitor.sh drill confirm <code from the email> --better-stack-received`. It records a pass only when the code matches the active drill and the flag asserts that the Better Stack test alert arrived. A resolved email follows.
+
+   The code is also visible on the host: `drill start` prints it, and it appears in `mawareeth.prom` and `monitor.sh status`. So `confirm` is an operator-discipline check, not cryptographic proof. Type the code from the email you received, never from the terminal. If no email arrived, the drill has failed.
+5. If either notification does not arrive, run `sudo deploy/monitor.sh drill abort`, fix the path (see the runbooks below), and start again. An abort keeps the previous pass.
+6. After a `confirm` or `abort`, wait about 15 minutes, until the resolved email arrives, before you start another drill. Alertmanager would otherwise treat the new drill as the same still-firing alert and send no new email.
+
+Refusals exit 2 and change nothing: `start` while a drill is active, `confirm` with a wrong or malformed code, without `--better-stack-received`, or with no active drill, and `abort` with no active drill. Exit 3 means another monitor operation holds the lock. A drill command never takes the deploy or backup locks.
+
+**Evidence.** Both files are `root:root` mode 0600 in `<state dir>/monitor/` (mode 0700):
+- `drill` is the current record (`state`, `code`, `started_epoch`, `last_result`, `last_pass_epoch`, `last_pass_at`), read by the collector with the same strict reader as the backup records. A missing or unusable record publishes 0 for both drill metrics, so `MawareethDrillOverdue` fires. `drill start`, `confirm`, and `abort` refuse an unusable record; inspect it and move it aside.
+- `drill-history` gets one line per `start`, `pass`, and `aborted` event, with the UTC time, the code, and the operator (`by=`, from `SUDO_USER`, otherwise `root`).
+
+A refusal (exit 2) writes nothing; `confirm` and `abort` never create the directory. If the history line cannot be appended, the previous record is restored and the command exits 1. If the record and history were written but `mawareeth.prom` could not be, the command exits 1 and says the drill state was changed; the next collect publishes it.
+
+Keep the two emails (drill firing and resolved) and the Better Stack test notification with the launch evidence. `sudo deploy/monitor.sh status` shows the drill state.
 
 ### Log bounds
 
@@ -338,6 +364,19 @@ Create one Better Stack Uptime monitor:
 1. Run `systemctl list-timers mawareeth-monitor-collect.timer`, then `journalctl -u mawareeth-monitor-collect.service -n 50`, then `sudo deploy/monitor.sh status`.
 2. Exit 2 means a refusal (for example, the state or textfile directory is missing). Exit 3 means another monitor run holds the lock.
 3. Re-run `sudo deploy/monitor.sh install` if the units are missing or the checkout moved.
+
+<a id="runbook-mawareethalertdrill"></a>
+**MawareethAlertDrill.**
+1. This is expected during an [alert-path drill](#alert-path-drill). Note the code in the summary.
+2. Send the Better Stack test notification, then run `sudo deploy/monitor.sh drill confirm <code> --better-stack-received`.
+3. If nobody started a drill, or it cannot be finished, run `sudo deploy/monitor.sh drill abort`. Check `<state dir>/monitor/drill-history` for who started it and when.
+
+<a id="runbook-mawareethdrilloverdue"></a>
+**MawareethDrillOverdue.**
+1. Run `sudo deploy/monitor.sh status` and read the drill section.
+2. `(absent: no drill has run)` or `last_result=aborted` with no `last_pass_at` means the launch drill has not passed yet. Run the [alert-path drill](#alert-path-drill).
+3. `(unusable ...)` means the record is not `root:root` 0600 or is malformed. Inspect it with `sudo ls -l <state dir>/monitor/` and `sudo cat <state dir>/monitor/drill`, move it aside, and run the drill again.
+4. A `last_pass_at` more than 92 days old means the quarterly drill is due. A pass dated in the future means the host clock is wrong: fix time sync first.
 
 ## Immutable release artifacts
 
