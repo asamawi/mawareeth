@@ -3,7 +3,9 @@
 # "Monitoring and alerting"). Every rule carries project=mawareeth, which the
 # Alertmanager child route in alertmanager-route.yml matches, and a runbook
 # annotation pointing at the matching README runbook. Staleness is judged here
-# with time() - metric, so the host-side collector never compares clocks.
+# with time() - metric, so the host-side collector never compares clocks. The
+# drill rules carry the operator alert-path drill (deploy/README.md,
+# "Alert-path drill").
 groups:
   - name: mawareeth
     rules:
@@ -82,3 +84,26 @@ groups:
           summary: 'Mawareeth monitoring collector is stale, absent, or unreadable'
           description: 'mawareeth.prom is older than 20 minutes, absent, or could not be parsed by the textfile collector, so the backup and restore metrics cannot be trusted.'
           runbook: 'deploy/README.md#runbook-mawareethcollectorstale'
+
+      - alert: MawareethAlertDrill
+        expr: mawareeth_drill_active_code{job="mawareeth-node"} > 0
+        labels:
+          severity: info
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth alert-path drill code {{ $value | printf "%.0f" }}'
+          description: 'An operator ran monitor.sh drill start on {{ $labels.alias }}. Send the Better Stack test notification, then confirm with: sudo deploy/monitor.sh drill confirm <code> --better-stack-received. This repeats every 4 hours until the drill is confirmed or aborted.'
+          runbook: 'deploy/README.md#runbook-mawareethalertdrill'
+
+      - alert: MawareethDrillOverdue
+        expr: |
+          (time() - mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"}) > 92 * 86400
+            or (mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"} - time()) > 300
+            or absent(mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"})
+        labels:
+          severity: warning
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth alert-path drill is overdue, has never passed, or is future-dated'
+          description: 'The last passed alert-path drill is older than 92 days, none has passed (or the drill record is unusable), the metric is missing from mawareeth.prom, or it is more than 5 minutes in the future (clock skew). Run the quarterly drill.'
+          runbook: 'deploy/README.md#runbook-mawareethdrilloverdue'
