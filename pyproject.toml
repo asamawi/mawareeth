@@ -32,7 +32,7 @@ dependencies = [
     "requests==2.34.2",
     "requests-oauthlib==2.0.0",
     "social-auth-app-django==6.0.0",
-    "social-auth-core==5.0.0",
+    "social-auth-core==5.0.2",
     "sqlparse==0.6.0",
     "tzdata==2025.2",
     "urllib3==2.8.0",
