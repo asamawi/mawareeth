@@ -302,12 +302,39 @@ run_runtime prepare >/dev/null
 
 rm -rf "$tmp/pre-compose-state"; : > "$state/fail-compose"
 before_mutations="$(grep -Ec 'volume create|compose --project-name.* up' "$tmp/docker.log" 2>/dev/null || true)"
-if TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/runtime.env" \
-  MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/pre-compose-state" bash "$runtime" prepare >/dev/null 2>&1; then
+rm -rf "$tmp/validate-tmp"; mkdir -p "$tmp/validate-tmp"
+if TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/runtime.env" TMPDIR="$tmp/validate-tmp" \
+  MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/pre-compose-state" bash "$runtime" prepare >"$tmp/validate.out" 2>&1; then
   fail 'invalid resolved Compose model was accepted'
 fi
 rm -f "$state/fail-compose"
+need "$tmp/validate.out" 'the resolved Compose model is invalid'
+[[ -z "$(ls -A "$tmp/validate-tmp")" ]] || fail 'Compose validation failure left its secret-bearing temporary snapshot'
 [[ ! -e "$tmp/pre-compose-state" ]] || fail 'Compose validation failure published persistent state'
+
+# A failure while publishing the snapshot removes the atomic temporary file.
+mkdir -p "$tmp/chown-fail-bin"
+printf '#!/usr/bin/env bash\n[[ "${*: -1}" != */.snapshot.* ]]\n' > "$tmp/chown-fail-bin/chown"
+chmod +x "$tmp/chown-fail-bin/chown"
+rm -rf "$tmp/publish-fail-state"
+if TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$tmp/chown-fail-bin:$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/runtime.env" \
+  MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/publish-fail-state" bash "$runtime" prepare >"$tmp/publish.out" 2>&1; then
+  fail 'a snapshot that could not be protected was accepted'
+fi
+need "$tmp/publish.out" 'could not protect runtime snapshot'
+[[ -z "$(find "$tmp/publish-fail-state" -name '.snapshot.*' -print -quit 2>/dev/null)" ]] || fail 'snapshot publication failure left its secret-bearing temporary file'
+
+# A failure while protecting the validation snapshot also removes it.
+mkdir -p "$tmp/chmod-fail-bin"
+printf '#!/usr/bin/env bash\n[[ "${*: -1}" == */app.snapshot.env ]] && exit 1\nexec %q "$@"\n' "$(command -v chmod)" > "$tmp/chmod-fail-bin/chmod"
+"$(command -v chmod)" +x "$tmp/chmod-fail-bin/chmod"
+rm -rf "$tmp/validate-tmp" "$tmp/chmod-fail-state"; mkdir -p "$tmp/validate-tmp"
+if TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$tmp/chmod-fail-bin:$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/runtime.env" TMPDIR="$tmp/validate-tmp" \
+  MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/chmod-fail-state" bash "$runtime" prepare >"$tmp/validate.out" 2>&1; then
+  fail 'an unprotected validation snapshot was accepted'
+fi
+need "$tmp/validate.out" 'could not protect temporary Compose validation snapshot'
+[[ -z "$(ls -A "$tmp/validate-tmp")" ]] || fail 'validation setup failure left its secret-bearing temporary snapshot'
 [[ "$(grep -Ec 'volume create|compose --project-name.* up' "$tmp/docker.log" 2>/dev/null || true)" == "$before_mutations" ]] || fail 'Compose validation failure mutated Docker state'
 
 assert_path_rejected_without_mutation() {

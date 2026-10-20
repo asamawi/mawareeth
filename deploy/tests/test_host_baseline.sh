@@ -57,6 +57,13 @@ need "$bootstrap" 'unattended-upgrades'
 need "$bootstrap" '0700 /etc/mawareeth'
 need "$bootstrap" '0600 /dev/null /etc/mawareeth/runtime.env'
 need "$bootstrap" 'refusing unsafe ownership or mode on runtime secret file'
+# The Docker-port backstop must follow Docker restarts, not only host boots.
+firewall_unit="$(sed -n '/^cat > \/etc\/systemd\/system\/mawareeth-docker-firewall.service/,/^EOF$/p' "$bootstrap")"
+grep -qx 'BindsTo=docker.service' <<<"$firewall_unit" || fail 'firewall unit is not BindsTo=docker.service (stops when Docker crashes)'
+grep -qx 'PartOf=docker.service' <<<"$firewall_unit" || fail 'firewall unit is not PartOf=docker.service'
+grep -qx 'WantedBy=multi-user.target docker.service' <<<"$firewall_unit" || fail 'firewall unit is not wanted by docker.service'
+need "$bootstrap" 'systemctl reenable mawareeth-docker-firewall.service'
+need "$bootstrap" 'systemctl restart mawareeth-docker-firewall.service'
 need "$provision" 'server describe'
 need "$provision" 'actions/set_rules'
 need "$example" 'SSH_ALLOWED_CIDRS='

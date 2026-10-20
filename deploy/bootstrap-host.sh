@@ -97,16 +97,20 @@ cat > /etc/systemd/system/mawareeth-docker-firewall.service <<'EOF'
 [Unit]
 Description=Restrict externally published Docker ports
 After=docker.service
-Requires=docker.service
+BindsTo=docker.service
+PartOf=docker.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/mawareeth-docker-firewall
 RemainAfterExit=yes
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target docker.service
 EOF
 systemctl daemon-reload
-systemctl enable --now mawareeth-docker-firewall.service
+# reenable refreshes the wants links on hosts bootstrapped before docker.service
+# wanted the unit; restart reapplies the (idempotent) rules on a rerun.
+systemctl reenable mawareeth-docker-firewall.service
+systemctl restart mawareeth-docker-firewall.service
 
 id -u "$ADMIN_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$ADMIN_USER"
 admin_home="$(getent passwd "$ADMIN_USER" | cut -d: -f6)"

@@ -26,6 +26,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-4-create-secured-hetzner-host-baseline.md`
   summary: Add `PartOf=docker.service` to the `mawareeth-docker-firewall.service` unit so the Docker-port restriction is reapplied whenever Docker restarts, not only on a full host reboot.
   evidence: Confirmed by reading the unit file (`After=`/`Requires=` only, no `PartOf=`); a `systemctl restart docker` (e.g. after a package upgrade) would recreate the `DOCKER-USER` chain without the restricting rules until the next reboot.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-deploy-correctness-fixes.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-4-create-secured-hetzner-host-baseline.md`
   summary: Extend `deploy/tests/test_host_baseline.sh` to actually execute `bootstrap-host.sh`'s CIDR/key validation logic and to exercise the admin-user (sudo-prefixed) provisioning path, not only the root-fallback path.
   evidence: Confirmed while fixing the test's SSH stub during this review — the suite only `grep`-matches literal strings in `bootstrap-host.sh` and never runs its validation functions, and the stub always lets the root probe succeed first, so the admin/sudo code path in `provision-host.sh` has never actually been exercised by this test.
@@ -81,6 +82,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
   summary: Make `validate_compose_model` in `deploy/runtime.sh` remove its temporary secret-bearing snapshot when `compose config` fails.
   evidence: The RETURN trap from 0.5 does not run when `die` or `set -e` exits inside the function, so a failed validation leaves an app snapshot with secrets in the system temp directory.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-deploy-correctness-fixes.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
   summary: Back up host state needed for a fast rebuild (`/etc/mawareeth/runtime.env`, `<state dir>/slots/`, `<state dir>/routes/`) as an encrypted Restic snapshot alongside each nightly database dump, and document using it in the host-rebuild runbook.
   evidence: Split from 0.7 at the token-budget check; the database dump, restore verification, and write gate satisfy the story's acceptance criteria on their own, while host-state capture only shortens rebuild time and can follow before the 0.9 rehearsal.
@@ -110,3 +112,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-ci-deploy-shell-suites.md`
   summary: Make `deploy/backup.sh` run tags unique (e.g. a random or PID suffix on the second-resolution `run_stamp`) so a failed run's `discard_run` → `forget_matching "run:$run_stamp"` can never delete another run's complete snapshots, and add a test that a failed run leaves an earlier same-second run intact.
   evidence: Running the suites on Linux in CI exposed it: two back-to-back backups in the same UTC second share a tag, and the failed one forgot the first run's complete dump and manifest. The test now waits for the next second to avoid it; production runs take minutes, so the window is small but real (e.g. an operator re-running immediately after a fast failure).
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-deploy-correctness-fixes.md`
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-deploy-correctness-fixes.md`
+  summary: Remove `runtime.sh`'s secret-bearing temporary files (`validate_compose_model`'s validation snapshot, `write_snapshot`'s `.snapshot.XXXXXX`) when INT/TERM/HUP arrives inside the temporary window, without clobbering traps of `release.sh`, which sources runtime.sh.
+  evidence: Review of the deploy correctness fixes found that the subshell cleanup covers `die` and `set -e` exits but not signals; the original RETURN traps did not cover signals either, so this predates the change.
