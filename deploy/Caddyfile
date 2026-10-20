@@ -7,6 +7,18 @@
 
 {$DOMAIN:unprepared.invalid} {
 	encode zstd gzip
+	# Deliberate decision: release identity (version and commit) is never
+	# served through the edge. Caddy answers 404 to every client without
+	# contacting the app. No source-address exception: with Docker IPv6 off,
+	# IPv6 clients arrive through docker-proxy as the private bridge gateway,
+	# so an address check cannot tell them from local callers. The deploy reads
+	# the commit by probing the slot directly and proves the routed slot from
+	# the X-Mawareeth-Slot header on /health/ready/. /health/live/ and
+	# /health/ready/ stay public for external monitors. respond sorts before
+	# reverse_proxy in Caddy's directive order. Caddy also replaces client
+	# X-Forwarded-* headers because no trusted proxy is configured; keep it that
+	# way (Django trusts X-Forwarded-Proto only from Caddy).
+	respond /health/release* 404
 	import /etc/caddy/routes/*.caddy
 }
 

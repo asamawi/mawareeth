@@ -42,6 +42,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Bound the readiness probe's DB queries (`SELECT 1`, `django_migrations` read) with a statement/lock timeout so a stalled PostgreSQL returns 503 fast instead of pinning a gunicorn worker until its 60s timeout.
   evidence: `mawareeth/ops_views.py` relies only on `connect_timeout`; the gap pre-dates this story (`_database_ready`).
+  resolved_by: `_bmad-output/implementation-artifacts/spec-pre-cutover-deploy-safety.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Execute the Dockerfile's build-time `collectstatic && check --deploy --fail-level WARNING` (e.g. `docker build --target builder`, no push) on pull requests, not only in the post-merge publish workflow.
   evidence: The only pre-merge check is a regex contract test over the Dockerfile text; a missing build-only env var would surface only on the release branch. Belongs to 0-3 (build immutable CI artifacts).
@@ -51,9 +52,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Decide whether `/health/release/` (exact version + commit SHA) should be reachable from the internet or only privately.
   evidence: The endpoint pre-dates this story; this story made it bypass `ALLOWED_HOSTS` but did not change its exposure.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-pre-cutover-deploy-safety.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Make sure Caddy overwrites any client-supplied `X-Forwarded-Proto` and that Django is reachable only through Caddy, and document both in the runtime contract.
   evidence: `SECURE_PROXY_SSL_HEADER` trusts the header from any peer; enforcement belongs to 0-5 (private Compose runtime).
+  resolved_by: `_bmad-output/implementation-artifacts/spec-pre-cutover-deploy-safety.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Remove `require` from `PRODUCTION_DATABASE_SSL_MODES` once production no longer runs on Heroku Postgres, so production accepts only `disable` (private Compose) or `verify-ca`/`verify-full`.
   evidence: Heroku Postgres (AWS RDS endpoint) cannot verify certificates; setting `DATABASE_SSL_MODE=verify-full` there on 2026-10-11 failed every connection ("root certificate file ... does not exist") until it was reverted to `require`.
@@ -68,6 +71,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
   summary: Add a deploy gate that refuses contract-phase migration operations (remove/delete/rename field or model, detected from `migrate --plan`) unless the operator passes `--allow-contract`.
   evidence: Split from 0.6 at the token-budget check; the core deploy runs forward-only migrations and documents expand-migrate-contract rules, so this gate is independent hardening.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-pre-cutover-deploy-safety.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
   summary: Add `deploy/release.sh recover`, which reads the deploy journal after a crash, restores the prior or verified route, reloads Caddy, stops the non-active candidate, and resets the journal (required before story 0.6 is done).
   evidence: Split from 0.6 at the token-budget check; the core deploy already writes the journal and refuses to run when it is not idle, so automated recovery can follow separately.
@@ -116,3 +120,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-deploy-correctness-fixes.md`
   summary: Remove `runtime.sh`'s secret-bearing temporary files (`validate_compose_model`'s validation snapshot, `write_snapshot`'s `.snapshot.XXXXXX`) when INT/TERM/HUP arrives inside the temporary window, without clobbering traps of `release.sh`, which sources runtime.sh.
   evidence: Review of the deploy correctness fixes found that the subshell cleanup covers `die` and `set -e` exits but not signals; the original RETURN traps did not cover signals either, so this predates the change.
+- source_spec: `_bmad-output/implementation-artifacts/spec-pre-cutover-deploy-safety.md`
+  summary: Validate `deploy/Caddyfile` in CI by running it through the pinned Caddy image (`caddy adapt --config deploy/Caddyfile --adapter caddyfile` in the digest from `deploy/runtime-images.lock`), so a syntax or directive-order mistake fails before a deploy reloads it.
+  evidence: The pre-cutover safety change added `respond /health/release* 404` and its tests only grep the Caddyfile text; nothing parses it with the Caddy version production runs, so an invalid Caddyfile would surface only as a failed reload (exit 6) on the host.

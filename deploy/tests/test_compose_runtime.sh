@@ -38,6 +38,34 @@ need "$compose" 'stop_grace_period: 35s'
 ! grep -Eq '^[[:space:]]+- "?[0-9.:]*2019' "$compose" || fail 'the Caddy admin port must never be published'
 need "$root/deploy/Caddyfile" 'admin localhost:2019'
 ! grep -Fq 'admin off' "$root/deploy/Caddyfile" || fail 'Caddy admin API must be enabled on container loopback for reloads'
+# Release identity is never served through the edge: Caddy answers 404 to every
+# client, with no source-address exception (IPv6 clients arrive through
+# docker-proxy looking private).
+grep -Eq '^[[:space:]]*respond /health/release\* 404[[:space:]]*$' "$root/deploy/Caddyfile" \
+  || fail 'Caddy must answer /health/release* with 404 for every client'
+! grep -Eq 'remote_ip|client_ip|\{remote_host\}' "$root/deploy/Caddyfile" \
+  || fail 'Caddy must not rely on client source addresses'
+! grep -Eq '^[[:space:]]*respond /health/(live|ready)' "$root/deploy/Caddyfile" \
+  || fail 'liveness and readiness must stay public for external monitors'
+# Proxy trust: Caddy replaces client X-Forwarded-* only while it trusts no
+# upstream proxy and the route does not forward them itself.
+route_output="$(bash -c 'source "$1"; route_content blue; route_content green' _ "$runtime")" || fail 'cannot render route_content'
+[[ "$route_output" == *'reverse_proxy app-blue:8000'*'reverse_proxy app-green:8000'* ]] || fail 'route_content did not render both slots'
+for text in "$(< "$root/deploy/Caddyfile")" "$route_output"; do
+  ! grep -Fqi -e 'trusted_proxies' -e 'header_up x-forwarded' <<<"$text" || fail 'Caddy must not trust or forward client X-Forwarded-* headers'
+done
+# Django is reachable only through Caddy: no application slot publishes a port
+# or shares another network namespace.
+awk '
+  /^[^[:space:]#]/ { top = $1; service = "" }
+  top == "services:" && /^  [A-Za-z0-9_-]+:/ { service = $1 }
+  top == "x-app:" && /^  (ports|network_mode):/ { bad = 1 }
+  top == "services:" && service ~ /^app-/ && /^    (ports|network_mode):/ { bad = 1 }
+  END { exit bad }
+' "$compose" || fail 'an application slot publishes a port or sets network_mode; Django must be reachable only through Caddy'
+for anchor in '^x-app:' '^  app-blue:' '^  app-green:'; do
+  grep -Eq "$anchor" "$compose" || fail "the slot exposure check no longer finds $anchor"
+done
 ! grep -Eq '^[[:space:]]*(#|$)' "$example" || fail 'runtime example must be directly installable without comments or blank lines'
 
 # Resolve the real tools before any stub shadows them.
