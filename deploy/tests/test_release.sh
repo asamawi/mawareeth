@@ -135,7 +135,23 @@ if [[ "${1:-}" == compose ]]; then
         if [[ -e "$S/fail-reload-once" ]]; then rm -f "$S/fail-reload-once"; exit 1; fi
         if [[ -e "$S/break-tls-on-reload" ]]; then rm -f "$S/break-tls-on-reload"; touch "$S/fail-tls-all"; fi
         if [[ -e "$S/term-on-curl-after-reload" ]]; then rm -f "$S/term-on-curl-after-reload"; touch "$S/term-on-curl"; fi
+        if [[ -e "$S/wrong-commit-on-reload" ]]; then
+          touch "$S/wrong-commit-app-$(< "$S/wrong-commit-on-reload")"; rm -f "$S/wrong-commit-on-reload"
+        fi
         cp "$ROUTES_DIR/active-slot.caddy" "$S/caddy-loaded"; exit 0
+      fi
+      # migrate --plan is read-only: recorded in $S/plans, answered from
+      # $S/plan-output (stdout) and $S/plan-stderr, failed (with a
+      # secret-bearing error on stderr) by $S/fail-plan.
+      if [[ "$*" == 'python manage.py migrate --plan --no-color' ]]; then
+        printf '%s %s\n' "$service" "$*" >> "$S/plans"
+        if [[ -e "$S/fail-plan" ]]; then
+          printf 'FATAL: password authentication failed for postgresql://mawareeth:LongUrlSafePassword_123456@postgres\n' >&2
+          exit 1
+        fi
+        [[ ! -e "$S/plan-stderr" ]] || cat "$S/plan-stderr" >&2
+        [[ ! -e "$S/plan-output" ]] || cat "$S/plan-output"
+        exit 0
       fi
       if [[ "$1 $2" == 'python manage.py' ]]; then
         printf '%s %s\n' "$service" "$*" >> "$S/migrations"
@@ -213,14 +229,13 @@ header=''
 [[ ! -e "$S/stale-header" ]] || header="$(< "$S/stale-header")"
 [[ ! -e "$S/no-header-$slot" ]] || header=''
 [[ ! -e "$S/fail-tls-$slot" ]] || exit 60
+# Caddy answers release identity with 404 itself, for every client.
+[[ "${*: -1}" != https://example.com/health/release* ]] || exit 22
 [[ -e "$S/running-app-$slot" ]] || exit 22
 printf 'HTTP/2 200\r\ncontent-type: application/json\r\n'
 [[ -z "$header" ]] || printf 'x-mawareeth-slot: %s\r\n' "$header"
 printf '\r\n'
 case "${*: -1}" in
-  https://example.com/health/release/)
-    commit="$(awk -v image="$(< "$S/running-app-$slot")" '$1 == image { print $2 }' "$S/image-commits")"
-    printf '{"status":"ok","commit":"%s"}' "$commit" ;;
   https://example.com/health/ready/) [[ ! -e "$S/fail-ready-app-$slot" ]] || exit 22; printf '{"status":"ok"}' ;;
   *) exit 22 ;;
 esac
@@ -341,7 +356,7 @@ settle() {
   fail 'the killed deploy or its stub is still running after SIGKILL'
 }
 expect_rc() { [[ "$rc" == "$1" ]] || fail "$2: expected exit $1, got $rc"; }
-mutations() { grep -cE '^docker compose .* (up|stop|down)( |$)|manage\.py migrate|caddy reload' "$S/calls.log" 2>/dev/null || true; }
+mutations() { grep -cE '^docker compose .* (up|stop|down)( |$)|manage\.py migrate --noinput|caddy reload' "$S/calls.log" 2>/dev/null || true; }
 route_is() { [[ "$(< "$state/routes/active-slot.caddy")" == *"reverse_proxy app-$1:8000"*"header_down X-Mawareeth-Slot $1"* ]] || fail "route does not target $1"; }
 caddy_is() { [[ -e "$S/running-caddy" && "$(< "$S/caddy-loaded")" == *"reverse_proxy app-$1:8000"* ]] || fail "Caddy does not serve $1"; }
 running() { [[ -e "$S/running-app-$1" ]]; }
@@ -353,6 +368,7 @@ journal_failed_idle() {
 }
 snapshot_count() { find "$state" -maxdepth 1 -name '*.snapshot.env' | wc -l | tr -d ' '; }
 migrations() { if [[ -e "$S/migrations" ]]; then wc -l < "$S/migrations" | tr -d ' '; else printf '0\n'; fi; }
+plans() { if [[ -e "$S/plans" ]]; then wc -l < "$S/plans" | tr -d ' '; else printf '0\n'; fi; }
 line_of() { grep -nE "$1" "$S/calls.log" | tail -n 1 | cut -d: -f1; }
 write_journal() {
   (umask 077; printf 'phase=%s\nprior_slot=green\ncandidate_slot=blue\nmanifest_commit=%s\nprior_commit=%s\nresult=in-progress\nstarted_at=2026-01-01T00:00:00Z\nupdated_at=2026-01-01T00:00:00Z\ndeploy_log=/var/log/deploy.log\nmigrate_log=/var/log/migrate.log\n' "$1" "$commit_a" "$commit_b" > "$state/deploy.journal")
@@ -498,9 +514,19 @@ need "$state/slots/blue.env" "COMMIT=$commit_a"
 
 # --- Happy deploy: release B into idle green ---------------------------------
 plant_prev green
-: > "$S/calls.log"; before_migrations="$(migrations)"
+: > "$S/calls.log"; before_migrations="$(migrations)"; before_plans="$(plans)"
+# An additive plan (add, create, alter) passes the contract gate.
+printf '%s\n' 'Planned operations:' 'calc.0042_expand' '    Create model Heir' '    Add field share to heir' '    Alter field name on heir' \
+  'calc.0043_backfill' '    Raw Python operation' > "$S/plan-output"
 run_release manifest-b
+rm -f "$S/plan-output"
 expect_rc 0 'happy deploy'
+[[ "$(plans)" == $((before_plans + 1)) && "$(tail -n 1 "$S/plans")" == 'app-green python manage.py migrate --plan --no-color' ]] \
+  || fail 'the migration plan was not inspected once in the candidate'
+plan_line="$(line_of 'exec -T app-green python manage.py migrate --plan --no-color$')"
+[[ -n "$plan_line" && "$plan_line" -lt "$(line_of 'exec -T app-green python manage.py migrate --noinput$')" ]] || fail 'the plan did not run before the migration'
+grep -Fq '    Add field share to heir' "$(journal_field migrate_log)" || fail 'the plan was not kept in the migrate log'
+! grep -Fq 'Add field' "$tmp/out" || fail 'the plan was shown on the terminal'
 route_is green; caddy_is green
 [[ "$(< "$S/running-app-green")" == "$image_b" ]] || fail 'green does not run the manifest image'
 ! running blue || fail 'old slot was not drained'
@@ -514,7 +540,9 @@ migrate_line="$(line_of 'exec -T app-green python manage.py migrate')"
 reload_line="$(line_of 'exec -T caddy caddy reload')"
 [[ "$first_curl" -lt "$up_green" ]] || fail 'the edge was not confirmed before mutation'
 [[ "$up_green" -lt "$migrate_line" && "$migrate_line" -lt "$reload_line" && "$reload_line" -lt "$last_curl" ]] || fail 'deploy phases ran out of order'
-grep -E '^curl .*--resolve example.com:443:127.0.0.1 .*https://example.com/health/release/$' "$S/calls.log" >/dev/null || fail 'edge was not verified through the production name'
+grep -E '^curl .*--resolve example.com:443:127.0.0.1 .*https://example.com/health/ready/$' "$S/calls.log" >/dev/null || fail 'edge was not verified through the production name'
+! grep -E '^curl .*https://example.com/health/release' "$S/calls.log" >/dev/null || fail 'the edge was asked for release identity, which Caddy hides'
+[[ "$(line_of '^docker compose .* exec -T app-green python -c .* /health/release/ ')" -gt "$reload_line" ]] || fail 'the routed slot commit was not probed directly after the switch'
 grep -E '^docker inspect --format \{\{\.Image\}\} container-app-green$' "$S/calls.log" >/dev/null || fail 'candidate image was not verified'
 need "$state/slots/green.env" "IMAGE=$image_b"
 need "$state/slots/green.env" "COMMIT=$commit_b"
@@ -693,6 +721,12 @@ expect_rc 2 'edge pre-check failure'
 need "$tmp/out" 'does not confirm active app-green'
 assert_untouched 'edge pre-check failure'
 
+# The edge serves green, but green reports another commit (read directly).
+touch "$S/wrong-commit-app-green"; run_release manifest-a; rm -f "$S/wrong-commit-app-green"
+expect_rc 2 'edge pre-check with a wrong slot commit'
+need "$tmp/out" 'does not confirm active app-green'
+assert_untouched 'edge pre-check with a wrong slot commit'
+
 printf 'hash-of-a-newer-model\n' > "$S/expected-caddy-hash"; run_release manifest-a; rm -f "$S/expected-caddy-hash"
 expect_rc 2 'stale Caddy container'
 need "$tmp/out" 'run deploy/runtime.sh up first'
@@ -741,6 +775,53 @@ touch "$S/term-on-migrate"; run_release manifest-a
 assert_candidate_failure 'TERM during migration'
 [[ "$(journal_field result)" == failed:migrating ]] || fail 'TERM during migration was not journaled as a migrating failure'
 
+# Contract gate: a plan that removes or renames schema is refused before
+# migrating unless --allow-contract is passed; the plan stays in the log.
+for operation in 'Remove field share from heir' 'Delete model Heir' 'Rename field name on heir to full_name' \
+  'Rename model Heir to Inheritor' 'Rename table for heir to calc_heir' 'Raw SQL operation -> DROP TABLE calc_heir' \
+  'Custom state/database change combination'; do
+  printf '%s\n' 'Planned operations:' 'calc.0044_contract' '    Add field note to heir' "    $operation" > "$S/plan-output"
+  before_migrations="$(migrations)"; before_plans="$(plans)"
+  run_release manifest-a
+  assert_candidate_failure "contract plan ($operation)"
+  [[ "$(journal_field result)" == failed:candidate-starting ]] || fail "contract plan ($operation) was not refused before migrating"
+  [[ "$(migrations)" == "$before_migrations" ]] || fail "contract plan ($operation) ran migrate --noinput"
+  [[ "$(plans)" == $((before_plans + 1)) ]] || fail "contract plan ($operation) was not inspected"
+  need "$tmp/out" '--allow-contract'
+  need "$tmp/out" "$(journal_field migrate_log)"
+  ! grep -Fq -e "$operation" -e 'calc.0044' -e 'Planned operations' -e 'note to heir' "$tmp/out" || fail "contract plan ($operation) was shown on the terminal"
+  need "$(journal_field migrate_log)" "    $operation"
+done
+# Contract phrases count only at the start of an indented plan operation, not
+# inside other text, and plan stderr is never matched.
+printf '%s\n' 'Planned operations:' 'calc.0045_remove_field_note' '    Raw Python operation -> Remove field x from y' > "$S/plan-output"
+printf '%s\n' '    Remove field share from heir' > "$S/plan-stderr"
+before_migrations="$(migrations)"
+touch "$S/fail-ready-app-blue"; run_release manifest-a; rm -f "$S/fail-ready-app-blue"
+assert_candidate_failure 'unready candidate after a non-contract plan'
+[[ "$(migrations)" == $((before_migrations + 1)) ]] || fail 'a non-contract plan was refused'
+[[ "$(journal_field result)" != failed:candidate-starting ]] || fail 'a non-contract plan was refused by the gate'
+need "$(journal_field migrate_log)" '    Remove field share from heir'
+rm -f "$S/plan-output" "$S/plan-stderr"
+
+before_migrations="$(migrations)"
+touch "$S/fail-plan"; run_release manifest-a; rm -f "$S/fail-plan"
+assert_candidate_failure 'failed migration plan'
+[[ "$(journal_field result)" == failed:candidate-starting ]] || fail 'a failed plan was not refused before migrating'
+[[ "$(migrations)" == "$before_migrations" ]] || fail 'a failed plan still ran migrate --noinput'
+need "$tmp/out" 'migration plan could not be computed'
+grep -Fq 'password authentication failed' "$(journal_field migrate_log)" || fail 'the failed plan output was not kept in the migrate log'
+
+# Unknown deploy arguments are refused before anything happens.
+cp "$state/deploy.journal" "$tmp/journal.before"; before="$(mutations)"; before_plans="$(plans)"
+for arg in 'deploy --bogus' 'deploy --allow-contract --allow-contract' 'deploy extra'; do
+  run "$release" "$arg" manifest-a
+  expect_rc 2 "release.sh $arg"
+  need "$tmp/out" 'release.sh deploy [--allow-contract]'
+  assert_untouched "release.sh $arg"
+  [[ "$(plans)" == "$before_plans" ]] || fail "release.sh $arg inspected a plan"
+done
+
 # --- Failures after the switch began: prior route restored and confirmed -------
 assert_rolled_back() {
   expect_rc 6 "$1"
@@ -757,6 +838,11 @@ assert_rolled_back 'reload failure'
 need "$tmp/out" 'restored and confirmed'
 touch "$S/fail-tls-blue"; run_release manifest-a; rm -f "$S/fail-tls-blue"
 assert_rolled_back 'TLS verification failure'
+# After the switch the edge carries the blue header, but blue's direct probe
+# reports another commit: the edge check fails and green is restored.
+printf 'blue\n' > "$S/wrong-commit-on-reload"; run_release manifest-a; rm -f "$S/wrong-commit-app-blue" "$S/wrong-commit-on-reload"
+assert_rolled_back 'wrong slot commit at the edge check'
+[[ "$(journal_field result)" == failed:verifying ]] || fail 'a wrong slot commit at the edge check was not a verifying failure'
 printf 'green\n' > "$S/stale-header"; run_release manifest-a; rm -f "$S/stale-header"
 assert_rolled_back 'edge answered from the wrong slot'
 touch "$S/no-header-blue"; run_release manifest-a; rm -f "$S/no-header-blue"
@@ -972,5 +1058,21 @@ route_is blue; caddy_is blue
 ! running green || fail 'green was not drained'
 need "$state/slots/blue.env.prev" "COMMIT=$commit_a"
 [[ "$(journal_field phase)" == idle && "$(journal_field prior_slot)" == green && "$(journal_field prior_commit)" == "$commit_b" ]] || fail 'journal is wrong after rollback deploy'
+
+# --- A deliberate contract release with --allow-contract ----------------------
+printf '%s\n' 'Planned operations:' 'calc.0046_contract' '    Remove field legacy_share from heir' > "$S/plan-output"
+: > "$S/calls.log"; before_migrations="$(migrations)"
+run "$release" 'deploy --allow-contract' manifest-b
+rm -f "$S/plan-output"
+expect_rc 0 'contract release with --allow-contract'
+route_is green; caddy_is green
+[[ "$(migrations)" == $((before_migrations + 1)) ]] || fail '--allow-contract did not migrate exactly once'
+[[ "$(line_of 'migrate --plan --no-color$')" -lt "$(line_of 'migrate --noinput$')" ]] || fail '--allow-contract skipped the plan'
+need "$tmp/out" 'allowed by --allow-contract'
+! grep -Fq 'legacy_share' "$tmp/out" || fail '--allow-contract showed the plan on the terminal'
+need "$(journal_field deploy_log)" 'allowed by --allow-contract'
+need "$(journal_field migrate_log)" 'contract operations allowed by --allow-contract'
+need "$(journal_field migrate_log)" '    Remove field legacy_share from heir'
+no_secrets 'contract release with --allow-contract'
 
 printf '%s\n' 'release offline checks passed'

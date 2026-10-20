@@ -1,15 +1,19 @@
 import importlib.util
 import os
 import re
+import time
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from uuid import uuid4
 
 from django.core.exceptions import ImproperlyConfigured
-from django.db import connection
+from django.core.management.commands import migrate
+from django.db import OperationalError, connection, connections, migrations, models, transaction
 from django.db.migrations.recorder import MigrationRecorder
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 
@@ -201,6 +205,117 @@ class OpsEndpointTests(TestCase):
             with self.subTest(name=name):
                 response = self.client.get(reverse(name), secure=True)
                 self.assertIn("no-store", response["Cache-Control"])
+
+
+def _is_postgresql():
+    return connection.vendor == "postgresql"
+
+
+@unittest.skipUnless(_is_postgresql(), "readiness timeouts apply to PostgreSQL only")
+class ReadinessTimeoutTests(SimpleTestCase):
+    # SimpleTestCase keeps the connection in autocommit, as in production, so
+    # the probe's atomic block is a real transaction rather than a savepoint
+    # inside a test transaction (where SET LOCAL would outlive the block).
+    databases = {"default"}
+
+    def _show(self, name):
+        with connections["default"].cursor() as cursor:
+            cursor.execute(f"SHOW {name}")
+            return cursor.fetchone()[0]
+
+    def test_readiness_sets_local_timeouts_without_leaking_them(self):
+        before = {name: self._show(name) for name in ("statement_timeout", "lock_timeout")}
+        seen = {}
+
+        def schema_ready_spy():
+            for name in before:
+                seen[name] = self._show(name)
+            return True
+
+        with patch("mawareeth.ops_views._schema_ready", side_effect=schema_ready_spy):
+            response = self.client.get(reverse("ops-ready"), secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(seen, {"statement_timeout": "2s", "lock_timeout": "2s"})
+        after = {name: self._show(name) for name in before}
+        self.assertEqual(after, before)
+
+    def test_timed_out_query_yields_diagnostic_free_503(self):
+        def stalled_database():
+            with connections["default"].cursor() as cursor:
+                cursor.execute("SELECT pg_sleep(10)")
+            return True
+
+        started = time.monotonic()
+        with (
+            patch("mawareeth.ops_views._database_ready", side_effect=stalled_database),
+            self.assertLogs("mawareeth.ops_views", level="ERROR") as logs,
+        ):
+            response = self.client.get(reverse("ops-ready"), secure=True)
+        elapsed = time.monotonic() - started
+
+        self.assertEqual(response.status_code, 503)
+        self.assertJSONEqual(response.content, {"status": "error"})
+        self.assertLess(elapsed, 5)
+        output = "\n".join(logs.output)
+        self.assertIn("statement timeout", output)
+        self.assertIn(OperationalError.__name__, output)
+
+    def test_inside_outer_atomic_block_no_set_local_is_issued(self):
+        # A savepoint would not scope SET LOCAL, so the probe leaves the
+        # caller's transaction settings alone.
+        before = self._show("statement_timeout")
+        with transaction.atomic(using="default"):
+            with CaptureQueriesContext(connections["default"]) as queries:
+                response = self.client.get(reverse("ops-ready"), secure=True)
+            during = self._show("statement_timeout")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse([q["sql"] for q in queries.captured_queries if "SET LOCAL" in q["sql"].upper()])
+        self.assertEqual(during, before)
+
+
+class ContractGatePatternTests(SimpleTestCase):
+    """release.sh matches Django's own `migrate --plan` wording."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        script = (PROJECT_ROOT / "deploy" / "release.sh").read_text(encoding="utf-8")
+        match = re.search(r"^contract_pattern='([^']+)'$", script, re.MULTILINE)
+        if match is None:
+            raise AssertionError("contract_pattern not found in deploy/release.sh")
+        cls.pattern = re.compile(match.group(1))
+
+    def _plan_line(self, operation):
+        # migrate --plan prints each operation as four spaces plus this text.
+        text, _ = migrate.Command.describe_operation(operation, False)
+        return "    " + text
+
+    def test_contract_operations_match(self):
+        operations = [
+            migrations.RemoveField("heir", "share"),
+            migrations.DeleteModel("Heir"),
+            migrations.RenameField("heir", "name", "full_name"),
+            migrations.RenameModel("Heir", "Inheritor"),
+            migrations.AlterModelTable("heir", "calc_heir"),
+            migrations.RunSQL("DROP TABLE calc_heir"),
+            migrations.SeparateDatabaseAndState(state_operations=[migrations.DeleteModel("Heir")]),
+        ]
+        for operation in operations:
+            line = self._plan_line(operation)
+            with self.subTest(operation=type(operation).__name__, line=line):
+                self.assertRegex(line, self.pattern)
+
+    def test_additive_operations_do_not_match(self):
+        operations = [
+            migrations.AddField("heir", "note", models.TextField(default="")),
+            migrations.CreateModel("Heir", [("id", models.AutoField(primary_key=True))]),
+        ]
+        for operation in operations:
+            line = self._plan_line(operation)
+            with self.subTest(operation=type(operation).__name__, line=line):
+                self.assertNotRegex(line, self.pattern)
 
 
 @override_settings(ALLOWED_HOSTS=["mawareeth.example"], SECURE_SSL_REDIRECT=True)

@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 # Safe blue-green release deployment for the private Compose runtime.
 #
-#   sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/release.sh deploy
+#   sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/release.sh deploy [--allow-contract]
 #   sudo deploy/release.sh recover [--dry-run]
+#
+# Before migrating, deploy inspects `migrate --plan` and refuses (exit 5) a plan
+# that removes, deletes or renames a field, model or table, or runs raw SQL or
+# a custom state/database change: the still-serving prior slot could break.
+# Pass --allow-contract only for a deliberate contract release whose prior slot
+# no longer depends on what is changed.
 #
 # deploy exit codes: 0 deployed and verified; 2 refused before any mutation; 3
 # another deploy or runtime operation holds the lock; 4 the journal is not idle
@@ -59,6 +65,8 @@ deadline=''
 started_at=''
 deploy_log=/dev/null
 migrate_log=/dev/null
+allow_contract=0
+contract_pattern='^    (Remove field |Delete model |Rename field |Rename model |Rename table for |Raw SQL operation|Custom state/database change combination)'
 
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
@@ -184,11 +192,13 @@ edge_fetch() {
     --resolve "${runtime_values[DOMAIN]}:443:127.0.0.1" "https://${runtime_values[DOMAIN]}$1" 2>>"$deploy_log"
 }
 
-# edge_serves SLOT COMMIT succeeds only when the edge answers through SLOT
-# (its X-Mawareeth-Slot header), reports COMMIT, and is ready.
+# edge_serves SLOT COMMIT succeeds only when the edge answers /health/ready/
+# with success through SLOT (its X-Mawareeth-Slot header) and SLOT itself,
+# probed directly, reports COMMIT. Caddy answers /health/release* with 404 for
+# every client, so the commit is never read through the edge.
 edge_serves() {
   local response headers body line served=''
-  response="$(edge_fetch /health/release/)" || return 1
+  response="$(edge_fetch /health/ready/)" || return 1
   response="${response//$'\r'/}"
   [[ "$response" == *$'\n\n'* ]] || return 1
   headers="${response%%$'\n\n'*}"; body="${response#*$'\n\n'}"
@@ -199,8 +209,8 @@ edge_serves() {
     if [[ "${line,,}" == x-mawareeth-slot:* ]]; then served="${line#*:}"; served="${served//[[:space:]]/}"; fi
   done <<<"$headers"
   [[ -n "$served" && "$served" == "$1" ]] || return 1
-  [[ "$(json_commit <<<"$body")" == "$2" ]] || return 1
-  edge_fetch /health/ready/ >/dev/null
+  body="$(probe "$1" /health/release/)" || return 1
+  [[ "$(json_commit <<<"$body")" == "$2" ]]
 }
 edge_candidate() { edge_serves "$candidate_slot" "$APP_COMMIT"; }
 edge_prior() { edge_serves "$prior_slot" "$prior_commit"; }
@@ -387,7 +397,7 @@ refuse_live_legacy_runtime() {
 }
 
 deploy() {
-  local status=0 drift hash
+  local status=0 drift hash plan_output plan_status=0
   [[ ${EUID:-999} -eq 0 ]] || fail_with 2 'must run as root'
   trap 'exit 129' HUP
   trap 'exit 130' INT
@@ -468,8 +478,24 @@ deploy() {
   running_image_matches "app-$candidate_slot" "$APP_IMAGE" || abort_candidate "app-$candidate_slot is not running the manifest image $APP_IMAGE"
   wait_until "$live_timeout" candidate_live || abort_candidate "app-$candidate_slot did not become live within ${live_timeout}s"
 
+  # Contract gate: the plan (which may name tables and columns) goes only to
+  # the root-only migrate log, never to the terminal. Only stdout is matched;
+  # stderr (warnings, connection errors) goes straight to the log.
+  plan_output="$(compose_bounded "$migrate_timeout" exec -T "app-$candidate_slot" python manage.py migrate --plan --no-color 2>>"$migrate_log")" \
+    || plan_status=$?
+  printf '%s\n' "$plan_output" >> "$migrate_log" || abort_candidate "cannot write $migrate_log"
+  ((plan_status == 0)) \
+    || abort_candidate "the migration plan could not be computed; output withheld from the terminal and kept in root-only $migrate_log"
+  if grep -Eq "$contract_pattern" <<<"$plan_output"; then
+    if ((allow_contract == 0)); then
+      abort_candidate "the migration plan contains contract operations (remove, delete or rename, raw SQL, or a custom state/database change) that could break the still-serving slot; review the plan in root-only $migrate_log and rerun with release.sh deploy --allow-contract only if no serving release depends on them"
+    fi
+    printf 'release: contract operations allowed by --allow-contract\n' >> "$migrate_log" || abort_candidate "cannot write $migrate_log"
+    say "contract operations in the migration plan were allowed by --allow-contract (plan in root-only $migrate_log)"
+  fi
+
   journal migrating || abort_candidate "cannot write $journal_file"
-  compose_bounded "$migrate_timeout" exec -T "app-$candidate_slot" python manage.py migrate --noinput > "$migrate_log" 2>&1 \
+  compose_bounded "$migrate_timeout" exec -T "app-$candidate_slot" python manage.py migrate --noinput >> "$migrate_log" 2>&1 \
     || abort_candidate "migration failed; output withheld from the terminal and kept in root-only $migrate_log"
 
   wait_until "$ready_timeout" candidate_ready || abort_candidate "app-$candidate_slot did not become ready within ${ready_timeout}s"
@@ -804,9 +830,13 @@ recover() {
   else say "recovered: unverified bootstrap rolled back, Caddy and app-$candidate_slot stopped; journal idle ($final_result)"; fi
 }
 
-usage='usage: release.sh deploy | release.sh recover [--dry-run]'
+usage='usage: release.sh deploy [--allow-contract] | release.sh recover [--dry-run]'
 case "${1:-}" in
-  deploy) shift; [[ $# -eq 0 ]] || fail_with 2 "$usage"; deploy ;;
+  deploy)
+    shift
+    if [[ $# -eq 0 ]]; then deploy
+    elif [[ $# -eq 1 && "$1" == --allow-contract ]]; then allow_contract=1; deploy
+    else fail_with 2 "$usage"; fi ;;
   recover)
     shift
     if [[ $# -eq 0 ]]; then recover 0
