@@ -425,6 +425,42 @@ class WorkflowContractTests(SimpleTestCase):
         self.assertEqual(workflow.count('--expected-repository "${{ steps.image.outputs.repository }}"'), 3)
         self.assertNotIn("release-metadata.json", workflow)
 
+    def test_validation_workflow_builds_image_and_validates_caddyfile_before_merge(self):
+        workflow = (PROJECT_ROOT / ".github" / "workflows" / "django.yml").read_text(encoding="utf-8")
+        jobs = {}
+        jobs_section = workflow[workflow.index("\njobs:\n") :]
+        for match in re.finditer(r"(?m)^  ([a-z][a-z0-9-]*):\n((?:(?: {4}[^\n]*| *)\n)*)", jobs_section):
+            self.assertNotIn(match.group(1), jobs)
+            jobs[match.group(1)] = match.group(2)
+
+        self.assertIn("image-build", jobs)
+        image_build = jobs["image-build"]
+        self.assertIn("docker/build-push-action@", image_build)
+        self.assertIn("context: .", image_build)
+        self.assertRegex(image_build, r"(?m)^ +push: false$")
+        self.assertNotIn("load: true", image_build)
+        self.assertNotIn("push: true", workflow)
+        self.assertNotIn("docker push", workflow)
+        self.assertNotIn("docker/login-action", workflow)
+
+        self.assertIn("caddy-config", jobs)
+        caddy = jobs["caddy-config"]
+        self.assertIn("deploy/runtime-images.lock", caddy)
+        self.assertIn("@sha256:[0-9a-f]{64}$", caddy)
+        validate = "caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile --validate"
+        self.assertEqual(caddy.count(validate), 2)
+        self.assertEqual(caddy.count("docker run --rm --network none"), caddy.count("docker run"))
+        self.assertIn("for slot in blue green; do", caddy)
+        self.assertIn('"\\"dial\\":\\"app-$slot:8000\\""', caddy)
+        self.assertIn("accepts invalid config", caddy)
+        self.assertNotRegex(caddy, r"caddy:\d|sha256:[0-9a-f]{64}")
+
+        for name in ("image-build", "caddy-config"):
+            with self.subTest(job=name):
+                self.assertRegex(jobs[name], r"(?m)^    timeout-minutes: \d+$")
+                self.assertRegex(jobs[name], r"(?m)^    permissions:\n      contents: read$")
+                self.assertNotRegex(jobs[name], r"(?m)^ +if:")
+
     def test_workflows_pin_third_party_actions(self):
         for name in ("deploy.yml", "django.yml"):
             workflow = (PROJECT_ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")

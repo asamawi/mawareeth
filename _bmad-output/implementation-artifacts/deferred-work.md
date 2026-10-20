@@ -46,6 +46,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Execute the Dockerfile's build-time `collectstatic && check --deploy --fail-level WARNING` (e.g. `docker build --target builder`, no push) on pull requests, not only in the post-merge publish workflow.
   evidence: The only pre-merge check is a regex contract test over the Dockerfile text; a missing build-only env var would surface only on the release branch. Belongs to 0-3 (build immutable CI artifacts).
+  resolved_by: `_bmad-output/implementation-artifacts/spec-ci-premerge-build-and-caddy-checks.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Deploy-check the real runtime configuration (e.g. `DJANGO_KEY` strength, `security.W009`), not just build placeholders.
   evidence: Image build and CI both run `check --deploy` with placeholder values; the runtime only enforces presence. Pre-existing.
@@ -123,3 +124,4 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-pre-cutover-deploy-safety.md`
   summary: Validate `deploy/Caddyfile` in CI by running it through the pinned Caddy image (`caddy adapt --config deploy/Caddyfile --adapter caddyfile` in the digest from `deploy/runtime-images.lock`), so a syntax or directive-order mistake fails before a deploy reloads it.
   evidence: The pre-cutover safety change added `respond /health/release* 404` and its tests only grep the Caddyfile text; nothing parses it with the Caddy version production runs, so an invalid Caddyfile would surface only as a failed reload (exit 6) on the host.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-ci-premerge-build-and-caddy-checks.md`

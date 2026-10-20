@@ -133,3 +133,136 @@ jobs:
             sudo --preserve-env=CI env "PATH=$PATH" bash "$suite" || { echo "::endgroup::"; echo "::error::$suite failed (root)"; exit 1; }
             echo "::endgroup::"
           done
+
+  image-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      # Builds the full release image (default runtime target), so the builder
+      # stage's collectstatic and check --deploy gates run before merge. Nothing
+      # is pushed, loaded, or tagged; Publish Release Image stays the only producer.
+      - name: Build release image without pushing
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          push: false
+          build-args: |
+            RELEASE_VERSION=ci
+            RELEASE_COMMIT_SHA=${{ github.sha }}
+
+  caddy-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Resolve pinned Caddy image from deploy/runtime-images.lock
+        id: caddy
+        run: |
+          set -euo pipefail
+          lock=deploy/runtime-images.lock
+          if [ ! -f "$lock" ]; then
+            echo "::error file=$lock::$lock is missing"
+            exit 1
+          fi
+          mapfile -t matches < <(tr -d '\r' < "$lock" | grep -E '^CADDY_IMAGE=' || true)
+          if [ "${#matches[@]}" -ne 1 ]; then
+            echo "::error file=$lock::$lock must contain exactly one CADDY_IMAGE line (found ${#matches[@]})"
+            exit 1
+          fi
+          image="${matches[0]#CADDY_IMAGE=}"
+          if ! [[ "$image" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error file=$lock::CADDY_IMAGE in $lock is not a digest-pinned reference (<image>@sha256:<64 hex>)"
+            exit 1
+          fi
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "Caddy image: $image"
+
+      - name: Pull pinned Caddy image
+        env:
+          CADDY_IMAGE: ${{ steps.caddy.outputs.image }}
+        run: |
+          for attempt in 1 2 3; do
+            docker pull "$CADDY_IMAGE" && exit 0
+            sleep $((attempt * 10))
+          done
+          echo "::error::could not pull $CADDY_IMAGE"
+          exit 1
+
+      - name: Validate Caddyfile with blue and green routes
+        env:
+          CADDY_IMAGE: ${{ steps.caddy.outputs.image }}
+        run: |
+          set -euo pipefail
+          seed=deploy/caddy/active-slot.caddy
+          for slot in blue green; do
+            routes="$RUNNER_TEMP/routes-$slot"
+            rm -rf "$routes" && mkdir -p "$routes"
+            # The seed is the canonical blue route; green differs only by slot name.
+            sed "s/blue/$slot/g" "$seed" > "$routes/active-slot.caddy"
+            if ! grep -q "app-$slot:8000" "$routes/active-slot.caddy" \
+              || ! grep -q "header_down X-Mawareeth-Slot $slot" "$routes/active-slot.caddy" \
+              || { [ "$slot" != blue ] && grep -q blue "$routes/active-slot.caddy"; }; then
+              echo "::error file=$seed::could not render the $slot route from $seed"
+              exit 1
+            fi
+            echo "::group::caddy adapt --validate ($slot route)"
+            # Same mount paths as deploy/compose.yaml; adapt --validate also
+            # provisions modules, and its JSON proves the route was imported
+            # (a glob that matches nothing is not an error).
+            if ! docker run --rm --network none -e DOMAIN=ci.example.com \
+              -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+              -v "$routes:/etc/caddy/routes:ro" \
+              "$CADDY_IMAGE" caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile --validate > "$RUNNER_TEMP/adapted-$slot.json"; then
+              echo "::endgroup::"
+              echo "::error file=deploy/Caddyfile::Caddy rejected deploy/Caddyfile with the $slot route"
+              exit 1
+            fi
+            echo "::endgroup::"
+            if ! grep -q "\"dial\":\"app-$slot:8000\"" "$RUNNER_TEMP/adapted-$slot.json"; then
+              echo "::error file=deploy/Caddyfile::the adapted config has no app-$slot:8000 upstream; the route import matched nothing"
+              exit 1
+            fi
+          done
+
+      - name: Self-test that validation rejects a broken Caddyfile
+        env:
+          CADDY_IMAGE: ${{ steps.caddy.outputs.image }}
+        run: |
+          set -euo pipefail
+          routes="$RUNNER_TEMP/routes-selftest"
+          rm -rf "$routes" && mkdir -p "$routes"
+          cp deploy/caddy/active-slot.caddy "$routes/"
+          broken="$RUNNER_TEMP/Caddyfile.broken"
+          sed 's|^\(\s*\)import /etc/caddy/routes/\*\.caddy$|\1mawareeth_not_a_directive\n&|' deploy/Caddyfile > "$broken"
+          if ! grep -q 'mawareeth_not_a_directive' "$broken"; then
+            echo "::error::could not build the broken Caddyfile copy for the self-test"
+            exit 1
+          fi
+          echo "::group::caddy adapt --validate (broken copy, must fail)"
+          if docker run --rm --network none -e DOMAIN=ci.example.com \
+            -v "$broken:/etc/caddy/Caddyfile:ro" \
+            -v "$routes:/etc/caddy/routes:ro" \
+            "$CADDY_IMAGE" caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile --validate > "$RUNNER_TEMP/broken.log" 2>&1; then
+            cat "$RUNNER_TEMP/broken.log"
+            echo "::endgroup::"
+            echo "::error::the Caddy check accepts invalid config: a Caddyfile with an unknown directive validated"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/broken.log"
+          echo "::endgroup::"
+          # A rejection for any other reason (mounts, image) would prove nothing.
+          if ! grep -q 'mawareeth_not_a_directive' "$RUNNER_TEMP/broken.log"; then
+            echo "::error::the broken Caddyfile was rejected, but not for the injected directive"
+            exit 1
+          fi
+          echo "Broken Caddyfile was rejected as expected."
