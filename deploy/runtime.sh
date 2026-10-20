@@ -238,7 +238,7 @@ use_existing_snapshot() {
 }
 
 write_snapshot() {
-  local content hash target temporary
+  local content hash target temporary status
   content="$(snapshot_content)"
   hash="$(printf '%s\n' "$content" | sha256sum | awk '{print $1}')"
   target="$state_dir/$hash.snapshot.env"
@@ -248,36 +248,47 @@ write_snapshot() {
     [[ "$(sha256sum "$target" | awk '{print $1}')" == "$hash" ]] || die 'existing runtime snapshot content drifted'
   else
     temporary="$(mktemp "$state_dir/.snapshot.XXXXXX")" || die 'could not allocate atomic snapshot'
-    trap 'rm -f -- "${temporary:-}"' RETURN
-    printf '%s\n' "$content" > "$temporary"
-    { chown root:root "$temporary" && chmod 0600 "$temporary"; } || die 'could not protect runtime snapshot'
-    [[ "$(sha256sum "$temporary" | awk '{print $1}')" == "$hash" ]] || die 'runtime snapshot validation failed'
-    if ! ln -- "$temporary" "$target" 2>/dev/null; then
-      file_metadata "$target" 600 'concurrently published runtime snapshot'
-      [[ "$(sha256sum "$target" | awk '{print $1}')" == "$hash" ]] || die 'concurrently published runtime snapshot content drifted'
-    fi
+    # A subshell, because die exits past RETURN traps; the parent always
+    # removes the secret-bearing temporary file.
+    set +e
+    (
+      set -e
+      printf '%s\n' "$content" > "$temporary"
+      { chown root:root "$temporary" && chmod 0600 "$temporary"; } || die 'could not protect runtime snapshot'
+      [[ "$(sha256sum "$temporary" | awk '{print $1}')" == "$hash" ]] || die 'runtime snapshot validation failed'
+      if ! ln -- "$temporary" "$target" 2>/dev/null; then
+        file_metadata "$target" 600 'concurrently published runtime snapshot'
+        [[ "$(sha256sum "$target" | awk '{print $1}')" == "$hash" ]] || die 'concurrently published runtime snapshot content drifted'
+      fi
+    )
+    status=$?
+    set -e
     rm -f -- "$temporary"
-    temporary=''
-    trap - RETURN
+    (( status == 0 )) || exit "$status"
   fi
   APP_SNAPSHOT="$target"
 }
 
 validate_compose_model() {
-  local temporary_dir temporary_snapshot
+  local temporary_dir status
   temporary_dir="$(mktemp -d)" || die 'could not allocate temporary Compose validation directory'
-  trap 'rm -rf -- "${temporary_dir:-}"' RETURN
-  chmod 0700 "$temporary_dir" || die 'could not protect temporary Compose validation directory'
-  temporary_snapshot="$temporary_dir/app.snapshot.env"
-  snapshot_content > "$temporary_snapshot"
-  chmod 0600 "$temporary_snapshot" || die 'could not protect temporary Compose validation snapshot'
-  APP_SNAPSHOT="$temporary_snapshot"
-  APP_BLUE_IMAGE="$APP_IMAGE"; APP_GREEN_IMAGE="$APP_IMAGE"; ROUTES_DIR="$temporary_dir"
-  compose config --quiet >/dev/null || die 'the resolved Compose model is invalid'
-  APP_SNAPSHOT=''; ROUTES_DIR=''
+  APP_BLUE_IMAGE="$APP_IMAGE"; APP_GREEN_IMAGE="$APP_IMAGE"
+  # A subshell, because die exits past RETURN traps; the parent always
+  # removes the secret-bearing temporary snapshot.
+  set +e
+  (
+    set -e
+    chmod 0700 "$temporary_dir" || die 'could not protect temporary Compose validation directory'
+    APP_SNAPSHOT="$temporary_dir/app.snapshot.env"; ROUTES_DIR="$temporary_dir"
+    snapshot_content > "$APP_SNAPSHOT"
+    chmod 0600 "$APP_SNAPSHOT" || die 'could not protect temporary Compose validation snapshot'
+    compose config --quiet >/dev/null || die 'the resolved Compose model is invalid'
+  )
+  status=$?
+  set -e
   rm -rf -- "$temporary_dir"
-  temporary_dir=''
-  trap - RETURN
+  (( status == 0 )) || exit "$status"
+  APP_SNAPSHOT=''; ROUTES_DIR=''
 }
 
 # preflight_runtime validates everything except the release manifest: the

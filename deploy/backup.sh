@@ -362,7 +362,7 @@ except (KeyError, TypeError, ValueError):
 write_backup_status() {
   local content
   content="result=$1
-run=$run_stamp
+run=$run_token
 finished_at=$(now_iso)
 finished_epoch=$(now_epoch)
 dump_snapshot=$dump_id
@@ -398,7 +398,7 @@ discard_run() {
   case "$stage" in
     setup|repository|postgres|retention) return 0 ;;
   esac
-  if ! forget_matching "run:$run_stamp" "$forget_timeout"; then
+  if ! forget_matching "run:$run_token" "$forget_timeout"; then
     say 'could not forget this run'"'"'s snapshots; the next backup forgets pending ones'
   fi
 }
@@ -479,7 +479,7 @@ dump_and_count() {
   cap "$backup_timeout"; dump_limit="$cap_value"
   set +e
   timeout --kill-after=10 "$((dump_limit + 30))" docker exec "$pg_container" timeout "$dump_limit" pg_dump -Fc "--snapshot=$snapshot_id" -U "$pg_user" -d "$pg_db" 2>>"$run_log" 8>&- \
-    | restic_in "$((dump_limit + 30))" backup --stdin --stdin-filename "$dump_name" --host "$restic_host" --tag "pending,run:$run_stamp" --quiet >>"$run_log"
+    | restic_in "$((dump_limit + 30))" backup --stdin --stdin-filename "$dump_name" --host "$restic_host" --tag "pending,run:$run_token" --quiet >>"$run_log"
   pipe=("${PIPESTATUS[@]}")
   set -e
   [[ "${pipe[0]}" == 0 ]] || backup_fail dump "pg_dump failed (status ${pipe[0]})"
@@ -530,11 +530,11 @@ cmd_backup() {
 
   stage=manifest
   cap "$repo_timeout"
-  printf '%s' "$manifest" | restic_in "$cap_value" backup --stdin --stdin-filename "$manifest_name" --host "$restic_host" --tag "pending,run:$run_stamp" --quiet >>"$run_log" \
+  printf '%s' "$manifest" | restic_in "$cap_value" backup --stdin --stdin-filename "$manifest_name" --host "$restic_host" --tag "pending,run:$run_token" --quiet >>"$run_log" \
     || backup_fail manifest 'storing the row-count manifest failed'
 
   stage=verify
-  run_ids "pending,run:$run_stamp" || backup_fail verify 'this run does not have exactly one dump and one manifest snapshot'
+  run_ids "pending,run:$run_token" || backup_fail verify 'this run does not have exactly one dump and one manifest snapshot'
   # Draining the whole dump (not just its first bytes) is deliberate: it reads
   # and decrypts every blob of this snapshot from the Storage Box nightly.
   cap "$repo_timeout"
@@ -545,7 +545,7 @@ cmd_backup() {
   cap "$repo_timeout"
   restic_run "$cap_value" tag --add complete --remove pending "$dump_id" "$manifest_id" >>"$run_log" || backup_fail tag 'tagging the run complete failed'
   # `restic tag` rewrites snapshots under new IDs; record the current ones.
-  run_ids "complete,run:$run_stamp" || backup_fail tag 'the run does not have exactly one complete dump and manifest after tagging'
+  run_ids "complete,run:$run_token" || backup_fail tag 'the run does not have exactly one complete dump and manifest after tagging'
 
   stage=retention
   cap "$repo_timeout"

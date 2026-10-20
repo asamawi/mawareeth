@@ -276,6 +276,8 @@ cat > "$stub/date" <<'EOF'
 #!/usr/bin/env bash
 out="$('__DATE__' "$@")" || exit $?
 if [[ "${*: -1}" == +%s && -e '__S__/clock-offset' ]]; then out=$((out + $(< '__S__/clock-offset'))); fi
+# "$S/fixed-stamp" pins backup.sh's run stamp so two runs share one second.
+if [[ "${*: -1}" == +%Y%m%dT%H%M%SZ && -e '__S__/fixed-stamp' ]]; then out="$(< '__S__/fixed-stamp')"; fi
 printf '%s\n' "$out"
 EOF
 # Free space on the Docker data root: "$S/disk-avail" bytes, default 1 TB.
@@ -326,15 +328,10 @@ fi
 
 base_env=(PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$etc/runtime.env" MAWAREETH_RUNTIME_DIR="$state" MAWAREETH_BACKUP_CONFIG_DIR="$etc"
   MAWAREETH_SYSTEMD_DIR="$units" MAWAREETH_BACKUP_START_TIMEOUT=5 MAWAREETH_BACKUP_POLL_INTERVAL=1 MAWAREETH_BACKUP_TIMEOUT=60 MAWAREETH_BACKUP_REPO_TIMEOUT=60)
-rc=0; last_backup_end=0
+rc=0
 # run [ENV=VALUE...] COMMAND
-# backup.sh tags a run by its UTC start second and a failed run forgets every
-# snapshot with its tag, so two backups must never start in the same second.
 run() {
   local pid
-  if [[ "${*: -1}" == backup ]]; then
-    while (( $("$real_date" -u +%s) <= last_backup_end )); do sleep 0.1; done
-  fi
   : > "$S/calls.log"
   set +e
   env "${base_env[@]}" "${@:1:$#-1}" bash "$backup" "${@: -1}" > "$tmp/out" 2>&1 &
@@ -342,7 +339,6 @@ run() {
   printf '%s\n' "$pid" > "$S/backup.pid"
   wait "$pid"
   rc=$?
-  last_backup_end="$("$real_date" -u +%s)"
   set -e
 }
 expect_rc() { [[ "$rc" == "$1" ]] || fail "$2: expected exit $1, got $rc"; }
@@ -429,7 +425,7 @@ dump_dir="$(snap_dir_of "$run_tag" /mawareeth.dump)"; manifest_dir="$(snap_dir_o
 need "$S/dump-args" '1 pg_dump -Fc --snapshot=00000003-0000001B-1'
 [[ "$(< "$S/psql-timeout")" == 1 ]] || fail 'psql did not run under an in-container timeout'
 need "$S/retention" 'forget --host mawareeth --tag complete --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune'
-grep -Eq '^restic -o sftp\.command=.* backup --stdin --stdin-filename mawareeth\.dump --host mawareeth --tag pending,run:[0-9]{8}T[0-9]{6}Z --quiet$' "$S/restic.log" \
+grep -Eq '^restic -o sftp\.command=.* backup --stdin --stdin-filename mawareeth\.dump --host mawareeth --tag pending,run:[0-9]{8}T[0-9]{6}Z-[0-9]+ --quiet$' "$S/restic.log" \
   || fail 'dump was not stored pending under its run tag'
 need "$S/restic.log" 'backup --stdin --stdin-filename manifest.tsv'
 grep -E '^docker run --rm -i --name mawareeth-restic-[0-9TZ]+-[0-9]+-[0-9]+-[0-9]+ .*restic\.password:/run/mawareeth/restic\.password:ro .*storagebox_ed25519:/run/mawareeth/storagebox_ed25519:ro .*known_hosts:ro .*mawareeth-restic-cache:/cache' "$S/calls.log" >/dev/null \
@@ -443,6 +439,16 @@ if ((modes_work)); then
 else
   printf 'note: this filesystem cannot represent 0600; run-log mode check skipped\n' >&2
 fi
+
+# --- Same-second runs: a failed run forgets only its own snapshots ---------------
+"$real_date" -u +%Y%m%dT%H%M%SZ > "$S/fixed-stamp"
+run backup; expect_rc 0 'backup before a same-second failure'
+first_tag="run:$(field "$state/backup/last-backup" run)"
+touch "$S/fail-pg-dump"; run backup; rm -f "$S/fail-pg-dump" "$S/fixed-stamp"
+expect_rc 5 'same-second failed backup'
+[[ "run:$(field "$state/backup/last-backup" run)" != "$first_tag" ]] || fail 'same-second runs share a run tag'
+[[ "$(snaps_with "$first_tag")" == 2 ]] || fail 'a failed run forgot an earlier same-second run'
+[[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'a same-second failed run left its own snapshots'
 
 # --- Backup failures ------------------------------------------------------------
 complete_before="$(snaps_with complete)"
@@ -518,6 +524,8 @@ done
 cmp -s "$tmp/status-before" "$state/backup/last-backup" || fail 'a locked-out backup changed the status'
 
 # --- Restore passes on the newest complete pair -----------------------------------
+# Distinct seconds keep these runs ordered by their stamp-prefixed tags below.
+sleep 1
 run backup; expect_rc 0 'first backup before restore'
 sleep 1
 run backup; expect_rc 0 'second backup before restore'
@@ -542,6 +550,14 @@ expect_rc 0 'gate after a passing restore'
 run status
 expect_rc 0 'status'
 need "$tmp/out" 'result=pass'
+
+# A pair tagged in the legacy run:<stamp> format is still selected.
+legacy_run="${latest_run%-*}"
+for d in "$S"/repo/snaps/*/; do sed -i "s/^run:$latest_run\$/run:$legacy_run/" "$d/tags"; done
+run verify-restore
+expect_rc 0 'restore of a legacy-tagged pair'
+[[ "$(field "$state/backup/restore-verified" backup_run)" == "$legacy_run" ]] || fail 'restore did not select the legacy-tagged pair'
+for d in "$S"/repo/snaps/*/; do sed -i "s/^run:$legacy_run\$/run:$latest_run/" "$d/tags"; done
 
 # The newest dump lacks its manifest: the older complete pair is used.
 rm -rf "$(snap_dir_of "run:$latest_run" /manifest.tsv)"
