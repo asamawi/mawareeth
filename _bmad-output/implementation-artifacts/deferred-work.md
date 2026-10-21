@@ -103,9 +103,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
   summary: Strengthen restore verification beyond exact row counts with per-table content checksums on key tables and an application-level check (e.g. `manage.py migrate --check` against the restored database).
   evidence: Review of 0.7 noted that a dump restoring with corrupted values but correct row counts would pass; counts satisfy the story's acceptance criteria but do not prove content integrity.
+  resolved_by: content checksums only, by `_bmad-output/implementation-artifacts/spec-deferred-backup-restore-integrity.md` (every user table, not a key-table list); the `manage.py migrate --check` application-level check remains open as its own entry below
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
   summary: Back up PostgreSQL roles and globals (`pg_dumpall --globals-only`) and record the server major version in the backup manifest, refusing a restore into a different major.
   evidence: Review of 0.7 found roles/grants are excluded (`--no-owner --no-acl`) and the dump's PostgreSQL major is never recorded; harmless with today's single owner role and pinned 17.x image, but a gap once extra roles or a major upgrade appear.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-backup-restore-integrity.md` (`globals.sql` per run, never restored automatically; the dump is tagged `pg-major:<N>` and `verify-restore` refuses another major)
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`
   summary: Operator alert-path drill for Story 0.8 — `monitor.sh drill start|confirm` (two-phase Alertmanager drill email plus manual Better Stack test alert), 0600 drill evidence under `$state_dir/monitor/`, `mawareeth_drill_active`/`mawareeth_drill_last_pass_timestamp_seconds` metrics, `MawareethAlertDrill` and `MawareethDrillOverdue` (>92d quarterly reminder) rules, and the README drill procedure; must pass before launch (0.8 AC "launch drill and quarterly schedule").
   evidence: Split at spec checkpoint because the full 0.8 spec was ~2000 tokens; the drill builds on the collector and p1 routing delivered by the narrowed spec and can be reviewed and merged separately before cutover (Story 0.10 gate).
@@ -137,3 +139,10 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-pre-rehearsal-fixes.md`
   summary: Expose whether the latest complete backup run includes `host-state.tar` (e.g. a metric from `last-backup`'s `host_state_snapshot=`) and alert when it is missing.
   evidence: `last-backup` now records `host_state_snapshot`, but neither `monitor.sh` nor `gate` reads it, so a run made by an older script, or a later regression, would go unnoticed until a rebuild.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-backup-restore-integrity.md` (`mawareeth_backup_last_archives_complete`, also covering `globals_snapshot`, and the `MawareethBackupIncomplete` warning)
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-backup-restore-integrity.md`
+  summary: Run an application-level check (`manage.py migrate --check` from the release image) against the database that `verify-restore` restores, in addition to the per-table counts and content checksums.
+  evidence: Deferred by the backup/restore integrity spec: the throwaway PostgreSQL runs with `--network none`, so running the app image against it needs a private network and runtime secrets in the restore path; the content checksums already cover `django_migrations` exactly, so this would only add proof that the restored schema matches the code.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-backup-restore-integrity.md`
+  summary: Add a CI job (or a docker-gated section of `deploy/tests/test_backup.sh`) that runs the exact `output_settings_sql` + `count_sql` from `backup.sh` on the pinned `POSTGRES_IMAGE`, round-trips the data through `pg_dump -Fc | pg_restore --no-owner --no-acl` into a server with different TimeZone/DateStyle defaults, and asserts every line matches `count_line_re` and that the output is unchanged.
+  evidence: Review found that the stub suites only text-match the checksum SQL, so a broken cast or a missing setting would pass CI and surface only as `failed:dump` nightly or `checksum-mismatch` monthly; the round trip was verified once by hand on postgres:17.11 during this story, but nothing repeats it.
