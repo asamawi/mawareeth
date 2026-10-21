@@ -10,9 +10,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-heroku-to-hetzner.md`
   summary: Hetzner runtime and blue-green deployment substrate covering Caddy, Compose, slot switching, and release-manifest promotion.
   evidence: Split from the migration draft because runtime orchestration and routing can be implemented and reviewed independently after the app and CI production gates are in place.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-0-5-build-the-private-compose-runtime.md`, `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-heroku-to-hetzner.md`
   summary: Backup, monitoring, rehearsal, and production cutover runbooks for the Heroku-to-Hetzner migration.
   evidence: Split from the migration draft because operational safety drills and live cutover procedure depend on the hardened app/runtime but are separable from the code and build-pipeline changes.
+  resolved_by: backup and monitoring only, by `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md` and `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`; rehearsal and cutover remain open (not resolved) as stories 0.9 and 0.10
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-4-create-secured-hetzner-host-baseline.md`
   summary: Wire `deploy/tests/test_host_baseline.sh` (and ShellCheck) into a CI job that runs whenever `deploy/` changes.
   evidence: The script is pure offline validation (no Hetzner contact, not a CI-from-host violation), but today it only runs manually; a regression in the security contract (e.g. a public 0.0.0.0/0 SSH rule) would merge with a green CI check.
@@ -33,9 +35,11 @@
 - source_spec: none
   summary: `_bmad-output/implementation-artifacts/sprint-status.yaml`'s `generated` timestamp (`2026-03-04 09:18:51`) fails `sprint_plan.py validate` because it includes seconds, which none of the tool's accepted formats support.
   evidence: Pre-existing — confirmed by running `sprint_plan.py validate` after this story's changes; the `generated` field was untouched by this story's diff, so this is not caused by it.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-pre-rehearsal-fixes.md`
 - source_spec: none
   summary: Bump `oauthlib` (3.3.1 → ≥4.0.0) and `social-auth-core` (4.8.1 → ≥5.0.0) to close 7 Dependabot alerts (1 high, 6 medium, including a social-auth-core account-takeover and a login-CSRF finding), with real end-to-end testing of the OAuth/social-login flow before shipping.
   evidence: Both are major-version bumps directly backing `mawareeth/settings.py`'s social-login configuration; flattening `requirements.txt` (this story's earlier fix) made GitHub's dependency graph visible for the first time, surfacing these alerts. Deferred rather than bumped blind because a regression here breaks login, not just a lint check, and this environment has no way to exercise the live OAuth flow end-to-end.
+  resolved_by: commits `43eb2f1`, `e39cb3e`, `e800326` (now `oauthlib==4.0.0`, `social-auth-core==5.0.2`); the bump shipped, but no end-to-end social-login test evidence is recorded
 
 ## Deferred from: code review of spec-0-2-make-django-production-ready (2026-10-11)
 
@@ -91,6 +95,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
   summary: Back up host state needed for a fast rebuild (`/etc/mawareeth/runtime.env`, `<state dir>/slots/`, `<state dir>/routes/`) as an encrypted Restic snapshot alongside each nightly database dump, and document using it in the host-rebuild runbook.
   evidence: Split from 0.7 at the token-budget check; the database dump, restore verification, and write gate satisfy the story's acceptance criteria on their own, while host-state capture only shortens rebuild time and can follow before the 0.9 rehearsal.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-pre-rehearsal-fixes.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`
   summary: Run `deploy/tests/test_backup.sh` (with the other deploy shell suites) in GitHub Actions on changes under `deploy/**`.
   evidence: Review of 0.7 confirmed no workflow references `deploy/tests/*.sh`; `django.yml` runs only `manage.py test`, so regressions in snapshot consistency, RPO/RTO checks, or gate freshness can merge with green CI.
@@ -121,7 +126,14 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-deploy-correctness-fixes.md`
   summary: Remove `runtime.sh`'s secret-bearing temporary files (`validate_compose_model`'s validation snapshot, `write_snapshot`'s `.snapshot.XXXXXX`) when INT/TERM/HUP arrives inside the temporary window, without clobbering traps of `release.sh`, which sources runtime.sh.
   evidence: Review of the deploy correctness fixes found that the subshell cleanup covers `die` and `set -e` exits but not signals; the original RETURN traps did not cover signals either, so this predates the change.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-pre-rehearsal-fixes.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-pre-cutover-deploy-safety.md`
   summary: Validate `deploy/Caddyfile` in CI by running it through the pinned Caddy image (`caddy adapt --config deploy/Caddyfile --adapter caddyfile` in the digest from `deploy/runtime-images.lock`), so a syntax or directive-order mistake fails before a deploy reloads it.
   evidence: The pre-cutover safety change added `respond /health/release* 404` and its tests only grep the Caddyfile text; nothing parses it with the Caddy version production runs, so an invalid Caddyfile would surface only as a failed reload (exit 6) on the host.
   resolved_by: `_bmad-output/implementation-artifacts/spec-ci-premerge-build-and-caddy-checks.md`
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-pre-rehearsal-fixes.md`
+  summary: Decide whether a host-state failure should keep that night's database dump and manifest (recording a degraded `host-state` result) instead of discarding the whole backup run.
+  evidence: Review found that a deploy overlapping the nightly backup (a `.prev` record or snapshot removed between collection and `tar`) fails the run at `host-state` and discards a good `mawareeth.dump`, pushing the effective RPO to 48h; the approved intent chose fail-the-whole-run, so changing it needs a decision.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-pre-rehearsal-fixes.md`
+  summary: Expose whether the latest complete backup run includes `host-state.tar` (e.g. a metric from `last-backup`'s `host_state_snapshot=`) and alert when it is missing.
+  evidence: `last-backup` now records `host_state_snapshot`, but neither `monitor.sh` nor `gate` reads it, so a run made by an older script, or a later regression, would go unnoticed until a rebuild.

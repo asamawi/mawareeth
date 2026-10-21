@@ -123,6 +123,8 @@ case "${1:-} ${2:-}" in
     printf '%s\n' "$*" >> '__COMPOSE_LOG__'
     env | sort > '__COMPOSE_ENV__'
     [[ ! -e '__STATE__/fail-compose' ]] || exit 1
+    # Signals runtime.sh's whole process group, as a Ctrl-C or systemd stop would.
+    [[ ! -e '__STATE__/term-compose' ]] || kill -TERM 0
     exit 0 ;;
   'image inspect')
     [[ "${STUB_FAIL_IMAGE:-0}" != 1 ]] || exit 1
@@ -364,6 +366,48 @@ fi
 need "$tmp/validate.out" 'could not protect temporary Compose validation snapshot'
 [[ -z "$(ls -A "$tmp/validate-tmp")" ]] || fail 'validation setup failure left its secret-bearing temporary snapshot'
 [[ "$(grep -Ec 'volume create|compose --project-name.* up' "$tmp/docker.log" 2>/dev/null || true)" == "$before_mutations" ]] || fail 'Compose validation failure mutated Docker state'
+
+# TERM inside either temporary window: the secret-bearing file is removed
+# first, then runtime.sh ends by the signal. runtime.sh runs as a job in its
+# own process group (set -m), so the stubs' `kill -TERM 0` reaches only it.
+signal_rc=0
+prepare_in_own_group() {
+  signal_rc=0
+  set -m
+  TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$1:$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/runtime.env" TMPDIR="$tmp/validate-tmp" \
+    MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$2" bash "$runtime" prepare >"$tmp/signal.out" 2>&1 &
+  wait "$!" || signal_rc=$?
+  set +m
+}
+mkdir -p "$tmp/no-extra-bin"
+rm -rf "$tmp/validate-tmp" "$tmp/term-validate-state"; mkdir -p "$tmp/validate-tmp"; : > "$state/term-compose"
+prepare_in_own_group "$tmp/no-extra-bin" "$tmp/term-validate-state"
+rm -f "$state/term-compose"
+[[ "$signal_rc" == 143 ]] || fail "TERM during Compose validation did not end runtime.sh by TERM (status $signal_rc)"
+[[ -z "$(ls -A "$tmp/validate-tmp")" ]] || fail 'TERM during Compose validation left its secret-bearing temporary snapshot'
+[[ ! -e "$tmp/term-validate-state" ]] || fail 'TERM during Compose validation published persistent state'
+
+mkdir -p "$tmp/term-chown-bin"
+printf '#!/usr/bin/env bash\n[[ "${*: -1}" != */.snapshot.* ]] || kill -TERM 0\n' > "$tmp/term-chown-bin/chown"
+chmod +x "$tmp/term-chown-bin/chown"
+rm -rf "$tmp/term-publish-state"
+prepare_in_own_group "$tmp/term-chown-bin" "$tmp/term-publish-state"
+[[ "$signal_rc" == 143 ]] || fail "TERM during snapshot publication did not end runtime.sh by TERM (status $signal_rc)"
+[[ -d "$tmp/term-publish-state" ]] || fail 'the snapshot publication signal test never reached its window'
+[[ -z "$(find "$tmp/term-publish-state" -name '.snapshot.*' -print -quit)" ]] || fail 'TERM during snapshot publication left its secret-bearing temporary file'
+[[ -z "$(find "$tmp/term-publish-state" -name '*.snapshot.env' -print -quit)" ]] || fail 'TERM during snapshot publication still published the snapshot'
+
+# Sourced, as release.sh does: a signal inside the window runs the caller's
+# trap once after the window; without one the traps come back unchanged; an
+# ignored signal stays ignored.
+signal_out="$(bash -c 'source "$1"; trap "echo caller-trap" TERM; runtime_defer_signals; kill -TERM "$BASHPID"; echo deferred
+  runtime_release_signals; echo after; trap -p TERM' _ "$runtime" 2>&1)" || fail 'the sourced signal window failed'
+[[ "$signal_out" == $'deferred\ncaller-trap\nafter\ntrap -- \'echo caller-trap\' SIGTERM' ]] || fail "the caller's TERM trap did not run once after the window: $signal_out"
+bash -c 'source "$1"; trap "exit 143" TERM; trap "" INT; before="$(trap -p INT TERM HUP)"; runtime_defer_signals; runtime_release_signals
+  [[ "$(trap -p INT TERM HUP)" == "$before" ]]' _ "$runtime" || fail 'a window without signals changed the caller traps'
+signal_out="$(bash -c 'source "$1"; trap "" TERM; runtime_defer_signals; trap -p TERM; kill -TERM "$BASHPID"; echo survived
+  runtime_release_signals; echo released; trap -p TERM' _ "$runtime" 2>&1)" || fail 'an ignored TERM ended the sourced window'
+[[ "$signal_out" == $'trap -- \'\' SIGTERM\nsurvived\nreleased\ntrap -- \'\' SIGTERM' ]] || fail "an ignored TERM did not stay ignored: $signal_out"
 
 assert_path_rejected_without_mutation() {
   local label="$1" runtime_path="$2" state_path="$3" before output
