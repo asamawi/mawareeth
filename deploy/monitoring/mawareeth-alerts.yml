@@ -33,6 +33,20 @@ groups:
           description: 'The last-backup record is not ok, is unusable, its last successful finish is older than 26 hours, or it is more than 5 minutes in the future (clock skew), which also closes backup.sh gate.'
           runbook: 'deploy/README.md#runbook-mawareethbackupunhealthy'
 
+      - alert: MawareethBackupIncomplete
+        expr: |
+          (mawareeth_backup_last_archives_complete{job="mawareeth-node"} == 0
+              and mawareeth_backup_last_result_ok{job="mawareeth-node"} == 1)
+            or (absent(mawareeth_backup_last_archives_complete{job="mawareeth-node"})
+              and on() mawareeth_backup_last_result_ok{job="mawareeth-node"} == 1)
+        labels:
+          severity: warning
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth last successful backup lacks its host-state or globals archive'
+          description: 'The last-backup record is ok but does not name both a host-state.tar and a globals.sql snapshot (or the archives metric is missing from mawareeth.prom), so a host rebuild or role recovery from it would be incomplete. A failed or unusable record is covered by MawareethBackupUnhealthy instead.'
+          runbook: 'deploy/README.md#runbook-mawareethbackupincomplete'
+
       - alert: MawareethRestoreUnhealthy
         expr: |
           mawareeth_restore_last_result_pass{job="mawareeth-node"} == 0

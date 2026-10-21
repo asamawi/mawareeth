@@ -145,8 +145,10 @@ set_meta() {
 }
 write_record() { printf '%s\n' "$2" > "$1"; chmod 600 "$1"; set_meta "$1" 0:0:600; }
 backup_rec="$state/backup/last-backup"; restore_rec="$state/backup/restore-verified"
+hex64() { printf "$1%.0s" {1..64}; }
+host_state_line="host_state_snapshot=$(hex64 a)"; globals_line="globals_snapshot=$(hex64 b)"
 healthy_records() {
-  write_record "$backup_rec" "result=ok"$'\n'"run=20261014T023000Z"$'\n'"finished_epoch=$((now - 3600))"
+  write_record "$backup_rec" "result=ok"$'\n'"run=20261014T023000Z"$'\n'"finished_epoch=$((now - 3600))"$'\n'"$host_state_line"$'\n'"$globals_line"
   write_record "$restore_rec" "result=pass"$'\n'"verified_epoch=$((now - 86400))"
 }
 
@@ -171,15 +173,16 @@ expect_metric mawareeth_backup_last_result_ok 1 healthy
 expect_metric mawareeth_backup_last_ok_timestamp_seconds "$((now - 3600))" healthy
 expect_metric mawareeth_restore_last_result_pass 1 healthy
 expect_metric mawareeth_restore_last_pass_timestamp_seconds "$((now - 86400))" healthy
+expect_metric mawareeth_backup_last_archives_complete 1 healthy
 expect_metric mawareeth_drill_active_code 0 'absent drill record'
 expect_metric mawareeth_drill_last_pass_timestamp_seconds 0 'absent drill record'
 collected="$(metric mawareeth_monitor_collect_timestamp_seconds)"
 # shellcheck disable=SC2015 # fail exits, so it runs only when the check fails.
 [[ "$collected" =~ ^[1-9][0-9]+$ ]] && (( collected >= now && collected <= now + 120 )) || fail "collect timestamp $collected is not the current time"
 
-# Prom text format: HELP, TYPE gauge, then one sample, for exactly seven metrics.
-[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 7 ]] || fail 'expected seven gauges'
-[[ "$(grep -vc '^#' "$prom")" == 7 ]] || fail 'expected seven samples'
+# Prom text format: HELP, TYPE gauge, then one sample, for exactly eight metrics.
+[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 8 ]] || fail 'expected eight gauges'
+[[ "$(grep -vc '^#' "$prom")" == 8 ]] || fail 'expected eight samples'
 while read -r name; do
   [[ "$(grep -A2 -x "# HELP $name .*" "$prom" | sed -n 2,3p)" == "# TYPE $name gauge"$'\n'"$name "* ]] || fail "$name lacks HELP/TYPE/sample order"
 done < <(grep -v '^#' "$prom" | cut -d' ' -f1)
@@ -193,11 +196,35 @@ write_record "$backup_rec" "result=failed:dump"$'\n'"finished_epoch=$((now - 60)
 run "$monitor" collect; expect_rc 0 'failed backup collect'
 expect_metric mawareeth_backup_last_result_ok 0 'failed backup'
 expect_metric mawareeth_backup_last_ok_timestamp_seconds 0 'failed backup'
+expect_metric mawareeth_backup_last_archives_complete 0 'failed backup'
 expect_metric mawareeth_restore_last_result_pass 1 'failed backup leaves restore healthy'
 write_record "$backup_rec" "result=ok"$'\n'"finished_epoch=$((now - 27 * 3600))"
 run "$monitor" collect; expect_rc 0 'old backup collect'
 expect_metric mawareeth_backup_last_result_ok 1 'old backup'
 expect_metric mawareeth_backup_last_ok_timestamp_seconds "$((now - 27 * 3600))" 'old backup'
+
+# Archives complete: only an ok record naming both a host-state and a globals
+# snapshot (64-hex Restic IDs) publishes 1.
+ok_rec="result=ok"$'\n'"finished_epoch=$((now - 60))"
+write_record "$backup_rec" "$ok_rec"$'\n'"$host_state_line"$'\n'"$globals_line"
+run "$monitor" collect; expect_rc 0 'complete backup collect'
+expect_metric mawareeth_backup_last_archives_complete 1 'ok backup with every archive'
+write_record "$backup_rec" "$ok_rec"$'\n'"$globals_line"
+run "$monitor" collect; expect_rc 0 'backup without host state collect'
+expect_metric mawareeth_backup_last_archives_complete 0 'ok backup missing host state'
+expect_metric mawareeth_backup_last_result_ok 1 'ok backup missing host state stays ok'
+write_record "$backup_rec" "$ok_rec"$'\n'"$host_state_line"
+run "$monitor" collect; expect_rc 0 'backup without globals collect'
+expect_metric mawareeth_backup_last_archives_complete 0 'ok backup missing globals'
+write_record "$backup_rec" "$ok_rec"$'\n'"host_state_snapshot="$'\n'"globals_snapshot="
+run "$monitor" collect; expect_rc 0 'backup with empty archive IDs collect'
+expect_metric mawareeth_backup_last_archives_complete 0 'ok backup with empty archive IDs'
+write_record "$backup_rec" "$ok_rec"$'\n'"host_state_snapshot=$(hex64 A)"$'\n'"$globals_line"
+run "$monitor" collect; expect_rc 0 'backup with a malformed archive ID collect'
+expect_metric mawareeth_backup_last_archives_complete 0 'ok backup with a malformed archive ID'
+write_record "$backup_rec" "result=failed:host-state"$'\n'"finished_epoch=$((now - 60))"$'\n'"$host_state_line"$'\n'"$globals_line"
+run "$monitor" collect; expect_rc 0 'failed backup with archive IDs collect'
+expect_metric mawareeth_backup_last_archives_complete 0 'failed backup with archive IDs'
 
 # Restore bad likewise.
 healthy_records
@@ -217,6 +244,7 @@ unusable() {
   expect_rc 0 "$label collect"
   expect_metric mawareeth_backup_last_result_ok 0 "$label"
   expect_metric mawareeth_backup_last_ok_timestamp_seconds 0 "$label"
+  expect_metric mawareeth_backup_last_archives_complete 0 "$label"
   healthy_records
 }
 healthy_records; rm -f "$backup_rec"; unusable 'absent record'
@@ -344,7 +372,7 @@ if (( modes_work )); then
   [[ "$("$real_stat" -c %a "$state/monitor")" == 700 ]] || fail 'the drill directory must be mode 0700'
 fi
 need "$prom" '# TYPE mawareeth_drill_active_code gauge'
-[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 7 ]] || fail 'drill publishing must keep seven gauges'
+[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 8 ]] || fail 'drill publishing must keep eight gauges'
 
 # Refusals while active leave everything unchanged.
 snapshot
@@ -554,12 +582,13 @@ need "$route" '      - alertname="MawareethDiskCritical"'
 need "$route" '      - alertname="MawareethDiskWarning"'
 need "$route" '    equal: [project, mountpoint]'
 [[ "$(grep -c '^ *- receiver: ' "$route")" == 1 && "$(grep -c '^  - name: ' "$route")" == 1 ]] || fail 'the route snippet must define exactly one route and one receiver'
-for name in MawareethHostDown MawareethBackupUnhealthy MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue; do
+for name in MawareethHostDown MawareethBackupUnhealthy MawareethBackupIncomplete MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical \
+  MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue; do
   need "$alerts" "alert: $name"
 done
-[[ "$(grep -c '^ *- alert:' "$alerts")" == 8 ]] || fail 'expected exactly eight alert rules'
-[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 8 ]] || fail 'every rule needs a project: mawareeth label'
-[[ "$(grep -c '^ *runbook: ' "$alerts")" == 8 ]] || fail 'every rule needs a runbook annotation'
+[[ "$(grep -c '^ *- alert:' "$alerts")" == 9 ]] || fail 'expected exactly nine alert rules'
+[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 9 ]] || fail 'every rule needs a project: mawareeth label'
+[[ "$(grep -c '^ *runbook: ' "$alerts")" == 9 ]] || fail 'every rule needs a runbook annotation'
 # shellcheck disable=SC2013 # anchors are single words without spaces.
 for anchor in $(grep -o 'README.md#runbook-[a-z]*' "$alerts" | sort -u | cut -d# -f2); do
   need "$root/deploy/README.md" "<a id=\"$anchor\"></a>"
@@ -573,7 +602,10 @@ for text in 'up{job="mawareeth-node"} == 0 or absent(up{job="mawareeth-node"})' 
   '(time() - mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"}) > 92 * 86400' \
   'or (mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"} - time()) > 300' \
   'or absent(mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"})' \
-  'severity: info'; do need "$alerts" "$text"; done
+  'severity: info' 'mawareeth_backup_last_archives_complete{job="mawareeth-node"} == 0' \
+  'and mawareeth_backup_last_result_ok{job="mawareeth-node"} == 1' \
+  'or (absent(mawareeth_backup_last_archives_complete{job="mawareeth-node"})' \
+  'and on() mawareeth_backup_last_result_ok{job="mawareeth-node"} == 1)'; do need "$alerts" "$text"; done
 [[ "$(grep -c '^ *for: ' "$alerts")" == 3 ]] || fail 'only HostDown and the disk alerts may have a for: delay (the drill fires at once)'
 [[ "$(grep -c 'for: 5m' "$alerts")" == 2 ]] || fail 'both disk alerts need for: 5m'
 
@@ -595,6 +627,7 @@ if command -v promtool >/dev/null 2>&1; then
     printf "      - {series: 'up{%s}', values: '1x40'}\n" "$labels"
     printf "      - {series: 'mawareeth_backup_last_result_ok{%s}', values: '1x40'}\n" "$labels"
     printf "      - {series: 'mawareeth_backup_last_ok_timestamp_seconds{%s}', values: '0x40'}\n" "$labels"
+    printf "      - {series: 'mawareeth_backup_last_archives_complete{%s}', values: '1x40'}\n" "$labels"
     printf "      - {series: 'mawareeth_restore_last_result_pass{%s}', values: '1x40'}\n" "$labels"
     printf "      - {series: 'mawareeth_restore_last_pass_timestamp_seconds{%s}', values: '0x40'}\n" "$labels"
     printf "      - {series: 'mawareeth_monitor_collect_timestamp_seconds{%s}', values: '0+60x40'}\n" "$labels"
@@ -603,10 +636,26 @@ if command -v promtool >/dev/null 2>&1; then
     printf "      - {series: 'mawareeth_drill_active_code{%s}', values: '0x40'}\n" "$labels"
     printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '0x40'}\n" "$labels"
     printf '    alert_rule_test:\n'
-    for name in MawareethHostDown MawareethBackupUnhealthy MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical MawareethCollectorStale \
-      MawareethAlertDrill MawareethDrillOverdue; do
+    for name in MawareethHostDown MawareethBackupUnhealthy MawareethBackupIncomplete MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical \
+      MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue; do
       printf '      - {eval_time: 30m, alertname: %s, exp_alerts: []}\n' "$name"
     done
+    # Incomplete archives fire at once, but only while the last result is ok
+    # (a failed backup is MawareethBackupUnhealthy's alert).
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'mawareeth_backup_last_archives_complete{%s}', values: '1x2 0x10'}\n" "$labels"
+    printf "      - {series: 'mawareeth_backup_last_result_ok{%s}', values: '1x6 0x6'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 1m, alertname: MawareethBackupIncomplete, exp_alerts: []}\n'
+    printf '      - eval_time: 4m\n        alertname: MawareethBackupIncomplete\n        exp_alerts:\n'; alert_labels warning MawareethBackupIncomplete
+    printf '      - {eval_time: 9m, alertname: MawareethBackupIncomplete, exp_alerts: []}\n'
+    # The gauge is absent (rules updated before the host's monitor.sh): it
+    # fires while the last result is ok, and not once it is not.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'mawareeth_backup_last_result_ok{%s}', values: '1x3 0x4'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - eval_time: 2m\n        alertname: MawareethBackupIncomplete\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethBackupIncomplete, job: mawareeth-node}\n'
+    printf '      - {eval_time: 6m, alertname: MawareethBackupIncomplete, exp_alerts: []}\n'
     # Backup and restore failures fire at once; old successes fire past 26h/35d.
     printf '  - interval: 1h\n    input_series:\n'
     printf "      - {series: 'mawareeth_backup_last_result_ok{%s}', values: '1x40'}\n" "$labels"
