@@ -2,7 +2,7 @@
 # Encrypted off-host PostgreSQL backup, restore verification, and write gate.
 #
 #   sudo deploy/backup.sh init            create the Restic repository (once)
-#   sudo deploy/backup.sh backup          nightly dump + manifest + retention
+#   sudo deploy/backup.sh backup          nightly dump + manifest + host state + retention
 #   sudo deploy/backup.sh verify-restore  monthly isolated restore proof
 #   sudo deploy/backup.sh gate            exit 0 only when recovery is proven
 #   sudo deploy/backup.sh status          show the last backup and evidence
@@ -15,8 +15,10 @@
 # before the operation started (afterwards they map to 5 or 6). Restic runs
 # only from the digest-pinned image; its secrets stay in root-only files under
 # /etc/mawareeth and are mounted read-only, never passed on a command line or
-# written to logs. This script never takes the deploy lock and never touches
-# slots, routes, the deploy journal, or runtime snapshots.
+# written to logs. This script never takes the deploy lock and never writes
+# slots, routes, the deploy journal, or runtime snapshots; it only reads the
+# runtime file, slots, routes, and the snapshots the slot records name, to
+# stream them as an encrypted host-state archive (the journal is not read).
 backup_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=deploy/runtime.sh
 source "$backup_script_dir/runtime.sh"
@@ -35,6 +37,7 @@ evidence_file="$backup_dir/restore-verified"
 cache_volume=mawareeth-restic-cache
 dump_name=mawareeth.dump
 manifest_name=manifest.tsv
+host_state_name=host-state.tar
 restic_host=mawareeth
 secret_mount=/run/mawareeth
 retention=(--keep-daily 7 --keep-weekly 4 --keep-monthly 6)
@@ -87,6 +90,7 @@ psql_pid=''
 manifest=''
 dump_id=''
 manifest_id=''
+host_state_id=''
 restore_container=''
 restore_volume=''
 restore_started=0
@@ -170,7 +174,7 @@ known_hosts_metadata() {
 load_backup_config() {
   [[ ${EUID:-999} -eq 0 ]] || die 'must run as root'
   local tool
-  for tool in docker flock timeout python3 stat mktemp mv sync install head cat date df; do require_command "$tool"; done
+  for tool in docker flock timeout python3 stat mktemp mv sync install head cat date df tar; do require_command "$tool"; done
   bounded_seconds "$backup_budget" MAWAREETH_BACKUP_BUDGET
   ((backup_budget <= 14400)) || die 'MAWAREETH_BACKUP_BUDGET must not exceed 14400 seconds (the units allow 5h)'
   bounded_seconds "$backup_timeout" MAWAREETH_BACKUP_TIMEOUT
@@ -367,6 +371,7 @@ finished_at=$(now_iso)
 finished_epoch=$(now_epoch)
 dump_snapshot=$dump_id
 manifest_snapshot=$manifest_id
+host_state_snapshot=$host_state_id
 log=$run_log"
   if ! atomic_write "$status_file" 0600 "$content"; then say "could not write $status_file"; return 1; fi
   outcome_written=1
@@ -493,18 +498,77 @@ dump_and_count() {
   [[ "$status" == 0 ]] || backup_fail dump "the snapshot transaction failed (status $status)"
 }
 
-# run_ids FILTER sets dump_id and manifest_id from this run's snapshots.
+# collect_host_state_paths sets host_state_paths[] to the archive's members,
+# relative to /, archived without recursion: the runtime file, the routes
+# directory and its route file, the slots directory (when present) with each
+# blue or green record and .prev, and each runtime snapshot a record names.
+# Stray files (e.g. .tmp.*) are left out. Everything is only read.
+collect_host_state_paths() {
+  local slot suffix status snapshot path record
+  local -A seen=()
+  local -a paths=("$runtime_file" "$routes_dir" "$route_file")
+  [[ -f "$runtime_file" && ! -L "$runtime_file" ]] || backup_fail host-state "the runtime file $runtime_file is missing or not a regular file"
+  [[ -d "$routes_dir" && ! -L "$routes_dir" ]] || backup_fail host-state "the routes directory $routes_dir is missing or not a directory"
+  [[ -f "$route_file" && ! -L "$route_file" ]] || backup_fail host-state "the route file $route_file is missing or not a regular file"
+  if [[ -e "$slots_dir" || -L "$slots_dir" ]]; then
+    [[ -d "$slots_dir" && ! -L "$slots_dir" ]] || backup_fail host-state "$slots_dir is not a directory"
+    paths+=("$slots_dir")
+    for slot in blue green; do
+      for suffix in '' .prev; do
+        record="$slots_dir/$slot.env$suffix"
+        # A command substitution, because read_slot_record dies on an
+        # unusable record: 1 means the record is absent.
+        status=0
+        snapshot="$(read_slot_record "$slot" "$suffix" 2>>"$run_log" && printf '%s\n' "$SLOT_SNAPSHOT")" || status=$?
+        case "$status" in
+          0) ;;
+          1) continue ;;
+          *) backup_fail host-state "the $slot.env$suffix slot record is unusable" ;;
+        esac
+        paths+=("$record")
+        path="$state_dir/${snapshot//$'\r'/}"
+        [[ -f "$path" && ! -L "$path" ]] || backup_fail host-state "the runtime snapshot named by the $slot.env$suffix slot record is missing"
+        if [[ -z "${seen[$path]:-}" ]]; then seen[$path]=1; paths+=("$path"); fi
+      done
+    done
+  fi
+  for path in "${paths[@]}"; do
+    [[ "$path" == /?* && "$path" != *$'\n'* ]] || backup_fail host-state 'a host-state path is not absolute'
+  done
+  host_state_paths=("${paths[@]#/}")
+}
+
+# store_host_state streams the host-state archive straight into Restic, so
+# nothing unencrypted touches the disk. It is taken without the deploy lock:
+# a point-in-time copy of atomically written files.
+store_host_state() {
+  local -a pipe host_state_paths=()
+  collect_host_state_paths
+  cap "$repo_timeout"
+  set +e
+  tar --numeric-owner --no-recursion -cf - -C / "${host_state_paths[@]}" 2>>"$run_log" \
+    | restic_in "$cap_value" backup --stdin --stdin-filename "$host_state_name" --host "$restic_host" --tag "pending,run:$run_token" --quiet >>"$run_log"
+  pipe=("${PIPESTATUS[@]}")
+  set -e
+  # Restic first: a storage failure can also kill tar with SIGPIPE.
+  [[ "${pipe[1]}" == 0 ]] || backup_fail host-state "storing the host state in the repository failed (status ${pipe[1]})"
+  [[ "${pipe[0]}" == 0 ]] || backup_fail host-state "archiving the host state failed (status ${pipe[0]})"
+}
+
+# run_ids FILTER sets dump_id, manifest_id, and host_state_id from this run's
+# snapshots.
 run_ids() {
   local json
   cap "$repo_timeout"
   json="$(restic_run "$cap_value" snapshots --json --host "$restic_host" --tag "$1")" || return 1
   dump_id="$(python3 -I -c "$snapshot_py" one "$dump_name" <<<"$json")" || return 1
   manifest_id="$(python3 -I -c "$snapshot_py" one "$manifest_name" <<<"$json")" || return 1
-  dump_id="${dump_id//$'\r'/}"; manifest_id="${manifest_id//$'\r'/}"
+  host_state_id="$(python3 -I -c "$snapshot_py" one "$host_state_name" <<<"$json")" || return 1
+  dump_id="${dump_id//$'\r'/}"; manifest_id="${manifest_id//$'\r'/}"; host_state_id="${host_state_id//$'\r'/}"
 }
 
 cmd_backup() {
-  local magic sweep=0
+  local magic members sweep=0
   load_backup_config
   acquire_backup_lock
   open_run_log backup
@@ -533,19 +597,27 @@ cmd_backup() {
   printf '%s' "$manifest" | restic_in "$cap_value" backup --stdin --stdin-filename "$manifest_name" --host "$restic_host" --tag "pending,run:$run_token" --quiet >>"$run_log" \
     || backup_fail manifest 'storing the row-count manifest failed'
 
+  stage=host-state
+  store_host_state
+
   stage=verify
-  run_ids "pending,run:$run_token" || backup_fail verify 'this run does not have exactly one dump and one manifest snapshot'
+  run_ids "pending,run:$run_token" || backup_fail verify 'this run does not have exactly one dump, manifest, and host-state snapshot'
   # Draining the whole dump (not just its first bytes) is deliberate: it reads
   # and decrypts every blob of this snapshot from the Storage Box nightly.
   cap "$repo_timeout"
   magic="$(restic_run "$cap_value" dump "$dump_id" "/$dump_name" | { head -c 5; cat > /dev/null; })" || backup_fail verify 'reading the stored dump back failed'
   [[ "$magic" == PGDMP ]] || backup_fail verify 'the stored dump is not a PostgreSQL custom-format archive'
+  cap "$repo_timeout"
+  # The host-state archive must read back and hold the runtime file.
+  members="$(restic_run "$cap_value" dump "$host_state_id" "/$host_state_name" | tar -tf - 2>>"$run_log")" \
+    || backup_fail verify 'the stored host-state archive is unreadable or lacks the runtime file'
+  grep -Fxq -- "${runtime_file#/}" <<<"${members//$'\r'/}" || backup_fail verify 'the stored host-state archive is unreadable or lacks the runtime file'
 
   stage=tag
   cap "$repo_timeout"
-  restic_run "$cap_value" tag --add complete --remove pending "$dump_id" "$manifest_id" >>"$run_log" || backup_fail tag 'tagging the run complete failed'
+  restic_run "$cap_value" tag --add complete --remove pending "$dump_id" "$manifest_id" "$host_state_id" >>"$run_log" || backup_fail tag 'tagging the run complete failed'
   # `restic tag` rewrites snapshots under new IDs; record the current ones.
-  run_ids "complete,run:$run_token" || backup_fail tag 'the run does not have exactly one complete dump and manifest after tagging'
+  run_ids "complete,run:$run_token" || backup_fail tag 'the run does not have exactly one complete dump, manifest, and host-state snapshot after tagging'
 
   stage=retention
   cap "$repo_timeout"

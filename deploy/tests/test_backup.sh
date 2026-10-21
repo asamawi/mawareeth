@@ -12,14 +12,18 @@ need() { grep -Fq -- "$2" "$1" || fail "missing $2 in $1"; }
 backup_src="$root/deploy/backup.sh"
 bash -n "$backup_src" "$root/deploy/runtime.sh" "$0"
 ! grep -Eq '\|\|[[:space:]]*(true|:)([[:space:]]|$|;)' "$backup_src" || fail 'backup.sh must not mask failures with || true'
-! grep -Eq 'acquire_deploy_lock|deploy_lock_file|journal_file|route_file|slots_dir|write_snapshot|routes_dir' "$backup_src" \
-  || fail 'backup.sh must not take the deploy lock or touch slots, routes, the journal, or snapshots'
+! grep -Eq 'acquire_deploy_lock|deploy_lock_file|journal_file|write_snapshot|ensure_state_subdirs|seed_route|load_slot_images' "$backup_src" \
+  || fail 'backup.sh must not take the deploy lock or write slots, routes, the journal, or snapshots'
+# Slots and routes are only read, for the host-state archive: no line naming
+# them may redirect into, move, remove, or change anything.
+! grep -E 'slots_dir|routes_dir|route_file' "$backup_src" | grep -Eq '(^|[^0-9&>])>|\<(rm|mv|cp|ln|install|mkdir|chmod|chown|touch|state_subdir|atomic_write)\>' \
+  || fail 'backup.sh may only read slots and routes'
 grep -Eq '^RESTIC_IMAGE=docker\.io/restic/restic:0\.18\.[0-9]+@sha256:[0-9a-f]{64}$' "$root/deploy/runtime-images.lock" || fail 'Restic is not pinned by digest in the image lock'
 [[ "$(cat "$root/deploy/backup.env.example")" == $'STORAGE_BOX_USER=u123456-sub1\nSTORAGE_BOX_HOST=u123456.your-storagebox.de\nRESTIC_REPOSITORY_PATH=mawareeth-restic' ]] \
   || fail 'backup.env.example must contain exactly the three raw keys'
 
 real_stat="$(command -v stat)"; real_install="$(command -v install)"; real_date="$(command -v date)"
-real_flock="$(command -v flock 2>/dev/null || true)"; real_sync="$(command -v sync)"
+real_flock="$(command -v flock 2>/dev/null || true)"; real_sync="$(command -v sync)"; real_tar="$(command -v tar)"
 
 tmp="$(mktemp -d)"; [[ -z "${KEEP_TMP:-}" ]] || echo "$tmp" >&2
 case "$tmp" in "$root"/*) fail 'temporary directory must be outside the checkout' ;; esac
@@ -57,6 +61,28 @@ MAILGUN_ACCESS_KEY=mailgun-secret-value
 MAILGUN_SERVER_NAME=mg.example.com
 EOF
 chmod 600 "$etc"/*
+
+# Host state the nightly run archives: a route, blue.env and blue.env.prev
+# naming the same snapshot (listed once), green.env.prev naming another, an
+# unreferenced snapshot and a stray slots/.tmp.abc (neither archived).
+snap_a="$(printf 'a%.0s' {1..64}).snapshot.env"; snap_b="$(printf 'b%.0s' {1..64}).snapshot.env"
+mkdir -p "$state/routes" "$state/slots"; chmod 755 "$state/routes"; chmod 700 "$state/slots"
+printf 'reverse_proxy app-blue:8000\n' > "$state/routes/active-slot.caddy"; chmod 644 "$state/routes/active-slot.caddy"
+slot_record() { printf 'IMAGE=ghcr.io/example/mawareeth@sha256:%s\nCOMMIT=%s\nSNAPSHOT=%s\n' "$(printf 'c%.0s' {1..64})" "$(printf 'd%.0s' {1..40})" "$1"; }
+slot_record "$snap_a" > "$state/slots/blue.env"; slot_record "$snap_a" > "$state/slots/blue.env.prev"
+slot_record "$snap_b" > "$state/slots/green.env.prev"; printf 'half-written\n' > "$state/slots/.tmp.abc"
+printf 'SNAPSHOT_A=1\n' > "$state/$snap_a"; printf 'SNAPSHOT_B=1\n' > "$state/$snap_b"
+printf 'UNREFERENCED=1\n' > "$state/$(printf 'e%.0s' {1..64}).snapshot.env"
+chmod 600 "$state/slots"/* "$state/slots/.tmp.abc" "$state"/*.snapshot.env
+rel_state="${state#/}"
+host_state_base="$(printf '%s\n' "${etc#/}/runtime.env" "$rel_state/routes/" "$rel_state/routes/active-slot.caddy")"
+expected_host_state="$(printf '%s\n' "$host_state_base" "$rel_state/slots/" "$rel_state/slots/blue.env" "$rel_state/slots/blue.env.prev" \
+  "$rel_state/slots/green.env.prev" "$rel_state/$snap_a" "$rel_state/$snap_b" | LC_ALL=C sort)"
+# listing_of RUN: the sorted member list of that run's host-state archive.
+listing_of() { local d; d="$(snap_dir_of "run:$1" /host-state.tar)"; [[ -n "$d" ]] || return 1; tar -tf "$d/data" | LC_ALL=C sort; }
+# Can this filesystem hold a real symlink? (Not on some Windows setups.)
+ln -s "$tmp/probe-target" "$tmp/symlink-probe" 2>/dev/null || :
+symlinks_work=0; [[ ! -L "$tmp/symlink-probe" ]] || symlinks_work=1
 
 # The production database as "<key><TAB>count" rows.
 good_counts=$'public.auth_user\t3\npublic.django_migrations\t42\npublic.estate\t7'
@@ -107,7 +133,7 @@ case "$cmd" in
     done
     printf ']\n' ;;
   backup)
-    if [[ -e "$S/fail-restic-backup" ]]; then cat > /dev/null; exit 1; fi
+    if [[ -e "$S/fail-restic-backup" || -e "$S/fail-restic-backup-$fname" ]]; then cat > /dev/null; exit 1; fi
     d="$repo/snaps/$(next_id)"; mkdir -p "$d"
     cat > "$d/data"; printf '/%s\n' "$fname" > "$d/path"; tr ',' '\n' <<<"$tag" > "$d/tags"
     printf '%s\n' "$host" > "$d/host"; date -u +%Y-%m-%dT%H:%M:%S.123456789Z > "$d/time" ;;
@@ -239,6 +265,10 @@ if [[ "$container" == "$prod" ]]; then
     pg_dump)
       cat "$S/txn" > "$S/dump-txn"; printf '%s %s\n' "$in_container_timeout" "$*" > "$S/dump-args"
       if [[ -e "$S/term-on-pg-dump" ]]; then rm -f "$S/term-on-pg-dump"; kill -TERM "$(< "$S/backup.pid")"; fi
+      # runtime.env becomes a symlink after the configuration was validated.
+      if [[ -e "$S/symlink-runtime-on-dump" ]]; then
+        rm -f "$S/symlink-runtime-on-dump"; mv '__ETC__/runtime.env' '__ETC__/runtime.env.real'; ln -s '__ETC__/runtime.env.real' '__ETC__/runtime.env'
+      fi
       printf 'PGDMP'
       if [[ -e "$S/fail-pg-dump" ]]; then head -n 1 "$S/db-counts"; echo 'pg_dump: error: connection lost' >&2; exit 1; fi
       if [[ "$*" == *--snapshot=00000003-0000001B-1* ]]; then cat "$S/pg-snapshot"; else cat "$S/db-counts"; fi
@@ -286,9 +316,15 @@ cat > "$stub/df" <<'EOF'
 [[ "$*" == "-B1 --output=avail __S__/docker-root" ]] || exit 1
 printf 'Avail\n%s\n' "$(cat '__S__/disk-avail' 2>/dev/null || echo 1000000000000)"
 EOF
-sed -i "s|__S__|$S|g; s|__DATE__|$real_date|g" "$stub/restic-sim" "$stub/docker" "$stub/systemctl" "$stub/date" "$stub/df"
-! grep -Fq '__' "$stub/restic-sim" "$stub/docker" "$stub/systemctl" "$stub/date" "$stub/df" || fail 'stub placeholders were not substituted'
-chmod +x "$stub/restic-sim" "$stub/docker" "$stub/systemctl" "$stub/date" "$stub/df"
+# tar: "$S/fail-tar" makes archive creation write a few bytes, then fail.
+cat > "$stub/tar" <<'EOF'
+#!/usr/bin/env bash
+if [[ -e '__S__/fail-tar' && " $* " == *' -cf - '* ]]; then printf 'partial-archive'; exit 2; fi
+exec '__TAR__' "$@"
+EOF
+sed -i "s|__S__|$S|g; s|__DATE__|$real_date|g; s|__ETC__|$etc|g; s|__TAR__|$real_tar|g" "$stub/restic-sim" "$stub/docker" "$stub/systemctl" "$stub/date" "$stub/df" "$stub/tar"
+! grep -Fq '__' "$stub/restic-sim" "$stub/docker" "$stub/systemctl" "$stub/date" "$stub/df" "$stub/tar" || fail 'stub placeholders were not substituted'
+chmod +x "$stub/restic-sim" "$stub/docker" "$stub/systemctl" "$stub/date" "$stub/df" "$stub/tar"
 
 if [[ -z "$real_flock" ]]; then
   printf '#!/usr/bin/env bash\n[[ ! -e %q ]]\n' "$S/lock-held" > "$stub/flock"
@@ -408,10 +444,10 @@ expect_rc 0 'nightly backup'
 status_is ok
 [[ ! -d "$S/repo/snaps/stale" ]] || fail 'stale pending snapshot was not forgotten'
 no_restic_leftovers 'nightly backup (stale container sweep)'
-[[ "$(snaps_with pending)" == 0 && "$(snaps_with complete)" == 2 ]] || fail 'backup did not leave exactly two complete snapshots'
+[[ "$(snaps_with pending)" == 0 && "$(snaps_with complete)" == 3 ]] || fail 'backup did not leave exactly three complete snapshots'
 run_tag="run:$(field "$state/backup/last-backup" run)"
-[[ "$(snaps_with "$run_tag")" == 2 ]] || fail 'dump and manifest do not share the run tag'
-for key in dump_snapshot manifest_snapshot; do
+[[ "$(snaps_with "$run_tag")" == 3 ]] || fail 'dump, manifest, and host state do not share the run tag'
+for key in dump_snapshot manifest_snapshot host_state_snapshot; do
   id="$(field "$state/backup/last-backup" "$key")"
   # shellcheck disable=SC2015 # fail exits, so it runs only when the check fails.
   [[ -n "$id" && -d "$S/repo/snaps/$id" ]] && grep -qx complete "$S/repo/snaps/$id/tags" || fail "last-backup $key does not name a complete snapshot after tagging"
@@ -421,6 +457,18 @@ dump_dir="$(snap_dir_of "$run_tag" /mawareeth.dump)"; manifest_dir="$(snap_dir_o
 [[ "$(< "$manifest_dir/data")" == "$good_counts" ]] || fail 'manifest does not hold the snapshot counts'
 [[ "$(head -c 5 "$dump_dir/data")" == PGDMP ]] || fail 'stored dump is not a custom-format archive'
 [[ "$(tail -c +6 "$dump_dir/data")" == "$(< "$manifest_dir/data")" ]] || fail 'dump and counts describe different data (snapshot not shared)'
+host_state_dir="$(snap_dir_of "$run_tag" /host-state.tar)"
+[[ -n "$host_state_dir" ]] || fail 'the host-state snapshot is missing'
+[[ "$(tar -tf "$host_state_dir/data" | LC_ALL=C sort)" == "$expected_host_state" ]] \
+  || fail "the host-state archive does not hold exactly the expected paths: $(tar -tf "$host_state_dir/data" | tr '\n' ' ')"
+! tar -tf "$host_state_dir/data" | grep -Fq '.tmp.abc' || fail 'a stray slots/.tmp.* file was archived'
+[[ "$(tar -tf "$host_state_dir/data" | grep -cF "$snap_a")" == 1 ]] || fail 'a snapshot named by two records was not archived exactly once'
+grep -Eq ' dump [0-9a-f]+ /host-state\.tar$' "$S/restic.log" || fail 'the stored host-state archive was not read back'
+cmp -s <(tar -xOf "$host_state_dir/data" "${etc#/}/runtime.env") "$etc/runtime.env" || fail 'the host-state archive does not hold runtime.env'
+cmp -s <(tar -xOf "$host_state_dir/data" "$rel_state/$snap_b") "$state/$snap_b" || fail 'the host-state archive does not hold the .prev snapshot'
+grep -Eq '^restic -o sftp\.command=.* backup --stdin --stdin-filename host-state\.tar --host mawareeth --tag pending,run:[0-9]{8}T[0-9]{6}Z-[0-9]+ --quiet$' "$S/restic.log" \
+  || fail 'host state was not stored pending under its run tag'
+[[ -z "$(find "$state" "$etc" -name '*.tar' -print -quit)" ]] || fail 'the host-state archive was written to disk'
 [[ "$(< "$S/dump-txn")" == open && "$(< "$S/txn")" == committed ]] || fail 'pg_dump did not run inside the open snapshot transaction'
 need "$S/dump-args" '1 pg_dump -Fc --snapshot=00000003-0000001B-1'
 [[ "$(< "$S/psql-timeout")" == 1 ]] || fail 'psql did not run under an in-container timeout'
@@ -432,7 +480,7 @@ grep -E '^docker run --rm -i --name mawareeth-restic-[0-9TZ]+-[0-9]+-[0-9]+-[0-9
   || fail 'Restic did not run named, with read-only secret mounts and the cache volume'
 ! grep -E '^docker run --rm .*--network' "$S/calls.log" >/dev/null || fail 'unexpected network override for Restic'
 no_secrets 'nightly backup'; no_plain_dump 'nightly backup'
-[[ -z "$(find "$state" -name '.tmp.*' -print -quit)" ]] || fail 'status publication left a temporary file'
+[[ -z "$(find "$state" -name '.tmp.*' ! -path "$state/slots/.tmp.abc" -print -quit)" ]] || fail 'status publication left a temporary file'
 ! grep -rq 'restic-repository-password-NEVER-PRINT' "$state/backup/logs" || fail 'a run log contains the repository password'
 if ((modes_work)); then
   for log in "$state"/backup/logs/*.log; do [[ "$("$real_stat" -c %a "$log")" == 600 ]] || fail "run log $log is not mode 0600"; done
@@ -447,7 +495,7 @@ first_tag="run:$(field "$state/backup/last-backup" run)"
 touch "$S/fail-pg-dump"; run backup; rm -f "$S/fail-pg-dump" "$S/fixed-stamp"
 expect_rc 5 'same-second failed backup'
 [[ "run:$(field "$state/backup/last-backup" run)" != "$first_tag" ]] || fail 'same-second runs share a run tag'
-[[ "$(snaps_with "$first_tag")" == 2 ]] || fail 'a failed run forgot an earlier same-second run'
+[[ "$(snaps_with "$first_tag")" == 3 ]] || fail 'a failed run forgot an earlier same-second run'
 [[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'a same-second failed run left its own snapshots'
 
 # --- Backup failures ------------------------------------------------------------
@@ -474,7 +522,58 @@ status_is failed:tag
 touch "$S/fail-retention"; run backup; rm -f "$S/fail-retention"
 expect_rc 5 'retention failure'
 status_is failed:retention
-[[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 2 ]] || fail 'retention failure discarded the valid complete run'
+[[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 3 ]] || fail 'retention failure discarded the valid complete run'
+
+# A slot record naming a missing snapshot fails the run at host-state.
+mv "$state/$snap_b" "$tmp/snap_b.moved"; run backup; mv "$tmp/snap_b.moved" "$state/$snap_b"
+expect_rc 5 'missing referenced snapshot'
+status_is failed:host-state
+need "$tmp/out" 'green.env.prev slot record is missing'
+[[ "$(snaps_with pending)" == 0 && "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'a host-state failure left snapshots of the run'
+no_restic_leftovers 'missing referenced snapshot'
+
+# An unusable slot record or a missing routes directory also fails at host-state.
+cp "$state/slots/blue.env" "$tmp/blue.env.good"; printf 'IMAGE=bad\n' > "$state/slots/blue.env"
+run backup; cp "$tmp/blue.env.good" "$state/slots/blue.env"
+expect_rc 5 'unusable slot record'; status_is failed:host-state
+[[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'an unusable slot record left snapshots of the run'
+mv "$state/routes" "$tmp/routes.moved"; run backup; mv "$tmp/routes.moved" "$state/routes"
+expect_rc 5 'missing routes directory'; status_is failed:host-state
+[[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'a missing routes directory left snapshots of the run'
+mv "$state/routes/active-slot.caddy" "$tmp/route.moved"; run backup; mv "$tmp/route.moved" "$state/routes/active-slot.caddy"
+expect_rc 5 'missing route file'; status_is failed:host-state
+[[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'a missing route file left snapshots of the run'
+
+# tar failing after writing some bytes, or Restic failing to store only the
+# archive, fails the run at host-state and discards it.
+touch "$S/fail-tar"; run backup; rm -f "$S/fail-tar"
+expect_rc 5 'failed tar'; status_is failed:host-state; need "$tmp/out" 'archiving the host state failed'
+[[ "$(snaps_with pending)" == 0 && "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'a failed tar left snapshots of the run'
+touch "$S/fail-restic-backup-host-state.tar"; run backup; rm -f "$S/fail-restic-backup-host-state.tar"
+expect_rc 5 'failed host-state upload'; status_is failed:host-state; need "$tmp/out" 'storing the host state in the repository failed'
+[[ "$(snaps_with pending)" == 0 && "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'a failed host-state upload left snapshots of the run'
+no_restic_leftovers 'failed host-state upload'
+
+# runtime.env turning into a symlink after validation fails at host-state.
+if ((symlinks_work)); then
+  touch "$S/symlink-runtime-on-dump"; run backup
+  rm -f "$etc/runtime.env"; mv "$etc/runtime.env.real" "$etc/runtime.env"
+  expect_rc 5 'symlinked runtime file'; status_is failed:host-state; need "$tmp/out" 'not a regular file'
+  [[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'a symlinked runtime file left snapshots of the run'
+else
+  printf 'note: this filesystem cannot hold symlinks; the symlinked runtime-file check skipped\n' >&2
+fi
+
+# With no slots directory the archive holds runtime.env and routes only; an
+# empty one adds just its own entry.
+mv "$state/slots" "$tmp/slots.moved"; run backup
+expect_rc 0 'backup without a slots directory'
+[[ "$(listing_of "$(field "$state/backup/last-backup" run)")" == "$(LC_ALL=C sort <<<"$host_state_base")" ]] \
+  || fail "the host-state archive without slots is wrong: $(listing_of "$(field "$state/backup/last-backup" run)" | tr '\n' ' ')"
+mkdir -p "$state/slots"; chmod 700 "$state/slots"; run backup; rm -rf "$state/slots"; mv "$tmp/slots.moved" "$state/slots"
+expect_rc 0 'backup with an empty slots directory'
+[[ "$(listing_of "$(field "$state/backup/last-backup" run)")" == "$(printf '%s\n' "$host_state_base" "$rel_state/slots/" | LC_ALL=C sort)" ]] \
+  || fail "the host-state archive with empty slots is wrong: $(listing_of "$(field "$state/backup/last-backup" run)" | tr '\n' ' ')"
 
 printf '%s\n' $'public.auth_user\t3\npublic.estate\t7' > "$S/db-counts"
 run backup; printf '%s\n' "$good_counts" > "$S/db-counts"
@@ -558,6 +657,13 @@ run verify-restore
 expect_rc 0 'restore of a legacy-tagged pair'
 [[ "$(field "$state/backup/restore-verified" backup_run)" == "$legacy_run" ]] || fail 'restore did not select the legacy-tagged pair'
 for d in "$S"/repo/snaps/*/; do sed -i "s/^run:$legacy_run\$/run:$latest_run/" "$d/tags"; done
+
+# A run from before host-state archiving (no host-state.tar) still restores.
+rm -rf "$(snap_dir_of "run:$latest_run" /host-state.tar)"
+run verify-restore
+expect_rc 0 'restore of a run without host state'
+[[ "$(field "$state/backup/restore-verified" backup_run)" == "$latest_run" ]] || fail 'restore skipped a run without host state'
+run gate; expect_rc 0 'gate with a run without host state'
 
 # The newest dump lacks its manifest: the older complete pair is used.
 rm -rf "$(snap_dir_of "run:$latest_run" /manifest.tsv)"

@@ -26,6 +26,9 @@ APP_BLUE_IMAGE=''
 APP_GREEN_IMAGE=''
 ROUTES_DIR=''
 
+runtime_saved_traps=''
+runtime_pending_signal=''
+
 die() { printf 'runtime: %s\n' "$*" >&2; exit 2; }
 info() { printf 'runtime: %s\n' "$*" >&2; }
 require_command() { command -v "$1" >/dev/null 2>&1 || die "required command is unavailable: $1"; }
@@ -237,6 +240,36 @@ use_existing_snapshot() {
   APP_SNAPSHOT="$target"
 }
 
+# runtime_defer_signals and runtime_release_signals bracket each window that
+# holds a secret-bearing temporary file. INT/TERM/HUP arriving inside it are
+# recorded instead of acted on; Bash runs a trap only after the foreground
+# subshell finishes, and that subshell (which resets caught traps to the
+# default) dies on the signal, so the parent always removes the file first.
+# The release then restores the caller's traps (release.sh sources this file)
+# and re-raises the signal. Signals ignored when the window opens stay ignored.
+# Windows must not nest: one saved-trap slot serves the whole process.
+runtime_defer_signals() {
+  runtime_saved_traps="$(trap -p INT TERM HUP)"; runtime_pending_signal=''
+  local sig
+  for sig in INT TERM HUP; do
+    [[ "$(trap -p "$sig")" == "trap -- '' SIG$sig" ]] && continue
+    # The first pending signal wins.
+    # shellcheck disable=SC2064 # expand $sig now
+    trap "[[ -n \"\$runtime_pending_signal\" ]] || runtime_pending_signal=$sig" "$sig"
+  done
+}
+
+# Restore the caller's traps before resetting the rest, so no signal ever
+# meets the default disposition between the two steps.
+runtime_release_signals() {
+  local sig
+  eval "$runtime_saved_traps"
+  for sig in INT TERM HUP; do
+    [[ $'\n'"$runtime_saved_traps"$'\n' == *" SIG$sig"$'\n'* ]] || trap - "$sig"
+  done
+  [[ -z "$runtime_pending_signal" ]] || kill -s "$runtime_pending_signal" "$BASHPID"
+}
+
 write_snapshot() {
   local content hash target temporary status
   content="$(snapshot_content)"
@@ -247,7 +280,8 @@ write_snapshot() {
     file_metadata "$target" 600 'existing runtime snapshot'
     [[ "$(sha256sum "$target" | awk '{print $1}')" == "$hash" ]] || die 'existing runtime snapshot content drifted'
   else
-    temporary="$(mktemp "$state_dir/.snapshot.XXXXXX")" || die 'could not allocate atomic snapshot'
+    runtime_defer_signals
+    temporary="$(mktemp "$state_dir/.snapshot.XXXXXX")" || { runtime_release_signals; die 'could not allocate atomic snapshot'; }
     # A subshell, because die exits past RETURN traps; the parent always
     # removes the secret-bearing temporary file.
     set +e
@@ -264,6 +298,7 @@ write_snapshot() {
     status=$?
     set -e
     rm -f -- "$temporary"
+    runtime_release_signals
     (( status == 0 )) || exit "$status"
   fi
   APP_SNAPSHOT="$target"
@@ -271,7 +306,8 @@ write_snapshot() {
 
 validate_compose_model() {
   local temporary_dir status
-  temporary_dir="$(mktemp -d)" || die 'could not allocate temporary Compose validation directory'
+  runtime_defer_signals
+  temporary_dir="$(mktemp -d)" || { runtime_release_signals; die 'could not allocate temporary Compose validation directory'; }
   APP_BLUE_IMAGE="$APP_IMAGE"; APP_GREEN_IMAGE="$APP_IMAGE"
   # A subshell, because die exits past RETURN traps; the parent always
   # removes the secret-bearing temporary snapshot.
@@ -287,6 +323,7 @@ validate_compose_model() {
   status=$?
   set -e
   rm -rf -- "$temporary_dir"
+  runtime_release_signals
   (( status == 0 )) || exit "$status"
   APP_SNAPSHOT=''; ROUTES_DIR=''
 }
