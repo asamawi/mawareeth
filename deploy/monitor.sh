@@ -77,13 +77,15 @@ record_metrics() {
   metric_ok=1; metric_ts=$((10#${record[$4]}))
 }
 
-# archives_metric sets archives_complete from the backup record that
-# record_metrics just read: 1 only when that record is usable and ok and its
-# host_state_snapshot and globals_snapshot are both Restic IDs (64 hex), so a
-# run made by an older backup.sh, or a regression, is noticed.
+# archives_metric reads the backup record itself (so it does not depend on
+# which record was read last) and sets archives_complete: 1 only when that
+# record is usable (readable, with a plain decimal finished_epoch) and ok, and
+# its host_state_snapshot and globals_snapshot are both Restic IDs (64 hex),
+# so a run made by an older backup.sh, or a regression, is noticed.
 archives_metric() {
   archives_complete=0
-  ((metric_ok == 1)) || return 0
+  read_record "$status_file" || return 0
+  [[ "${record[result]:-}" == ok && "${record[finished_epoch]:-}" =~ $epoch_re ]] || return 0
   [[ "${record[host_state_snapshot]:-}" =~ ^[0-9a-f]{64}$ && "${record[globals_snapshot]:-}" =~ ^[0-9a-f]{64}$ ]] || return 0
   archives_complete=1
 }
