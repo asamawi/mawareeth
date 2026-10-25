@@ -226,6 +226,46 @@ write_record "$backup_rec" "result=failed:host-state"$'\n'"finished_epoch=$((now
 run "$monitor" collect; expect_rc 0 'failed backup with archive IDs collect'
 expect_metric mawareeth_backup_last_archives_complete 0 'failed backup with archive IDs'
 
+# archives_metric reads the backup record itself, so the record read before it
+# cannot leak: a complete backup beside evidence that lacks globals_snapshot
+# is 1, and an incomplete backup beside a record that would pass is 0, even
+# when the other record was read last.
+write_record "$backup_rec" "$ok_rec"$'\n'"$host_state_line"$'\n'"$globals_line"
+write_record "$restore_rec" "result=pass"$'\n'"verified_epoch=$((now - 86400))"$'\n'"$host_state_line"
+run "$monitor" collect; expect_rc 0 'complete backup beside evidence without globals collect'
+expect_metric mawareeth_backup_last_archives_complete 1 'complete backup beside evidence without globals'
+# archives_after_other prints archives_complete computed right after reading
+# the restore record (monitor.sh sourced; its collect runs first).
+archives_after_other() {
+  env "${base_env[@]}" bash -c 'source "$1" collect; read_record "$evidence_file"; metric_ok=0; archives_metric; printf "%s\n" "$archives_complete"' _ "$monitor" 2>"$tmp/out"
+}
+[[ "$(archives_after_other)" == 1 ]] || fail 'archives_metric depends on the record read before it (complete backup)'
+write_record "$backup_rec" "$ok_rec"$'\n'"$host_state_line"
+write_record "$restore_rec" "result=ok"$'\n'"verified_epoch=$((now - 86400))"$'\n'"$host_state_line"$'\n'"$globals_line"
+[[ "$(archives_after_other)" == 0 ]] || fail 'archives_metric depends on the record read before it (incomplete backup)'
+# An ok record with both IDs is still unusable without a plain decimal
+# finished_epoch.
+for epoch_line in "finished_epoch=0x10" "finished_epoch=0$((now - 60))" ''; do
+  write_record "$backup_rec" "result=ok"$'\n'"$host_state_line"$'\n'"$globals_line${epoch_line:+$'\n'$epoch_line}"
+  run "$monitor" collect; expect_rc 0 "ok backup with both IDs and finished_epoch '${epoch_line#finished_epoch=}' collect"
+  expect_metric mawareeth_backup_last_archives_complete 0 "ok backup with both IDs and a bad or missing finished_epoch ('$epoch_line')"
+done
+
+# Records written by the previous backup.sh (no globals_role_passwords, no
+# restore_seconds) publish exactly as before; the new fields change nothing.
+write_record "$backup_rec" "$ok_rec"$'\n'"run=20261014T023000Z"$'\n'"dump_snapshot=$(hex64 c)"$'\n'"manifest_snapshot=$(hex64 d)"$'\n'"$host_state_line"$'\n'"$globals_line"$'\n'"pg_major=17"
+write_record "$restore_rec" "result=pass"$'\n'"verified_epoch=$((now - 86400))"$'\n'"duration_seconds=900"$'\n'"content_checksums=1"
+run "$monitor" collect; expect_rc 0 'previous-script records collect'
+expect_metric mawareeth_backup_last_result_ok 1 'previous-script backup record'
+expect_metric mawareeth_backup_last_ok_timestamp_seconds "$((now - 60))" 'previous-script backup record'
+expect_metric mawareeth_backup_last_archives_complete 1 'previous-script backup record with both IDs'
+expect_metric mawareeth_restore_last_result_pass 1 'previous-script evidence record'
+expect_metric mawareeth_restore_last_pass_timestamp_seconds "$((now - 86400))" 'previous-script evidence record'
+write_record "$backup_rec" "$ok_rec"$'\n'"run=20261014T023000Z"$'\n'"$host_state_line"$'\n'"pg_major=17"
+run "$monitor" collect; expect_rc 0 'previous-script record without globals collect'
+expect_metric mawareeth_backup_last_result_ok 1 'previous-script backup record without globals'
+expect_metric mawareeth_backup_last_archives_complete 0 'previous-script backup record without globals'
+
 # Restore bad likewise.
 healthy_records
 write_record "$restore_rec" "result=fail:count-mismatch"$'\n'"verified_epoch=$((now - 60))"

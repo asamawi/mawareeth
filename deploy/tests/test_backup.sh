@@ -89,7 +89,7 @@ good_counts=$'public.auth_user\t3\t-4611686018427387904\npublic.django_migration
 printf '%s\n' "$good_counts" > "$S/db-counts"
 # The output settings both psql sessions must apply before the checksum query.
 printf '%s\n' "SET TimeZone = 'UTC';" "SET DateStyle = 'ISO, YMD';" "SET IntervalStyle = 'postgres';" \
-  "SET extra_float_digits = 1;" "SET bytea_output = 'hex';" "SET lc_monetary = 'C';" > "$S/expected-settings"
+  "SET extra_float_digits = 1;" "SET bytea_output = 'hex';" "SET lc_monetary = 'C';" "SET search_path = '';" > "$S/expected-settings"
 touch "$S/running-postgres"
 
 # Restic stub: a file-backed repository under $S/repo. Like real Restic,
@@ -164,8 +164,9 @@ case "$cmd" in
 esac
 EOF
 
-# Docker stub: production PostgreSQL (container abcdef123456, version 17)
-# answers a psql coprocess, pg_dump, and pg_dumpall from $S/db-counts; restore
+# Docker stub: production PostgreSQL (container abcdef123456, version 17, a
+# superuser unless $S/not-superuser) answers a psql coprocess, pg_dump, and
+# pg_dumpall from $S/db-counts; restore
 # containers keep restored counts and checksums in $S/restored-<name>. Both
 # psql sessions refuse the checksum query unless the output settings in
 # $S/expected-settings arrived first. Containers are marker files
@@ -256,7 +257,10 @@ if [[ "$container" == "$prod" ]]; then
         case "$line" in
           'BEGIN ISOLATION LEVEL REPEATABLE READ;') echo open > "$S/txn"; : > "$S/prod-settings" ;;
           'SELECT pg_export_snapshot();') cp "$S/db-counts" "$S/pg-snapshot"; echo '00000003-0000001B-1' ;;
-          'SHOW server_version_num;') if [[ -e "$S/bad-version" ]]; then echo '17.11'; else echo 170011; fi ;;
+          'SHOW server_version_num;')
+            if [[ -e "$S/bad-version" ]]; then echo '17.11'; elif [[ -e "$S/old-version" ]]; then echo 90600; else echo 170011; fi ;;
+          'SHOW is_superuser;')
+            if [[ -e "$S/bad-superuser" ]]; then echo yes; elif [[ -e "$S/not-superuser" ]]; then echo off; else echo on; fi ;;
           'SET '*) printf '%s\n' "$line" >> "$S/prod-settings" ;;
           *'\gexec')
             [[ "$line" == *"!~ '^pg_(toast_)?temp_'"* && "$line" == *"format('%I.%I', schemaname, tablename)"* && "$line" == *'md5(t.*::text)'* ]] || exit 3
@@ -285,7 +289,8 @@ if [[ "$container" == "$prod" ]]; then
       printf '%s %s\n' "$in_container_timeout" "$*" > "$S/dumpall-args"
       if [[ -e "$S/fail-pg-dumpall" ]]; then printf -- '--\n'; echo 'pg_dumpall: error: connection lost' >&2; exit 1; fi
       [[ -e "$S/globals-no-header" ]] || printf -- '--\n-- PostgreSQL database cluster dump\n--\n\n'
-      printf 'CREATE ROLE mawareeth;\nALTER ROLE mawareeth WITH SUPERUSER LOGIN PASSWORD %s;\n' "'SCRAM-SHA-256\$stub-role-hash-NEVER-PRINT'"
+      if [[ " $* " == *' --no-role-passwords '* ]]; then printf 'CREATE ROLE mawareeth;\nALTER ROLE mawareeth WITH LOGIN;\n'
+      else printf 'CREATE ROLE mawareeth;\nALTER ROLE mawareeth WITH SUPERUSER LOGIN PASSWORD %s;\n' "'SCRAM-SHA-256\$stub-role-hash-NEVER-PRINT'"; fi
       exit 0 ;;
   esac
   exit 1
@@ -305,7 +310,9 @@ case "$program" in
     : > "$S/restore-settings"
     while IFS= read -r line; do
       case "$line" in
-        'SHOW server_version_num;') if [[ -e "$S/restore-major" ]]; then echo 160004; elif [[ -e "$S/restore-bad-version" ]]; then echo 17.11; else echo 170011; fi ;;
+        'SHOW server_version_num;')
+          if [[ -e "$S/restore-major" ]]; then echo 160004; elif [[ -e "$S/restore-bad-version" ]]; then echo 17.11
+          elif [[ -e "$S/restore-old-version" ]]; then echo 90600; else echo 170011; fi ;;
         'SET '*) printf '%s\n' "$line" >> "$S/restore-settings" ;;
         *'\gexec')
           cmp -s "$S/restore-settings" "$S/expected-settings" || { echo 'checksum query before the output settings' >&2; exit 3; }
@@ -417,6 +424,8 @@ no_restore_leftovers() { [[ -z "$(find "$S" -maxdepth 1 \( -name 'container-mawa
 no_restic_leftovers() { [[ -z "$(find "$S" -maxdepth 1 -name 'container-mawareeth-restic-*' -print -quit)" ]] || fail "$1 left a Restic container behind"; }
 no_plain_dump() { ! grep -rlq PGDMP "$state" 2>/dev/null || fail "$1 wrote unencrypted dump bytes under the state directory"; }
 docker_mutations() { grep -cE '^docker (run|volume create)' "$S/calls.log" || :; }
+# field_empty FILE KEY: the record holds KEY with an empty value.
+field_empty() { grep -qx -- "$2=" "$1"; }
 snap_dir_of() { local d; for d in "$S"/repo/snaps/*/; do grep -qx -- "$1" "$d/tags" && [[ "$(< "$d/path")" == "$2" ]] && printf '%s\n' "${d%/}"; done; return 0; }
 
 # --- Gate with no evidence ----------------------------------------------------
@@ -489,7 +498,8 @@ cmp -s "$S/prod-settings" "$S/expected-settings" || fail 'the backup session did
 globals_dir="$(snap_dir_of "$run_tag" /globals.sql)"
 [[ -n "$globals_dir" && "$(field "$state/backup/last-backup" globals_snapshot)" == "${globals_dir##*/}" ]] || fail 'the globals snapshot is missing or not recorded'
 grep -qx -- '-- PostgreSQL database cluster dump' "$globals_dir/data" || fail 'globals.sql does not hold the pg_dumpall output'
-need "$S/dumpall-args" '1 pg_dumpall --globals-only -U mawareeth -l mawareeth'
+[[ "$(< "$S/dumpall-args")" == '1 pg_dumpall --globals-only -U mawareeth -l mawareeth' ]] || fail "a superuser backup ran pg_dumpall with $(< "$S/dumpall-args")"
+[[ "$(field "$state/backup/last-backup" globals_role_passwords)" == 1 ]] || fail 'a superuser backup must record globals_role_passwords=1'
 grep -Eq '^restic -o sftp\.command=.* backup --stdin --stdin-filename globals\.sql --host mawareeth --tag pending,run:[0-9]{8}T[0-9]{6}Z-[0-9]+ --quiet$' "$S/restic.log" \
   || fail 'globals were not stored pending under their run tag'
 grep -Eq ' dump [0-9a-f]+ /globals\.sql$' "$S/restic.log" || fail 'the stored globals were not read back'
@@ -567,6 +577,7 @@ status_is failed:retention
 # and discards it; globals that do not read back as a cluster dump fail verify.
 touch "$S/fail-pg-dumpall"; run backup; rm -f "$S/fail-pg-dumpall"
 expect_rc 5 'failed pg_dumpall'; status_is failed:globals; need "$tmp/out" 'pg_dumpall --globals-only failed'
+field_empty "$state/backup/last-backup" globals_role_passwords || fail 'a failed pg_dumpall must record an empty globals_role_passwords'
 [[ "$(snaps_with pending)" == 0 && "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'a failed pg_dumpall left snapshots of the run'
 no_restic_leftovers 'failed pg_dumpall'
 touch "$S/fail-restic-backup-globals.sql"; run backup; rm -f "$S/fail-restic-backup-globals.sql"
@@ -576,10 +587,29 @@ touch "$S/globals-no-header"; run backup; rm -f "$S/globals-no-header"
 expect_rc 5 'globals without the cluster dump header'; status_is failed:verify; need "$tmp/out" 'not a pg_dumpall cluster dump'
 [[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'unreadable globals left snapshots of the run'
 
-# A server_version_num that is not a 5-6 digit number fails the run at dump.
+# A server_version_num that is not a six-digit number (PostgreSQL 10+) fails
+# the run at dump: a malformed one, and a five-digit 9.x one.
 touch "$S/bad-version"; run backup; rm -f "$S/bad-version"
 expect_rc 5 'invalid server_version_num'; status_is failed:dump; need "$tmp/out" 'invalid server_version_num'
 [[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'an invalid version left snapshots of the run'
+field_empty "$state/backup/last-backup" globals_role_passwords || fail 'a run failed before the role was read must record an empty globals_role_passwords'
+touch "$S/old-version"; run backup; rm -f "$S/old-version"
+expect_rc 5 'five-digit server_version_num'; status_is failed:dump; need "$tmp/out" 'invalid server_version_num'
+[[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'a five-digit version left snapshots of the run'
+
+# A backup role that is not a superuser stores its globals without password
+# hashes and says why; an is_superuser that is neither on nor off fails at dump.
+touch "$S/not-superuser"; run backup; rm -f "$S/not-superuser"
+expect_rc 0 'non-superuser backup'; status_is ok
+[[ "$(field "$state/backup/last-backup" globals_role_passwords)" == 0 ]] || fail 'a non-superuser backup must record globals_role_passwords=0'
+[[ "$(< "$S/dumpall-args")" == '1 pg_dumpall --globals-only -U mawareeth -l mawareeth --no-role-passwords' ]] \
+  || fail "a non-superuser backup ran pg_dumpall with $(< "$S/dumpall-args")"
+need "$tmp/out" 'is not a superuser'; need "$(field "$state/backup/last-backup" log)" 'is not a superuser'
+[[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 4 ]] || fail 'a non-superuser backup did not complete all four snapshots'
+touch "$S/bad-superuser"; run backup; rm -f "$S/bad-superuser"
+expect_rc 5 'invalid is_superuser'; status_is failed:dump; need "$tmp/out" 'invalid is_superuser'
+field_empty "$state/backup/last-backup" globals_role_passwords || fail 'an invalid is_superuser must record an empty globals_role_passwords'
+[[ "$(snaps_with "run:$(field "$state/backup/last-backup" run)")" == 0 ]] || fail 'an invalid is_superuser left snapshots of the run'
 
 # A slot record naming a missing snapshot fails the run at host-state.
 mv "$state/$snap_b" "$tmp/snap_b.moved"; run backup; mv "$tmp/snap_b.moved" "$state/$snap_b"
@@ -696,6 +726,10 @@ evidence_is pass
   || fail 'evidence does not record dump_pg_major=17 and restore_pg_major=17'
 [[ "$(< "$S/restore-sql-kind")" == checksum ]] || fail 'a checksum manifest was not verified with the checksum query'
 cmp -s "$S/restore-settings" "$S/expected-settings" || fail 'the restore session did not apply the output settings before the checksum query'
+restore_s="$(field "$state/backup/restore-verified" restore_seconds)"; duration_s="$(field "$state/backup/restore-verified" duration_seconds)"
+# shellcheck disable=SC2015 # fail exits, so it runs only when the check fails.
+[[ "$restore_s" =~ ^[0-9]+$ && "$duration_s" =~ ^[0-9]+$ ]] && ((restore_s <= duration_s)) \
+  || fail "evidence restore_seconds=$restore_s must be a number no greater than duration_seconds=$duration_s"
 [[ "$(field "$state/backup/restore-verified" rto_seconds)" == 14400 && "$(field "$state/backup/restore-verified" rpo_seconds)" == 86400 ]] || fail 'evidence lacks RPO/RTO'
 need "$S/restic.log" ' check'
 ! grep -E ' check .*--read-data' "$S/restic.log" >/dev/null || fail 'restic check must not read all data'
@@ -711,6 +745,13 @@ expect_rc 0 'gate after a passing restore'
 run status
 expect_rc 0 'status'
 need "$tmp/out" 'result=pass'
+# Records written by the previous script (no globals_role_passwords, no
+# restore_seconds) still satisfy gate and status.
+cp "$state/backup/last-backup" "$tmp/status.new"; cp "$state/backup/restore-verified" "$tmp/evidence.new"
+sed -i '/^globals_role_passwords=/d' "$state/backup/last-backup"; sed -i '/^restore_seconds=/d' "$state/backup/restore-verified"
+run gate; expect_rc 0 'gate on records from the previous script'
+run status; expect_rc 0 'status on records from the previous script'; need "$tmp/out" 'passed'
+cp "$tmp/status.new" "$state/backup/last-backup"; cp "$tmp/evidence.new" "$state/backup/restore-verified"
 
 # A pair tagged in the legacy run:<stamp> format is still selected.
 legacy_run="${latest_run%-*}"
@@ -742,9 +783,15 @@ printf '%s\n' $'public.auth_user\t3\npublic.estate\t7' > "$current_manifest/data
 run verify-restore; expect_rc 6 'manifest without django_migrations'; evidence_is fail:manifest
 printf '%s\n' $'public.auth_user\t3\npublic.django_migrations\tmany' > "$current_manifest/data"
 run verify-restore; expect_rc 6 'malformed manifest'; evidence_is fail:manifest
+field_empty "$state/backup/restore-verified" content_checksums || fail 'a malformed manifest must record an empty content_checksums'
 # One counts-only line among checksum lines is refused.
 { head -n 1 "$tmp/manifest.good" | cut -f1,2; tail -n +2 "$tmp/manifest.good"; } > "$current_manifest/data"
 run verify-restore; expect_rc 6 'mixed manifest'; evidence_is fail:manifest; need "$tmp/out" 'mixes counts-only and checksum lines'
+field_empty "$state/backup/restore-verified" content_checksums || fail 'a mixed manifest must record an empty content_checksums'
+# The reverse order: checksum lines first, the last line counts-only.
+{ head -n -1 "$tmp/manifest.good"; tail -n 1 "$tmp/manifest.good" | cut -f1,2; } > "$current_manifest/data"
+run verify-restore; expect_rc 6 'mixed manifest (counts-only last)'; evidence_is fail:manifest; need "$tmp/out" 'mixes counts-only and checksum lines'
+field_empty "$state/backup/restore-verified" content_checksums || fail 'a mixed manifest (counts-only last) must record an empty content_checksums'
 cp "$tmp/manifest.good" "$current_manifest/data"
 no_restore_leftovers 'manifest refusals'
 
@@ -791,6 +838,10 @@ sed -i '/^pg-major:18$/d' "$current_dump/tags"
 sed -i 's/^pg-major:17$/pg-major:abc/' "$current_dump/tags"
 run verify-restore; expect_rc 6 'malformed pg-major tag'; evidence_is fail:version-mismatch; need "$tmp/out" 'duplicate or malformed pg-major tag'
 no_restore_container_created 'a malformed pg-major tag'
+# A single-digit major cannot come from a six-digit server_version_num.
+sed -i 's/^pg-major:abc$/pg-major:9/' "$current_dump/tags"
+run verify-restore; expect_rc 6 'single-digit pg-major tag'; evidence_is fail:version-mismatch; need "$tmp/out" 'duplicate or malformed pg-major tag'
+no_restore_container_created 'a single-digit pg-major tag'
 # A checksum run whose dump lacks the tag is a regression, not a legacy run.
 sed -i '/^pg-major:/d' "$current_dump/tags"
 run verify-restore; expect_rc 6 'checksum run without a pg-major tag'; evidence_is fail:version-mismatch
@@ -800,8 +851,13 @@ printf 'pg-major:17\n' >> "$current_dump/tags"
 # A throwaway reporting an invalid server_version_num fails at setup.
 touch "$S/restore-bad-version"; rm -f "$S/restore-args"; run verify-restore; rm -f "$S/restore-bad-version"
 expect_rc 6 'throwaway with an invalid version'; evidence_is fail:setup; need "$tmp/out" 'invalid server_version_num'
+field_empty "$state/backup/restore-verified" restore_seconds || fail 'a failure before pg_restore must record an empty restore_seconds'
 [[ ! -e "$S/restore-args" ]] || fail 'pg_restore ran on a throwaway with an invalid version'
 no_restore_leftovers 'throwaway with an invalid version'
+touch "$S/restore-old-version"; rm -f "$S/restore-args"; run verify-restore; rm -f "$S/restore-old-version"
+expect_rc 6 'throwaway with a five-digit version'; evidence_is fail:setup; need "$tmp/out" 'invalid server_version_num'
+[[ ! -e "$S/restore-args" ]] || fail 'pg_restore ran on a throwaway with a five-digit version'
+no_restore_leftovers 'throwaway with a five-digit version'
 
 # Equal counts with one differing value fail on the checksums.
 touch "$S/restore-corrupt-value"; run verify-restore; rm -f "$S/restore-corrupt-value"
@@ -813,6 +869,8 @@ no_restore_leftovers 'restore value corrupted'
 touch "$S/restore-drop-row"; run verify-restore; rm -f "$S/restore-drop-row"
 expect_rc 6 'restore count mismatch'
 evidence_is fail:count-mismatch
+need "$(field "$state/backup/restore-verified" log)" $'public.estate\t0\t'
+need "$tmp/out" 'differing tables are listed'
 no_restore_leftovers 'restore count mismatch'
 run gate
 expect_rc 1 'gate after a failed restore'
@@ -820,6 +878,7 @@ need "$tmp/out" 'fail:count-mismatch, not pass'
 
 touch "$S/fail-pg-restore"; run verify-restore; rm -f "$S/fail-pg-restore"
 expect_rc 6 'pg_restore failure'; evidence_is fail:restore; no_restore_leftovers 'pg_restore failure'
+field_empty "$state/backup/restore-verified" restore_seconds || fail 'a failed pg_restore must record an empty restore_seconds'
 
 touch "$S/fail-check"; run verify-restore; rm -f "$S/fail-check"
 expect_rc 6 'restic check failure'; evidence_is fail:repository
