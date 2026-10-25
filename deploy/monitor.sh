@@ -4,6 +4,8 @@
 #   sudo deploy/monitor.sh install   Tailscale, node_exporter on the Tailscale
 #                                    IPv4 only, UFW, journald bounds, collector
 #   sudo deploy/monitor.sh collect   publish backup/restore records as metrics
+#                                    (including whether the last ok backup
+#                                    holds every archive)
 #   sudo deploy/monitor.sh status    print the metrics a collect would publish
 #                                    and the drill record
 #   sudo deploy/monitor.sh drill start
@@ -75,6 +77,17 @@ record_metrics() {
   metric_ok=1; metric_ts=$((10#${record[$4]}))
 }
 
+# archives_metric sets archives_complete from the backup record that
+# record_metrics just read: 1 only when that record is usable and ok and its
+# host_state_snapshot and globals_snapshot are both Restic IDs (64 hex), so a
+# run made by an older backup.sh, or a regression, is noticed.
+archives_metric() {
+  archives_complete=0
+  ((metric_ok == 1)) || return 0
+  [[ "${record[host_state_snapshot]:-}" =~ ^[0-9a-f]{64}$ && "${record[globals_snapshot]:-}" =~ ^[0-9a-f]{64}$ ]] || return 0
+  archives_complete=1
+}
+
 gauge() {
   printf '# HELP %s %s\n# TYPE %s gauge\n%s %s\n' "$1" "$2" "$1" "$1" "$3"
 }
@@ -86,6 +99,8 @@ render_metrics() {
   record_metrics "$status_file" result ok finished_epoch
   gauge mawareeth_backup_last_ok_timestamp_seconds 'Finish time of the last backup when it is ok; 0 if the record is unusable or not ok.' "$metric_ts"
   gauge mawareeth_backup_last_result_ok '1 when the last backup record is usable and its result is ok.' "$metric_ok"
+  archives_metric
+  gauge mawareeth_backup_last_archives_complete '1 when the last backup record is usable, ok, and names its host-state and globals snapshots; otherwise 0.' "$archives_complete"
   record_metrics "$evidence_file" result pass verified_epoch
   gauge mawareeth_restore_last_pass_timestamp_seconds 'Verification time of the last restore check when it passed; 0 if the record is unusable or not pass.' "$metric_ts"
   gauge mawareeth_restore_last_result_pass '1 when the last restore verification record is usable and its result is pass.' "$metric_ok"

@@ -2,7 +2,7 @@
 # Encrypted off-host PostgreSQL backup, restore verification, and write gate.
 #
 #   sudo deploy/backup.sh init            create the Restic repository (once)
-#   sudo deploy/backup.sh backup          nightly dump + manifest + host state + retention
+#   sudo deploy/backup.sh backup          nightly dump + manifest + globals + host state + retention
 #   sudo deploy/backup.sh verify-restore  monthly isolated restore proof
 #   sudo deploy/backup.sh gate            exit 0 only when recovery is proven
 #   sudo deploy/backup.sh status          show the last backup and evidence
@@ -19,6 +19,12 @@
 # slots, routes, the deploy journal, or runtime snapshots; it only reads the
 # runtime file, slots, routes, and the snapshots the slot records name, to
 # stream them as an encrypted host-state archive (the journal is not read).
+# Each run stores four snapshots under one run: tag: the dump (also tagged
+# pg-major:<N>), the manifest of per-table row counts and content checksums,
+# the cluster globals (pg_dumpall --globals-only, never restored
+# automatically), and the host state. verify-restore refuses a dump whose
+# PostgreSQL major differs from the throwaway server's, then compares counts
+# and, for checksum manifests, content checksums.
 backup_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=deploy/runtime.sh
 source "$backup_script_dir/runtime.sh"
@@ -38,6 +44,8 @@ cache_volume=mawareeth-restic-cache
 dump_name=mawareeth.dump
 manifest_name=manifest.tsv
 host_state_name=host-state.tar
+globals_name=globals.sql
+globals_header='-- PostgreSQL database cluster dump'
 restic_host=mawareeth
 secret_mount=/run/mawareeth
 retention=(--keep-daily 7 --keep-weekly 4 --keep-monthly 6)
@@ -63,12 +71,29 @@ unit_start_timeout=5h
 unit_stop_timeout=900
 counts_end='mawareeth-counts-end'
 tab=$'\t'
-# One exact count(*) per user table in a stable order, as "<key><TAB>N". The
-# key is format('%I.%I'), hex-encoded when it would contain a control
-# character, so no table name can break the line format. Other sessions'
-# temporary schemas are excluded.
-count_sql="SELECT format('SELECT %L, count(*) FROM %I.%I', CASE WHEN k ~ '[[:cntrl:]]' THEN 'hex:' || encode(convert_to(k, 'UTF8'), 'hex') ELSE k END, schemaname, tablename) FROM (SELECT schemaname, tablename, format('%I.%I', schemaname, tablename) AS k FROM pg_catalog.pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND schemaname !~ '^pg_(toast_)?temp_') AS t ORDER BY schemaname, tablename \\gexec"
-count_line_re='^[^[:cntrl:]]+'$'\t''[0-9]+$'
+# One exact count(*) and an order-independent content checksum per user
+# table in a stable order, as "<key><TAB>N<TAB>checksum". The checksum is the
+# sum of the signed 64-bit prefixes of md5(row::text): constant memory, no sort,
+# and it detects corruption (Restic already authenticates the archive). The key
+# is format('%I.%I'), hex-encoded when it would contain a control character, so
+# no table name can break the line format. Other sessions' temporary schemas
+# are excluded. Both sessions (backup and restore) run output_settings_sql
+# first so every row renders to the same text.
+table_list_sql="FROM (SELECT schemaname, tablename, format('%I.%I', schemaname, tablename) AS k FROM pg_catalog.pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND schemaname !~ '^pg_(toast_)?temp_') AS t ORDER BY schemaname, tablename \\gexec"
+table_key_sql="CASE WHEN k ~ '[[:cntrl:]]' THEN 'hex:' || encode(convert_to(k, 'UTF8'), 'hex') ELSE k END"
+count_sql="SELECT format('SELECT %L, count(*), coalesce(sum((''x'' || left(md5(t.*::text), 16))::bit(64)::bigint::numeric), 0) FROM %I.%I AS t', $table_key_sql, schemaname, tablename) $table_list_sql"
+count_line_re='^[^[:cntrl:]]+'$'\t''[0-9]+'$'\t''-?[0-9]+$'
+# Manifests written before content checksums hold "<key><TAB>N" only; they are
+# verified on counts alone with the original query.
+legacy_count_sql="SELECT format('SELECT %L, count(*) FROM %I.%I', $table_key_sql, schemaname, tablename) $table_list_sql"
+legacy_count_line_re='^[^[:cntrl:]]+'$'\t''[0-9]+$'
+output_settings_sql="SET TimeZone = 'UTC';
+SET DateStyle = 'ISO, YMD';
+SET IntervalStyle = 'postgres';
+SET extra_float_digits = 1;
+SET bytea_output = 'hex';
+SET lc_monetary = 'C';"
+version_re='^[1-9][0-9]{4,5}$'
 migrations_key='public.django_migrations'
 
 mode=''
@@ -91,6 +116,11 @@ manifest=''
 dump_id=''
 manifest_id=''
 host_state_id=''
+globals_id=''
+pg_major=''
+content_checksums=''
+dump_pg_major=''
+restore_pg_major=''
 restore_container=''
 restore_volume=''
 restore_started=0
@@ -321,6 +351,14 @@ def run_of(snapshot):
     runs = [tag[4:] for tag in snapshot.get("tags") or [] if tag.startswith("run:")]
     return runs[0] if len(runs) == 1 else None
 
+# The pg-major:<N> tag value of a dump: empty for dumps taken before it was
+# recorded, "invalid" for a duplicate or malformed tag.
+def major_of(snapshot):
+    majors = [tag[9:] for tag in snapshot.get("tags") or [] if tag.startswith("pg-major:")]
+    if not majors:
+        return ""
+    return majors[0] if len(majors) == 1 and re.match(r"^[1-9][0-9]{0,2}$", majors[0]) else "invalid"
+
 try:
     value = json.loads(sys.stdin.read() or "null")
     action = sys.argv[1]
@@ -351,7 +389,7 @@ try:
             run = run_of(dump)
             manifests = [s["id"] for s in snapshots if path_of(s) == sys.argv[3] and run_of(s) == run]
             if len(manifests) == 1:
-                print("\t".join([dump["id"], manifests[0], run, str(epoch(dump["time"])), dump["time"]]))
+                print("\t".join([dump["id"], manifests[0], run, str(epoch(dump["time"])), dump["time"], major_of(dump)]))
                 raise SystemExit(0)
             print("run %s has %d manifests" % (run, len(manifests)), file=sys.stderr)
         raise SystemExit(4)
@@ -372,6 +410,8 @@ finished_epoch=$(now_epoch)
 dump_snapshot=$dump_id
 manifest_snapshot=$manifest_id
 host_state_snapshot=$host_state_id
+globals_snapshot=$globals_id
+pg_major=$pg_major
 log=$run_log"
   if ! atomic_write "$status_file" 0600 "$content"; then say "could not write $status_file"; return 1; fi
   outcome_written=1
@@ -441,13 +481,15 @@ ensure_cache_volume() {
 }
 
 # dump_and_count holds one REPEATABLE READ transaction in a psql coprocess:
-# it exports the snapshot, counts every user table inside it, then streams
-# pg_dump --snapshot straight into Restic, so the counts and the dump describe
-# the same data. Nothing unencrypted touches the host disk. The coprocess
-# limit covers counting plus the whole dump; psql and pg_dump also run under
-# `timeout` inside the container so server-side work stops with them.
+# it exports the snapshot, reads the server major, applies the output
+# settings, counts and checksums every user table inside the snapshot, then
+# streams pg_dump --snapshot straight into Restic (tagged pg-major:<N>), so
+# the manifest and the dump describe the same data. Nothing unencrypted
+# touches the host disk. The coprocess limit covers counting plus the whole
+# dump; psql and pg_dump also run under `timeout` inside the container so
+# server-side work stops with them.
 dump_and_count() {
-  local psql_out snapshot_id line remaining deadline status coproc_in coproc_out psql_limit dump_limit
+  local psql_out snapshot_id version line remaining deadline status coproc_in coproc_out psql_limit dump_limit
   local -a pipe
   cap "$backup_budget"; psql_limit=$((cap_value + coproc_grace))
   coproc PSQL { exec timeout --kill-after=10 "$((psql_limit + 30))" docker exec -i "$pg_container" \
@@ -464,7 +506,13 @@ dump_and_count() {
   snapshot_id="${snapshot_id%$'\r'}"
   [[ "$snapshot_id" =~ ^[0-9A-Fa-f]+-[0-9A-Fa-f]+(-[0-9]+)?$ ]] || backup_fail dump 'PostgreSQL returned an invalid snapshot identifier'
 
-  printf '%s\n' "$count_sql" "SELECT '$counts_end';" 1>&"$psql_in" 2>>"$run_log" || backup_fail dump 'PostgreSQL did not accept the count query'
+  printf '%s\n' 'SHOW server_version_num;' 1>&"$psql_in" 2>>"$run_log" || backup_fail dump 'PostgreSQL did not accept the version query'
+  IFS= read -r -t "$read_timeout" -u "$psql_out" version || backup_fail dump 'PostgreSQL did not report its version'
+  version="${version%$'\r'}"
+  [[ "$version" =~ $version_re ]] || backup_fail dump 'PostgreSQL returned an invalid server_version_num'
+  pg_major=$((10#$version / 10000))
+
+  printf '%s\n' "$output_settings_sql" "$count_sql" "SELECT '$counts_end';" 1>&"$psql_in" 2>>"$run_log" || backup_fail dump 'PostgreSQL did not accept the count query'
   manifest=''
   cap "$backup_timeout"; deadline=$((SECONDS + cap_value))
   while :; do
@@ -473,7 +521,7 @@ dump_and_count() {
     IFS= read -r -t "$remaining" -u "$psql_out" line || backup_fail dump 'PostgreSQL stopped while counting rows'
     line="${line%$'\r'}"
     [[ "$line" != "$counts_end" ]] || break
-    [[ "$line" =~ $count_line_re ]] || backup_fail dump 'PostgreSQL returned a malformed row count'
+    [[ "$line" =~ $count_line_re ]] || backup_fail dump 'PostgreSQL returned a malformed row count or checksum'
     manifest+="$line"$'\n'
   done
   stage=manifest
@@ -484,7 +532,7 @@ dump_and_count() {
   cap "$backup_timeout"; dump_limit="$cap_value"
   set +e
   timeout --kill-after=10 "$((dump_limit + 30))" docker exec "$pg_container" timeout "$dump_limit" pg_dump -Fc "--snapshot=$snapshot_id" -U "$pg_user" -d "$pg_db" 2>>"$run_log" 8>&- \
-    | restic_in "$((dump_limit + 30))" backup --stdin --stdin-filename "$dump_name" --host "$restic_host" --tag "pending,run:$run_token" --quiet >>"$run_log"
+    | restic_in "$((dump_limit + 30))" backup --stdin --stdin-filename "$dump_name" --host "$restic_host" --tag "pending,run:$run_token,pg-major:$pg_major" --quiet >>"$run_log"
   pipe=("${PIPESTATUS[@]}")
   set -e
   [[ "${pipe[0]}" == 0 ]] || backup_fail dump "pg_dump failed (status ${pipe[0]})"
@@ -555,20 +603,38 @@ store_host_state() {
   [[ "${pipe[0]}" == 0 ]] || backup_fail host-state "archiving the host state failed (status ${pipe[0]})"
 }
 
-# run_ids FILTER sets dump_id, manifest_id, and host_state_id from this run's
-# snapshots.
+# store_globals streams `pg_dumpall --globals-only` (roles, role settings,
+# tablespaces) straight into Restic as globals.sql, so the role password
+# hashes never touch the host disk. It is stored for a manual recovery only;
+# nothing restores it automatically.
+store_globals() {
+  local -a pipe
+  cap "$repo_timeout"
+  set +e
+  timeout --kill-after=10 "$((cap_value + 30))" docker exec "$pg_container" timeout "$cap_value" pg_dumpall --globals-only -U "$pg_user" -l "$pg_db" 2>>"$run_log" 8>&- \
+    | restic_in "$((cap_value + 30))" backup --stdin --stdin-filename "$globals_name" --host "$restic_host" --tag "pending,run:$run_token" --quiet >>"$run_log"
+  pipe=("${PIPESTATUS[@]}")
+  set -e
+  # Restic first: a storage failure can also kill pg_dumpall's client.
+  [[ "${pipe[1]}" == 0 ]] || backup_fail globals "storing the cluster globals in the repository failed (status ${pipe[1]})"
+  [[ "${pipe[0]}" == 0 ]] || backup_fail globals "pg_dumpall --globals-only failed (status ${pipe[0]})"
+}
+
+# run_ids FILTER sets dump_id, manifest_id, globals_id, and host_state_id from
+# this run's snapshots.
 run_ids() {
   local json
   cap "$repo_timeout"
   json="$(restic_run "$cap_value" snapshots --json --host "$restic_host" --tag "$1")" || return 1
   dump_id="$(python3 -I -c "$snapshot_py" one "$dump_name" <<<"$json")" || return 1
   manifest_id="$(python3 -I -c "$snapshot_py" one "$manifest_name" <<<"$json")" || return 1
+  globals_id="$(python3 -I -c "$snapshot_py" one "$globals_name" <<<"$json")" || return 1
   host_state_id="$(python3 -I -c "$snapshot_py" one "$host_state_name" <<<"$json")" || return 1
-  dump_id="${dump_id//$'\r'/}"; manifest_id="${manifest_id//$'\r'/}"; host_state_id="${host_state_id//$'\r'/}"
+  dump_id="${dump_id//$'\r'/}"; manifest_id="${manifest_id//$'\r'/}"; globals_id="${globals_id//$'\r'/}"; host_state_id="${host_state_id//$'\r'/}"
 }
 
 cmd_backup() {
-  local magic members sweep=0
+  local magic members globals sweep=0
   load_backup_config
   acquire_backup_lock
   open_run_log backup
@@ -597,11 +663,14 @@ cmd_backup() {
   printf '%s' "$manifest" | restic_in "$cap_value" backup --stdin --stdin-filename "$manifest_name" --host "$restic_host" --tag "pending,run:$run_token" --quiet >>"$run_log" \
     || backup_fail manifest 'storing the row-count manifest failed'
 
+  stage=globals
+  store_globals
+
   stage=host-state
   store_host_state
 
   stage=verify
-  run_ids "pending,run:$run_token" || backup_fail verify 'this run does not have exactly one dump, manifest, and host-state snapshot'
+  run_ids "pending,run:$run_token" || backup_fail verify 'this run does not have exactly one dump, manifest, globals, and host-state snapshot'
   # Draining the whole dump (not just its first bytes) is deliberate: it reads
   # and decrypts every blob of this snapshot from the Storage Box nightly.
   cap "$repo_timeout"
@@ -612,12 +681,19 @@ cmd_backup() {
   members="$(restic_run "$cap_value" dump "$host_state_id" "/$host_state_name" | tar -tf - 2>>"$run_log")" \
     || backup_fail verify 'the stored host-state archive is unreadable or lacks the runtime file'
   grep -Fxq -- "${runtime_file#/}" <<<"${members//$'\r'/}" || backup_fail verify 'the stored host-state archive is unreadable or lacks the runtime file'
+  cap "$repo_timeout"
+  # The globals must read back as a pg_dumpall cluster dump. They hold role
+  # password hashes, so they are matched in memory (no here-string, which may
+  # use a temporary file).
+  globals="$(restic_run "$cap_value" dump "$globals_id" "/$globals_name")" || backup_fail verify 'the stored cluster globals are unreadable'
+  [[ $'\n'"${globals//$'\r'/}"$'\n' == *$'\n'"$globals_header"$'\n'* ]] || backup_fail verify 'the stored cluster globals are not a pg_dumpall cluster dump'
+  globals=''
 
   stage=tag
   cap "$repo_timeout"
-  restic_run "$cap_value" tag --add complete --remove pending "$dump_id" "$manifest_id" "$host_state_id" >>"$run_log" || backup_fail tag 'tagging the run complete failed'
+  restic_run "$cap_value" tag --add complete --remove pending "$dump_id" "$manifest_id" "$globals_id" "$host_state_id" >>"$run_log" || backup_fail tag 'tagging the run complete failed'
   # `restic tag` rewrites snapshots under new IDs; record the current ones.
-  run_ids "complete,run:$run_token" || backup_fail tag 'the run does not have exactly one complete dump, manifest, and host-state snapshot after tagging'
+  run_ids "complete,run:$run_token" || backup_fail tag 'the run does not have exactly one complete dump, manifest, globals, and host-state snapshot after tagging'
 
   stage=retention
   cap "$repo_timeout"
@@ -625,7 +701,7 @@ cmd_backup() {
     || backup_fail retention 'applying retention failed'
 
   write_backup_status ok || exit 5
-  say "backup run $run_stamp complete: $(grep -c . <<<"$manifest") tables counted"
+  say "backup run $run_stamp complete: $(grep -c . <<<"$manifest") tables counted and checksummed, PostgreSQL $pg_major"
 }
 
 # --- verify-restore ------------------------------------------------------------
@@ -642,6 +718,9 @@ dump_time=${3:-}
 dump_age_seconds=${4:-}
 duration_seconds=${5:-}
 tables=${6:-}
+content_checksums=$content_checksums
+dump_pg_major=$dump_pg_major
+restore_pg_major=$restore_pg_major
 rpo_seconds=$rpo_seconds
 rto_seconds=$rto_seconds
 log=$run_log"
@@ -707,7 +786,7 @@ free_bytes() {
 
 cmd_verify_restore() {
   local json latest run_tag dump_epoch dump_time age stored restored password limit tables duration line
-  local helper=0 present=0 size available sweep=0
+  local helper=0 present=0 size available sweep=0 columns='' line_columns verify_sql version
   local -a pipe
   load_backup_config
   validate_image "${locked[POSTGRES_IMAGE]}"
@@ -737,19 +816,33 @@ cmd_verify_restore() {
     *) restore_fail repository 'the snapshot listing could not be parsed' ;;
   esac
   latest="${latest//$'\r'/}"
-  IFS="$tab" read -r dump_id manifest_id run_tag dump_epoch dump_time <<<"$latest"
+  IFS="$tab" read -r dump_id manifest_id run_tag dump_epoch dump_time dump_pg_major <<<"$latest"
   age=$((restore_started - dump_epoch))
   ((age >= -clock_skew_seconds)) || restore_fail stale "the latest dump is dated ${age#-}s in the future (clock skew)" "$run_tag" "$dump_time" "$age"
   ((age <= rpo_seconds)) || restore_fail stale "the latest complete dump is ${age}s old (RPO ${rpo_seconds}s)" "$run_tag" "$dump_time" "$age"
+  [[ -z "$dump_pg_major" || "$dump_pg_major" =~ ^[1-9][0-9]{0,2}$ ]] \
+    || restore_fail version-mismatch 'the dump has a duplicate or malformed pg-major tag' "$run_tag" "$dump_time" "$age"
 
   stage=manifest
   cap "$repo_timeout"
   stored="$(restic_run "$cap_value" dump "$manifest_id" "/$manifest_name")" || restore_fail repository 'could not read the manifest' "$run_tag" "$dump_time" "$age"
   stored="${stored//$'\r'/}"
   [[ -n "$stored" ]] || restore_fail manifest 'the stored manifest is empty' "$run_tag" "$dump_time" "$age"
+  # Every line has a checksum, or (a manifest from before checksums) none does.
   while IFS= read -r line; do
-    [[ "$line" =~ $count_line_re ]] || restore_fail manifest 'the stored manifest is malformed' "$run_tag" "$dump_time" "$age"
+    if [[ "$line" =~ $count_line_re ]]; then line_columns=3
+    elif [[ "$line" =~ $legacy_count_line_re ]]; then line_columns=2
+    else restore_fail manifest 'the stored manifest is malformed' "$run_tag" "$dump_time" "$age"; fi
+    [[ -z "$columns" || "$columns" == "$line_columns" ]] \
+      || restore_fail manifest 'the stored manifest mixes counts-only and checksum lines' "$run_tag" "$dump_time" "$age"
+    columns="$line_columns"
   done <<<"$stored"
+  if [[ "$columns" == 3 ]]; then content_checksums=1; verify_sql="$count_sql"; else content_checksums=0; verify_sql="$legacy_count_sql"; fi
+  # Only a legacy (counts-only) run may lack the tag: a checksum run's dump
+  # always carries it, so its absence is a regression, not an old backup.
+  if [[ "$content_checksums" == 1 && -z "$dump_pg_major" ]]; then
+    restore_fail version-mismatch "a checksum run's dump lacks its pg-major tag" "$run_tag" "$dump_time" "$age"
+  fi
   [[ $'\n'"$stored" == *$'\n'"$migrations_key"$'\t'* ]] \
     || restore_fail manifest "the manifest does not count $migrations_key" "$run_tag" "$dump_time" "$age"
   tables="$(grep -c . <<<"$stored")"
@@ -781,6 +874,20 @@ cmd_verify_restore() {
   password=''
   wait_restore_ready || restore_fail setup 'the throwaway PostgreSQL did not become ready' "$run_tag" "$dump_time" "$age"
 
+  # A dump is restored only into the PostgreSQL major it was taken from; a
+  # legacy (counts-only) dump without a pg-major tag is restored as before.
+  stage=version
+  cap "$read_timeout"; limit="$cap_value"
+  version="$(timeout --kill-after=10 "$((limit + 30))" docker exec -i "$restore_container" timeout "$limit" \
+    psql -X -q -A -t -v ON_ERROR_STOP=1 -U "$pg_user" -d "$pg_db" <<<'SHOW server_version_num;' 2>>"$run_log" 8>&-)" \
+    || restore_fail setup 'could not read the throwaway PostgreSQL version' "$run_tag" "$dump_time" "$age"
+  version="${version//$'\r'/}"
+  [[ "$version" =~ $version_re ]] || restore_fail setup 'the throwaway PostgreSQL returned an invalid server_version_num' "$run_tag" "$dump_time" "$age"
+  restore_pg_major=$((10#$version / 10000))
+  if [[ -n "$dump_pg_major" && "$dump_pg_major" != "$restore_pg_major" ]]; then
+    restore_fail version-mismatch "the dump was taken from PostgreSQL ${dump_pg_major} but the throwaway server runs PostgreSQL $restore_pg_major" "$run_tag" "$dump_time" "$age"
+  fi
+
   stage=restore
   cap "$rto_seconds"; limit="$cap_value"
   set +e
@@ -795,12 +902,17 @@ cmd_verify_restore() {
   stage=count
   cap "$rto_seconds"; limit="$cap_value"
   restored="$(timeout --kill-after=10 "$((limit + 30))" docker exec -i "$restore_container" timeout "$limit" \
-    psql -X -q -A -t -F "$tab" -v ON_ERROR_STOP=1 -U "$pg_user" -d "$pg_db" <<<"$count_sql" 2>>"$run_log" 8>&-)" \
+    psql -X -q -A -t -F "$tab" -v ON_ERROR_STOP=1 -U "$pg_user" -d "$pg_db" <<<"$output_settings_sql"$'\n'"$verify_sql" 2>>"$run_log" 8>&-)" \
     || restore_fail count 'counting the restored rows failed' "$run_tag" "$dump_time" "$age"
   restored="${restored//$'\r'/}"
+  # Counts first (key and count columns), then the content checksums.
+  if [[ "$(cut -f1,2 <<<"$restored")" != "$(cut -f1,2 <<<"$stored")" ]]; then
+    if ! diff <(cut -f1,2 <<<"$stored") <(cut -f1,2 <<<"$restored") >>"$run_log" 2>&1; then say "the differing tables are listed in $run_log"; fi
+    restore_fail count-mismatch 'restored row counts differ from the manifest' "$run_tag" "$dump_time" "$age" '' "$tables"
+  fi
   if [[ "$restored" != "$stored" ]]; then
     if ! diff <(printf '%s\n' "$stored") <(printf '%s\n' "$restored") >>"$run_log" 2>&1; then say "the differing tables are listed in $run_log"; fi
-    restore_fail count-mismatch 'restored row counts differ from the manifest' "$run_tag" "$dump_time" "$age" '' "$tables"
+    restore_fail checksum-mismatch 'restored table contents differ from the manifest checksums' "$run_tag" "$dump_time" "$age" '' "$tables"
   fi
 
   stage=cleanup
@@ -808,7 +920,11 @@ cmd_verify_restore() {
   duration=$(( $(now_epoch) - restore_started ))
   ((duration <= rto_seconds)) || restore_fail slow "the restore took ${duration}s (RTO ${rto_seconds}s)" "$run_tag" "$dump_time" "$age" "$duration" "$tables"
   write_evidence pass "$run_tag" "$dump_time" "$age" "$duration" "$tables" || exit 6
-  say "restore verified: run $run_tag, $tables tables match, dump ${age}s old, ${duration}s"
+  if [[ "$content_checksums" == 1 ]]; then
+    say "restore verified: run $run_tag, $tables tables match on counts and content checksums, dump ${age}s old, ${duration}s"
+  else
+    say "restore verified: run $run_tag, $tables tables match on counts (a manifest without content checksums), dump ${age}s old, ${duration}s"
+  fi
 }
 
 # --- init, gate, status, install ----------------------------------------------
