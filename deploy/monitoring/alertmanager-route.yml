@@ -1,14 +1,27 @@
 # Merge into SCDF's alertmanager.yml on p1 (deploy/README.md, "Monitoring and
 # alerting"):
-#   - add the route as the FIRST entry of route.routes, before any catch-all;
-#   - add the receiver to receivers;
+#   - add both routes, in this order, as the FIRST entries of route.routes,
+#     before any catch-all: the Watchdog route must precede the project route;
+#   - add both receivers to receivers;
 #   - add the inhibit rules to inhibit_rules.
-# The receiver mails the same SMTP_TO address SCDF's existing receiver uses and
-# relies on p1's global smtp_* settings. Substitute SMTP_TO exactly as SCDF's
-# own config generation does; never commit the address's credentials or any
-# SMTP secret here.
+# mawareeth-email mails the same SMTP_TO address SCDF's existing receiver uses
+# and relies on p1's global smtp_* settings. mawareeth-heartbeat POSTs the
+# always-firing MawareethWatchdog to the Better Stack heartbeat (dead-man's
+# switch); it is never emailed and HostDown never inhibits it. Substitute
+# SMTP_TO and MAWAREETH_HEARTBEAT_URL exactly as SCDF's own config generation
+# does; never commit the heartbeat URL, the address's credentials, or any SMTP
+# secret here.
 route:
   routes:
+    - receiver: mawareeth-heartbeat
+      matchers:
+        - alertname="MawareethWatchdog"
+        - project="mawareeth"
+      group_by: [alertname]
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 1m
+      continue: false
     - receiver: mawareeth-email
       matchers:
         - project="mawareeth"
@@ -19,6 +32,10 @@ route:
       continue: false
 
 receivers:
+  - name: mawareeth-heartbeat
+    webhook_configs:
+      - url: '${MAWAREETH_HEARTBEAT_URL}'
+        send_resolved: false
   - name: mawareeth-email
     email_configs:
       - to: '${SMTP_TO}'
@@ -27,12 +44,14 @@ receivers:
           Subject: '[MAWAREETH {{ .CommonLabels.severity }}] {{ .CommonLabels.alertname }} ({{ .Status }})'
 
 inhibit_rules:
-  # An unreachable host makes every other Mawareeth signal meaningless.
+  # An unreachable host makes every other Mawareeth host signal meaningless.
+  # The Watchdog tests p1, not the host, so a dead host never silences it.
   - source_matchers:
       - alertname="MawareethHostDown"
     target_matchers:
       - project="mawareeth"
       - alertname!="MawareethHostDown"
+      - alertname!="MawareethWatchdog"
     equal: [project]
   # Critical disk usage supersedes the warning on the same filesystem.
   - source_matchers:

@@ -271,25 +271,27 @@ For a real recovery (a rebuilt host, or a deliberate data rollback), run as root
 
 ## Monitoring and alerting
 
-Mawareeth reuses SCDF's monitoring stack instead of running its own. This host runs only Ubuntu's `prometheus-node-exporter`, bound to its Tailscale IPv4 on port 9100. SCDF's Prometheus and Alertmanager on `p1` scrape it over Tailscale and email SCDF's existing `SMTP_TO` address through a `project=mawareeth` route. Better Stack probes the public readiness endpoint from outside. Prometheus and Alertmanager never run on this host, and port 9100 is never public: the Hetzner cloud firewall is unchanged, and UFW admits 9100/tcp only `in on tailscale0` from `100.64.0.0/10`. Run every command as root. `monitor.sh` never takes the deploy or backup locks and never touches slots, routes, or the database.
+Mawareeth reuses SCDF's monitoring stack instead of running its own. This host runs only Ubuntu's `prometheus-node-exporter`, bound to its Tailscale IPv4 on port 9100. SCDF's Prometheus and Alertmanager on `p1` scrape it over Tailscale and email SCDF's existing `SMTP_TO` address through a `project=mawareeth` route. Better Stack probes the public readiness endpoint from outside, and a Better Stack heartbeat watches `p1` itself: the always-firing `MawareethWatchdog` pings it, and Better Stack alerts when the pings stop. Prometheus and Alertmanager never run on this host, and port 9100 is never public: the Hetzner cloud firewall is unchanged, and UFW admits 9100/tcp only `in on tailscale0` from `100.64.0.0/10`. Run every command as root. `monitor.sh` never takes the deploy or backup locks and never touches slots, routes, or the database.
 
 ### Host setup
 
 1. **Install.** `sudo deploy/monitor.sh install` first requires `ufw status` to report `Status: active` (otherwise it exits 1 before changing anything; run the host baseline first). It then does the following:
    - Adds Tailscale's official signed noble repository (`/etc/apt/keyrings/tailscale-archive-keyring.gpg`, `/etc/apt/sources.list.d/tailscale.list`).
    - Installs `tailscale` and `prometheus-node-exporter` (the exporter comes from the Ubuntu archive).
-   - Writes `/usr/local/sbin/mawareeth-node-exporter` and the drop-in `/etc/systemd/system/prometheus-node-exporter.service.d/10-mawareeth.conf` (`After=tailscaled.service`, `Restart=always`, `RestartSec=15`). The wrapper reads `tailscale ip -4` and starts the exporter with `--web.listen-address=<that IP>:9100 --collector.textfile.directory=/var/lib/prometheus/node-exporter`. Without a Tailscale IPv4 in `100.64.0.0/10` it exits 1 and systemd retries every 15 seconds. It never falls back to `0.0.0.0` or another address. The drop-in replaces the packaged `ExecStart`, so `ARGS` in `/etc/default/prometheus-node-exporter` is ignored.
+   - Writes `/usr/local/sbin/mawareeth-node-exporter` and the drop-in `/etc/systemd/system/prometheus-node-exporter.service.d/10-mawareeth.conf` (`After=tailscaled.service`, `Restart=always`, `RestartSec=15`). The wrapper reads `tailscale ip -4` and starts the exporter with `--web.listen-address=<that IP>:9100 --collector.textfile.directory=/var/lib/prometheus/node-exporter --collector.systemd`. The systemd collector (off by default in node_exporter) publishes `node_systemd_unit_state` for `MawareethSystemdUnitFailed`; its default exclude list already drops automount, device, mount, scope, and slice units. It adds about 5 series per unit (one per state), a few hundred on this host. Without a Tailscale IPv4 in `100.64.0.0/10` it exits 1 and systemd retries every 15 seconds. It never falls back to `0.0.0.0` or another address. The drop-in replaces the packaged `ExecStart`, so `ARGS` in `/etc/default/prometheus-node-exporter` is ignored.
    - Adds the UFW rule `allow in on tailscale0 from 100.64.0.0/10 to any port 9100 proto tcp`.
    - Writes `/etc/systemd/journald.conf.d/50-mawareeth.conf` (`SystemMaxUse=500M`, `SystemKeepFree=1G`, `MaxRetentionSec=30day`) and restarts journald.
    - Writes and enables `mawareeth-monitor-collect.{service,timer}` (`OnCalendar=*:0/5`, `Persistent=true`) and publishes the first metrics.
 
-   Re-run `install` after moving the checkout.
+   Re-run `install` after moving the checkout. Re-running it also upgrades a host whose wrapper predates a flag (such as `--collector.systemd`): it rewrites the wrapper and restarts the exporter.
 2. **Join the tailnet interactively.** Run `sudo tailscale up --hostname=mawareeth-prod` and open the printed login URL as an SCDF tailnet admin. Never pass an auth key on the command line, and never put one in this repository, CI, or a log. In the Tailscale admin console, disable key expiry for this node, and restrict the tailnet ACL so that only `p1` may reach `mawareeth-prod:9100`. Then run `sudo systemctl restart prometheus-node-exporter` (otherwise it starts within 15 seconds anyway).
 3. **Check the host.** All of these must hold:
    - `tailscale ip -4` prints a `100.x` address.
    - `sudo ss -ltnp 'sport = :9100'` shows only that address, never `0.0.0.0` or `*`.
    - `sudo ufw status numbered` shows 9100/tcp only on `tailscale0` from `100.64.0.0/10`.
    - `curl -s http://$(tailscale ip -4):9100/metrics | grep '^mawareeth_'` lists the eight metrics.
+   - `curl -s http://$(tailscale ip -4):9100/metrics | grep -c '^node_systemd_unit_state'` prints a number above 0 (the systemd collector is on).
+   - `curl -s http://$(tailscale ip -4):9100/metrics | grep -oE '^node_(vmstat_oom_kill|timex_sync_status|filesystem_files|filesystem_readonly)' | sort -u` prints all four names (the host-health rules need them).
    - `systemctl list-timers mawareeth-monitor-collect.timer` shows the timer.
 
 **Collector.** `monitor.sh collect` runs every 5 minutes. It reads `<state dir>/backup/last-backup` and `restore-verified` with the same strict reader as `backup.sh gate`: root-owned, mode 0600, `key=value` lines. It then atomically writes `/var/lib/prometheus/node-exporter/mawareeth.prom` (0644). That file holds these gauges:
@@ -308,17 +310,18 @@ Ask before changing anything on `p1`. Merge the three snippets under `deploy/mon
 1. Add the `mawareeth-node` job from `prometheus-scrape.yml` to `scrape_configs`, with `<tailscale-ip>` replaced by the host's `tailscale ip -4`. The job carries the labels `alias=mawareeth-prod` and `project=mawareeth`.
 2. Copy `mawareeth-alerts.yml` next to SCDF's rule files and list it under `rule_files`.
 3. From `alertmanager-route.yml`:
-   - Add the `project="mawareeth"` route as the **first** child of `route.routes`, so no catch-all takes it.
+   - Add both routes, in the snippet's order, as the **first** children of `route.routes`, so no catch-all takes them: the `alertname="MawareethWatchdog"` route first, then the `project="mawareeth"` route. The Watchdog route must come first, because the project route would otherwise email it.
    - Add the `mawareeth-email` receiver, with `${SMTP_TO}` set to the same address SCDF's receiver uses. SMTP host and credentials come from `p1`'s existing `global.smtp_*` settings and never from this repository.
-   - Add both `inhibit_rules`.
+   - Add the `mawareeth-heartbeat` receiver, with `${MAWAREETH_HEARTBEAT_URL}` set to the heartbeat URL from [Better Stack heartbeat](#better-stack-heartbeat), substituted the same way as `${SMTP_TO}`. The URL works as a secret: keep it only in `p1`'s generated config and the operator's password manager, never in this repository, CI, or a log.
+   - Add both `inhibit_rules`. The `MawareethHostDown` inhibit excludes `MawareethWatchdog`, because the heartbeat tests `p1`, not this host.
 
-   Emails arrive with the subject `[MAWAREETH <severity>] <alertname>`.
-4. Validate before reloading. Alertmanager does not expand environment variables, so `grep -n '\${' alertmanager.yml` must print nothing: no literal `${SMTP_TO}` or other `${...}` may remain. Then run `promtool check config prometheus.yml`, `promtool check rules mawareeth-alerts.yml`, `amtool check-config alertmanager.yml`, and `amtool config routes test --config.file=alertmanager.yml --verify.receivers=mawareeth-email project=mawareeth`. Then reload both services. Under Prometheus → Targets, `mawareeth-node` must be `UP`.
+   Emails arrive with the subject `[MAWAREETH <severity>] <alertname>`. The Watchdog is never emailed: its route POSTs to the heartbeat about every 1-2 minutes (`group_wait: 0s`, `group_interval: 1m`, `repeat_interval: 1m`, `send_resolved: false`).
+4. Validate before reloading. Alertmanager does not expand environment variables, so `grep -n '\${' alertmanager.yml` must print nothing: no literal `${SMTP_TO}`, `${MAWAREETH_HEARTBEAT_URL}`, or other `${...}` may remain. Then run `promtool check config prometheus.yml`, `promtool check rules mawareeth-alerts.yml`, `amtool check-config alertmanager.yml`, `amtool config routes test --config.file=alertmanager.yml --verify.receivers=mawareeth-email project=mawareeth`, and `amtool config routes test --config.file=alertmanager.yml --verify.receivers=mawareeth-heartbeat alertname=MawareethWatchdog project=mawareeth`. Then reload both services. Under Prometheus → Targets, `mawareeth-node` must be `UP`, and within a few minutes the Better Stack heartbeat must show as up.
 5. **If the Tailscale IPv4 changes.** It stays fixed while the node keeps its registration. If the node re-registers with Tailscale (for example after a logout, key expiry, or rebuild) and `tailscale ip -4` changes, update the `<tailscale-ip>` target in p1's scrape job and reload Prometheus, then run `sudo systemctl restart prometheus-node-exporter` on this host. A running exporter does not rebind on its own.
 
 | Alert | Fires when | Severity |
 |-------|-----------|----------|
-| `MawareethHostDown` | `up == 0`, or no `up` series at all (the scrape job is missing or renamed), for 2 minutes; inhibits every other Mawareeth alert | critical |
+| `MawareethHostDown` | `up == 0`, or no `up` series at all (the scrape job is missing or renamed), for 2 minutes; inhibits every other Mawareeth alert except `MawareethWatchdog` | critical |
 | `MawareethBackupUnhealthy` | Last backup not `ok`, record unusable, last success older than 26 hours, or more than 5 minutes in the future (clock skew, which also closes `backup.sh gate`) | critical |
 | `MawareethBackupIncomplete` | The last backup is `ok` but its record does not name both a `host-state.tar` and a `globals.sql` snapshot (`mawareeth_backup_last_archives_complete == 0 and mawareeth_backup_last_result_ok == 1`), or the archives metric is absent while the last result is `ok`; a failed or unusable record is `MawareethBackupUnhealthy` instead | warning |
 | `MawareethRestoreUnhealthy` | Last restore check not `pass`, record unusable, last pass older than 35 days, or more than 5 minutes in the future | critical |
@@ -327,6 +330,13 @@ Ask before changing anything on `p1`. Merge the three snippets under `deploy/mon
 | `MawareethCollectorStale` | `mawareeth.prom` older than 20 minutes, absent, or unparseable (`node_textfile_scrape_error == 1`) | warning |
 | `MawareethAlertDrill` | An alert-path drill is active (`mawareeth_drill_active_code > 0`); fires at once and carries the code in its summary | info |
 | `MawareethDrillOverdue` | The last passed drill is older than 92 days, none has passed (or the drill record is unusable), the metric is absent, or it is more than 5 minutes in the future | warning |
+| `MawareethInodesLow` | An ext4/xfs/btrfs filesystem with more than 85% of its inodes used for 5 minutes; a filesystem reporting no inode count (`node_filesystem_files == 0`, as btrfs does) never fires | critical |
+| `MawareethFilesystemReadOnly` | An ext4/xfs/btrfs filesystem read-only (`node_filesystem_readonly == 1`) for 2 minutes | critical |
+| `MawareethMemoryPressure` | `MemAvailable` below 10% of `MemTotal`, or more than 50% of swap used (only when `SwapTotal > 0`), for 10 minutes | warning |
+| `MawareethOOMKill` | The kernel OOM killer ran within the last 10 minutes (`increase(node_vmstat_oom_kill[10m]) > 0`); fires at once and resolves 10 minutes after the last kill | warning |
+| `MawareethSystemdUnitFailed` | A systemd unit in the `failed` state for 5 minutes (labelled with the unit `name`), or no `node_systemd_unit_state` series at all for 5 minutes (the exporter runs without `--collector.systemd`; the alert then has no `name`) | warning |
+| `MawareethClockUnsynced` | `node_timex_sync_status == 0`, or `abs(node_timex_offset_seconds) > 0.5`, for 10 minutes | warning |
+| `MawareethWatchdog` | Always (`vector(1)`). Routed only to the `mawareeth-heartbeat` webhook, never emailed, never inhibited; see [Better Stack heartbeat](#better-stack-heartbeat) | heartbeat |
 
 `deploy/tests/test_monitor.sh` unit-tests these rules with `promtool test rules` and checks the route snippet with `amtool check-config` and `amtool config routes test`. Those checks run only when `promtool` and `amtool` are installed (otherwise only static checks run); with `CI` set, a missing tool fails the suite. The end-to-end path is proven by the operator's [alert-path drill](#alert-path-drill), which must pass before cutover and then every quarter.
 
@@ -340,8 +350,27 @@ Create one Better Stack Uptime monitor:
 - Type "URL returns a status code", URL `https://DOMAIN/health/ready/`, expected status 200.
 - Check frequency 3 minutes, confirmation period 3 minutes (so two failed checks in a row alert), request timeout 15 seconds.
 - Email notification to the same `SMTP_TO` address, with the monitor name prefixed `MAWAREETH`.
+- Under the monitor's advanced settings, enable SSL certificate expiration and domain expiration notifications (Better Stack's default lead times are fine). These catch a certificate Caddy failed to renew and a lapsing domain registration before the readiness check does.
 
 `/health/ready/` returns 200 only when PostgreSQL answers and the schema is current. Otherwise it returns 503 with no diagnostics, so a down edge, a dead slot, or a broken database all alert. Keep the Better Stack account credentials in the operator's password manager. Better Stack needs no host change: it reaches the public HTTPS edge.
+
+### Better Stack heartbeat
+
+The heartbeat is the dead-man's switch for `p1`. `MawareethWatchdog` always fires, and Alertmanager POSTs it to the heartbeat URL about every 1-2 minutes. If `p1`'s Prometheus stops evaluating rules, its Alertmanager stops sending, or `p1` loses its outbound path, the pings stop and Better Stack alerts on its own. Create it by hand in the Better Stack dashboard (nothing here calls Better Stack's API):
+- A heartbeat monitor named with the prefix `MAWAREETH` (for example `MAWAREETH p1 alert path`).
+- Expected period 5 minutes, grace period 5 minutes. A ping every 1-2 minutes stays well inside that window, so only a real stop alerts.
+- Email notification to the same `SMTP_TO` address.
+
+Copy the heartbeat URL Better Stack shows into the operator's password manager and substitute it for `${MAWAREETH_HEARTBEAT_URL}` on `p1` (see [Wiring `p1`](#wiring-p1)). Never commit it: anyone holding it can send pings and hide an outage. `deploy/tests/test_monitor.sh` fails if a Better Stack heartbeat URL appears anywhere in the repository.
+
+**One-time launch check (prove it pages).** After wiring `p1`:
+1. On `p1`, add an Alertmanager silence matching `alertname="MawareethWatchdog"` (or pause the pings another way) for longer than period plus grace, say 15 minutes.
+2. Confirm Better Stack marks the heartbeat down and emails `SMTP_TO`.
+3. Expire the silence and confirm the heartbeat recovers within a few minutes.
+
+**Silences and planned downtime.** An Alertmanager silence that matches `project="mawareeth"` also silences `MawareethWatchdog`, so Better Stack pages. Maintenance silences must add `alertname!="MawareethWatchdog"`. A planned `p1` restart or outage longer than the grace period also trips the heartbeat: pause the heartbeat in Better Stack first and resume it afterwards.
+
+What the heartbeat covers: `p1`'s Prometheus (rule evaluation), its Alertmanager (routing and sending), and `p1`'s reachability from the internet. What it does not cover: the SMTP relay. A broken relay leaves the heartbeat green while alert emails stop. That gap stays covered only by the quarterly [alert-path drill](#alert-path-drill); there is deliberately no alert on `alertmanager_notifications_failed_total`. The heartbeat also does not watch this host: a dead Mawareeth host is `MawareethHostDown`, and Better Stack's uptime probe covers the public edge.
 
 ### Alert-path drill
 
@@ -380,7 +409,7 @@ Keep the two emails (drill firing and resolved) and the Better Stack test notifi
 1. Check from `p1` with `tailscale ping mawareeth-prod`.
 2. If Tailscale answers, SSH in and check `systemctl status prometheus-node-exporter tailscaled`, then `journalctl -u prometheus-node-exporter -n 50`. "no Tailscale IPv4 address" means Tailscale is logged out: run `sudo tailscale up` interactively. If the address changed, update p1's scrape target (see [Wiring `p1`](#wiring-p1)).
 3. If nothing answers, check the server in the Hetzner console (power, CPU, rescue) and whether Better Stack is also alerting.
-4. While this fires, the other Mawareeth alerts are suppressed. Re-check them after recovery.
+4. While this fires, the other Mawareeth alerts (except `MawareethWatchdog`) are suppressed. Re-check them after recovery.
 
 <a id="runbook-mawareethbackupunhealthy"></a>
 **MawareethBackupUnhealthy.**
@@ -427,6 +456,50 @@ This alert is expected right after the change that added `globals.sql` ships, un
 2. `(absent: no drill has run)` or `last_result=aborted` with no `last_pass_at` means the launch drill has not passed yet. Run the [alert-path drill](#alert-path-drill).
 3. `(unusable ...)` means the record is not `root:root` 0600 or is malformed. Inspect it with `sudo ls -l <state dir>/monitor/` and `sudo cat <state dir>/monitor/drill`, move it aside, and run the drill again.
 4. A `last_pass_at` more than 92 days old means the quarterly drill is due. A pass dated in the future means the host clock is wrong: fix time sync first.
+
+<a id="runbook-mawareethinodeslow"></a>
+**MawareethInodesLow.**
+1. Run `df -i` to confirm the filesystem, then find the directory with the most files: `sudo du -x --inodes --max-depth=3 <mountpoint> | sort -n | tail`.
+2. Usual causes are many small files: leftover deploy or backup logs under `<state dir>`, Docker build cache or image layers (`docker system df`), and stale temporary files.
+3. Prune deliberately (`docker builder prune`, old logs; never volumes). Once inodes run out, file creation fails even with free bytes, so backups and deploys fail too.
+
+<a id="runbook-mawareethfilesystemreadonly"></a>
+**MawareethFilesystemReadOnly.**
+1. Run `findmnt -o TARGET,SOURCE,FSTYPE,OPTIONS <mountpoint>` and `sudo dmesg -T | grep -iE 'ext4|xfs|btrfs|I/O error|remount' | tail -n 30`. A kernel remount after an I/O or filesystem error is the usual cause.
+2. Stop accepting writes: `backup.sh` and deploys will fail. Do not try `mount -o remount,rw` before you know the cause.
+3. Check the volume in the Hetzner console. Plan a maintenance window to run `fsck` from rescue mode (or replace the volume), then verify with `sudo deploy/backup.sh backup` and `sudo deploy/backup.sh verify-restore`.
+
+<a id="runbook-mawareethmemorypressure"></a>
+**MawareethMemoryPressure.**
+1. Run `free -m`, `docker stats --no-stream`, and `ps -eo pid,comm,rss --sort=-rss | head`.
+2. Usual causes are both app slots running after an interrupted deploy (check `deploy/runtime.sh status` as in [Private Compose runtime](#private-compose-runtime)), a PostgreSQL query or a restore check, or a leak in the app.
+3. If pressure is structural, plan a resize in the maintenance window. Watch for `MawareethOOMKill`.
+
+<a id="runbook-mawareethoomkill"></a>
+**MawareethOOMKill.**
+1. Run `sudo journalctl -k --since -30min | grep -i -A5 'out of memory'` to see which process was killed, then `docker ps -a` for containers that exited or restarted.
+2. Check that the app slot and PostgreSQL are healthy (`deploy/runtime.sh status`, `curl -s https://DOMAIN/health/ready/`). A killed PostgreSQL backend can leave the app erroring until it recovers.
+3. Then follow the [memory runbook](#runbook-mawareethmemorypressure). The alert resolves 10 minutes after the last kill.
+
+<a id="runbook-mawareethsystemdunitfailed"></a>
+**MawareethSystemdUnitFailed.**
+1. With a `name` label: run `systemctl status <name>` and `journalctl -u <name> -n 100`. Fix the cause, then `sudo systemctl reset-failed <name>` (and restart it if it should be running). The Mawareeth units (`mawareeth-backup`, `mawareeth-restore-check`, `mawareeth-monitor-collect`) have their own runbooks above.
+2. Without a `name` label: no `node_systemd_unit_state` series reaches `p1`, so the exporter runs without the systemd collector (a wrapper from before `--collector.systemd`). Run `sudo deploy/monitor.sh install` again, then check `curl -s http://$(tailscale ip -4):9100/metrics | grep -c '^node_systemd_unit_state'`. If it is still 0, check `journalctl -u prometheus-node-exporter -n 50` for D-Bus errors.
+3. `systemctl --failed` lists every failed unit on the host.
+
+<a id="runbook-mawareethclockunsynced"></a>
+**MawareethClockUnsynced.**
+1. Run `timedatectl status` and `timedatectl timesync-status` (or `chronyc tracking` if chrony is installed).
+2. Make sure exactly one time daemon is active and can reach its NTP servers (UDP 123 outbound), then restart the one in use: `sudo systemctl restart systemd-timesyncd` for systemd-timesyncd, or `sudo systemctl restart chrony` for chrony.
+3. A wrong clock also skews the backup, restore, and drill age rules (and may close `backup.sh gate` as future-dated). Re-check those alerts once the clock is synchronised.
+
+<a id="runbook-mawareethwatchdog"></a>
+**MawareethWatchdog.**
+This alert always fires by design and is never emailed. If an email for it arrives, the `mawareeth-heartbeat` route is missing or below the project route on `p1`: fix the order (see [Wiring `p1`](#wiring-p1)). If Better Stack reports the heartbeat down:
+1. On `p1`, check that Prometheus and Alertmanager are running and that Prometheus → Alerts shows `MawareethWatchdog` firing.
+2. Check Alertmanager's log for webhook errors to the heartbeat URL, and that `p1` can reach Better Stack over HTTPS.
+3. Check that the substituted URL in `p1`'s `alertmanager.yml` matches the heartbeat in Better Stack (a regenerated config may have lost it).
+4. While the heartbeat is down, no Mawareeth host alert is trustworthy. Check the host by hand (`sudo deploy/backup.sh status`, `sudo deploy/monitor.sh status`, `df -h`).
 
 ## Immutable release artifacts
 

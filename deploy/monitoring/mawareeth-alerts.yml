@@ -5,7 +5,12 @@
 # annotation pointing at the matching README runbook. Staleness is judged here
 # with time() - metric, so the host-side collector never compares clocks. The
 # drill rules carry the operator alert-path drill (deploy/README.md,
-# "Alert-path drill").
+# "Alert-path drill"). The host-health rules (inodes, read-only filesystems,
+# memory, OOM kills, failed systemd units, clock sync) read node_exporter's
+# built-in collectors; the failed-unit rule needs the systemd collector that
+# monitor.sh install enables. MawareethWatchdog always fires: Alertmanager
+# sends it to the Better Stack heartbeat (dead-man's switch for p1's
+# Prometheus and Alertmanager), never to email.
 groups:
   - name: mawareeth
     rules:
@@ -17,7 +22,7 @@ groups:
           project: mawareeth
         annotations:
           summary: 'Mawareeth host {{ $labels.alias }} is not answering scrapes over Tailscale'
-          description: 'Prometheus on p1 has not scraped {{ $labels.instance }} for 2 minutes, or the mawareeth-node job is missing. Other Mawareeth alerts are inhibited while this fires.'
+          description: 'Prometheus on p1 has not scraped {{ $labels.instance }} for 2 minutes, or the mawareeth-node job is missing. Other Mawareeth alerts except the Watchdog are inhibited while this fires.'
           runbook: 'deploy/README.md#runbook-mawareethhostdown'
 
       - alert: MawareethBackupUnhealthy
@@ -121,3 +126,87 @@ groups:
           summary: 'Mawareeth alert-path drill is overdue, has never passed, or is future-dated'
           description: 'The last passed alert-path drill is older than 92 days, none has passed (or the drill record is unusable), the metric is missing from mawareeth.prom, or it is more than 5 minutes in the future (clock skew). Run the quarterly drill.'
           runbook: 'deploy/README.md#runbook-mawareethdrilloverdue'
+
+      - alert: MawareethInodesLow
+        expr: |
+          100 * (1 - node_filesystem_files_free{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"}
+            / (node_filesystem_files{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"} > 0)) > 85
+        for: 5m
+        labels:
+          severity: critical
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth filesystem {{ $labels.mountpoint }} has {{ $value | printf "%.0f" }}% of its inodes used (critical above 85%)'
+          description: 'Filesystem {{ $labels.mountpoint }} on {{ $labels.alias }} has had more than 85% of its inodes in use for 5 minutes; file creation fails once they run out, even with free bytes. Filesystems without a fixed inode count (btrfs reports 0) never fire.'
+          runbook: 'deploy/README.md#runbook-mawareethinodeslow'
+
+      - alert: MawareethFilesystemReadOnly
+        expr: node_filesystem_readonly{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"} == 1
+        for: 2m
+        labels:
+          severity: critical
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth filesystem {{ $labels.mountpoint }} is mounted read-only'
+          description: 'Filesystem {{ $labels.mountpoint }} on {{ $labels.alias }} has been read-only for 2 minutes, usually after the kernel remounted it on an I/O or filesystem error. Writes, backups, and deploys fail.'
+          runbook: 'deploy/README.md#runbook-mawareethfilesystemreadonly'
+
+      - alert: MawareethMemoryPressure
+        expr: |
+          node_memory_MemAvailable_bytes{job="mawareeth-node"} / node_memory_MemTotal_bytes{job="mawareeth-node"} < 0.10
+            or (1 - node_memory_SwapFree_bytes{job="mawareeth-node"}
+              / (node_memory_SwapTotal_bytes{job="mawareeth-node"} > 0)) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth host {{ $labels.alias }} is short of memory'
+          description: 'For 10 minutes MemAvailable has been below 10% of MemTotal, or more than half of the swap space has been in use (a host without swap only checks MemAvailable).'
+          runbook: 'deploy/README.md#runbook-mawareethmemorypressure'
+
+      - alert: MawareethOOMKill
+        expr: increase(node_vmstat_oom_kill{job="mawareeth-node"}[10m]) > 0
+        labels:
+          severity: warning
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth host {{ $labels.alias }} OOM-killed a process'
+          description: 'The kernel OOM killer ran on {{ $labels.alias }} within the last 10 minutes. This resolves after 10 minutes without another kill.'
+          runbook: 'deploy/README.md#runbook-mawareethoomkill'
+
+      - alert: MawareethSystemdUnitFailed
+        expr: |
+          node_systemd_unit_state{job="mawareeth-node",state="failed"} == 1
+            or absent(node_systemd_unit_state{job="mawareeth-node"})
+        for: 5m
+        labels:
+          severity: warning
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth: {{ if $labels.name }}unit {{ $labels.name }} failed on {{ $labels.alias }}{{ else }}no node_systemd_unit_state series (systemd collector off; re-run monitor.sh install){{ end }}'
+          description: 'A systemd unit has been in the failed state for 5 minutes, or no node_systemd_unit_state series has been scraped for 5 minutes (the exporter runs without --collector.systemd; re-run monitor.sh install).'
+          runbook: 'deploy/README.md#runbook-mawareethsystemdunitfailed'
+
+      - alert: MawareethClockUnsynced
+        expr: |
+          node_timex_sync_status{job="mawareeth-node"} == 0
+            or abs(node_timex_offset_seconds{job="mawareeth-node"}) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth host {{ $labels.alias }} clock is not synchronised'
+          description: 'For 10 minutes the kernel has reported the clock as unsynchronised, or its offset has exceeded 0.5 seconds. A drifting clock also skews the backup, restore, and drill age rules.'
+          runbook: 'deploy/README.md#runbook-mawareethclockunsynced'
+
+      - alert: MawareethWatchdog
+        expr: vector(1)
+        labels:
+          severity: heartbeat
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth alert-path heartbeat (always firing)'
+          description: 'This alert always fires. Alertmanager on p1 sends it to the Better Stack heartbeat about every 1-2 minutes; Better Stack alerts when the pings stop, which means p1 Prometheus, Alertmanager, or their outbound path stopped. It is never emailed and never inhibited.'
+          runbook: 'deploy/README.md#runbook-mawareethwatchdog'
