@@ -160,3 +160,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-monitoring-gaps.md`
   summary: Decide whether `MawareethMemoryPressure`'s swap branch (more than 50% of swap used for 10m) should use swap activity (`rate(node_vmstat_pswpin/pswpout)`) or memory PSI instead, since Linux does not free swap after pressure passes.
   evidence: Review found that a host can stay above 50% swap used long after pressure ends, which gives a warning that never resolves; the approved matrix specifies used-swap, so changing it needs a decision. Hetzner Ubuntu images ship without swap, so the branch is dormant until swap is added.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-9-rehearse-capacity-restore-and-cutover.md`
+  summary: Separate rehearsal and production cutover evidence in `deploy/rehearse.sh` (a run identifier or an `archive`/`reset` subcommand for `<state dir>/rehearsal/`) so story 0.10's `report` cannot mix rehearsal marks, import, and capacity files with production ones.
+  evidence: Review of 0.9 found that both runs share one evidence directory and `mark` silently replaces earlier marks; the freshness and coherence checks added in review narrow the risk but do not give 0.10 a clean, auditable production record.
+- source_spec: `_bmad-output/implementation-artifacts/spec-0-9-rehearse-capacity-restore-and-cutover.md`
+  summary: Make `rehearse.sh capacity` detect a dropped operator SSH session (stdin EOF before the load summary, or a liveness check) and stop the extra slot promptly instead of sampling until the planned end.
+  evidence: Review of 0.9 noted that without a pty a dropped SSH connection may deliver no SIGHUP, so the idle slot keeps running until sampling ends and the run then fails `fail:load`; the slot is still stopped eventually, so this is a promptness gap, not a safety one.

@@ -262,7 +262,7 @@ For a real recovery (a rebuilt host, or a deliberate data rollback), run as root
 ### Known limits (deferred)
 
 - The host holds the repository password and an SSH key with write access, so a compromised host can delete or prune the backups; the repository is not append-only (append-only or object-locked storage is deferred).
-- Only the application database is restored and verified. Roles and other cluster globals are archived as `globals.sql` but are never restored automatically (restores use `--no-owner --no-acl`; see the runbook), and host state is archived only partly: `host-state.tar` holds `runtime.env`, slot records, routes, and the snapshots the records name, but not the deploy journal or the other `/etc/mawareeth` secrets (keep those in escrow). Restoring host state is a manual runbook step (no automated command); host rebuild is story 0.9.
+- Only the application database is restored and verified. Roles and other cluster globals are archived as `globals.sql` but are never restored automatically (restores use `--no-owner --no-acl`; see the runbook), and host state is archived only partly: `host-state.tar` holds `runtime.env`, slot records, routes, and the snapshots the records name, but not the deploy journal or the other `/etc/mawareeth` secrets (keep those in escrow). Restoring host state is a manual runbook step (no automated command), and so is a full host rebuild: story 0.9 rehearses only the data restore and the cutover ([Cutover rehearsal](#cutover-rehearsal)).
 - The host-state archive is taken without the deploy lock. A deploy that overlaps the nightly backup can change a record, route, or snapshot while it is read and fail that night's run (`failed:host-state`); rerun `backup.sh backup` after the deploy.
 - The checksum reads and detoasts every row of every table, so it lengthens both the nightly snapshot transaction (and with it how long old row versions are held) and the restore check, roughly in proportion to the database size. Columns whose text differs between clusters for identical data, such as `oid` or `reg*` columns or large-object references, would report `checksum-mismatch` after a correct restore; Django's schema has none, so a new table with such a column needs this revisited.
 - Content checksums detect corruption, not tampering (a sum of 64-bit hash prefixes); the archive's integrity rests on Restic's authenticated encryption. Runs from before content checksums are verified on counts alone. No application-level check (such as `manage.py migrate --check`) runs against the restored database: it would need networking and runtime secrets in the throwaway, and the checksums already cover `django_migrations` content exactly.
@@ -551,6 +551,186 @@ Changing the Caddyfile on a running host takes effect only after Caddy reloads i
 On the host, `sudo ufw status numbered` must show TCP 22 only from the configured CIDRs and TCP 80/443 only; it must not show app, Docker, or PostgreSQL ports. In Hetzner, inspect the attached edge firewall for the same allow-list. Confirm `sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|pubkeyauthentication'`, `docker --version`, `docker compose version`, `stat -c '%U %G %a' /etc/mawareeth/runtime.env`, and `hcloud server describe SERVER` (deletion protection). Public checks must find only ports 80 and 443; port 22 is reachable only from an approved source.
 
 Also confirm the Docker-port backstop is active and in effect: `systemctl is-active mawareeth-docker-firewall.service` must report `active`, and `sudo iptables -L DOCKER-USER -n` (plus `sudo ip6tables -L DOCKER-USER -n` where IPv6 is enabled) must show only the established-traffic accept, the 80/443 accept, and the trailing drop. Docker recreates its own chain independently of `ufw`, so the unit declares `BindsTo=docker.service` and `PartOf=docker.service` and is installed into `docker.service.wants`: it stops with Docker for any reason (including a crash) and reapplies the rules whenever Docker starts or restarts. `systemctl show -p BindsTo,PartOf,WantedBy mawareeth-docker-firewall.service` must list `docker.service`; on a host bootstrapped before this was added, rerun `bootstrap-host.sh` (idempotent) to install the updated unit. The same checks still apply after a `systemctl restart docker`.
+
+## Cutover rehearsal
+
+`deploy/rehearse.sh` collects the evidence story 0.10 needs before go-live: how long the Heroku data move takes, whether that fits the 20-minute write-freeze budget, whether the CX33 holds both slots under load, and whether recovery is proven. `deploy/rehearsal.py` (standard library only) samples the host, evaluates the samples, and generates the workstation load. Run every `rehearse.sh` command as root on the host.
+
+The rehearsal copies live Heroku **read only**: one snapshot, no maintenance mode, no writes, and production DNS untouched. DNS is rehearsed on a throwaway name such as `rehearsal.mawareeth.com`, switched Heroku → Hetzner → Heroku to time propagation and the rollback. During the rehearsal the host's `DOMAIN` in `runtime.env` is that throwaway name, so Caddy gets a certificate for it.
+
+| Command | What it does |
+|---------|--------------|
+| `import [--freeze-marked] [--extensions-created]` | Copies Heroku's `public` schema into the empty private PostgreSQL in one transaction and checks it against the source |
+| `mark PHASE` | Records a manual cutover phase |
+| `capacity [--minutes N]` | Runs both slots and samples the host while the workstation load runs (default 30 minutes) |
+| `report` | Combines the evidence into a gate verdict and picks the cutover path |
+
+**Safety rules.**
+
+- `rehearse.sh` never switches the route, DNS, or Heroku maintenance mode.
+- `import` refuses unless the target database holds no user objects (relations, sequences, views, types, or functions outside the system schemas, apart from objects an extension owns) and neither application slot is running.
+- `import` and `capacity` both hold the deploy lock and the backup lock.
+- `capacity` starts only the idle slot, from its own slot record, and stops it on every exit path, including a signal.
+
+### Source credentials
+
+1. On the workstation, run `heroku pg:credentials:url DATABASE --app HEROKU_APP`. Do not save or paste its output anywhere else.
+2. On the host, write the connection values into `/etc/mawareeth/heroku-source.env` with `sudoedit` (`root:root` mode 0600). The file uses the same strict raw `KEY=VALUE` format as `runtime.env`, one key per line, and must contain exactly `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD`:
+
+   ```text
+   PGHOST=ec2-0-0-0-0.compute-1.amazonaws.com
+   PGPORT=5432
+   PGDATABASE=...
+   PGUSER=...
+   PGPASSWORD=...
+   ```
+
+   Never put a URL, the password, or the file in the repository, CI, a command line, or a log.
+
+The file goes to the pinned `POSTGRES_IMAGE` client (17.11) only through `docker run --env-file`.
+
+**These are the application's own read-write credentials.** Heroku's essential plans cannot create a read-only credential (`heroku pg:credentials:create` needs Standard or higher). Every source session is therefore held read only by the session itself:
+
+- `PGOPTIONS=-c default_transaction_read_only=on`;
+- a `BEGIN ... READ ONLY` snapshot transaction;
+- `pg_dump`'s own read-only transaction;
+- `PGSSLMODE=require`.
+
+Session timeouts are disabled (`idle_in_transaction_session_timeout=0`, `statement_timeout=0`), so the snapshot transaction survives the whole dump.
+
+Heroku rotates the credentials when the database is re-provisioned and on `heroku pg:credentials:rotate`. Delete the file once story 0.10 is finished.
+
+**Impact on live Heroku.** The import holds one `REPEATABLE READ` snapshot open on the production database for its whole duration: the count pass, the dump, and the sequence read. It also reads and detoasts every row twice, once for the checksums and once for the dump. While the snapshot is open, vacuum cannot remove row versions newer than it. Run the rehearsal at a quiet hour, and expect extra load on the essential-1 plan.
+
+### Rehearsal sequence
+
+Do this on a prepared host (`runtime.sh prepare`, PostgreSQL running, an **empty** database, both slots stopped), with backups configured.
+
+1. **Lower the TTL.** Set the TTL of the throwaway record to 60 seconds (and, for 0.10, the TTL of `mawareeth.com` and `www`). Wait at least the old TTL, then run `sudo deploy/rehearse.sh mark ttl-lowered`.
+2. **Import.** Run `sudo deploy/rehearse.sh import`.
+   - It opens one `REPEATABLE READ, READ ONLY` session on Heroku and exports its snapshot.
+   - It refuses (exit 2, nothing written, each finding named) a source that:
+     - runs a major other than 17;
+     - has user tables outside `public`;
+     - holds large objects (`pg_largeobject_metadata`);
+     - uses extensions other than `plpgsql`;
+     - lacks `public.django_migrations`.
+   - **Extensions.** `pg_dump --schema=public` does not create extensions. Create each named extension on the target first, in the same schema as on Heroku. For Heroku's `heroku_ext`, that means `CREATE SCHEMA heroku_ext; CREATE EXTENSION <name> SCHEMA heroku_ext;`. Then rerun with `import --extensions-created`, which checks that the target has every one of them.
+   - It counts and checksums every source table inside the snapshot, using the queries from `backup.sh`.
+   - It streams `pg_dump -Fc --no-owner --no-acl --schema=public --snapshot=<id>` straight into `pg_restore --exit-on-error --single-transaction --no-owner --no-acl --schema=public`.
+     - The dump never touches the disk.
+     - `--schema=public` on the restore side skips the dump's `CREATE SCHEMA public`, which would otherwise fail against the existing schema.
+     - `--single-transaction` rolls back a failed restore, so `fail:restore` leaves the target empty.
+   - It then compares the target's counts and checksums with the source's.
+   - Before committing the snapshot transaction, it reads the `last_value` and `is_called` of every `public` sequence in the source session, and compares them with the target's. Sequences are not transactional, so a write on live Heroku during a rehearsal import can move one and fail the run with `fail:compare`. Under the 0.10 write freeze the comparison is exact.
+   - Differing tables and sequences are named, and the full diff goes to the root-only log.
+   - Finally it runs `ANALYZE` on the target (`analyze_seconds`).
+
+   A rehearsal simulates `freeze-start` at the moment the import starts (written once the source checks pass).
+3. **Deploy and validate.** Run `release.sh deploy` with the release manifest. It applies the migrations; `rehearse.sh` has no migrate step. Validate the application through the edge, then run `sudo deploy/rehearse.sh mark validated`.
+4. **Switch DNS.** Point the throwaway record at the host. When it resolves to Hetzner from outside, run `mark dns-switched`.
+5. **Capacity, while the throwaway record still points at the host** (between `dns-switched` and `dns-rolled-back`). Deploy a second release first, so that both slots have a slot record. Then run from the workstation, with the host's public IPv4 as `HOST_IP`:
+
+   ```console
+   python3 deploy/rehearsal.py loadgen --url https://rehearsal.mawareeth.com --expect-address HOST_IP \
+       --concurrency 20 --minutes 32 --path / --path /health/ready/ \
+     | ssh admin@HOST sudo /srv/mawareeth/deploy/rehearse.sh capacity --minutes 30
+   ```
+
+   - Use the absolute path of the host's deployment checkout. The administrator needs passwordless `sudo` for this command, because `sudo` cannot prompt while the pipe feeds standard input.
+   - `--expect-address` is required. The load generator refuses (exit 2) unless the URL's host currently resolves to that address, so the load reaches the host and not Heroku.
+   - It sends only `GET` (or `HEAD` with `--method HEAD`). Add a `--path` for each representative page.
+   - It prints its summary on standard output: requests, errors, `p95_ms` over the answered requests, the actual `seconds`, `requests_per_second`, and the `started_epoch` and `finished_epoch` of the load.
+   - `capacity` starts the idle slot and keeps the route on the active one. It samples `/proc` every 15 seconds for 30 minutes and waits up to 15 minutes for the load summary on standard input. Then it stops the slot and evaluates the samples.
+   - The load must cover the whole sampling window: it must start at or before the first sample, finish at or after the last, and last at least the measured sampling duration minus one interval. Otherwise the run fails with `fail:load`. The load therefore runs 2 minutes longer than the sampling, and the workstation and host clocks must both be NTP-synchronised.
+   - Keep the SSH session open. A hangup ends the run (exit 129, slot stopped, `fail:interrupted`), and Ctrl-C on the workstation stops the load with a partial summary (exit 130).
+6. **Roll DNS back.** Mark `rollback-point` where 0.10 would first accept a write. Then point the record back at Heroku and run `mark dns-rolled-back` once it resolves there again.
+7. **Restore proof.** After the import, run `sudo deploy/backup.sh backup` and then `sudo deploy/backup.sh verify-restore` (story 0.7).
+8. **Report.** Run `sudo deploy/rehearse.sh report`.
+
+**Capacity thresholds** (architecture AD-2; changing them needs an explicit decision):
+
+- The run fails when the mean CPU exceeds 70% or the memory used exceeds 80% over any 15-minute window. Windows roll over the 15-second samples. CPU is the busy share of the jiffy delta. Memory used is `1 − MemAvailable/MemTotal`, averaged over the window.
+- It fails on any `pswpin`, `pswpout`, or `oom_kill` increase.
+- It fails when more than 1% of the load requests failed, or none were made.
+- It fails with fewer than 15 minutes of samples.
+
+A redirect counts as an answer and is not followed. Point `--url` at the canonical HTTPS origin.
+
+**The report and the gate.** `report` prints and writes `<state dir>/rehearsal/report`:
+
+- the import, capacity, and restore results (`import_dump_seconds`, `import_restore_seconds`, `import_compare_seconds`, `import_analyze_seconds`, the measured `capacity_duration_seconds`, the capacity peaks and load figures, the restore duration);
+- each mark and the phase durations (`phase_freeze_to_validated_seconds`, `phase_freeze_to_dns_seconds`, `phase_dns_rollback_seconds`, `phase_ttl_lead_seconds`);
+- the chosen `path`;
+- `gate=pass|unmet`.
+
+The path is `write-freeze` when `validated − freeze-start` ≤ 1200 s **and** `dns-switched − freeze-start` ≤ 1800 s; otherwise it is `replication`, which fails the gate (0.10 would then need a replication-based cutover, which is not built).
+
+**Size note.** The import is one `pg_dump -Fc` stream (no `-j`, which a streamed dump cannot use), restored in one transaction. Its duration grows with the database. The rehearsal's measured `phase_freeze_to_validated_seconds` decides: if it exceeds 20 minutes, the replication path is required.
+
+The gate also requires:
+
+- a passing import;
+- a passing capacity run with at least 1800 seconds of measured samples (`duration_seconds`, not the requested minutes), started after the import finished;
+- a passing `restore-verified` that is:
+  - verified after the import finished;
+  - no more than 35 days old;
+  - within RPO and RTO: `rpo_seconds` and `dump_age_seconds` ≤ 86400, `rto_seconds` and `duration_seconds` ≤ 14400 (non-negative integers);
+- all six marks, none in the future, in order:
+  - `ttl-lowered` ≤ `freeze-start` ≤ `validated` ≤ `dns-switched` ≤ `rollback-point` ≤ `dns-rolled-back`;
+  - `validated` ≤ `rollback-point`.
+
+Each unmet item is printed.
+
+| Exit | Meaning |
+|------|---------|
+| 0 | Success; for `report`, the gate passed |
+| 1 | `report`: the gate is not met |
+| 2 | Refused before anything was written. Causes: an invalid source file or configuration; a running slot; a non-empty target; non-public source tables, large objects, or uncreated extensions; a different source major; a stale or reused `--freeze-marked` mark; an unknown phase; or a missing slot record |
+| 3 | The deploy or backup lock is held |
+| 4 | `import` or `capacity` failed, and the evidence records `fail:<stage>`; or `mark` or `report` could not write its record. Import stages: `source`, `dump`, `restore`, `compare`, `analyze`. Capacity stages: `start`, `samples`, `load`, `load-errors`, `cpu`, `memory`, `swap`, `oom`, `insufficient-samples`, `stop` |
+| 129, 130, 143 | Hangup, interrupt, or termination. A run in progress records `fail:interrupted`; `import` removes its source containers, and `capacity` stops its slot |
+
+**Evidence.** `<state dir>/rehearsal/` (root 0700) holds the following 0600 `key=value` files, each written atomically:
+
+- `import` and `capacity`;
+- one `mark-<phase>` per mark (`mark` replaces an earlier one);
+- `report`;
+- the raw `capacity-samples.tsv`.
+
+Diagnostic logs go to `logs/`. Like the other logs, they are never rotated automatically.
+
+**Resetting the target to empty.** A failed restore is rolled back, but a passing import, or a dump that failed after `pg_restore` accepted its output, leaves data that `import` refuses to overwrite. On the rehearsal host, or on the production host before story 0.10 opens any write, first confirm that no slot is running (`deploy/runtime.sh status`) and that the data is disposable. Then run as root from the deployment checkout:
+
+```console
+PGU="$(sed -n 's/^POSTGRES_USER=//p' /etc/mawareeth/runtime.env)"; PGD="$(sed -n 's/^POSTGRES_DB=//p' /etc/mawareeth/runtime.env)"
+PGC="$(docker ps -q --filter label=com.docker.compose.project=mawareeth --filter label=com.docker.compose.service=postgres)"
+docker exec -i "$PGC" psql -X -v ON_ERROR_STOP=1 -U "$PGU" -d "$PGD" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION pg_database_owner; GRANT USAGE ON SCHEMA public TO PUBLIC;'
+```
+
+`PGC` must be exactly one container ID. The reset leaves extensions in other schemas in place. Never run it on a database that has accepted production writes.
+
+### Production cutover (story 0.10)
+
+This sequence is not run during the rehearsal. Every step against Heroku, DNS, or the production host needs its own approval.
+
+1. Lower the TTLs a day ahead.
+2. **Before the freeze:**
+   - stop both slots, but keep PostgreSQL running (not `runtime.sh down`, which stops it too): `for svc in app-blue app-green; do docker ps -q --filter label=com.docker.compose.project=mawareeth --filter label=com.docker.compose.service=$svc | xargs -r docker stop -t 35; done`;
+   - reset the target to empty with the commands above;
+   - confirm `sudo deploy/backup.sh gate`;
+   - run `sudo deploy/rehearse.sh report` and confirm that the rehearsal gate passed.
+3. **Freeze.** Run `heroku maintenance:on --app HEROKU_APP`, then immediately `sudo deploy/rehearse.sh mark freeze-start`.
+4. **Import.** Run `sudo deploy/rehearse.sh import --freeze-marked` (add `--extensions-created` if needed). It keeps the operator's `freeze-start`, and refuses a mark older than 30 minutes or older than the last import, such as one left by the rehearsal.
+5. **Deploy and validate.** Run `release.sh deploy` and validate through the edge with `--resolve` (DNS still points at Heroku). Then run `mark validated`. This must happen within 20 minutes of the freeze.
+6. **DNS.** Switch `mawareeth.com` and `www` to the host and run `mark dns-switched` within 30 minutes of the freeze.
+7. **Rollback point.** Until Hetzner accepts its first write, `heroku maintenance:off` plus DNS back to Heroku is lossless. Run `mark rollback-point` just before opening writes. After that, rolling back means copying Hetzner's writes back to Heroku.
+
+**Known limits.**
+
+- Only `public` is copied. Large objects and extensions are refused rather than copied (see the import step).
+- Roles, ownership, and grants are not copied (`--no-owner --no-acl`). The application role owns everything it restores.
+- The capacity load reaches only the active slot. The idle slot contributes its memory and background work, which matches the overlap during a blue-green deploy.
 
 ## Heroku migration inventory
 
