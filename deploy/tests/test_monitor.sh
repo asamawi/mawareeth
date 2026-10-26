@@ -587,9 +587,10 @@ need "$S/calls.log" 'apt-get install -y --no-install-recommends tailscale promet
 [[ "$(grep -A1 -F 'apt-get install' "$S/calls.log" | tail -n 1)" == 'apt-get saw the exporter drop-in' ]] || fail 'the exporter drop-in must exist before the package is installed'
 [[ "$(grep -n -m1 -F 'systemctl daemon-reload' "$S/calls.log" | cut -d: -f1)" -lt "$(grep -n -m1 -F 'apt-get install' "$S/calls.log" | cut -d: -f1)" ]]   || fail 'systemd must load the exporter drop-in before the package starts the exporter'
 need "$S/calls.log" 'ufw status'
-[[ "$(grep -c '^ufw allow' "$S/calls.log")" == 1 ]] || fail 'install must add exactly one UFW rule'
-[[ "$(grep '^ufw ' "$S/calls.log" | grep -vc -e '^ufw allow' -e '^ufw status$')" == 0 ]] || fail 'install may only read the UFW status and add its rule'
+[[ "$(grep -c '^ufw allow' "$S/calls.log")" == 2 ]] || fail 'install must add exactly two UFW rules'
+[[ "$(grep '^ufw ' "$S/calls.log" | grep -vc -e '^ufw allow' -e '^ufw status$')" == 0 ]] || fail 'install may only read the UFW status and add its rules'
 need "$S/calls.log" 'ufw allow in on tailscale0 from 100.64.0.0/10 to any port 9100 proto tcp'
+need "$S/calls.log" 'ufw allow in on tailscale0 from 100.64.0.0/10 to any port 22 proto tcp'
 lacks "$S/calls.log" 'tailscale up'; lacks "$S/calls.log" 'ufw --force'; lacks "$S/calls.log" 'hcloud'
 
 dropin="$units/prometheus-node-exporter.service.d/10-mawareeth.conf"

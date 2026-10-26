@@ -4,7 +4,8 @@
 #   sudo deploy/monitor.sh install   Tailscale, node_exporter on the Tailscale
 #                                    IPv4 only (textfile and systemd
 #                                    collectors; re-run to upgrade the wrapper),
-#                                    UFW, journald bounds, collector
+#                                    UFW (9100 and SSH on tailscale0), journald
+#                                    bounds, collector
 #   sudo deploy/monitor.sh collect   publish backup/restore records as metrics
 #                                    (including whether the last ok backup
 #                                    holds every archive)
@@ -47,6 +48,7 @@ collect_unit=mawareeth-monitor-collect
 tailscale_key_url=https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
 tailscale_repo='https://pkgs.tailscale.com/stable/ubuntu noble main'
 ufw_rule=(allow in on tailscale0 from 100.64.0.0/10 to any port 9100 proto tcp)
+ssh_ufw_rule=(allow in on tailscale0 from 100.64.0.0/10 to any port 22 proto tcp)
 epoch_re='^[1-9][0-9]{0,11}$'
 drill_code_re='^[1-9][0-9]{5}$'
 drill_dir="$state_dir/monitor"
@@ -409,6 +411,9 @@ cmd_install() {
   # Only p1's tailnet range may reach 9100, and only over tailscale0 (UFW was
   # checked active above).
   ufw "${ufw_rule[@]}" || install_fail 'could not add the tailscale0 UFW rule for node_exporter'
+  # Administrative SSH over the tailnet, so access survives a change of the
+  # operator's public address. The public allow-list stays as a fallback.
+  ufw "${ssh_ufw_rule[@]}" || install_fail 'could not add the tailscale0 UFW rule for SSH'
 
   atomic_write "$systemd_dir/$collect_unit.service" 0644 "$(collect_service_content)" || install_fail "could not write $collect_unit.service"
   atomic_write "$systemd_dir/$collect_unit.timer" 0644 "$(unit_timer 'Mawareeth monitoring collector every 5 minutes' '*:0/5' '' "$collect_unit.service")" \
