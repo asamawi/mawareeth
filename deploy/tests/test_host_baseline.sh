@@ -28,7 +28,7 @@ tailnet_rule='allow in on tailscale0 from 100.64.0.0/10 to any port 9100 proto t
 # The only other permitted mention is the exporter wrapper's exec line, matched
 # whole so nothing appended to it can slip through.
 # shellcheck disable=SC2016 # literal $ text matched against monitor.sh.
-exporter_exec='exec /usr/bin/prometheus-node-exporter --web.listen-address="\$ip:9100" --collector.textfile.directory=$textfile_dir'
+exporter_exec='exec /usr/bin/prometheus-node-exporter --web.listen-address="\$ip:9100" --collector.textfile.directory=$textfile_dir --collector.systemd'
 monitor_prefix="$root/deploy/monitor.sh:"
 while IFS= read -r hit; do
   line="${hit#"$monitor_prefix"}"

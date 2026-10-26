@@ -115,9 +115,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`
   summary: Extend the Mawareeth Prometheus rules beyond disk bytes to inode exhaustion, read-only filesystems, memory/swap pressure and OOM kills, failed systemd units, host clock sync (`node_timex_sync_status`/offset), and enable Better Stack SSL/domain-expiry checks.
   evidence: Review of 0.8 found only byte-level disk usage is alerted; a host out of inodes, remounted read-only, OOM-looping, or with a drifting clock (which also skews the backup/restore age rules) would fail silently. These exceed 0.8's acceptance criteria, which name only probe and disk thresholds.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-monitoring-gaps.md` (six host-health rules, the node_exporter systemd collector, and Better Stack SSL/domain-expiry notifications documented on the uptime monitor)
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`
   summary: Add a dead-man's switch for the shared p1 alert path (an always-firing Watchdog routed to an external heartbeat service) so a stopped SCDF Prometheus, Alertmanager, or SMTP relay is itself detected.
   evidence: Review of 0.8 noted every host-side Mawareeth alert depends on p1's Prometheus/Alertmanager/SMTP; if any stops, all Mawareeth alerts go silent while Better Stack covers only the public endpoint. Complements the deferred alert-path drill.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-monitoring-gaps.md` (`MawareethWatchdog` routed to a Better Stack heartbeat covers p1 Prometheus, Alertmanager, and reachability; the SMTP relay stays covered only by the quarterly alert-path drill)
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`
   summary: Pin the expected OpenPGP fingerprints of third-party apt signing keys (Docker in `bootstrap-host.sh`, Tailscale in `monitor.sh`) and refuse to install a downloaded key that does not match.
   evidence: Review of 0.8 found `monitor.sh install` trusts whatever key `pkgs.tailscale.com` serves over HTTPS; `bootstrap-host.sh` already does the same for Docker, so this is a pre-existing pattern best fixed for both at once.
@@ -149,3 +151,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-gh-64-backup-integrity-review-fixes.md`
   summary: Run the backup's count and checksum pass alongside `pg_dump` (both inside the exported snapshot) so the snapshot's xmin horizon is held for max(count, dump) instead of their sum.
   evidence: Deferred by the #64 review-fixes spec ("Never: running the checksum pass concurrently with `pg_dump`"); today `dump_and_count` checksums every table and only then starts `pg_dump --snapshot`, so the REPEATABLE READ transaction, and the vacuum horizon it pins on production, lasts for both passes back to back.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-monitoring-gaps.md`
+  summary: Detect collector failures behind the host-health rules (e.g. `node_scrape_collector_success{collector=~"systemd|vmstat|timex|filesystem|meminfo"} == 0`, `node_filesystem_device_error == 1`, or `absent()` guards for the memory, OOM and clock series) so they cannot go quiet unnoticed.
+  evidence: Review of the monitoring-gaps change found that only `MawareethSystemdUnitFailed` has an absence guard; if the vmstat, timex, meminfo or filesystem collector fails or drops a series, the OOM, clock, memory, inode and read-only rules can never fire, and nothing reports it.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-monitoring-gaps.md`
+  summary: Move the Better Stack heartbeat URL out of `alertmanager.yml` into a root-only file read through `webhook_configs[].url_file`, if p1's Alertmanager version supports it.
+  evidence: Review noted that substituting `${MAWAREETH_HEARTBEAT_URL}` puts a bearer URL into the generated config and depends on SCDF's config generator keeping a new variable; p1's Alertmanager version was not checked.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-monitoring-gaps.md`
+  summary: Decide whether `MawareethMemoryPressure`'s swap branch (more than 50% of swap used for 10m) should use swap activity (`rate(node_vmstat_pswpin/pswpout)`) or memory PSI instead, since Linux does not free swap after pressure passes.
+  evidence: Review found that a host can stay above 50% swap used long after pressure ends, which gives a warning that never resolves; the approved matrix specifies used-swap, so changing it needs a decision. Hetzner Ubuntu images ship without swap, so the branch is dormant until swap is added.

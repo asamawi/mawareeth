@@ -2,7 +2,9 @@
 # Host monitoring for the shared SCDF Prometheus/Alertmanager on p1.
 #
 #   sudo deploy/monitor.sh install   Tailscale, node_exporter on the Tailscale
-#                                    IPv4 only, UFW, journald bounds, collector
+#                                    IPv4 only (textfile and systemd
+#                                    collectors; re-run to upgrade the wrapper),
+#                                    UFW, journald bounds, collector
 #   sudo deploy/monitor.sh collect   publish backup/restore records as metrics
 #                                    (including whether the last ok backup
 #                                    holds every archive)
@@ -330,7 +332,7 @@ if [[ ! "\$ip" =~ ^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9
   printf 'mawareeth-node-exporter: no Tailscale IPv4 address; refusing to listen anywhere else\n' >&2
   exit 1
 fi
-exec /usr/bin/prometheus-node-exporter --web.listen-address="\$ip:9100" --collector.textfile.directory=$textfile_dir
+exec /usr/bin/prometheus-node-exporter --web.listen-address="\$ip:9100" --collector.textfile.directory=$textfile_dir --collector.systemd
 EOF
 }
 

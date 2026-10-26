@@ -22,6 +22,16 @@ bash -n "$monitor_src" "$root/deploy/backup.sh" "$root/deploy/runtime.sh" "$0"
   || fail 'monitor.sh must not take the deploy or backup locks or touch slots, routes, the journal, snapshots, containers, or the database'
 ! grep -Eiq 'authkey|auth-key|SMTP_PASS|smtp_auth_password' "$monitor_src" "$alerts" "$scrape" "$route" || fail 'no Tailscale or SMTP secret may appear in the repository'
 ! grep -Eq '0\.0\.0\.0|\[::\]' "$monitor_src" || fail 'monitor.sh must never mention a wildcard listen address'
+# No real Better Stack heartbeat URL (it works as a bearer secret) anywhere in
+# the repository; p1 substitutes ${MAWAREETH_HEARTBEAT_URL} instead.
+# grep exits 1 for no match; 0 (a match) or 2 (an error) both fail.
+set +e
+grep -rIilE --exclude-dir=.git --exclude-dir=node_modules --exclude-dir='*venv' \
+  '(betterstack|betteruptime)\.com/[^[:space:]]*heartbeat/[A-Za-z0-9]' "$root"
+scan_rc=$?
+set -e
+(( scan_rc != 0 )) || fail 'a Better Stack heartbeat URL is committed in the files listed above'
+(( scan_rc == 1 )) || fail "the heartbeat URL scan failed (grep exit $scan_rc)"
 
 real_stat="$(command -v stat)"; real_flock="$(command -v flock 2>/dev/null || true)"; real_sync="$(command -v sync)"
 tmp="$(mktemp -d)"; [[ -z "${KEEP_TMP:-}" ]] || echo "$tmp" >&2
@@ -44,11 +54,16 @@ for script in runtime.sh backup.sh monitor.sh; do
 done
 monitor="$bundle/deploy/monitor.sh"; backup="$bundle/deploy/backup.sh"
 
-# Every stubbed command appends its argv to calls.log.
-# shellcheck disable=SC2043 # single-entry list kept so more stubs can be added.
-for command in systemctl; do
-  printf '#!/usr/bin/env bash\nprintf %%s\\\\n "%s $*" >> %q\n' "$command" "$S/calls.log" > "$stub/$command"
-done
+# Every stubbed command appends its argv to calls.log. systemctl also records
+# whether the exporter wrapper already carried --collector.systemd when the
+# exporter was restarted (the upgrade path rewrites it first).
+cat > "$stub/systemctl" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "systemctl \$*" >> '$S/calls.log'
+if [[ "\$*" == 'restart --no-block prometheus-node-exporter.service' ]] && grep -Fq -- '--collector.systemd' '$sbin/mawareeth-node-exporter' 2>/dev/null; then
+  printf 'systemctl restart saw the systemd collector in the wrapper\n' >> '$S/calls.log'
+fi
+EOF
 # ufw reports active unless "$S/ufw-inactive" exists.
 cat > "$stub/ufw" <<EOF
 #!/usr/bin/env bash
@@ -551,8 +566,16 @@ touch "$S/ufw-inactive"; run "$monitor" install; rm -f "$S/ufw-inactive"
 expect_rc 1 'install with UFW inactive'; need "$tmp/out" 'UFW is not active'
 lacks "$S/calls.log" 'ufw allow'; lacks "$S/calls.log" 'apt-get'; lacks "$S/calls.log" 'curl'
 
+# Upgrade path: an old wrapper without --collector.systemd is rewritten before
+# the exporter is restarted.
+mkdir -p "$sbin"
+# shellcheck disable=SC2016 # $ip is literal wrapper text.
+printf '#!/usr/bin/env bash\nexec /usr/bin/prometheus-node-exporter --web.listen-address="$ip:9100" --collector.textfile.directory=%s\n' "$textfile" > "$sbin/mawareeth-node-exporter"
 run "$monitor" install
 expect_rc 0 'install'
+need "$sbin/mawareeth-node-exporter" '--collector.systemd'
+[[ "$(grep -A1 -Fx 'systemctl restart --no-block prometheus-node-exporter.service' "$S/calls.log" | tail -n 1)" == 'systemctl restart saw the systemd collector in the wrapper' ]] \
+  || fail 'install must rewrite an old exporter wrapper with --collector.systemd before restarting the exporter'
 keyring="$apt/keyrings/tailscale-archive-keyring.gpg"
 [[ -s "$keyring" ]] || fail 'Tailscale keyring was not installed'
 need "$S/calls.log" "curl -fsSL --proto =https --tlsv1.2 -o"
@@ -575,7 +598,7 @@ dropin="$units/prometheus-node-exporter.service.d/10-mawareeth.conf"
 wrapper="$sbin/mawareeth-node-exporter"
 need "$wrapper" '/usr/bin/tailscale ip -4'
 need "$wrapper" '--web.listen-address="$ip:9100"'
-need "$wrapper" "--collector.textfile.directory=$textfile"
+need "$wrapper" "--collector.textfile.directory=$textfile --collector.systemd"
 bash -n "$wrapper"
 if (( modes_work )); then [[ "$("$real_stat" -c %a "$wrapper")" == 755 ]] || fail 'the exporter wrapper must be mode 0755'; fi
 [[ "$(cat "$journald/50-mawareeth.conf")" == $'[Journal]\nSystemMaxUse=500M\nSystemKeepFree=1G\nMaxRetentionSec=30day' ]] || fail 'journald bounds differ from the spec'
@@ -600,7 +623,7 @@ for address in 0.0.0.0 127.0.0.1 203.0.113.10 100.63.0.1 100.128.0.1 fd7a:115c:a
 done
 printf '100.101.102.103\nfd7a:115c:a1e0::1\n' > "$S/tailscale-ip"; wrapper_run
 expect_rc 0 'exporter with a Tailscale IPv4'
-need "$S/calls.log" "exporter --web.listen-address=100.101.102.103:9100 --collector.textfile.directory=$textfile"
+need "$S/calls.log" "exporter --web.listen-address=100.101.102.103:9100 --collector.textfile.directory=$textfile --collector.systemd"
 
 # --- p1 snippets ----------------------------------------------------------------------
 need "$scrape" 'job_name: mawareeth-node'
@@ -610,6 +633,8 @@ need "$scrape" 'project: mawareeth'
 need "$route" 'project="mawareeth"'
 need "$route" "Subject: '[MAWAREETH {{ .CommonLabels.severity }}]"
 need "$route" '${SMTP_TO}'
+need "$route" "      - url: '\${MAWAREETH_HEARTBEAT_URL}'"
+need "$route" '        send_resolved: false'
 need "$route" 'alertname="MawareethHostDown"'
 need "$route" 'send_resolved: true'
 # Exact receiver wiring and inhibit rules.
@@ -617,18 +642,38 @@ need "$route" '    - receiver: mawareeth-email'
 need "$route" '  - name: mawareeth-email'
 need "$route" '        - project="mawareeth"'
 need "$route" '      - alertname!="MawareethHostDown"'
+need "$route" '    - receiver: mawareeth-heartbeat'
+need "$route" '  - name: mawareeth-heartbeat'
+need "$route" '        - alertname="MawareethWatchdog"'
+for line in '      group_wait: 0s' '      group_interval: 1m' '      repeat_interval: 1m'; do need "$route" "$line"; done
+# The Watchdog route is the first child, ahead of the project route; the
+# HostDown inhibit never targets it; its receiver is a webhook, never email.
+[[ "$(grep -m1 '^ *- receiver: ' "$route")" == '    - receiver: mawareeth-heartbeat' ]] || fail 'the Watchdog route must be the first child route'
+hostdown_inhibit="$(sed -n '/^  - source_matchers:$/,/^    equal: /p' "$route" | sed -n '/alertname="MawareethHostDown"/,/^    equal: /p')"
+grep -Fxq '      - alertname!="MawareethWatchdog"' <<< "$hostdown_inhibit" || fail 'the HostDown inhibit must exclude MawareethWatchdog'
+heartbeat_receiver="$(sed -n '/^  - name: mawareeth-heartbeat$/,/^  - name: /p' "$route")"
+grep -Fq 'webhook_configs:' <<< "$heartbeat_receiver" || fail 'mawareeth-heartbeat must be a webhook receiver'
+! grep -Fq 'email_configs' <<< "$heartbeat_receiver" || fail 'the Watchdog must never be emailed'
 need "$route" '    equal: [project]'
 need "$route" '      - alertname="MawareethDiskCritical"'
 need "$route" '      - alertname="MawareethDiskWarning"'
 need "$route" '    equal: [project, mountpoint]'
-[[ "$(grep -c '^ *- receiver: ' "$route")" == 1 && "$(grep -c '^  - name: ' "$route")" == 1 ]] || fail 'the route snippet must define exactly one route and one receiver'
-for name in MawareethHostDown MawareethBackupUnhealthy MawareethBackupIncomplete MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical \
-  MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue; do
+[[ "$(grep -c '^ *- receiver: ' "$route")" == 2 && "$(grep -c '^  - name: ' "$route")" == 2 ]] || fail 'the route snippet must define exactly two routes and two receivers'
+[[ "$(grep -c '^  - source_matchers:$' "$route")" == 2 ]] || fail 'the route snippet must define exactly two inhibit rules'
+host_rules='MawareethInodesLow MawareethFilesystemReadOnly MawareethMemoryPressure MawareethOOMKill MawareethSystemdUnitFailed MawareethClockUnsynced'
+all_rules="MawareethHostDown MawareethBackupUnhealthy MawareethBackupIncomplete MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical
+  MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue $host_rules MawareethWatchdog"
+for name in $all_rules; do
   need "$alerts" "alert: $name"
+  # Each rule's own runbook annotation names a README anchor that exists.
+  anchor="$(sed -n "/alert: $name\$/,/runbook: /s|^ *runbook: 'deploy/README.md#\(runbook-[a-z]*\)'\$|\1|p" "$alerts")"
+  [[ -n "$anchor" ]] || fail "$name has no runbook annotation"
+  need "$root/deploy/README.md" "<a id=\"$anchor\"></a>"
 done
-[[ "$(grep -c '^ *- alert:' "$alerts")" == 9 ]] || fail 'expected exactly nine alert rules'
-[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 9 ]] || fail 'every rule needs a project: mawareeth label'
-[[ "$(grep -c '^ *runbook: ' "$alerts")" == 9 ]] || fail 'every rule needs a runbook annotation'
+[[ "$(grep -c '^ *- alert:' "$alerts")" == 16 ]] || fail 'expected exactly sixteen alert rules'
+[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 16 ]] || fail 'every rule needs a project: mawareeth label'
+[[ "$(grep -c '^ *severity: ' "$alerts")" == 16 ]] || fail 'every rule needs a severity label'
+[[ "$(grep -c '^ *runbook: ' "$alerts")" == 16 ]] || fail 'every rule needs a runbook annotation'
 # shellcheck disable=SC2013 # anchors are single words without spaces.
 for anchor in $(grep -o 'README.md#runbook-[a-z]*' "$alerts" | sort -u | cut -d# -f2); do
   need "$root/deploy/README.md" "<a id=\"$anchor\"></a>"
@@ -645,9 +690,28 @@ for text in 'up{job="mawareeth-node"} == 0 or absent(up{job="mawareeth-node"})' 
   'severity: info' 'mawareeth_backup_last_archives_complete{job="mawareeth-node"} == 0' \
   'and mawareeth_backup_last_result_ok{job="mawareeth-node"} == 1' \
   'or (absent(mawareeth_backup_last_archives_complete{job="mawareeth-node"})' \
-  'and on() mawareeth_backup_last_result_ok{job="mawareeth-node"} == 1)'; do need "$alerts" "$text"; done
-[[ "$(grep -c '^ *for: ' "$alerts")" == 3 ]] || fail 'only HostDown and the disk alerts may have a for: delay (the drill fires at once)'
-[[ "$(grep -c 'for: 5m' "$alerts")" == 2 ]] || fail 'both disk alerts need for: 5m'
+  'and on() mawareeth_backup_last_result_ok{job="mawareeth-node"} == 1)' \
+  '100 * (1 - node_filesystem_files_free{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"}' \
+  '/ (node_filesystem_files{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"} > 0)) > 85' \
+  'expr: node_filesystem_readonly{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"} == 1' \
+  'node_memory_MemAvailable_bytes{job="mawareeth-node"} / node_memory_MemTotal_bytes{job="mawareeth-node"} < 0.10' \
+  '/ (node_memory_SwapTotal_bytes{job="mawareeth-node"} > 0)) > 0.5' \
+  'expr: increase(node_vmstat_oom_kill{job="mawareeth-node"}[10m]) > 0' \
+  'node_systemd_unit_state{job="mawareeth-node",state="failed"} == 1' \
+  'or absent(node_systemd_unit_state{job="mawareeth-node"})' \
+  'node_timex_sync_status{job="mawareeth-node"} == 0' \
+  'or abs(node_timex_offset_seconds{job="mawareeth-node"}) > 0.5' \
+  'expr: vector(1)' 'severity: heartbeat'; do need "$alerts" "$text"; done
+# for: delays: HostDown and read-only 2m; disk, inodes, and failed units 5m;
+# memory and clock 10m. Backup, restore, collector, drill, OOM, and the
+# Watchdog fire at once.
+[[ "$(grep -c '^ *for: ' "$alerts")" == 8 ]] || fail 'expected exactly eight for: delays'
+[[ "$(grep -c '^ *for: 2m$' "$alerts")" == 2 ]] || fail 'HostDown and the read-only alert need for: 2m'
+[[ "$(grep -c '^ *for: 5m$' "$alerts")" == 4 ]] || fail 'the disk, inode, and failed-unit alerts need for: 5m'
+[[ "$(grep -c '^ *for: 10m$' "$alerts")" == 2 ]] || fail 'the memory and clock alerts need for: 10m'
+for name in MawareethOOMKill MawareethWatchdog; do
+  ! sed -n "/alert: $name\$/,/labels:/p" "$alerts" | grep -q 'for: ' || fail "$name must fire at once"
+done
 
 # Under CI the external validators are mandatory.
 missing_tool() {
@@ -660,6 +724,9 @@ if command -v promtool >/dev/null 2>&1; then
   labels='job="mawareeth-node",instance="100.101.102.103:9100",alias="mawareeth-prod",project="mawareeth"'
   disk='mountpoint="/",fstype="ext4",device="/dev/sda1"'; disk_yaml=', mountpoint: /, fstype: ext4, device: /dev/sda1'
   alert_labels() { printf '          - exp_labels: {severity: %s, project: mawareeth, alertname: %s, job: mawareeth-node, instance: "100.101.102.103:9100", alias: mawareeth-prod%s}\n' "$1" "$2" "${3:-}"; }
+  btrfs='mountpoint="/srv",fstype="btrfs",device="/dev/sdb1"'
+  unit='name="caddy-test.service",state="failed",type="simple"'; unit_yaml=', name: caddy-test.service, state: failed, type: simple'
+  watchdog_labels='          - exp_labels: {severity: heartbeat, project: mawareeth, alertname: MawareethWatchdog}'
   {
     printf 'rule_files: [mawareeth-alerts.yml]\nevaluation_interval: 1m\ntests:\n'
     # Healthy: nothing fires.
@@ -675,11 +742,24 @@ if command -v promtool >/dev/null 2>&1; then
     printf "      - {series: 'node_filesystem_avail_bytes{%s,%s}', values: '50x40'}\n" "$labels" "$disk"
     printf "      - {series: 'mawareeth_drill_active_code{%s}', values: '0x40'}\n" "$labels"
     printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '0x40'}\n" "$labels"
+    printf "      - {series: 'node_filesystem_files{%s,%s}', values: '1000x40'}\n" "$labels" "$disk"
+    printf "      - {series: 'node_filesystem_files_free{%s,%s}', values: '900x40'}\n" "$labels" "$disk"
+    printf "      - {series: 'node_filesystem_readonly{%s,%s}', values: '0x40'}\n" "$labels" "$disk"
+    printf "      - {series: 'node_memory_MemTotal_bytes{%s}', values: '1000x40'}\n" "$labels"
+    printf "      - {series: 'node_memory_MemAvailable_bytes{%s}', values: '500x40'}\n" "$labels"
+    printf "      - {series: 'node_memory_SwapTotal_bytes{%s}', values: '1000x40'}\n" "$labels"
+    printf "      - {series: 'node_memory_SwapFree_bytes{%s}', values: '900x40'}\n" "$labels"
+    printf "      - {series: 'node_vmstat_oom_kill{%s}', values: '3x40'}\n" "$labels"
+    printf "      - {series: 'node_systemd_unit_state{%s,%s}', values: '0x40'}\n" "$labels" "$unit"
+    printf "      - {series: 'node_systemd_unit_state{%s,%s}', values: '1x40'}\n" "$labels" "${unit/failed/active}"
+    printf "      - {series: 'node_timex_sync_status{%s}', values: '1x40'}\n" "$labels"
+    printf "      - {series: 'node_timex_offset_seconds{%s}', values: '0.002x40'}\n" "$labels"
     printf '    alert_rule_test:\n'
     for name in MawareethHostDown MawareethBackupUnhealthy MawareethBackupIncomplete MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical \
-      MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue; do
+      MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue $host_rules; do
       printf '      - {eval_time: 30m, alertname: %s, exp_alerts: []}\n' "$name"
     done
+    printf '      - eval_time: 30m\n        alertname: MawareethWatchdog\n        exp_alerts:\n%s\n' "$watchdog_labels"
     # Incomplete archives fire at once, but only while the last result is ok
     # (a failed backup is MawareethBackupUnhealthy's alert).
     printf '  - interval: 1m\n    input_series:\n'
@@ -801,6 +881,116 @@ if command -v promtool >/dev/null 2>&1; then
     printf "      - {series: 'up{%s}', values: '1x5'}\n" "$labels"
     printf '    alert_rule_test:\n'
     printf '      - eval_time: 1m\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethDrillOverdue, job: mawareeth-node}\n'
+    # Inodes: 80% used is fine; 90% used from 4m fires at 9m (for: 5m).
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_filesystem_files{%s,%s}', values: '1000x20'}\n" "$labels" "$disk"
+    printf "      - {series: 'node_filesystem_files_free{%s,%s}', values: '200x3 100x16'}\n" "$labels" "$disk"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 3m, alertname: MawareethInodesLow, exp_alerts: []}\n'
+    printf '      - {eval_time: 8m, alertname: MawareethInodesLow, exp_alerts: []}\n'
+    printf '      - eval_time: 10m\n        alertname: MawareethInodesLow\n        exp_alerts:\n'; alert_labels critical MawareethInodesLow "$disk_yaml"
+    # btrfs reports files == 0 (and files_free == 0): never fires.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_filesystem_files{%s,%s}', values: '0x20'}\n" "$labels" "$btrfs"
+    printf "      - {series: 'node_filesystem_files_free{%s,%s}', values: '0x20'}\n" "$labels" "$btrfs"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 15m, alertname: MawareethInodesLow, exp_alerts: []}\n'
+    # Read-only from 3m fires at 5m (for: 2m).
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_filesystem_readonly{%s,%s}', values: '0x2 1x10'}\n" "$labels" "$disk"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 2m, alertname: MawareethFilesystemReadOnly, exp_alerts: []}\n'
+    printf '      - {eval_time: 4m, alertname: MawareethFilesystemReadOnly, exp_alerts: []}\n'
+    printf '      - eval_time: 6m\n        alertname: MawareethFilesystemReadOnly\n        exp_alerts:\n'; alert_labels critical MawareethFilesystemReadOnly "$disk_yaml"
+    # Memory: MemAvailable 5% from 3m fires at 13m (for: 10m).
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_memory_MemTotal_bytes{%s}', values: '1000x20'}\n" "$labels"
+    printf "      - {series: 'node_memory_MemAvailable_bytes{%s}', values: '500x2 50x18'}\n" "$labels"
+    printf "      - {series: 'node_memory_SwapTotal_bytes{%s}', values: '1000x20'}\n" "$labels"
+    printf "      - {series: 'node_memory_SwapFree_bytes{%s}', values: '1000x20'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 2m, alertname: MawareethMemoryPressure, exp_alerts: []}\n'
+    printf '      - {eval_time: 12m, alertname: MawareethMemoryPressure, exp_alerts: []}\n'
+    printf '      - eval_time: 14m\n        alertname: MawareethMemoryPressure\n        exp_alerts:\n'; alert_labels warning MawareethMemoryPressure
+    # Swap 60% used from 3m fires at 13m.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_memory_MemTotal_bytes{%s}', values: '1000x20'}\n" "$labels"
+    printf "      - {series: 'node_memory_MemAvailable_bytes{%s}', values: '500x20'}\n" "$labels"
+    printf "      - {series: 'node_memory_SwapTotal_bytes{%s}', values: '1000x20'}\n" "$labels"
+    printf "      - {series: 'node_memory_SwapFree_bytes{%s}', values: '1000x2 400x18'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 2m, alertname: MawareethMemoryPressure, exp_alerts: []}\n'
+    printf '      - {eval_time: 12m, alertname: MawareethMemoryPressure, exp_alerts: []}\n'
+    printf '      - eval_time: 14m\n        alertname: MawareethMemoryPressure\n        exp_alerts:\n'; alert_labels warning MawareethMemoryPressure
+    # Swap 40% used, held for 25m, never fires.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_memory_MemTotal_bytes{%s}', values: '1000x25'}\n" "$labels"
+    printf "      - {series: 'node_memory_MemAvailable_bytes{%s}', values: '500x25'}\n" "$labels"
+    printf "      - {series: 'node_memory_SwapTotal_bytes{%s}', values: '1000x25'}\n" "$labels"
+    printf "      - {series: 'node_memory_SwapFree_bytes{%s}', values: '600x25'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 12m, alertname: MawareethMemoryPressure, exp_alerts: []}\n'
+    printf '      - {eval_time: 24m, alertname: MawareethMemoryPressure, exp_alerts: []}\n'
+    # Swapless host: SwapTotal == 0 never fires the swap branch.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_memory_MemTotal_bytes{%s}', values: '1000x20'}\n" "$labels"
+    printf "      - {series: 'node_memory_MemAvailable_bytes{%s}', values: '500x20'}\n" "$labels"
+    printf "      - {series: 'node_memory_SwapTotal_bytes{%s}', values: '0x20'}\n" "$labels"
+    printf "      - {series: 'node_memory_SwapFree_bytes{%s}', values: '0x20'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 15m, alertname: MawareethMemoryPressure, exp_alerts: []}\n'
+    # OOM: a kill at 6m fires at once and resolves once 10m pass without one.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_vmstat_oom_kill{%s}', values: '0x5 1x15'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 5m, alertname: MawareethOOMKill, exp_alerts: []}\n'
+    printf '      - eval_time: 6m\n        alertname: MawareethOOMKill\n        exp_alerts:\n'; alert_labels warning MawareethOOMKill
+    printf '      - eval_time: 14m\n        alertname: MawareethOOMKill\n        exp_alerts:\n'; alert_labels warning MawareethOOMKill
+    printf '      - {eval_time: 17m, alertname: MawareethOOMKill, exp_alerts: []}\n'
+    # A unit failed from 3m fires at 8m (for: 5m), labelled with its name.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_systemd_unit_state{%s,%s}', values: '0x2 1x10'}\n" "$labels" "$unit"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 2m, alertname: MawareethSystemdUnitFailed, exp_alerts: []}\n'
+    printf '      - {eval_time: 7m, alertname: MawareethSystemdUnitFailed, exp_alerts: []}\n'
+    printf '      - eval_time: 9m\n        alertname: MawareethSystemdUnitFailed\n        exp_alerts:\n'; alert_labels warning MawareethSystemdUnitFailed "$unit_yaml"
+    # Systemd collector off (old wrapper): no unit series at all fires at 5m,
+    # without a unit name.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'up{%s}', values: '1x10'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 4m, alertname: MawareethSystemdUnitFailed, exp_alerts: []}\n'
+    printf '      - eval_time: 6m\n        alertname: MawareethSystemdUnitFailed\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethSystemdUnitFailed, job: mawareeth-node}\n'
+    # Clock: unsynchronised from 3m fires at 13m (for: 10m).
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_timex_sync_status{%s}', values: '1x2 0x18'}\n" "$labels"
+    printf "      - {series: 'node_timex_offset_seconds{%s}', values: '0x20'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 2m, alertname: MawareethClockUnsynced, exp_alerts: []}\n'
+    printf '      - {eval_time: 12m, alertname: MawareethClockUnsynced, exp_alerts: []}\n'
+    printf '      - eval_time: 14m\n        alertname: MawareethClockUnsynced\n        exp_alerts:\n'; alert_labels warning MawareethClockUnsynced
+    # Synchronised but offset -0.8s from 3m fires at 13m.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_timex_sync_status{%s}', values: '1x20'}\n" "$labels"
+    printf "      - {series: 'node_timex_offset_seconds{%s}', values: '0x2 -0.8x18'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 2m, alertname: MawareethClockUnsynced, exp_alerts: []}\n'
+    printf '      - {eval_time: 12m, alertname: MawareethClockUnsynced, exp_alerts: []}\n'
+    printf '      - eval_time: 14m\n        alertname: MawareethClockUnsynced\n        exp_alerts:\n'; alert_labels warning MawareethClockUnsynced
+    # Synchronised with a 0.4s offset held for 25m never fires.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'node_timex_sync_status{%s}', values: '1x25'}\n" "$labels"
+    printf "      - {series: 'node_timex_offset_seconds{%s}', values: '0.4x25'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 12m, alertname: MawareethClockUnsynced, exp_alerts: []}\n'
+    printf '      - {eval_time: 24m, alertname: MawareethClockUnsynced, exp_alerts: []}\n'
+    # The Watchdog fires at once with no input at all, and while the host is down.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'up{%s}', values: '0x10'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - eval_time: 0m\n        alertname: MawareethWatchdog\n        exp_alerts:\n%s\n' "$watchdog_labels"
+    printf '      - eval_time: 5m\n        alertname: MawareethHostDown\n        exp_alerts:\n'; alert_labels critical MawareethHostDown
+    printf '      - eval_time: 5m\n        alertname: MawareethWatchdog\n        exp_alerts:\n%s\n' "$watchdog_labels"
   } > "$tmp/alerts.test.yml"
   # The drill email carries the code: check the rendered summary against the
   # unstripped rules.
@@ -836,7 +1026,7 @@ if command -v amtool >/dev/null 2>&1; then
     printf 'receivers:\n  - name: scdf-default\n    email_configs:\n      - to: ops@example.invalid\n'
     sed -n '/^receivers:$/,/^inhibit_rules:$/p' "$route" | sed '1d;$d'
     sed -n '/^inhibit_rules:$/,$p' "$route"
-  } | sed 's/\${SMTP_TO}/ops@example.invalid/' > "$tmp/alertmanager.yml"
+  } | sed 's/\${SMTP_TO}/ops@example.invalid/; s|\${MAWAREETH_HEARTBEAT_URL}|https://heartbeat.example.invalid/ping|' > "$tmp/alertmanager.yml"
   ! grep -Fq '${' "$tmp/alertmanager.yml" || fail 'a ${...} placeholder survived into the Alertmanager config'
   amtool check-config "$tmp/alertmanager.yml" > "$tmp/out" 2>&1 || fail 'amtool check-config rejected the route snippet'
   amtool config routes test --config.file="$tmp/alertmanager.yml" --verify.receivers=mawareeth-email project=mawareeth > "$tmp/out" 2>&1 \
@@ -845,6 +1035,19 @@ if command -v amtool >/dev/null 2>&1; then
     project=mawareeth severity=info alertname=MawareethAlertDrill > "$tmp/out" 2>&1 || fail 'the info-severity drill alert does not route to mawareeth-email'
   amtool config routes test --config.file="$tmp/alertmanager.yml" --verify.receivers=scdf-default project=scdf > "$tmp/out" 2>&1 \
     || fail 'the Mawareeth route captured another project'
+  # The Watchdog goes only to the heartbeat (--verify.receivers compares the
+  # full receiver list), never to email; other alerts never to the heartbeat.
+  amtool config routes test --config.file="$tmp/alertmanager.yml" --verify.receivers=mawareeth-heartbeat \
+    alertname=MawareethWatchdog project=mawareeth > "$tmp/out" 2>&1 || fail 'MawareethWatchdog does not route only to mawareeth-heartbeat'
+  amtool config routes test --config.file="$tmp/alertmanager.yml" --verify.receivers=mawareeth-heartbeat \
+    alertname=MawareethWatchdog project=mawareeth severity=heartbeat > "$tmp/out" 2>&1 || fail 'MawareethWatchdog with its severity does not route only to mawareeth-heartbeat'
+  for name in MawareethHostDown $host_rules; do
+    amtool config routes test --config.file="$tmp/alertmanager.yml" --verify.receivers=mawareeth-email \
+      alertname="$name" project=mawareeth > "$tmp/out" 2>&1 || fail "$name does not route to mawareeth-email"
+  done
+  # amtool cannot evaluate inhibit rules; the parsed config must still carry
+  # the Watchdog exclusion on the HostDown inhibit (checked statically above).
+  grep -Fq 'alertname!="MawareethWatchdog"' "$tmp/alertmanager.yml" || fail 'the merged config lost the Watchdog inhibit exclusion'
   printf 'amtool route checks passed\n'
 else
   missing_tool amtool 'Alertmanager route checks'
