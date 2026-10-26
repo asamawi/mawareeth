@@ -180,7 +180,8 @@ pg_major_of() {
 }
 
 # load_backup_env parses the raw backup.env with its own three-key allowlist;
-# runtime.sh keeps its eight-key allowlist for runtime.env.
+# runtime.sh keeps its own allowlist for runtime.env (eight required keys plus
+# five optional SITE_ID and social-login keys).
 load_backup_env() {
   local line key value
   declare -gA backup_values=()

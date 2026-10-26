@@ -6,6 +6,30 @@ This directory contains the secured host baseline, the private Compose runtime, 
 
 Run runtime operations as root with `sudo`; Docker-group access is root-equivalent and is not the supported operator boundary. Copy the directly installable `runtime.env.example` to `/etc/mawareeth/runtime.env`, keep it `root:root` mode `0600`, and edit it with `sudoedit`. Values use a strict raw `KEY=VALUE` schema: no comments, blank lines, control characters, shell expansion, or extra keys. Compose consumes the generated app snapshot with `env_file.format: raw`, so values are passed literally rather than interpolated. PostgreSQL passwords must contain only URL-safe unreserved characters (`A-Z`, `a-z`, `0-9`, `.`, `_`, `~`, `-`) because the same value is embedded in `DATABASE_URL` without lossy transformation. Keep `DOMAIN` lowercase and within DNS label/total-length limits; `MAILGUN_SERVER_NAME` must also be a valid hostname.
 
+Five optional keys carry the sites-framework ID and social-login credentials that Heroku sets. They are left out of `runtime.env.example` so the example stays directly installable without fake OAuth credentials. Any that are present are appended to the app snapshot under the same names, after the standard lines, in this order:
+
+- `SITE_ID`: a positive integer without leading zeros (`^[1-9][0-9]{0,9}$`) and at most `2147483647`, because Django's `Site.id` is a PostgreSQL `integer`. `mawareeth/settings.py` falls back to `1` when it is absent.
+- `FACEBOOK_KEY`: the Facebook **App ID**, 1–32 digits (`^[0-9]{1,32}$`), because settings cast it to `int`.
+- `FACEBOOK_SECRET`: the Facebook **App Secret**.
+- `LINKEDIN_KEY`: the LinkedIn OpenID Connect **Client ID**.
+- `LINKEDIN_SECRET`: the LinkedIn OpenID Connect **Client Secret**.
+
+`FACEBOOK_SECRET`, `LINKEDIN_KEY` and `LINKEDIN_SECRET` must each be at most 256 characters with no whitespace (an empty value is refused for every key). `FACEBOOK_KEY` and `FACEBOOK_SECRET` must both be set or both be absent, and so must `LINKEDIN_KEY` and `LINKEDIN_SECRET`. Errors name only the key, never the value. `settings.py` reads them as `SITE_ID`, `SOCIAL_AUTH_FACEBOOK_KEY`/`SOCIAL_AUTH_FACEBOOK_SECRET` and `SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_KEY`/`SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_SECRET`, and without them falls back to placeholder credentials that break social login.
+
+Append these lines to `/etc/mawareeth/runtime.env` with `sudoedit`. The values below are **placeholders only**: replace every one with the real value from the Heroku config or the provider console, and drop a provider's pair entirely if it is not used:
+
+```
+SITE_ID=2
+FACEBOOK_KEY=000000000000000
+FACEBOOK_SECRET=REPLACE_WITH_FACEBOOK_APP_SECRET
+LINKEDIN_KEY=REPLACE_WITH_LINKEDIN_CLIENT_ID
+LINKEDIN_SECRET=REPLACE_WITH_LINKEDIN_CLIENT_SECRET
+```
+
+**`SITE_ID` after a Heroku restore.** The database restored from Heroku carries Heroku's `django_site` rows, so `SITE_ID` must equal the Heroku value (`2` today), and a `django_site` row with that ID must exist in the restored database. Otherwise `Site.objects.get_current()` raises `Site.DoesNotExist`. Omitting the key does not fail validation: the app silently uses site `1`, which is the wrong site for the restored data.
+
+A `runtime.env` without these keys renders the same snapshot, with the same hash, as before. Adding, changing or removing any of them changes the snapshot hash. `release.sh deploy` and `recover` refuse when the runtime file does not hash to the active slot's recorded snapshot (see Blue-green deployment). Adding these keys to a host with running slots is therefore a deliberate configuration rotation, not something a deploy does for you. No rotation command exists yet; it is an open deferred item (a phased runtime-configuration rotation operation). Until one exists, set these keys in `runtime.env` before the first deploy on a new host.
+
 Download a trusted `release-manifest.json` out of band, verify its provenance, and keep it at an absolute root-owned mode-0600 path. The root-owned image lock remains mode 0644. The manifest's deployment-bundle SHA must equal the checked-out repository commit, its repository must equal `APP_IMAGE_REPOSITORY`, and its application identity must be a canonical GHCR digest. Load images on a connected trusted workstation with `docker pull REPOSITORY@sha256:DIGEST`, verify `docker image inspect --format '{{join .RepoDigests "\n"}}' REPOSITORY@sha256:DIGEST` contains the exact requested `REPOSITORY@sha256:DIGEST`, then transfer with `docker save` over an approved channel. On the offline host, use `docker load`, repeat the exact `RepoDigests` inspection, and run preflight. Never substitute a matching digest reported under a different repository. The runtime never builds or pulls and uses `pull_policy: never`.
 
 Prepare and inspect the runtime, bootstrap the first release with `release.sh deploy` (see Blue-green deployment), and use `up` only to restart the recorded active release:
