@@ -87,6 +87,11 @@ restrict() {
   "$bin" -N DOCKER-USER 2>/dev/null || true
   "$bin" -C DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || "$bin" -I DOCKER-USER 1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
   "$bin" -C DOCKER-USER -p tcp -m multiport --dports 80,443 -j ACCEPT 2>/dev/null || "$bin" -I DOCKER-USER 2 -p tcp -m multiport --dports 80,443 -j ACCEPT
+  # Traffic that containers start (DNS, Mailgun, Storage Box, Heroku) leaves
+  # through Docker's bridges. RETURN hands it back to Docker's own forwarding
+  # and isolation rules; only traffic arriving from outside is limited to 80/443.
+  "$bin" -C DOCKER-USER -i docker0 -j RETURN 2>/dev/null || "$bin" -I DOCKER-USER 3 -i docker0 -j RETURN
+  "$bin" -C DOCKER-USER -i br-+ -j RETURN 2>/dev/null || "$bin" -I DOCKER-USER 4 -i br-+ -j RETURN
   "$bin" -C DOCKER-USER -j DROP 2>/dev/null || "$bin" -A DOCKER-USER -j DROP
 }
 restrict iptables

@@ -62,6 +62,11 @@ firewall_unit="$(sed -n '/^cat > \/etc\/systemd\/system\/mawareeth-docker-firewa
 grep -qx 'BindsTo=docker.service' <<<"$firewall_unit" || fail 'firewall unit is not BindsTo=docker.service (stops when Docker crashes)'
 grep -qx 'PartOf=docker.service' <<<"$firewall_unit" || fail 'firewall unit is not PartOf=docker.service'
 grep -qx 'WantedBy=multi-user.target docker.service' <<<"$firewall_unit" || fail 'firewall unit is not wanted by docker.service'
+# Container-originated traffic must reach Docker's own rules (RETURN, not ACCEPT,
+# which would skip Docker's network isolation); inbound stays limited to 80/443.
+need "$bootstrap" '-I DOCKER-USER 3 -i docker0 -j RETURN'
+need "$bootstrap" '-I DOCKER-USER 4 -i br-+ -j RETURN'
+grep -Eq -- '-i (docker0|br-\+) -j ACCEPT' "$bootstrap" && fail 'container egress must RETURN to Docker rules, not ACCEPT'
 need "$bootstrap" 'systemctl reenable mawareeth-docker-firewall.service'
 need "$bootstrap" 'systemctl restart mawareeth-docker-firewall.service'
 need "$provision" 'server describe'
