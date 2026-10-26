@@ -1,8 +1,17 @@
 name: Django CI
 
+# Feature branches are validated through their pull request; master is also
+# validated on push because that run gates Publish Release Image.
 on:
   push:
+    branches: [master]
   pull_request:
+
+# A new push to a pull request cancels its superseded run. Master runs are never
+# cancelled, since each merge commit needs its own release-gating run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:

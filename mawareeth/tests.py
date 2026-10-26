@@ -410,7 +410,8 @@ class WorkflowContractTests(SimpleTestCase):
         required_snippets = (
             "github.event.workflow_run.conclusion == 'success'",
             "github.event.workflow_run.event == 'push'",
-            "contains(fromJson('[\"dev\",\"main\",\"master\"]'), github.event.workflow_run.head_branch)",
+            "github.event.workflow_run.head_branch == 'master'",
+            "branches: [master]",
             "ref: ${{ github.event.workflow_run.head_sha }}",
         )
         for snippet in required_snippets:
