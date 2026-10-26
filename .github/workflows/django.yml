@@ -136,10 +136,14 @@ jobs:
           done
 
       - name: Run deploy suites as root
+        # promtool/amtool results do not depend on privileges and already ran
+        # in the unprivileged pass; they are the slowest part of the suites.
+        env:
+          MAWAREETH_SKIP_RULE_TOOLS: "1"
         run: |
           for suite in deploy/tests/test_*.sh; do
             echo "::group::$suite (root)"
-            sudo --preserve-env=CI env "PATH=$PATH" bash "$suite" || { echo "::endgroup::"; echo "::error::$suite failed (root)"; exit 1; }
+            sudo --preserve-env=CI,MAWAREETH_SKIP_RULE_TOOLS env "PATH=$PATH" bash "$suite" || { echo "::endgroup::"; echo "::error::$suite failed (root)"; exit 1; }
             echo "::endgroup::"
           done
 

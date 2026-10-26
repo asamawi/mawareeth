@@ -720,7 +720,13 @@ missing_tool() {
   printf '%s not installed; %s skipped (static checks only)\n' "$1" "$2"
 }
 
-if command -v promtool >/dev/null 2>&1; then
+# The promtool and amtool checks do not depend on the caller's privileges; CI
+# runs them in its unprivileged pass and sets this for the root pass.
+rule_tools_skipped=0; [[ "${MAWAREETH_SKIP_RULE_TOOLS:-0}" == 1 ]] && rule_tools_skipped=1
+
+if ((rule_tools_skipped)); then
+  printf 'promtool and amtool checks skipped (MAWAREETH_SKIP_RULE_TOOLS=1)\n'
+elif command -v promtool >/dev/null 2>&1; then
   promtool check rules "$alerts" > "$tmp/out" 2>&1 || fail 'promtool check rules failed'
   labels='job="mawareeth-node",instance="100.101.102.103:9100",alias="mawareeth-prod",project="mawareeth"'
   disk='mountpoint="/",fstype="ext4",device="/dev/sda1"'; disk_yaml=', mountpoint: /, fstype: ext4, device: /dev/sda1'
@@ -728,6 +734,12 @@ if command -v promtool >/dev/null 2>&1; then
   btrfs='mountpoint="/srv",fstype="btrfs",device="/dev/sdb1"'
   unit='name="caddy-test.service",state="failed",type="simple"'; unit_yaml=', name: caddy-test.service, state: failed, type: simple'
   watchdog_labels='          - exp_labels: {severity: heartbeat, project: mawareeth, alertname: MawareethWatchdog}'
+  # promtool evaluates every rule once per evaluation_interval over a group's
+  # whole span, so the day-scale groups (up to 94 days) are collected here and
+  # run at 15m. Their alerts have no `for:` and every eval_time is a multiple of
+  # 15m, so the outcome is the same as at 1m.
+  long_groups="$tmp/alerts-long.groups"
+  : > "$long_groups"
   {
     printf 'rule_files: [mawareeth-alerts.yml]\nevaluation_interval: 1m\ntests:\n'
     # Healthy: nothing fires.
@@ -778,12 +790,15 @@ if command -v promtool >/dev/null 2>&1; then
     printf '      - eval_time: 2m\n        alertname: MawareethBackupIncomplete\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethBackupIncomplete, job: mawareeth-node}\n'
     printf '      - {eval_time: 6m, alertname: MawareethBackupIncomplete, exp_alerts: []}\n'
     # Backup and restore failures fire at once; old successes fire past 26h/35d.
-    printf '  - interval: 1h\n    input_series:\n'
-    printf "      - {series: 'mawareeth_backup_last_result_ok{%s}', values: '1x40'}\n" "$labels"
-    printf "      - {series: 'mawareeth_backup_last_ok_timestamp_seconds{%s}', values: '0x40'}\n" "$labels"
-    printf '    alert_rule_test:\n'
-    printf '      - {eval_time: 25h, alertname: MawareethBackupUnhealthy, exp_alerts: []}\n'
-    printf '      - eval_time: 27h\n        alertname: MawareethBackupUnhealthy\n        exp_alerts:\n'; alert_labels critical MawareethBackupUnhealthy
+    # Day-scale groups go to the long file (see long_groups below).
+    {
+      printf '  - interval: 1h\n    input_series:\n'
+      printf "      - {series: 'mawareeth_backup_last_result_ok{%s}', values: '1x40'}\n" "$labels"
+      printf "      - {series: 'mawareeth_backup_last_ok_timestamp_seconds{%s}', values: '0x40'}\n" "$labels"
+      printf '    alert_rule_test:\n'
+      printf '      - {eval_time: 25h, alertname: MawareethBackupUnhealthy, exp_alerts: []}\n'
+      printf '      - eval_time: 27h\n        alertname: MawareethBackupUnhealthy\n        exp_alerts:\n'; alert_labels critical MawareethBackupUnhealthy
+    } >> "$long_groups"
     printf '  - interval: 1m\n    input_series:\n'
     printf "      - {series: 'mawareeth_backup_last_result_ok{%s}', values: '0x5'}\n" "$labels"
     printf "      - {series: 'mawareeth_backup_last_ok_timestamp_seconds{%s}', values: '0x5'}\n" "$labels"
@@ -792,12 +807,14 @@ if command -v promtool >/dev/null 2>&1; then
     printf '    alert_rule_test:\n'
     printf '      - eval_time: 1m\n        alertname: MawareethBackupUnhealthy\n        exp_alerts:\n'; alert_labels critical MawareethBackupUnhealthy
     printf '      - eval_time: 1m\n        alertname: MawareethRestoreUnhealthy\n        exp_alerts:\n'; alert_labels critical MawareethRestoreUnhealthy
-    printf '  - interval: 1d\n    input_series:\n'
-    printf "      - {series: 'mawareeth_restore_last_result_pass{%s}', values: '1x40'}\n" "$labels"
-    printf "      - {series: 'mawareeth_restore_last_pass_timestamp_seconds{%s}', values: '0x40'}\n" "$labels"
-    printf '    alert_rule_test:\n'
-    printf '      - {eval_time: 34d, alertname: MawareethRestoreUnhealthy, exp_alerts: []}\n'
-    printf '      - eval_time: 36d\n        alertname: MawareethRestoreUnhealthy\n        exp_alerts:\n'; alert_labels critical MawareethRestoreUnhealthy
+    {
+      printf '  - interval: 1d\n    input_series:\n'
+      printf "      - {series: 'mawareeth_restore_last_result_pass{%s}', values: '1x40'}\n" "$labels"
+      printf "      - {series: 'mawareeth_restore_last_pass_timestamp_seconds{%s}', values: '0x40'}\n" "$labels"
+      printf '    alert_rule_test:\n'
+      printf '      - {eval_time: 34d, alertname: MawareethRestoreUnhealthy, exp_alerts: []}\n'
+      printf '      - eval_time: 36d\n        alertname: MawareethRestoreUnhealthy\n        exp_alerts:\n'; alert_labels critical MawareethRestoreUnhealthy
+    } >> "$long_groups"
     # Disk: 80% used warns after 5m; 90% used is critical (and also warns).
     printf '  - interval: 1m\n    input_series:\n'
     printf "      - {series: 'node_filesystem_size_bytes{%s,%s}', values: '100x20'}\n" "$labels" "$disk"
@@ -860,15 +877,17 @@ if command -v promtool >/dev/null 2>&1; then
     printf '      - {eval_time: 9m, alertname: MawareethAlertDrill, exp_alerts: []}\n'
     # Overdue: a pass at day 1 is due until day 93; never passed (0) fires past
     # 92 days from the epoch; future-dated beyond 300s fires, within it not.
-    printf '  - interval: 1d\n    input_series:\n'
-    printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '86400x100'}\n" "$labels"
-    printf '    alert_rule_test:\n'
-    printf '      - {eval_time: 92d, alertname: MawareethDrillOverdue, exp_alerts: []}\n'
-    printf '      - eval_time: 94d\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n'; alert_labels warning MawareethDrillOverdue
-    printf '  - interval: 1d\n    input_series:\n'
-    printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '0x100'}\n" "$labels"
-    printf '    alert_rule_test:\n'
-    printf '      - eval_time: 93d\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n'; alert_labels warning MawareethDrillOverdue
+    {
+      printf '  - interval: 1d\n    input_series:\n'
+      printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '86400x100'}\n" "$labels"
+      printf '    alert_rule_test:\n'
+      printf '      - {eval_time: 92d, alertname: MawareethDrillOverdue, exp_alerts: []}\n'
+      printf '      - eval_time: 94d\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n'; alert_labels warning MawareethDrillOverdue
+      printf '  - interval: 1d\n    input_series:\n'
+      printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '0x100'}\n" "$labels"
+      printf '    alert_rule_test:\n'
+      printf '      - eval_time: 93d\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n'; alert_labels warning MawareethDrillOverdue
+    } >> "$long_groups"
     printf '  - interval: 1m\n    input_series:\n'
     printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '1000x5'}\n" "$labels"
     printf '    alert_rule_test:\n'
@@ -1013,12 +1032,18 @@ if command -v promtool >/dev/null 2>&1; then
   sed '/^        annotations:$/,/^          runbook: /d' "$alerts" > "$tmp/mawareeth-alerts.yml"
   ! grep -v '^#' "$tmp/mawareeth-alerts.yml" | grep -Eq 'annotations|summary|runbook' || fail 'annotation stripping for promtool failed'
   promtool test rules "$tmp/alerts.test.yml" > "$tmp/out" 2>&1 || fail 'promtool rule unit tests failed'
+  [[ "$(grep -c '^  - interval: 1[hd]$' "$long_groups")" == 4 ]] || fail 'the day-scale rule test groups were not collected'
+  ! grep -q '^  - interval: 1[hd]$' "$tmp/alerts.test.yml" || fail 'a day-scale rule test group would run at the 1m evaluation interval'
+  { printf 'rule_files: [mawareeth-alerts.yml]\nevaluation_interval: 15m\ntests:\n'; cat "$long_groups"; } > "$tmp/alerts-long.test.yml"
+  promtool test rules "$tmp/alerts-long.test.yml" > "$tmp/out" 2>&1 || fail 'promtool day-scale rule unit tests failed'
   printf 'promtool rule checks passed\n'
 else
   missing_tool promtool 'rule unit tests'
 fi
 
-if command -v amtool >/dev/null 2>&1; then
+if ((rule_tools_skipped)); then
+  :
+elif command -v amtool >/dev/null 2>&1; then
   # A minimal valid Alertmanager config around the snippet, as merged on p1.
   {
     printf 'global:\n  smtp_smarthost: smtp.example.invalid:587\n  smtp_from: alerts@example.invalid\n'
