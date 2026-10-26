@@ -123,6 +123,29 @@ Write the runbook in `deploy/README.md`.
 
 ## Spec Change Log
 
+- **First rehearsal on `mawareeth-prod`, 2026-10-27 (in progress).**
+  - **Host:** rebuilt CX33 in nbg1 (2.28.64.83, tailnet 100.64.64.22) at release `0b6170f`.
+  - **Throwaway record:** `rehearsal.mawareeth.com`, already pointing at the host.
+  - **Results so far:**
+    - **Import** passed in 12 s total: count 3 s, dump 6 s, restore 6 s, compare 2 s, analyze 1 s. All 49 tables match on counts and checksums, and sequences match. The source is PostgreSQL 17.10.
+    - **`validated`** at 22:16:57Z, 4.5 min after `freeze-start` (budget 20 min).
+    - **`dns-switched`** marked at the same moment. The record already resolved to the host, so the DNS switch itself was **not measured**; the rollback will be.
+    - **Capacity:** a 30-minute run started 22:19Z (20 concurrent GETs over `/en/`, `/ar/` and `/health/ready/`, about 33 req/s).
+    - Still to come: the rollback, `backup` with `verify-restore`, and `report`.
+  - **Findings, fixed in PR #77 unless noted:**
+    1. **No TTL control.** eNom's basic DNS (`name-services.com`) has no TTL field and serves 1800 s. That fills the whole 30-minute `dns-switched` window in 0.10, and a DNS rollback takes up to 30 minutes. `ttl-lowered` was marked without a TTL change. README: move the zone to a host with TTL control at least two days before 0.10. *This is a 0.10 prerequisite, not yet done.*
+    2. **Missing extension.** Heroku has `pg_stat_statements` in `public`. The first import refused (exit 2, nothing written) until it was created on the target; then `--extensions-created`. Documented in the README.
+    3. **Migrate deadlock.** A first deploy plus a reset left a slot record, and Heroku's schema was 2 migrations behind the release (`calc.0026`, `social_django.0017`). The recorded slot could not become ready, `runtime.sh up` exited 2, and `release.sh deploy` refused to deploy over an unready active slot. Worked around by applying the migrations inside `app-blue`, after checking the plan against `contract_pattern` (48 metadata-only operations and one constraint, with 0 offending rows). The README procedure is in PR #77; a supported command is in deferred work. 0.10 will meet the same state.
+    4. **False cleanup warning.** Import cleanup reported "could not remove source containers" when a `--rm` container was already removing itself. Fixed in `rehearse.sh`.
+    5. **Disconnect not detected.** The first capacity attempt got no load, because Git Bash rewrote `--path /en/` into a Windows path. The run then sampled on with the extra slot up, since a dropped non-interactive SSH session sends EOF, not SIGHUP. It was terminated (`fail:interrupted`, slot stopped). `capacity` now fails within 5 s when standard input closes early, closing the matching deferred item. The README covers `MSYS_NO_PATHCONV=1`.
+  - **Host prerequisites fixed on the way** (PRs #71–#76, see `spec-rehearsal-host-readiness.md`):
+    - Docker Hub short names in `validate_image`;
+    - Tailscale SSH;
+    - provisioning against current `hcloud`;
+    - script executable bits;
+    - container egress;
+    - CI trigger and duration.
+
 ## Design Notes
 
 **Rehearsal versus production.** The rehearsal copies live Heroku read-only: one snapshot, no maintenance mode. It rehearses DNS on a throwaway name such as `rehearsal.mawareeth.com`, switched Heroku→Hetzner→Heroku to time propagation and the rollback.
