@@ -5,6 +5,9 @@ on:
     workflows: ["Django CI"]
     types:
       - completed
+    # Only master runs can publish; this keeps pull request runs from starting
+    # (and listing) a skipped publish run.
+    branches: [master]
 
 permissions:
   contents: read
@@ -19,7 +22,7 @@ jobs:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
-      contains(fromJson('["dev","main","master"]'), github.event.workflow_run.head_branch)
+      github.event.workflow_run.head_branch == 'master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
