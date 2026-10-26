@@ -83,6 +83,11 @@ slot_started=0
 capacity_slot=''
 sampler_pid=''
 samples_tmp=''
+load_reader_pid=''
+load_tmp=''
+# Seconds standard input may stay closed while the sampler still runs before
+# capacity gives up: the load generator stopped or the workstation disconnected.
+input_closed_grace=5
 dump_end_file=''
 started_epoch=0
 source_major=''
@@ -209,8 +214,21 @@ reap_source_containers() {
   names="$(timeout "$cleanup_timeout" docker ps -a -q --filter "label=com.mawareeth.rehearsal-run=$run_token" 2>>"$run_log" 8>&- 9>&-)" || return 1
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
-    timeout "$cleanup_timeout" docker rm -f "$name" >>"$run_log" 2>&1 8>&- 9>&- || return 1
+    timeout "$cleanup_timeout" docker rm -f "$name" >>"$run_log" 2>&1 8>&- 9>&- || container_gone "$name" || return 1
   done <<<"${names//$'\r'/}"
+}
+
+# container_gone ID succeeds once the container no longer exists. A container
+# run with --rm may already be removing itself ("removal ... already in
+# progress"), which fails docker rm -f although nothing is left behind.
+container_gone() {
+  local attempt left
+  for attempt in 1 2 3 4 5; do
+    left="$(timeout "$cleanup_timeout" docker ps -a -q --filter "id=$1" 2>>"$run_log" 8>&- 9>&-)" || return 1
+    [[ -n "${left//[[:space:]]/}" ]] || return 0
+    ((attempt == 5)) || sleep 1
+  done
+  return 1
 }
 
 # --- import --------------------------------------------------------------------
@@ -522,6 +540,40 @@ stop_sampler() {
   sampler_pid=''
 }
 
+stop_load_reader() {
+  [[ -n "$load_reader_pid" ]] || return 0
+  if ! kill "$load_reader_pid" 2>/dev/null; then :; fi
+  if ! wait "$load_reader_pid" 2>/dev/null; then :; fi
+  load_reader_pid=''
+}
+
+# watch_load_input returns once the sampler exits. Over a non-interactive SSH
+# session a dropped connection sends no hangup, only EOF on standard input, so
+# input closing while the sampler still runs fails the run instead of sampling on.
+watch_load_input() {
+  local closed_at=''
+  while kill -0 "$sampler_pid" 2>/dev/null; do
+    if [[ -z "$closed_at" ]] && ! kill -0 "$load_reader_pid" 2>/dev/null; then closed_at=$SECONDS; fi
+    if [[ -n "$closed_at" ]] && ((SECONDS - closed_at >= input_closed_grace)); then
+      capacity_fail load 'standard input closed before the sampling finished: the load generator stopped or the workstation disconnected'
+    fi
+    sleep 1
+  done
+}
+
+# collect_load_summary waits at most load_wait seconds for standard input to
+# close after the sampling, then parses the summary it carried.
+collect_load_summary() {
+  local deadline=$((SECONDS + load_wait))
+  while kill -0 "$load_reader_pid" 2>/dev/null; do
+    ((SECONDS < deadline)) || return 1
+    sleep 1
+  done
+  if ! wait "$load_reader_pid" 2>/dev/null; then :; fi
+  load_reader_pid=''
+  read_load_summary < "$load_tmp"
+}
+
 # capacity_fail SIGNAL MESSAGE: stop the slot, record fail:SIGNAL, exit 4.
 capacity_fail() {
   trap '' INT TERM HUP
@@ -619,15 +671,20 @@ cmd_capacity() {
 
   say "sampling the host for $minutes minutes every ${sample_interval}s"
   samples_tmp="$(mktemp "$rehearsal_dir/.samples.XXXXXX")" || capacity_fail samples 'could not allocate the sample file'
+  load_tmp="$(mktemp "$rehearsal_dir/.load.XXXXXX")" || capacity_fail load 'could not allocate the load summary file'
+  # The explicit <&0 keeps standard input: an asynchronous command otherwise reads /dev/null.
+  head -c 65536 <&0 > "$load_tmp" 2>>"$run_log" 8>&- 9>&- &
+  load_reader_pid=$!
   python3 -I "$rehearsal_py" sample --proc "$proc_dir" --interval "$sample_interval" --minutes "$minutes" > "$samples_tmp" 2>>"$run_log" 8>&- 9>&- &
   sampler_pid=$!
+  watch_load_input
   wait "$sampler_pid" || status=$?
   sampler_pid=''
   ((status == 0)) || capacity_fail samples "sampling the host failed (status $status)"
   { chmod 0600 "$samples_tmp" && mv -f -- "$samples_tmp" "$samples_file"; } || capacity_fail samples 'could not publish the sample file'
   samples_tmp=''
 
-  read_load_summary || capacity_fail load "no valid load generator summary arrived on standard input within ${load_wait}s of the sampling"
+  collect_load_summary || capacity_fail load "no valid load generator summary arrived on standard input within ${load_wait}s of the sampling"
   stop_capacity_slot || capacity_fail stop "app-$inactive could not be stopped"
 
   status=0
@@ -766,8 +823,10 @@ rehearse_on_exit() {
   local status=$?
   trap '' INT TERM HUP
   stop_sampler
+  stop_load_reader
   close_psql
   [[ -z "$samples_tmp" ]] || rm -f -- "$samples_tmp"
+  [[ -z "$load_tmp" ]] || rm -f -- "$load_tmp"
   [[ -z "$dump_end_file" ]] || rm -f -- "$dump_end_file"
   if [[ "$rehearse_mode" == import ]]; then
     if ! reap_source_containers; then say "could not remove this run's source containers; remove them with docker rm -f"; fi

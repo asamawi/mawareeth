@@ -632,7 +632,7 @@ Heroku rotates the credentials when the database is re-provisioned and on `herok
 
 Do this on a prepared host (`runtime.sh prepare`, PostgreSQL running, an **empty** database, both slots stopped), with backups configured.
 
-1. **Lower the TTL.** Set the TTL of the throwaway record to 60 seconds (and, for 0.10, the TTL of `mawareeth.com` and `www`). Wait at least the old TTL, then run `sudo deploy/rehearse.sh mark ttl-lowered`.
+1. **Lower the TTL.** Set the TTL of the throwaway record to 60 seconds (and, for 0.10, the TTL of `mawareeth.com` and `www`). Wait at least the old TTL, then run `sudo deploy/rehearse.sh mark ttl-lowered`. The DNS host must let you set the TTL: eNom's basic DNS (`name-services.com`, today's host for `mawareeth.com`) has no TTL field and serves 1800 seconds, which alone fills the 30-minute `dns-switched` window and makes a DNS rollback take up to 30 minutes. Move the zone to a DNS host with TTL control (for example Cloudflare or Hetzner DNS) at least two days before story 0.10, since a nameserver change itself takes up to 48 hours.
 2. **Import.** Run `sudo deploy/rehearse.sh import`.
    - It opens one `REPEATABLE READ, READ ONLY` session on Heroku and exports its snapshot.
    - It refuses (exit 2, nothing written, each finding named) a source that:
@@ -641,7 +641,7 @@ Do this on a prepared host (`runtime.sh prepare`, PostgreSQL running, an **empty
      - holds large objects (`pg_largeobject_metadata`);
      - uses extensions other than `plpgsql`;
      - lacks `public.django_migrations`.
-   - **Extensions.** `pg_dump --schema=public` does not create extensions. Create each named extension on the target first, in the same schema as on Heroku. For Heroku's `heroku_ext`, that means `CREATE SCHEMA heroku_ext; CREATE EXTENSION <name> SCHEMA heroku_ext;`. Then rerun with `import --extensions-created`, which checks that the target has every one of them.
+   - **Extensions.** `pg_dump --schema=public` does not create extensions. Create each named extension on the target first, in the same schema as on Heroku. For Heroku's `heroku_ext`, that means `CREATE SCHEMA heroku_ext; CREATE EXTENSION <name> SCHEMA heroku_ext;`. Mawareeth's Heroku database has `pg_stat_statements` (Heroku's own monitoring) in `public`, so run `CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA public;` as `POSTGRES_USER` in the target before the first import (it is created empty; the application does not use it). Then rerun with `import --extensions-created`, which checks that the target has every one of them.
    - It counts and checksums every source table inside the snapshot, using the queries from `backup.sh`.
    - It streams `pg_dump -Fc --no-owner --no-acl --schema=public --snapshot=<id>` straight into `pg_restore --exit-on-error --single-transaction --no-owner --no-acl --schema=public`.
      - The dump never touches the disk.
@@ -654,6 +654,17 @@ Do this on a prepared host (`runtime.sh prepare`, PostgreSQL running, an **empty
 
    A rehearsal simulates `freeze-start` at the moment the import starts (written once the source checks pass).
 3. **Deploy and validate.** Run `release.sh deploy` with the release manifest. It applies the migrations; `rehearse.sh` has no migrate step. Validate the application through the edge, then run `sudo deploy/rehearse.sh mark validated`.
+   - **Imported schema behind the recorded release.** When a slot record already exists (a release was deployed before the reset, as on any host that ran a previous rehearsal), Heroku's schema can lack this release's newest migrations. The recorded slot then never becomes ready (`Readiness check failed: unapplied migrations for this release`), `runtime.sh up` exits 2, and `release.sh deploy` refuses to deploy over an unready active slot, so the deploy cannot apply them. Apply them in the active slot first, then deploy as usual:
+
+     ```console
+     sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/runtime.sh up   # exits 2: the slot is not ready
+     SLOT="$(sudo docker ps -q --filter label=com.docker.compose.project=mawareeth --filter label=com.docker.compose.service=app-blue)"   # the active slot
+     sudo docker exec "$SLOT" python manage.py migrate --plan --no-color   # must contain none of release.sh's contract operations
+     sudo docker exec "$SLOT" python manage.py migrate --no-input
+     sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/release.sh deploy
+     ```
+
+     Check the plan against `contract_pattern` in `release.sh` (remove, delete or rename, raw SQL, or a custom state/database change) before migrating, and check any new constraint against the imported data. The rehearsal on 2026-10-27 needed this for two migrations (`calc.0026`, `social_django.0017`).
 4. **Switch DNS.** Point the throwaway record at the host. When it resolves to Hetzner from outside, run `mark dns-switched`.
 5. **Capacity, while the throwaway record still points at the host** (between `dns-switched` and `dns-rolled-back`). Deploy a second release first, so that both slots have a slot record. Then run from the workstation, with the host's public IPv4 as `HOST_IP`:
 
@@ -664,6 +675,8 @@ Do this on a prepared host (`runtime.sh prepare`, PostgreSQL running, an **empty
    ```
 
    - Use the absolute path of the host's deployment checkout. The administrator needs passwordless `sudo` for this command, because `sudo` cannot prompt while the pipe feeds standard input.
+   - On a Windows workstation in Git Bash, prefix the load generator with `MSYS_NO_PATHCONV=1`; otherwise Git Bash rewrites `--path /en/` into a Windows path and the load generator refuses it.
+   - A dropped SSH session sends no hangup to a non-interactive command, only end-of-file on standard input. `capacity` therefore treats standard input closing while it still samples (for more than 5 seconds) as a stopped load or a lost workstation: it stops the slot and records `fail:load` instead of sampling on.
    - `--expect-address` is required. The load generator refuses (exit 2) unless the URL's host currently resolves to that address, so the load reaches the host and not Heroku.
    - It sends only `GET` (or `HEAD` with `--method HEAD`). Add a `--path` for each representative page.
    - It prints its summary on standard output: requests, errors, `p95_ms` over the answered requests, the actual `seconds`, `requests_per_second`, and the `started_epoch` and `finished_epoch` of the load.
@@ -740,7 +753,7 @@ docker exec -i "$PGC" psql -X -v ON_ERROR_STOP=1 -U "$PGU" -d "$PGD" -c 'DROP SC
 
 This sequence is not run during the rehearsal. Every step against Heroku, DNS, or the production host needs its own approval.
 
-1. Lower the TTLs a day ahead.
+1. Lower the TTLs a day ahead (on a DNS host that allows it; see rehearsal step 1).
 2. **Before the freeze:**
    - stop both slots, but keep PostgreSQL running (not `runtime.sh down`, which stops it too): `for svc in app-blue app-green; do docker ps -q --filter label=com.docker.compose.project=mawareeth --filter label=com.docker.compose.service=$svc | xargs -r docker stop -t 35; done`;
    - reset the target to empty with the commands above;
@@ -748,7 +761,7 @@ This sequence is not run during the rehearsal. Every step against Heroku, DNS, o
    - run `sudo deploy/rehearse.sh report` and confirm that the rehearsal gate passed.
 3. **Freeze.** Run `heroku maintenance:on --app HEROKU_APP`, then immediately `sudo deploy/rehearse.sh mark freeze-start`.
 4. **Import.** Run `sudo deploy/rehearse.sh import --freeze-marked` (add `--extensions-created` if needed). It keeps the operator's `freeze-start`, and refuses a mark older than 30 minutes or older than the last import, such as one left by the rehearsal.
-5. **Deploy and validate.** Run `release.sh deploy` and validate through the edge with `--resolve` (DNS still points at Heroku). Then run `mark validated`. This must happen within 20 minutes of the freeze.
+5. **Deploy and validate.** Run `release.sh deploy` and validate through the edge with `--resolve` (DNS still points at Heroku). Then run `mark validated`. This must happen within 20 minutes of the freeze. If the imported schema is behind the recorded release, apply the pending migrations in the active slot first, as in rehearsal step 3.
 6. **DNS.** Switch `mawareeth.com` and `www` to the host and run `mark dns-switched` within 30 minutes of the freeze.
 7. **Rollback point.** Until Hetzner accepts its first write, `heroku maintenance:off` plus DNS back to Heroku is lossless. Run `mark rollback-point` just before opening writes. After that, rolling back means copying Hetzner's writes back to Heroku.
 
