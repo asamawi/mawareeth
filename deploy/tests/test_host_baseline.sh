@@ -118,15 +118,15 @@ cat > "$stub/jq" <<'EOF'
 args="$*"
 case "$args" in
   # Piped from hcloud: drain stdin so the writer never gets SIGPIPE under pipefail.
-  *'.ssh_key.public_key'*) cat >/dev/null; printf '%s\n' "$TEST_PUBLIC_KEY" ;;
-  *'.firewall.id'*) printf '1\n' ;;
-  *'.server.server_type.name'*) printf 'cx33\n' ;;
-  *'.server.datacenter.location.name'*) printf 'nbg1\n' ;;
-  *'.server.image.name'*) printf 'ubuntu-24.04\n' ;;
-  *'.server.labels.mawareeth_host_baseline'*) printf '1\n' ;;
-  *'.action.id'*) printf '1\n' ;;
+  *'(.ssh_key // .).public_key'*) cat >/dev/null; printf '%s\n' "$TEST_PUBLIC_KEY" ;;
+  *'(.firewall // .).id'*) printf '1\n' ;;
+  *'(.server // .).server_type.name'*) printf 'cx33\n' ;;
+  *'(.location.name // .datacenter.location.name)'*) printf 'nbg1\n' ;;
+  *'(.server // .).image.name'*) printf 'ubuntu-24.04\n' ;;
+  *'(.server // .).labels.mawareeth_host_baseline'*) printf '1\n' ;;
+  *'.actions[]?.id'*) printf '1\n' ;;
   *'length > 0'*) exit 1 ;;
-  *'all(.firewall.applied_to'*) exit 0 ;;
+  *'all((.firewall // .).applied_to'*) exit 0 ;;
   *'applied_to'*) exit 1 ;;
   *'--argjson ssh_sources'*) printf '{"rules": [{"port": "80"}, {"port": "443"}, {"port": "22"}]}' ;;
   *'-R .'*) cat | sed 's/.*/"&"/' ;;
@@ -160,7 +160,7 @@ TEST_LOG="$log" TEST_STATE="$state" TEST_PUBLIC_KEY="$pub" PATH="$stub:$PATH" HO
 TEST_LOG="$log" TEST_STATE="$state" TEST_PUBLIC_KEY="$pub" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$tmp/valid-config" bash "$provision"
 [[ "$(grep -c 'server create' "$log")" == 1 ]] || fail 'repeat provision created a duplicate server'
 need "$log" 'action wait 1'
-need "$log" 'server enable-protection baseline-test delete'
+need "$log" 'server enable-protection baseline-test delete rebuild'
 need "$log" 'firewall apply-to-resource baseline-test-edge --type server --server baseline-test'
 need "$log" '"port": "80"'
 need "$log" '"port": "443"'
@@ -192,13 +192,14 @@ server_type=cx33; [[ "${MISMATCH_MODE:-}" == server ]] && server_type=cx22
 key_value="$TEST_PUBLIC_KEY"; [[ "${MISMATCH_MODE:-}" == key ]] && key_value='ssh-ed25519 AAAADIFFERENTKEYDATA different@test'
 case "$args" in
   # Piped from hcloud: drain stdin so the writer never gets SIGPIPE under pipefail.
-  *'.ssh_key.public_key'*) cat >/dev/null; printf '%s\n' "$key_value" ;;
-  *'.server.server_type.name'*) printf '%s\n' "$server_type" ;;
-  *'.server.datacenter.location.name'*) printf 'nbg1\n' ;;
-  *'.server.image.name'*) printf 'ubuntu-24.04\n' ;;
-  *'.server.labels.mawareeth_host_baseline'*) printf '1\n' ;;
+  *'(.ssh_key // .).public_key'*) cat >/dev/null; printf '%s\n' "$key_value" ;;
+  *'(.server // .).server_type.name'*) printf '%s\n' "$server_type" ;;
+  *'(.location.name // .datacenter.location.name)'*) printf 'nbg1\n' ;;
+  *'(.server // .).image.name'*) printf 'ubuntu-24.04\n' ;;
+  *'(.server // .).labels.mawareeth_host_baseline'*) printf '1\n' ;;
+  *'(.server // .).id'*) printf '1\n' ;;
   *'length > 0'*) exit 1 ;;
-  *'all(.firewall.applied_to'*) if [[ "${MISMATCH_MODE:-}" == firewall ]]; then exit 1; else exit 0; fi ;;
+  *'all((.firewall // .).applied_to'*) if [[ "${MISMATCH_MODE:-}" == firewall ]]; then exit 1; else exit 0; fi ;;
   *) cat ;;
 esac
 EOF

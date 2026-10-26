@@ -73,16 +73,20 @@ IFS=' ' read -r private_type private_data _ <<<"$private_key"
 [[ -n "$configured_type" && -n "$configured_data" ]] || die 'SSH_PUBLIC_KEY must contain a key type and base64 key data'
 [[ "$configured_type $configured_data" == "$private_type $private_data" ]] || die 'configured public and private SSH keys do not match'
 
+# hcloud --output json returns the bare object in current releases and wrapped it
+# in a resource key (.server, .ssh_key, .firewall) in older ones; accept both.
 # Inspect an existing host before changing any provider resource. A matching name
 # must be explicitly labelled as a baseline host before this script may reconcile it.
 server_exists=false
 if hcloud server describe "$SERVER_NAME" --output json >/dev/null 2>&1; then
   server_exists=true
   server_json="$(hcloud server describe "$SERVER_NAME" --output json)"
-  type="$(jq -r '.server.server_type.name' <<<"$server_json")"
-  location="$(jq -r '.server.datacenter.location.name' <<<"$server_json")"
-  image="$(jq -r '.server.image.name' <<<"$server_json")"
-  managed="$(jq -r '.server.labels.mawareeth_host_baseline // empty' <<<"$server_json")"
+  type="$(jq -r '(.server // .).server_type.name' <<<"$server_json")"
+  # Current releases report .location; older ones only .datacenter.location.
+  location="$(jq -r '(.server // .) | (.location.name // .datacenter.location.name)' <<<"$server_json")"
+  image="$(jq -r '(.server // .).image.name' <<<"$server_json")"
+  managed="$(jq -r '(.server // .).labels.mawareeth_host_baseline // empty' <<<"$server_json")"
+  existing_server_id="$(jq -r '(.server // .).id' <<<"$server_json")"
   [[ "$type" == cx33 && "$location" == nbg1 && "$image" == ubuntu-24.04 && "$managed" == 1 ]] || die 'existing server is conflicting or not managed by this baseline; operator decision required'
 fi
 
@@ -90,7 +94,7 @@ fi
 if ! hcloud ssh-key describe "$HETZNER_SSH_KEY_NAME" >/dev/null 2>&1; then
   hcloud ssh-key create --name "$HETZNER_SSH_KEY_NAME" --public-key-from-file "$SSH_PUBLIC_KEY" >/dev/null
 else
-  existing_key="$(hcloud ssh-key describe "$HETZNER_SSH_KEY_NAME" --output json | jq -r '.ssh_key.public_key')"
+  existing_key="$(hcloud ssh-key describe "$HETZNER_SSH_KEY_NAME" --output json | jq -r '(.ssh_key // .).public_key')"
   # Compare only type and base64 data, matching the private-key comparison above:
   # Hetzner may normalize or drop the comment, producing a false mismatch otherwise.
   IFS=' ' read -r existing_type existing_data _ <<<"$existing_key"
@@ -101,23 +105,25 @@ fi
 IFS=',' read -r -a cidrs <<<"$SSH_ALLOWED_CIDRS"
 cidr_json="$(printf '%s\n' "${cidrs[@]}" | jq -R . | jq -s .)"
 rules_payload="$(jq -n --argjson ssh_sources "$cidr_json" '
-  {rules: [
+  {rules: ([
     {direction: "in", protocol: "tcp", port: "80", source_ips: ["0.0.0.0/0", "::/0"]},
     {direction: "in", protocol: "tcp", port: "443", source_ips: ["0.0.0.0/0", "::/0"]}
-  ] + ($ssh_sources | map({direction: "in", protocol: "tcp", port: "22", source_ips: [.]}) )}')"
+  ] + ($ssh_sources | map({direction: "in", protocol: "tcp", port: "22", source_ips: [.]})))}')"
 if hcloud firewall describe "$FIREWALL_NAME" >/dev/null 2>&1; then
   firewall_json="$(hcloud firewall describe "$FIREWALL_NAME" --output json)"
-  if [[ "$server_exists" == false ]] && jq -e '.firewall.applied_to | length > 0' <<<"$firewall_json" >/dev/null; then
+  if [[ "$server_exists" == false ]] && jq -e '(.firewall // .).applied_to | length > 0' <<<"$firewall_json" >/dev/null; then
     die 'configured firewall is already attached to another server; operator decision required'
   fi
-  if [[ "$server_exists" == true ]] && ! jq -e --arg server "$SERVER_NAME" 'all(.firewall.applied_to[]?; .type != "server" or .server.name == $server)' <<<"$firewall_json" >/dev/null; then
+  # applied_to identifies servers by id only in current API responses.
+  if [[ "$server_exists" == true ]] && ! jq -e --arg server_id "$existing_server_id" 'all((.firewall // .).applied_to[]?; .type != "server" or (.server.id | tostring) == $server_id)' <<<"$firewall_json" >/dev/null; then
     die 'configured firewall is shared with another server; operator decision required'
   fi
 else
   hcloud firewall create --name "$FIREWALL_NAME" >/dev/null
 fi
 firewall_json="$(hcloud firewall describe "$FIREWALL_NAME" --output json)"
-firewall_id="$(jq -r '.firewall.id' <<<"$firewall_json")"
+firewall_id="$(jq -r '(.firewall // .).id' <<<"$firewall_json")"
+[[ "$firewall_id" =~ ^[0-9]+$ ]] || die 'could not determine the firewall id'
 # Pass the bearer token via a curl config file rather than argv, so it is not
 # visible to other processes on this workstation through `ps`/`/proc`.
 curl_auth_config="$(mktemp)"
@@ -132,18 +138,24 @@ action_json="$(curl --fail --silent --show-error --request POST \
   "https://api.hetzner.cloud/v1/firewalls/${firewall_id}/actions/set_rules")"
 rm -f "$curl_auth_config"
 trap - EXIT
-action_id="$(jq -r '.action.id // empty' <<<"$action_json")"
-[[ -n "$action_id" ]] || die 'firewall rule update did not return an action id'
-hcloud action wait "$action_id" >/dev/null
+# set_rules answers with an actions array (the rule change plus one apply per
+# attached resource); an older single action is accepted too.
+action_ids="$(jq -r '[.actions[]?.id, .action.id?] | map(select(. != null)) | .[]' <<<"$action_json")"
+[[ -n "$action_ids" ]] || die 'firewall rule update did not return an action id'
+while IFS= read -r action_id; do
+  [[ "$action_id" =~ ^[0-9]+$ ]] || die 'firewall rule update returned an invalid action id'
+  hcloud action wait "$action_id" >/dev/null
+done <<<"$action_ids"
 
 if [[ "$server_exists" == false ]]; then
   hcloud server create --name "$SERVER_NAME" --type cx33 --location nbg1 --image ubuntu-24.04 --ssh-key "$HETZNER_SSH_KEY_NAME" --firewall "$FIREWALL_NAME" --label mawareeth_host_baseline=1 >/dev/null
 fi
-hcloud server enable-protection "$SERVER_NAME" delete >/dev/null
+# The API requires delete and rebuild protection to be set together.
+hcloud server enable-protection "$SERVER_NAME" delete rebuild >/dev/null
 server_json="$(hcloud server describe "$SERVER_NAME" --output json)"
-server_id="$(jq -r '.server.id' <<<"$server_json")"
+server_id="$(jq -r '(.server // .).id' <<<"$server_json")"
 firewall_json="$(hcloud firewall describe "$FIREWALL_NAME" --output json)"
-if ! jq -e --arg server_id "$server_id" '.firewall.applied_to[]? | select(.type == "server" and (.server.id | tostring) == $server_id)' <<<"$firewall_json" >/dev/null; then
+if ! jq -e --arg server_id "$server_id" '(.firewall // .).applied_to[]? | select(.type == "server" and (.server.id | tostring) == $server_id)' <<<"$firewall_json" >/dev/null; then
   hcloud firewall apply-to-resource "$FIREWALL_NAME" --type server --server "$SERVER_NAME" >/dev/null
 fi
 
