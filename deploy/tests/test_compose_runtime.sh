@@ -128,7 +128,19 @@ case "${1:-} ${2:-}" in
     exit 0 ;;
   'image inspect')
     [[ "${STUB_FAIL_IMAGE:-0}" != 1 ]] || exit 1
-    if [[ "$*" == *RepoDigests* ]]; then
+    if [[ "$*" == *RepoDigests* && "${STUB_SHORT_REPO_DIGESTS:-0}" == 1 ]]; then
+      # The short form a real Docker Engine reports for Docker Hub images.
+      printf '%s\n' \
+        'ghcr.io/example/mawareeth@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+        'caddy@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52' \
+        'postgres@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3'
+    elif [[ "$*" == *RepoDigests* && "${STUB_FOREIGN_REPO_DIGESTS:-0}" == 1 ]]; then
+      # The locked digests under other repositories must not satisfy the lock.
+      printf '%s\n' \
+        'ghcr.io/example/mawareeth@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+        'other/caddy@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52' \
+        'docker.io/other/postgres@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3'
+    elif [[ "$*" == *RepoDigests* ]]; then
       printf '%s\n' \
         'ghcr.io/example/mawareeth@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
         'docker.io/library/caddy@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52' \
@@ -324,6 +336,16 @@ if STUB_FAIL_IMAGE=1 TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$stub:
   fail 'image inspection failure was accepted'
 fi
 [[ ! -e "$tmp/inspect-failure" ]] || fail 'image inspection failure mutated snapshot state'
+
+STUB_SHORT_REPO_DIGESTS=1 TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/runtime.env" \
+  MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/short-digests" bash "$runtime" prepare >/dev/null 2>&1 \
+  || fail 'short Docker Hub repository digests were refused'
+rm -rf "$tmp/short-digests"
+if STUB_FOREIGN_REPO_DIGESTS=1 TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/runtime.env" \
+  MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/foreign-digests" bash "$runtime" prepare >/dev/null 2>&1; then
+  fail 'a locked digest under a foreign repository was accepted'
+fi
+[[ ! -e "$tmp/foreign-digests" ]] || fail 'a foreign repository digest mutated snapshot state'
 
 printf 'drift\n' > "$first_snapshot"
 if run_runtime prepare >/dev/null 2>&1; then fail 'snapshot content drift was accepted'; fi
