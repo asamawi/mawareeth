@@ -163,7 +163,7 @@ PY
 }
 
 validate_image() {
-  local image="$1" image_id repo_digests tagged_repository repository expected
+  local image="$1" image_id repo_digests tagged_repository repository expected short
   image_id="$(docker image inspect --format '{{.Id}}' "$image" 2>/dev/null)" || die 'a required digest-pinned image is not available locally'
   [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]] || die 'image inspection returned an invalid immutable ID'
   repo_digests="$(docker image inspect --format '{{join .RepoDigests "\n"}}' "$image" 2>/dev/null)" || die 'image repository metadata could not be inspected'
@@ -171,7 +171,14 @@ validate_image() {
   repository="${tagged_repository%:*}"
   [[ "${tagged_repository##*/}" == *:* ]] || repository="$tagged_repository"
   expected="$repository@${image##*@}"
-  grep -Fxq -- "$expected" <<<"$repo_digests" || die "local image metadata does not contain requested repository digest"
+  # Docker Engine reports Docker Hub repositories in short form: docker.io/library/postgres
+  # as postgres and docker.io/restic/restic as restic/restic. The digest must still match.
+  short="$expected"
+  case "$repository" in
+    docker.io/library/*) short="${expected#docker.io/library/}" ;;
+    docker.io/*) short="${expected#docker.io/}" ;;
+  esac
+  grep -Fxq -e "$expected" -e "$short" <<<"$repo_digests" || die "local image metadata does not contain requested repository digest"
 }
 
 volume_spec() {
