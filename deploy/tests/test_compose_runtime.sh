@@ -213,6 +213,105 @@ first_snapshot="${snapshots[0]}"
 run_runtime prepare >/dev/null
 snapshots=("$tmp/runtime"/*.snapshot.env)
 [[ ${#snapshots[@]} == 1 && "${snapshots[0]}" == "$first_snapshot" ]] || fail 'repeat preparation duplicated state'
+# The eight-key contract renders exactly the pre-existing snapshot, so hosts
+# without the optional keys keep their snapshot file and hash.
+cat > "$tmp/expected-eight.snapshot.env" <<'EOF'
+DJANGO_ENV=production
+DJANGO_DEBUG=False
+DJANGO_KEY=a-long-django-$-#-quote-'-"-key-that-is-never-printed-123456
+DJANGO_ALLOWED_HOSTS=example.com
+DJANGO_CSRF_TRUSTED_ORIGINS=https://example.com
+DATABASE_URL=postgresql://mawareeth:LongUrlSafePassword_123456@postgres:5432/mawareeth
+DATABASE_SSL_MODE=disable
+MAILGUN_ACCESS_KEY=mailgun-secret-value
+MAILGUN_SERVER_NAME=mg.example.com
+EOF
+cmp -s "$tmp/expected-eight.snapshot.env" "$first_snapshot" || fail 'the eight-key snapshot is not byte-identical to the established content'
+[[ "$(basename "$first_snapshot")" == "$(sha256sum "$tmp/expected-eight.snapshot.env" | awk '{print $1}').snapshot.env" ]] \
+  || fail 'the eight-key snapshot hash changed'
+
+# Optional application keys: SITE_ID and the social-login credentials.
+fb_secret='facebook-secret-value-never-printed'
+li_key='linkedin-key-value-never-printed'
+li_secret='linkedin-secret-value-never-printed'
+eight_hash="$(sha256sum "$tmp/expected-eight.snapshot.env" | awk '{print $1}')"
+# prepare_with NAME LINE... prepares a fresh state directory from the fixture
+# plus LINEs and prints the combined output.
+prepare_with() {
+  local name="$1"; shift
+  cp "$tmp/runtime.env" "$tmp/$name.env"; printf '%s\n' "$@" >> "$tmp/$name.env"; chmod 600 "$tmp/$name.env"
+  TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/$name.env" \
+    MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/$name-state" bash "$runtime" prepare 2>&1
+}
+# cleanup_optional NAME removes a case's runtime file and state so a wrongly
+# accepted case cannot affect later ones.
+cleanup_optional() { rm -rf "$tmp/$1.env" "$tmp/$1-state"; }
+assert_no_secret_leak() {
+  [[ "$2" != *"$fb_secret"* && "$2" != *"$li_key"* && "$2" != *"$li_secret"* \
+    && "$2" != *'LongUrlSafePassword_123456'* && "$2" != *'a-long-django-$-#-quote'* && "$2" != *'mailgun-secret-value'* ]] \
+    || fail "$1 leaked a secret"
+}
+# expect_optional_refused LABEL MESSAGE BAD LINE...: refused before any state
+# change, naming the key without echoing the BAD value.
+expect_optional_refused() {
+  local label="$1" message="$2" bad="$3" output; shift 3
+  if output="$(prepare_with optional-bad "$@")"; then cleanup_optional optional-bad; fail "$label was accepted"; fi
+  [[ "$output" == *"$message"* ]] || fail "$label refusal did not name the key: $output"
+  [[ ! -e "$tmp/optional-bad-state" ]] || fail "$label created runtime state"
+  assert_no_secret_leak "$label" "$output"
+  [[ "$output" != *"$bad"* ]] || fail "$label echoed the refused value: $output"
+  cleanup_optional optional-bad
+}
+# expect_optional_snapshot NAME EXPECTED_FILE LINE...: accepted, exactly one
+# snapshot whose content matches and whose name is its own sha256, distinct
+# from the eight-key hash.
+expect_optional_snapshot() {
+  local name="$1" expected="$2" output hash; shift 2
+  output="$(prepare_with "$name" "$@")" || { cleanup_optional "$name"; fail "$name was refused: $output"; }
+  assert_no_secret_leak "$name" "$output"
+  snapshots=("$tmp/$name-state"/*.snapshot.env)
+  [[ ${#snapshots[@]} == 1 && -f "${snapshots[0]}" ]] || fail "$name did not create exactly one snapshot"
+  cmp -s "$expected" "${snapshots[0]}" || fail "$name snapshot content is wrong"
+  hash="$(sha256sum "${snapshots[0]}" | awk '{print $1}')"
+  [[ "$(basename "${snapshots[0]}")" == "$hash.snapshot.env" ]] || fail "$name snapshot is not named by its sha256"
+  [[ "$hash" != "$eight_hash" ]] || fail "$name snapshot reused the eight-key hash"
+  cleanup_optional "$name"
+}
+{ cat "$tmp/expected-eight.snapshot.env"
+  printf '%s\n' SITE_ID=2 FACEBOOK_KEY=123456789012345 "FACEBOOK_SECRET=$fb_secret" "LINKEDIN_KEY=$li_key" "LINKEDIN_SECRET=$li_secret"
+} > "$tmp/expected-all.snapshot.env"
+# Given out of order; the snapshot uses the fixed order.
+expect_optional_snapshot optional-all "$tmp/expected-all.snapshot.env" SITE_ID=2 "LINKEDIN_SECRET=$li_secret" \
+  "FACEBOOK_SECRET=$fb_secret" FACEBOOK_KEY=123456789012345 "LINKEDIN_KEY=$li_key"
+{ cat "$tmp/expected-eight.snapshot.env"; printf 'SITE_ID=2\n'; } > "$tmp/expected-site.snapshot.env"
+expect_optional_snapshot optional-site "$tmp/expected-site.snapshot.env" SITE_ID=2
+# Upper boundaries are accepted.
+max_fb_key="$(printf '9%.0s' {1..32})"
+max_secret="$fb_secret$(printf 'y%.0s' $(seq $((256 - ${#fb_secret}))))"
+max_li_key="$li_key$(printf 'k%.0s' $(seq $((256 - ${#li_key}))))"
+max_li_secret="$li_secret$(printf 's%.0s' $(seq $((256 - ${#li_secret}))))"
+[[ ${#max_secret} == 256 && ${#max_li_key} == 256 && ${#max_li_secret} == 256 ]] || fail 'boundary fixtures are not 256 characters'
+{ cat "$tmp/expected-eight.snapshot.env"
+  printf '%s\n' SITE_ID=2147483647 "FACEBOOK_KEY=$max_fb_key" "FACEBOOK_SECRET=$max_secret" "LINKEDIN_KEY=$max_li_key" "LINKEDIN_SECRET=$max_li_secret"
+} > "$tmp/expected-max.snapshot.env"
+expect_optional_snapshot optional-max "$tmp/expected-max.snapshot.env" SITE_ID=2147483647 "FACEBOOK_KEY=$max_fb_key" \
+  "FACEBOOK_SECRET=$max_secret" "LINKEDIN_KEY=$max_li_key" "LINKEDIN_SECRET=$max_li_secret"
+for bad in 0 -1 abc 01 12345678901 2147483648; do
+  expect_optional_refused "SITE_ID=$bad" 'SITE_ID' "$bad" "SITE_ID=$bad"
+done
+for bad in abc 12a -5 "$(printf '1%.0s' {1..33})"; do
+  expect_optional_refused "FACEBOOK_KEY=$bad" 'FACEBOOK_KEY' "$bad" "FACEBOOK_KEY=$bad" "FACEBOOK_SECRET=$fb_secret"
+done
+expect_optional_refused 'FACEBOOK_KEY without FACEBOOK_SECRET' 'FACEBOOK_KEY and FACEBOOK_SECRET' 123 FACEBOOK_KEY=123
+expect_optional_refused 'FACEBOOK_SECRET without FACEBOOK_KEY' 'FACEBOOK_KEY and FACEBOOK_SECRET' "$fb_secret" "FACEBOOK_SECRET=$fb_secret"
+expect_optional_refused 'LINKEDIN_KEY without LINKEDIN_SECRET' 'LINKEDIN_KEY and LINKEDIN_SECRET' "$li_key" "LINKEDIN_KEY=$li_key"
+expect_optional_refused 'LINKEDIN_SECRET without LINKEDIN_KEY' 'LINKEDIN_KEY and LINKEDIN_SECRET' "$li_secret" "LINKEDIN_SECRET=$li_secret"
+expect_optional_refused 'overlong FACEBOOK_SECRET' 'FACEBOOK_SECRET' "${max_secret}x" FACEBOOK_KEY=123 "FACEBOOK_SECRET=${max_secret}x"
+expect_optional_refused 'overlong LINKEDIN_KEY' 'LINKEDIN_KEY' "${max_li_key}x" "LINKEDIN_KEY=${max_li_key}x" "LINKEDIN_SECRET=$li_secret"
+expect_optional_refused 'overlong LINKEDIN_SECRET' 'LINKEDIN_SECRET' "${max_li_secret}x" "LINKEDIN_KEY=$li_key" "LINKEDIN_SECRET=${max_li_secret}x"
+expect_optional_refused 'whitespace in FACEBOOK_SECRET' 'FACEBOOK_SECRET' "$fb_secret x" FACEBOOK_KEY=123 "FACEBOOK_SECRET=$fb_secret x"
+expect_optional_refused 'whitespace in LINKEDIN_KEY' 'LINKEDIN_KEY' "$li_key x" "LINKEDIN_KEY=$li_key x" "LINKEDIN_SECRET=$li_secret"
+expect_optional_refused 'whitespace in LINKEDIN_SECRET' 'LINKEDIN_SECRET' "$li_secret x" "LINKEDIN_KEY=$li_key" "LINKEDIN_SECRET=$li_secret x"
 
 rm -rf "$tmp/config-only-state"
 TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/runtime.env" \
@@ -417,7 +516,7 @@ assert_path_rejected_without_mutation() {
     fail "$label was accepted"
   fi
   [[ "$(grep -Ec 'volume create|compose --project-name.* up' "$tmp/docker.log" 2>/dev/null || true)" == "$before" ]] || fail "$label caused Docker mutation"
-  [[ "$output" != *'LongUrlSafePassword_123456'* && "$output" != *'a-long-django-$-#-quote'* && "$output" != *'mailgun-secret-value'* ]] || fail "$label leaked a secret"
+  assert_no_secret_leak "$label" "$output"
 }
 
 cp "$tmp/runtime.env" "$tmp/unsafe-mode.env"

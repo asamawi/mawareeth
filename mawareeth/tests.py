@@ -139,6 +139,23 @@ class ProductionSettingsTests(SimpleTestCase):
             with self.subTest(name=name), self.assertRaisesRegex(ImproperlyConfigured, name):
                 load_settings_module({name: ""})
 
+    def test_runtime_snapshot_optional_keys_reach_settings(self):
+        # deploy/runtime.sh emits these exact names into the app snapshot.
+        module = load_settings_module(
+            {
+                "SITE_ID": "2",
+                "FACEBOOK_KEY": "123456789012345",
+                "FACEBOOK_SECRET": "facebook-secret",
+                "LINKEDIN_KEY": "linkedin-key",
+                "LINKEDIN_SECRET": "linkedin-secret",
+            }
+        )
+        self.assertEqual(module.SITE_ID, 2)
+        self.assertEqual(module.SOCIAL_AUTH_FACEBOOK_KEY, 123456789012345)
+        self.assertEqual(module.SOCIAL_AUTH_FACEBOOK_SECRET, "facebook-secret")
+        self.assertEqual(module.SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_KEY, "linkedin-key")
+        self.assertEqual(module.SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_SECRET, "linkedin-secret")
+
     def test_health_middleware_runs_before_host_and_https_enforcement(self):
         module = load_settings_module({})
         self.assertEqual(module.MIDDLEWARE[0], "mawareeth.middleware.HealthCheckMiddleware")

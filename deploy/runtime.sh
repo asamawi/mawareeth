@@ -41,6 +41,13 @@ file_metadata() {
   [[ "$metadata" == "0:0:$expected_mode" ]] || die "$description must be owned by root:root with mode $expected_mode"
 }
 
+# Optional application keys, appended to the app snapshot in this order when
+# present. Absent keys leave the snapshot (and its hash) unchanged.
+optional_app_keys=(SITE_ID FACEBOOK_KEY FACEBOOK_SECRET LINKEDIN_KEY LINKEDIN_SECRET)
+# Keys every runtime.env must carry. Together with optional_app_keys this is the
+# complete allow-list.
+required_runtime_keys=(APP_IMAGE_REPOSITORY DJANGO_KEY DOMAIN MAILGUN_ACCESS_KEY MAILGUN_SERVER_NAME POSTGRES_DB POSTGRES_PASSWORD POSTGRES_USER)
+
 load_raw_env() {
   local file="$1" line key value
   declare -gA runtime_values=()
@@ -53,9 +60,10 @@ load_raw_env() {
     [[ -n "$value" ]] || die "runtime value is empty: $key"
     runtime_values[$key]="$value"
   done < "$file"
-  local expected=' APP_IMAGE_REPOSITORY DJANGO_KEY DOMAIN MAILGUN_ACCESS_KEY MAILGUN_SERVER_NAME POSTGRES_DB POSTGRES_PASSWORD POSTGRES_USER '
-  for key in "${!runtime_values[@]}"; do [[ "$expected" == *" $key "* ]] || die "runtime file contains unsupported key: $key"; done
-  for key in APP_IMAGE_REPOSITORY DJANGO_KEY DOMAIN MAILGUN_ACCESS_KEY MAILGUN_SERVER_NAME POSTGRES_DB POSTGRES_PASSWORD POSTGRES_USER; do
+  local -A allowed=()
+  for key in "${required_runtime_keys[@]}" "${optional_app_keys[@]}"; do allowed[$key]=1; done
+  for key in "${!runtime_values[@]}"; do [[ -n "${allowed[$key]:-}" ]] || die "runtime file contains unsupported key: $key"; done
+  for key in "${required_runtime_keys[@]}"; do
     [[ -n "${runtime_values[$key]:-}" ]] || die "runtime file is missing required key: $key"
   done
 }
@@ -72,6 +80,25 @@ validate_values() {
   [[ "${runtime_values[POSTGRES_PASSWORD]}" =~ ^[A-Za-z0-9._~-]{20,128}$ ]] || die 'POSTGRES_PASSWORD must be 20-128 URL-safe unreserved characters'
   ((${#runtime_values[DJANGO_KEY]} >= 32)) || die 'DJANGO_KEY must contain at least 32 characters'
   validate_hostname "${runtime_values[MAILGUN_SERVER_NAME]}" MAILGUN_SERVER_NAME anycase
+  validate_optional_values
+}
+
+# Error messages name only the key, never the value.
+validate_optional_values() {
+  local provider key
+  [[ -z "${runtime_values[SITE_ID]+x}" || "${runtime_values[SITE_ID]}" =~ ^[1-9][0-9]{0,9}$ ]] || die 'SITE_ID must be a positive integer without leading zeros'
+  # Django's Site.id is a PostgreSQL integer.
+  [[ -z "${runtime_values[SITE_ID]+x}" ]] || ((10#${runtime_values[SITE_ID]} <= 2147483647)) || die 'SITE_ID must be at most 2147483647'
+  [[ -z "${runtime_values[FACEBOOK_KEY]+x}" || "${runtime_values[FACEBOOK_KEY]}" =~ ^[0-9]{1,32}$ ]] || die 'FACEBOOK_KEY must be 1-32 digits'
+  for key in FACEBOOK_SECRET LINKEDIN_KEY LINKEDIN_SECRET; do
+    # The raw format only rejects edge whitespace; credentials never contain any.
+    [[ -z "${runtime_values[$key]+x}" ]] || { ((${#runtime_values[$key]} <= 256)) && [[ "${runtime_values[$key]}" != *[[:space:]]* ]]; } \
+      || die "$key must be at most 256 characters without whitespace"
+  done
+  for provider in FACEBOOK LINKEDIN; do
+    [[ "${runtime_values[${provider}_KEY]+x}" == "${runtime_values[${provider}_SECRET]+x}" ]] \
+      || die "${provider}_KEY and ${provider}_SECRET must both be set or both be absent"
+  done
 }
 
 validate_hostname() {
@@ -202,6 +229,10 @@ DATABASE_URL=postgresql://${runtime_values[POSTGRES_USER]}:${runtime_values[POST
 DATABASE_SSL_MODE=disable
 MAILGUN_ACCESS_KEY=${runtime_values[MAILGUN_ACCESS_KEY]}
 MAILGUN_SERVER_NAME=${runtime_values[MAILGUN_SERVER_NAME]}"
+  local key
+  for key in "${optional_app_keys[@]}"; do
+    [[ -z "${runtime_values[$key]+x}" ]] || printf '%s=%s\n' "$key" "${runtime_values[$key]}"
+  done
 }
 
 # snapshot_hash prints the content address of the current snapshot and fails
