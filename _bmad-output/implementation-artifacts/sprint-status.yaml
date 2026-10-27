@@ -49,7 +49,7 @@ development_status:
   0-6-implement-safe-blue-green-deployment: done
   0-7-implement-encrypted-backup-and-restore: done
   0-8-add-monitoring-and-operational-controls: review
-  0-9-rehearse-capacity-restore-and-cutover: review
+  0-9-rehearse-capacity-restore-and-cutover: done
   0-10-execute-production-cutover-and-retire-heroku: backlog
   epic-0-retrospective: optional
 

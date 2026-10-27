@@ -123,17 +123,39 @@ Write the runbook in `deploy/README.md`.
 
 ## Spec Change Log
 
-- **First rehearsal on `mawareeth-prod`, 2026-10-27 (in progress).**
+- **First rehearsal on `mawareeth-prod`, 2026-10-26/27: gate passed, path `write-freeze`.**
   - **Host:** rebuilt CX33 in nbg1 (2.28.64.83, tailnet 100.64.64.22) at release `0b6170f`.
   - **Throwaway record:** `rehearsal.mawareeth.com`, already pointing at the host.
-  - **Results so far:**
-    - **Import** passed in 12 s total: count 3 s, dump 6 s, restore 6 s, compare 2 s, analyze 1 s. All 49 tables match on counts and checksums, and sequences match. The source is PostgreSQL 17.10.
-    - **`validated`** at 22:16:57Z, 4.5 min after `freeze-start` (budget 20 min).
-    - **`dns-switched`** marked at the same moment. The record already resolved to the host, so the DNS switch itself was **not measured**; the rollback will be.
-    - **Capacity:** a 30-minute run started 22:19Z (20 concurrent GETs over `/en/`, `/ar/` and `/health/ready/`, about 33 req/s).
-    - Still to come: the rollback, `backup` with `verify-restore`, and `report`.
+  - **Report** (`report` at 2026-10-27T07:22:08Z, `gate=pass`, `unmet_items=0`):
+    - **Import:** passed in 12 s total (count 3 s, dump 6 s, restore 6 s, compare 2 s, analyze 1 s). All 49 tables match on counts and checksums, and sequences match. The source is PostgreSQL 17.10.
+    - **`validated`:** 271 s after `freeze-start` (budget 1200 s).
+    - **`dns-switched`:** marked at the same moment. The record already resolved to the host, so the switch was **not measured**.
+    - **Capacity:** passed, measured over 1800 s with blue started next to active green.
+
+      | Metric | Result | Limit |
+      |---|---|---|
+      | Peak 15-minute CPU | 46.54% | 70% |
+      | Peak 15-minute memory | 14.12% | 80% |
+      | Swap / OOM | none | none |
+      | Requests | 130,567 at 68/s | — |
+      | Errors | 7 (0.005%) | 1% |
+      | p95 latency | 328 ms | — |
+
+      Load was 20 concurrent GETs over `/en/`, `/ar/` and `/health/ready/` from the operator's workstation.
+    - **Restore:** after the import, `backup` took 27 s and `verify-restore` 20 s (49 tables match, dump 22 s old). `backup.sh install` then enabled the daily backup and monthly restore-check timers.
+    - **`phase_dns_rollback_seconds=32646`:** this is not a propagation time. It spans the overnight capacity retry, the move of the zone to Cloudflare, and the operator's switch. With the record's 60 s TTL on Cloudflare, all three public resolvers (1.1.1.1, 8.8.8.8, 9.9.9.9) returned Heroku when first checked after the change.
+  - **Capacity retries:**
+    - The first attempt got no load, because Git Bash rewrote `--path`; it was terminated (`fail:interrupted`).
+    - The second sampled the full 30 minutes, and the host stayed within limits (CPU 38.7%, memory 13.3%). It recorded `fail:load`, because the operator session ended and the load generator never sent its summary.
+    - The third ran detached from the session (a separate Windows process with a log file) and passed.
   - **Findings, fixed in PR #77 unless noted:**
-    1. **No TTL control.** eNom's basic DNS (`name-services.com`) has no TTL field and serves 1800 s. That fills the whole 30-minute `dns-switched` window in 0.10, and a DNS rollback takes up to 30 minutes. `ttl-lowered` was marked without a TTL change. README: move the zone to a host with TTL control at least two days before 0.10. *This is a 0.10 prerequisite, not yet done.*
+    1. **No TTL control.** eNom's basic DNS (`name-services.com`) has no TTL field and serves 1800 s. That fills the whole 30-minute `dns-switched` window in 0.10, and a DNS rollback takes up to 30 minutes. `ttl-lowered` was marked without a TTL change. README: move the zone to a host with TTL control at least two days before 0.10.
+       - **Resolved 2026-10-27:** the operator moved the zone to Cloudflare (`hadlee`/`josh.ns.cloudflare.com`). The rehearsal record is DNS-only with a 60 s TTL.
+       - `mawareeth.com` and `www` are now **proxied** to Heroku and still serve correctly (`via: heroku-router`, no redirect loop). Heroku's own `/health/ready/` answers 503.
+       - **Open decision for 0.10:** proxied or DNS-only for the cutover. A proxy makes the origin switch near-instant, but it changes:
+         - the client address the host sees, which matters for proxy trust;
+         - the path of `release.sh`'s edge check over verified TLS;
+         - how Caddy's certificate sits behind Cloudflare's.
     2. **Missing extension.** Heroku has `pg_stat_statements` in `public`. The first import refused (exit 2, nothing written) until it was created on the target; then `--extensions-created`. Documented in the README.
     3. **Migrate deadlock.** A first deploy plus a reset left a slot record, and Heroku's schema was 2 migrations behind the release (`calc.0026`, `social_django.0017`). The recorded slot could not become ready, `runtime.sh up` exited 2, and `release.sh deploy` refused to deploy over an unready active slot. Worked around by applying the migrations inside `app-blue`, after checking the plan against `contract_pattern` (48 metadata-only operations and one constraint, with 0 offending rows). The README procedure is in PR #77; a supported command is in deferred work. 0.10 will meet the same state.
     4. **False cleanup warning.** Import cleanup reported "could not remove source containers" when a `--rm` container was already removing itself. Fixed in `rehearse.sh`.
