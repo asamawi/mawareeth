@@ -2,8 +2,8 @@
 title: 'Pass SITE_ID and social-login credentials through the runtime contract'
 type: 'feature'
 created: '2026-10-26'
-status: 'in-review'
-review_loop_iteration: 0
+status: 'done'
+review_loop_iteration: 1
 baseline_commit: 'ece98c701e6d1bd705775193b80a925781f5e84a'
 context: []
 ---
@@ -84,6 +84,23 @@ On Hetzner the app would fall back to `SITE_ID=1` and placeholder OAuth credenti
 - Given the deploy shell suites, when they run, then all of them pass, and ShellCheck is clean.
 
 ## Spec Change Log
+
+- **Review round 1 (patch only, no intent change).** Three review layers (blind, edge-case, verification-gap) found no `intent_gap` or `bad_spec`. Applied:
+  - `SITE_ID` capped at 2147483647, because Django's `Site.id` is a PostgreSQL `integer`.
+  - The allow-list is now built once from `required_runtime_keys` plus `optional_app_keys`.
+  - No-whitespace rule for `FACEBOOK_SECRET`, `LINKEDIN_KEY` and `LINKEDIN_SECRET`. The spec had assumed the raw format already rejected inner whitespace; it only rejects leading and trailing whitespace.
+  - Tests:
+    - boundary cases on both sides of every limit;
+    - each snapshot's hash equals the sha256 of its content and differs from the eight-key hash;
+    - refusals never echo the bad value;
+    - per-case cleanup.
+  - A Django test pinning the env names `settings.py` reads to the names the snapshot emits.
+  - README:
+    - copy-paste `KEY=` lines and console-field names;
+    - `SITE_ID` after a Heroku restore (2, with a matching `django_site` row);
+    - no rotation command exists yet, so set the keys before the first deploy.
+  - **Rejected:** refusing leading zeros in `FACEBOOK_KEY` (it contradicts the approved `^[0-9]{1,32}$`) and warning when social keys are absent (they are optional by design).
+- **Shipped** in PR #70 (`1524ca9`). On the rehearsal host (2026-10-27), `runtime.env` carries all five keys with `SITE_ID=2`, and the prepared snapshot hash differs from the eight-key one, as expected.
 
 ## Verification
 
