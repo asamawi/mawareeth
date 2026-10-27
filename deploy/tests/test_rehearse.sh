@@ -137,8 +137,14 @@ case "${1:-} ${2:-}" in
   'ps -a')
     # A source session that outlived its client, until it is reaped.
     [[ "$*" != *label=com.mawareeth.rehearsal-run=* || ! -e "$S/source-leftover" ]] || echo feedface0001
+    [[ "$*" != *id=feedface0001* || ! -e "$S/source-leftover" ]] || echo feedface0001
     exit 0 ;;
   'rm -f')
+    if [[ "${*: -1}" == feedface0001 && -e "$S/rm-in-progress" ]]; then
+      # A --rm container already removing itself: rm fails, but it disappears.
+      rm -f "$S/source-leftover"; echo 'removal of container feedface0001 is already in progress' >&2; exit 1
+    fi
+    [[ "${*: -1}" != feedface0001 || ! -e "$S/rm-stuck" ]] || exit 1
     [[ "${*: -1}" != feedface0001 ]] || { rm -f "$S/source-leftover"; echo feedface0001 >> "$S/reaped"; }
     exit 0 ;;
   'run --rm')
@@ -426,6 +432,24 @@ set -e
 rm -f "$S/hang-count"
 expect_rc 143 'terminated import'; evidence_is import fail:interrupted
 [[ "$(cat "$S/reaped" 2>/dev/null)" == feedface0001 ]] || fail 'a terminated import did not remove its source container'
+# A container that is already removing itself is not reported as left behind;
+# one that stays is.
+for mode in rm-in-progress rm-stuck; do
+  touch "$S/hang-count" "$S/$mode"; rm -f "$S/count-started"
+  set +e
+  env "${base_env[@]}" bash "$rehearse" import < /dev/null > "$tmp/out" 2>&1 &
+  pid=$!
+  for _ in $(seq 1 300); do [[ -e "$S/count-started" ]] && break; sleep 0.1; done
+  sleep 1; kill -TERM "$pid"; wait "$pid"; rc=$?
+  set -e
+  rm -f "$S/hang-count" "$S/$mode"
+  expect_rc 143 "terminated import ($mode)"
+  if [[ "$mode" == rm-in-progress ]]; then
+    lacks "$tmp/out" 'could not remove'
+  else
+    need "$tmp/out" "could not remove this run's source containers"; rm -f "$S/source-leftover"
+  fi
+done
 sleep 8
 no_secrets 'failed imports'
 
@@ -548,6 +572,15 @@ set -e
 rm -f "$S/sampler-hang"
 expect_rc 129 'hung-up capacity run'; evidence_is capacity fail:interrupted
 [[ ! -e "$S/running-app-green" && "$(cat "$S/stops")" == app-green ]] || fail 'a hung-up capacity run left app-green running'
+# A dropped non-interactive SSH session sends no hangup, only EOF: input closing
+# while the sampler still runs stops the run within seconds.
+touch "$S/sampler-hang"; rm -f "$S/stops"
+start=$SECONDS; load_input=/dev/null; run capacity; load_input="$S/load"
+rm -f "$S/sampler-hang"
+expect_rc 4 'capacity with standard input closed early'; evidence_is capacity fail:load
+need "$tmp/out" 'standard input closed before the sampling finished'
+((SECONDS - start < 30)) || fail 'capacity kept sampling after standard input closed'
+[[ ! -e "$S/running-app-green" && "$(cat "$S/stops")" == app-green ]] || fail 'capacity left app-green running after standard input closed'
 
 gen_samples 30 50 30; load_summary 1000 0; rm -f "$S/stops"
 run capacity --minutes 30
