@@ -51,9 +51,69 @@ grep -Eq '^[[:space:]]*respond /health/release\* 404[[:space:]]*$' "$root/deploy
 # upstream proxy and the route does not forward them itself.
 route_output="$(bash -c 'source "$1"; route_content blue; route_content green' _ "$runtime")" || fail 'cannot render route_content'
 [[ "$route_output" == *'reverse_proxy app-blue:8000'*'reverse_proxy app-green:8000'* ]] || fail 'route_content did not render both slots'
-for text in "$(< "$root/deploy/Caddyfile")" "$route_output"; do
+for text in "$(< "$root/deploy/Caddyfile")" "$route_output" "$(cat "$root"/deploy/caddy/edge/acme/*.caddy)"; do
   ! grep -Fqi -e 'trusted_proxies' -e 'header_up x-forwarded' <<<"$text" || fail 'Caddy must not trust or forward client X-Forwarded-* headers'
 done
+# Edge modes: the Caddyfile imports one snippet set per EDGE_MODE (acme by
+# default). acme adds nothing; cloudflare loads the Origin certificate,
+# disables certificate automation, redirects REDIRECT_DOMAIN, and trusts
+# forwarded headers only from Cloudflare's ranges, never by address matchers.
+edge="$root/deploy/caddy/edge"
+for part in global site sites; do
+  need "$root/deploy/Caddyfile" "import /etc/caddy/edge/{\$EDGE_MODE:acme}/$part.caddy"
+  [[ -f "$edge/acme/$part.caddy" && -f "$edge/cloudflare/$part.caddy" ]] || fail "missing edge snippet $part.caddy"
+  ! grep -Eqv '^[[:space:]]*(#|$)' "$edge/acme/$part.caddy" || fail "acme edge snippet $part.caddy must add nothing"
+done
+[[ "$(find "$edge" -type f | wc -l | tr -d ' ')" == 6 ]] || fail 'unexpected edge snippet files'
+! grep -Eq 'remote_ip|client_ip|\{remote_host\}' "$edge"/*/*.caddy || fail 'edge snippets must not rely on client source addresses'
+need "$edge/cloudflare/global.caddy" 'auto_https disable_certs'
+grep -Eq '^[[:space:]]*trusted_proxies static( [0-9a-f.:]+/[0-9]+){10,}$' "$edge/cloudflare/global.caddy" \
+  || fail 'cloudflare mode must trust only static Cloudflare ranges'
+grep -Eq '^[[:space:]]*trusted_proxies static.* 173\.245\.48\.0/20 .* 2400:cb00::/32 ' "$edge/cloudflare/global.caddy" \
+  || fail 'cloudflare trusted ranges must include IPv4 and IPv6 ranges'
+need "$edge/cloudflare/site.caddy" 'tls /etc/caddy/origin-tls/cert.pem /etc/caddy/origin-tls/key.pem'
+need "$edge/cloudflare/sites.caddy" '{$REDIRECT_DOMAIN:unprepared-redirect.invalid} {'
+need "$edge/cloudflare/sites.caddy" 'tls /etc/caddy/origin-tls/cert.pem /etc/caddy/origin-tls/key.pem'
+need "$edge/cloudflare/sites.caddy" 'redir https://{$DOMAIN:unprepared.invalid}{uri} permanent'
+need "$compose" 'EDGE_MODE: ${EDGE_MODE:?use deploy/runtime.sh as the supported entrypoint}'
+need "$compose" 'REDIRECT_DOMAIN: ${REDIRECT_DOMAIN-}'
+need "$compose" './caddy/edge:/etc/caddy/edge:ro'
+need "$compose" '${EDGE_TLS_DIR:?use deploy/runtime.sh as the supported entrypoint}:/etc/caddy/origin-tls:ro'
+# No catch-all trust: every trusted range is at least a /8 (IPv4) or /12 (IPv6).
+ranges_line="$(grep -E '^[[:space:]]*trusted_proxies static ' "$edge/cloudflare/global.caddy")"
+read -ra trusted_ranges <<<"${ranges_line#*static }"
+for range in "${trusted_ranges[@]}"; do
+  prefix="${range##*/}"
+  [[ "$range" =~ ^[0-9a-f.:]+/[0-9]{1,3}$ ]] || fail "trusted range $range is malformed"
+  if [[ "$range" == *:* ]]; then ((10#$prefix >= 12)) || fail "trusted IPv6 range $range is broader than /12"
+  else ((10#$prefix >= 8)) || fail "trusted IPv4 range $range is broader than /8"; fi
+done
+# Only Cloudflare's public Origin CA roots are tracked. No tracked file under
+# deploy/ carries a private key; the test suites' own fixtures are excluded.
+ca_bundle="$root/deploy/cloudflare-origin-ca.pem"
+[[ "$(grep -c -- '-----BEGIN CERTIFICATE-----' "$ca_bundle")" == 2 ]] || fail 'the Origin CA bundle must hold the RSA and ECC roots'
+tracked_deploy="$(git -C "$root" ls-files -- deploy)" || fail 'cannot list tracked deploy files'
+[[ -n "$tracked_deploy" ]] || fail 'git ls-files listed no deploy files'
+while IFS= read -r tracked; do
+  [[ "$tracked" != deploy/tests/* ]] || continue
+  ! grep -Eq -- '-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----' "$root/$tracked" || fail "tracked file $tracked contains a private key"
+done <<<"$tracked_deploy"
+# OpenSSL builds the certificate fixtures and reads the pinned roots. It is
+# required in CI; a workstation without it skips those checks with a note.
+have_openssl=0
+if command -v openssl >/dev/null 2>&1; then have_openssl=1
+elif [[ -n "${CI:-}" ]]; then fail 'openssl is required in CI'
+else printf 'NOTE: openssl is unavailable; skipping the Origin certificate and pinned-root checks\n' >&2; fi
+# The pinned roots are exactly the ones whose fingerprints deploy/README.md lists.
+if ((have_openssl)); then
+  tmp_roots="$(mktemp -d)"
+  readme_prints="$(grep -E '^\| CloudFlare Origin .*\| `([0-9A-F]{2}:){31}[0-9A-F]{2}` \|$' "$root/deploy/README.md" | grep -Eo '([0-9A-F]{2}:){31}[0-9A-F]{2}' | LC_ALL=C sort)"
+  bundle_prints="$(awk -v dir="$tmp_roots" '/-----BEGIN CERTIFICATE-----/ { n++; inside = 1 } inside { print > (dir "/root" n ".pem") } /-----END CERTIFICATE-----/ { inside = 0; close(dir "/root" n ".pem") }' "$ca_bundle"
+    for pem in "$tmp_roots"/root*.pem; do openssl x509 -in "$pem" -noout -fingerprint -sha256 | sed 's/^.*=//'; done | tr -d '\r' | LC_ALL=C sort)"
+  [[ "$(wc -l <<<"$readme_prints" | tr -d ' ')" == 2 ]] || fail 'deploy/README.md must list two Origin CA root fingerprints'
+  rm -rf -- "$tmp_roots"
+  [[ "$bundle_prints" == "$readme_prints" ]] || fail 'the Origin CA bundle fingerprints differ from deploy/README.md'
+fi
 # Django is reachable only through Caddy: no application slot publishes a port
 # or shares another network namespace.
 awk '
@@ -80,8 +140,9 @@ stub="$tmp/bin"; state="$tmp/docker-state"; bundle="$tmp/bundle"; mkdir -p "$stu
 # Run a disposable deployment bundle in its own Git repository outside this
 # checkout. When the shell is unprivileged only the root execution gate is
 # replaced; production code still has no test bypass.
-cp "$compose" "$root/deploy/Caddyfile" "$root/deploy/runtime-images.lock" "$root/deploy/release_manifest.py" "$bundle/deploy/"
+cp "$compose" "$root/deploy/Caddyfile" "$root/deploy/runtime-images.lock" "$root/deploy/release_manifest.py" "$root/deploy/cloudflare-origin-ca.pem" "$bundle/deploy/"
 cp "$routes" "$bundle/deploy/caddy/"
+cp -R "$root/deploy/caddy/edge" "$bundle/deploy/caddy/"
 cp "$root/.gitignore" "$bundle/.gitignore"
 if [[ ${EUID:-999} -ne 0 ]]; then
   sed 's/\[\[ ${EUID:-999} -eq 0 \]\]/[[ 0 -eq 0 ]]/' "$runtime" > "$bundle/deploy/runtime.sh"
@@ -180,6 +241,11 @@ if [[ "$1" == -c && "$2" == '%u:%g:%a' ]]; then
   elif [[ "$3" == *manifest.json ]]; then printf '0:0:600\n'
   elif [[ "$3" == */routes ]]; then printf '0:0:755\n'
   elif [[ "$3" == */routes/*.caddy ]]; then printf '0:0:644\n'
+  # Some filesystems (Git Bash on NTFS) ignore chmod; report the fixture's mode.
+  elif [[ "$3" == */origin-open || -e "$3.docker-made" ]]; then printf '0:0:755\n'
+  elif [[ "$3" == */origin-open-key/key.pem ]]; then printf '0:0:644\n'
+  elif [[ "$3" == */origin-not-root || "$3" == */origin-not-root-key/key.pem ]]; then
+    mode="$('__STAT__' -c '%a' "$3")"; printf '1000:1000:%s\n' "$mode"
   else mode="$('__STAT__' -c '%a' "$3")"; printf '0:0:%s\n' "$mode"; fi
 else
   exec '__STAT__' "$@"
@@ -251,9 +317,10 @@ eight_hash="$(sha256sum "$tmp/expected-eight.snapshot.env" | awk '{print $1}')"
 # plus LINEs and prints the combined output.
 prepare_with() {
   local name="$1"; shift
-  cp "$tmp/runtime.env" "$tmp/$name.env"; printf '%s\n' "$@" >> "$tmp/$name.env"; chmod 600 "$tmp/$name.env"
+  cp "${base_runtime:-$tmp/runtime.env}" "$tmp/$name.env"; (($# == 0)) || printf '%s\n' "$@" >> "$tmp/$name.env"; chmod 600 "$tmp/$name.env"
   TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/$name.env" \
-    MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/$name-state" bash "$runtime" prepare 2>&1
+    MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/$name-state" \
+    MAWAREETH_ORIGIN_TLS_DIR="${origin_fixture:-$tmp/no-origin-tls}" bash "$runtime" prepare 2>&1
 }
 # cleanup_optional NAME removes a case's runtime file and state so a wrongly
 # accepted case cannot affect later ones.
@@ -325,6 +392,163 @@ expect_optional_refused 'whitespace in FACEBOOK_SECRET' 'FACEBOOK_SECRET' "$fb_s
 expect_optional_refused 'whitespace in LINKEDIN_KEY' 'LINKEDIN_KEY' "$li_key x" "LINKEDIN_KEY=$li_key x" "LINKEDIN_SECRET=$li_secret"
 expect_optional_refused 'whitespace in LINKEDIN_SECRET' 'LINKEDIN_SECRET' "$li_secret x" "LINKEDIN_KEY=$li_key" "LINKEDIN_SECRET=$li_secret x"
 
+# Edge keys (EDGE_MODE, REDIRECT_DOMAIN) configure Caddy only: they never enter
+# the app snapshot. The cloudflare cases use the production shape: DOMAIN is
+# www.example.com and REDIRECT_DOMAIN is example.com.
+sed 's/^DOMAIN=example\.com$/DOMAIN=www.example.com/' "$tmp/runtime.env" > "$tmp/runtime-www.env"; chmod 600 "$tmp/runtime-www.env"
+sed 's/^DJANGO_ALLOWED_HOSTS=example\.com$/DJANGO_ALLOWED_HOSTS=www.example.com/; s|^DJANGO_CSRF_TRUSTED_ORIGINS=https://example\.com$|DJANGO_CSRF_TRUSTED_ORIGINS=https://www.example.com|' \
+  "$tmp/expected-eight.snapshot.env" > "$tmp/expected-www.snapshot.env"
+grep -qx 'DJANGO_ALLOWED_HOSTS=www.example.com' "$tmp/expected-www.snapshot.env" || fail 'could not render the www snapshot fixture'
+# origin_pair DIR SANS [expired] writes a self-signed certificate for SANS
+# (subjectAltName syntax) and its key to DIR/cert.pem and DIR/key.pem. OpenSSL
+# runs in a scratch directory with relative paths only.
+origin_pair() {
+  local dir="$1" sans="$2" when="${3:-current}" work
+  work="$(mktemp -d)"
+  (
+    cd "$work" || exit 1
+    printf '%s\n' '[req]' 'prompt = no' 'distinguished_name = dn' '[dn]' 'CN = origin.invalid' \
+      '[ca]' 'default_ca = fixture' '[fixture]' 'database = index.txt' 'new_certs_dir = .' 'serial = serial' \
+      'default_md = sha256' 'policy = anything' 'copy_extensions = copy' 'unique_subject = no' \
+      '[anything]' 'commonName = supplied' > openssl.cnf
+    : > index.txt; printf '01\n' > serial
+    if [[ "$when" == expired ]]; then
+      openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -config openssl.cnf \
+        -addext "subjectAltName=$sans" -keyout key.pem -out request.csr
+      openssl ca -batch -config openssl.cnf -selfsign -keyfile key.pem -in request.csr \
+        -startdate 20200101000000Z -enddate 20200102000000Z -notext -out cert.pem
+    else
+      openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 30 -config openssl.cnf \
+        -addext "subjectAltName=$sans" -keyout key.pem -out cert.pem
+    fi
+  ) >/dev/null 2>&1 || fail 'could not generate an Origin certificate fixture'
+  mkdir -p "$dir"; cp "$work/cert.pem" "$work/key.pem" "$dir/"; rm -rf "$work"
+}
+if ((have_openssl)); then
+  origin_pair "$tmp/pair-good" 'DNS:example.com,DNS:*.example.com'
+  origin_pair "$tmp/pair-other" 'DNS:example.com,DNS:*.example.com'
+  origin_pair "$tmp/pair-expired" 'DNS:example.com,DNS:*.example.com' expired
+  origin_pair "$tmp/pair-www-only" 'DNS:www.example.com'
+  # A line of the private key: no output may ever contain it.
+  key_material="$(sed -n 2p "$tmp/pair-good/key.pem")"
+  [[ -n "$key_material" ]] || fail 'the Origin key fixture is empty'
+else
+  mkdir -p "$tmp/pair-good"
+  printf 'origin certificate\n' > "$tmp/pair-good/cert.pem"; printf 'ORIGIN-KEY-MATERIAL-never-printed\n' > "$tmp/pair-good/key.pem"
+  key_material='ORIGIN-KEY-MATERIAL-never-printed'
+fi
+# make_origin DIR [PAIR] creates an Origin certificate directory from PAIR
+# (default: the valid pair) with the modes the runtime requires.
+make_origin() {
+  rm -rf "$1"; mkdir -p "$1"
+  cp "${2:-$tmp/pair-good}/cert.pem" "${2:-$tmp/pair-good}/key.pem" "$1/"
+  chmod 700 "$1"; chmod 644 "$1/cert.pem"; chmod 600 "$1/key.pem"
+}
+# expect_edge_snapshot NAME EXPECTED LINE...: accepted with exactly the
+# EXPECTED snapshot, named by its own sha256.
+expect_edge_snapshot() {
+  local name="$1" expected="$2" output; shift 2
+  output="$(prepare_with "$name" "$@")" || { cleanup_optional "$name"; fail "$name was refused: $output"; }
+  assert_no_secret_leak "$name" "$output"
+  [[ "$output" != *"$key_material"* ]] || fail "$name printed Origin key material"
+  snapshots=("$tmp/$name-state"/*.snapshot.env)
+  [[ ${#snapshots[@]} == 1 && "$(basename "${snapshots[0]}")" == "$(sha256sum "$expected" | awk '{print $1}').snapshot.env" ]] \
+    || fail "$name changed the snapshot name"
+  cmp -s "$expected" "${snapshots[0]}" || fail "$name changed the snapshot content"
+  ! grep -Eq '^(EDGE_MODE|REDIRECT_DOMAIN)=' "${snapshots[0]}" || fail "$name put edge keys into the app snapshot"
+}
+# expect_edge_refused LABEL MESSAGE LINE...: refused before any state change,
+# naming MESSAGE (a key or path) and never printing the Origin key.
+expect_edge_refused() {
+  local label="$1" message="$2"; shift 2
+  expect_optional_refused "$label" "$message" "$key_material" "$@"
+}
+expect_edge_snapshot edge-acme "$tmp/expected-eight.snapshot.env" EDGE_MODE=acme
+need "$tmp/compose.env" 'EDGE_MODE=acme'
+need "$tmp/compose.env" "EDGE_TLS_DIR=$tmp/edge-acme-state/edge-tls"
+grep -qx 'REDIRECT_DOMAIN=' "$tmp/compose.env" || fail 'acme mode passed a redirect name to Compose'
+[[ -d "$tmp/edge-acme-state/edge-tls" && -z "$(ls -A "$tmp/edge-acme-state/edge-tls")" ]] || fail 'acme prepare did not create the empty edge placeholder'
+# Docker creates a missing bind source as an empty root 0755 directory; prepare
+# accepts that placeholder too ($path.docker-made makes the stat stub report it).
+rmdir "$tmp/edge-acme-state/edge-tls"; mkdir "$tmp/edge-acme-state/edge-tls"; chmod 755 "$tmp/edge-acme-state/edge-tls"
+touch "$tmp/edge-acme-state/edge-tls.docker-made"
+TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/edge-acme.env" \
+  MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/edge-acme-state" bash "$runtime" prepare >/dev/null 2>&1 \
+  || fail 'prepare refused an empty root 0755 edge placeholder created by Docker'
+cleanup_optional edge-acme
+base_runtime="$tmp/runtime-www.env"
+expect_edge_snapshot edge-acme-www "$tmp/expected-www.snapshot.env"
+cleanup_optional edge-acme-www
+cloudflare_lines=(EDGE_MODE=cloudflare REDIRECT_DOMAIN=example.com)
+if ((have_openssl)); then
+  # The cloudflare snapshot is the acme snapshot for the same DOMAIN.
+  origin_fixture="$tmp/origin-tls"; make_origin "$origin_fixture"
+  expect_edge_snapshot edge-cloudflare "$tmp/expected-www.snapshot.env" "${cloudflare_lines[@]}"
+  need "$tmp/compose.env" 'EDGE_MODE=cloudflare'
+  need "$tmp/compose.env" 'REDIRECT_DOMAIN=example.com'
+  need "$tmp/compose.env" 'DOMAIN=www.example.com'
+  need "$tmp/compose.env" "EDGE_TLS_DIR=$origin_fixture"
+  ! grep -Fq "$key_material" "$tmp/compose.env" || fail 'Origin key material reached the Compose environment'
+  [[ ! -e "$tmp/edge-cloudflare-state/edge-tls" ]] || fail 'cloudflare prepare created the acme placeholder'
+  cleanup_optional edge-cloudflare
+fi
+base_runtime=''
+for bad in other Cloudflare ACME; do
+  expect_edge_refused "EDGE_MODE=$bad" 'EDGE_MODE must be acme or cloudflare' "EDGE_MODE=$bad"
+done
+expect_edge_refused 'cloudflare without REDIRECT_DOMAIN' 'REDIRECT_DOMAIN is required' EDGE_MODE=cloudflare
+expect_edge_refused 'REDIRECT_DOMAIN equal to DOMAIN' 'REDIRECT_DOMAIN must differ' EDGE_MODE=cloudflare REDIRECT_DOMAIN=example.com
+for bad in bad_name.example.com localhost Www.example.com -www.example.com www..example.com; do
+  expect_optional_refused "REDIRECT_DOMAIN=$bad" 'REDIRECT_DOMAIN' "$bad" EDGE_MODE=cloudflare "REDIRECT_DOMAIN=$bad"
+done
+expect_edge_refused 'REDIRECT_DOMAIN without EDGE_MODE' 'REDIRECT_DOMAIN is supported only with EDGE_MODE=cloudflare' REDIRECT_DOMAIN=www.example.com
+expect_edge_refused 'REDIRECT_DOMAIN with EDGE_MODE=acme' 'REDIRECT_DOMAIN is supported only with EDGE_MODE=cloudflare' EDGE_MODE=acme REDIRECT_DOMAIN=www.example.com
+# Origin files: each defect is refused before any state change, naming the path.
+base_runtime="$tmp/runtime-www.env"
+origin_fixture="$tmp/origin-missing"; rm -rf "$origin_fixture"
+expect_edge_refused 'a missing Origin directory' "$origin_fixture" "${cloudflare_lines[@]}"
+origin_fixture="$tmp/origin-open"; make_origin "$origin_fixture"; chmod 755 "$origin_fixture"
+expect_edge_refused 'an Origin directory not mode 0700' "$origin_fixture must be owned by root:root with mode 0700" "${cloudflare_lines[@]}"
+origin_fixture="$tmp/origin-no-cert"; make_origin "$origin_fixture"; rm -f "$origin_fixture/cert.pem"
+expect_edge_refused 'a missing Origin certificate' "$origin_fixture/cert.pem" "${cloudflare_lines[@]}"
+origin_fixture="$tmp/origin-empty-cert"; make_origin "$origin_fixture"; : > "$origin_fixture/cert.pem"
+expect_edge_refused 'an empty Origin certificate' "$origin_fixture/cert.pem" "${cloudflare_lines[@]}"
+origin_fixture="$tmp/origin-cert-dir"; make_origin "$origin_fixture"; rm -f "$origin_fixture/cert.pem"; mkdir "$origin_fixture/cert.pem"
+expect_edge_refused 'an Origin certificate that is not a regular file' "$origin_fixture/cert.pem" "${cloudflare_lines[@]}"
+origin_fixture="$tmp/origin-no-key"; make_origin "$origin_fixture"; rm -f "$origin_fixture/key.pem"
+expect_edge_refused 'a missing Origin key' "$origin_fixture/key.pem" "${cloudflare_lines[@]}"
+origin_fixture="$tmp/origin-open-key"; make_origin "$origin_fixture"; chmod 644 "$origin_fixture/key.pem"
+expect_edge_refused 'an Origin key not mode 0600' "$origin_fixture/key.pem must be owned by root:root with mode 600" "${cloudflare_lines[@]}"
+origin_fixture="$tmp/origin-link-key"; make_origin "$origin_fixture"; mv "$origin_fixture/key.pem" "$tmp/origin-real-key.pem"
+ln -s "$tmp/origin-real-key.pem" "$origin_fixture/key.pem"
+if [[ -L "$origin_fixture/key.pem" ]]; then
+  expect_edge_refused 'a symlinked Origin key' "$origin_fixture/key.pem" "${cloudflare_lines[@]}"
+fi
+origin_fixture="$tmp/origin-not-root"; make_origin "$origin_fixture"
+[[ ${EUID:-999} -ne 0 ]] || chown 1000:1000 "$origin_fixture"
+expect_edge_refused 'an Origin directory not owned by root' "$origin_fixture must be owned by root:root" "${cloudflare_lines[@]}"
+origin_fixture="$tmp/origin-not-root-key"; make_origin "$origin_fixture"
+[[ ${EUID:-999} -ne 0 ]] || chown 1000:1000 "$origin_fixture/key.pem"
+expect_edge_refused 'an Origin key not owned by root' "$origin_fixture/key.pem must be owned by root:root" "${cloudflare_lines[@]}"
+# The pinned Origin CA roots must ship with the deployment bundle.
+origin_fixture="$tmp/origin-tls"; make_origin "$origin_fixture"
+mv "$bundle/deploy/cloudflare-origin-ca.pem" "$tmp/origin-ca.moved"
+expect_edge_refused 'a missing Origin CA bundle' "Origin CA bundle $bundle/deploy/cloudflare-origin-ca.pem is missing" "${cloudflare_lines[@]}"
+mv "$tmp/origin-ca.moved" "$bundle/deploy/cloudflare-origin-ca.pem"
+# Certificate content, checked with openssl before any state change.
+if ((have_openssl)); then
+  origin_fixture="$tmp/origin-not-pem"; make_origin "$origin_fixture"; printf 'not a certificate\n' > "$origin_fixture/cert.pem"
+  expect_edge_refused 'a non-PEM Origin certificate' "origin certificate $origin_fixture/cert.pem is not a PEM X.509 certificate" "${cloudflare_lines[@]}"
+  origin_fixture="$tmp/origin-expired"; make_origin "$origin_fixture" "$tmp/pair-expired"
+  expect_edge_refused 'an expired Origin certificate' "origin certificate $origin_fixture/cert.pem has expired" "${cloudflare_lines[@]}"
+  origin_fixture="$tmp/origin-www-only"; make_origin "$origin_fixture" "$tmp/pair-www-only"
+  expect_edge_refused 'an Origin certificate without REDIRECT_DOMAIN' "origin certificate $origin_fixture/cert.pem does not cover REDIRECT_DOMAIN" "${cloudflare_lines[@]}"
+  origin_fixture="$tmp/origin-wrong-key"; make_origin "$origin_fixture"; cp "$tmp/pair-other/key.pem" "$origin_fixture/key.pem"; chmod 600 "$origin_fixture/key.pem"
+  expect_edge_refused 'a mismatched Origin key' "origin key $origin_fixture/key.pem does not match origin certificate $origin_fixture/cert.pem" "${cloudflare_lines[@]}"
+  [[ "$(sed -n 2p "$tmp/pair-other/key.pem")" != "$key_material" ]] || fail 'the mismatched key fixture equals the valid key'
+fi
+base_runtime=''; origin_fixture=''
+
 rm -rf "$tmp/config-only-state"
 TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/runtime.env" \
   MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/config-only-state" bash "$runtime" config >/dev/null
@@ -376,6 +600,8 @@ need "$tmp/compose.env" "APP_GREEN_IMAGE=$image_a"
 need "$tmp/compose.env" "ROUTES_DIR=$tmp/runtime/routes"
 need "$tmp/compose.env" "APP_SNAPSHOT=$first_snapshot"
 need "$tmp/compose.env" 'DOMAIN=example.com'
+need "$tmp/compose.env" 'EDGE_MODE=acme'
+need "$tmp/compose.env" "EDGE_TLS_DIR=$tmp/runtime/edge-tls"
 ! grep -Eq '^APP_IMAGE=' "$tmp/compose.env" || fail 'Compose still receives a shared application image'
 ! grep -Fq HOSTILE_INHERITED_SECRET "$tmp/compose.env" || fail 'Compose inherited an unsanitized environment value'
 [[ ! -e "$tmp/runtime/slots/green.env" ]] || fail 'runtime up recorded a release for the idle slot'
@@ -411,6 +637,18 @@ mv "$tmp/seed.moved" "$bundle/deploy/caddy/active-slot.caddy"
 (umask 022; printf 'reverse_proxy app-blue:8000\n' > "$tmp/runtime/routes/extra.caddy")
 expect_up_refused 'a stray route file' 'unexpected route file extra.caddy'
 rm -f "$tmp/runtime/routes/extra.caddy"
+
+# The acme placeholder stands in for the Origin certificate directory and must
+# stay empty, so nothing is ever mounted there by accident.
+touch "$tmp/runtime/edge-tls/key.pem"
+expect_up_refused 'a non-empty acme edge placeholder' 'edge-tls must be empty with EDGE_MODE=acme'
+rm -f "$tmp/runtime/edge-tls/key.pem"
+# An empty root 0755 placeholder, as Docker creates a missing bind source, is
+# accepted by up and prepare.
+rmdir "$tmp/runtime/edge-tls"; mkdir "$tmp/runtime/edge-tls"; chmod 755 "$tmp/runtime/edge-tls"; touch "$tmp/runtime/edge-tls.docker-made"
+run_runtime up >/dev/null 2>&1 || fail 'runtime up refused an empty root 0755 edge placeholder'
+run_runtime prepare >/dev/null 2>&1 || fail 'runtime prepare refused an empty root 0755 edge placeholder'
+rm -f "$tmp/runtime/edge-tls.docker-made"; chmod 700 "$tmp/runtime/edge-tls"
 
 # status and logs are read-only: no state directory, snapshot, or record is
 # created, even when the configuration drifted from the recorded snapshot.
@@ -610,11 +848,63 @@ if run_runtime prepare >/dev/null 2>&1; then fail 'matching digest from the wron
 mv "$stub/docker.good" "$stub/docker"
 
 if [[ -n "$real_docker" ]] && "$real_docker" compose version >/dev/null 2>&1; then
-  APP_BLUE_IMAGE="ghcr.io/example/mawareeth@$app_digest" APP_GREEN_IMAGE="ghcr.io/example/mawareeth@$app_digest" ROUTES_DIR="$tmp/runtime/routes" APP_SNAPSHOT="$first_snapshot" DOMAIN=example.com \
-    POSTGRES_DB=mawareeth POSTGRES_USER=mawareeth POSTGRES_PASSWORD=offline-placeholder \
-    CADDY_IMAGE='docker.io/library/caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52' \
-    POSTGRES_IMAGE='docker.io/library/postgres:17.11@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3' \
-    "$real_docker" compose --project-name mawareeth -f "$compose" config --quiet
+  # real_compose_config DOMAIN EDGE_MODE REDIRECT_DOMAIN EDGE_TLS_DIR ARGS...
+  real_compose_config() {
+    local domain="$1" mode="$2" redirect="$3" tls_dir="$4"; shift 4
+    APP_BLUE_IMAGE="ghcr.io/example/mawareeth@$app_digest" APP_GREEN_IMAGE="ghcr.io/example/mawareeth@$app_digest" ROUTES_DIR="$tmp/runtime/routes" APP_SNAPSHOT="$first_snapshot" DOMAIN="$domain" \
+      EDGE_MODE="$mode" REDIRECT_DOMAIN="$redirect" EDGE_TLS_DIR="$tls_dir" \
+      POSTGRES_DB=mawareeth POSTGRES_USER=mawareeth POSTGRES_PASSWORD=offline-placeholder \
+      CADDY_IMAGE='docker.io/library/caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52' \
+      POSTGRES_IMAGE='docker.io/library/postgres:17.11@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3' \
+      "$real_docker" compose --project-name mawareeth -f "$compose" config "$@"
+  }
+  real_compose_config example.com acme '' "$tmp/runtime/edge-tls" --quiet || fail 'the acme Compose model is invalid'
+  mkdir -p "$tmp/origin-tls"
+  # Only Caddy receives the edge settings and the Origin certificate mount.
+  for mode in acme cloudflare; do
+    if [[ "$mode" == acme ]]; then
+      real_compose_config example.com acme '' "$tmp/runtime/edge-tls" --format json > "$tmp/compose-$mode.json" || fail 'cannot render the acme Compose model'
+    else
+      real_compose_config www.example.com cloudflare example.com "$tmp/origin-tls" --format json > "$tmp/compose-$mode.json" || fail 'cannot render the cloudflare Compose model'
+    fi
+    python3 - "$mode" "$tmp/compose-$mode.json" <<'PY' || fail "the $mode Compose model wires the edge settings wrongly"
+import json
+import sys
+
+mode, path = sys.argv[1], sys.argv[2]
+services = json.load(open(path, encoding="utf-8")).get("services", {})
+problems = []
+caddy = services.get("caddy", {})
+environment = caddy.get("environment") or {}
+if environment.get("EDGE_MODE") != mode:
+    problems.append("caddy lacks EDGE_MODE=" + mode)
+if mode == "cloudflare" and environment.get("REDIRECT_DOMAIN") != "example.com":
+    problems.append("caddy lacks REDIRECT_DOMAIN")
+if mode == "acme" and environment.get("REDIRECT_DOMAIN") not in (None, ""):
+    problems.append("acme caddy received a REDIRECT_DOMAIN")
+binds = [volume for volume in caddy.get("volumes") or [] if volume.get("target") == "/etc/caddy/origin-tls"]
+suffix = "origin-tls" if mode == "cloudflare" else "edge-tls"
+if len(binds) != 1:
+    problems.append("caddy must mount exactly one directory at /etc/caddy/origin-tls")
+else:
+    bind = binds[0]
+    if bind.get("type") != "bind" or bind.get("read_only") is not True:
+        problems.append("the origin-tls mount must be a read-only bind")
+    if not str(bind.get("source", "")).replace("\\", "/").rstrip("/").endswith("/" + suffix):
+        problems.append("the origin-tls mount source is not the " + suffix + " directory")
+for name, service in services.items():
+    if name == "caddy":
+        continue
+    leaked = {"EDGE_MODE", "REDIRECT_DOMAIN", "EDGE_TLS_DIR"} & set(service.get("environment") or {})
+    if leaked:
+        problems.append(name + " received " + ", ".join(sorted(leaked)))
+    if any(volume.get("target") == "/etc/caddy/origin-tls" for volume in service.get("volumes") or []):
+        problems.append(name + " mounts the Origin certificate directory")
+for problem in problems:
+    print("FAIL: " + problem, file=sys.stderr)
+sys.exit(1 if problems else 0)
+PY
+  done
 fi
 
 printf '%s\n' 'compose runtime offline checks passed'

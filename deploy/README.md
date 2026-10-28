@@ -30,6 +30,15 @@ LINKEDIN_SECRET=REPLACE_WITH_LINKEDIN_CLIENT_SECRET
 
 A `runtime.env` without these keys renders the same snapshot, with the same hash, as before. Adding, changing or removing any of them changes the snapshot hash. `release.sh deploy` and `recover` refuse when the runtime file does not hash to the active slot's recorded snapshot (see Blue-green deployment). Adding these keys to a host with running slots is therefore a deliberate configuration rotation, not something a deploy does for you. No rotation command exists yet; it is an open deferred item (a phased runtime-configuration rotation operation). Until one exists, set these keys in `runtime.env` before the first deploy on a new host.
 
+Two more optional keys choose how Caddy terminates TLS (see [Cloudflare edge](#cloudflare-edge)). They configure Caddy only and never enter the app snapshot, so adding or changing them leaves the snapshot and its hash unchanged:
+
+- `EDGE_MODE`: `acme` (the default when absent) or `cloudflare`. Any other value is refused.
+  - `acme`: Caddy obtains a publicly trusted ACME certificate for `DOMAIN` alone. This is the rehearsal setup.
+  - `cloudflare`: Cloudflare proxies the site. Caddy serves `DOMAIN` with a Cloudflare Origin CA certificate installed out of band, and permanently redirects `REDIRECT_DOMAIN` to `https://DOMAIN` (path and query kept). It never requests an ACME certificate. The deploy verifies the edge against the repository's Origin CA roots.
+- `REDIRECT_DOMAIN`: required with `EDGE_MODE=cloudflare` and refused otherwise, because ACME cannot issue a certificate for a second name before DNS reaches the host. It must be a lowercase DNS hostname that differs from `DOMAIN`.
+
+For production: `DOMAIN=www.mawareeth.com`, `EDGE_MODE=cloudflare`, `REDIRECT_DOMAIN=mawareeth.com`. Django then allows only `www.mawareeth.com` (`DJANGO_ALLOWED_HOSTS` and `DJANGO_CSRF_TRUSTED_ORIGINS` derive from `DOMAIN`). Apex requests never reach Django, because Caddy answers them with the redirect.
+
 Download a trusted `release-manifest.json` out of band, verify its provenance, and keep it at an absolute root-owned mode-0600 path. The root-owned image lock remains mode 0644. The manifest's deployment-bundle SHA must equal the checked-out repository commit, its repository must equal `APP_IMAGE_REPOSITORY`, and its application identity must be a canonical GHCR digest. Load images on a connected trusted workstation with `docker pull REPOSITORY@sha256:DIGEST`, verify `docker image inspect --format '{{join .RepoDigests "\n"}}' REPOSITORY@sha256:DIGEST` contains the exact requested `REPOSITORY@sha256:DIGEST`, then transfer with `docker save` over an approved channel. On the offline host, use `docker load`, repeat the exact `RepoDigests` inspection, and run preflight. Never substitute a matching digest reported under a different repository. The runtime never builds or pulls and uses `pull_policy: never`.
 
 Prepare and inspect the runtime, bootstrap the first release with `release.sh deploy` (see Blue-green deployment), and use `up` only to restart the recorded active release:
@@ -47,7 +56,7 @@ Preparation validates every input, local image, and the fully resolved Compose m
 
 The generated `deploy/runtime/<sha256>.snapshot.env` is one app-only, root-owned mode-0600 snapshot shared by both slots. Creation is atomic and existing content or permission drift aborts. Snapshots are intentionally not cleaned up automatically: retain those referenced by rollback releases, audit them by filename and metadata without printing content, and remove obsolete snapshots only during a separately approved operation. The runtime source file, snapshots, certificates, and volume data are ignored and must never be committed.
 
-Only Caddy publishes TCP host ports 80/443; HTTP/3/UDP is not enabled. PostgreSQL remains on an internal database network, while Caddy's app network permits outbound ACME traffic. Before startup, public DNS A/AAAA records must point to the host as intended, outbound TCP 443 and DNS resolution must work, and inbound TCP 80/443 must reach Caddy for ACME challenges and HTTPS. Container health is visible through `runtime.sh status`; bounded JSON logs are available through `runtime.sh logs`. Audit with `deploy/runtime.sh status`, `docker volume inspect` for all three fixed names, and `docker ps --format '{{.Names}} {{.Ports}}'` to confirm no app/database binding exists.
+Only Caddy publishes TCP host ports 80/443; HTTP/3/UDP is not enabled. PostgreSQL remains on an internal database network, while Caddy's app network permits outbound ACME traffic. In `acme` mode, before startup, public DNS A/AAAA records must point to the host as intended, outbound TCP 443 and DNS resolution must work, and inbound TCP 80/443 must reach Caddy for ACME challenges and HTTPS. In `cloudflare` mode, Caddy needs no DNS or outbound access to serve: the Origin certificate is already on the host, so the edge can be deployed and verified before DNS points at it. Container health is visible through `runtime.sh status`; bounded JSON logs are available through `runtime.sh logs`. Audit with `deploy/runtime.sh status`, `docker volume inspect` for all three fixed names, and `docker ps --format '{{.Names}} {{.Ports}}'` to confirm no app/database binding exists.
 
 ### Routes, slot records, and runtime commands
 
@@ -57,9 +66,74 @@ Each slot's release is recorded in root-only `<state dir>/slots/<slot>.env` (`IM
 
 `up` restarts the recorded active release after `down`; it never changes releases. It refuses when the route or the active slot's record is absent (bootstrap the first release with `release.sh deploy`), when the manifest image or commit differs from the active record (use `release.sh deploy`), and when the runtime configuration differs from the recorded snapshot. It starts PostgreSQL (waiting for health), then the active slot (waiting for health), then Caddy, each bounded by `MAWAREETH_RUNTIME_WAIT_TIMEOUT` (default 300s); it never starts the idle slot and never runs migrations. `prepare`, `up`, and `down` take the deploy lock and refuse while the deploy journal is not idle. `status` and `logs` are read-only: they create no state directory, snapshot, or record and tolerate configuration drift.
 
-**Reboots.** Containers use `restart: unless-stopped`, so after a host reboot Docker itself restarts PostgreSQL, the slot that was running, and Caddy, without the runtime's ordering, lock, or journal checks. Expect brief `502` responses until the slot is ready again. After every reboot, as root: confirm `<state dir>/deploy.journal` is absent or `phase=idle` (otherwise preview with `deploy/release.sh recover --dry-run`, then run `deploy/release.sh recover` before anything else); run `deploy/runtime.sh status` and check that only the routed slot is running and healthy; confirm `curl -sD - --resolve DOMAIN:443:127.0.0.1 https://DOMAIN/health/ready/` shows the routed slot's `X-Mawareeth-Slot` and that the slot itself reports the recorded commit (`docker compose -p mawareeth exec -T app-<slot> python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health/release/').read().decode())"`; Caddy answers `/health/release/` with `404`); if anything is off, run `deploy/runtime.sh up` with the active release's manifest.
+**Reboots.** Containers use `restart: unless-stopped`, so after a host reboot Docker itself restarts PostgreSQL, the slot that was running, and Caddy, without the runtime's ordering, lock, or journal checks. Expect brief `502` responses until the slot is ready again. After every reboot, as root: confirm `<state dir>/deploy.journal` is absent or `phase=idle` (otherwise preview with `deploy/release.sh recover --dry-run`, then run `deploy/release.sh recover` before anything else); run `deploy/runtime.sh status` and check that only the routed slot is running and healthy; confirm `curl -sD - --resolve DOMAIN:443:127.0.0.1 https://DOMAIN/health/ready/` (in `cloudflare` mode add `--cacert deploy/cloudflare-origin-ca.pem`, run from the checkout root) shows the routed slot's `X-Mawareeth-Slot` and that the slot itself reports the recorded commit (`docker compose -p mawareeth exec -T app-<slot> python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health/release/').read().decode())"`; Caddy answers `/health/release/` with `404`); if anything is off, run `deploy/runtime.sh up` with the active release's manifest.
 
 **Caddy admin API (deliberate decision).** `admin off` would make `caddy reload` impossible, so the Caddyfile enables the admin API on `localhost:2019` inside the Caddy container only. Port 2019 is never published by Compose (the offline tests assert this), so it is reachable only from processes in that container, which `release.sh` drives with `docker compose exec caddy caddy reload`. Exposing it any further requires an explicit decision.
+
+### Cloudflare edge
+
+`deploy/Caddyfile` imports one snippet set per edge mode from `deploy/caddy/edge/<EDGE_MODE>/` (mounted read-only at `/etc/caddy/edge`):
+
+- `global.caddy`, inside the global options;
+- `site.caddy`, inside the `DOMAIN` site;
+- `sites.caddy`, at the top level.
+
+The `acme` files contain only comments, so the default mode adapts to the same Caddy configuration as before. The `cloudflare` files do four things:
+
+- They load `/etc/caddy/origin-tls/{cert,key}.pem` with `tls` for both names.
+- They set `auto_https disable_certs`, so Caddy never requests a certificate; HTTP-to-HTTPS redirects stay on.
+- They add the `REDIRECT_DOMAIN` site, `redir https://{DOMAIN}{uri} permanent`.
+- They set `trusted_proxies static` to Cloudflare's published IPv4 and IPv6 ranges, in the global `servers` options.
+
+Caddy keeps `X-Forwarded-For`, `-Proto` and `-Host` only on connections from those ranges. From any other address, including IPv6 clients that docker-proxy presents as the bridge gateway, it still replaces them. No address matcher is used.
+
+What the trust gains, precisely: the visitor's real address, taken from `X-Forwarded-For`, appears in Caddy's logs as the client IP, and Caddy forwards it to the app in `X-Forwarded-For`. Django reads only `X-Forwarded-Proto` (`SECURE_PROXY_SSL_HEADER`); it ignores `X-Forwarded-For` and `X-Forwarded-Host`. Code that later reads `X-Forwarded-For` must treat it as client-controlled data relayed by Cloudflare.
+
+What it trusts: any connection whose source is a Cloudflare address. That includes requests that other Cloudflare customers send through Cloudflare, for example from their Workers, which can set these headers freely. Nothing in this setup proves that a connection comes from Mawareeth's own zone. Two measures would close that gap, and both are open decisions that this setup does not take:
+
+- Cloudflare Authenticated Origin Pulls, where Caddy requires Cloudflare's client certificate (mTLS);
+- restricting inbound 80/443 to Cloudflare's ranges.
+
+Compose mounts the Origin certificate directory at `/etc/caddy/origin-tls` in `cloudflare` mode. In `acme` mode it mounts the empty placeholder `<state dir>/edge-tls` instead. `prepare` creates the placeholder (root, `0700`), and the runtime refuses to act if it is not empty. Adding the edge mount and variables changes Caddy's Compose model. A Caddy container created by an earlier bundle is therefore stale, and a normal `release.sh deploy` refuses it. The re-bootstrap in [Production cutover preparation](#production-cutover-preparation) recreates it.
+
+**Cloudflare setup** (in the Cloudflare dashboard; each change needs its own approval):
+
+1. Put the `mawareeth.com` zone on Cloudflare (see rehearsal step 1).
+2. Set SSL/TLS encryption mode to **Full (strict)**, so Cloudflare verifies the Origin certificate. The mode applies to the whole zone, including any records that are already proxied to Heroku. Before switching, confirm that Heroku presents a valid publicly trusted certificate for every proxied name. Right after switching, check that each of those names still loads (`curl -sI https://mawareeth.com/` and `https://www.mawareeth.com/`). Switch back at once if Cloudflare answers `526`.
+3. Turn on **Always Use HTTPS** (SSL/TLS → Edge Certificates). Full (strict) uses the visitor's scheme toward the origin. Without this setting, a plain-HTTP request crosses to the origin unencrypted on port 80. Caddy redirects it to HTTPS, and for the apex Caddy then redirects again to `www`. With the setting, Cloudflare's edge issues the first redirect and plain HTTP never reaches the origin. A plain-HTTP apex request still takes two redirects (to `https://mawareeth.com`, then to `https://www.mawareeth.com`); a single Cloudflare redirect rule from the apex to `www` would make it one, but none is configured here.
+4. Create an Origin CA certificate under SSL/TLS → Origin Server, with hostnames `mawareeth.com` and `*.mawareeth.com`. The key type can be RSA or ECDSA, both roots are pinned. Copy the certificate and the private key; Cloudflare shows the key only once.
+5. Install both on the host as root-only files. Paste each one and end with Ctrl-D:
+
+   ```console
+   sudo install -d -o root -g root -m 0700 /etc/mawareeth/origin-tls
+   sudo sh -c 'umask 077; cat > /etc/mawareeth/origin-tls/cert.pem'
+   sudo sh -c 'umask 077; cat > /etc/mawareeth/origin-tls/key.pem'
+   sudo chmod 0644 /etc/mawareeth/origin-tls/cert.pem
+   sudo openssl x509 -in /etc/mawareeth/origin-tls/cert.pem -noout -subject -issuer -enddate -ext subjectAltName
+   ```
+
+   Never commit them, copy them into the checkout, or print the key. In `cloudflare` mode, preflight refuses before any change unless all of the following hold:
+   - the directory is a root-owned `0700` directory, not a symlink;
+   - `cert.pem` is a non-empty, root-owned regular file with mode `0600` or `0644`;
+   - `key.pem` is a non-empty, root-owned regular file with mode `0600`;
+   - with `openssl` (required in `cloudflare` mode), the certificate parses as X.509, has not expired, covers both `DOMAIN` and `REDIRECT_DOMAIN` (wildcards count), and has the same public key as `key.pem`.
+
+   Errors name the path or key, never the contents. The path can be overridden with `MAWAREETH_ORIGIN_TLS_DIR` (tests only).
+6. Create DNS records for `mawareeth.com` and `www` as **proxied** (orange cloud), as **A records only**, pointing at the host's IPv4 address. Do this only at the cutover's DNS step. Do not add AAAA records to the host. Docker IPv6 is off, so docker-proxy presents IPv6 connections as the bridge gateway, and Caddy could not recognise Cloudflare's address on them. Cloudflare still serves visitors over IPv6 at its edge.
+
+**Pinned Origin CA roots.** `deploy/cloudflare-origin-ca.pem` holds Cloudflare's public Origin CA roots from <https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/>. In `cloudflare` mode, `release.sh` passes it to `curl --cacert` for every edge probe. Both roots expire on 2029-08-15.
+
+| Root | SHA-256 fingerprint |
+|------|---------------------|
+| CloudFlare Origin SSL Certificate Authority (RSA) | `D3:C7:E8:5C:91:70:7F:C0:A1:2A:BC:5D:88:26:67:47:AA:4F:A8:E7:B1:62:F6:33:FF:B3:C9:D9:89:94:76:20` |
+| CloudFlare Origin SSL ECC Certificate Authority | `AA:63:69:7A:22:76:4B:67:B2:13:4C:E1:4C:B5:69:0E:A3:36:94:0B:93:98:61:13:F4:95:45:91:78:32:D8:0D` |
+
+**Refreshing the ranges and roots.** Nothing is fetched at runtime. Check both sources at least quarterly, and whenever Cloudflare announces a change.
+
+- Ranges: compare `deploy/caddy/edge/cloudflare/global.caddy` with <https://www.cloudflare.com/ips-v4> and <https://www.cloudflare.com/ips-v6>. Update the `trusted_proxies static` line and the date in its comment, then ship it as a normal release. A range missing from the list makes Caddy replace the forwarded headers on that range's connections, so logs show a Cloudflare address instead of the visitor's. A stale range that Cloudflare has given up stays trusted, and whoever holds it can set the forwarded headers. The offline tests refuse any range broader than `/8` (IPv4) or `/12` (IPv6).
+- Roots: download `origin_ca_rsa_root.pem` and `origin_ca_ecc_root.pem` from the page above. Check them with `openssl x509 -noout -subject -enddate -fingerprint -sha256`, update the bundle and the table, and ship it as a release before the old roots expire.
+
+Restricting inbound 80/443 to Cloudflare's ranges in UFW or the Hetzner firewall is not done, and neither is Authenticated Origin Pulls. Each needs an explicit decision.
 
 ## Blue-green deployment
 
@@ -161,7 +235,7 @@ sudo deploy/release.sh recover
    ```
 
    The route stays mode 0644 because Caddy reads it; the runtime refuses any other mode and any extra `*.caddy` file in that directory.
-4. Ensure that slot is running and healthy, reload Caddy with `docker compose -p mawareeth exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`, and confirm `curl -sD - --resolve DOMAIN:443:127.0.0.1 https://DOMAIN/health/ready/` shows the expected `X-Mawareeth-Slot`, and that the slot reports the expected commit when probed directly (`docker compose -p mawareeth exec -T app-<slot> python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health/release/').read().decode())"`); through Caddy `/health/release/` answers `404`.
+4. Ensure that slot is running and healthy, reload Caddy with `docker compose -p mawareeth exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`, and confirm `curl -sD - --resolve DOMAIN:443:127.0.0.1 https://DOMAIN/health/ready/` (in `cloudflare` mode add `--cacert deploy/cloudflare-origin-ca.pem`, run from the checkout root) shows the expected `X-Mawareeth-Slot`, and that the slot reports the expected commit when probed directly (`docker compose -p mawareeth exec -T app-<slot> python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health/release/').read().decode())"`); through Caddy `/health/release/` answers `404`.
 5. Make `$STATE/slots/<slot>.env` match what each slot runs: for an abandoned candidate restore `<slot>.env.prev` to `<slot>.env` (or remove the record if the candidate had none before). Records are root-owned mode 0600; publish them with `install -o root -g root -m 0600` to a temporary file in `$STATE/slots`, `sync`, and `mv`.
 6. Stop the slot that is not routed with `docker compose -p mawareeth stop -t 35 app-<slot>`.
 7. Reset the journal atomically: write the same lines (ten or eleven) with `phase=idle` (keep `result` as a `failed:<phase>` or `success` value), publish it with `install -o root -g root -m 0600` to a temporary file in `$STATE`, `sync`, and `mv` it over `deploy.journal`, or remove the journal.
@@ -749,9 +823,60 @@ docker exec -i "$PGC" psql -X -v ON_ERROR_STOP=1 -U "$PGU" -d "$PGD" -c 'DROP SC
 
 `PGC` must be exactly one container ID. The reset leaves extensions in other schemas in place. Never run it on a database that has accepted production writes.
 
+### Production cutover preparation
+
+The rehearsal runs the host with `DOMAIN=rehearsal.mawareeth.com` in `acme` mode. A deploy cannot change `DOMAIN`, because the new runtime file no longer hashes to the active slot's snapshot (and no rotation command exists). Switching the host to its production configuration is therefore a one-time re-bootstrap, done days before the cutover. It discards the rehearsal's release state and data, never production writes. Do it once the Cloudflare setup (steps 1–5 under [Cloudflare edge](#cloudflare-edge)) is in place. Each step needs its own approval.
+
+Run everything as root from the checkout root (`/srv/mawareeth` on the host), checked out at the release commit. Set `STATE` to the absolute runtime state directory (default `/srv/mawareeth/deploy/runtime`):
+
+```console
+cd /srv/mawareeth && STATE=/srv/mawareeth/deploy/runtime
+```
+
+
+1. **Confirm nothing is in flight.** `deploy/release.sh recover --dry-run` must report nothing to recover. Also confirm that no backup or rehearsal command is running.
+2. **Stop the slots and Caddy, and keep PostgreSQL running:**
+
+   ```console
+   for svc in app-blue app-green caddy; do docker ps -q --filter label=com.docker.compose.project=mawareeth --filter label=com.docker.compose.service=$svc | xargs -r docker stop -t 35; done
+   ```
+
+3. **Archive the rehearsal's release state** to a root-only directory, so that `prepare` and the bootstrap start from no route, no slot record, and no journal:
+
+   ```console
+   ARCHIVE="/root/mawareeth-pre-cutover-$(date -u +%Y%m%dT%H%M%SZ)"; install -d -o root -g root -m 0700 "$ARCHIVE"
+   shopt -s nullglob
+   for item in "$STATE/slots" "$STATE/routes" "$STATE/deploy.journal" "$STATE"/*.snapshot.env; do
+     [ ! -e "$item" ] || mv -v -- "$item" "$ARCHIVE/"
+   done
+   shopt -u nullglob
+   ```
+
+   The loop moves only what exists, so a host without some of these (no journal, no slot records) is fine. Keep `$STATE/rehearsal/`, because cutover step 2 still reads its report. The snapshots hold secrets, so keep the archive root-only and delete it once the cutover has succeeded.
+4. **Reset the database to empty**, as described in "Resetting the target to empty" above. The rehearsal data is disposable.
+5. **Install the production `runtime.env`** with `sudoedit /etc/mawareeth/runtime.env`. Set `DOMAIN=www.mawareeth.com`, and add `EDGE_MODE=cloudflare` and `REDIRECT_DOMAIN=mawareeth.com`. Keep every other key. `SITE_ID` must match the Heroku value (see Private Compose runtime). Then check `sudo openssl x509 -in /etc/mawareeth/origin-tls/cert.pem -noout -ext subjectAltName` lists both names.
+6. **Prepare and bootstrap** against the empty database:
+
+   ```console
+   sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json /srv/mawareeth/deploy/runtime.sh prepare
+   sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json /srv/mawareeth/deploy/release.sh deploy --allow-contract
+   ```
+
+   The bootstrap migrates the empty database from zero. That plan includes historical contract operations, which is why `--allow-contract` is needed. Caddy is recreated with the current Compose model, and the deploy verifies `https://www.mawareeth.com/health/ready/` through `--resolve` against the pinned Origin CA roots, while public DNS still points at Heroku.
+7. **Check the edge by hand:**
+
+   ```console
+   curl -sD - -o /dev/null --cacert /srv/mawareeth/deploy/cloudflare-origin-ca.pem --resolve www.mawareeth.com:443:127.0.0.1 https://www.mawareeth.com/health/ready/
+   curl -sD - -o /dev/null --cacert /srv/mawareeth/deploy/cloudflare-origin-ca.pem --resolve mawareeth.com:443:127.0.0.1 'https://mawareeth.com/some/path?q=1'
+   ```
+
+   The first must show `200` with `X-Mawareeth-Slot: blue`. The second must show `301` with `Location: https://www.mawareeth.com/some/path?q=1`. The deploy itself also probes the redirect site in `cloudflare` mode and rolls back if it does not answer this way.
+
+Afterwards, point external monitors at the canonical `https://www.mawareeth.com`. In the Facebook and LinkedIn consoles, register the OAuth redirect URIs for **both** `https://mawareeth.com` and `https://www.mawareeth.com` before the DNS switch. Heroku keeps serving the apex until the switch and Hetzner serves `www` after it, so both must work across the switch window. Remove the apex URIs only after Heroku is retired. Story 0.10 then starts from a prepared host in production configuration. Its step 2 stops the slots and empties the database again before the import.
+
 ### Production cutover (story 0.10)
 
-This sequence is not run during the rehearsal. Every step against Heroku, DNS, or the production host needs its own approval.
+This sequence is not run during the rehearsal. Every step against Heroku, DNS, or the production host needs its own approval. It assumes the [preparation](#production-cutover-preparation) is done: the host runs `DOMAIN=www.mawareeth.com` in `cloudflare` mode.
 
 1. Lower the TTLs a day ahead (on a DNS host that allows it; see rehearsal step 1).
 2. **Before the freeze:**
@@ -761,8 +886,16 @@ This sequence is not run during the rehearsal. Every step against Heroku, DNS, o
    - run `sudo deploy/rehearse.sh report` and confirm that the rehearsal gate passed.
 3. **Freeze.** Run `heroku maintenance:on --app HEROKU_APP`, then immediately `sudo deploy/rehearse.sh mark freeze-start`.
 4. **Import.** Run `sudo deploy/rehearse.sh import --freeze-marked` (add `--extensions-created` if needed). It keeps the operator's `freeze-start`, and refuses a mark older than 30 minutes or older than the last import, such as one left by the rehearsal.
-5. **Deploy and validate.** Run `release.sh deploy` and validate through the edge with `--resolve` (DNS still points at Heroku). Then run `mark validated`. This must happen within 20 minutes of the freeze. If the imported schema is behind the recorded release, apply the pending migrations in the active slot first, as in rehearsal step 3.
-6. **DNS.** Switch `mawareeth.com` and `www` to the host and run `mark dns-switched` within 30 minutes of the freeze.
+5. **Deploy and validate.** Check the imported site record first. The import brings Heroku's `django_site` rows, and the row whose `id` equals `SITE_ID` must name the canonical host. If it names the apex, set it to `www.mawareeth.com`:
+
+   ```console
+   SITE="$(sed -n 's/^SITE_ID=//p' /etc/mawareeth/runtime.env)"; SITE="${SITE:-1}"
+   docker exec -i "$PGC" psql -X -v ON_ERROR_STOP=1 -U "$PGU" -d "$PGD" -c "SELECT id, domain, name FROM django_site WHERE id = $SITE;"
+   docker exec -i "$PGC" psql -X -v ON_ERROR_STOP=1 -U "$PGU" -d "$PGD" -c "UPDATE django_site SET domain = 'www.mawareeth.com' WHERE id = $SITE AND domain = 'mawareeth.com';"
+   ```
+
+   `PGC`, `PGU` and `PGD` are set as in "Resetting the target to empty". Then run `release.sh deploy` and validate through the edge with `--resolve` and `--cacert /srv/mawareeth/deploy/cloudflare-origin-ca.pem` (DNS still points at Heroku). Then run `mark validated`. This must happen within 20 minutes of the freeze. If the imported schema is behind the recorded release, apply the pending migrations in the active slot first, as in rehearsal step 3.
+6. **DNS.** In Cloudflare, point the **proxied** A records for `mawareeth.com` and `www` at the host's IPv4 address. Remove any AAAA records for those names; there are none to the host (see [Cloudflare edge](#cloudflare-edge)). Run `mark dns-switched` within 30 minutes of the freeze, once both names answer from the host through Cloudflare. Check that `https://www.mawareeth.com/health/ready/` shows an `X-Mawareeth-Slot` header and that `https://mawareeth.com/` redirects to `https://www.mawareeth.com/`. Proxied names resolve to Cloudflare's addresses, not the host's, so `rehearsal.py loadgen --expect-address HOST_IP` cannot target them.
 7. **Rollback point.** Until Hetzner accepts its first write, `heroku maintenance:off` plus DNS back to Heroku is lossless. Run `mark rollback-point` just before opening writes. After that, rolling back means copying Hetzner's writes back to Heroku.
 
 **Known limits.**

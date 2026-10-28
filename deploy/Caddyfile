@@ -3,9 +3,15 @@
 	# container loopback so `caddy reload` can apply route switches. Port 2019
 	# is never published; only TCP 80/443 leave the container.
 	admin localhost:2019
+	# Edge mode (EDGE_MODE in runtime.env, validated by deploy/runtime.sh):
+	# acme (default) adds nothing; cloudflare disables certificate automation
+	# and trusts forwarded headers only from Cloudflare's ranges.
+	import /etc/caddy/edge/{$EDGE_MODE:acme}/global.caddy
 }
 
 {$DOMAIN:unprepared.invalid} {
+	# cloudflare: load the Origin CA certificate instead of using ACME.
+	import /etc/caddy/edge/{$EDGE_MODE:acme}/site.caddy
 	encode zstd gzip
 	# Deliberate decision: release identity (version and commit) is never
 	# served through the edge. Caddy answers 404 to every client without
@@ -16,11 +22,16 @@
 	# the X-Mawareeth-Slot header on /health/ready/. /health/live/ and
 	# /health/ready/ stay public for external monitors. respond sorts before
 	# reverse_proxy in Caddy's directive order. Caddy also replaces client
-	# X-Forwarded-* headers because no trusted proxy is configured; keep it that
-	# way (Django trusts X-Forwarded-Proto only from Caddy).
+	# X-Forwarded-* headers unless the connection comes from a trusted proxy;
+	# only the cloudflare edge mode trusts any (Cloudflare's ranges), and the
+	# route never forwards them itself (Django trusts X-Forwarded-Proto only
+	# from Caddy).
 	respond /health/release* 404
 	import /etc/caddy/routes/*.caddy
 }
+
+# cloudflare: the REDIRECT_DOMAIN site that redirects to DOMAIN.
+import /etc/caddy/edge/{$EDGE_MODE:acme}/sites.caddy
 
 http://127.0.0.1 {
 	respond /health/caddy 200

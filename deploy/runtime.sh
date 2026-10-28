@@ -17,6 +17,13 @@ slots_dir="$state_dir/slots"
 journal_file="$state_dir/deploy.journal"
 deploy_lock_file="$state_dir/deploy.lock"
 startup_timeout="${MAWAREETH_RUNTIME_WAIT_TIMEOUT:-300}"
+# EDGE_MODE=cloudflare only: the out-of-band Origin certificate directory and
+# the repository's public Origin CA roots the deploy verifies the edge against.
+origin_tls_dir="${MAWAREETH_ORIGIN_TLS_DIR:-/etc/mawareeth/origin-tls}"
+origin_ca_bundle="$deploy_dir/cloudflare-origin-ca.pem"
+# EDGE_MODE=acme mounts this empty directory where cloudflare mounts the
+# Origin certificate directory, so the Compose model is the same in both.
+edge_placeholder_dir="$state_dir/edge-tls"
 project=mawareeth
 postgres_major=17
 APP_IMAGE=''
@@ -44,8 +51,11 @@ file_metadata() {
 # Optional application keys, appended to the app snapshot in this order when
 # present. Absent keys leave the snapshot (and its hash) unchanged.
 optional_app_keys=(SITE_ID FACEBOOK_KEY FACEBOOK_SECRET LINKEDIN_KEY LINKEDIN_SECRET)
-# Keys every runtime.env must carry. Together with optional_app_keys this is the
-# complete allow-list.
+# Optional edge keys. They configure Caddy only and never enter the app
+# snapshot, so they leave its content and hash unchanged.
+optional_edge_keys=(EDGE_MODE REDIRECT_DOMAIN)
+# Keys every runtime.env must carry. Together with optional_app_keys and
+# optional_edge_keys this is the complete allow-list.
 required_runtime_keys=(APP_IMAGE_REPOSITORY DJANGO_KEY DOMAIN MAILGUN_ACCESS_KEY MAILGUN_SERVER_NAME POSTGRES_DB POSTGRES_PASSWORD POSTGRES_USER)
 
 load_raw_env() {
@@ -61,7 +71,7 @@ load_raw_env() {
     runtime_values[$key]="$value"
   done < "$file"
   local -A allowed=()
-  for key in "${required_runtime_keys[@]}" "${optional_app_keys[@]}"; do allowed[$key]=1; done
+  for key in "${required_runtime_keys[@]}" "${optional_app_keys[@]}" "${optional_edge_keys[@]}"; do allowed[$key]=1; done
   for key in "${!runtime_values[@]}"; do [[ -n "${allowed[$key]:-}" ]] || die "runtime file contains unsupported key: $key"; done
   for key in "${required_runtime_keys[@]}"; do
     [[ -n "${runtime_values[$key]:-}" ]] || die "runtime file is missing required key: $key"
@@ -81,6 +91,90 @@ validate_values() {
   ((${#runtime_values[DJANGO_KEY]} >= 32)) || die 'DJANGO_KEY must contain at least 32 characters'
   validate_hostname "${runtime_values[MAILGUN_SERVER_NAME]}" MAILGUN_SERVER_NAME anycase
   validate_optional_values
+  validate_edge_values
+}
+
+# edge_mode prints the validated edge mode; an absent EDGE_MODE means acme.
+edge_mode() { printf '%s\n' "${runtime_values[EDGE_MODE]:-acme}"; }
+
+# acme: Caddy obtains a certificate for DOMAIN alone. cloudflare: Caddy serves
+# DOMAIN and REDIRECT_DOMAIN with the Origin certificate and redirects
+# REDIRECT_DOMAIN to DOMAIN. acme cannot pre-issue a certificate for a second
+# name before DNS reaches the host, so REDIRECT_DOMAIN is cloudflare-only.
+validate_edge_values() {
+  case "$(edge_mode)" in
+    acme)
+      [[ -z "${runtime_values[REDIRECT_DOMAIN]+x}" ]] || die 'REDIRECT_DOMAIN is supported only with EDGE_MODE=cloudflare' ;;
+    cloudflare)
+      [[ -n "${runtime_values[REDIRECT_DOMAIN]+x}" ]] || die 'REDIRECT_DOMAIN is required with EDGE_MODE=cloudflare'
+      validate_hostname "${runtime_values[REDIRECT_DOMAIN]}" REDIRECT_DOMAIN lowercase
+      [[ "${runtime_values[REDIRECT_DOMAIN]}" != "${runtime_values[DOMAIN]}" ]] || die 'REDIRECT_DOMAIN must differ from DOMAIN' ;;
+    *) die 'EDGE_MODE must be acme or cloudflare' ;;
+  esac
+}
+
+# validate_origin_tls checks, in cloudflare mode, the out-of-band Origin
+# certificate and key and the repository's Origin CA roots. Errors name paths,
+# never contents.
+validate_origin_tls() {
+  [[ "$(edge_mode)" == cloudflare ]] || return 0
+  local metadata
+  safe_path "$origin_tls_dir" MAWAREETH_ORIGIN_TLS_DIR
+  [[ -d "$origin_tls_dir" && ! -L "$origin_tls_dir" ]] || die "origin TLS directory $origin_tls_dir must be a directory, not a symlink"
+  metadata="$(stat -c '%u:%g:%a' "$origin_tls_dir" 2>/dev/null)" || die "cannot inspect origin TLS directory $origin_tls_dir"
+  [[ "$metadata" == 0:0:700 ]] || die "origin TLS directory $origin_tls_dir must be owned by root:root with mode 0700"
+  [[ -f "$origin_tls_dir/cert.pem" && ! -L "$origin_tls_dir/cert.pem" && -s "$origin_tls_dir/cert.pem" ]] \
+    || die "origin certificate $origin_tls_dir/cert.pem must be a non-empty regular non-symlink file"
+  metadata="$(stat -c '%u:%g:%a' "$origin_tls_dir/cert.pem" 2>/dev/null)" || die "cannot inspect origin certificate $origin_tls_dir/cert.pem"
+  [[ "$metadata" == 0:0:600 || "$metadata" == 0:0:644 ]] || die "origin certificate $origin_tls_dir/cert.pem must be owned by root:root with mode 0600 or 0644"
+  file_metadata "$origin_tls_dir/key.pem" 600 "origin key $origin_tls_dir/key.pem"
+  [[ -s "$origin_tls_dir/key.pem" ]] || die "origin key $origin_tls_dir/key.pem must not be empty"
+  [[ -f "$origin_ca_bundle" && ! -L "$origin_ca_bundle" && -s "$origin_ca_bundle" ]] \
+    || die "Origin CA bundle $origin_ca_bundle is missing; restore it from the deployment bundle"
+  validate_origin_content
+}
+
+# validate_origin_content checks with openssl that the Origin certificate
+# parses, is unexpired, covers DOMAIN and REDIRECT_DOMAIN, and matches the key.
+# Public keys are compared in memory; nothing from either file is printed.
+validate_origin_content() {
+  local cert="$origin_tls_dir/cert.pem" key="$origin_tls_dir/key.pem" key_name cert_public key_public match
+  require_command openssl
+  openssl x509 -in "$cert" -noout </dev/null >/dev/null 2>&1 || die "origin certificate $cert is not a PEM X.509 certificate"
+  openssl x509 -in "$cert" -noout -checkend 0 </dev/null >/dev/null 2>&1 || die "origin certificate $cert has expired"
+  for key_name in DOMAIN REDIRECT_DOMAIN; do
+    # Older OpenSSL releases exit 0 on a mismatch, so read the verdict.
+    match="$(openssl x509 -in "$cert" -noout -checkhost "${runtime_values[$key_name]}" </dev/null 2>/dev/null)" || true
+    [[ "$match" == *' does match certificate'* ]] || die "origin certificate $cert does not cover $key_name"
+  done
+  cert_public="$(openssl x509 -in "$cert" -noout -pubkey </dev/null 2>/dev/null)" || die "cannot read the public key of origin certificate $cert"
+  key_public="$(openssl pkey -in "$key" -passin pass: -pubout </dev/null 2>/dev/null)" || die "origin key $key is not a readable unencrypted private key"
+  [[ -n "$cert_public" && "$cert_public" == "$key_public" ]] || die "origin key $key does not match origin certificate $cert"
+}
+
+# edge_tls_source prints the host directory Compose mounts at
+# /etc/caddy/origin-tls.
+edge_tls_source() {
+  if [[ "$(edge_mode)" == cloudflare ]]; then printf '%s\n' "$origin_tls_dir"; else printf '%s\n' "$edge_placeholder_dir"; fi
+}
+
+# ensure_edge_placeholder create|existing validates, in acme mode, the empty
+# placeholder mounted in place of the Origin certificate directory, creating it
+# only in create mode. Docker creates a missing bind source as root 0755 when
+# Caddy starts, so that mode is accepted too.
+ensure_edge_placeholder() {
+  [[ "$(edge_mode)" == acme ]] || return 0
+  local path="$edge_placeholder_dir" metadata entries
+  if [[ -e "$path" || -L "$path" ]]; then
+    [[ -d "$path" && ! -L "$path" ]] || die "runtime state path ${path##*/} must be a directory"
+    metadata="$(stat -c '%u:%g:%a' "$path")" || die "cannot inspect runtime state directory ${path##*/}"
+    [[ "$metadata" == 0:0:700 || "$metadata" == 0:0:755 ]] \
+      || die "runtime state directory ${path##*/} must be owned by root:root with mode 0700 (or 0755, as Docker creates it)"
+    entries="$(find "$path" -mindepth 1 -print -quit)" || die "cannot inspect runtime state directory ${path##*/}"
+    [[ -z "$entries" ]] || die "runtime state directory ${path##*/} must be empty with EDGE_MODE=acme"
+  elif [[ "$1" == create ]]; then
+    install -d -o root -g root -m 0700 "$path" || die "could not create runtime state directory ${path##*/}"
+  fi
 }
 
 # Error messages name only the key, never the value.
@@ -380,6 +474,7 @@ preflight_runtime() {
   file_metadata "$runtime_file" 600 'runtime file'
   load_raw_env "$runtime_file"
   validate_values
+  validate_origin_tls
   file_metadata "$lock_file" 644 'runtime image lock'
   load_lock
   validate_image "${locked[CADDY_IMAGE]}"
@@ -398,15 +493,16 @@ preflight() {
 compose() { compose_bounded '' "$@"; }
 
 # compose_bounded SECONDS ARGS... runs Compose with a sanitized environment that
-# carries both slot images and the persisted route directory and, unless
-# SECONDS is empty, under a hard time limit. Docker never inherits the deploy
-# lock descriptor.
+# carries both slot images, the persisted route directory and the edge settings
+# and, unless SECONDS is empty, under a hard time limit. Docker never inherits
+# the deploy lock descriptor.
 compose_bounded() {
   local limit="$1"; shift
   local -a runner=()
   [[ -z "$limit" ]] || runner=(timeout --kill-after=5 "$limit")
   env -i PATH="$PATH" HOME="${HOME:-/root}" APP_BLUE_IMAGE="$APP_BLUE_IMAGE" APP_GREEN_IMAGE="$APP_GREEN_IMAGE" \
     APP_SNAPSHOT="$APP_SNAPSHOT" ROUTES_DIR="$ROUTES_DIR" DOMAIN="${runtime_values[DOMAIN]}" \
+    EDGE_MODE="$(edge_mode)" REDIRECT_DOMAIN="${runtime_values[REDIRECT_DOMAIN]:-}" EDGE_TLS_DIR="$(edge_tls_source)" \
     POSTGRES_DB="${runtime_values[POSTGRES_DB]}" POSTGRES_USER="${runtime_values[POSTGRES_USER]}" POSTGRES_PASSWORD="${runtime_values[POSTGRES_PASSWORD]}" \
     CADDY_IMAGE="${locked[CADDY_IMAGE]}" POSTGRES_IMAGE="${locked[POSTGRES_IMAGE]}" \
     "${runner[@]}" docker compose --project-name "$project" --project-directory "$deploy_dir" -f "$compose_file" "$@" 9>&-
@@ -453,6 +549,7 @@ state_subdir() {
 ensure_state_subdirs() {
   state_subdir "$slots_dir" 700 "$1"
   state_subdir "$routes_dir" 755 "$1"
+  ensure_edge_placeholder "$1"
   ROUTES_DIR="$routes_dir"
 }
 

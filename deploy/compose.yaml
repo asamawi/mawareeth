@@ -67,12 +67,18 @@ services:
     pull_policy: never
     environment:
       DOMAIN: ${DOMAIN:?use deploy/runtime.sh as the supported entrypoint}
+      EDGE_MODE: ${EDGE_MODE:?use deploy/runtime.sh as the supported entrypoint}
+      REDIRECT_DOMAIN: ${REDIRECT_DOMAIN-}
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/edge:/etc/caddy/edge:ro
       - ${ROUTES_DIR:?use deploy/runtime.sh as the supported entrypoint}:/etc/caddy/routes:ro
+      # cloudflare: the root-only Origin certificate directory; acme: an empty
+      # runtime-owned placeholder. Never inside the app snapshot.
+      - ${EDGE_TLS_DIR:?use deploy/runtime.sh as the supported entrypoint}:/etc/caddy/origin-tls:ro
       - caddy-data:/data
       - caddy-config:/config
     networks:

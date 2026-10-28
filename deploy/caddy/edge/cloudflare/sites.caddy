@@ -1,0 +1,7 @@
+# EDGE_MODE=cloudflare: REDIRECT_DOMAIN (the apex) permanently redirects to the
+# canonical DOMAIN, keeping the path and query. It serves the same Origin
+# certificate. Imported at the top level of deploy/Caddyfile.
+{$REDIRECT_DOMAIN:unprepared-redirect.invalid} {
+	tls /etc/caddy/origin-tls/cert.pem /etc/caddy/origin-tls/key.pem
+	redir https://{$DOMAIN:unprepared.invalid}{uri} permanent
+}
