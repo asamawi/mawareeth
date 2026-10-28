@@ -234,6 +234,7 @@ jobs:
             # (a glob that matches nothing is not an error).
             if ! docker run --rm --network none -e DOMAIN=ci.example.com \
               -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+              -v "$PWD/deploy/caddy/edge:/etc/caddy/edge:ro" \
               -v "$routes:/etc/caddy/routes:ro" \
               "$CADDY_IMAGE" caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile --validate > "$RUNNER_TEMP/adapted-$slot.json"; then
               echo "::endgroup::"
@@ -246,6 +247,133 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Validate Caddyfile in the cloudflare edge mode
+        env:
+          CADDY_IMAGE: ${{ steps.caddy.outputs.image }}
+        run: |
+          set -euo pipefail
+          routes="$RUNNER_TEMP/routes-cloudflare"
+          origin="$RUNNER_TEMP/origin-tls"
+          rm -rf "$routes" "$origin" && mkdir -p "$routes" "$origin"
+          cp deploy/caddy/active-slot.caddy "$routes/"
+          # A throwaway self-signed certificate stands in for the Cloudflare
+          # Origin certificate; adapt --validate loads it.
+          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 \
+            -subj /CN=ci.example.com -addext 'subjectAltName=DNS:ci.example.com,DNS:*.ci.example.com' \
+            -keyout "$origin/key.pem" -out "$origin/cert.pem" 2>/dev/null
+          chmod 0644 "$origin/key.pem" "$origin/cert.pem"
+          echo "::group::caddy adapt --validate (cloudflare edge mode)"
+          if ! docker run --rm --network none -e DOMAIN=www.ci.example.com -e EDGE_MODE=cloudflare -e REDIRECT_DOMAIN=ci.example.com \
+            -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -v "$PWD/deploy/caddy/edge:/etc/caddy/edge:ro" \
+            -v "$routes:/etc/caddy/routes:ro" \
+            -v "$origin:/etc/caddy/origin-tls:ro" \
+            "$CADDY_IMAGE" caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile --validate > "$RUNNER_TEMP/adapted-cloudflare.json"; then
+            echo "::endgroup::"
+            echo "::error file=deploy/Caddyfile::Caddy rejected deploy/Caddyfile in the cloudflare edge mode"
+            exit 1
+          fi
+          echo "::endgroup::"
+          # The redirect, the Cloudflare trust, the www route to the slot, the
+          # Origin certificate selected for both names, and no ACME certificate
+          # for either name. Shape changes surface as named errors.
+          python3 - "$RUNNER_TEMP/adapted-cloudflare.json" <<'PY'
+          import json
+          import sys
+
+          apex, www = "ci.example.com", "www.ci.example.com"
+          problems = []
+
+
+          def as_dict(value):
+              return value if isinstance(value, dict) else {}
+
+
+          def as_list(value):
+              return value if isinstance(value, list) else []
+
+
+          def walk(value):
+              if isinstance(value, dict):
+                  yield value
+                  for item in value.values():
+                      yield from walk(item)
+              elif isinstance(value, list):
+                  for item in value:
+                      yield from walk(item)
+
+
+          def hosts(route):
+              return {host for match in as_list(as_dict(route).get("match")) for host in as_list(as_dict(match).get("host"))}
+
+
+          try:
+              with open(sys.argv[1], encoding="utf-8") as handle:
+                  config = as_dict(json.load(handle))
+          except (OSError, ValueError) as error:
+              config = {}
+              problems.append("the adapted config is not readable JSON: " + type(error).__name__)
+
+          apps = as_dict(config.get("apps"))
+          servers = as_dict(as_dict(apps.get("http")).get("servers"))
+          edge = [as_dict(server) for server in servers.values() if any({apex, www} & hosts(route) for route in as_list(as_dict(server).get("routes")))]
+          if not edge:
+              problems.append("no server serves the edge names")
+          for server in edge:
+              trusted = as_dict(server.get("trusted_proxies"))
+              ranges = as_list(trusted.get("ranges"))
+              if trusted.get("source") != "static" or "173.245.48.0/20" not in ranges or "2400:cb00::/32" not in ranges:
+                  problems.append("trusted_proxies is not the static Cloudflare ranges")
+              if as_dict(server.get("automatic_https")).get("disable_certificates") is not True:
+                  problems.append("certificate automation is not disabled")
+
+          routes = [as_dict(route) for server in edge for route in as_list(server.get("routes"))]
+          redirects = [handler for route in routes if apex in hosts(route) for handler in walk(route) if handler.get("handler") == "static_response"]
+          if not any(
+              str(handler.get("status_code")) == "301"
+              and as_dict(handler.get("headers")).get("Location") == ["https://" + www + "{http.request.uri}"]
+              for handler in redirects
+          ):
+              problems.append(apex + " does not permanently redirect to https://" + www + " with the path and query")
+          # The canonical name reaches the slot through the imported route.
+          if not any(
+              handler.get("handler") == "reverse_proxy"
+              and any(as_dict(upstream).get("dial") == "app-blue:8000" for upstream in as_list(handler.get("upstreams")))
+              for route in routes
+              if www in hosts(route)
+              for handler in walk(route)
+          ):
+              problems.append(www + " does not reach a reverse_proxy to app-blue:8000")
+
+          tls = as_dict(apps.get("tls"))
+          loaded = [as_dict(entry) for entry in as_list(as_dict(tls.get("certificates")).get("load_files"))]
+          origin = [entry for entry in loaded if entry.get("certificate") == "/etc/caddy/origin-tls/cert.pem"]
+          if len(origin) != 1 or origin[0].get("key") != "/etc/caddy/origin-tls/key.pem":
+              problems.append("the Origin certificate and key are not loaded")
+          # Both names select the loaded certificate by its tag.
+          tags = set(as_list(origin[0].get("tags"))) if origin else set()
+          selected = set()
+          for server in edge:
+              for policy in as_list(server.get("tls_connection_policies")):
+                  policy = as_dict(policy)
+                  any_tag = set(as_list(as_dict(policy.get("certificate_selection")).get("any_tag")))
+                  if tags and tags & any_tag:
+                      selected |= {apex, www} & set(as_list(as_dict(policy.get("match")).get("sni")))
+          if selected != {apex, www}:
+              problems.append("the Origin certificate is not selected for both names (selected: " + ", ".join(sorted(selected)) + ")")
+
+          for policy in as_list(as_dict(tls.get("automation")).get("policies")):
+              policy = as_dict(policy)
+              if {apex, www} & set(as_list(policy.get("subjects"))):
+                  problems.append("an automation policy covers an edge name")
+              for issuer in as_list(policy.get("issuers")):
+                  if as_dict(issuer).get("module") in ("acme", "zerossl"):
+                      problems.append("an ACME issuer is configured")
+          for problem in problems:
+              print("::error file=deploy/caddy/edge/cloudflare::" + problem)
+          sys.exit(1 if problems else 0)
+          PY
 
       - name: Self-test that validation rejects a broken Caddyfile
         env:
@@ -264,6 +392,7 @@ jobs:
           echo "::group::caddy adapt --validate (broken copy, must fail)"
           if docker run --rm --network none -e DOMAIN=ci.example.com \
             -v "$broken:/etc/caddy/Caddyfile:ro" \
+            -v "$PWD/deploy/caddy/edge:/etc/caddy/edge:ro" \
             -v "$routes:/etc/caddy/routes:ro" \
             "$CADDY_IMAGE" caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile --validate > "$RUNNER_TEMP/broken.log" 2>&1; then
             cat "$RUNNER_TEMP/broken.log"

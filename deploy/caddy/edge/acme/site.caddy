@@ -1,0 +1,3 @@
+# EDGE_MODE=acme (the default): nothing extra. Caddy obtains an ACME certificate
+# for DOMAIN on its own; see deploy/caddy/edge/cloudflare/site.caddy for the
+# other mode. Imported by deploy/Caddyfile.

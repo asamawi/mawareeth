@@ -1,0 +1,4 @@
+# EDGE_MODE=cloudflare: the canonical DOMAIN site serves the Cloudflare Origin
+# CA certificate installed out of band in /etc/mawareeth/origin-tls (mounted
+# read-only). Imported inside deploy/Caddyfile's DOMAIN site block.
+tls /etc/caddy/origin-tls/cert.pem /etc/caddy/origin-tls/key.pem

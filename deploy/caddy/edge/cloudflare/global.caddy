@@ -1,0 +1,15 @@
+# EDGE_MODE=cloudflare global options, imported inside deploy/Caddyfile's
+# global block. Cloudflare terminates visitor TLS and connects with SSL/TLS
+# mode Full (strict) to the Origin CA certificate the site blocks load.
+#
+# Never request a certificate: both names use the out-of-band Origin
+# certificate. HTTP-to-HTTPS redirects stay on.
+auto_https disable_certs
+servers {
+	# Keep X-Forwarded-For/-Proto/-Host only from Cloudflare's published ranges
+	# (https://www.cloudflare.com/ips/, as of 2026-10-27; refresh per
+	# deploy/README.md). Caddy still replaces these headers on every other
+	# connection, including IPv6 clients that docker-proxy presents as the
+	# bridge gateway.
+	trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+}

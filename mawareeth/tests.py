@@ -466,7 +466,19 @@ class WorkflowContractTests(SimpleTestCase):
         self.assertIn("deploy/runtime-images.lock", caddy)
         self.assertIn("@sha256:[0-9a-f]{64}$", caddy)
         validate = "caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile --validate"
-        self.assertEqual(caddy.count(validate), 2)
+        # Blue and green routes in the default acme mode, then the cloudflare
+        # edge mode, then the broken-copy self-test.
+        self.assertEqual(caddy.count(validate), 3)
+        self.assertEqual(caddy.count('-v "$PWD/deploy/caddy/edge:/etc/caddy/edge:ro"'), 3)
+        self.assertIn("-e EDGE_MODE=cloudflare -e REDIRECT_DOMAIN=ci.example.com", caddy)
+        self.assertIn('-v "$origin:/etc/caddy/origin-tls:ro"', caddy)
+        self.assertIn("openssl req -x509", caddy)
+        self.assertIn('"{http.request.uri}"', caddy)
+        self.assertIn('as_dict(server.get("trusted_proxies"))', caddy)
+        self.assertIn('.get("disable_certificates") is not True', caddy)
+        self.assertIn('handler.get("handler") == "reverse_proxy"', caddy)
+        self.assertIn('server.get("tls_connection_policies")', caddy)
+        self.assertIn('as_dict(issuer).get("module") in ("acme", "zerossl")', caddy)
         self.assertEqual(caddy.count("docker run --rm --network none"), caddy.count("docker run"))
         self.assertIn("for slot in blue green; do", caddy)
         self.assertIn('"\\"dial\\":\\"app-$slot:8000\\""', caddy)

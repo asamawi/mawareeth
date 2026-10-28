@@ -27,8 +27,10 @@ mkdir -p "$stub" "$S" "$bundle/deploy/caddy"
 # A disposable deployment bundle in its own Git repository with two release
 # commits, so each manifest's bundle SHA matches the checked-out commit. Only
 # the root execution gate is relaxed when the test itself is unprivileged.
-cp "$root/deploy/compose.yaml" "$root/deploy/Caddyfile" "$root/deploy/runtime-images.lock" "$root/deploy/release_manifest.py" "$bundle/deploy/"
+cp "$root/deploy/compose.yaml" "$root/deploy/Caddyfile" "$root/deploy/runtime-images.lock" "$root/deploy/release_manifest.py" \
+  "$root/deploy/cloudflare-origin-ca.pem" "$bundle/deploy/"
 cp "$root/deploy/caddy/active-slot.caddy" "$bundle/deploy/caddy/"
+cp -R "$root/deploy/caddy/edge" "$bundle/deploy/caddy/"
 cp "$root/.gitignore" "$bundle/.gitignore"
 for script in runtime.sh release.sh; do
   if [[ ${EUID:-999} -ne 0 ]]; then
@@ -217,10 +219,34 @@ if [[ -e "$S/term-on-curl" ]]; then rm -f "$S/term-on-curl"; kill -TERM "$(< "$S
 # A crash (SIGKILL, so no trap runs) on the first edge request.
 if [[ -e "$S/kill-on-curl" ]]; then rm -f "$S/kill-on-curl"; kill -KILL "$(< "$S/release.pid")"; exit 7; fi
 args=" $* "
-[[ "$args" == *' --resolve example.com:443:127.0.0.1 '* && "$args" == *" --proto =https "* ]] || exit 2
+url="${*: -1}"
+# The edge name ($S/edge-host, default example.com) and, in cloudflare mode,
+# the redirect name ($S/redirect-host).
+host='example.com'; [[ ! -e "$S/edge-host" ]] || host="$(< "$S/edge-host")"
+redirect=''; [[ ! -e "$S/redirect-host" ]] || redirect="$(< "$S/redirect-host")"
+[[ "$args" == *" --proto =https "* ]] || exit 2
 [[ "$args" != *' -k '* && "$args" != *' --insecure '* ]] || exit 2
+# EDGE_MODE=cloudflare ($S/origin-ca names the bundle's roots): Caddy serves an
+# Origin CA certificate, which verifies only against those pinned roots.
+# Otherwise (acme) the public trust store applies and no --cacert is given.
+if [[ -e "$S/origin-ca" ]]; then
+  ca=''
+  [[ ! "$args" =~ \ --cacert\ ([^ ]+)\  ]] || ca="${BASH_REMATCH[1]}"
+  [[ -n "$ca" && "$ca" == "$(< "$S/origin-ca")" ]] || exit 60
+  grep -q 'BEGIN CERTIFICATE' "$ca" || exit 77
+else
+  [[ "$args" != *' --cacert '* ]] || exit 2
+fi
 [[ ! -e "$S/fail-tls-all" ]] || exit 60
 [[ -e "$S/running-caddy" && -e "$S/caddy-loaded" ]] || exit 7
+# The redirect site answers 301 to the canonical name, as --write-out reports
+# it ($S/fail-redirect makes it answer 200 instead).
+if [[ -n "$redirect" && "$args" == *" --resolve $redirect:443:127.0.0.1 "* ]]; then
+  [[ "$url" == "https://$redirect/" ]] || exit 2
+  if [[ -e "$S/fail-redirect" ]]; then printf '200 '; else printf '301 https://%s/' "$host"; fi
+  exit 0
+fi
+[[ "$args" == *" --resolve $host:443:127.0.0.1 "* ]] || exit 2
 loaded="$(< "$S/caddy-loaded")"
 [[ "$loaded" =~ reverse_proxy\ app-([a-z]+):8000 ]] || exit 52
 slot="${BASH_REMATCH[1]}"
@@ -230,13 +256,13 @@ header=''
 [[ ! -e "$S/no-header-$slot" ]] || header=''
 [[ ! -e "$S/fail-tls-$slot" ]] || exit 60
 # Caddy answers release identity with 404 itself, for every client.
-[[ "${*: -1}" != https://example.com/health/release* ]] || exit 22
+[[ "$url" != "https://$host/health/release"* ]] || exit 22
 [[ -e "$S/running-app-$slot" ]] || exit 22
 printf 'HTTP/2 200\r\ncontent-type: application/json\r\n'
 [[ -z "$header" ]] || printf 'x-mawareeth-slot: %s\r\n' "$header"
 printf '\r\n'
-case "${*: -1}" in
-  https://example.com/health/ready/) [[ ! -e "$S/fail-ready-app-$slot" ]] || exit 22; printf '{"status":"ok"}' ;;
+case "$url" in
+  "https://$host/health/ready/") [[ ! -e "$S/fail-ready-app-$slot" ]] || exit 22; printf '{"status":"ok"}' ;;
   *) exit 22 ;;
 esac
 EOF
@@ -1074,5 +1100,95 @@ need "$(journal_field deploy_log)" 'allowed by --allow-contract'
 need "$(journal_field migrate_log)" 'contract operations allowed by --allow-contract'
 need "$(journal_field migrate_log)" '    Remove field legacy_share from heir'
 no_secrets 'contract release with --allow-contract'
+
+# --- EDGE_MODE=cloudflare: the re-bootstrap to the production edge ------------
+# Switching a running acme host to cloudflare changes Caddy's Compose model, so
+# a normal deploy refuses the running Caddy as stale. The supported path is the
+# re-bootstrap in deploy/README.md: stop the slots and Caddy, archive the release
+# state, install the production runtime file (DOMAIN=www.example.com,
+# REDIRECT_DOMAIN=example.com), prepare, and bootstrap. Every edge probe then
+# verifies against the bundle's pinned Origin CA roots, and the redirect site is
+# probed too. OpenSSL builds the Origin certificate; it is required in CI.
+if ! command -v openssl >/dev/null 2>&1; then
+  [[ -z "${CI:-}" ]] || fail 'openssl is required in CI'
+  printf 'NOTE: openssl is unavailable; skipping the cloudflare re-bootstrap checks\n' >&2
+  printf '%s\n' 'release offline checks passed'
+  exit 0
+fi
+origin_work="$(mktemp -d)"
+(
+  cd "$origin_work" || exit 1
+  printf '%s\n' '[req]' 'prompt = no' 'distinguished_name = dn' '[dn]' 'CN = origin.invalid' > openssl.cnf
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 30 -config openssl.cnf \
+    -addext 'subjectAltName=DNS:example.com,DNS:*.example.com' -keyout key.pem -out cert.pem
+) >/dev/null 2>&1 || fail 'could not generate the Origin certificate fixture'
+mkdir -p "$tmp/origin-tls"; cp "$origin_work/cert.pem" "$origin_work/key.pem" "$tmp/origin-tls/"; rm -rf "$origin_work"
+chmod 700 "$tmp/origin-tls"; chmod 600 "$tmp/origin-tls/cert.pem" "$tmp/origin-tls/key.pem"
+key_line="$(sed -n 2p "$tmp/origin-tls/key.pem")"
+[[ -n "$key_line" ]] || fail 'the Origin key fixture is empty'
+origin_env=(MAWAREETH_ORIGIN_TLS_DIR="$tmp/origin-tls")
+# The snapshot an acme host with the same DOMAIN would get.
+sed 's/^DOMAIN=example\.com$/DOMAIN=www.example.com/' "$tmp/runtime.env" > "$tmp/runtime-www-acme.env"; chmod 600 "$tmp/runtime-www-acme.env"
+run_runtime prepare manifest-a MAWAREETH_RUNTIME_FILE="$tmp/runtime-www-acme.env" MAWAREETH_RUNTIME_DIR="$tmp/acme-www-state"
+expect_rc 0 'acme prepare for the production DOMAIN'
+acme_www_snapshots=("$tmp/acme-www-state"/*.snapshot.env)
+[[ ${#acme_www_snapshots[@]} == 1 && -f "${acme_www_snapshots[0]}" ]] || fail 'acme prepare for the production DOMAIN did not create one snapshot'
+
+# Re-bootstrap: nothing runs, and the release state is archived.
+rm -f "$S"/running-*
+mkdir -p "$tmp/archive"
+shopt -s nullglob
+for item in "$state/slots" "$state/routes" "$state/deploy.journal" "$state"/*.snapshot.env; do mv "$item" "$tmp/archive/"; done
+shopt -u nullglob
+{ cat "$tmp/runtime-www-acme.env"; printf '%s\n' EDGE_MODE=cloudflare REDIRECT_DOMAIN=example.com; } > "$tmp/runtime.env"; chmod 600 "$tmp/runtime.env"
+printf 'www.example.com\n' > "$S/edge-host"; printf 'example.com\n' > "$S/redirect-host"
+printf '%s\n' "$bundle/deploy/cloudflare-origin-ca.pem" > "$S/origin-ca"
+
+# A missing Origin key is refused before any change, naming only the path.
+mv "$tmp/origin-tls/key.pem" "$tmp/origin-key.moved"
+: > "$S/calls.log"
+run_runtime prepare manifest-a "${origin_env[@]}"
+expect_rc 2 'cloudflare prepare without the Origin key'
+need "$tmp/out" "$tmp/origin-tls/key.pem"
+[[ ! -e "$state/routes" && ! -e "$state/slots" && "$(snapshot_count)" == 0 ]] || fail 'cloudflare prepare without the Origin key changed runtime state'
+[[ "$(mutations)" == 0 ]] || fail 'cloudflare prepare without the Origin key mutated Docker state'
+mv "$tmp/origin-key.moved" "$tmp/origin-tls/key.pem"
+
+run_runtime prepare manifest-a "${origin_env[@]}"
+expect_rc 0 'cloudflare prepare'
+[[ "$(snapshot_count)" == 1 && -f "$state/${acme_www_snapshots[0]##*/}" ]] || fail 'the edge keys changed the app snapshot'
+cmp -s "$state/${acme_www_snapshots[0]##*/}" "${acme_www_snapshots[0]}" || fail 'the cloudflare snapshot differs from the acme one'
+route_is blue
+: > "$S/calls.log"
+run_release manifest-a "${origin_env[@]}"
+expect_rc 0 'cloudflare bootstrap'
+route_is blue; caddy_is blue
+grep -Eq '^curl .*--resolve www\.example\.com:443:127\.0\.0\.1 .*https://www\.example\.com/health/ready/$' "$S/calls.log" \
+  || fail 'the cloudflare bootstrap did not verify the canonical name'
+grep -Eq '^curl .*--resolve example\.com:443:127\.0\.0\.1 .*https://example\.com/$' "$S/calls.log" \
+  || fail 'the cloudflare bootstrap did not probe the redirect site'
+! grep -E '^curl ' "$S/calls.log" | grep -Fv -- "--cacert $bundle/deploy/cloudflare-origin-ca.pem " >/dev/null \
+  || fail 'a cloudflare edge probe did not pin the Origin CA roots'
+! grep -Fq -- "$key_line" "$tmp/out" || fail 'the cloudflare bootstrap printed Origin key material'
+no_secrets 'cloudflare bootstrap'
+
+# A redirect site that does not answer 301 to the canonical name fails the
+# verification and rolls back like any edge failure.
+: > "$S/calls.log"; touch "$S/fail-redirect"
+run_release manifest-b "${origin_env[@]}"
+rm -f "$S/fail-redirect"
+expect_rc 6 'cloudflare deploy with a broken redirect site'
+need "$tmp/out" 'https://example.com/ did not answer a 301 redirect to https://www.example.com/'
+route_is blue; caddy_is blue
+running blue || fail 'the redirect failure stopped the prior slot'
+! running green || fail 'the redirect failure left the candidate running'
+journal_failed_idle 'cloudflare deploy with a broken redirect site'
+: > "$S/calls.log"
+run_release manifest-b "${origin_env[@]}"
+expect_rc 0 'cloudflare deploy'
+route_is green; caddy_is green
+grep -Eq '^curl .*--resolve example\.com:443:127\.0\.0\.1 .*https://example\.com/$' "$S/calls.log" \
+  || fail 'the cloudflare deploy did not probe the redirect site'
+no_secrets 'cloudflare deploy'
 
 printf '%s\n' 'release offline checks passed'

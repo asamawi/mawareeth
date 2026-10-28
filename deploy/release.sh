@@ -184,11 +184,15 @@ running_image_matches() {
 }
 
 # Fetch through the production edge on this host with full certificate
-# validation; headers precede the body on stdout.
+# validation; headers precede the body on stdout. With EDGE_MODE=cloudflare
+# Caddy serves a Cloudflare Origin CA certificate, which public trust stores do
+# not contain, so verification uses the repository's pinned Origin CA roots.
 edge_fetch() {
   local limit
+  local -a trust=()
   limit="$(attempt_limit)"
-  curl --fail --silent --show-error --proto '=https' --max-time "$limit" --dump-header - \
+  [[ "$(edge_mode)" != cloudflare ]] || trust=(--cacert "$origin_ca_bundle")
+  curl --fail --silent --show-error --proto '=https' "${trust[@]}" --max-time "$limit" --dump-header - \
     --resolve "${runtime_values[DOMAIN]}:443:127.0.0.1" "https://${runtime_values[DOMAIN]}$1" 2>>"$deploy_log"
 }
 
@@ -213,6 +217,18 @@ edge_serves() {
   [[ "$(json_commit <<<"$body")" == "$2" ]]
 }
 edge_candidate() { edge_serves "$candidate_slot" "$APP_COMMIT"; }
+
+# edge_redirect succeeds when, in cloudflare mode, the REDIRECT_DOMAIN site on
+# this host answers 301 with a Location on https://DOMAIN/, verified against the
+# pinned Origin CA roots like the DOMAIN probe.
+edge_redirect() {
+  local limit result redirect="${runtime_values[REDIRECT_DOMAIN]}"
+  limit="$(attempt_limit)"
+  result="$(curl --silent --show-error --proto '=https' --cacert "$origin_ca_bundle" --max-time "$limit" \
+    --output /dev/null --write-out '%{http_code} %{redirect_url}' \
+    --resolve "$redirect:443:127.0.0.1" "https://$redirect/" 2>>"$deploy_log")" || return 1
+  [[ "$result" == "301 https://${runtime_values[DOMAIN]}/"* ]]
+}
 edge_prior() { edge_serves "$prior_slot" "$prior_commit"; }
 
 # caddy_running returns 0 when running, 1 when absent or stopped, and 2 when
@@ -529,6 +545,10 @@ deploy() {
   journal verifying || abort_switch "cannot write $journal_file"
   wait_until "$verify_timeout" edge_candidate \
     || abort_switch "production TLS verification of https://${runtime_values[DOMAIN]} did not confirm ready app-$candidate_slot at $APP_COMMIT within ${verify_timeout}s"
+  if [[ "$(edge_mode)" == cloudflare ]]; then
+    wait_until "$verify_timeout" edge_redirect \
+      || abort_switch "production TLS verification of https://${runtime_values[REDIRECT_DOMAIN]}/ did not answer a 301 redirect to https://${runtime_values[DOMAIN]}/ within ${verify_timeout}s"
+  fi
 
   stage=verified
   journal verifying verified || fail_verified "app-$candidate_slot is verified and serving, but $journal_file could not record it; app-$prior_slot is still running"
