@@ -21,6 +21,13 @@ startup_timeout="${MAWAREETH_RUNTIME_WAIT_TIMEOUT:-300}"
 # the repository's public Origin CA roots the deploy verifies the edge against.
 origin_tls_dir="${MAWAREETH_ORIGIN_TLS_DIR:-/etc/mawareeth/origin-tls}"
 origin_ca_bundle="$deploy_dir/cloudflare-origin-ca.pem"
+# ORIGIN_CLIENT_AUTH=require only: the operator's Authenticated Origin Pulls CA,
+# which Caddy trusts for client certificates, and the client certificate and
+# key uploaded to Cloudflare, which the deploy's edge probes present. All three
+# live in the Origin certificate directory and never leave it.
+aop_ca_file="$origin_tls_dir/aop-ca.pem"
+aop_client_cert="$origin_tls_dir/aop-client.pem"
+aop_client_key="$origin_tls_dir/aop-client-key.pem"
 # EDGE_MODE=acme mounts this empty directory where cloudflare mounts the
 # Origin certificate directory, so the Compose model is the same in both.
 edge_placeholder_dir="$state_dir/edge-tls"
@@ -53,7 +60,7 @@ file_metadata() {
 optional_app_keys=(SITE_ID FACEBOOK_KEY FACEBOOK_SECRET LINKEDIN_KEY LINKEDIN_SECRET)
 # Optional edge keys. They configure Caddy only and never enter the app
 # snapshot, so they leave its content and hash unchanged.
-optional_edge_keys=(EDGE_MODE REDIRECT_DOMAIN)
+optional_edge_keys=(EDGE_MODE REDIRECT_DOMAIN ORIGIN_CLIENT_AUTH)
 # Keys every runtime.env must carry. Together with optional_app_keys and
 # optional_edge_keys this is the complete allow-list.
 required_runtime_keys=(APP_IMAGE_REPOSITORY DJANGO_KEY DOMAIN MAILGUN_ACCESS_KEY MAILGUN_SERVER_NAME POSTGRES_DB POSTGRES_PASSWORD POSTGRES_USER)
@@ -97,6 +104,23 @@ validate_values() {
 # edge_mode prints the validated edge mode; an absent EDGE_MODE means acme.
 edge_mode() { printf '%s\n' "${runtime_values[EDGE_MODE]:-acme}"; }
 
+# origin_client_auth_required succeeds when the validated runtime requires
+# Authenticated Origin Pulls client certificates (ORIGIN_CLIENT_AUTH=require,
+# cloudflare mode only). deploy/release.sh uses it to present the client
+# certificate on its edge probes.
+origin_client_auth_required() { [[ "${runtime_values[ORIGIN_CLIENT_AUTH]:-off}" == require ]]; }
+
+# compose_edge_mode prints the EDGE_MODE that Compose passes to Caddy, which
+# names the snippet directory deploy/Caddyfile imports. ORIGIN_CLIENT_AUTH=require
+# is folded into that name (cloudflare-aop) instead of a new Compose variable: a
+# new Caddy environment entry would change Caddy's Compose config hash on every
+# host, so release.sh would refuse the running Caddy as stale even with client
+# auth off. With the folding, the hash changes only when an operator turns
+# client auth on or off, together with deploy/runtime.sh up.
+compose_edge_mode() {
+  if origin_client_auth_required; then printf 'cloudflare-aop\n'; else edge_mode; fi
+}
+
 # acme: Caddy obtains a certificate for DOMAIN alone. cloudflare: Caddy serves
 # DOMAIN and REDIRECT_DOMAIN with the Origin certificate and redirects
 # REDIRECT_DOMAIN to DOMAIN. acme cannot pre-issue a certificate for a second
@@ -111,6 +135,15 @@ validate_edge_values() {
       [[ "${runtime_values[REDIRECT_DOMAIN]}" != "${runtime_values[DOMAIN]}" ]] || die 'REDIRECT_DOMAIN must differ from DOMAIN' ;;
     *) die 'EDGE_MODE must be acme or cloudflare' ;;
   esac
+  # ORIGIN_CLIENT_AUTH: off (the default) or require. Cloudflare-only, like
+  # REDIRECT_DOMAIN, because only the Cloudflare edge presents the client
+  # certificate.
+  [[ -n "${runtime_values[ORIGIN_CLIENT_AUTH]+x}" ]] || return 0
+  case "${runtime_values[ORIGIN_CLIENT_AUTH]}" in
+    off|require) ;;
+    *) die 'ORIGIN_CLIENT_AUTH must be off or require' ;;
+  esac
+  [[ "$(edge_mode)" == cloudflare ]] || die 'ORIGIN_CLIENT_AUTH is supported only with EDGE_MODE=cloudflare'
 }
 
 # validate_origin_tls checks, in cloudflare mode, the out-of-band Origin
@@ -132,6 +165,79 @@ validate_origin_tls() {
   [[ -f "$origin_ca_bundle" && ! -L "$origin_ca_bundle" && -s "$origin_ca_bundle" ]] \
     || die "Origin CA bundle $origin_ca_bundle is missing; restore it from the deployment bundle"
   validate_origin_content
+  validate_aop_files
+}
+
+# origin_file DESCRIPTION PATH MODE... checks that PATH is a non-empty,
+# root-owned regular non-symlink file with one of the MODEs.
+origin_file() {
+  local description="$1" path="$2" metadata mode allowed=''; shift 2
+  [[ -f "$path" && ! -L "$path" && -s "$path" ]] || die "$description $path must be a non-empty regular non-symlink file"
+  metadata="$(stat -c '%u:%g:%a' "$path" 2>/dev/null)" || die "cannot inspect $description $path"
+  for mode in "$@"; do
+    [[ "$metadata" != "0:0:$mode" ]] || return 0
+    allowed+="${allowed:+ or }$mode"
+  done
+  die "$description $path must be owned by root:root with mode $allowed"
+}
+
+# aop_certificates LABEL PATH checks every PEM certificate block in PATH (an
+# AOP CA bundle may hold several CAs during a CA rotation): each must parse and
+# be unexpired, and one expiring within 30 days is reported. Text outside the
+# blocks is ignored, as Caddy's PEM loader ignores it. Certificates are public;
+# they reach openssl on stdin.
+aop_certificates() {
+  local label="$1" path="$2" line block='' inside=0 count=0 name
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    if ((inside)); then
+      block+="$line"$'\n'
+      [[ "$line" == '-----END CERTIFICATE-----' ]] || continue
+      inside=0; count=$((count + 1)); name="$label $path"
+      ((count == 1)) || name="$label $path (certificate $count)"
+      printf '%s' "$block" | openssl x509 -noout >/dev/null 2>&1 || die "$name is not a PEM X.509 certificate"
+      printf '%s' "$block" | openssl x509 -noout -checkend 0 >/dev/null 2>&1 || die "$name has expired"
+      printf '%s' "$block" | openssl x509 -noout -checkend 2592000 >/dev/null 2>&1 \
+        || info "WARNING: $name expires within 30 days; rotate it (see deploy/README.md, Authenticated Origin Pulls)"
+    elif [[ "$line" == '-----BEGIN CERTIFICATE-----' ]]; then
+      inside=1; block="$line"$'\n'
+    fi
+  done < "$path"
+  ((inside == 0)) || die "$label $path has an unterminated certificate block"
+  ((count > 0)) || die "$label $path is not a PEM X.509 certificate"
+}
+
+# validate_aop_files checks, with ORIGIN_CLIENT_AUTH=require, the Authenticated
+# Origin Pulls CA, client certificate and client key: root-only files whose
+# certificates all parse and are unexpired, where the client certificate
+# verifies against the CA for client authentication and matches the key. The
+# CA's private key and serial files must stay off the host. Otherwise the
+# directory's AOP files are ignored. Errors name paths, never contents.
+validate_aop_files() {
+  origin_client_auth_required || return 0
+  local ca_label='Authenticated Origin Pulls CA' cert_label='Authenticated Origin Pulls client certificate'
+  local key_label='Authenticated Origin Pulls client key' path help verdict cert_public key_public
+  for path in "$origin_tls_dir/aop-ca-key.pem" "$origin_tls_dir"/*.srl; do
+    [[ -e "$path" || -L "$path" ]] || continue
+    die "$path must not be on the host: the Authenticated Origin Pulls CA key and serial files stay offline (see deploy/README.md)"
+  done
+  origin_file "$ca_label" "$aop_ca_file" 600 644
+  origin_file "$cert_label" "$aop_client_cert" 600 644
+  origin_file "$key_label" "$aop_client_key" 600
+  aop_certificates "$ca_label" "$aop_ca_file"
+  aop_certificates "$cert_label" "$aop_client_cert"
+  # -no-CAstore exists from OpenSSL 3.0 on; without it the verdict below would
+  # be a misleading refusal.
+  help="$(openssl verify -help </dev/null 2>&1)" || true
+  [[ "$help" == *-no-CAstore* ]] || die 'ORIGIN_CLIENT_AUTH=require needs OpenSSL 3 or newer (openssl verify -no-CAstore) to check the client certificate'
+  # Trust only aop-ca.pem, never the system stores, as Caddy's trust pool does.
+  verdict="$(openssl verify -no-CApath -no-CAstore -CAfile "$aop_ca_file" -purpose sslclient "$aop_client_cert" </dev/null 2>/dev/null)" || verdict=''
+  [[ "$verdict" == *': OK' ]] || die "$cert_label $aop_client_cert does not verify against $aop_ca_file for client authentication"
+  cert_public="$(openssl x509 -in "$aop_client_cert" -noout -pubkey </dev/null 2>/dev/null)" \
+    || die "cannot read the public key of $cert_label $aop_client_cert"
+  key_public="$(openssl pkey -in "$aop_client_key" -passin pass: -pubout </dev/null 2>/dev/null)" \
+    || die "$key_label $aop_client_key is not a readable unencrypted private key"
+  [[ -n "$cert_public" && "$cert_public" == "$key_public" ]] || die "$key_label $aop_client_key does not match $cert_label $aop_client_cert"
 }
 
 # validate_origin_content checks with openssl that the Origin certificate
@@ -502,7 +608,7 @@ compose_bounded() {
   [[ -z "$limit" ]] || runner=(timeout --kill-after=5 "$limit")
   env -i PATH="$PATH" HOME="${HOME:-/root}" APP_BLUE_IMAGE="$APP_BLUE_IMAGE" APP_GREEN_IMAGE="$APP_GREEN_IMAGE" \
     APP_SNAPSHOT="$APP_SNAPSHOT" ROUTES_DIR="$ROUTES_DIR" DOMAIN="${runtime_values[DOMAIN]}" \
-    EDGE_MODE="$(edge_mode)" REDIRECT_DOMAIN="${runtime_values[REDIRECT_DOMAIN]:-}" EDGE_TLS_DIR="$(edge_tls_source)" \
+    EDGE_MODE="$(compose_edge_mode)" REDIRECT_DOMAIN="${runtime_values[REDIRECT_DOMAIN]:-}" EDGE_TLS_DIR="$(edge_tls_source)" \
     POSTGRES_DB="${runtime_values[POSTGRES_DB]}" POSTGRES_USER="${runtime_values[POSTGRES_USER]}" POSTGRES_PASSWORD="${runtime_values[POSTGRES_PASSWORD]}" \
     CADDY_IMAGE="${locked[CADDY_IMAGE]}" POSTGRES_IMAGE="${locked[POSTGRES_IMAGE]}" \
     "${runner[@]}" docker compose --project-name "$project" --project-directory "$deploy_dir" -f "$compose_file" "$@" 9>&-

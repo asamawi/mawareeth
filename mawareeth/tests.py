@@ -467,10 +467,18 @@ class WorkflowContractTests(SimpleTestCase):
         self.assertIn("@sha256:[0-9a-f]{64}$", caddy)
         validate = "caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile --validate"
         # Blue and green routes in the default acme mode, then the cloudflare
-        # edge mode, then the broken-copy self-test.
-        self.assertEqual(caddy.count(validate), 3)
-        self.assertEqual(caddy.count('-v "$PWD/deploy/caddy/edge:/etc/caddy/edge:ro"'), 3)
+        # and cloudflare-aop edge modes, then the broken-copy self-test.
+        self.assertEqual(caddy.count(validate), 4)
+        self.assertEqual(caddy.count('-v "$PWD/deploy/caddy/edge:/etc/caddy/edge:ro"'), 4)
         self.assertIn("-e EDGE_MODE=cloudflare -e REDIRECT_DOMAIN=ci.example.com", caddy)
+        self.assertIn("-e EDGE_MODE=cloudflare-aop -e REDIRECT_DOMAIN=ci.example.com", caddy)
+        # The cloudflare and cloudflare-aop steps each mount the Origin directory.
+        self.assertEqual(caddy.count('-v "$origin:/etc/caddy/origin-tls:ro"'), 2)
+        self.assertIn("extendedKeyUsage=clientAuth", caddy)
+        self.assertIn('client.get("mode") == "require_and_verify"', caddy)
+        self.assertIn("the client-auth policy for", caddy)
+        self.assertIn("a catch-all TLS policy lacks client authentication while strict_sni_host is off", caddy)
+        self.assertIn('server.get("strict_sni_host") is not True', caddy)
         self.assertIn('-v "$origin:/etc/caddy/origin-tls:ro"', caddy)
         self.assertIn("openssl req -x509", caddy)
         self.assertIn('"{http.request.uri}"', caddy)

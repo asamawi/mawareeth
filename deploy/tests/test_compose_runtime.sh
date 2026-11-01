@@ -61,10 +61,10 @@ done
 edge="$root/deploy/caddy/edge"
 for part in global site sites; do
   need "$root/deploy/Caddyfile" "import /etc/caddy/edge/{\$EDGE_MODE:acme}/$part.caddy"
-  [[ -f "$edge/acme/$part.caddy" && -f "$edge/cloudflare/$part.caddy" ]] || fail "missing edge snippet $part.caddy"
+  [[ -f "$edge/acme/$part.caddy" && -f "$edge/cloudflare/$part.caddy" && -f "$edge/cloudflare-aop/$part.caddy" ]] || fail "missing edge snippet $part.caddy"
   ! grep -Eqv '^[[:space:]]*(#|$)' "$edge/acme/$part.caddy" || fail "acme edge snippet $part.caddy must add nothing"
 done
-[[ "$(find "$edge" -type f | wc -l | tr -d ' ')" == 6 ]] || fail 'unexpected edge snippet files'
+[[ "$(find "$edge" -type f | wc -l | tr -d ' ')" == 9 ]] || fail 'unexpected edge snippet files'
 ! grep -Eq 'remote_ip|client_ip|\{remote_host\}' "$edge"/*/*.caddy || fail 'edge snippets must not rely on client source addresses'
 need "$edge/cloudflare/global.caddy" 'auto_https disable_certs'
 grep -Eq '^[[:space:]]*trusted_proxies static( [0-9a-f.:]+/[0-9]+){10,}$' "$edge/cloudflare/global.caddy" \
@@ -75,6 +75,28 @@ need "$edge/cloudflare/site.caddy" 'tls /etc/caddy/origin-tls/cert.pem /etc/cadd
 need "$edge/cloudflare/sites.caddy" '{$REDIRECT_DOMAIN:unprepared-redirect.invalid} {'
 need "$edge/cloudflare/sites.caddy" 'tls /etc/caddy/origin-tls/cert.pem /etc/caddy/origin-tls/key.pem'
 need "$edge/cloudflare/sites.caddy" 'redir https://{$DOMAIN:unprepared.invalid}{uri} permanent'
+# The cloudflare servers block splices in options passed as import arguments;
+# deploy/Caddyfile passes none, so the cloudflare mode adds nothing.
+[[ "$(grep -Ec '^[[:space:]]*\{args\[:\]\}$' "$edge/cloudflare/global.caddy")" == 1 ]] || fail 'cloudflare global options must splice import arguments once'
+! grep -Eq '\{args' "$root/deploy/Caddyfile" "$edge/cloudflare/site.caddy" "$edge/cloudflare/sites.caddy" || fail 'only the cloudflare global options take import arguments'
+grep -Eq '^import /etc/caddy/edge/\{\$EDGE_MODE:acme\}/global\.caddy$' <<<"$(sed 's/^[[:space:]]*//' "$root/deploy/Caddyfile")" \
+  || fail 'deploy/Caddyfile must import the edge global options without arguments'
+# ORIGIN_CLIENT_AUTH=require (Compose EDGE_MODE=cloudflare-aop): the cloudflare
+# global options, imported from that one file (so Cloudflare's ranges stay in
+# one place) with strict SNI-Host enforcement, and both names requiring a
+# client certificate that verifies against aop-ca.pem.
+aop_globals="$(grep -Ev '^[[:space:]]*(#|$)' "$edge/cloudflare-aop/global.caddy")"
+[[ "$aop_globals" == 'import /etc/caddy/edge/cloudflare/global.caddy strict_sni_host on' ]] \
+  || fail 'cloudflare-aop global options must be the cloudflare ones plus strict_sni_host on'
+! cat "$edge"/cloudflare-aop/*.caddy | grep -Ev '^[[:space:]]*#' | grep -Fq 'trusted_proxies' \
+  || fail 'cloudflare-aop must take Cloudflare ranges from cloudflare/global.caddy'
+client_auth_site=$'tls /etc/caddy/origin-tls/cert.pem /etc/caddy/origin-tls/key.pem {\n\tclient_auth {\n\t\tmode require_and_verify\n\t\ttrust_pool file /etc/caddy/origin-tls/aop-ca.pem\n\t}\n}'
+client_auth_block=$'\t'"${client_auth_site//$'\n'/$'\n\t'}"
+[[ "$(grep -Ev '^[[:space:]]*(#|$)' "$edge/cloudflare-aop/site.caddy")" == "$client_auth_site" ]] \
+  || fail 'the cloudflare-aop DOMAIN site must load the Origin certificate and require AOP client certificates'
+[[ "$(grep -Ev '^[[:space:]]*(#|$)' "$edge/cloudflare-aop/sites.caddy")" \
+  == "{\$REDIRECT_DOMAIN:unprepared-redirect.invalid} {"$'\n'"$client_auth_block"$'\n\tredir https://{$DOMAIN:unprepared.invalid}{uri} permanent\n}' ]] \
+  || fail 'the cloudflare-aop REDIRECT_DOMAIN site must redirect like cloudflare and require AOP client certificates'
 need "$compose" 'EDGE_MODE: ${EDGE_MODE:?use deploy/runtime.sh as the supported entrypoint}'
 need "$compose" 'REDIRECT_DOMAIN: ${REDIRECT_DOMAIN-}'
 need "$compose" './caddy/edge:/etc/caddy/edge:ro'
@@ -259,7 +281,10 @@ if [[ "$1" == -c && "$2" == '%u:%g:%a' ]]; then
   # Some filesystems (Git Bash on NTFS) ignore chmod; report the fixture's mode.
   elif [[ "$3" == */origin-open || -e "$3.docker-made" ]]; then printf '0:0:755\n'
   elif [[ "$3" == */origin-open-key/key.pem ]]; then printf '0:0:644\n'
-  elif [[ "$3" == */origin-not-root || "$3" == */origin-not-root-key/key.pem ]]; then
+  elif [[ "$3" == */aop-open-key/aop-client-key.pem ]]; then printf '0:0:644\n'
+  elif [[ "$3" == */aop-open-ca/aop-ca.pem || "$3" == */aop-open-cert/aop-client.pem ]]; then printf '0:0:664\n'
+  elif [[ "$3" == */origin-not-root || "$3" == */origin-not-root-key/key.pem \
+    || "$3" == */aop-not-root-ca/aop-ca.pem || "$3" == */aop-not-root-cert/aop-client.pem || "$3" == */aop-not-root-key/aop-client-key.pem ]]; then
     mode="$('__STAT__' -c '%a' "$3")"; printf '1000:1000:%s\n' "$mode"
   else mode="$('__STAT__' -c '%a' "$3")"; printf '0:0:%s\n' "$mode"; fi
 else
@@ -333,7 +358,7 @@ eight_hash="$(sha256sum "$tmp/expected-eight.snapshot.env" | awk '{print $1}')"
 prepare_with() {
   local name="$1"; shift
   cp "${base_runtime:-$tmp/runtime.env}" "$tmp/$name.env"; (($# == 0)) || printf '%s\n' "$@" >> "$tmp/$name.env"; chmod 600 "$tmp/$name.env"
-  TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/$name.env" \
+  TEST_LOG="$tmp/docker.log" TEST_STATE="$state" PATH="${extra_path:+$extra_path:}$stub:$PATH" MAWAREETH_RUNTIME_FILE="$tmp/$name.env" \
     MAWAREETH_RELEASE_MANIFEST="$tmp/manifest.json" MAWAREETH_RUNTIME_DIR="$tmp/$name-state" \
     MAWAREETH_ORIGIN_TLS_DIR="${origin_fixture:-$tmp/no-origin-tls}" bash "$runtime" prepare 2>&1
 }
@@ -470,7 +495,7 @@ expect_edge_snapshot() {
   [[ ${#snapshots[@]} == 1 && "$(basename "${snapshots[0]}")" == "$(sha256sum "$expected" | awk '{print $1}').snapshot.env" ]] \
     || fail "$name changed the snapshot name"
   cmp -s "$expected" "${snapshots[0]}" || fail "$name changed the snapshot content"
-  ! grep -Eq '^(EDGE_MODE|REDIRECT_DOMAIN)=' "${snapshots[0]}" || fail "$name put edge keys into the app snapshot"
+  ! grep -Eq '^(EDGE_MODE|REDIRECT_DOMAIN|ORIGIN_CLIENT_AUTH)=' "${snapshots[0]}" || fail "$name put edge keys into the app snapshot"
 }
 # expect_edge_refused LABEL MESSAGE LINE...: refused before any state change,
 # naming MESSAGE (a key or path) and never printing the Origin key.
@@ -561,6 +586,202 @@ if ((have_openssl)); then
   origin_fixture="$tmp/origin-wrong-key"; make_origin "$origin_fixture"; cp "$tmp/pair-other/key.pem" "$origin_fixture/key.pem"; chmod 600 "$origin_fixture/key.pem"
   expect_edge_refused 'a mismatched Origin key' "origin key $origin_fixture/key.pem does not match origin certificate $origin_fixture/cert.pem" "${cloudflare_lines[@]}"
   [[ "$(sed -n 2p "$tmp/pair-other/key.pem")" != "$key_material" ]] || fail 'the mismatched key fixture equals the valid key'
+fi
+
+# ORIGIN_CLIENT_AUTH (per-hostname Authenticated Origin Pulls). The value and
+# the mode are checked before any file, so these need no fixtures.
+for bad in yes on Require REQUIRE 1 true; do
+  expect_optional_refused "ORIGIN_CLIENT_AUTH=$bad" 'ORIGIN_CLIENT_AUTH must be off or require' "=$bad" \
+    "${cloudflare_lines[@]}" "ORIGIN_CLIENT_AUTH=$bad"
+done
+base_runtime=''
+for value in require off; do
+  expect_optional_refused "ORIGIN_CLIENT_AUTH=$value without EDGE_MODE" 'ORIGIN_CLIENT_AUTH is supported only with EDGE_MODE=cloudflare' \
+    "$key_material" "ORIGIN_CLIENT_AUTH=$value"
+  expect_optional_refused "ORIGIN_CLIENT_AUTH=$value with EDGE_MODE=acme" 'ORIGIN_CLIENT_AUTH is supported only with EDGE_MODE=cloudflare' \
+    "$key_material" EDGE_MODE=acme "ORIGIN_CLIENT_AUTH=$value"
+done
+base_runtime="$tmp/runtime-www.env"
+if ((have_openssl)); then
+  # aop_set DIR [good|expired-ca|expired-client|short-client|server-only] writes a throwaway
+  # AOP CA, a client certificate it issues and the client key to DIR as
+  # ca.pem, client.pem and client-key.pem. server-only issues the certificate
+  # for TLS servers only (extendedKeyUsage=serverAuth); short-client issues a
+  # client certificate that expires within 30 days. OpenSSL runs in a
+  # scratch directory with relative paths only.
+  aop_set() {
+    local dir="$1" variant="${2:-good}" work ext=client_ext
+    local -a ca_dates=(-days 365) client_dates=(-days 365)
+    [[ "$variant" != expired-ca ]] || ca_dates=(-startdate 20200101000000Z -enddate 20200102000000Z)
+    [[ "$variant" != expired-client ]] || client_dates=(-startdate 20200101000000Z -enddate 20200102000000Z)
+    [[ "$variant" != short-client ]] || client_dates=(-days 10)
+    [[ "$variant" != server-only ]] || ext=server_ext
+    work="$(mktemp -d)"
+    (
+      cd "$work" || exit 1
+      printf '%s\n' '[ca]' 'default_ca = fixture' '[fixture]' 'database = index.txt' 'new_certs_dir = .' 'serial = serial' \
+        'default_md = sha256' 'policy = anything' 'unique_subject = no' '[anything]' 'commonName = supplied' \
+        '[ca_ext]' 'basicConstraints = critical,CA:TRUE' 'keyUsage = critical,keyCertSign,cRLSign' 'subjectKeyIdentifier = hash' \
+        '[client_ext]' 'basicConstraints = critical,CA:FALSE' 'keyUsage = critical,digitalSignature' 'extendedKeyUsage = clientAuth' \
+        '[server_ext]' 'basicConstraints = critical,CA:FALSE' 'keyUsage = critical,digitalSignature' 'extendedKeyUsage = serverAuth' > openssl.cnf
+      printf '%s\n' '[req]' 'prompt = no' 'distinguished_name = dn' '[dn]' 'CN = aop-ca.invalid' > ca-req.cnf
+      printf '%s\n' '[req]' 'prompt = no' 'distinguished_name = dn' '[dn]' 'CN = aop-client.invalid' > client-req.cnf
+      : > index.txt; printf '01\n' > serial
+      openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -config ca-req.cnf -keyout ca-key.pem -out ca.csr
+      openssl ca -batch -config openssl.cnf -selfsign -keyfile ca-key.pem -in ca.csr -extensions ca_ext "${ca_dates[@]}" -notext -out ca.pem
+      openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -config client-req.cnf -keyout client-key.pem -out client.csr
+      openssl ca -batch -config openssl.cnf -cert ca.pem -keyfile ca-key.pem -in client.csr -extensions "$ext" "${client_dates[@]}" -notext -out client.pem
+    ) >/dev/null 2>&1 || fail "could not generate the $variant AOP fixture"
+    mkdir -p "$dir"; cp "$work/ca.pem" "$work/client.pem" "$work/client-key.pem" "$dir/"; rm -rf "$work"
+  }
+  aop_set "$tmp/aopset-good"; aop_set "$tmp/aopset-other"
+  aop_set "$tmp/aopset-expired-ca" expired-ca; aop_set "$tmp/aopset-expired-client" expired-client; aop_set "$tmp/aopset-server-only" server-only
+  aop_set "$tmp/aopset-short-client" short-client
+  openssl verify -CAfile "$tmp/aopset-good/ca.pem" -purpose sslclient "$tmp/aopset-good/client.pem" >/dev/null 2>&1 || fail 'the AOP fixture does not verify'
+  # A line of the AOP client key: no output may ever contain it.
+  aop_key_material="$(sed -n 2p "$tmp/aopset-good/client-key.pem")"
+  [[ -n "$aop_key_material" && "$aop_key_material" != "$(sed -n 2p "$tmp/aopset-other/client-key.pem")" ]] || fail 'the AOP key fixtures are unusable'
+  # make_aop_origin DIR [SET [CA_SET]] creates an Origin directory with the
+  # valid Origin pair plus the AOP files from SET (default: the valid one),
+  # taking the CA from CA_SET when given, with the modes the runtime requires.
+  make_aop_origin() {
+    local set="${2:-$tmp/aopset-good}"
+    make_origin "$1"
+    cp "${3:-$set}/ca.pem" "$1/aop-ca.pem"; cp "$set/client.pem" "$1/aop-client.pem"; cp "$set/client-key.pem" "$1/aop-client-key.pem"
+    chmod 644 "$1/aop-ca.pem" "$1/aop-client.pem"; chmod 600 "$1/aop-client-key.pem"
+  }
+  # compose_env_without_paths prints the Compose environment without the
+  # per-run temporary paths and the shell's own variables.
+  compose_env_without_paths() { grep -Ev '^(APP_SNAPSHOT|ROUTES_DIR|PWD|OLDPWD|SHLVL|_)=' "$tmp/compose.env"; }
+  # Absent (the production runtime.env today) and off: today's Compose
+  # environment with EDGE_MODE=cloudflare, the AOP files ignored even when
+  # present and invalid.
+  origin_fixture="$tmp/origin-tls"; make_origin "$origin_fixture"
+  expect_edge_snapshot aop-absent "$tmp/expected-www.snapshot.env" "${cloudflare_lines[@]}"
+  grep -qx 'EDGE_MODE=cloudflare' "$tmp/compose.env" || fail 'cloudflare without ORIGIN_CLIENT_AUTH did not pass EDGE_MODE=cloudflare to Compose'
+  compose_env_without_paths > "$tmp/compose-absent.env"
+  cleanup_optional aop-absent
+  origin_fixture="$tmp/origin-aop-ignored"; make_origin "$origin_fixture"
+  printf 'not a certificate\n' > "$origin_fixture/aop-ca.pem"; : > "$origin_fixture/aop-client.pem"; chmod 777 "$origin_fixture/aop-ca.pem"
+  printf 'ca key\n' > "$origin_fixture/aop-ca-key.pem"; printf '01\n' > "$origin_fixture/aop-ca.srl"
+  for value in absent off; do
+    lines=("${cloudflare_lines[@]}"); [[ "$value" == absent ]] || lines+=("ORIGIN_CLIENT_AUTH=$value")
+    expect_edge_snapshot "aop-$value-ignored" "$tmp/expected-www.snapshot.env" "${lines[@]}"
+    grep -qx 'EDGE_MODE=cloudflare' "$tmp/compose.env" || fail "ORIGIN_CLIENT_AUTH $value did not pass EDGE_MODE=cloudflare to Compose"
+    sed "s|^EDGE_TLS_DIR=.*|EDGE_TLS_DIR=$tmp/origin-tls|" <(compose_env_without_paths) | cmp -s - "$tmp/compose-absent.env" \
+      || fail "ORIGIN_CLIENT_AUTH $value changed the Compose environment"
+    cleanup_optional "aop-$value-ignored"
+  done
+  # require with valid files: the same snapshot; Compose selects cloudflare-aop
+  # and nothing else in its environment changes.
+  origin_fixture="$tmp/origin-aop"; make_aop_origin "$origin_fixture"
+  output="$(prepare_with aop-require-output "${cloudflare_lines[@]}" ORIGIN_CLIENT_AUTH=require)" || fail "ORIGIN_CLIENT_AUTH=require was refused: $output"
+  [[ "$output" != *"$aop_key_material"* && "$output" != *"$key_material"* ]] || fail 'ORIGIN_CLIENT_AUTH=require printed key material'
+  [[ "$output" != *'expires within 30 days'* ]] || fail "long-lived AOP certificates raised an expiry warning: $output"
+  cleanup_optional aop-require-output
+  expect_edge_snapshot aop-require "$tmp/expected-www.snapshot.env" "${cloudflare_lines[@]}" ORIGIN_CLIENT_AUTH=require
+  grep -qx 'EDGE_MODE=cloudflare-aop' "$tmp/compose.env" || fail 'ORIGIN_CLIENT_AUTH=require did not pass EDGE_MODE=cloudflare-aop to Compose'
+  ! grep -Eq '^ORIGIN_CLIENT_AUTH=' "$tmp/compose.env" || fail 'ORIGIN_CLIENT_AUTH reached the Compose environment'
+  ! grep -Fq -e "$aop_key_material" -e "$key_material" "$tmp/compose.env" || fail 'key material reached the Compose environment'
+  { diff <(compose_env_without_paths | sed "s|^EDGE_TLS_DIR=.*|EDGE_TLS_DIR=$tmp/origin-tls|") "$tmp/compose-absent.env" || true; } \
+    | grep -E '^[<>]' | LC_ALL=C sort | tr '\n' ' ' | grep -qx '< EDGE_MODE=cloudflare-aop > EDGE_MODE=cloudflare ' \
+    || fail 'ORIGIN_CLIENT_AUTH=require changed more than EDGE_MODE in the Compose environment'
+  cleanup_optional aop-require
+  # expect_aop_refused LABEL MESSAGE: refused before any state change, naming
+  # MESSAGE (a path) and never printing either key.
+  expect_aop_refused() {
+    local output
+    if output="$(prepare_with aop-bad "${cloudflare_lines[@]}" ORIGIN_CLIENT_AUTH=require)"; then cleanup_optional aop-bad; fail "$1 was accepted"; fi
+    [[ "$output" == *"$2"* ]] || fail "$1 refusal did not name the file: $output"
+    [[ ! -e "$tmp/aop-bad-state" ]] || fail "$1 created runtime state"
+    assert_no_secret_leak "$1" "$output"
+    [[ "$output" != *"$aop_key_material"* && "$output" != *"$key_material"* ]] || fail "$1 printed key material"
+    cleanup_optional aop-bad
+  }
+  for file in aop-ca.pem aop-client.pem aop-client-key.pem; do
+    origin_fixture="$tmp/aop-missing-${file%.pem}"; make_aop_origin "$origin_fixture"; rm -f "$origin_fixture/$file"
+    expect_aop_refused "a missing $file" "$origin_fixture/$file must be a non-empty regular non-symlink file"
+    origin_fixture="$tmp/aop-empty-${file%.pem}"; make_aop_origin "$origin_fixture"; : > "$origin_fixture/$file"
+    expect_aop_refused "an empty $file" "$origin_fixture/$file must be a non-empty regular non-symlink file"
+    origin_fixture="$tmp/aop-dir-${file%.pem}"; make_aop_origin "$origin_fixture"; rm -f "$origin_fixture/$file"; mkdir "$origin_fixture/$file"
+    expect_aop_refused "a $file that is not a regular file" "$origin_fixture/$file must be a non-empty regular non-symlink file"
+    origin_fixture="$tmp/aop-link-${file%.pem}"; make_aop_origin "$origin_fixture"; mv "$origin_fixture/$file" "$tmp/aop-real-$file"
+    ln -s "$tmp/aop-real-$file" "$origin_fixture/$file"
+    if [[ -L "$origin_fixture/$file" ]]; then
+      expect_aop_refused "a symlinked $file" "$origin_fixture/$file must be a non-empty regular non-symlink file"
+    else
+      printf 'NOTE: ln -s did not create a symlink here; skipping the symlinked %s check\n' "$file" >&2
+    fi
+  done
+  origin_fixture="$tmp/aop-open-ca"; make_aop_origin "$origin_fixture"; chmod 664 "$origin_fixture/aop-ca.pem"
+  expect_aop_refused 'an AOP CA not mode 0600 or 0644' "$origin_fixture/aop-ca.pem must be owned by root:root with mode 600 or 644"
+  origin_fixture="$tmp/aop-open-cert"; make_aop_origin "$origin_fixture"; chmod 664 "$origin_fixture/aop-client.pem"
+  expect_aop_refused 'an AOP client certificate not mode 0600 or 0644' "$origin_fixture/aop-client.pem must be owned by root:root with mode 600 or 644"
+  origin_fixture="$tmp/aop-open-key"; make_aop_origin "$origin_fixture"; chmod 644 "$origin_fixture/aop-client-key.pem"
+  expect_aop_refused 'an AOP client key not mode 0600' "$origin_fixture/aop-client-key.pem must be owned by root:root with mode 600"
+  for pair in ca:aop-ca.pem cert:aop-client.pem key:aop-client-key.pem; do
+    origin_fixture="$tmp/aop-not-root-${pair%%:*}"; make_aop_origin "$origin_fixture"
+    [[ ${EUID:-999} -ne 0 ]] || chown 1000:1000 "$origin_fixture/${pair#*:}"
+    expect_aop_refused "an AOP ${pair%%:*} file not owned by root" "$origin_fixture/${pair#*:} must be owned by root:root"
+  done
+  origin_fixture="$tmp/aop-bad-ca"; make_aop_origin "$origin_fixture"; printf 'not a certificate\n' > "$origin_fixture/aop-ca.pem"
+  expect_aop_refused 'a non-PEM AOP CA' "Authenticated Origin Pulls CA $origin_fixture/aop-ca.pem is not a PEM X.509 certificate"
+  origin_fixture="$tmp/aop-bad-cert"; make_aop_origin "$origin_fixture"; printf 'not a certificate\n' > "$origin_fixture/aop-client.pem"
+  expect_aop_refused 'a non-PEM AOP client certificate' "Authenticated Origin Pulls client certificate $origin_fixture/aop-client.pem is not a PEM X.509 certificate"
+  origin_fixture="$tmp/aop-bad-key"; make_aop_origin "$origin_fixture"; printf 'not a key\n' > "$origin_fixture/aop-client-key.pem"
+  expect_aop_refused 'an unreadable AOP client key' "Authenticated Origin Pulls client key $origin_fixture/aop-client-key.pem is not a readable unencrypted private key"
+  origin_fixture="$tmp/aop-expired-ca"; make_aop_origin "$origin_fixture" "$tmp/aopset-expired-ca"
+  expect_aop_refused 'an expired AOP CA' "Authenticated Origin Pulls CA $origin_fixture/aop-ca.pem has expired"
+  origin_fixture="$tmp/aop-expired-client"; make_aop_origin "$origin_fixture" "$tmp/aopset-expired-client"
+  expect_aop_refused 'an expired AOP client certificate' "Authenticated Origin Pulls client certificate $origin_fixture/aop-client.pem has expired"
+  origin_fixture="$tmp/aop-foreign-ca"; make_aop_origin "$origin_fixture" "$tmp/aopset-good" "$tmp/aopset-other"
+  expect_aop_refused 'an AOP client certificate from another CA' \
+    "Authenticated Origin Pulls client certificate $origin_fixture/aop-client.pem does not verify against $origin_fixture/aop-ca.pem for client authentication"
+  origin_fixture="$tmp/aop-server-only"; make_aop_origin "$origin_fixture" "$tmp/aopset-server-only"
+  expect_aop_refused 'an AOP certificate not for client authentication' \
+    "Authenticated Origin Pulls client certificate $origin_fixture/aop-client.pem does not verify against $origin_fixture/aop-ca.pem for client authentication"
+  origin_fixture="$tmp/aop-wrong-key"; make_aop_origin "$origin_fixture"
+  cp "$tmp/aopset-other/client-key.pem" "$origin_fixture/aop-client-key.pem"; chmod 600 "$origin_fixture/aop-client-key.pem"
+  expect_aop_refused 'a mismatched AOP client key' \
+    "Authenticated Origin Pulls client key $origin_fixture/aop-client-key.pem does not match Authenticated Origin Pulls client certificate $origin_fixture/aop-client.pem"
+  # CA bundles (a CA rotation appends the new CA): every block must parse and
+  # be unexpired; a client certificate from any bundled CA verifies.
+  origin_fixture="$tmp/aop-bundle-garbage"; make_aop_origin "$origin_fixture"
+  printf '%s\n' '-----BEGIN CERTIFICATE-----' 'bm90IGEgY2VydGlmaWNhdGU=' '-----END CERTIFICATE-----' >> "$origin_fixture/aop-ca.pem"
+  expect_aop_refused 'an AOP CA bundle with a garbage block' "Authenticated Origin Pulls CA $origin_fixture/aop-ca.pem (certificate 2) is not a PEM X.509 certificate"
+  origin_fixture="$tmp/aop-bundle-expired"; make_aop_origin "$origin_fixture"; cat "$tmp/aopset-expired-ca/ca.pem" >> "$origin_fixture/aop-ca.pem"
+  expect_aop_refused 'an AOP CA bundle with an expired block' "Authenticated Origin Pulls CA $origin_fixture/aop-ca.pem (certificate 2) has expired"
+  origin_fixture="$tmp/aop-bundle-two"; make_aop_origin "$origin_fixture"
+  cat "$tmp/aopset-other/ca.pem" "$tmp/aopset-good/ca.pem" > "$origin_fixture/aop-ca.pem"
+  [[ "$(grep -c -- '-----BEGIN CERTIFICATE-----' "$origin_fixture/aop-ca.pem")" == 2 ]] || fail 'the two-CA bundle fixture is wrong'
+  expect_edge_snapshot aop-bundle-two "$tmp/expected-www.snapshot.env" "${cloudflare_lines[@]}" ORIGIN_CLIENT_AUTH=require
+  grep -qx 'EDGE_MODE=cloudflare-aop' "$tmp/compose.env" || fail 'the two-CA bundle did not select cloudflare-aop'
+  cleanup_optional aop-bundle-two
+  # The CA key and serial files must not be in the directory with require.
+  for file in aop-ca-key.pem aop-ca.srl; do
+    origin_fixture="$tmp/aop-offline-${file%%.*}"; make_aop_origin "$origin_fixture"; printf 'x\n' > "$origin_fixture/$file"
+    expect_aop_refused "a $file in the Origin directory" "$origin_fixture/$file must not be on the host"
+  done
+  # A certificate expiring within 30 days is reported, naming the file, and
+  # still accepted.
+  origin_fixture="$tmp/aop-short"; make_aop_origin "$origin_fixture" "$tmp/aopset-short-client"
+  output="$(prepare_with aop-short "${cloudflare_lines[@]}" ORIGIN_CLIENT_AUTH=require)" || fail "a short-lived AOP client certificate was refused: $output"
+  [[ "$output" == *"WARNING: Authenticated Origin Pulls client certificate $origin_fixture/aop-client.pem expires within 30 days"* ]] \
+    || fail "a short-lived AOP client certificate raised no expiry warning: $output"
+  [[ "$output" != *"CA $origin_fixture/aop-ca.pem expires"* ]] || fail 'the long-lived AOP CA raised an expiry warning'
+  cleanup_optional aop-short
+  # OpenSSL before 3.0 has no verify -no-CAstore: a distinct refusal, not a
+  # misleading verification failure. A wrapper hides the option from the help.
+  mkdir -p "$tmp/old-openssl"
+  cat > "$tmp/old-openssl/openssl" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-} ${2:-}" == 'verify -help' ]]; then { '__OPENSSL__' verify -help 2>&1 || true; } | grep -v -- -no-CAstore; exit 0; fi
+exec '__OPENSSL__' "$@"
+EOF
+  sed -i "s|__OPENSSL__|$(command -v openssl)|g" "$tmp/old-openssl/openssl"
+  chmod +x "$tmp/old-openssl/openssl"
+  origin_fixture="$tmp/origin-aop"
+  extra_path="$tmp/old-openssl" expect_aop_refused 'an OpenSSL without verify -no-CAstore' 'ORIGIN_CLIENT_AUTH=require needs OpenSSL 3'
 fi
 base_runtime=''; origin_fixture=''
 

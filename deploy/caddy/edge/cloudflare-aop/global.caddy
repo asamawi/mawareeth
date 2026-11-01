@@ -1,0 +1,11 @@
+# EDGE_MODE=cloudflare with ORIGIN_CLIENT_AUTH=require: deploy/runtime.sh passes
+# Compose EDGE_MODE=cloudflare-aop, so deploy/Caddyfile imports this snippet
+# set. Imported inside deploy/Caddyfile's global block.
+#
+# The cloudflare global options unchanged (no certificate automation, the
+# static Cloudflare trusted_proxies from that one file), plus strict SNI-Host
+# enforcement: a connection whose TLS handshake used another name (or none)
+# cannot reach the DOMAIN or REDIRECT_DOMAIN site, so the client certificate
+# requirement below cannot be sidestepped through SNI. Caddy allows a single
+# address-less servers block, so the option is passed into the cloudflare one.
+import /etc/caddy/edge/cloudflare/global.caddy strict_sni_host on

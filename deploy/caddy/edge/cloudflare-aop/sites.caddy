@@ -1,0 +1,14 @@
+# EDGE_MODE=cloudflare with ORIGIN_CLIENT_AUTH=require: REDIRECT_DOMAIN (the
+# apex) permanently redirects to the canonical DOMAIN, as in
+# cloudflare/sites.caddy, and requires the same Authenticated Origin Pulls
+# client certificate as the DOMAIN site. Imported at the top level of
+# deploy/Caddyfile.
+{$REDIRECT_DOMAIN:unprepared-redirect.invalid} {
+	tls /etc/caddy/origin-tls/cert.pem /etc/caddy/origin-tls/key.pem {
+		client_auth {
+			mode require_and_verify
+			trust_pool file /etc/caddy/origin-tls/aop-ca.pem
+		}
+	}
+	redir https://{$DOMAIN:unprepared.invalid}{uri} permanent
+}
