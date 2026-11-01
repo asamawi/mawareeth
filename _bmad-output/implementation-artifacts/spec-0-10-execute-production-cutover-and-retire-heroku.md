@@ -81,4 +81,4 @@ This record holds the execution evidence, because no code changed.
 - ~~Point Better Stack's uptime probe at `https://www.mawareeth.com/health/ready/`.~~ Done 2026-11-01 (3-minute checks, two-failure confirmation, email to `SMTP_TO`).
 - Decide Authenticated Origin Pulls and/or limiting 80/443 to Cloudflare's ranges (`deferred-work.md`).
 - Separate rehearsal and production evidence in `rehearse.sh` (`deferred-work.md`).
-- Delete `/root/mawareeth-pre-cutover-20261028T120741Z` and `/root/runtime.env.rehearsal.*` on the host; they hold rehearsal-era secrets.
+- ~~Delete `/root/mawareeth-pre-cutover-20261028T120741Z` and `/root/runtime.env.rehearsal.*` on the host.~~ Shredded 2026-11-01.
