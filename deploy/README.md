@@ -876,6 +876,8 @@ Afterwards, point external monitors at the canonical `https://www.mawareeth.com`
 
 ### Production cutover (story 0.10)
 
+**Executed 2026-11-01. Heroku is destroyed.** See `_bmad-output/implementation-artifacts/spec-0-10-execute-production-cutover-and-retire-heroku.md` for timings and findings. The final state of the Heroku database is kept in the restic repository as snapshot tag `heroku-final` (`heroku-final-20261101.dump`, a `pg_dump -Fc --schema=public` archive). Nightly retention never prunes it, because it lacks the `complete` tag. To inspect it, run Restic with the same repository settings as `backup.sh`, then `dump latest /heroku-final-20261101.dump --tag heroku-final` into `pg_restore -l` (or `pg_restore` into a scratch database, never into production).
+
 This sequence is not run during the rehearsal. Every step against Heroku, DNS, or the production host needs its own approval. It assumes the [preparation](#production-cutover-preparation) is done: the host runs `DOMAIN=www.mawareeth.com` in `cloudflare` mode.
 
 1. Lower the TTLs a day ahead (on a DNS host that allows it; see rehearsal step 1).
