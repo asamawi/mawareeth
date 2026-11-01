@@ -1,0 +1,114 @@
+name: Deploy Production
+run-name: Deploy ${{ inputs.sha }}
+
+# Manually dispatched, approval-gated production deploy. The runner joins the
+# tailnet as an ephemeral tag:ci-deploy node and sends the host one thing: the
+# commit SHA. The host's forced command and root wrapper (deploy/ci-deploy.sh)
+# fetch, validate and deploy that commit's published release manifest
+# themselves. See "Deploying from GitHub Actions" in deploy/README.md.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full 40-character lowercase commit SHA on master whose Publish Release Image run succeeded
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# One deploy at a time, never cancelled. GitHub keeps at most one pending run
+# per group: a newer dispatch replaces a pending (queued) one, which is then
+# cancelled, and a run waiting for approval already holds the group.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  validate-input:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate commit SHA input
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the sha input must be exactly 40 lowercase hexadecimal characters"
+            exit 1
+          fi
+
+  deploy:
+    needs: validate-input
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions: {}
+    # Required reviewers on this environment approve each deploy; its secrets
+    # and variables are available only after approval.
+    environment: production
+    steps:
+      - name: Revalidate commit SHA and host inputs
+        env:
+          SHA: ${{ inputs.sha }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the sha input must be exactly 40 lowercase hexadecimal characters"
+            exit 1
+          fi
+          if ! [[ "$DEPLOY_HOST" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]]; then
+            echo "::error::the DEPLOY_HOST environment variable must be the host's tailnet name"
+            exit 1
+          fi
+
+      - name: Join the tailnet as an ephemeral tag:ci-deploy node
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci-deploy
+          version: "1.94.2"
+          use-cache: "false"
+          ping: ${{ vars.DEPLOY_HOST }}
+
+      - name: Deploy the release on the host
+        env:
+          SHA: ${{ inputs.sha }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$RUNNER_TEMP/deploy-ssh"
+          trap 'rm -rf -- "$dir"' EXIT
+          mkdir -p "$dir"
+          if [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "::error::the DEPLOY_SSH_KEY environment secret is empty"
+            exit 1
+          fi
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > "$dir/id"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" | tr -d '\r' > "$dir/known_hosts"
+          if ! grep -q . "$dir/known_hosts"; then
+            echo "::error::the DEPLOY_KNOWN_HOSTS environment variable is empty"
+            exit 1
+          fi
+          # The host key is pinned; the forced command ignores everything but
+          # the SHA, which is the only payload. Its exit code is the job's.
+          status=0
+          ssh -T -a -x -F none -i "$dir/id" \
+            -o IdentitiesOnly=yes -o IdentityAgent=none -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ClearAllForwardings=yes -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            "mawareeth-deploy@$DEPLOY_HOST" "$SHA" 2>&1 | tee "$dir/output" || status=$?
+          result="$(sed -n 's/^ci-deploy: result=//p' "$dir/output" | tail -n 1)"
+          {
+            echo "### Production deploy"
+            echo
+            echo "- Commit: \`$SHA\`"
+            echo "- Exit code: \`$status\`"
+            echo "- Wrapper result: \`${result:-none reported}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

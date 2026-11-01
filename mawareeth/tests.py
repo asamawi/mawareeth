@@ -491,8 +491,101 @@ class WorkflowContractTests(SimpleTestCase):
                 self.assertRegex(jobs[name], r"(?m)^    permissions:\n      contents: read$")
                 self.assertNotRegex(jobs[name], r"(?m)^ +if:")
 
+    def _production_deploy_workflow(self):
+        return (PROJECT_ROOT / ".github" / "workflows" / "deploy-production.yml").read_text(encoding="utf-8")
+
+    def test_production_deploy_is_dispatch_only(self):
+        workflow = self._production_deploy_workflow()
+        on_section = re.search(r"(?m)^on:\n((?:(?: +[^\n]*)?\n)*?)(?=^\S)", workflow)
+        self.assertIsNotNone(on_section)
+        triggers = re.findall(r"(?m)^  ([a-z_]+):", on_section.group(1))
+        self.assertEqual(triggers, ["workflow_dispatch"])
+        inputs = re.findall(r"(?m)^      ([a-z_-]+):$", on_section.group(1))
+        self.assertEqual(inputs, ["sha"])
+        for trigger in ("push:", "pull_request", "workflow_run", "schedule:", "repository_dispatch"):
+            with self.subTest(trigger=trigger):
+                self.assertNotIn(trigger, workflow)
+
+    def test_production_deploy_is_gated_and_serialized(self):
+        workflow = self._production_deploy_workflow()
+        self.assertRegex(workflow, r"(?m)^    environment: production$")
+        self.assertRegex(workflow, r"(?m)^concurrency:\n  group: deploy-production\n  cancel-in-progress: false$")
+        self.assertNotIn("cancel-in-progress: true", workflow)
+        self.assertRegex(workflow, r"(?m)^permissions:\n  contents: read$")
+
+    def test_production_deploy_validates_sha_before_anything_else(self):
+        workflow = self._production_deploy_workflow()
+        jobs_section = workflow[workflow.index("\njobs:\n") :]
+        first_job = re.search(r"(?m)^  ([a-z][a-z0-9-]*):\n", jobs_section)
+        self.assertIsNotNone(first_job)
+        self.assertEqual(first_job.group(1), "validate-input")
+        validate = jobs_section[first_job.end() : jobs_section.index("\n  deploy:\n")]
+        self.assertIn("SHA: ${{ inputs.sha }}", validate)
+        self.assertIn('[[ "$SHA" =~ ^[0-9a-f]{40}$ ]]', validate)
+        self.assertNotIn("uses:", validate)
+        self.assertNotIn("environment:", validate)
+        self.assertIn("    needs: validate-input\n", workflow)
+        # The SHA reaches scripts only through the environment, never inlined;
+        # the run name only displays it.
+        self.assertEqual(workflow.count("${{ inputs.sha }}"), workflow.count("SHA: ${{ inputs.sha }}") + 1)
+        self.assertEqual(workflow.count("\nrun-name: Deploy ${{ inputs.sha }}\n"), 1)
+        deploy = jobs_section[jobs_section.index("\n  deploy:\n") :]
+        self.assertLess(deploy.index('[[ "$SHA" =~ ^[0-9a-f]{40}$ ]]'), deploy.index("uses: tailscale/github-action@"))
+
+    def test_production_deploy_reaches_the_host_only_over_tailscale_with_a_pinned_key(self):
+        workflow = self._production_deploy_workflow()
+        self.assertLess(workflow.index("uses: tailscale/github-action@"), workflow.index("ssh -T"))
+        self.assertIn("tags: tag:ci-deploy", workflow)
+        self.assertIn("-o StrictHostKeyChecking=yes", workflow)
+        self.assertIn('-o UserKnownHostsFile="$dir/known_hosts"', workflow)
+        self.assertIn("-o GlobalKnownHostsFile=/dev/null", workflow)
+        self.assertIn("-o BatchMode=yes", workflow)
+        self.assertNotRegex(workflow, r"StrictHostKeyChecking=(?!yes)")
+        self.assertNotIn("ssh-keyscan", workflow)
+        self.assertEqual(workflow.count("ssh -T"), 1)
+        # The SHA is the only payload sent to the host.
+        self.assertRegex(workflow, r'(?m)^ +"mawareeth-deploy@\$DEPLOY_HOST" "\$SHA" 2>&1 \| tee "\$dir/output" \|\| status=\$\?$')
+
+    def test_production_deploy_secrets_appear_only_in_env_or_with_mappings(self):
+        workflow = self._production_deploy_workflow()
+        lines = workflow.splitlines()
+        references = [index for index, line in enumerate(lines) if "${{ secrets." in line]
+        self.assertEqual(len(references), 3)
+        for index in references:
+            line = lines[index]
+            with self.subTest(line=line.strip()):
+                self.assertRegex(line, r"^ +[A-Za-z_-]+: \$\{\{ secrets\.[A-Z_]+ \}\}$")
+                indent = len(line) - len(line.lstrip())
+                parent = next(
+                    lines[earlier]
+                    for earlier in range(index - 1, -1, -1)
+                    if lines[earlier].strip() and len(lines[earlier]) - len(lines[earlier].lstrip()) < indent
+                )
+                self.assertIn(parent.strip(), ("env:", "with:"))
+        # No run block body contains an expression at all.
+        run_blocks = re.findall(r"(?m)^( +)run: \|\n((?:\1 +[^\n]*\n|\n)*)", workflow)
+        self.assertTrue(run_blocks)
+        for _, body in run_blocks:
+            self.assertNotIn("${{", body)
+
+    def test_production_deploy_runs_from_master_with_no_token_and_reports(self):
+        workflow = self._production_deploy_workflow()
+        self.assertEqual(workflow.count("\n    if: github.ref == 'refs/heads/master'\n"), 2)
+        deploy = workflow[workflow.index("\n  deploy:\n") :]
+        self.assertRegex(deploy, r"(?m)^    permissions: \{\}$")
+        self.assertIn('>> "$GITHUB_STEP_SUMMARY"', deploy)
+        self.assertIn("s/^ci-deploy: result=//p", deploy)
+        self.assertIn('if [ -z "$DEPLOY_SSH_KEY" ]; then', deploy)
+        self.assertIn("printf '%s\\n' \"$DEPLOY_SSH_KEY\" | tr -d '\\r'", deploy)
+
+    def test_production_deploy_never_allows_contract_or_recover(self):
+        workflow = self._production_deploy_workflow()
+        for forbidden in ("--allow-contract", "recover", "release.sh", "runtime.sh", "docker", "manifest.json"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, workflow)
+
     def test_workflows_pin_third_party_actions(self):
-        for name in ("deploy.yml", "django.yml"):
+        for name in ("deploy.yml", "django.yml", "deploy-production.yml"):
             workflow = (PROJECT_ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
             action_references = re.findall(r"(?m)^\s*(?:-\s+)?uses:\s*(\S+)", workflow)
 
