@@ -175,3 +175,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-origin-lock.md`
   summary: Add a scheduled CI check that compares `deploy/cloudflare-ips.txt` with Cloudflare's published https://www.cloudflare.com/ips-v4 and /ips-v6 and fails (or opens an issue) when they differ.
   evidence: Review noted that with PUBLIC_WEB_SOURCES=cloudflare a new Cloudflare range would make visitors routed through it time out, and nothing flags drift until someone refreshes the file by hand; a CI-side fetch keeps the no-runtime-fetch rule.
+- source_spec: `_bmad-output/implementation-artifacts/spec-ci-production-deploy.md`
+  summary: Monitor the expiry of the host's fine-grained GitHub read token (`/etc/mawareeth/github-read.token`) — e.g. record its expiry date and alert (monitor.sh metric or a calendar/maintenance-window check) before it lapses.
+  evidence: Review noted that an expired token only surfaces when a production deploy fails at the artifact-listing step; the wrapper now reports it clearly, but nothing warns beforehand.

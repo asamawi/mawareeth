@@ -39,7 +39,7 @@ Two more optional keys choose how Caddy terminates TLS (see [Cloudflare edge](#c
 
 For production: `DOMAIN=www.mawareeth.com`, `EDGE_MODE=cloudflare`, `REDIRECT_DOMAIN=mawareeth.com`. Django then allows only `www.mawareeth.com` (`DJANGO_ALLOWED_HOSTS` and `DJANGO_CSRF_TRUSTED_ORIGINS` derive from `DOMAIN`). Apex requests never reach Django, because Caddy answers them with the redirect.
 
-Download a trusted `release-manifest.json` out of band, verify its provenance, and keep it at an absolute root-owned mode-0600 path. The root-owned image lock remains mode 0644. The manifest's deployment-bundle SHA must equal the checked-out repository commit, its repository must equal `APP_IMAGE_REPOSITORY`, and its application identity must be a canonical GHCR digest. Load images on a connected trusted workstation with `docker pull REPOSITORY@sha256:DIGEST`, verify `docker image inspect --format '{{join .RepoDigests "\n"}}' REPOSITORY@sha256:DIGEST` contains the exact requested `REPOSITORY@sha256:DIGEST`, then transfer with `docker save` over an approved channel. On the offline host, use `docker load`, repeat the exact `RepoDigests` inspection, and run preflight. Never substitute a matching digest reported under a different repository. The runtime never builds or pulls and uses `pull_policy: never`.
+For a manual deploy, download a trusted `release-manifest.json` out of band (the GitHub Actions deploy fetches and validates it on the host itself), verify its provenance, and keep it at an absolute root-owned mode-0600 path. The root-owned image lock remains mode 0644. The manifest's deployment-bundle SHA must equal the checked-out repository commit, its repository must equal `APP_IMAGE_REPOSITORY`, and its application identity must be a canonical GHCR digest. Load images on a connected trusted workstation with `docker pull REPOSITORY@sha256:DIGEST`, verify `docker image inspect --format '{{join .RepoDigests "\n"}}' REPOSITORY@sha256:DIGEST` contains the exact requested `REPOSITORY@sha256:DIGEST`, then transfer with `docker save` over an approved channel. On the offline host, use `docker load`, repeat the exact `RepoDigests` inspection, and run preflight. Never substitute a matching digest reported under a different repository. The runtime never builds or pulls and uses `pull_policy: never`.
 
 Prepare and inspect the runtime, bootstrap the first release with `release.sh deploy` (see Blue-green deployment), and use `up` only to restart the recorded active release:
 
@@ -178,7 +178,7 @@ This is temporary. The next Docker start reruns the baked firewall script, which
 
 ## Blue-green deployment
 
-Every application release, including the first, is deployed with `release.sh deploy`, as root, from a clean checkout of the release's deployment-bundle commit with its images already loaded (see above). It never builds, pulls, deploys a tag, or changes secrets or snapshots. The checkout must be owned by root (or listed in root's `safe.directory`) so `git status` works; the deploy refuses when `git status --porcelain -- deploy` reports any change.
+Every application release, including the first, is deployed with `release.sh deploy` as root, by an operator or by the GitHub Actions wrapper (see [Deploying from GitHub Actions](#deploying-from-github-actions)), which runs the same steps and never passes `--allow-contract`. It runs from a clean checkout of the release's deployment-bundle commit with its images already loaded (see above). It never builds, pulls, deploys a tag, or changes secrets or snapshots. The checkout must be owned by root (or listed in root's `safe.directory`) so `git status` works; the deploy refuses when `git status --porcelain -- deploy` reports any change.
 
 ```console
 sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/runtime.sh prepare
@@ -652,11 +652,139 @@ The workflow uploads `release-manifest-<commit>` containing `release-manifest.js
 
 The workflow validates the manifest inputs before pushing, so an unsupported contract never reaches GHCR. A registry push that succeeds before a later step fails can still leave a `:<commit>` tag without a manifest; never deploy by tag. Re-running the workflow rebuilds and re-pushes that tag with a new digest. Earlier manifests still name their own digests, so keep GHCR cleanup from deleting untagged versions that a retained manifest references. Manifest artifacts are kept for 90 days; archive any manifest you may need to roll back to after that.
 
-`deploy.yml` runs from the default branch (a `workflow_run` rule), but it checks out and executes `deploy/release_manifest.py` from the released commit. Keep the script's CLI backward compatible with the default branch's workflow, or merge workflow and CLI changes together. The manifest contains identities and contract versions only. Runtime credentials, environment values, secret material, host deployment logic, and mutable source references must never be added. Stories 0.5 and 0.6 consume and verify this contract; this workflow does not contact or deploy to the production host.
+`deploy.yml` runs from the default branch (a `workflow_run` rule), but it checks out and executes `deploy/release_manifest.py` from the released commit. Keep the script's CLI backward compatible with the default branch's workflow, or merge workflow and CLI changes together. The manifest contains identities and contract versions only. Runtime credentials, environment values, secret material, host deployment logic, and mutable source references must never be added. Stories 0.5 and 0.6 consume and verify this contract. `deploy.yml` itself never contacts or deploys to the production host. Deploys from GitHub Actions run only through the separate `deploy-production.yml`, which is dispatched by hand, approved, and sends the host nothing but a commit SHA (see [Deploying from GitHub Actions](#deploying-from-github-actions)).
+
+## Deploying from GitHub Actions
+
+`.github/workflows/deploy-production.yml` deploys one published release to production. This deliberately reverses the earlier rule that CI never contacts the production host, within tight limits:
+
+- The workflow runs only when dispatched by hand (`workflow_dispatch`) from `master`, with one input: the full 40-character lowercase commit SHA. A first job validates it before anything else runs. The run is named `Deploy <SHA>`, and the job summary records the SHA, the exit code and the wrapper's result line.
+- The deploy job uses the `production` environment, whose required reviewers approve every run. It has no GitHub token (`permissions: {}`).
+- `concurrency` never cancels a running deploy. GitHub keeps at most one *pending* run per group, though: a newer dispatch replaces a queued one, which is cancelled. A run that is still waiting for approval already holds the group. Approve or reject a waiting run before dispatching another.
+- The runner joins the tailnet as an ephemeral `tag:ci-deploy` node and connects over SSH to `mawareeth-deploy@DEPLOY_HOST`, with the host key pinned (`StrictHostKeyChecking=yes` against `DEPLOY_KNOWN_HOSTS`). It never uses public SSH.
+- The SHA is the only thing it sends. The account's single key is `from="100.64.0.0/10",restrict,command=…`: it works only from a tailnet address, whatever the tailnet ACL says, and the host ignores every other part of the request. The forced command reads `SSH_ORIGINAL_COMMAND`, accepts exactly one lowercase 40-hex SHA, and runs `sudo -n /usr/local/sbin/mawareeth-deploy-release SHA`. Sudoers lets that user run only that path, with one 40-hex argument.
+
+**Master is trusted code.** Each deploy runs code from the deployed commit as root: its `release_manifest.py`, `runtime.sh` and `release.sh`. Anyone who can merge to `master` can therefore run code as root on the next approved deploy. Protect `master` (required reviews, no direct pushes) accordingly, and review deploy-script changes as production-access changes. The entry and wrapper themselves are fixed, installed copies. Their logic changes only when an administrator re-runs `install`, never through a deploy.
+
+The root wrapper (`deploy/ci-deploy.sh`, installed as a fixed copy) proves the release on the host before it deploys anything. It runs these steps in order, as root:
+
+1. It revalidates the SHA.
+2. It takes the lock `/run/mawareeth-ci-deploy.lock`.
+3. It opens a root-only log, `deploy/runtime/logs/ci-deploy-<UTC time>-<pid>.log`, prints its path first, and copies all further output there.
+4. It refuses if the checkout `/srv/mawareeth` has local changes: `git status --porcelain -- deploy` must be empty (untracked files included, as `release.sh` requires), and no tracked file may be modified elsewhere.
+5. It fetches `origin master` and requires the SHA to be on it.
+6. It looks up the `release-manifest-<SHA>` artifacts through the GitHub API, with the token in `/etc/mawareeth/github-read.token`. It accepts only an unexpired artifact whose workflow run:
+   - belongs to this repository (not a fork) and ran on `master`;
+   - and, checked through the runs API, is a successful `workflow_run` run of `.github/workflows/deploy.yml` (Publish Release Image).
+
+   That run's own `head_sha` is not compared with the SHA: a `workflow_run`-triggered run reports the default branch head at trigger time, which can already be a later merge. It downloads the newest such artifact and says how many others it ignored.
+7. Before changing anything, it proves the release:
+   - It validates the manifest with the release commit's own `release_manifest.py` (read with `git show <SHA>:deploy/release_manifest.py`): `validate --expected-repository <APP_IMAGE_REPOSITORY>` (read from `runtime.env`).
+   - It requires `deployment_bundle.git_sha` to equal the SHA.
+   - It reads the manifest's `ci.workflow_run_id` and fetches that run. It must be a successful `push` run of `.github/workflows/django.yml` (Django CI) on `master` in this repository, for exactly the SHA (`head_sha`). This proves the commit, so a missing, malformed or mismatched run is refused (64) with nothing changed.
+8. It checks out the SHA. If that commit's `deploy/ci-deploy.sh` differs from the installed wrapper (its settings block aside), it logs a WARNING that `install` must be re-run; the deploy continues.
+9. It pulls `application.image` by digest, within 30 minutes, and requires its `RepoDigests` to contain exactly that reference.
+10. It installs the manifest at `/etc/mawareeth/release-manifest.json` (root, mode 0600).
+11. It runs `runtime.sh prepare`, within 15 minutes.
+12. It points `master` at the SHA (`git switch -C master <SHA>`), as the manual procedure leaves it.
+13. It runs `release.sh deploy`, never with `--allow-contract`, never `recover`. `release.sh` keeps its own time limits.
+
+If anything fails, or a hangup, interrupt or termination arrives, before `release.sh deploy` starts, the wrapper restores the previous checkout (branch and commit) and manifest. From then on `release.sh` owns rollback (see [Blue-green deployment](#blue-green-deployment)). The wrapper then ignores those signals and waits for `release.sh` to finish. Child processes never inherit the lock.
+
+The token is never printed and never appears on a command line: curl reads it from a config on a pipe and does not send it to the artifact download's redirect host. An HTTP 401 or 403 is reported as "the GitHub read token is invalid or expired".
+
+**A cancelled or timed-out job may still deploy.** The wrapper ignores SIGPIPE, and its output goes through `tee` into the host log, so a closed SSH channel never stops it. The job may end (cancelled, timed out, or the runner lost) while the deploy carries on. Before acting on such a job, check on the host:
+- the log (`sudo ls -t /srv/mawareeth/deploy/runtime/logs/ci-deploy-*.log | head -n 1`; its last line is `ci-deploy: result=<stage>:<code>`);
+- `sudo deploy/release.sh recover --dry-run`;
+- `deploy/runtime.sh status`.
+
+The job's result is the wrapper's exit code, and the last line of the output is `ci-deploy: result=<stage>:<code>`. The stage is one of `input`, `lock`, `preflight`, `fetch`, `artifact`, `checkout`, `validate`, `image`, `manifest`, `prepare` or `deploy`. The wrapper's own outcomes use codes 64–67 only. Every other code comes from the command that failed:
+
+| Exit | From | Meaning | Host state |
+|------|------|---------|------------|
+| 0 | wrapper | Deployed and verified | New release serving; checkout on `master` at the SHA; its manifest installed |
+| 64 | wrapper | Refused: bad SHA, not on `origin/master`, local changes, no valid artifact, API error or invalid/expired token, manifest rejected or for another commit, its Django CI run missing or not a successful master push run for the SHA, digest mismatch | Previous checkout and manifest (restored if already changed) |
+| 65 | wrapper | Another CI deploy holds the wrapper lock | Nothing changed |
+| 66 | wrapper | CRITICAL: restoring the previous checkout or manifest failed | Restore both by hand (the log names the previous commit) before deploying again |
+| 67 | wrapper | A hangup, interrupt or termination arrived before `release.sh deploy` started | Restored |
+| other, stage `image` | `docker pull` | The pull failed (124: it exceeded its time limit) | Restored |
+| other, stage `prepare` | `runtime.sh prepare` | Prepare refused (2) or failed (124: time limit) | Restored |
+| any nonzero, stage `deploy` | `release.sh deploy` | As in the [`release.sh` table](#blue-green-deployment). 4, 7 and 8 mean running `release.sh recover` by hand | Not restored; `release.sh` owns rollback |
+
+Commands that are not deploys still run by hand on the host: contract releases (`--allow-contract`), `recover`, configuration rotation and the cutover steps. The workflow cannot run them. The CI lock serializes CI deploys only. Manual `runtime.sh` and `release.sh` work takes `release.sh`'s own deploy lock, but nothing stops an operator from changing the checkout or manifest under a running CI deploy. Do no manual deploy work while a CI deploy runs.
+
+**A stuck wrapper.**
+- Find it with `pgrep -af mawareeth-deploy-release`, and its log as above.
+- Before `release.sh deploy` starts (stage `fetch` to `prepare`), `sudo kill -TERM <pid>` stops it. It ends its child, restores and exits 67.
+- During `release.sh deploy`, signal `release.sh` itself (`pgrep -af 'release.sh deploy'`), which takes its documented failure path. The wrapper ignores signals there and exits with `release.sh`'s code.
+- The lock is a `flock` held only by the wrapper process, so it is released when the wrapper exits. The file `/run/mawareeth-ci-deploy.lock` itself can stay. `sudo fuser -v /run/mawareeth-ci-deploy.lock` shows any holder. Never delete the file while a wrapper runs.
+
+### One-time setup
+
+Each step changes production access, so each needs its own approval.
+
+1. **Tailscale.**
+   - In the tailnet policy, declare `tag:ci-deploy`, owned by the administrators.
+   - Add an ACL grant that lets `tag:ci-deploy` reach only `mawareeth-prod:22`, and nothing else reach from that tag. For example: `{"action": "accept", "src": ["tag:ci-deploy"], "dst": ["mawareeth-prod:22"]}`, where `mawareeth-prod` is a host alias or tag for the server.
+   - Create an OAuth client with the `auth_keys` write scope, limited to `tag:ci-deploy`. The action uses it to create ephemeral, pre-authorized nodes that are removed after the job.
+   - The host already accepts SSH on `tailscale0` (see [Access, patching, and break-glass](#access-patching-and-break-glass)). The key's `from="100.64.0.0/10"` option is a second, host-side check that it is used only from the tailnet.
+2. **GitHub token.** Create a fine-grained personal access token for this repository only, with **Actions: read** and nothing else, and an expiry you will track. On the host, install it so it never touches a command line or shell history, for example: `sudo install -o root -g root -m 0600 /dev/null /etc/mawareeth/github-read.token && sudoedit /etc/mawareeth/github-read.token`. The file holds the token alone on one line. Artifact downloads need an authenticated call even for a public repository. Once the token expires, deploys refuse with "the GitHub read token is invalid or expired".
+3. **Deploy key.** On an administrator workstation, run `ssh-keygen -t ed25519 -N '' -C mawareeth-ci-deploy -f ./mawareeth-ci-deploy`. Copy `mawareeth-ci-deploy.pub` to the host. The private key goes only into the GitHub secret below; delete the local copy afterwards.
+4. **Host install.** As root from the checkout, on a clean `deploy/` tree at a release that contains `deploy/ci-deploy.sh`:
+
+   ```console
+   cd /srv/mawareeth && sudo deploy/ci-deploy.sh install /path/to/mawareeth-ci-deploy.pub
+   ```
+
+   It refuses before changing anything unless all of these hold:
+   - the `deploy/` tree is clean;
+   - sudo is 1.9.10 or later (the sudoers argument regex needs it; Ubuntu 24.04 ships 1.9.15);
+   - `sshd -T` for the deploy user shows the default `AuthorizedKeysFile` and no `AuthorizedKeysCommand`;
+   - the `origin` remote is a `github.com` `owner/repo` URL, which it bakes in as the API repository;
+   - the token file is root:root mode 0600;
+   - an existing `mawareeth-deploy` user is in no group but its own.
+
+   It then:
+   - creates the system user `mawareeth-deploy`, or repairs an existing one: home `/var/lib/mawareeth-deploy` (root-owned), shell `/bin/sh`, password `*`;
+   - removes any `authorized_keys2`;
+   - installs the entry `/usr/local/lib/mawareeth/mawareeth-deploy-entry` and the wrapper `/usr/local/sbin/mawareeth-deploy-release`, both root 0755;
+   - writes `/etc/sudoers.d/91-mawareeth-deploy` (`mawareeth-deploy ALL=(root) NOPASSWD: /usr/local/sbin/mawareeth-deploy-release ^[0-9a-f]{40}$`), checked with `visudo -cf` first;
+   - writes the single root-owned `authorized_keys` line `from="100.64.0.0/10",restrict,command="/usr/local/lib/mawareeth/mawareeth-deploy-entry" <key>`.
+
+   The installed files are fixed copies: a deploy that checks out another commit never changes what runs as root. Re-run `install` (same key file) after any release that changes `deploy/ci-deploy.sh`; the deploy log warns when it is due.
+5. **Pinned host key.** Over the tailnet, from an administrator workstation, print the host key with `ssh-keyscan -t ed25519 mawareeth-prod`. Compare its fingerprint (`ssh-keygen -lf`) with `sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` read on the host over an existing session. Use the line only if the two match.
+6. **GitHub `production` environment** (Settings → Environments):
+   - Required reviewers: the operators. Enable "Prevent self-review", and limit deployment branches to `master`.
+   - Secrets: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, and `DEPLOY_SSH_KEY` (the private key).
+   - Variables: `DEPLOY_HOST`, the host's tailnet name (`mawareeth-prod`), and `DEPLOY_KNOWN_HOSTS`, the verified line from step 5. Its host name must match `DEPLOY_HOST`.
+   - Keep these secrets out of repository-level settings.
+7. **Images.** The host pulls `ghcr.io/...@sha256:...` itself. That works anonymously while the GHCR package is public. If it becomes private, log the host's root Docker in to GHCR with a read-only package token first.
+
+### Running a deploy
+
+1. Wait for `Publish Release Image` to succeed for the merge commit. Its run uploads `release-manifest-<SHA>` (kept 90 days).
+2. Go to Actions → **Deploy Production** → Run workflow, on `master`, and enter the full SHA.
+3. A reviewer approves the `production` deployment.
+4. Follow the job log. It shows the log path, the wrapper's and `release.sh`'s messages, and the result line. The `release.sh` diagnostic logs stay on the host under `deploy/runtime/logs/`.
+
+A red job shows which stage failed. Act on the exit code as the table above and the `release.sh` table describe. Rolling back is a dispatch of the earlier release's SHA, within the expand-migrate-contract rules and while its artifact still exists.
+
+### Revoking access
+
+Use any of these, fastest first:
+
+- Remove the tag grant from the tailnet policy, or revoke the OAuth client. Then delete any leftover `tag:ci-deploy` machines in the Tailscale admin console; ephemeral nodes normally disappear on their own after the job.
+- On the host, empty the key: `sudo truncate -s 0 /var/lib/mawareeth-deploy/.ssh/authorized_keys`.
+- Delete the `DEPLOY_SSH_KEY` secret, or the `production` environment.
+- Revoke the GitHub token and remove `/etc/mawareeth/github-read.token`.
+
+None of these stops a deploy that is already running on the host: it completes, or it takes its failure path. To stop it, see "A stuck wrapper" above.
+
+To remove the mechanism entirely, run `sudo rm -f /etc/sudoers.d/91-mawareeth-deploy /usr/local/sbin/mawareeth-deploy-release /usr/local/lib/mawareeth/mawareeth-deploy-entry`, then `sudo userdel mawareeth-deploy` and `sudo rm -rf /var/lib/mawareeth-deploy`. Rotate the deploy key by re-running `install` with a new public key and updating `DEPLOY_SSH_KEY`.
 
 ## Prerequisites and inputs
 
-Run only from an administrator workstation, never CI, with `bash`, `python3`, `jq`, OpenSSH, and the Hetzner `hcloud` CLI installed. Use a minimally scoped Hetzner token that can manage the one SSH key, firewall, and server. Agree the server name, key identity, SSH source CIDRs, and a weekly maintenance window before running.
+Run provisioning only from an administrator workstation, never from CI (CI's only production access is the SHA-only deploy in [Deploying from GitHub Actions](#deploying-from-github-actions)), with `bash`, `python3`, `jq`, OpenSSH, and the Hetzner `hcloud` CLI installed. Use a minimally scoped Hetzner token that can manage the one SSH key, firewall, and server. Agree the server name, key identity, SSH source CIDRs, and a weekly maintenance window before running.
 
 Copy `host-baseline.env.example` to `host-baseline.env`; it is ignored by Git. Fill the token, server and key identity, paths to the matching public/private SSH keys, and comma-separated administrator CIDRs. `PUBLIC_WEB_SOURCES` is optional; leave it empty (`any`) unless you are [locking the origin to Cloudflare](#locking-the-origin-to-cloudflare). Keep the config mode 0600. The script refuses missing or malformed input before contacting Hetzner.
 
@@ -664,7 +792,7 @@ Run `bash deploy/provision-host.sh`. The first run creates Ubuntu 24.04 CX33 in 
 
 ## Access, patching, and break-glass
 
-Only listed CIDRs may SSH, and SSH requires an authorized key; password and root login are disabled after bootstrap. The listed CIDRs are enforced twice, by the Hetzner cloud firewall and by UFW on the host, so a changed workstation address needs both updated, and UFW can only be changed from a working session or the Hetzner console. After `monitor.sh install` and joining the tailnet, administrators can also SSH over Tailscale (`tailscale0`, `100.64.0.0/10`, still key-only); the tailnet ACL decides which devices may reach port 22. Prefer that path, and keep the public allow-list as the fallback. Re-running `bootstrap-host.sh` resets UFW, which drops both `tailscale0` rules, so re-run `monitor.sh install` afterwards. With `PUBLIC_WEB_SOURCES=cloudflare`, 80/443 are likewise limited in both firewalls (and in `DOCKER-USER`), so a change to `deploy/cloudflare-ips.txt` needs a provisioning rerun, followed by `monitor.sh install`. Ensure a second tested administrator key and Hetzner console access exist before changing access ranges. Do not remove the only permitted CIDR during maintenance. Ubuntu security updates are enabled automatically; review `/var/log/unattended-upgrades/` in the agreed weekly maintenance window and schedule any reboot deliberately.
+Only listed CIDRs may SSH, and SSH requires an authorized key; password and root login are disabled after bootstrap. The listed CIDRs are enforced twice, by the Hetzner cloud firewall and by UFW on the host, so a changed workstation address needs both updated, and UFW can only be changed from a working session or the Hetzner console. After `monitor.sh install` and joining the tailnet, administrators can also SSH over Tailscale (`tailscale0`, `100.64.0.0/10`, still key-only); the tailnet ACL decides which devices may reach port 22. Prefer that path, and keep the public allow-list as the fallback. Re-running `bootstrap-host.sh` resets UFW, which drops both `tailscale0` rules, so re-run `monitor.sh install` afterwards. With `PUBLIC_WEB_SOURCES=cloudflare`, 80/443 are likewise limited in both firewalls (and in `DOCKER-USER`), so a change to `deploy/cloudflare-ips.txt` needs a provisioning rerun, followed by `monitor.sh install`. Ensure a second tested administrator key and Hetzner console access exist before changing access ranges. Do not remove the only permitted CIDR during maintenance. The `mawareeth-deploy` account (see [Deploying from GitHub Actions](#deploying-from-github-actions)) is not an administrator. Its one key works only from a tailnet address and can only start the SHA-only deploy wrapper, and the tailnet ACL lets only `tag:ci-deploy` nodes reach it. Ubuntu security updates are enabled automatically; review `/var/log/unattended-upgrades/` in the agreed weekly maintenance window and schedule any reboot deliberately.
 
 ## Runtime secrets
 
