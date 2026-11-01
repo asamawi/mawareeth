@@ -1,0 +1,11 @@
+# EDGE_MODE=cloudflare with ORIGIN_CLIENT_AUTH=require: the canonical DOMAIN site
+# serves the Cloudflare Origin CA certificate, as in cloudflare/site.caddy, and
+# requires a client certificate issued by the operator's own Authenticated
+# Origin Pulls CA (aop-ca.pem), which only this zone's Cloudflare edge presents.
+# Imported inside deploy/Caddyfile's DOMAIN site block.
+tls /etc/caddy/origin-tls/cert.pem /etc/caddy/origin-tls/key.pem {
+	client_auth {
+		mode require_and_verify
+		trust_pool file /etc/caddy/origin-tls/aop-ca.pem
+	}
+}

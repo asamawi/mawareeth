@@ -178,3 +178,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-ci-production-deploy.md`
   summary: Monitor the expiry of the host's fine-grained GitHub read token (`/etc/mawareeth/github-read.token`) — e.g. record its expiry date and alert (monitor.sh metric or a calendar/maintenance-window check) before it lapses.
   evidence: Review noted that an expired token only surfaces when a production deploy fails at the artifact-listing step; the wrapper now reports it clearly, but nothing warns beforehand.
+- source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-authenticated-origin-pulls.md`
+  summary: Alert before the Authenticated Origin Pulls CA or client certificate (`/etc/mawareeth/origin-tls/aop-*.pem`) expires, e.g. a monitor.sh metric and Prometheus rule at 30 days, instead of relying on preflight, which only refuses once a certificate has already expired.
+  evidence: Review found that with `ORIGIN_CLIENT_AUTH=require` an expired client certificate makes Caddy reject Cloudflare (52x for visitors) while Caddy keeps running; preflight catches it only on the next runtime command.
+- source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-authenticated-origin-pulls.md`
+  summary: Add a CI job that starts Caddy with the cloudflare-aop snippets and a throwaway CA, and proves live that a handshake without a client certificate, or with one from another CA, fails on both names while the throwaway client certificate succeeds.
+  evidence: CI only runs `caddy adapt --validate` plus JSON shape checks, and test_release.sh uses a curl stub; the live handshake behaviour was checked once by hand during implementation and is not guarded against regressions.
+- source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-authenticated-origin-pulls.md`
+  summary: Give the operator a check of Cloudflare's side of per-hostname Authenticated Origin Pulls (both hostnames `enabled` and status `active` via the API, or a probe through Cloudflare), since release.sh's loopback probes present the client certificate themselves and pass even when Cloudflare does not.
+  evidence: Review noted a deploy with `require` succeeds while Cloudflare lacks or has lost the hostname association, leaving visitors on 52x; only the manual enablement order protects against it.

@@ -30,12 +30,13 @@ LINKEDIN_SECRET=REPLACE_WITH_LINKEDIN_CLIENT_SECRET
 
 A `runtime.env` without these keys renders the same snapshot, with the same hash, as before. Adding, changing or removing any of them changes the snapshot hash. `release.sh deploy` and `recover` refuse when the runtime file does not hash to the active slot's recorded snapshot (see Blue-green deployment). Adding these keys to a host with running slots is therefore a deliberate configuration rotation, not something a deploy does for you. No rotation command exists yet; it is an open deferred item (a phased runtime-configuration rotation operation). Until one exists, set these keys in `runtime.env` before the first deploy on a new host.
 
-Two more optional keys choose how Caddy terminates TLS (see [Cloudflare edge](#cloudflare-edge)). They configure Caddy only and never enter the app snapshot, so adding or changing them leaves the snapshot and its hash unchanged:
+Three more optional keys choose how Caddy terminates TLS (see [Cloudflare edge](#cloudflare-edge)). They configure Caddy only and never enter the app snapshot, so adding or changing them leaves the snapshot and its hash unchanged:
 
 - `EDGE_MODE`: `acme` (the default when absent) or `cloudflare`. Any other value is refused.
   - `acme`: Caddy obtains a publicly trusted ACME certificate for `DOMAIN` alone. This is the rehearsal setup.
   - `cloudflare`: Cloudflare proxies the site. Caddy serves `DOMAIN` with a Cloudflare Origin CA certificate installed out of band, and permanently redirects `REDIRECT_DOMAIN` to `https://DOMAIN` (path and query kept). It never requests an ACME certificate. The deploy verifies the edge against the repository's Origin CA roots.
 - `REDIRECT_DOMAIN`: required with `EDGE_MODE=cloudflare` and refused otherwise, because ACME cannot issue a certificate for a second name before DNS reaches the host. It must be a lowercase DNS hostname that differs from `DOMAIN`.
+- `ORIGIN_CLIENT_AUTH`: `off` (the default when absent) or `require`, accepted only with `EDGE_MODE=cloudflare`. `require` makes Caddy demand Cloudflare's Authenticated Origin Pulls client certificate on both names; enable it only through the ordered steps in [Authenticated Origin Pulls](#authenticated-origin-pulls). The example file leaves it out, because `runtime.env` takes no comments.
 
 For production: `DOMAIN=www.mawareeth.com`, `EDGE_MODE=cloudflare`, `REDIRECT_DOMAIN=mawareeth.com`. Django then allows only `www.mawareeth.com` (`DJANGO_ALLOWED_HOSTS` and `DJANGO_CSRF_TRUSTED_ORIGINS` derive from `DOMAIN`). Apex requests never reach Django, because Caddy answers them with the redirect.
 
@@ -66,7 +67,7 @@ Each slot's release is recorded in root-only `<state dir>/slots/<slot>.env` (`IM
 
 `up` restarts the recorded active release after `down`; it never changes releases. It refuses when the route or the active slot's record is absent (bootstrap the first release with `release.sh deploy`), when the manifest image or commit differs from the active record (use `release.sh deploy`), and when the runtime configuration differs from the recorded snapshot. It starts PostgreSQL (waiting for health), then the active slot (waiting for health), then Caddy, each bounded by `MAWAREETH_RUNTIME_WAIT_TIMEOUT` (default 300s); it never starts the idle slot and never runs migrations. `prepare`, `up`, and `down` take the deploy lock and refuse while the deploy journal is not idle. `status` and `logs` are read-only: they create no state directory, snapshot, or record and tolerate configuration drift.
 
-**Reboots.** Containers use `restart: unless-stopped`, so after a host reboot Docker itself restarts PostgreSQL, the slot that was running, and Caddy, without the runtime's ordering, lock, or journal checks. Expect brief `502` responses until the slot is ready again. After every reboot, as root: confirm `<state dir>/deploy.journal` is absent or `phase=idle` (otherwise preview with `deploy/release.sh recover --dry-run`, then run `deploy/release.sh recover` before anything else); run `deploy/runtime.sh status` and check that only the routed slot is running and healthy; confirm `curl -sD - --resolve DOMAIN:443:127.0.0.1 https://DOMAIN/health/ready/` (in `cloudflare` mode add `--cacert deploy/cloudflare-origin-ca.pem`, run from the checkout root) shows the routed slot's `X-Mawareeth-Slot` and that the slot itself reports the recorded commit (`docker compose -p mawareeth exec -T app-<slot> python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health/release/').read().decode())"`; Caddy answers `/health/release/` with `404`); if anything is off, run `deploy/runtime.sh up` with the active release's manifest.
+**Reboots.** Containers use `restart: unless-stopped`, so after a host reboot Docker itself restarts PostgreSQL, the slot that was running, and Caddy, without the runtime's ordering, lock, or journal checks. Expect brief `502` responses until the slot is ready again. After every reboot, as root: confirm `<state dir>/deploy.journal` is absent or `phase=idle` (otherwise preview with `deploy/release.sh recover --dry-run`, then run `deploy/release.sh recover` before anything else); run `deploy/runtime.sh status` and check that only the routed slot is running and healthy; confirm `curl -sD - --resolve DOMAIN:443:127.0.0.1 https://DOMAIN/health/ready/` (in `cloudflare` mode add `--cacert deploy/cloudflare-origin-ca.pem`, run from the checkout root; with `ORIGIN_CLIENT_AUTH=require` also add `--cert /etc/mawareeth/origin-tls/aop-client.pem --key /etc/mawareeth/origin-tls/aop-client-key.pem`, as root) shows the routed slot's `X-Mawareeth-Slot` and that the slot itself reports the recorded commit (`docker compose -p mawareeth exec -T app-<slot> python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health/release/').read().decode())"`; Caddy answers `/health/release/` with `404`); if anything is off, run `deploy/runtime.sh up` with the active release's manifest.
 
 **Caddy admin API (deliberate decision).** `admin off` would make `caddy reload` impossible, so the Caddyfile enables the admin API on `localhost:2019` inside the Caddy container only. Port 2019 is never published by Compose (the offline tests assert this), so it is reachable only from processes in that container, which `release.sh` drives with `docker compose exec caddy caddy reload`. Exposing it any further requires an explicit decision.
 
@@ -85,11 +86,13 @@ The `acme` files contain only comments, so the default mode adapts to the same C
 - They add the `REDIRECT_DOMAIN` site, `redir https://{DOMAIN}{uri} permanent`.
 - They set `trusted_proxies static` to Cloudflare's published IPv4 and IPv6 ranges, in the global `servers` options.
 
+The `cloudflare-aop` files are the `cloudflare` ones plus client-certificate authentication; they apply only with `ORIGIN_CLIENT_AUTH=require` (see [Authenticated Origin Pulls](#authenticated-origin-pulls)). `runtime.env` still says `EDGE_MODE=cloudflare`: `runtime.sh` passes Compose `EDGE_MODE=cloudflare-aop` when the key is `require`. Their `global.caddy` imports `cloudflare/global.caddy` with one argument, `strict_sni_host on`, which lands at the `{args[:]}` line of its `servers` block, so Cloudflare's ranges stay in one file. `deploy/Caddyfile` imports it without arguments, so the `cloudflare` mode adapts to exactly the same configuration as before.
+
 Caddy keeps `X-Forwarded-For`, `-Proto` and `-Host` only on connections from those ranges. From any other address, including IPv6 clients that docker-proxy presents as the bridge gateway, it still replaces them. No address matcher is used.
 
 What the trust gains, precisely: the visitor's real address, taken from `X-Forwarded-For`, appears in Caddy's logs as the client IP, and Caddy forwards it to the app in `X-Forwarded-For`. Django reads only `X-Forwarded-Proto` (`SECURE_PROXY_SSL_HEADER`); it ignores `X-Forwarded-For` and `X-Forwarded-Host`. Code that later reads `X-Forwarded-For` must treat it as client-controlled data relayed by Cloudflare.
 
-What it trusts: any connection whose source is a Cloudflare address. That includes requests that other Cloudflare customers send through Cloudflare, for example from their Workers, which can set these headers freely. Nothing in this setup proves that a connection comes from Mawareeth's own zone. The opt-in range lock, `PUBLIC_WEB_SOURCES=cloudflare` (see [Locking the origin to Cloudflare](#locking-the-origin-to-cloudflare)), stops direct access to the origin from any address outside Cloudflare. It does not stop other Cloudflare customers' traffic, because that arrives from the same ranges. Closing that gap needs per-hostname Authenticated Origin Pulls, where Caddy requires a client certificate that only this zone presents (mTLS). That is a separate change, recorded in `_bmad-output/implementation-artifacts/deferred-work.md` and not built yet.
+What it trusts: any connection whose source is a Cloudflare address. That includes requests that other Cloudflare customers send through Cloudflare, for example from their Workers, which can set these headers freely. Nothing in this setup proves that a connection comes from Mawareeth's own zone. The opt-in range lock, `PUBLIC_WEB_SOURCES=cloudflare` (see [Locking the origin to Cloudflare](#locking-the-origin-to-cloudflare)), stops direct access to the origin from any address outside Cloudflare. It does not stop other Cloudflare customers' traffic, because that arrives from the same ranges. The opt-in `ORIGIN_CLIENT_AUTH=require` closes that gap with per-hostname Authenticated Origin Pulls (see [Authenticated Origin Pulls](#authenticated-origin-pulls)). Caddy then completes the TLS handshake for either name only when the client presents a certificate issued by the operator's own CA, and only Cloudflare presents it, for this zone's hostnames. Until it is enabled, the trust described here applies.
 
 Compose mounts the Origin certificate directory at `/etc/caddy/origin-tls` in `cloudflare` mode. In `acme` mode it mounts the empty placeholder `<state dir>/edge-tls` instead. `prepare` creates the placeholder (root, `0700`), and the runtime refuses to act if it is not empty. Adding the edge mount and variables changes Caddy's Compose model. A Caddy container created by an earlier bundle is therefore stale, and a normal `release.sh deploy` refuses it. The re-bootstrap in [Production cutover preparation](#production-cutover-preparation) recreates it.
 
@@ -149,7 +152,7 @@ Bootstrap records the effective mode and ranges in `/etc/mawareeth/public-web-so
 
 In `acme` mode Let's Encrypt validates from its own addresses, so certificate issuance and renewal would fail. Visitors who reach a grey-cloud (DNS-only) record connect directly and would be blocked.
 
-80/443 also close over `tailscale0` in this mode, because UFW and `DOCKER-USER` accept them only from Cloudflare's ranges. Check the site from the host itself, over loopback, for example `curl -sI --cacert deploy/cloudflare-origin-ca.pem --resolve www.mawareeth.com:443:127.0.0.1 https://www.mawareeth.com/health/ready/` from the checkout.
+80/443 also close over `tailscale0` in this mode, because UFW and `DOCKER-USER` accept them only from Cloudflare's ranges. Check the site from the host itself, over loopback, for example `curl -sI --cacert deploy/cloudflare-origin-ca.pem --resolve www.mawareeth.com:443:127.0.0.1 https://www.mawareeth.com/health/ready/` from the checkout (with `ORIGIN_CLIENT_AUTH=require`, add the client certificate as in [Authenticated Origin Pulls](#authenticated-origin-pulls)).
 
 **Enabling** (each run changes the live firewalls and needs its own approval):
 
@@ -175,6 +178,170 @@ In `acme` mode Let's Encrypt validates from its own addresses, so certificate is
 3. On the host, run `sudo ufw allow 80,443/tcp`.
 
 This is temporary. The next Docker start reruns the baked firewall script, which removes the unsourced accept again, and the next provisioning run resets the Hetzner rules. Re-provision promptly with `PUBLIC_WEB_SOURCES=any`, or with corrected ranges, followed by `monitor.sh install`.
+
+### Authenticated Origin Pulls
+
+The range lock admits every Cloudflare customer's traffic, because it all comes from the same ranges. Per-hostname Authenticated Origin Pulls (AOP) closes that gap. The operator creates a private CA and a client certificate it issues, and uploads the certificate and its key to Cloudflare for `www.mawareeth.com` and `mawareeth.com`. Cloudflare then presents that certificate whenever it connects to the origin for those hostnames. With `ORIGIN_CLIENT_AUTH=require` in `runtime.env`, Caddy requires and verifies a client certificate chaining to that CA on both names, and the TLS handshake fails without one. It also turns on `strict_sni_host`: a connection made under another SNI name, or none, cannot reach either site. Port 80 (which only redirects to HTTPS), the `http://127.0.0.1` health site and the `acme` mode do not change. Cloudflare's zone-level AOP, which uses one shared Cloudflare certificate for all customers, is not used. Leave it off; turning it on needs its own approval.
+
+`ORIGIN_CLIENT_AUTH` is optional and takes `off` (the default, the same as leaving it out) or `require`. It is accepted only with `EDGE_MODE=cloudflare` and never enters the app snapshot. With `off` the Compose environment, Caddy's Compose config hash and the adapted Caddy configuration are exactly those without the key, and any AOP files are ignored. With `require`, `runtime.sh` passes Compose `EDGE_MODE=cloudflare-aop` (the snippet set above) instead of adding a Compose variable, so Caddy's Compose model changes only when the key changes. That is why every change of the key is paired with `deploy/runtime.sh up`, which recreates Caddy (a blip of a few seconds); until then `release.sh deploy` refuses the running Caddy as stale. With `require`, `release.sh` presents the client certificate on its edge probes, together with the pinned Origin CA roots.
+
+**Files.** Three files sit next to the Origin certificate in `/etc/mawareeth/origin-tls` (root, `0700`):
+
+| File | Contents | Owner and mode |
+|------|----------|----------------|
+| `aop-ca.pem` | the CA certificate Caddy trusts for client certificates | root, `0600` or `0644` |
+| `aop-client.pem` | the client certificate uploaded to Cloudflare | root, `0600` or `0644` |
+| `aop-client-key.pem` | its private key, for the deploy's probes | root, `0600` |
+
+With `require`, preflight refuses before any change unless each file is a non-empty, root-owned regular file (not a symlink) with that mode, and, with `openssl` 3 or newer:
+
+- every certificate in `aop-ca.pem` (it may hold several during a CA rotation) and in `aop-client.pem` parses as X.509 and has not expired;
+- `openssl verify -CAfile aop-ca.pem -purpose sslclient aop-client.pem` succeeds against those CAs alone, never the system trust store;
+- the key is unencrypted and matches the client certificate;
+- the directory holds no `aop-ca-key.pem` and no `*.srl` serial file. The CA's private key and serial never go on the host.
+
+A certificate that expires within 30 days is accepted with a `WARNING` naming the file. Errors name the file or the key, never contents. With `off`, the directory's AOP files are not looked at.
+
+**Before you start:**
+
+- SSL/TLS encryption mode is already **Full (strict)** (see Cloudflare setup above).
+- Per-hostname AOP is independent of Cloudflare's zone-level AOP setting, which stays untouched (changing it needs its own approval).
+- Only `www.mawareeth.com` and `mawareeth.com` are configured. With client auth and `strict_sni_host` on, any other proxied hostname pointed at this origin fails. So does an Origin Rule that overrides the SNI or `Host` Cloudflare sends.
+- A passing `release.sh` probe proves only the origin side: it presents the certificate itself. Cloudflare's side is proven only by fetching both names through Cloudflare after enabling.
+
+**Generating the files** (on the operator's workstation, never on the host). Use a Linux or WSL shell with `openssl` 3, `curl` and `jq` (on Git Bash, prefix the `openssl req` lines with `MSYS_NO_PATHCONV=1` so `-subj` is not rewritten as a path):
+
+```console
+umask 077; work="$(mktemp -d)"; cd "$work"
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 3650 \
+  -subj '/CN=Mawareeth Authenticated Origin Pulls CA' \
+  -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' \
+  -keyout aop-ca-key.pem -out aop-ca.pem
+openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
+  -subj '/CN=Mawareeth Cloudflare origin pull' -keyout aop-client-key.pem -out aop-client.csr
+printf '%s\n' 'basicConstraints=critical,CA:FALSE' 'keyUsage=critical,digitalSignature' 'extendedKeyUsage=clientAuth' > client.ext
+openssl x509 -req -in aop-client.csr -CA aop-ca.pem -CAkey aop-ca-key.pem -CAcreateserial -days 365 -sha256 \
+  -extfile client.ext -out aop-client.pem
+openssl verify -CAfile aop-ca.pem -purpose sslclient aop-client.pem
+```
+
+Store `aop-ca-key.pem` offline at once, as an attachment in the operator's password manager or an encrypted backup. Never print it in a shell on the host, and never copy it there; preflight refuses the directory while it holds the key or a `*.srl` file. Keep this scratch directory until the upload below is done.
+
+**Installing on the host.** Copy only the three host files, through a private directory in your home on the host, then install them root-only and remove the copies:
+
+```console
+ssh <admin>@<host> 'umask 077; mkdir -p ~/aop-install'
+scp aop-ca.pem aop-client.pem aop-client-key.pem <admin>@<host>:aop-install/
+# on the host:
+sudo install -o root -g root -m 0644 ~/aop-install/aop-ca.pem ~/aop-install/aop-client.pem /etc/mawareeth/origin-tls/
+sudo install -o root -g root -m 0600 ~/aop-install/aop-client-key.pem /etc/mawareeth/origin-tls/
+shred -u ~/aop-install/*.pem && rmdir ~/aop-install
+```
+
+While `ORIGIN_CLIENT_AUTH` is absent or `off`, the files have no effect. Never commit any of these files or copy them into the checkout.
+
+**Uploading to Cloudflare** (on the workstation, in the scratch directory). Create an API token scoped to the `mawareeth.com` zone with **Zone → SSL and Certificates → Edit** and a short expiry. Supply it for this session only; never put it in the repository, in `runtime.env` or in shell history. Every response is checked for `"success":true`, and the token reaches curl through a pipe, never argv:
+
+```console
+read -rs CF_API_TOKEN; read -r CF_ZONE_ID
+[[ "$CF_ZONE_ID" =~ ^[0-9a-f]{32}$ ]] || echo 'CF_ZONE_ID must be the 32-hex zone ID; stop here'
+api="https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/origin_tls_client_auth/hostnames"
+cf() {
+  local out
+  out="$(curl -sS --config <(printf 'header = "Authorization: Bearer %s"\n' "$CF_API_TOKEN") \
+    -H 'Content-Type: application/json' "$@")" || { echo 'curl failed' >&2; return 1; }
+  jq -e '.success == true' >/dev/null <<<"$out" || { jq -c '.errors' <<<"$out" >&2; return 1; }
+  printf '%s\n' "$out"
+}
+# aop_hostnames CERT_ID true|false points both names at CERT_ID, enabled or not.
+aop_hostnames() {
+  [[ -n "$1" && "$1" != null ]] || { echo 'empty certificate ID; stop here' >&2; return 1; }
+  jq -n --arg id "$1" --argjson enabled "$2" \
+    '{config: [{hostname: "www.mawareeth.com", cert_id: $id, enabled: $enabled}, {hostname: "mawareeth.com", cert_id: $id, enabled: $enabled}]}' \
+    | cf -X PUT --data-binary @- "$api" >/dev/null && echo "both hostnames set to enabled=$2"
+}
+# aop_wait polls (at most 30 minutes) until both names report enabled and active.
+aop_wait() {
+  local attempt host ready
+  for attempt in $(seq 1 30); do
+    ready=0
+    for host in www.mawareeth.com mawareeth.com; do
+      cf "$api/$host" | jq -e '.result.enabled == true and .result.status == "active"' >/dev/null && ready=$((ready + 1))
+    done
+    [[ "$ready" == 2 ]] && { echo 'both hostnames active'; return 0; }
+    sleep 60
+  done
+  echo 'not active after 30 minutes; do not enable origin enforcement' >&2; return 1
+}
+CERT_ID="$(jq -n --rawfile certificate aop-client.pem --rawfile private_key aop-client-key.pem \
+  '{certificate: $certificate, private_key: $private_key}' | cf -X POST --data-binary @- "$api/certificates" | jq -r '.result.id')"
+echo "certificate ID: $CERT_ID"
+aop_hostnames "$CERT_ID" true && aop_wait
+```
+
+Note the certificate ID; rollback and rotation need it. The key travels only in the request body and is printed nowhere. When this is done, run `unset CF_API_TOKEN`, revoke the token, and remove the scratch directory (`shred -u aop-client-key.pem`, then `cd / && rm -rf "$work"`). Any later Cloudflare step needs a fresh short-lived token and the definitions above again.
+
+**Enabling** (in this order; each step changes production and needs its own approval):
+
+1. Cloudflare first: generate, install, upload and enable both hostnames, and wait until both are active, as above. Origin enforcement is still off, so nothing changes for visitors.
+2. Check that the site still loads through Cloudflare: `curl -sI https://www.mawareeth.com/health/ready/` answers 200, and `curl -sI https://mawareeth.com/` answers 301.
+3. Add `ORIGIN_CLIENT_AUTH=require` to `/etc/mawareeth/runtime.env`. Run `sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/runtime.sh config` (it validates the files without changing anything), then `sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/runtime.sh up` with the active release's manifest. `up` recreates Caddy with the `cloudflare-aop` snippets.
+4. Verify, from the checkout on the host:
+   - without the client certificate the handshake fails (curl reports a TLS alert such as `certificate required`): `curl -sv --cacert deploy/cloudflare-origin-ca.pem --resolve www.mawareeth.com:443:127.0.0.1 https://www.mawareeth.com/health/ready/`, and the same for `mawareeth.com`;
+   - with it the site answers: `sudo curl -sI --cacert deploy/cloudflare-origin-ca.pem --cert /etc/mawareeth/origin-tls/aop-client.pem --key /etc/mawareeth/origin-tls/aop-client-key.pem --resolve www.mawareeth.com:443:127.0.0.1 https://www.mawareeth.com/health/ready/` answers 200;
+   - through Cloudflare, from any machine: step 2's two checks still pass. This is the check that proves Cloudflare presents the certificate. If Cloudflare answers with a `52x` error instead, roll back at once.
+
+   The next `release.sh deploy` presents the certificate on its own probes.
+
+**Rollback** (in this order, the reverse of enabling):
+
+1. Set `ORIGIN_CLIENT_AUTH=off` (or remove it) in `runtime.env` and run `deploy/runtime.sh up` as in step 3. Caddy goes back to the `cloudflare` snippets and to today's Compose config hash.
+2. Check the site through Cloudflare as in step 2.
+3. Disable the hostnames at Cloudflare with a fresh short-lived token, if the first one was revoked, and the definitions above: `aop_hostnames "$CERT_ID" false`. The literal request is `PUT $api` with body `{"config":[{"hostname":"www.mawareeth.com","cert_id":"<CERT_ID>","enabled":false},{"hostname":"mawareeth.com","cert_id":"<CERT_ID>","enabled":false}]}`.
+4. Optionally remove the certificate: `cf -X DELETE "$api/certificates/$CERT_ID"`. Then run `unset CF_API_TOKEN`.
+
+Disabling at Cloudflare first would make Cloudflare connect without a certificate while Caddy still requires one, and the site would fail with `52x` errors.
+
+**Emergency: an AOP file expired or broke.** With `require`, preflight then refuses every deploy and runtime command, including `up`, and an expired client certificate also makes Caddy reject Cloudflare's connections. Recover in this order: set `ORIGIN_CLIENT_AUTH=off` in `runtime.env`, run `deploy/runtime.sh up` (with `off` the AOP files are not checked, so it runs), confirm the site through Cloudflare, then fix or rotate the files and enable again from step 3. Meanwhile Cloudflare keeps presenting its certificate, which is harmless while the origin does not ask for one.
+
+**Expiry and rotation.** Check the dates with `sudo openssl x509 -in /etc/mawareeth/origin-tls/aop-client.pem -noout -enddate` (and the same for `aop-ca.pem`), and the certificate's `expires_on` at Cloudflare (`cf "$api/certificates/$CERT_ID" | jq -r '.result.expires_on'`). Preflight warns 30 days ahead. Rotate the client certificate at least a month before it expires.
+
+*Renewing the client certificate with the existing CA* (the usual case; the CA and Caddy are unchanged):
+
+1. On the workstation, restore the CA key from the password manager into a fresh scratch directory and sign a new client certificate:
+
+   ```console
+   umask 077; work="$(mktemp -d)"; cd "$work"
+   # put aop-ca-key.pem (from the password manager) and aop-ca.pem (from the host) here
+   openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
+     -subj '/CN=Mawareeth Cloudflare origin pull' -keyout aop-client-key.pem -out aop-client.csr
+   printf '%s\n' 'basicConstraints=critical,CA:FALSE' 'keyUsage=critical,digitalSignature' 'extendedKeyUsage=clientAuth' > client.ext
+   openssl x509 -req -in aop-client.csr -CA aop-ca.pem -CAkey aop-ca-key.pem -CAcreateserial -days 365 -sha256 \
+     -extfile client.ext -out aop-client.pem
+   openssl verify -CAfile aop-ca.pem -purpose sslclient aop-client.pem
+   shred -u aop-ca-key.pem aop-ca.srl
+   ```
+
+2. Upload it and switch both hostnames, with a fresh token and the definitions above: run the `CERT_ID=…` upload line, then `aop_hostnames "$CERT_ID" true && aop_wait`. Keep the old ID for step 4. Caddy accepts the old and the new certificate alike, because the CA is unchanged.
+3. Copy `aop-client.pem` and `aop-client-key.pem` to `~/aop-install/` on the host as above. Install them under temporary names, then swap both while holding the deploy lock, so no deploy probe ever sees a mismatched pair (run from the checkout root; the lock is `<state dir>/deploy.lock`):
+
+   ```console
+   sudo install -o root -g root -m 0644 ~/aop-install/aop-client.pem /etc/mawareeth/origin-tls/aop-client.pem.new
+   sudo install -o root -g root -m 0600 ~/aop-install/aop-client-key.pem /etc/mawareeth/origin-tls/aop-client-key.pem.new
+   shred -u ~/aop-install/*.pem && rmdir ~/aop-install
+   sudo flock -n deploy/runtime/deploy.lock sh -c 'cd /etc/mawareeth/origin-tls && mv -f aop-client-key.pem.new aop-client-key.pem && mv -f aop-client.pem.new aop-client.pem'
+   sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/runtime.sh config
+   ```
+
+   If `flock -n` fails, a deploy or runtime command is running; wait and retry. Caddy needs no restart.
+4. Delete the old certificate at Cloudflare: `cf -X DELETE "$api/certificates/<old id>"`. Then run `unset CF_API_TOKEN` and remove the scratch directory.
+
+*Rotating the CA* (it is about to expire, or its key is lost or exposed): generate a new CA and client certificate on the workstation as in Generating the files.
+
+1. On the host, put the new CA certificate after the old one in `aop-ca.pem`: install the combined file as `aop-ca.pem.new` and `mv` it into place.
+2. Reload Caddy so it rereads the file, while holding the deploy lock and never during a deploy: `sudo flock -n deploy/runtime/deploy.lock docker compose -p mawareeth exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile --force`. Run it with the runtime's Compose environment, as in [Application runtime contract](#application-runtime-contract). The configuration text is unchanged, so only `--force` makes Caddy reread the file.
+3. Renew the client certificate as above (steps 2 to 4) with the new CA.
+4. Remove the old CA from `aop-ca.pem` the same way, and reload again as in step 2.
 
 ## Blue-green deployment
 
@@ -276,7 +443,7 @@ sudo deploy/release.sh recover
    ```
 
    The route stays mode 0644 because Caddy reads it; the runtime refuses any other mode and any extra `*.caddy` file in that directory.
-4. Ensure that slot is running and healthy, reload Caddy with `docker compose -p mawareeth exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`, and confirm `curl -sD - --resolve DOMAIN:443:127.0.0.1 https://DOMAIN/health/ready/` (in `cloudflare` mode add `--cacert deploy/cloudflare-origin-ca.pem`, run from the checkout root) shows the expected `X-Mawareeth-Slot`, and that the slot reports the expected commit when probed directly (`docker compose -p mawareeth exec -T app-<slot> python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health/release/').read().decode())"`); through Caddy `/health/release/` answers `404`.
+4. Ensure that slot is running and healthy, reload Caddy with `docker compose -p mawareeth exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`, and confirm `curl -sD - --resolve DOMAIN:443:127.0.0.1 https://DOMAIN/health/ready/` (in `cloudflare` mode add `--cacert deploy/cloudflare-origin-ca.pem`, run from the checkout root; with `ORIGIN_CLIENT_AUTH=require` also add `--cert /etc/mawareeth/origin-tls/aop-client.pem --key /etc/mawareeth/origin-tls/aop-client-key.pem`, as root) shows the expected `X-Mawareeth-Slot`, and that the slot reports the expected commit when probed directly (`docker compose -p mawareeth exec -T app-<slot> python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health/release/').read().decode())"`); through Caddy `/health/release/` answers `404`.
 5. Make `$STATE/slots/<slot>.env` match what each slot runs: for an abandoned candidate restore `<slot>.env.prev` to `<slot>.env` (or remove the record if the candidate had none before). Records are root-owned mode 0600; publish them with `install -o root -g root -m 0600` to a temporary file in `$STATE/slots`, `sync`, and `mv`.
 6. Stop the slot that is not routed with `docker compose -p mawareeth stop -t 35 app-<slot>`.
 7. Reset the journal atomically: write the same lines (ten or eleven) with `phase=idle` (keep `result` as a `failed:<phase>` or `success` value), publish it with `install -o root -g root -m 0600` to a temporary file in `$STATE`, `sync`, and `mv` it over `deploy.journal`, or remove the journal.

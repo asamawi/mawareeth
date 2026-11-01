@@ -187,12 +187,15 @@ running_image_matches() {
 # validation; headers precede the body on stdout. With EDGE_MODE=cloudflare
 # Caddy serves a Cloudflare Origin CA certificate, which public trust stores do
 # not contain, so verification uses the repository's pinned Origin CA roots.
+# With ORIGIN_CLIENT_AUTH=require, Caddy also requires the Authenticated Origin
+# Pulls client certificate, which the probe presents as Cloudflare would.
 edge_fetch() {
   local limit
-  local -a trust=()
+  local -a trust=() client=()
   limit="$(attempt_limit)"
   [[ "$(edge_mode)" != cloudflare ]] || trust=(--cacert "$origin_ca_bundle")
-  curl --fail --silent --show-error --proto '=https' "${trust[@]}" --max-time "$limit" --dump-header - \
+  ! origin_client_auth_required || client=(--cert "$aop_client_cert" --key "$aop_client_key")
+  curl --fail --silent --show-error --proto '=https' "${trust[@]}" "${client[@]}" --max-time "$limit" --dump-header - \
     --resolve "${runtime_values[DOMAIN]}:443:127.0.0.1" "https://${runtime_values[DOMAIN]}$1" 2>>"$deploy_log"
 }
 
@@ -220,11 +223,14 @@ edge_candidate() { edge_serves "$candidate_slot" "$APP_COMMIT"; }
 
 # edge_redirect succeeds when, in cloudflare mode, the REDIRECT_DOMAIN site on
 # this host answers 301 with a Location on https://DOMAIN/, verified against the
-# pinned Origin CA roots like the DOMAIN probe.
+# pinned Origin CA roots, and presenting the client certificate when required,
+# like the DOMAIN probe.
 edge_redirect() {
   local limit result redirect="${runtime_values[REDIRECT_DOMAIN]}"
+  local -a client=()
   limit="$(attempt_limit)"
-  result="$(curl --silent --show-error --proto '=https' --cacert "$origin_ca_bundle" --max-time "$limit" \
+  ! origin_client_auth_required || client=(--cert "$aop_client_cert" --key "$aop_client_key")
+  result="$(curl --silent --show-error --proto '=https' --cacert "$origin_ca_bundle" "${client[@]}" --max-time "$limit" \
     --output /dev/null --write-out '%{http_code} %{redirect_url}' \
     --resolve "$redirect:443:127.0.0.1" "https://$redirect/" 2>>"$deploy_log")" || return 1
   [[ "$result" == "301 https://${runtime_values[DOMAIN]}/"* ]]

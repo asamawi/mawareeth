@@ -111,7 +111,7 @@ if [[ "${1:-}" == compose ]]; then
       case "$service" in
         app-blue) printf '%s\n' "$APP_BLUE_IMAGE" > "$S/running-app-blue" ;;
         app-green) printf '%s\n' "$APP_GREEN_IMAGE" > "$S/running-app-green" ;;
-        caddy) cp "$ROUTES_DIR/active-slot.caddy" "$S/caddy-loaded"; touch "$S/running-caddy"; caddy_hash > "$S/caddy-hash" ;;
+        caddy) cp "$ROUTES_DIR/active-slot.caddy" "$S/caddy-loaded"; touch "$S/running-caddy"; caddy_hash > "$S/caddy-hash"; printf '%s\n' "$EDGE_MODE" > "$S/caddy-edge-mode" ;;
         postgres) touch "$S/running-postgres" ;;
       esac
       exit 0 ;;
@@ -236,6 +236,17 @@ if [[ -e "$S/origin-ca" ]]; then
   grep -q 'BEGIN CERTIFICATE' "$ca" || exit 77
 else
   [[ "$args" != *' --cacert '* ]] || exit 2
+fi
+# ORIGIN_CLIENT_AUTH=require ($S/aop-client names the client certificate and
+# key, one per line): Caddy fails the handshake unless the client presents
+# exactly that pair. Otherwise no client certificate may be given.
+if [[ -e "$S/aop-client" ]]; then
+  { IFS= read -r want_cert; IFS= read -r want_key; } < "$S/aop-client"
+  [[ "$args" == *" --cert $want_cert --key $want_key "* ]] || exit 56
+  [[ "$(grep -o -- ' --cert ' <<<"$args" | wc -l)" == 1 && "$(grep -o -- ' --key ' <<<"$args" | wc -l)" == 1 ]] || exit 2
+  grep -q 'BEGIN CERTIFICATE' "$want_cert" && grep -q 'PRIVATE KEY' "$want_key" || exit 58
+else
+  [[ "$args" != *' --cert '* && "$args" != *' --key '* ]] || exit 2
 fi
 [[ ! -e "$S/fail-tls-all" ]] || exit 60
 [[ -e "$S/running-caddy" && -e "$S/caddy-loaded" ]] || exit 7
@@ -1190,5 +1201,72 @@ route_is green; caddy_is green
 grep -Eq '^curl .*--resolve example\.com:443:127\.0\.0\.1 .*https://example\.com/$' "$S/calls.log" \
   || fail 'the cloudflare deploy did not probe the redirect site'
 no_secrets 'cloudflare deploy'
+[[ "$(< "$S/caddy-edge-mode")" == cloudflare ]] || fail 'Caddy did not start with EDGE_MODE=cloudflare'
+
+# --- ORIGIN_CLIENT_AUTH=require: Authenticated Origin Pulls ------------------
+# Caddy then requires the operator's AOP client certificate on both names, so
+# every edge probe must present it, besides pinning the Origin CA roots. This
+# bootstrap follows the same re-bootstrap path as the cloudflare one above.
+aop_work="$(mktemp -d)"
+(
+  cd "$aop_work" || exit 1
+  printf '%s\n' '[req]' 'prompt = no' 'distinguished_name = dn' '[dn]' 'CN = aop-ca.invalid' > ca.cnf
+  printf '%s\n' '[req]' 'prompt = no' 'distinguished_name = dn' '[dn]' 'CN = aop-client.invalid' > client.cnf
+  printf '%s\n' 'basicConstraints = critical,CA:FALSE' 'keyUsage = critical,digitalSignature' 'extendedKeyUsage = clientAuth' > client.ext
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 30 -config ca.cnf \
+    -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' -keyout ca-key.pem -out aop-ca.pem
+  openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -config client.cnf -keyout aop-client-key.pem -out client.csr
+  openssl x509 -req -in client.csr -CA aop-ca.pem -CAkey ca-key.pem -CAcreateserial -days 30 -extfile client.ext -out aop-client.pem
+) >/dev/null 2>&1 || fail 'could not generate the AOP fixture'
+cp "$aop_work/aop-ca.pem" "$aop_work/aop-client.pem" "$aop_work/aop-client-key.pem" "$tmp/origin-tls/"; rm -rf "$aop_work"
+chmod 644 "$tmp/origin-tls/aop-ca.pem" "$tmp/origin-tls/aop-client.pem"; chmod 600 "$tmp/origin-tls/aop-client-key.pem"
+aop_key_line="$(sed -n 2p "$tmp/origin-tls/aop-client-key.pem")"
+[[ -n "$aop_key_line" ]] || fail 'the AOP key fixture is empty'
+
+rm -f "$S"/running-*
+mkdir -p "$tmp/archive-aop"
+shopt -s nullglob
+for item in "$state/slots" "$state/routes" "$state/deploy.journal" "$state"/*.snapshot.env; do mv "$item" "$tmp/archive-aop/"; done
+shopt -u nullglob
+{ cat "$tmp/runtime-www-acme.env"; printf '%s\n' EDGE_MODE=cloudflare REDIRECT_DOMAIN=example.com ORIGIN_CLIENT_AUTH=require; } > "$tmp/runtime.env"
+chmod 600 "$tmp/runtime.env"
+printf '%s\n' "$tmp/origin-tls/aop-client.pem" "$tmp/origin-tls/aop-client-key.pem" > "$S/aop-client"
+
+# A missing AOP client key is refused before any change, naming only the path.
+mv "$tmp/origin-tls/aop-client-key.pem" "$tmp/aop-key.moved"
+: > "$S/calls.log"
+run_runtime prepare manifest-a "${origin_env[@]}"
+expect_rc 2 'ORIGIN_CLIENT_AUTH=require prepare without the AOP client key'
+need "$tmp/out" "$tmp/origin-tls/aop-client-key.pem"
+[[ ! -e "$state/routes" && ! -e "$state/slots" && "$(snapshot_count)" == 0 ]] || fail 'prepare without the AOP client key changed runtime state'
+[[ "$(mutations)" == 0 ]] || fail 'prepare without the AOP client key mutated Docker state'
+mv "$tmp/aop-key.moved" "$tmp/origin-tls/aop-client-key.pem"
+
+run_runtime prepare manifest-a "${origin_env[@]}"
+expect_rc 0 'ORIGIN_CLIENT_AUTH=require prepare'
+[[ "$(snapshot_count)" == 1 && -f "$state/${acme_www_snapshots[0]##*/}" ]] || fail 'ORIGIN_CLIENT_AUTH changed the app snapshot'
+cmp -s "$state/${acme_www_snapshots[0]##*/}" "${acme_www_snapshots[0]}" || fail 'the AOP snapshot differs from the acme one'
+: > "$S/calls.log"
+run_release manifest-a "${origin_env[@]}"
+expect_rc 0 'ORIGIN_CLIENT_AUTH=require bootstrap'
+route_is blue; caddy_is blue
+[[ "$(< "$S/caddy-edge-mode")" == cloudflare-aop ]] || fail 'Caddy did not start with EDGE_MODE=cloudflare-aop'
+grep -Eq '^curl .*--resolve www\.example\.com:443:127\.0\.0\.1 .*https://www\.example\.com/health/ready/$' "$S/calls.log" \
+  || fail 'the AOP bootstrap did not verify the canonical name'
+grep -Eq '^curl .*--resolve example\.com:443:127\.0\.0\.1 .*https://example\.com/$' "$S/calls.log" \
+  || fail 'the AOP bootstrap did not probe the redirect site'
+[[ "$(grep -c '^curl ' "$S/calls.log")" -ge 2 ]] || fail 'the AOP bootstrap made no edge probes'
+! grep -E '^curl ' "$S/calls.log" \
+  | grep -Fv -- "--cacert $bundle/deploy/cloudflare-origin-ca.pem --cert $tmp/origin-tls/aop-client.pem --key $tmp/origin-tls/aop-client-key.pem " >/dev/null \
+  || fail 'an AOP edge probe did not pin the Origin CA roots and present the client certificate'
+! grep -Fq -e "$aop_key_line" -e "$key_line" "$tmp/out" || fail 'the AOP bootstrap printed key material'
+no_secrets 'ORIGIN_CLIENT_AUTH=require bootstrap'
+: > "$S/calls.log"
+run_release manifest-b "${origin_env[@]}"
+expect_rc 0 'ORIGIN_CLIENT_AUTH=require deploy'
+route_is green; caddy_is green
+! grep -E '^curl ' "$S/calls.log" | grep -Fv -- " --cert $tmp/origin-tls/aop-client.pem --key $tmp/origin-tls/aop-client-key.pem " >/dev/null \
+  || fail 'an AOP deploy probe did not present the client certificate'
+no_secrets 'ORIGIN_CLIENT_AUTH=require deploy'
 
 printf '%s\n' 'release offline checks passed'
