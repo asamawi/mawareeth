@@ -88,6 +88,21 @@ for range in "${trusted_ranges[@]}"; do
   if [[ "$range" == *:* ]]; then ((10#$prefix >= 12)) || fail "trusted IPv6 range $range is broader than /12"
   else ((10#$prefix >= 8)) || fail "trusted IPv4 range $range is broader than /8"; fi
 done
+# deploy/cloudflare-ips.txt is the single source of Cloudflare's ranges (it also
+# feeds PUBLIC_WEB_SOURCES=cloudflare in provisioning): Caddy must trust exactly
+# its ranges, in the same order.
+# Parsed as provisioning does: strip comments, trim, one range per line.
+file_ranges=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  line="${line%%#*}"
+  line="${line//$'\r'/}"
+  read -r -a words <<<"$line"
+  ((${#words[@]} <= 1)) || fail "deploy/cloudflare-ips.txt must hold one range per line: $line"
+  ((${#words[@]} == 0)) || file_ranges+=("${words[0]}")
+done < "$root/deploy/cloudflare-ips.txt"
+((${#file_ranges[@]} > 0)) || fail 'deploy/cloudflare-ips.txt lists no ranges'
+[[ "${file_ranges[*]}" == "${trusted_ranges[*]}" ]] \
+  || fail 'Caddy trusted_proxies in deploy/caddy/edge/cloudflare/global.caddy differ from deploy/cloudflare-ips.txt'
 # Only Cloudflare's public Origin CA roots are tracked. No tracked file under
 # deploy/ carries a private key; the test suites' own fixtures are excluded.
 ca_bundle="$root/deploy/cloudflare-origin-ca.pem"

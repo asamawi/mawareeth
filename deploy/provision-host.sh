@@ -6,7 +6,8 @@ umask 077
 
 die() { printf 'provision: %s\n' "$*" >&2; exit 1; }
 require_command() { command -v "$1" >/dev/null 2>&1 || die "required command is unavailable: $1"; }
-config_file="${HOST_BASELINE_CONFIG:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/host-baseline.env}"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+config_file="${HOST_BASELINE_CONFIG:-$script_dir/host-baseline.env}"
 [[ -f "$config_file" ]] || die 'operator configuration is required; copy deploy/host-baseline.env.example outside version control'
 # Portable (GNU/BSD/macOS) ownership+mode check via python3, already a required dependency.
 python3 - "$config_file" "$(id -un)" <<'PY' || die 'operator configuration must be owned by the invoking user and mode 0600'
@@ -41,6 +42,65 @@ PY
   done
 }
 
+# Public web (80/443) sources: "any" (default, also when empty) keeps the web
+# open to every address; "cloudflare" limits it to deploy/cloudflare-ips.txt in
+# the Hetzner firewall, DOCKER-USER and UFW. Sets web_sources_json (Hetzner
+# source_ips) and web_ranges (comma list for bootstrap, empty for "any").
+validate_web_sources() {
+  PUBLIC_WEB_SOURCES="${PUBLIC_WEB_SOURCES:-any}"
+  web_ranges=''
+  case "$PUBLIC_WEB_SOURCES" in
+    any) web_sources_json='["0.0.0.0/0", "::/0"]'; return 0 ;;
+    cloudflare) ;;
+    *) die 'PUBLIC_WEB_SOURCES must be any or cloudflare' ;;
+  esac
+  local ranges_file="$script_dir/cloudflare-ips.txt" status=0
+  [[ -f "$ranges_file" && -r "$ranges_file" ]] || die 'deploy/cloudflare-ips.txt is missing or unreadable'
+  web_ranges="$(python3 - "$ranges_file" <<'PY'
+import ipaddress
+import sys
+try:
+    with open(sys.argv[1], encoding='ascii') as handle:
+        lines = handle.read().splitlines()
+except (OSError, UnicodeDecodeError):
+    sys.exit(2)
+v4, v6, seen = [], [], set()
+for raw in lines:
+    line = raw.split('#', 1)[0].strip()
+    if not line:
+        continue
+    if len(line.split()) != 1:
+        sys.exit(7)
+    try:
+        if '/' not in line:
+            raise ValueError
+        net = ipaddress.ip_network(line, strict=True)
+    except ValueError:
+        sys.exit(3)
+    # Catch-all (0.0.0.0/0, ::/0) and over-broad ranges are never Cloudflare's.
+    if net.prefixlen < (8 if net.version == 4 else 12):
+        sys.exit(4)
+    if net in seen:
+        sys.exit(5)
+    seen.add(net)
+    (v4 if net.version == 4 else v6).append(str(net))
+if not v4 or not v6:
+    sys.exit(6)
+print(','.join(v4 + v6))
+PY
+)" || status=$?
+  case "$status" in
+    0) ;;
+    3) die 'deploy/cloudflare-ips.txt contains an invalid CIDR' ;;
+    4) die 'deploy/cloudflare-ips.txt contains a catch-all or excessively broad range' ;;
+    5) die 'deploy/cloudflare-ips.txt contains a duplicate range' ;;
+    6) die 'deploy/cloudflare-ips.txt must list both IPv4 and IPv6 ranges' ;;
+    7) die 'deploy/cloudflare-ips.txt must hold one range per line' ;;
+    *) die 'deploy/cloudflare-ips.txt could not be read' ;;
+  esac
+  web_sources_json="$(python3 -c 'import json, sys; print(json.dumps(sys.argv[1].split(",")))' "$web_ranges")"
+}
+
 for required in HETZNER_TOKEN SERVER_NAME HETZNER_SSH_KEY_NAME SSH_PUBLIC_KEY ADMIN_SSH_PRIVATE_KEY SSH_ALLOWED_CIDRS; do
   [[ -n "${!required:-}" ]] || die "$required is required"
 done
@@ -51,6 +111,7 @@ done
 [[ "$HETZNER_SSH_KEY_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$ ]] || die 'HETZNER_SSH_KEY_NAME is invalid'
 require_command python3
 validate_cidrs
+validate_web_sources
 require_command hcloud
 require_command jq
 require_command curl
@@ -101,13 +162,15 @@ else
   [[ "$configured_type $configured_data" == "$existing_type $existing_data" ]] || die 'existing SSH-key identity has different public key; operator decision required'
 fi
 
-# Replace the rule set atomically: public web only, and SSH only from explicit CIDRs.
+# Replace the rule set atomically: public web only (from everywhere, or only
+# from Cloudflare's ranges with PUBLIC_WEB_SOURCES=cloudflare), and SSH only
+# from explicit CIDRs.
 IFS=',' read -r -a cidrs <<<"$SSH_ALLOWED_CIDRS"
 cidr_json="$(printf '%s\n' "${cidrs[@]}" | jq -R . | jq -s .)"
-rules_payload="$(jq -n --argjson ssh_sources "$cidr_json" '
+rules_payload="$(jq -n --argjson ssh_sources "$cidr_json" --argjson web_sources "$web_sources_json" '
   {rules: ([
-    {direction: "in", protocol: "tcp", port: "80", source_ips: ["0.0.0.0/0", "::/0"]},
-    {direction: "in", protocol: "tcp", port: "443", source_ips: ["0.0.0.0/0", "::/0"]}
+    {direction: "in", protocol: "tcp", port: "80", source_ips: $web_sources},
+    {direction: "in", protocol: "tcp", port: "443", source_ips: $web_sources}
   ] + ($ssh_sources | map({direction: "in", protocol: "tcp", port: "22", source_ips: [.]})))}')"
 if hcloud firewall describe "$FIREWALL_NAME" >/dev/null 2>&1; then
   firewall_json="$(hcloud firewall describe "$FIREWALL_NAME" --output json)"
@@ -161,7 +224,6 @@ fi
 
 server_ip="$(hcloud server ip "$SERVER_NAME")"
 [[ -n "$server_ip" ]] || die 'could not determine server address'
-script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ssh_opts=(-i "$ADMIN_SSH_PRIVATE_KEY" -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new)
 # A freshly created host needs time to finish booting before sshd answers;
 # poll both accounts for up to five minutes before giving up.
@@ -173,7 +235,9 @@ for _attempt in $(seq 1 30); do
 done
 [[ -n "$remote_user" ]] || die "timed out waiting for SSH to become reachable on ${server_ip} as ${ADMIN_USER} or root after 5 minutes; check that the host finished booting, that this workstation's address is included in SSH_ALLOWED_CIDRS, and that the Hetzner firewall/network path to ${server_ip}:22 is reachable"
 scp "${ssh_opts[@]}" "$script_dir/bootstrap-host.sh" "$remote_user@${server_ip}:/tmp/mawareeth-bootstrap-host.sh"
-bootstrap_cmd="SSH_ALLOWED_CIDRS=$(printf %q "$SSH_ALLOWED_CIDRS") ADMIN_USER=$(printf %q "$ADMIN_USER") ADMIN_PUBLIC_KEY=$(printf %q "$configured_key") bash /tmp/mawareeth-bootstrap-host.sh"
+web_env="PUBLIC_WEB_SOURCES=$(printf %q "$PUBLIC_WEB_SOURCES")"
+if [[ -n "$web_ranges" ]]; then web_env="$web_env PUBLIC_WEB_RANGES=$(printf %q "$web_ranges")"; fi
+bootstrap_cmd="SSH_ALLOWED_CIDRS=$(printf %q "$SSH_ALLOWED_CIDRS") ADMIN_USER=$(printf %q "$ADMIN_USER") ADMIN_PUBLIC_KEY=$(printf %q "$configured_key") $web_env bash /tmp/mawareeth-bootstrap-host.sh"
 if [[ "$remote_user" != root ]]; then bootstrap_cmd="sudo $bootstrap_cmd"; fi
 # shellcheck disable=SC2029 # bootstrap_cmd is %q-quoted here and must expand client-side.
 ssh "${ssh_opts[@]}" "$remote_user@${server_ip}" "$bootstrap_cmd"
