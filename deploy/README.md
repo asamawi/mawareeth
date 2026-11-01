@@ -89,10 +89,7 @@ Caddy keeps `X-Forwarded-For`, `-Proto` and `-Host` only on connections from tho
 
 What the trust gains, precisely: the visitor's real address, taken from `X-Forwarded-For`, appears in Caddy's logs as the client IP, and Caddy forwards it to the app in `X-Forwarded-For`. Django reads only `X-Forwarded-Proto` (`SECURE_PROXY_SSL_HEADER`); it ignores `X-Forwarded-For` and `X-Forwarded-Host`. Code that later reads `X-Forwarded-For` must treat it as client-controlled data relayed by Cloudflare.
 
-What it trusts: any connection whose source is a Cloudflare address. That includes requests that other Cloudflare customers send through Cloudflare, for example from their Workers, which can set these headers freely. Nothing in this setup proves that a connection comes from Mawareeth's own zone. Two measures would close that gap, and both are open decisions that this setup does not take:
-
-- Cloudflare Authenticated Origin Pulls, where Caddy requires Cloudflare's client certificate (mTLS);
-- restricting inbound 80/443 to Cloudflare's ranges.
+What it trusts: any connection whose source is a Cloudflare address. That includes requests that other Cloudflare customers send through Cloudflare, for example from their Workers, which can set these headers freely. Nothing in this setup proves that a connection comes from Mawareeth's own zone. The opt-in range lock, `PUBLIC_WEB_SOURCES=cloudflare` (see [Locking the origin to Cloudflare](#locking-the-origin-to-cloudflare)), stops direct access to the origin from any address outside Cloudflare. It does not stop other Cloudflare customers' traffic, because that arrives from the same ranges. Closing that gap needs per-hostname Authenticated Origin Pulls, where Caddy requires a client certificate that only this zone presents (mTLS). That is a separate change, recorded in `_bmad-output/implementation-artifacts/deferred-work.md` and not built yet.
 
 Compose mounts the Origin certificate directory at `/etc/caddy/origin-tls` in `cloudflare` mode. In `acme` mode it mounts the empty placeholder `<state dir>/edge-tls` instead. `prepare` creates the placeholder (root, `0700`), and the runtime refuses to act if it is not empty. Adding the edge mount and variables changes Caddy's Compose model. A Caddy container created by an earlier bundle is therefore stale, and a normal `release.sh deploy` refuses it. The re-bootstrap in [Production cutover preparation](#production-cutover-preparation) recreates it.
 
@@ -130,10 +127,54 @@ Compose mounts the Origin certificate directory at `/etc/caddy/origin-tls` in `c
 
 **Refreshing the ranges and roots.** Nothing is fetched at runtime. Check both sources at least quarterly, and whenever Cloudflare announces a change.
 
-- Ranges: compare `deploy/caddy/edge/cloudflare/global.caddy` with <https://www.cloudflare.com/ips-v4> and <https://www.cloudflare.com/ips-v6>. Update the `trusted_proxies static` line and the date in its comment, then ship it as a normal release. A range missing from the list makes Caddy replace the forwarded headers on that range's connections, so logs show a Cloudflare address instead of the visitor's. A stale range that Cloudflare has given up stays trusted, and whoever holds it can set the forwarded headers. The offline tests refuse any range broader than `/8` (IPv4) or `/12` (IPv6).
+- Ranges: `deploy/cloudflare-ips.txt` is the single source, one CIDR per line (IPv4 first, then IPv6; `#` comments allowed). Compare it with <https://www.cloudflare.com/ips-v4> and <https://www.cloudflare.com/ips-v6>. Update the file and its date comment, copy the same ranges in the same order onto the `trusted_proxies static` line of `deploy/caddy/edge/cloudflare/global.caddy` (the offline tests fail while the two differ), then ship it as a normal release, so Caddy picks up the new list. If the host runs with `PUBLIC_WEB_SOURCES=cloudflare`, also rerun provisioning from the same commit (see [Locking the origin to Cloudflare](#locking-the-origin-to-cloudflare)), so the firewalls follow; until then a new Cloudflare range cannot reach the origin. A range missing from the list makes Caddy replace the forwarded headers on that range's connections, so logs show a Cloudflare address instead of the visitor's. A stale range that Cloudflare has given up stays trusted, and whoever holds it can set the forwarded headers. The offline tests and provisioning refuse any range broader than `/8` (IPv4) or `/12` (IPv6).
 - Roots: download `origin_ca_rsa_root.pem` and `origin_ca_ecc_root.pem` from the page above. Check them with `openssl x509 -noout -subject -enddate -fingerprint -sha256`, update the bundle and the table, and ship it as a release before the old roots expire.
 
-Restricting inbound 80/443 to Cloudflare's ranges in UFW or the Hetzner firewall is not done, and neither is Authenticated Origin Pulls. Each needs an explicit decision.
+### Locking the origin to Cloudflare
+
+By default (`PUBLIC_WEB_SOURCES` empty or `any` in `host-baseline.env`), the host accepts 80/443 from any address, so scanners can reach the origin directly and bypass Cloudflare. With `PUBLIC_WEB_SOURCES=cloudflare`, provisioning limits inbound 80/443 to the ranges in `deploy/cloudflare-ips.txt` on all three paths that web traffic takes:
+
+- the Hetzner cloud firewall: its port 80 and 443 rules list exactly the file's ranges;
+- the `DOCKER-USER` chain, which filters IPv4 traffic to Docker-published ports: `/usr/local/sbin/mawareeth-docker-firewall` accepts 80/443 only from the IPv4 ranges (in `iptables`) and the IPv6 ranges (in `ip6tables`). The ranges are written into the script, which reruns at every Docker start and each time removes any 80/443 accept rule, sourced or not, that its list does not name. Bootstrap then checks each family: exactly the listed sourced accepts in `cloudflare` mode, exactly one unsourced accept in `any` mode (it removes ranges left from an earlier `cloudflare` run). It stops before changing UFW if the check fails;
+- UFW, which filters the IPv6 connections that docker-proxy accepts: one `allow proto tcp from <range> to any port 80,443` rule per range replaces `allow 80/tcp` and `allow 443/tcp`.
+
+The SSH allow-list, the `tailscale0` rules, the established-traffic accept and the container egress `RETURN` rules do not change, and no other port is affected. Deploy probes (`release.sh`) connect over loopback and are not filtered. Better Stack and every visitor reach the site through Cloudflare. Nothing is fetched at runtime. Provisioning refuses before contacting Hetzner when the value is anything other than `any` or `cloudflare`, or when the ranges file is missing, empty, has an invalid, duplicate or catch-all range, has more than one range on a line, or lacks either IPv4 or IPv6 ranges. In `cloudflare` mode bootstrap also refuses, before any firewall change, unless `/etc/default/ufw` has `IPV6=yes`; without it UFW would not filter IPv6 at all.
+
+Bootstrap records the effective mode and ranges in `/etc/mawareeth/public-web-sources` (root, `0644`). Provisioning always passes the mode explicitly, so the file only matters when `bootstrap-host.sh` is rerun by hand without `PUBLIC_WEB_SOURCES`: the run keeps the recorded mode instead of reopening the web. An explicit value always wins.
+
+**Enable it only when both conditions hold:**
+
+- the host runs `EDGE_MODE=cloudflare` (Origin CA certificate, no ACME);
+- both public names, `mawareeth.com` and `www`, are proxied (orange cloud) Cloudflare records.
+
+In `acme` mode Let's Encrypt validates from its own addresses, so certificate issuance and renewal would fail. Visitors who reach a grey-cloud (DNS-only) record connect directly and would be blocked.
+
+80/443 also close over `tailscale0` in this mode, because UFW and `DOCKER-USER` accept them only from Cloudflare's ranges. Check the site from the host itself, over loopback, for example `curl -sI --cacert deploy/cloudflare-origin-ca.pem --resolve www.mawareeth.com:443:127.0.0.1 https://www.mawareeth.com/health/ready/` from the checkout.
+
+**Enabling** (each run changes the live firewalls and needs its own approval):
+
+1. Set `PUBLIC_WEB_SOURCES=cloudflare` in `deploy/host-baseline.env`.
+2. Rerun `bash deploy/provision-host.sh` from a checkout at the deployed release, as in [Prerequisites and inputs](#prerequisites-and-inputs). On a workstation that cannot run it natively (Windows), run it inside an `ubuntu:24.04` container with `hcloud`, `jq`, `python3` and the OpenSSH client installed, and the config and both key files copied in with mode 0600. It re-bootstraps the guest.
+3. Rerun `sudo deploy/monitor.sh install` on the host, because bootstrap resets UFW and drops the `tailscale0` rules (see [Access, patching, and break-glass](#access-patching-and-break-glass)). Keep a working SSH session open until this is done.
+4. Verify:
+   - `hcloud firewall describe <server>-edge`: the port 80 and 443 rules list only the Cloudflare ranges, and the port 22 rules are unchanged;
+   - on the host, `sudo iptables -S DOCKER-USER` shows one `-s <IPv4 range> -p tcp -m multiport --dports 80,443 -j ACCEPT` per IPv4 range and no unsourced 80/443 accept, and `sudo ip6tables -S DOCKER-USER` shows the same for the IPv6 ranges;
+   - `sudo ufw status` allows 80,443/tcp only from the ranges, and still lists the SSH and `tailscale0` rules;
+   - the public site loads through Cloudflare: `curl -sI https://www.mawareeth.com/health/ready/` answers 200, and `curl -sI https://mawareeth.com/` answers 301;
+   - from a non-Cloudflare address (for example the workstation), each of these times out instead of connecting:
+     - direct IPv4: `curl -sv --max-time 10 --resolve www.mawareeth.com:443:2.28.64.83 https://www.mawareeth.com/`;
+     - direct IPv6, from a host with IPv6: `curl -6 -sv --max-time 10 --resolve 'www.mawareeth.com:443:[<host IPv6>]' https://www.mawareeth.com/`, with the address from `hcloud server ip -6 <server>`;
+     - direct port 80: `curl -sv --max-time 10 http://2.28.64.83/`.
+
+**Rollback:** set `PUBLIC_WEB_SOURCES=any` (or remove it), rerun provisioning and `monitor.sh install` the same way. Each run leaves exactly that mode's rules.
+
+**Break-glass** (reopen fast, without re-provisioning). If the lock blocks traffic it must not block (for example a Cloudflare range change that has not been shipped yet), open 80/443 to everyone on all three paths:
+
+1. In Hetzner, add inbound TCP 80 and 443 from any IPv4 and IPv6 address to the `<server>-edge` firewall. Use the Hetzner console (Firewalls), or `hcloud firewall add-rule <server>-edge --direction in --protocol tcp --port 443 --source-ips 0.0.0.0/0 --source-ips ::/0`, then the same command for port 80.
+2. On the host, run `sudo iptables -I DOCKER-USER 2 -p tcp -m multiport --dports 80,443 -j ACCEPT` and `sudo ip6tables -I DOCKER-USER 2 -p tcp -m multiport --dports 80,443 -j ACCEPT`.
+3. On the host, run `sudo ufw allow 80,443/tcp`.
+
+This is temporary. The next Docker start reruns the baked firewall script, which removes the unsourced accept again, and the next provisioning run resets the Hetzner rules. Re-provision promptly with `PUBLIC_WEB_SOURCES=any`, or with corrected ranges, followed by `monitor.sh install`.
 
 ## Blue-green deployment
 
@@ -617,13 +658,13 @@ The workflow validates the manifest inputs before pushing, so an unsupported con
 
 Run only from an administrator workstation, never CI, with `bash`, `python3`, `jq`, OpenSSH, and the Hetzner `hcloud` CLI installed. Use a minimally scoped Hetzner token that can manage the one SSH key, firewall, and server. Agree the server name, key identity, SSH source CIDRs, and a weekly maintenance window before running.
 
-Copy `host-baseline.env.example` to `host-baseline.env`; it is ignored by Git. Fill the token, server and key identity, paths to the matching public/private SSH keys, and comma-separated administrator CIDRs. Keep the config mode 0600. The script refuses missing or malformed input before contacting Hetzner.
+Copy `host-baseline.env.example` to `host-baseline.env`; it is ignored by Git. Fill the token, server and key identity, paths to the matching public/private SSH keys, and comma-separated administrator CIDRs. `PUBLIC_WEB_SOURCES` is optional; leave it empty (`any`) unless you are [locking the origin to Cloudflare](#locking-the-origin-to-cloudflare). Keep the config mode 0600. The script refuses missing or malformed input before contacting Hetzner.
 
 Run `bash deploy/provision-host.sh`. The first run creates Ubuntu 24.04 CX33 in `nbg1`, an edge firewall, delete and rebuild protection (the API sets them together), then bootstraps the guest. Re-runs reconcile the firewall, protection, and guest baseline without creating another matching server. An existing server with a different size, location, image, or baseline ownership label aborts for an explicit operator decision.
 
 ## Access, patching, and break-glass
 
-Only listed CIDRs may SSH, and SSH requires an authorized key; password and root login are disabled after bootstrap. The listed CIDRs are enforced twice, by the Hetzner cloud firewall and by UFW on the host, so a changed workstation address needs both updated, and UFW can only be changed from a working session or the Hetzner console. After `monitor.sh install` and joining the tailnet, administrators can also SSH over Tailscale (`tailscale0`, `100.64.0.0/10`, still key-only); the tailnet ACL decides which devices may reach port 22. Prefer that path, and keep the public allow-list as the fallback. Re-running `bootstrap-host.sh` resets UFW, which drops both `tailscale0` rules, so re-run `monitor.sh install` afterwards. Ensure a second tested administrator key and Hetzner console access exist before changing access ranges. Do not remove the only permitted CIDR during maintenance. Ubuntu security updates are enabled automatically; review `/var/log/unattended-upgrades/` in the agreed weekly maintenance window and schedule any reboot deliberately.
+Only listed CIDRs may SSH, and SSH requires an authorized key; password and root login are disabled after bootstrap. The listed CIDRs are enforced twice, by the Hetzner cloud firewall and by UFW on the host, so a changed workstation address needs both updated, and UFW can only be changed from a working session or the Hetzner console. After `monitor.sh install` and joining the tailnet, administrators can also SSH over Tailscale (`tailscale0`, `100.64.0.0/10`, still key-only); the tailnet ACL decides which devices may reach port 22. Prefer that path, and keep the public allow-list as the fallback. Re-running `bootstrap-host.sh` resets UFW, which drops both `tailscale0` rules, so re-run `monitor.sh install` afterwards. With `PUBLIC_WEB_SOURCES=cloudflare`, 80/443 are likewise limited in both firewalls (and in `DOCKER-USER`), so a change to `deploy/cloudflare-ips.txt` needs a provisioning rerun, followed by `monitor.sh install`. Ensure a second tested administrator key and Hetzner console access exist before changing access ranges. Do not remove the only permitted CIDR during maintenance. Ubuntu security updates are enabled automatically; review `/var/log/unattended-upgrades/` in the agreed weekly maintenance window and schedule any reboot deliberately.
 
 ## Runtime secrets
 
@@ -648,9 +689,9 @@ Changing the Caddyfile on a running host takes effect only after Caddy reloads i
 
 ## Audit checks
 
-On the host, `sudo ufw status numbered` must show TCP 22 only from the configured CIDRs and TCP 80/443 only; it must not show app, Docker, or PostgreSQL ports. In Hetzner, inspect the attached edge firewall for the same allow-list. Confirm `sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|pubkeyauthentication'`, `docker --version`, `docker compose version`, `stat -c '%U %G %a' /etc/mawareeth/runtime.env`, and `hcloud server describe SERVER` (deletion protection). Public checks must find only ports 80 and 443; port 22 is reachable only from an approved source.
+On the host, `sudo ufw status numbered` must show TCP 22 only from the configured CIDRs and TCP 80/443 only (only from the Cloudflare ranges with `PUBLIC_WEB_SOURCES=cloudflare`); it must not show app, Docker, or PostgreSQL ports. In Hetzner, inspect the attached edge firewall for the same allow-list. Confirm `sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|pubkeyauthentication'`, `docker --version`, `docker compose version`, `stat -c '%U %G %a' /etc/mawareeth/runtime.env`, and `hcloud server describe SERVER` (deletion protection). Public checks must find only ports 80 and 443 (with `PUBLIC_WEB_SOURCES=cloudflare`, not even those from outside Cloudflare); port 22 is reachable only from an approved source.
 
-Also confirm the Docker-port backstop is active and in effect: `systemctl is-active mawareeth-docker-firewall.service` must report `active`, and `sudo iptables -L DOCKER-USER -n` (plus `sudo ip6tables -L DOCKER-USER -n` where IPv6 is enabled) must show only the established-traffic accept, the 80/443 accept, a `RETURN` for traffic arriving from `docker0` and from `br-+` (connections containers start, such as DNS, Mailgun, the Storage Box, and Heroku; they continue to Docker's own rules), and the trailing drop. Without those two `RETURN` rules every container-started connection except to ports 80 and 443 is dropped, including DNS. Docker recreates its own chain independently of `ufw`, so the unit declares `BindsTo=docker.service` and `PartOf=docker.service` and is installed into `docker.service.wants`: it stops with Docker for any reason (including a crash) and reapplies the rules whenever Docker starts or restarts. `systemctl show -p BindsTo,PartOf,WantedBy mawareeth-docker-firewall.service` must list `docker.service`; on a host bootstrapped before this was added, rerun `bootstrap-host.sh` (idempotent) to install the updated unit. The same checks still apply after a `systemctl restart docker`.
+Also confirm the Docker-port backstop is active and in effect: `systemctl is-active mawareeth-docker-firewall.service` must report `active`, and `sudo iptables -L DOCKER-USER -n` (plus `sudo ip6tables -L DOCKER-USER -n` where IPv6 is enabled) must show only the established-traffic accept, the 80/443 accept (one per Cloudflare range of that family with `PUBLIC_WEB_SOURCES=cloudflare`), a `RETURN` for traffic arriving from `docker0` and from `br-+` (connections containers start, such as DNS, Mailgun, the Storage Box, and Heroku; they continue to Docker's own rules), and the trailing drop. Without those two `RETURN` rules every container-started connection except to ports 80 and 443 is dropped, including DNS. Docker recreates its own chain independently of `ufw`, so the unit declares `BindsTo=docker.service` and `PartOf=docker.service` and is installed into `docker.service.wants`: it stops with Docker for any reason (including a crash) and reapplies the rules whenever Docker starts or restarts. `systemctl show -p BindsTo,PartOf,WantedBy mawareeth-docker-firewall.service` must list `docker.service`; on a host bootstrapped before this was added, rerun `bootstrap-host.sh` (idempotent) to install the updated unit. The same checks still apply after a `systemctl restart docker`.
 
 ## Cutover rehearsal
 
