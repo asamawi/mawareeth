@@ -1086,7 +1086,43 @@ class CalculationAccessControlTests(TestCase):
     def test_owner_deletes_whole_case(self):
         calc, _, _ = self.make_case()
         self.client.force_login(self.owner)
-        response = self.client.get(reverse('calc:delete', args=[calc.pk]), secure=True)
+        response = self.client.post(reverse('calc:delete', args=[calc.pk]), secure=True)
+        self.assertRedirects(response, reverse('calc:index'), fetch_redirect_response=False)
+        self.assertFalse(Calculation.objects.filter(pk=calc.pk).exists())
+
+    def test_get_and_head_never_delete_a_case(self):
+        calc, _, _ = self.make_case()
+        self.client.force_login(self.owner)
+        url = reverse('calc:delete', args=[calc.pk])
+        for method in ('get', 'head'):
+            with self.subTest(method=method):
+                response = getattr(self.client, method)(url, secure=True)
+                self.assertRedirects(response, reverse('calc:index'), fetch_redirect_response=False)
+                self.assertTrue(Calculation.objects.filter(pk=calc.pk).exists())
+
+    def test_post_without_csrf_token_does_not_delete(self):
+        calc, _, _ = self.make_case()
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.owner)
+        response = client.post(
+            reverse('calc:delete', args=[calc.pk]), secure=True, headers={'referer': 'https://testserver/'},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Calculation.objects.filter(pk=calc.pk).exists())
+
+    def test_delete_button_on_the_list_works_with_csrf_checks_on(self):
+        calc, _, _ = self.make_case()
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.owner)
+        url = reverse('calc:delete', args=[calc.pk])
+        page = client.get(reverse('calc:index'), secure=True)
+        html = page.content.decode()
+        self.assertIn(f'<form action="{url}" method="post"', html)
+        self.assertNotIn(f'href="{url}"', html)
+        token = re.search(rf'<form action="{re.escape(url)}".*?name="csrfmiddlewaretoken" value="([^"]+)"', html, re.S)
+        response = client.post(
+            url, {'csrfmiddlewaretoken': token.group(1)}, secure=True, headers={'referer': 'https://testserver/'},
+        )
         self.assertRedirects(response, reverse('calc:index'), fetch_redirect_response=False)
         self.assertFalse(Calculation.objects.filter(pk=calc.pk).exists())
 
