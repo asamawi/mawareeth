@@ -83,7 +83,50 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
         run: python manage.py test
 
+  # Decides whether the slow deploy suites need to run. Anything unclear runs
+  # them. On master the comparison starts from the last successful run, not the
+  # previous commit, so a commit after a failed run cannot skip past the failure
+  # and publish it. A skipped job still leaves the run successful, which is what
+  # Publish Release Image and deploy/ci-deploy.sh check.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      deploy: ${{ steps.filter.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changes the deploy suites depend on
+        id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            # HEAD is the merge commit; its first parent is the target branch.
+            base="$(git rev-parse --verify -q 'HEAD^1' || true)"
+          else
+            base="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/django.yml/runs?branch=master&event=push&status=success&per_page=1" \
+              --jq '.workflow_runs[0].head_sha // empty' || true)"
+          fi
+          deploy=true
+          if [[ -n "$base" ]] && git cat-file -e "$base^{commit}" 2>/dev/null \
+            && changed="$(git diff --name-only "$base" HEAD)"; then
+            if ! grep -Eq '^(deploy/|Dockerfile|\.dockerignore$|\.gitignore$|\.github/workflows/)' <<<"$changed"; then
+              deploy=false
+            fi
+          fi
+          echo "compared ${base:-nothing} to HEAD; run deploy suites: $deploy"
+          echo "deploy=$deploy" >> "$GITHUB_OUTPUT"
+
   deploy-shell:
+    needs: changes
+    if: needs.changes.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
