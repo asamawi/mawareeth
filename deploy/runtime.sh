@@ -63,7 +63,7 @@ optional_app_keys=(SITE_ID FACEBOOK_KEY FACEBOOK_SECRET LINKEDIN_KEY LINKEDIN_SE
 optional_edge_keys=(EDGE_MODE REDIRECT_DOMAIN ORIGIN_CLIENT_AUTH)
 # Keys every runtime.env must carry. Together with optional_app_keys and
 # optional_edge_keys this is the complete allow-list.
-required_runtime_keys=(APP_IMAGE_REPOSITORY DJANGO_KEY DOMAIN MAILGUN_ACCESS_KEY MAILGUN_SERVER_NAME POSTGRES_DB POSTGRES_PASSWORD POSTGRES_USER)
+required_runtime_keys=(APP_IMAGE_REPOSITORY BREVO_SMTP_KEY BREVO_SMTP_LOGIN DJANGO_KEY DOMAIN POSTGRES_DB POSTGRES_PASSWORD POSTGRES_USER)
 
 load_raw_env() {
   local file="$1" line key value
@@ -96,7 +96,7 @@ validate_values() {
   [[ "${runtime_values[POSTGRES_USER]}" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || die 'POSTGRES_USER is invalid'
   [[ "${runtime_values[POSTGRES_PASSWORD]}" =~ ^[A-Za-z0-9._~-]{20,128}$ ]] || die 'POSTGRES_PASSWORD must be 20-128 URL-safe unreserved characters'
   ((${#runtime_values[DJANGO_KEY]} >= 32)) || die 'DJANGO_KEY must contain at least 32 characters'
-  validate_hostname "${runtime_values[MAILGUN_SERVER_NAME]}" MAILGUN_SERVER_NAME anycase
+  [[ "${runtime_values[BREVO_SMTP_LOGIN]}" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || die 'BREVO_SMTP_LOGIN must look like login@smtp-brevo.com'
   validate_optional_values
   validate_edge_values
 }
@@ -434,8 +434,8 @@ DJANGO_ALLOWED_HOSTS=${runtime_values[DOMAIN]}
 DJANGO_CSRF_TRUSTED_ORIGINS=https://${runtime_values[DOMAIN]}
 DATABASE_URL=postgresql://${runtime_values[POSTGRES_USER]}:${runtime_values[POSTGRES_PASSWORD]}@postgres:5432/${runtime_values[POSTGRES_DB]}
 DATABASE_SSL_MODE=disable
-MAILGUN_ACCESS_KEY=${runtime_values[MAILGUN_ACCESS_KEY]}
-MAILGUN_SERVER_NAME=${runtime_values[MAILGUN_SERVER_NAME]}"
+BREVO_SMTP_KEY=${runtime_values[BREVO_SMTP_KEY]}
+BREVO_SMTP_LOGIN=${runtime_values[BREVO_SMTP_LOGIN]}"
   local key
   for key in "${optional_app_keys[@]}"; do
     [[ -z "${runtime_values[$key]+x}" ]] || printf '%s=%s\n' "$key" "${runtime_values[$key]}"

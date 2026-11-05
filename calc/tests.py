@@ -1,6 +1,8 @@
 import re
 from unittest import mock
 
+from pathlib import Path
+
 from django.conf import settings
 from django.core.cache import cache
 from django.test import TestCase, Client, override_settings
@@ -1245,3 +1247,39 @@ class ErrorPageTests(TestCase):
         self.assertContains(response, 'حدث خطأ ما', status_code=500)
         self.assertContains(response, 'dir="rtl"', status_code=500)
         self.assertContains(self.get_500('fr'), 'Une erreur est survenue', status_code=500)
+
+
+class TemplateTagTests(TestCase):
+
+    def test_no_template_tag_spans_lines(self):
+        # Django only recognises a tag on one line; a split one is printed as
+        # literal text on the page.
+        split_tag = re.compile(r'\{%((?!%\}).)*\n|\{\{((?!\}\}).)*\n|\{#((?!#\}).)*\n', re.S)
+        templates = [p for p in Path(settings.BASE_DIR).glob('*/templates/**/*') if p.is_file()]
+        self.assertGreater(len(templates), 20)
+        for path in templates:
+            with self.subTest(template=str(path)):
+                self.assertIsNone(split_tag.search(path.read_text(encoding='utf-8')))
+
+    def test_signup_button_is_translated(self):
+        expected = {'en': 'Sign up', 'ar': 'تسجيل', 'fr': "S'inscrire"}
+        for language, text in expected.items():
+            with self.subTest(language=language), translation.override(language):
+                response = self.client.get(reverse('calc:signup'), secure=True)
+                self.assertContains(response, f'type="submit">{text}</button>')
+                self.assertNotContains(response, '{%')
+
+    def test_login_no_access_message_is_translated(self):
+        self.client.force_login(User.objects.create_user('someone', password='x'))
+        expected = {
+            'en': "Your account doesn't have access to this page.",
+            'ar': 'حسابك لا يملك إذنًا للوصول إلى هذه الصفحة.',
+            'fr': "Votre compte n'a pas accès à cette page.",
+        }
+        for language, text in expected.items():
+            with self.subTest(language=language):
+                # This URL has no language prefix, so the cookie sets the language.
+                self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = language
+                response = self.client.get(reverse('login') + '?next=/en/', secure=True)
+                self.assertContains(response, text)
+                self.assertNotContains(response, '{%')

@@ -74,8 +74,8 @@ POSTGRES_DB=mawareeth
 POSTGRES_USER=mawareeth
 POSTGRES_PASSWORD=LongUrlSafePassword_123456
 DJANGO_KEY=a-long-django-key-that-is-never-printed-1234567890
-MAILGUN_ACCESS_KEY=mailgun-secret-value
-MAILGUN_SERVER_NAME=mg.example.com
+BREVO_SMTP_KEY=brevo-secret-value
+BREVO_SMTP_LOGIN=login@smtp-brevo.example.com
 EOF
 chmod 600 "$tmp/runtime.env"
 
@@ -397,7 +397,7 @@ mutations() { grep -cE '^docker compose .* (up|stop|down)( |$)|manage\.py migrat
 route_is() { [[ "$(< "$state/routes/active-slot.caddy")" == *"reverse_proxy app-$1:8000"*"header_down X-Mawareeth-Slot $1"* ]] || fail "route does not target $1"; }
 caddy_is() { [[ -e "$S/running-caddy" && "$(< "$S/caddy-loaded")" == *"reverse_proxy app-$1:8000"* ]] || fail "Caddy does not serve $1"; }
 running() { [[ -e "$S/running-app-$1" ]]; }
-no_secrets() { ! grep -Eq 'LongUrlSafePassword_123456|a-long-django-key|mailgun-secret-value' "$tmp/out" || fail "$1 leaked a secret"; }
+no_secrets() { ! grep -Eq 'LongUrlSafePassword_123456|a-long-django-key|brevo-secret-value' "$tmp/out" || fail "$1 leaked a secret"; }
 no_temporaries() { [[ -z "$(find "$state" -name '.tmp.*' -print -quit)" ]] || fail "$1 left a temporary file behind"; }
 journal_field() { grep -E "^$1=" "$state/deploy.journal" | head -n 1 | cut -d= -f2-; }
 journal_failed_idle() {
@@ -851,7 +851,7 @@ grep -Fq 'password authentication failed' "$(journal_field migrate_log)" || fail
 
 # Unknown deploy arguments are refused before anything happens.
 cp "$state/deploy.journal" "$tmp/journal.before"; before="$(mutations)"; before_plans="$(plans)"
-for arg in 'deploy --bogus' 'deploy --allow-contract --allow-contract' 'deploy extra'; do
+for arg in 'deploy --bogus' 'deploy --allow-contract --allow-contract' 'deploy --rotate-config --rotate-config' 'deploy extra'; do
   run "$release" "$arg" manifest-a
   expect_rc 2 "release.sh $arg"
   need "$tmp/out" 'release.sh deploy [--allow-contract]'
@@ -1268,5 +1268,29 @@ route_is green; caddy_is green
 ! grep -E '^curl ' "$S/calls.log" | grep -Fv -- " --cert $tmp/origin-tls/aop-client.pem --key $tmp/origin-tls/aop-client-key.pem " >/dev/null \
   || fail 'an AOP deploy probe did not present the client certificate'
 no_secrets 'ORIGIN_CLIENT_AUTH=require deploy'
+
+# --- A deliberate configuration rotation --------------------------------------
+sed 's/^BREVO_SMTP_KEY=.*/BREVO_SMTP_KEY=rotated-smtp-key-that-is-never-printed/' "$tmp/runtime.env" > "$tmp/rotated.env"; chmod 600 "$tmp/rotated.env"
+green_record_before="$(< "$state/slots/green.env")"
+run_runtime prepare manifest-a "${origin_env[@]}" MAWAREETH_RUNTIME_FILE="$tmp/rotated.env"
+expect_rc 0 'prepare the rotated configuration'
+before="$(mutations)"
+run_release manifest-a "${origin_env[@]}" MAWAREETH_RUNTIME_FILE="$tmp/rotated.env"
+expect_rc 2 'a plain deploy over a changed configuration'
+need "$tmp/out" 'rotate configuration separately'
+[[ "$(mutations)" == "$before" ]] || fail 'the refused deploy mutated Docker state'
+route_is green
+: > "$S/calls.log"
+run "$release" 'deploy --rotate-config' manifest-a "${origin_env[@]}" MAWAREETH_RUNTIME_FILE="$tmp/rotated.env"
+expect_rc 0 'deploy --rotate-config'
+route_is blue; caddy_is blue
+rotated_snapshot="$(sed -n 's/^SNAPSHOT=//p' "$state/slots/blue.env")"
+grep -Fq 'BREVO_SMTP_KEY=rotated-smtp-key-that-is-never-printed' "$state/$rotated_snapshot" || fail 'the candidate did not get the rotated snapshot'
+[[ "$(< "$state/slots/green.env")" == "$green_record_before" ]] || fail 'the rotation changed the prior slot record'
+! grep -E 'up .*(app-green)' "$S/calls.log" >/dev/null || fail 'the rotation recreated the prior slot'
+! grep -Fq 'rotated-smtp-key' "$tmp/out" || fail 'the rotation printed the new secret'
+run_release manifest-b "${origin_env[@]}" MAWAREETH_RUNTIME_FILE="$tmp/rotated.env"
+expect_rc 0 'a plain deploy once the rotation has finished'
+route_is green
 
 printf '%s\n' 'release offline checks passed'

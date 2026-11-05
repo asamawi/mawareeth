@@ -171,7 +171,6 @@ INSTALLED_APPS = [
     'django.contrib.humanize',
     'mawareeth',
     'polymorphic',
-    'anymail',
     'crispy_forms',
     'crispy_bootstrap4',
     'django_icons',
@@ -300,12 +299,18 @@ LANGUAGES = [
 ]
 LOGIN_REDIRECT_URL = 'calc:index'
 LOGOUT_REDIRECT_URL = 'calc:index'
-ANYMAIL = {
-    "MAILGUN_API_KEY" : _required_production_setting('MAILGUN_ACCESS_KEY', default='dummy'),
-    "MAILGUN_API_URL": "https://api.eu.mailgun.net/v3",
-    "MAILGUN_SENDER_DOMAIN" : _required_production_setting('MAILGUN_SERVER_NAME', default='dummy'),
-}
-EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
+# Production sends through Brevo's SMTP relay; anywhere else prints to the console.
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend" if IS_PRODUCTION
+    else "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = "smtp-relay.brevo.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = _required_production_setting('BREVO_SMTP_LOGIN', default='')
+EMAIL_HOST_PASSWORD = _required_production_setting('BREVO_SMTP_KEY', default='')
+# Mail is sent during the request, so a stalled relay must not hold a worker.
+EMAIL_TIMEOUT = 10
 DEFAULT_FROM_EMAIL = "noreply@mawareeth.com"
 SERVER_EMAIL = "notifications@mawareeth.com"
 

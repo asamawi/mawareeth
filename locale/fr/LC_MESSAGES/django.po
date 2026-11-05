@@ -2362,5 +2362,8 @@ msgstr "Une erreur est survenue"
 msgid "We couldn't complete your request. Please try again in a moment."
 msgstr "Nous n'avons pas pu traiter votre demande. Veuillez réessayer dans un instant."
 
+msgid "Your account doesn't have access to this page. To proceed, please login with an account that has access."
+msgstr "Votre compte n'a pas accès à cette page. Pour continuer, veuillez vous connecter avec un compte qui y a accès."
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "Fils de frère paternel"

@@ -205,8 +205,8 @@ POSTGRES_DB=mawareeth
 POSTGRES_USER=mawareeth
 POSTGRES_PASSWORD=LongUrlSafePassword_123456
 DJANGO_KEY=a-long-django-$-#-quote-'-"-key-that-is-never-printed-123456
-MAILGUN_ACCESS_KEY=mailgun-secret-value
-MAILGUN_SERVER_NAME=mg.example.com
+BREVO_SMTP_KEY=brevo-secret-value
+BREVO_SMTP_LOGIN=login@smtp-brevo.example.com
 EOF
 chmod 600 "$tmp/runtime.env"
 
@@ -341,8 +341,8 @@ DJANGO_ALLOWED_HOSTS=example.com
 DJANGO_CSRF_TRUSTED_ORIGINS=https://example.com
 DATABASE_URL=postgresql://mawareeth:LongUrlSafePassword_123456@postgres:5432/mawareeth
 DATABASE_SSL_MODE=disable
-MAILGUN_ACCESS_KEY=mailgun-secret-value
-MAILGUN_SERVER_NAME=mg.example.com
+BREVO_SMTP_KEY=brevo-secret-value
+BREVO_SMTP_LOGIN=login@smtp-brevo.example.com
 EOF
 cmp -s "$tmp/expected-eight.snapshot.env" "$first_snapshot" || fail 'the eight-key snapshot is not byte-identical to the established content'
 [[ "$(basename "$first_snapshot")" == "$(sha256sum "$tmp/expected-eight.snapshot.env" | awk '{print $1}').snapshot.env" ]] \
@@ -367,7 +367,7 @@ prepare_with() {
 cleanup_optional() { rm -rf "$tmp/$1.env" "$tmp/$1-state"; }
 assert_no_secret_leak() {
   [[ "$2" != *"$fb_secret"* && "$2" != *"$li_key"* && "$2" != *"$li_secret"* \
-    && "$2" != *'LongUrlSafePassword_123456'* && "$2" != *'a-long-django-$-#-quote'* && "$2" != *'mailgun-secret-value'* ]] \
+    && "$2" != *'LongUrlSafePassword_123456'* && "$2" != *'a-long-django-$-#-quote'* && "$2" != *'brevo-secret-value'* ]] \
     || fail "$1 leaked a secret"
 }
 # expect_optional_refused LABEL MESSAGE BAD LINE...: refused before any state
@@ -1031,7 +1031,7 @@ for bad in \
   'POSTGRES_PASSWORD=unsafe/password' \
   'DOMAIN=https://example.com' \
   "DOMAIN=$(printf 'a%.0s' {1..250}).com" \
-  'MAILGUN_SERVER_NAME=-invalid.example.com' \
+  'BREVO_SMTP_LOGIN=no-at-sign' \
   'EXTRA_SECRET=unexpected'; do
   cp "$tmp/runtime.env" "$tmp/bad.env"
   if [[ "$bad" == EXTRA_* ]]; then printf '%s\n' "$bad" >> "$tmp/bad.env"; else sed -i "s|^${bad%%=*}=.*|$bad|" "$tmp/bad.env"; fi

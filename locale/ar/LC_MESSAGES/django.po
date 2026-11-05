@@ -2242,6 +2242,9 @@ msgstr "حدث خطأ ما"
 msgid "We couldn't complete your request. Please try again in a moment."
 msgstr "تعذّر علينا إكمال طلبك. يرجى المحاولة مرة أخرى بعد قليل."
 
+msgid "Your account doesn't have access to this page. To proceed, please login with an account that has access."
+msgstr "حسابك لا يملك إذنًا للوصول إلى هذه الصفحة. للمتابعة، يرجى تسجيل الدخول بحساب لديه إذن."
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "ابن أخ لأب"
 

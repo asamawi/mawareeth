@@ -82,8 +82,8 @@ jobs:
             --env DJANGO_CSRF_TRUSTED_ORIGINS=https://localhost \
             --env DATABASE_URL=sqlite:////tmp/mawareeth-smoke.sqlite3 \
             --env DATABASE_SSL_MODE=disable \
-            --env MAILGUN_ACCESS_KEY=build-only \
-            --env MAILGUN_SERVER_NAME=build.example.invalid \
+            --env BREVO_SMTP_KEY=build-only \
+            --env BREVO_SMTP_LOGIN=build@example.invalid \
             "$IMAGE_TAG"
           port="$(docker port "$container" 8000/tcp | head -n 1 | sed 's/.*://')"
           for attempt in {1..30}; do
