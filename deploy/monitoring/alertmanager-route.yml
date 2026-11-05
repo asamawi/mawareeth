@@ -1,4 +1,5 @@
-# Merge into SCDF's alertmanager.yml on p1 (deploy/README.md, "Monitoring and
+# Merge into alertmanager-custom.yml on p1, never alertmanager.yml, which the
+# Press agent overwrites (deploy/README.md, "Monitoring and
 # alerting"):
 #   - add both routes, in this order, as the FIRST entries of route.routes,
 #     before any catch-all: the Watchdog route must precede the project route;
