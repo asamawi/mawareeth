@@ -15,7 +15,10 @@ Including another URLconf
 """
 from django.conf.urls.i18n import i18n_patterns
 from django.contrib import admin
+from django.contrib.auth.decorators import login_not_required
+from django.contrib.auth.views import LogoutView
 from django.urls import include, path
+from django.views.i18n import set_language
 from calc import views as calc_views
 from mawareeth import ops_views
 from user_auth import views as user_auth_views
@@ -26,7 +29,8 @@ urlpatterns = [
     path('health/live/', ops_views.live, name='ops-live'),
     path('health/ready/', ops_views.ready, name='ops-ready'),
     path('health/release/', ops_views.release, name='ops-release'),
-    path('i18n/', include('django.conf.urls.i18n')),
+    path('i18n/setlang/', login_not_required(set_language), name='set_language'),
+    path('accounts/logout/', login_not_required(LogoutView.as_view()), name='logout'),
     path('accounts/', include('django.contrib.auth.urls')),
     path('social-auth/', include('social_django.urls', namespace="social")),
 

@@ -199,3 +199,21 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-credential-expiry-alerts.md`
   summary: Add a `for:` delay or split out the `absent()` branches of the existing `MawareethCollectorStale` and `MawareethDrillOverdue` rules, so one failed scrape cannot fire them before `MawareethHostDown` inhibits them.
   evidence: Review of the new token rule found this false-alarm path and fixed it there with `for: 5m`; both existing rules use `absent()` with no `for:`, and changing existing rules was outside this spec.
+- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
+  summary: Make `calc:delete` POST-only with CSRF protection, because a GET currently deletes the owner's whole case, so a link from another site can trigger it.
+  evidence: Needs a template change in `calc/templates/calc/index.html` and is a different flaw from the ownership gap that spec fixes.
+- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
+  summary: Stop `ResultsView` and `NewResultsView` writing to the database on GET through `compute()`.
+  evidence: Touches calculation behavior, which that spec leaves unchanged; Epic 2's pure engine is the natural place to resolve it.
+- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
+  summary: Review production access logs for past anonymous writes and cross-account reads on calc routes, since the app keeps no audit trail of them.
+  evidence: An operational investigation of possible past exposure, not a code change, and the outcome may require notifying users.
+- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
+  summary: Make `calc:new` answer a POST with no `name` field with the existing error message instead of a 500.
+  evidence: `request.POST["name"]` raises `MultiValueDictKeyError`; this predates that spec, which only handled the GET replay.
+- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
+  summary: Stop the results views running `compute()` before the waffle flag and HTTP method checks, so a flag-off 404 or a POST 405 writes nothing.
+  evidence: Both views call `compute()` first in `dispatch`, so an owner's rejected request still writes to the database; this predates that spec.
+- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
+  summary: Count production `Calculation` rows with `user=None` and decide what happens to them, since the app now answers 404 for them and only Django admin reaches them.
+  evidence: The count was not checked before the change, so the number of affected cases is unknown.

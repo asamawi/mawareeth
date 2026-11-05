@@ -1,11 +1,16 @@
-from django.test import TestCase, Client
+from unittest import mock
+
+from django.conf import settings
+from django.core.cache import cache
+from django.test import TestCase, Client, override_settings
 from calc.models import *
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.http.request import HttpRequest
-from django.urls import reverse
+from django.urls import resolve, reverse
 
 from . import views
+from mawareeth.urls import calc_patterns
 
 
 
@@ -898,3 +903,238 @@ class CalculationSonOfUncleTestCase(TestCase):
         self.assertEqual(calc1.shares, 24)
         self.assertEqual(calc1.shares_corrected, 0)
         self.assertEqual(calc1.heir_set.filter(asaba=True).count(), 1)
+
+
+CALC_ROUTES = {
+    'detail', 'delete', 'calc_update', 'results', 'new_results',
+    'deceased', 'mother', 'father', 'husband', 'wife', 'daughter', 'son',
+    'brother', 'sister', 'grandFather', 'grandMother', 'sonOfSon',
+    'daughterOfSon', 'paternalSister', 'paternalBrother', 'maternalSister',
+    'maternalBrother', 'sonOfBrother', 'sonOfPaternalBrother', 'uncle',
+    'paternalUncle', 'sonOfUncle', 'sonOfPaternalUncle',
+}
+DECEASED_ROUTES = {'deceased_update', 'deceased_delete'}
+HEIR_ROUTES = {'heir_update', 'heir_delete'}
+PUBLIC_ROUTES = {'home', 'terms', 'privacy', 'about', 'error', 'signup'}
+LOGIN_ONLY_ROUTES = {'index', 'new'}
+TAMPER = {'name': 'HACKED', 'first_name': 'HACKED', 'last_name': 'HACKED', 'sex': 'M', 'estate': '1'}
+
+
+class CalculationAccessControlTests(TestCase):
+
+    def setUp(self):
+        cache.clear()  # waffle caches flag state across tests
+        self.owner = User.objects.create_user('owner', password='x')
+        self.other = User.objects.create_user('other', password='x')
+
+    def make_case(self, user=None):
+        calc = Calculation.objects.create(name='case', user=user or self.owner)
+        deceased = Deceased.objects.create(first_name='D', last_name='L', sex='M', estate=1000, calc=calc)
+        father = Father.objects.create(first_name='F', last_name='L', sex='M', calc=calc)
+        calc.add_father(father)
+        return calc, deceased, father
+
+    def case_url(self, name, calc, deceased, heir):
+        if name in DECEASED_ROUTES:
+            return reverse(f'calc:{name}', args=[deceased.pk])
+        if name in HEIR_ROUTES:
+            return reverse(f'calc:{name}', args=[heir.pk])
+        return reverse(f'calc:{name}', args=[calc.pk])
+
+    def snapshot(self):
+        return (
+            sorted(Calculation.objects.values_list('pk', 'name', 'user_id')),
+            sorted(Person.objects.non_polymorphic().values_list('pk', 'first_name', 'last_name')),
+            sorted(Deceased.objects.non_polymorphic().values_list('pk', 'estate')),
+        )
+
+    def assert_redirects_to_login(self, response):
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response['Location'].startswith(reverse('login')), response['Location'])
+
+    def test_every_route_is_classified(self):
+        names = {pattern.name for pattern in calc_patterns[0]}
+        case_routes = {p.name for p in calc_patterns[0] if p.pattern.converters}
+        self.assertEqual(case_routes, CALC_ROUTES | DECEASED_ROUTES | HEIR_ROUTES)
+        self.assertEqual(names - case_routes, PUBLIC_ROUTES | LOGIN_ONLY_ROUTES)
+
+    @override_settings(WAFFLE_FLAG_DEFAULT=True)
+    def test_owner_reaches_every_case_route(self):
+        # The control for the denials below: a route that 404s for its owner
+        # would make those assertions pass without testing ownership.
+        self.client.force_login(self.owner)
+        for name in sorted(CALC_ROUTES | DECEASED_ROUTES | HEIR_ROUTES):
+            for method in ('get', 'post'):
+                with self.subTest(route=name, method=method):
+                    url = self.case_url(name, *self.make_case())
+                    response = getattr(self.client, method)(url, TAMPER, secure=True)
+                    self.assertNotEqual(response.status_code, 404)
+
+    @override_settings(WAFFLE_FLAG_DEFAULT=True)
+    def test_other_user_gets_404_on_every_case_route(self):
+        self.client.force_login(self.other)
+        for name in sorted(CALC_ROUTES | DECEASED_ROUTES | HEIR_ROUTES):
+            for method in ('get', 'post'):
+                with self.subTest(route=name, method=method):
+                    url = self.case_url(name, *self.make_case())
+                    before = self.snapshot()
+                    with mock.patch.object(Calculation, 'compute') as compute:
+                        response = getattr(self.client, method)(url, TAMPER, secure=True)
+                    self.assertEqual(response.status_code, 404)
+                    compute.assert_not_called()
+                    self.assertEqual(self.snapshot(), before)
+
+    @override_settings(WAFFLE_FLAG_DEFAULT=True)
+    def test_anonymous_goes_to_login_on_every_case_route(self):
+        for name in sorted(CALC_ROUTES | DECEASED_ROUTES | HEIR_ROUTES):
+            for method in ('get', 'post'):
+                with self.subTest(route=name, method=method):
+                    url = self.case_url(name, *self.make_case())
+                    before = self.snapshot()
+                    with mock.patch.object(Calculation, 'compute') as compute:
+                        response = getattr(self.client, method)(url, TAMPER, secure=True)
+                    self.assert_redirects_to_login(response)
+                    compute.assert_not_called()
+                    self.assertEqual(self.snapshot(), before)
+
+    def test_missing_id_matches_another_users_case(self):
+        calc, _, _ = self.make_case()
+        self.client.force_login(self.other)
+        for name in ('detail', 'results'):
+            with self.subTest(route=name):
+                missing = self.client.get(reverse(f'calc:{name}', args=[calc.pk + 1000]), secure=True)
+                denied = self.client.get(reverse(f'calc:{name}', args=[calc.pk]), secure=True)
+                self.assertEqual(missing.status_code, 404)
+                self.assertEqual(denied.status_code, 404)
+
+    def test_null_owner_case_is_404_in_the_app_and_open_in_admin(self):
+        calc = Calculation.objects.create(name='legacy', user=None)
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('calc:detail', args=[calc.pk]), secure=True)
+        self.assertEqual(response.status_code, 404)
+        self.client.force_login(User.objects.create_superuser('root', password='x'))
+        response = self.client.get(reverse('admin:calc_calculation_change', args=[calc.pk]), secure=True)
+        self.assertEqual(response.status_code, 200)
+
+    def test_flag_off_still_404s_for_owner(self):
+        calc, _, _ = self.make_case()
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('calc:new_results', args=[calc.pk]), secure=True)
+        self.assertEqual(response.status_code, 404)
+
+    def test_anonymous_new_redirects_without_creating(self):
+        response = self.client.post(reverse('calc:new'), {'name': 'x'}, secure=True)
+        self.assert_redirects_to_login(response)
+        self.assertEqual(Calculation.objects.count(), 0)
+
+    def test_new_get_after_login_redirects_to_index(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('calc:new'), secure=True)
+        self.assertRedirects(response, reverse('calc:index'), fetch_redirect_response=False)
+
+    def test_owner_can_still_create_a_case(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse('calc:new'), {'name': 'mine'}, secure=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Calculation.objects.get().user, self.owner)
+
+    def test_owner_deletes_heir(self):
+        calc, _, father = self.make_case()
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse('calc:heir_delete', args=[father.pk]), secure=True)
+        self.assertRedirects(response, reverse('calc:detail', args=[calc.pk]), fetch_redirect_response=False)
+        self.assertFalse(Father.objects.filter(pk=father.pk).exists())
+
+    def test_owner_deleting_deceased_removes_the_heirs(self):
+        calc, deceased, _ = self.make_case()
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse('calc:deceased_delete', args=[deceased.pk]), secure=True)
+        self.assertRedirects(response, reverse('calc:detail', args=[calc.pk]), fetch_redirect_response=False)
+        self.assertFalse(Deceased.objects.filter(pk=deceased.pk).exists())
+        self.assertEqual(calc.heir_set.count(), 0)
+
+    def test_public_pages_stay_reachable_when_logged_out(self):
+        for name in sorted(PUBLIC_ROUTES):
+            with self.subTest(route=name):
+                response = self.client.get(reverse(f'calc:{name}'), secure=True)
+                self.assertEqual(response.status_code, 200)
+        for url in (reverse('login'), reverse('password_reset'), reverse('admin:login')):
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url, secure=True).status_code, 200)
+
+    def test_language_switch_works_when_logged_out(self):
+        response = self.client.post(reverse('set_language'), {'language': 'en', 'next': '/en/'}, secure=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/en/')
+        self.assertEqual(response.cookies[settings.LANGUAGE_COOKIE_NAME].value, 'en')
+
+    def test_health_and_social_login_are_exempt_from_login(self):
+        urls = [reverse(name) for name in ('ops-live', 'ops-ready', 'ops-release')]
+        urls.append(reverse('social:begin', args=['linkedin-openidconnect']))
+        urls.append(reverse('social:complete', args=['linkedin-openidconnect']))
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertIs(resolve(url).func.login_required, False)
+
+    def test_admin_sends_anonymous_to_admin_login(self):
+        response = self.client.get(reverse('admin:index'), secure=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response['Location'].startswith(reverse('admin:login')), response['Location'])
+
+    def test_owner_deletes_whole_case(self):
+        calc, _, _ = self.make_case()
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('calc:delete', args=[calc.pk]), secure=True)
+        self.assertRedirects(response, reverse('calc:index'), fetch_redirect_response=False)
+        self.assertFalse(Calculation.objects.filter(pk=calc.pk).exists())
+
+    def test_delete_link_cannot_replay_through_login(self):
+        calc, _, _ = self.make_case()
+        response = self.client.get(reverse('calc:delete', args=[calc.pk]), secure=True)
+        self.assert_redirects_to_login(response)
+        self.assertNotIn('next=', response['Location'])
+        self.assertTrue(Calculation.objects.filter(pk=calc.pk).exists())
+
+    def test_delete_verb_is_rejected_without_deleting(self):
+        calc, deceased, father = self.make_case()
+        self.client.force_login(self.owner)
+        for name, obj in (('heir_delete', father), ('deceased_delete', deceased)):
+            with self.subTest(route=name):
+                response = self.client.delete(reverse(f'calc:{name}', args=[obj.pk]), secure=True)
+                self.assertEqual(response.status_code, 405)
+        self.assertTrue(Father.objects.filter(pk=father.pk).exists())
+        self.assertTrue(Deceased.objects.filter(pk=deceased.pk).exists())
+
+    def test_owner_updates_are_saved(self):
+        calc, deceased, father = self.make_case()
+        self.client.force_login(self.owner)
+        self.client.post(reverse('calc:calc_update', args=[calc.pk]), {'name': 'renamed'}, secure=True)
+        self.client.post(reverse('calc:heir_update', args=[father.pk]), {'first_name': 'New', 'last_name': 'L'}, secure=True)
+        self.client.post(reverse('calc:deceased_update', args=[deceased.pk]), {'first_name': 'D', 'last_name': 'L', 'estate': '2000'}, secure=True)
+        calc.refresh_from_db()
+        father.refresh_from_db()
+        deceased.refresh_from_db()
+        self.assertEqual(calc.name, 'renamed')
+        self.assertEqual(father.first_name, 'New')
+        self.assertEqual(deceased.estate, 2000)
+
+    def test_owner_creates_deceased_and_flagged_heir(self):
+        calc = Calculation.objects.create(name='empty', user=self.owner)
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse('calc:deceased', args=[calc.pk]), {'first_name': 'D', 'last_name': 'L', 'sex': 'M', 'estate': '1000'}, secure=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(calc.deceased_set.count(), 1)
+        with override_settings(WAFFLE_FLAG_DEFAULT=True):
+            response = self.client.post(reverse('calc:brother', args=[calc.pk]), {'first_name': 'B', 'last_name': 'L'}, secure=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(calc.heir_set.instance_of(Brother).count(), 1)
+
+    def test_anonymous_index_goes_to_login(self):
+        self.assert_redirects_to_login(self.client.get(reverse('calc:index'), secure=True))
+
+    def test_logout_does_not_get_stuck_behind_login(self):
+        response = self.client.post(reverse('logout'), secure=True)
+        self.assertFalse(response.get('Location', '').startswith(reverse('login') + '?next='))
+        self.client.force_login(self.owner)
+        self.client.post(reverse('logout'), secure=True)
+        self.assertNotIn('_auth_user_id', self.client.session)

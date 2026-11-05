@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.contrib.auth.decorators import login_not_required
 from django.db import connections, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.http import JsonResponse
@@ -60,6 +61,7 @@ def _readiness_checks():
         return _checks_pass()
 
 
+@login_not_required
 @never_cache
 def live(request):
     return JsonResponse({"status": "ok", "service": "mawareeth"})
@@ -67,6 +69,7 @@ def live(request):
 
 # Kept out of ATOMIC_REQUESTS so the probe's own transaction, and its SET LOCAL
 # timeouts, still apply if that setting is ever enabled.
+@login_not_required
 @transaction.non_atomic_requests
 @never_cache
 def ready(request):
@@ -81,6 +84,7 @@ def ready(request):
     return JsonResponse({"status": "error"}, status=503)
 
 
+@login_not_required
 @never_cache
 def release(request):
     payload = {
