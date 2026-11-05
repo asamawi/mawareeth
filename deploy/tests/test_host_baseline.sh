@@ -56,6 +56,8 @@ need "$bootstrap" 'ufw --force reset'
 need "$bootstrap" 'https://download.docker.com/linux/ubuntu'
 need "$bootstrap" 'unattended-upgrades'
 need "$bootstrap" '0700 /etc/mawareeth'
+need "$bootstrap" '/etc/cloud/cloud.cfg.d/99-mawareeth-no-network-hotplug.cfg'
+need "$bootstrap" "when: ['boot-new-instance']"
 need "$bootstrap" '0600 /dev/null /etc/mawareeth/runtime.env'
 need "$bootstrap" 'refusing unsafe ownership or mode on runtime secret file'
 # The Docker-port backstop must follow Docker restarts, not only host boots.
