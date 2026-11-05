@@ -17,6 +17,7 @@ dependencies = [
     "django-icons==25.3",
     "django-polymorphic==4.1.0",
     "django-waffle==5.0.0",
+    "djangorestframework==3.18.3",
     "dnspython==2.9.0",
     "gunicorn==26.2.0",
     "idna==3.15",

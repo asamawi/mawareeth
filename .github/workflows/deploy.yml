@@ -100,6 +100,17 @@ jobs:
           done
           curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:$port/health/release/" > release-identity.json
           python3 -c 'import json, os; data=json.load(open("release-identity.json", encoding="utf-8")); expected=os.environ["EXPECTED_SHA"]; assert data["release"] == expected and data["commit"] == expected'
+          # Anything but the health paths is redirected to HTTPS without this header.
+          smoke() { curl --fail --silent --show-error --max-time 5 --header 'X-Forwarded-Proto: https' "$@"; }
+          smoke "http://127.0.0.1:$port/app/ar/" > shell.html
+          grep -q 'dir="rtl"' shell.html
+          asset="$(grep -oE '/app/_next/static/[^"]+\.(js|css)' shell.html | sed -n 1p)"
+          test -n "$asset"
+          smoke "http://127.0.0.1:$port$asset" >/dev/null
+          smoke "http://127.0.0.1:$port/api/v1/session/" > session.json
+          python3 -c 'import json; assert json.load(open("session.json", encoding="utf-8")) == {"authenticated": False}'
+          # The image carries the export only: no frontend sources or dependencies.
+          docker run --rm --entrypoint sh "$IMAGE_TAG" -c 'test ! -e /app/web && test -f /app/web-dist/app/ar/index.html && test -z "$(find /app -name node_modules)"'
 
       # Reject unsupported contract inputs before anything reaches the registry;
       # the placeholder digest is replaced by the pushed digest below.

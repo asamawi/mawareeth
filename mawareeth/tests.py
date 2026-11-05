@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import re
 import time
@@ -7,7 +8,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from uuid import uuid4
+from wsgiref.headers import Headers
 
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.management.commands import migrate
 from django.db import OperationalError, connection, connections, migrations, models, transaction
@@ -15,6 +18,8 @@ from django.db.migrations.recorder import MigrationRecorder
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+
+from mawareeth.web_headers import add_web_headers
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -395,6 +400,118 @@ class PrivateHealthProbeTests(TestCase):
         self.assertTrue(response["Location"].startswith("https://mawareeth.example/"))
 
 
+class WebExportTests(TestCase):
+    """The export is a build artifact, so these use a stand-in for it."""
+
+    ASSET = "/app/_next/static/chunks/abc123.js"
+
+    def setUp(self):
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        for locale, direction in (("ar", "rtl"), ("en", "ltr"), ("fr", "ltr")):
+            page = root / "app" / locale / "index.html"
+            page.parent.mkdir(parents=True)
+            page.write_text(f'<!DOCTYPE html><html lang="{locale}" dir="{direction}"></html>', encoding="utf-8")
+        asset = root / self.ASSET.lstrip("/")
+        asset.parent.mkdir(parents=True)
+        asset.write_text("console.log(1)", encoding="utf-8")
+        overridden = override_settings(WHITENOISE_ROOT=root)
+        overridden.enable()
+        self.addCleanup(overridden.disable)
+
+    def test_shell_page_has_language_direction_and_headers(self):
+        for locale, direction in (("ar", "rtl"), ("en", "ltr"), ("fr", "ltr")):
+            with self.subTest(locale=locale):
+                response = self.client.get(f"/app/{locale}/", secure=True)
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response["Content-Type"].startswith("text/html"))
+                self.assertEqual(response["X-Frame-Options"], "DENY")
+                self.assertEqual(response["X-Robots-Tag"], "noindex")
+                self.assertEqual(response["Cache-Control"], "no-cache")
+                self.assertIn("ETag", response)
+                content = b"".join(response.streaming_content).decode()
+                self.assertIn(f'lang="{locale}"', content)
+                self.assertIn(f'dir="{direction}"', content)
+
+    def test_unknown_locale_is_404(self):
+        self.assertEqual(self.client.get("/app/de/", secure=True).status_code, 404)
+
+    def test_hashed_asset_is_immutable_for_one_year(self):
+        response = self.client.get(self.ASSET, secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Cache-Control"], "public, max-age=31536000, immutable")
+        self.assertEqual(response["X-Frame-Options"], "DENY")
+        response.close()
+
+    def test_missing_asset_is_404(self):
+        response = self.client.get("/app/_next/static/chunks/missing.js", secure=True)
+        self.assertEqual(response.status_code, 404)
+
+    def test_existing_routes_still_respond(self):
+        self.assertEqual(self.client.get("/ar/", secure=True).status_code, 200)
+        self.assertEqual(self.client.get("/health/ready/", secure=True).status_code, 200)
+
+
+class WebRootRedirectTests(TestCase):
+    def assertRedirectsTo(self, response, location):
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], location)
+
+    def test_defaults_to_arabic(self):
+        self.assertRedirectsTo(self.client.get("/app/", secure=True), "/app/ar/")
+
+    def test_unsupported_language_falls_back_to_arabic(self):
+        response = self.client.get("/app/", secure=True, headers={"accept-language": "de"})
+        self.assertRedirectsTo(response, "/app/ar/")
+
+    def test_follows_accept_language(self):
+        response = self.client.get("/app/", secure=True, headers={"accept-language": "fr-FR,fr;q=0.9"})
+        self.assertRedirectsTo(response, "/app/fr/")
+
+    def test_cookie_wins_over_accept_language(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "en"
+        response = self.client.get("/app/", secure=True, headers={"accept-language": "fr"})
+        self.assertRedirectsTo(response, "/app/en/")
+
+    def test_keeps_the_query_string(self):
+        response = self.client.get('/app/?utm_source=x&a=1', secure=True, headers={'Accept-Language': 'en'})
+        self.assertEqual(response['Location'], '/app/en/?utm_source=x&a=1')
+
+    def test_redirect_is_not_cached_or_indexed(self):
+        response = self.client.get("/app/", secure=True)
+        self.assertIn("no-store", response["Cache-Control"])
+        self.assertEqual(response["X-Robots-Tag"], "noindex")
+        self.assertIn("Cookie", response["Vary"])
+        self.assertIn("Accept-Language", response["Vary"])
+
+    def test_post_is_rejected(self):
+        self.assertEqual(self.client.post("/app/", secure=True).status_code, 405)
+
+
+class WebExportAbsentTests(TestCase):
+    @override_settings(WHITENOISE_ROOT=None)
+    def test_shell_page_404s_while_redirect_and_api_work(self):
+        self.assertEqual(self.client.get("/app/ar/", secure=True).status_code, 404)
+        self.assertEqual(self.client.get("/app/", secure=True).status_code, 302)
+        self.assertEqual(self.client.get("/api/v1/session/", secure=True).status_code, 200)
+
+    def test_settings_only_set_whitenoise_root_when_the_export_exists(self):
+        with patch("pathlib.Path.is_dir", return_value=False):
+            self.assertFalse(hasattr(load_settings_module({}), "WHITENOISE_ROOT"))
+        with patch("pathlib.Path.is_dir", return_value=True):
+            module = load_settings_module({})
+        self.assertEqual(module.WHITENOISE_ROOT, module.BASE_DIR / "web-dist")
+
+
+class WebHeadersTests(SimpleTestCase):
+    def test_static_files_keep_their_immutable_headers(self):
+        immutable = "max-age=315360000, public, immutable"
+        headers = Headers([("Cache-Control", immutable)])
+        add_web_headers(headers, "/srv/staticfiles/site.abc123.css", "/static/site.abc123.css")
+        self.assertEqual(headers.items(), [("Cache-Control", immutable)])
+
+
 class WorkflowContractTests(SimpleTestCase):
     def test_validation_workflow_contains_required_release_gates(self):
         workflow = (PROJECT_ROOT / ".github" / "workflows" / "django.yml").read_text(encoding="utf-8")
@@ -411,6 +528,26 @@ class WorkflowContractTests(SimpleTestCase):
                 match = re.search(executable_step, workflow)
                 self.assertIsNotNone(match)
                 self.assertNotRegex(match.group(0), r"(?m)^ +if: false$")
+
+    @unittest.skipUnless((PROJECT_ROOT / "web").is_dir(), "the release image has no frontend sources")
+    def test_export_locales_match_django_languages(self):
+        codes = sorted(code for code, _name in settings.LANGUAGES)
+        web = PROJECT_ROOT / "web"
+        messages = (web / "src" / "i18n" / "messages.ts").read_text(encoding="utf-8")
+        locales = re.search(r"locales = \[([^\]]*)\]", messages).group(1)
+        self.assertEqual(sorted(re.findall(r'"([a-z-]+)"', locales)), codes)
+        check = (web / "scripts" / "check-export.mjs").read_text(encoding="utf-8")
+        expected = re.search(r"expected = \{([^}]*)\}", check).group(1)
+        self.assertEqual(sorted(re.findall(r"([a-z-]+):", expected)), codes)
+
+    @unittest.skipUnless((PROJECT_ROOT / "web").is_dir(), "the release image has no frontend sources")
+    def test_node_version_is_the_same_everywhere(self):
+        web = PROJECT_ROOT / "web"
+        nvmrc = (web / ".nvmrc").read_text(encoding="utf-8").strip()
+        engines = json.loads((web / "package.json").read_text(encoding="utf-8"))["engines"]["node"]
+        dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        image = re.search(r"FROM node:([0-9.]+)-slim@sha256:", dockerfile).group(1)
+        self.assertEqual({nvmrc, engines, image}, {nvmrc})
 
     def test_image_build_fails_on_static_or_deploy_check_errors(self):
         dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
@@ -513,6 +650,33 @@ class WorkflowContractTests(SimpleTestCase):
                 self.assertRegex(jobs[name], r"(?m)^    timeout-minutes: \d+$")
                 self.assertRegex(jobs[name], r"(?m)^    permissions:\n      contents: read$")
                 self.assertNotRegex(jobs[name], r"(?m)^ +if:")
+
+    def test_validation_workflow_gates_on_the_web_job(self):
+        workflow = (PROJECT_ROOT / ".github" / "workflows" / "django.yml").read_text(encoding="utf-8")
+        jobs_section = workflow[workflow.index("\njobs:\n") :]
+        match = re.search(r"(?m)^  web:\n((?:(?: {4}[^\n]*| *)\n)*)", jobs_section)
+        self.assertIsNotNone(match)
+        job = match.group(1)
+        self.assertIn("node-version-file: web/.nvmrc", job)
+        for command in (
+            "npm ci",
+            "npm run lint",
+            "npm run typecheck",
+            "npm test",
+            "npm run build",
+            "node scripts/check-export.mjs",
+        ):
+            with self.subTest(command=command):
+                self.assertRegex(job, rf"(?m)^ +run: {re.escape(command)}$")
+        self.assertNotRegex(job, r"(?m)^ +(if|continue-on-error):")
+
+    def test_publish_smoke_test_covers_the_frontend_and_api(self):
+        workflow = (PROJECT_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+        start = workflow.index("- name: Smoke-test release image")
+        smoke = workflow[start : workflow.index("- name: Preflight release manifest inputs")]
+        for snippet in ("X-Forwarded-Proto: https", "/app/ar/", 'dir="rtl"', "/app/_next/static/", "/api/v1/session/"):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, smoke)
 
     def _production_deploy_workflow(self):
         return (PROJECT_ROOT / ".github" / "workflows" / "deploy-production.yml").read_text(encoding="utf-8")

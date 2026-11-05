@@ -20,7 +20,7 @@ from django.contrib.auth.views import LogoutView
 from django.urls import include, path
 from django.views.i18n import set_language
 from calc import views as calc_views
-from mawareeth import ops_views
+from mawareeth import ops_views, web_views
 from user_auth import views as user_auth_views
 
 urlpatterns = [
@@ -33,6 +33,9 @@ urlpatterns = [
     path('accounts/logout/', login_not_required(LogoutView.as_view()), name='logout'),
     path('accounts/', include('django.contrib.auth.urls')),
     path('social-auth/', include('social_django.urls', namespace="social")),
+    path('api/v1/', include('api.urls')),
+    # The export's pages are served by WhiteNoise; only this entry point is a view.
+    path('app/', web_views.app_root, name='web-app-root'),
 
 ]
 

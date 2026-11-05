@@ -1,3 +1,18 @@
+# Builds the Next.js static export, which the release image serves under /app/.
+FROM node:26.13.0-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS web
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+WORKDIR /web
+
+COPY web/package.json web/package-lock.json web/.npmrc ./
+
+RUN npm ci
+
+COPY web/ ./
+
+RUN npm run build && node scripts/check-export.mjs
+
 FROM python:3.12.15-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS builder
 
 ARG RELEASE_VERSION=build
@@ -21,6 +36,10 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --locked --no-default-groups
 
 COPY . .
+
+# The image carries the export, never the frontend sources or their dependencies.
+RUN rm -rf /app/web
+COPY --from=web /web/out /app/web-dist/app
 
 # These values exist only for build-time Django validation; runtime secrets are
 # injected by the deployment environment and never baked into the image.

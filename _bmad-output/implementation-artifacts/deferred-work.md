@@ -250,3 +250,33 @@
 - source_spec: none
   summary: Add an "are you sure?" confirmation before deleting a whole case from the case list, as part of product development, using the confirmation dialog the UX spec defines for destructive actions.
   evidence: `calc:delete` deletes on one click of the trash button, while `heir_delete` and `deceased_delete` already show a confirmation page; `_bmad-output/planning-artifacts/ux-design-specification/ux-consistency-patterns.md:17` requires a confirmation dialog for removing a case. The owner chose on 2026-11-05 to leave this out of the security fix in PR #93 and handle it in product work.
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
+  summary: Enforce CSRF explicitly on anonymous POSTs when Story 1.1 adds them.
+  evidence: DRF's `SessionAuthentication` enforces CSRF only for logged-in users, so anonymous writes get no CSRF check by default.
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
+  summary: Handle a tab left open across a deploy, which can 404 on lazily loaded old chunks, once real routes exist.
+  evidence: The image holds only its own release's hashed assets, and the foundation's single page has no lazily loaded routes to exercise this.
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
+  summary: Add shadcn/ui, React Query, Zustand and drf-spectacular with the first story that uses each.
+  evidence: The foundation has one page and one read-only endpoint, so none of them has a user yet.
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
+  summary: Unify full-site i18n URLs between `/ar/` and `/app/ar/`.
+  evidence: `/ar/`, `/en/` and `/fr/` belong to Django, which is why the export is served under `/app/`.
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
+  summary: Add browser-level tests (hydration, rendered states, RTL, no-retry) when the frontend gains real routes.
+  evidence: The foundation's automated tests cover the probe logic but not `SessionStatus` rendering; hydration was checked by hand in headless Chrome only.
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
+  summary: Add throttling to the public API before Story 1.1 opens anonymous writes.
+  evidence: `REST_FRAMEWORK` sets no throttle classes, and anonymous writes would be the first expensive public endpoints.
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
+  summary: Add a Content-Security-Policy for pages under `/app/`.
+  evidence: `add_web_headers` sets frame and robots headers only, and the settings define no CSP.
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
+  summary: Watch npm dependencies for vulnerabilities and move off `eslint@9`, which npm reports as unsupported.
+  evidence: The new `web` job runs no audit and the diff adds no update tooling, so nothing flags a Next or React advisory.
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
+  summary: Allow the `next dev` origin for CSRF when Story 1.1 adds its first POST.
+  evidence: Development proxies through `localhost:3000`, which the CSRF settings were not changed to cover, so the first write may be rejected in development.
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
+  summary: Give the interview a fallback when JavaScript is off or its chunks fail to load, and a way to change language.
+  evidence: The shell's static HTML stays on the checking message without hydration and has no language switcher; both are acceptable only while `/app/` is unlinked.

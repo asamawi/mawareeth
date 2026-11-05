@@ -7,6 +7,8 @@ from decouple import Csv, config
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.translation import gettext_lazy as _
 
+from mawareeth.web_headers import add_web_headers
+
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -177,6 +179,8 @@ INSTALLED_APPS = [
     'active_link',
     'social_django',
     'waffle',
+    'rest_framework',
+    'api.apps.ApiConfig',
 ]
 
 # Default primary key field type for models
@@ -280,6 +284,21 @@ STORAGES = {
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage" if not DEBUG else "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
+}
+
+# The Next.js export, built into the release image at web-dist/app/ and served
+# under /app/. It is absent in development and tests, where /app/<locale>/ 404s.
+WEB_DIST_DIR = BASE_DIR / 'web-dist'
+if WEB_DIST_DIR.is_dir():
+    WHITENOISE_ROOT = WEB_DIST_DIR
+WHITENOISE_INDEX_FILE = True
+WHITENOISE_ADD_HEADERS_FUNCTION = add_web_headers
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.SessionAuthentication'],
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
+    'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
+    'DEFAULT_PARSER_CLASSES': ['rest_framework.parsers.JSONParser'],
 }
 
 

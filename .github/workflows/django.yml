@@ -213,6 +213,45 @@ jobs:
             RELEASE_VERSION=ci
             RELEASE_COMMIT_SHA=${{ github.sha }}
 
+  # A failure here fails the run, which keeps Publish Release Image from starting.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: web
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build static export
+        run: npm run build
+
+      - name: Check static export
+        run: node scripts/check-export.mjs
+
   caddy-config:
     runs-on: ubuntu-latest
     timeout-minutes: 10

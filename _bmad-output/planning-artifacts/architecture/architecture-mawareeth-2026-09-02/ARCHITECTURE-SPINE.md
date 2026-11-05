@@ -51,6 +51,7 @@ flowchart LR
 - **Binds:** Application packaging and infrastructure boundaries
 - **Prevents:** A Heroku exit turning into an unrelated frontend/backend rewrite
 - **Rule:** The server-rendered Django application remains one deployable WSGI unit; infrastructure changes must not require Next.js, DRF extraction, or service decomposition. This spine governs the Heroku-exit phase and supersedes conflicting infrastructure-phase instructions in the older planning architecture; any later product rewrite requires a separately approved spine.
+- **Addendum (2026-11-05):** The owner approved Next.js and DRF for product delivery, as a static export inside the one deployable unit. The export is built into the release image and served by WhiteNoise under `/app/`, and the DRF API runs in the same Gunicorn process under `/api/v1/`, so production runs no Node server and blue-green release and rollback stay atomic. The server-rendered Django pages remain. AD-2 is unchanged. A Node server or a separately deployed frontend still needs its own approval. This addendum is the separate approval the rule above requires; the owner confirmed the design by approving `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md` on 2026-11-06.
 
 ### AD-2 — One cost-first production host [ADOPTED]
 
@@ -188,7 +189,7 @@ deploy/
 - Continuous WAL archiving and point-in-time recovery; revisit immediately after the first tested off-host backup/restore path exists.
 - Multi-host high availability; revisit when host maintenance/failure downtime becomes unacceptable.
 - Managed PostgreSQL such as Neon; revisit when database operations, memory pressure, or availability justify its recurring cost.
-- Vercel or a separate Next.js frontend; revisit only if a product requirement creates an independently deployable frontend.
+- Vercel or a separately deployed Next.js frontend; revisit only if a product requirement creates an independently deployable frontend. Next.js as a static export inside the one deployable unit is approved (see the AD-1 addendum).
 - Redis, task workers, Kubernetes, and a self-hosted PaaS dashboard; revisit only when measured workload or team operations require them.
 - Object storage/CDN for user media; revisit before introducing durable user uploads or when static delivery becomes a bottleneck.
 - Saudi/Middle East data residency; resolve before any policy or customer contract makes regional placement mandatory.

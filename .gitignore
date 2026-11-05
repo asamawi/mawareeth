@@ -15,6 +15,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!web/src/lib/
 lib64/
 parts/
 sdist/
@@ -134,3 +135,12 @@ staticfiles/
 
 # migrations
 #migrations/
+
+# Next.js frontend
+web-dist/
+web/node_modules/
+web/.next/
+web/out/
+web/.env*
+web/next-env.d.ts
+web/*.tsbuildinfo
