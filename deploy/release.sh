@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Safe blue-green release deployment for the private Compose runtime.
 #
-#   sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/release.sh deploy [--allow-contract]
+#   sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/release.sh deploy [--allow-contract] [--rotate-config]
 #   sudo deploy/release.sh recover [--dry-run]
 #
 # Before migrating, deploy inspects `migrate --plan` and refuses (exit 5) a plan
@@ -9,6 +9,10 @@
 # a custom state/database change: the still-serving prior slot could break.
 # Pass --allow-contract only for a deliberate contract release whose prior slot
 # no longer depends on what is changed.
+#
+# Pass --rotate-config only to move to a changed runtime configuration, after
+# runtime.sh prepare has published its snapshot. The candidate starts on the new
+# snapshot; the prior slot keeps running on its own until traffic moves.
 #
 # deploy exit codes: 0 deployed and verified; 2 refused before any mutation; 3
 # another deploy or runtime operation holds the lock; 4 the journal is not idle
@@ -66,6 +70,7 @@ started_at=''
 deploy_log=/dev/null
 migrate_log=/dev/null
 allow_contract=0
+rotate_config=0
 contract_pattern='^    (Remove field |Delete model |Rename field |Rename model |Rename table for |Raw SQL operation|Custom state/database change combination)'
 
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
@@ -452,7 +457,8 @@ deploy() {
   select_slots
   hash="$(snapshot_hash)" || die 'cannot hash the runtime configuration'
   if [[ "$mode" == normal && "$hash.snapshot.env" != "$prior_snapshot" ]]; then
-    fail_with 2 'runtime configuration differs from the active slot snapshot; rotate configuration separately'
+    ((rotate_config == 1)) || fail_with 2 'runtime configuration differs from the active slot snapshot; rotate configuration separately'
+    say "rotating runtime configuration to ${hash:0:12}; app-$prior_slot keeps its current configuration until traffic moves"
   fi
   use_existing_snapshot
   require_volumes
@@ -856,13 +862,19 @@ recover() {
   else say "recovered: unverified bootstrap rolled back, Caddy and app-$candidate_slot stopped; journal idle ($final_result)"; fi
 }
 
-usage='usage: release.sh deploy [--allow-contract] | release.sh recover [--dry-run]'
+usage='usage: release.sh deploy [--allow-contract] [--rotate-config] | release.sh recover [--dry-run]'
 case "${1:-}" in
   deploy)
     shift
-    if [[ $# -eq 0 ]]; then deploy
-    elif [[ $# -eq 1 && "$1" == --allow-contract ]]; then allow_contract=1; deploy
-    else fail_with 2 "$usage"; fi ;;
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --allow-contract) ((allow_contract == 0)) || fail_with 2 "$usage"; allow_contract=1 ;;
+        --rotate-config) ((rotate_config == 0)) || fail_with 2 "$usage"; rotate_config=1 ;;
+        *) fail_with 2 "$usage" ;;
+      esac
+      shift
+    done
+    deploy ;;
   recover)
     shift
     if [[ $# -eq 0 ]]; then recover 0

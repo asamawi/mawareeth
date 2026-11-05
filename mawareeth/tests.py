@@ -32,8 +32,8 @@ def load_settings_module(extra_env):
         "DJANGO_CSRF_TRUSTED_ORIGINS": "https://testserver,https://localhost,https://ci.example.com",
         "DATABASE_URL": "postgres://postgres:postgres@localhost:5432/mawareeth",
         "DATABASE_SSL_MODE": "disable",
-        "MAILGUN_ACCESS_KEY": "dummy",
-        "MAILGUN_SERVER_NAME": "dummy",
+        "BREVO_SMTP_KEY": "dummy",
+        "BREVO_SMTP_LOGIN": "dummy",
     }
     env.update(extra_env)
 
@@ -135,10 +135,24 @@ class ProductionSettingsTests(SimpleTestCase):
         self.assertEqual(options["sslmode"], "verify-full")
         self.assertEqual(options["sslrootcert"], str(root_cert))
 
-    def test_missing_mailgun_credentials_raise(self):
-        for name in ("MAILGUN_ACCESS_KEY", "MAILGUN_SERVER_NAME"):
+    def test_missing_brevo_credentials_raise(self):
+        for name in ("BREVO_SMTP_KEY", "BREVO_SMTP_LOGIN"):
             with self.subTest(name=name), self.assertRaisesRegex(ImproperlyConfigured, name):
                 load_settings_module({name: ""})
+
+    def test_production_sends_through_brevo_over_tls(self):
+        module = load_settings_module({"BREVO_SMTP_LOGIN": "login@smtp-brevo.com", "BREVO_SMTP_KEY": "secret"})
+        self.assertEqual(module.EMAIL_BACKEND, "django.core.mail.backends.smtp.EmailBackend")
+        self.assertEqual((module.EMAIL_HOST, module.EMAIL_PORT), ("smtp-relay.brevo.com", 587))
+        self.assertTrue(module.EMAIL_USE_TLS)
+        self.assertEqual(module.EMAIL_HOST_USER, "login@smtp-brevo.com")
+        self.assertEqual(module.EMAIL_HOST_PASSWORD, "secret")
+        self.assertEqual(module.EMAIL_TIMEOUT, 10)
+        self.assertEqual(module.DEFAULT_FROM_EMAIL, "noreply@mawareeth.com")
+
+    def test_development_never_sends_real_mail(self):
+        module = load_settings_module({"DJANGO_ENV": "development"})
+        self.assertEqual(module.EMAIL_BACKEND, "django.core.mail.backends.console.EmailBackend")
 
     def test_runtime_snapshot_optional_keys_reach_settings(self):
         # deploy/runtime.sh emits these exact names into the app snapshot.

@@ -13,7 +13,6 @@ dependencies = [
     "dj-database-url==3.0.1",
     "django==5.2.17",
     "django-active-link==0.3.0",
-    "django-anymail[mailgun]==13.1",
     "django-crispy-forms==2.5",
     "django-icons==25.3",
     "django-polymorphic==4.1.0",
