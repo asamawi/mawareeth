@@ -1,0 +1,15 @@
+{% extends "calc/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Page not found" %}{% endblock %}
+
+{% block body %}
+<div class="text-center my-5">
+  <h1>{% trans "Page not found" %}</h1>
+  <p class="lead">{% trans "This page doesn't exist, or you don't have access to it." %}</p>
+  {% if user.is_authenticated %}
+  <a class="btn btn-primary" href="{% url 'calc:index' %}">{% trans "Go to my calculations" %}</a>
+  {% endif %}
+  <a class="btn btn-outline-secondary" href="{% url 'calc:home' %}">{% trans "Go to the home page" %}</a>
+</div>
+{% endblock %}

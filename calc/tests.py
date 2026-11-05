@@ -1,8 +1,10 @@
+import re
 from unittest import mock
 
 from django.conf import settings
 from django.core.cache import cache
 from django.test import TestCase, Client, override_settings
+from django.utils import translation
 from calc.models import *
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
@@ -1138,3 +1140,72 @@ class CalculationAccessControlTests(TestCase):
         self.client.force_login(self.owner)
         self.client.post(reverse('logout'), secure=True)
         self.assertNotIn('_auth_user_id', self.client.session)
+
+
+class ErrorPageTests(TestCase):
+
+    def setUp(self):
+        cache.clear()  # waffle caches flag state across tests
+        self.owner = User.objects.create_user('owner', password='x')
+        self.other = User.objects.create_user('other', password='x')
+        self.calc = Calculation.objects.create(name='secret case name', user=self.owner)
+
+    def strip_csrf(self, response):
+        return re.sub(r'name="csrfmiddlewaretoken" value="[^"]+"', '', response.content.decode())
+
+    def test_logged_out_404_uses_site_page(self):
+        response = self.client.get('/en/no-such-page/', secure=True)
+        self.assertEqual(response.status_code, 404)
+        self.assertTemplateUsed(response, '404.html')
+        self.assertContains(response, 'Page not found', status_code=404)
+        self.assertContains(response, reverse('calc:home'), status_code=404)
+        self.assertNotContains(response, 'Go to my calculations', status_code=404)
+
+    def test_logged_in_404_links_to_calculations(self):
+        self.client.force_login(self.other)
+        response = self.client.get('/en/no-such-page/', secure=True)
+        self.assertContains(response, 'Go to my calculations', status_code=404)
+        self.assertContains(response, self.other.username, status_code=404)
+
+    def test_other_accounts_case_looks_the_same_as_a_missing_one(self):
+        self.client.force_login(self.other)
+        missing_pk = Calculation.objects.order_by('-pk').first().pk + 1
+        for name in ('detail', 'results'):
+            with self.subTest(route=name):
+                theirs = self.client.get(reverse(f'calc:{name}', args=[self.calc.pk]), secure=True)
+                missing = self.client.get(reverse(f'calc:{name}', args=[missing_pk]), secure=True)
+                self.assertEqual(theirs.status_code, 404)
+                self.assertEqual(missing.status_code, 404)
+                self.assertTemplateUsed(theirs, '404.html')
+                self.assertEqual(self.strip_csrf(theirs), self.strip_csrf(missing))
+                self.assertNotContains(theirs, 'secret case name', status_code=404)
+
+    def test_404_is_translated(self):
+        expected = {'ar': 'الصفحة غير موجودة', 'fr': 'Page introuvable'}
+        for language, text in expected.items():
+            with self.subTest(language=language):
+                response = self.client.get(f'/{language}/no-such-page/', secure=True)
+                self.assertContains(response, text, status_code=404)
+
+    def get_500(self, language):
+        self.client.force_login(self.owner)
+        self.client.raise_request_exception = False
+        with translation.override(language):
+            url = reverse('calc:detail', args=[self.calc.pk])
+        with mock.patch('calc.views.get_owned_calculation', side_effect=RuntimeError('secret detail')):
+            return self.client.get(url, secure=True)
+
+    def test_500_uses_standalone_page(self):
+        response = self.get_500('en')
+        self.assertEqual(response.status_code, 500)
+        self.assertTemplateUsed(response, '500.html')
+        self.assertTemplateNotUsed(response, 'calc/base.html')
+        self.assertContains(response, 'Something went wrong', status_code=500)
+        self.assertContains(response, 'dir="ltr"', status_code=500)
+        self.assertNotContains(response, 'secret detail', status_code=500)
+
+    def test_500_is_translated_and_right_to_left(self):
+        response = self.get_500('ar')
+        self.assertContains(response, 'حدث خطأ ما', status_code=500)
+        self.assertContains(response, 'dir="rtl"', status_code=500)
+        self.assertContains(self.get_500('fr'), 'Une erreur est survenue', status_code=500)
