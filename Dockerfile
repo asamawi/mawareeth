@@ -30,8 +30,8 @@ RUN DJANGO_ENV=production \
     DJANGO_CSRF_TRUSTED_ORIGINS=https://build.example.invalid \
     DATABASE_URL=sqlite:////tmp/mawareeth-build.sqlite3 \
     DATABASE_SSL_MODE=disable \
-    MAILGUN_ACCESS_KEY=build-only \
-    MAILGUN_SERVER_NAME=build.example.invalid \
+    BREVO_SMTP_KEY=build-only \
+    BREVO_SMTP_LOGIN=build@example.invalid \
     RELEASE_VERSION="$RELEASE_VERSION" \
     RELEASE_COMMIT_SHA="$RELEASE_COMMIT_SHA" \
     python manage.py collectstatic --noinput && \
@@ -41,8 +41,8 @@ RUN DJANGO_ENV=production \
     DJANGO_CSRF_TRUSTED_ORIGINS=https://build.example.invalid \
     DATABASE_URL=sqlite:////tmp/mawareeth-build.sqlite3 \
     DATABASE_SSL_MODE=disable \
-    MAILGUN_ACCESS_KEY=build-only \
-    MAILGUN_SERVER_NAME=build.example.invalid \
+    BREVO_SMTP_KEY=build-only \
+    BREVO_SMTP_LOGIN=build@example.invalid \
     RELEASE_VERSION="$RELEASE_VERSION" \
     RELEASE_COMMIT_SHA="$RELEASE_COMMIT_SHA" \
     python manage.py check --deploy --fail-level WARNING

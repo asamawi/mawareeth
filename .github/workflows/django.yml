@@ -38,8 +38,8 @@ jobs:
       DATABASE_SSL_MODE: disable
       RELEASE_VERSION: ci
       RELEASE_COMMIT_SHA: ${{ github.sha }}
-      MAILGUN_ACCESS_KEY: dummy
-      MAILGUN_SERVER_NAME: dummy
+      BREVO_SMTP_KEY: dummy
+      BREVO_SMTP_LOGIN: dummy
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 

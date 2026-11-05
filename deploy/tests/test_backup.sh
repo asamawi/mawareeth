@@ -57,8 +57,8 @@ POSTGRES_DB=mawareeth
 POSTGRES_USER=mawareeth
 POSTGRES_PASSWORD=LongUrlSafePassword_123456
 DJANGO_KEY=a-long-django-key-that-is-never-printed-1234567890
-MAILGUN_ACCESS_KEY=mailgun-secret-value
-MAILGUN_SERVER_NAME=mg.example.com
+BREVO_SMTP_KEY=brevo-secret-value
+BREVO_SMTP_LOGIN=login@smtp-brevo.example.com
 EOF
 chmod 600 "$etc"/*
 
