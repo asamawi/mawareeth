@@ -25,10 +25,27 @@ jobs:
       github.event.workflow_run.head_branch == 'master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          # The patch number counts commits, so it needs the whole history.
+          fetch-depth: 0
+
+      # Fails on a malformed VERSION or a number already tagged on another commit,
+      # before anything is built or pushed.
+      - name: Derive release version
+        id: version
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          version="$(bash deploy/version.sh derive "$COMMIT_SHA")"
+          bash deploy/version.sh check-tag "$version" "$COMMIT_SHA"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Derive immutable image identity
         id: image
@@ -59,6 +76,7 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
           build-args: |
+            APP_VERSION=${{ steps.version.outputs.version }}
             RELEASE_VERSION=${{ github.event.workflow_run.head_sha }}
             RELEASE_COMMIT_SHA=${{ github.event.workflow_run.head_sha }}
 
@@ -67,6 +85,7 @@ jobs:
         env:
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
           EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          EXPECTED_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           container="mawareeth-release-smoke"
@@ -100,6 +119,7 @@ jobs:
           done
           curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:$port/health/release/" > release-identity.json
           python3 -c 'import json, os; data=json.load(open("release-identity.json", encoding="utf-8")); expected=os.environ["EXPECTED_SHA"]; assert data["release"] == expected and data["commit"] == expected'
+          python3 -c 'import json, os; data=json.load(open("release-identity.json", encoding="utf-8")); assert data["version"] == os.environ["EXPECTED_VERSION"]'
           # Anything but the health paths is redirected to HTTPS without this header.
           smoke() { curl --fail --silent --show-error --max-time 5 --header 'X-Forwarded-Proto: https' "$@"; }
           smoke "http://127.0.0.1:$port/app/ar/" > shell.html
@@ -110,7 +130,7 @@ jobs:
           smoke "http://127.0.0.1:$port/api/v1/session/" > session.json
           python3 -c 'import json; assert json.load(open("session.json", encoding="utf-8")) == {"authenticated": False}'
           # The image carries the export only: no frontend sources or dependencies.
-          docker run --rm --entrypoint sh "$IMAGE_TAG" -c 'test ! -e /app/web && test -f /app/web-dist/app/ar/index.html && test -z "$(find /app -name node_modules)"'
+          docker run --rm --entrypoint sh "$IMAGE_TAG" -c 'test -f /app/VERSION && test ! -e /app/web && test -f /app/web-dist/app/ar/index.html && test -z "$(find /app -name node_modules)"'
 
       # Reject unsupported contract inputs before anything reaches the registry;
       # the placeholder digest is replaced by the pushed digest below.
@@ -161,3 +181,23 @@ jobs:
           path: release-manifest.json
           if-no-files-found: error
           retention-days: 90
+
+  # A separate job, so only this one holds a token that can write to the
+  # repository, and it runs only after every publish step has succeeded.
+  tag-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Tag published release
+        shell: bash
+        env:
+          VERSION: ${{ needs.publish.outputs.version }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: bash deploy/version.sh tag "$VERSION" "$COMMIT_SHA"

@@ -6,7 +6,7 @@ import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from uuid import uuid4
 from wsgiref.headers import Headers
 
@@ -49,6 +49,39 @@ def load_settings_module(extra_env):
 
 
 class ProductionSettingsTests(SimpleTestCase):
+    def test_app_version_comes_from_the_environment(self):
+        settings_module = load_settings_module({"APP_VERSION": "3.0.7", "RELEASE_VERSION": "a" * 40})
+        self.assertEqual(settings_module.APP_VERSION, "3.0.7")
+        self.assertEqual(settings_module.RELEASE_VERSION, "a" * 40)
+
+    def test_app_version_falls_back_to_the_version_file(self):
+        base = (PROJECT_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+        self.assertRegex(base, r"^\d+\.\d+$")
+        for extra_env in ({}, {"APP_VERSION": ""}):
+            with self.subTest(extra_env=extra_env):
+                settings_module = load_settings_module(extra_env)
+                self.assertEqual(settings_module.APP_VERSION, f"{base}.0-dev")
+                self.assertEqual(settings_module.RELEASE_VERSION, f"{base}.0-dev")
+
+    def test_blank_app_version_counts_as_unset(self):
+        settings_module = load_settings_module({"APP_VERSION": "   "})
+        self.assertTrue(settings_module.APP_VERSION.endswith(".0-dev"))
+
+    def test_committed_version_file_is_exactly_what_publishing_accepts(self):
+        # Matches deploy/version.sh, so a bad edit fails before it reaches master.
+        raw = (PROJECT_ROOT / "VERSION").read_bytes().decode("utf-8")
+        self.assertRegex(raw, r"\A(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\n?\Z")
+
+    def test_unusable_version_file_is_a_configuration_error(self):
+        for name, read_text in (
+            ("missing", Mock(side_effect=FileNotFoundError)),
+            ("malformed", Mock(return_value="3.x\n")),
+            ("empty", Mock(return_value="")),
+        ):
+            with self.subTest(name), patch("pathlib.Path.read_text", read_text):
+                with self.assertRaises(ImproperlyConfigured):
+                    load_settings_module({})
+
     def test_missing_production_secret_raises(self):
         with self.assertRaises(ImproperlyConfigured):
             load_settings_module({"DJANGO_KEY": ""})
@@ -229,11 +262,12 @@ class OpsEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertJSONEqual(response.content, {"status": "ok", "database": "ok", "schema": "ok"})
 
-    @override_settings(RELEASE_VERSION="build-2026-09-02", RELEASE_COMMIT_SHA="abc1234")
+    @override_settings(APP_VERSION="3.0.7", RELEASE_VERSION="build-2026-09-02", RELEASE_COMMIT_SHA="abc1234")
     def test_release_identity_endpoint_returns_expected_markers(self):
         response = self.client.get(reverse("ops-release"), secure=True)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
+        self.assertEqual(response.json()["version"], "3.0.7")
         self.assertEqual(response.json()["release"], "build-2026-09-02")
         self.assertEqual(response.json()["commit"], "abc1234")
 
@@ -594,6 +628,41 @@ class WorkflowContractTests(SimpleTestCase):
         self.assertIn("release_manifest.py validate --input release-manifest.json", workflow)
         self.assertEqual(workflow.count('--expected-repository "${{ steps.image.outputs.repository }}"'), 3)
         self.assertNotIn("release-metadata.json", workflow)
+
+    def test_publish_workflow_numbers_the_image_and_tags_only_after_publishing(self):
+        workflow = (PROJECT_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+        ordered_steps = (
+            "fetch-depth: 0",
+            "- name: Derive release version",
+            "- name: Build release image once",
+            "- name: Push smoke-tested image",
+            "- name: Upload release manifest",
+            "tag-release:",
+        )
+        positions = [workflow.index(step) for step in ordered_steps]
+        self.assertEqual(positions, sorted(positions))
+
+        self.assertIn("APP_VERSION=${{ steps.version.outputs.version }}", workflow)
+        self.assertIn("RELEASE_VERSION=${{ github.event.workflow_run.head_sha }}", workflow)
+        self.assertIn("RELEASE_COMMIT_SHA=${{ github.event.workflow_run.head_sha }}", workflow)
+        self.assertIn('data["version"] == os.environ["EXPECTED_VERSION"]', workflow)
+        self.assertIn('deploy/version.sh check-tag "$version"', workflow)
+
+        # Only the job that runs after a complete publish can write to the repository.
+        self.assertRegex(workflow, r"(?m)^permissions:\n  contents: read\n  packages: write$")
+        self.assertEqual(workflow.count("contents: write"), 1)
+        tag_job = workflow[workflow.index("  tag-release:") :]
+        self.assertRegex(tag_job, r"(?m)^    needs: publish$")
+        self.assertRegex(tag_job, r"(?m)^    permissions:\n      contents: write$")
+        self.assertNotRegex(tag_job, r"(?m)^ +(if|continue-on-error):")
+        self.assertIn('deploy/version.sh tag "$VERSION" "$COMMIT_SHA"', tag_job)
+
+    def test_image_build_passes_app_version_in_every_stage(self):
+        dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        self.assertEqual(len(re.findall(r"(?m)^ARG APP_VERSION=$", dockerfile)), 2)
+        self.assertEqual(dockerfile.count('APP_VERSION="$APP_VERSION"'), 3)
+        ignored = (PROJECT_ROOT / ".dockerignore").read_text(encoding="utf-8").split()
+        self.assertNotIn("VERSION", ignored)
 
     def test_validation_workflow_builds_image_and_validates_caddyfile_before_merge(self):
         workflow = (PROJECT_ROOT / ".github" / "workflows" / "django.yml").read_text(encoding="utf-8")

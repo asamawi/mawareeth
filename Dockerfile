@@ -15,6 +15,7 @@ RUN npm run build && node scripts/check-export.mjs
 
 FROM python:3.12.15-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS builder
 
+ARG APP_VERSION=
 ARG RELEASE_VERSION=build
 ARG RELEASE_COMMIT_SHA=build
 
@@ -51,6 +52,7 @@ RUN DJANGO_ENV=production \
     DATABASE_SSL_MODE=disable \
     BREVO_SMTP_KEY=build-only \
     BREVO_SMTP_LOGIN=build@example.invalid \
+    APP_VERSION="$APP_VERSION" \
     RELEASE_VERSION="$RELEASE_VERSION" \
     RELEASE_COMMIT_SHA="$RELEASE_COMMIT_SHA" \
     python manage.py collectstatic --noinput && \
@@ -62,12 +64,14 @@ RUN DJANGO_ENV=production \
     DATABASE_SSL_MODE=disable \
     BREVO_SMTP_KEY=build-only \
     BREVO_SMTP_LOGIN=build@example.invalid \
+    APP_VERSION="$APP_VERSION" \
     RELEASE_VERSION="$RELEASE_VERSION" \
     RELEASE_COMMIT_SHA="$RELEASE_COMMIT_SHA" \
     python manage.py check --deploy --fail-level WARNING
 
 FROM python:3.12.15-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS runtime
 
+ARG APP_VERSION=
 ARG RELEASE_VERSION=build
 ARG RELEASE_COMMIT_SHA=build
 
@@ -76,6 +80,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
     DJANGO_SETTINGS_MODULE=mawareeth.settings \
+    APP_VERSION="$APP_VERSION" \
     RELEASE_VERSION="$RELEASE_VERSION" \
     RELEASE_COMMIT_SHA="$RELEASE_COMMIT_SHA" \
     PORT=8000

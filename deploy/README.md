@@ -888,6 +888,22 @@ The workflow validates the manifest inputs before pushing, so an unsupported con
 
 `deploy.yml` runs from the default branch (a `workflow_run` rule), but it checks out and executes `deploy/release_manifest.py` from the released commit. Keep the script's CLI backward compatible with the default branch's workflow, or merge workflow and CLI changes together. The manifest contains identities and contract versions only. Runtime credentials, environment values, secret material, host deployment logic, and mutable source references must never be added. Stories 0.5 and 0.6 consume and verify this contract. `deploy.yml` itself never contacts or deploys to the production host. Deploys from GitHub Actions run only through the separate `deploy-production.yml`, which is dispatched by hand, approved, and sends the host nothing but a commit SHA (see [Deploying from GitHub Actions](#deploying-from-github-actions)).
 
+### Release version numbers
+
+The repository-root `VERSION` file holds a hand-edited `major.minor`. The publish workflow adds the patch with `deploy/version.sh`: the number of first-parent commits since the first-parent commit that last changed `VERSION`. A merge that brings a new `VERSION` to `master` is therefore `<major>.<minor>.0` however many commits its branch carries, and each later commit or merge on `master` adds one. Rebuilding a commit gives the same number.
+
+The number is baked into the image as `APP_VERSION`, shown in page titles, and reported as `version` by `/health/release/`. `release` and `commit` stay the commit SHA, because the smoke test and deploys compare them to the commit. Without `APP_VERSION` (local and test runs) the application reports `<VERSION>.0-dev`.
+
+`Derive release version` runs before the build and fails the run on a malformed `VERSION`, a shallow history, or a number already tagged on another commit, so nothing is pushed. After every publish step succeeds, the separate `tag-release` job, the only one with `contents: write`, pushes the tag `v<version>` to the published commit. A rerun for the same commit keeps the same number and creates no second tag. Tags record what was published; deploys still use only the manifest's digest.
+
+To change `major.minor`, edit `VERSION` and merge it to `master` with a merge commit. Merge `development` the same way: a fast-forward puts the branch's own commits on the first-parent history, so the patch would not start at 0. Any change to the file restarts the count, so returning to an earlier `major.minor` or making a whitespace-only edit reuses numbers already tagged, and the publish fails until `VERSION` moves on. Reverting a merge that changed `VERSION` counts as such a change, so when reverting one, move `VERSION` on in the same fix (for example from `3.0` to `3.1`) or publishing stays blocked.
+
+Published numbers can have gaps, and that is expected. Every commit on `master` adds one, including commits that never published, so `v3.0.6` may exist without `v3.0.5`.
+
+If `tag-release` fails, the image and manifest are already published and the release can be deployed. Rerun the failed job; it needs tag pushes allowed for `GITHUB_TOKEN`, so check any tag ruleset first. Until the tag exists its number is not reserved against a later collision.
+
+Numbering starts at the commit that adds `VERSION` and `deploy/version.sh`. The publish workflow runs from the default branch but uses the released commit's script, so an older commit can no longer be republished.
+
 ## Deploying from GitHub Actions
 
 `.github/workflows/deploy-production.yml` deploys one published release to production. This deliberately reverses the earlier rule that CI never contacts the production host, within tight limits:
@@ -1036,7 +1052,7 @@ The baseline creates `/etc/mawareeth/runtime.env`, owned by root with mode 0600.
 
 ## Application runtime contract
 
-With `DJANGO_ENV=production` the application refuses to start unless these are set: `DJANGO_KEY`, `DJANGO_ALLOWED_HOSTS` (explicit hostnames, no wildcards), `DJANGO_CSRF_TRUSTED_ORIGINS` (explicit `https://` origins), `DATABASE_URL`, `DATABASE_SSL_MODE`, `BREVO_SMTP_KEY`, and `BREVO_SMTP_LOGIN`. Use `DATABASE_SSL_MODE=disable` for the private Compose PostgreSQL and `verify-ca`/`verify-full` for any new managed database; `prefer` is rejected because it silently falls back to plaintext. `require` is rejected too, because it never checks the server certificate. The verified modes also need `DATABASE_SSL_ROOT_CERT`: the in-container path of a readable CA file (e.g. a mounted Compose secret), not the certificate contents. Optional: `DATABASE_CONNECT_TIMEOUT` (default 5 seconds), `RELEASE_VERSION`, and `RELEASE_COMMIT_SHA` (baked into the image by CI).
+With `DJANGO_ENV=production` the application refuses to start unless these are set: `DJANGO_KEY`, `DJANGO_ALLOWED_HOSTS` (explicit hostnames, no wildcards), `DJANGO_CSRF_TRUSTED_ORIGINS` (explicit `https://` origins), `DATABASE_URL`, `DATABASE_SSL_MODE`, `BREVO_SMTP_KEY`, and `BREVO_SMTP_LOGIN`. Use `DATABASE_SSL_MODE=disable` for the private Compose PostgreSQL and `verify-ca`/`verify-full` for any new managed database; `prefer` is rejected because it silently falls back to plaintext. `require` is rejected too, because it never checks the server certificate. The verified modes also need `DATABASE_SSL_ROOT_CERT`: the in-container path of a readable CA file (e.g. a mounted Compose secret), not the certificate contents. Optional: `DATABASE_CONNECT_TIMEOUT` (default 5 seconds), `APP_VERSION`, `RELEASE_VERSION`, and `RELEASE_COMMIT_SHA` (baked into the image by CI).
 
 Django trusts `X-Forwarded-Proto` from its upstream (`SECURE_PROXY_SSL_HEADER`), so it must stay reachable only through Caddy. Two invariants make that safe, and the offline tests (`deploy/tests/test_compose_runtime.sh`) pin both (case-insensitively for the header check, and also against `network_mode:` on the slots):
 

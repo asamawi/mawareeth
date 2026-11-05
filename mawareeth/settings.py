@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -12,11 +13,22 @@ from mawareeth.web_headers import add_web_headers
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Application version (major.minor.patch)
-APP_VERSION_MAJOR = 2
-APP_VERSION_MINOR = 0
-APP_VERSION_PATCH = 1
-APP_VERSION = f"{APP_VERSION_MAJOR}.{APP_VERSION_MINOR}.{APP_VERSION_PATCH}"
+# Application version (major.minor.patch). The publish workflow derives it and
+# bakes it into the image; see "Release version numbers" in deploy/README.md.
+def _app_version():
+    version = config("APP_VERSION", default="").strip()
+    if version:
+        return version
+    try:
+        base = (BASE_DIR / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError as error:
+        raise ImproperlyConfigured("The VERSION file is required when APP_VERSION is not set.") from error
+    if not re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", base):
+        raise ImproperlyConfigured("The VERSION file must contain major.minor.")
+    return f"{base}.0-dev"
+
+
+APP_VERSION = _app_version()
 RELEASE_VERSION = config("RELEASE_VERSION", default=APP_VERSION)
 RELEASE_COMMIT_SHA = config("RELEASE_COMMIT_SHA", default="local")
 DJANGO_ENV = config("DJANGO_ENV", default="development").strip().lower()
