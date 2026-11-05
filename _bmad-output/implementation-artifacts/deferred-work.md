@@ -217,3 +217,36 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
   summary: Count production `Calculation` rows with `user=None` and decide what happens to them, since the app now answers 404 for them and only Django admin reaches them.
   evidence: The count was not checked before the change, so the number of affected cases is unknown.
+- source_spec: none
+  summary: Next.js and DRF foundation for product delivery, approved by the project owner on 2026-11-05 as the Epic 1 stack, including same-origin routing, CI and blue-green deployment changes.
+  evidence: Split from the epic-1 intent because it is a prerequisite that can be reviewed and shipped on its own, and the existing Django app has neither a Next.js frontend nor DRF.
+- source_spec: none
+  summary: Story 1.1 Zero-Signup Case Start, with anonymous case state held in the Django session and a short expiry (chosen 2026-11-05).
+  evidence: Split from the epic-1 intent; independently shippable and first in the epic once the Next.js and DRF foundation exists.
+- source_spec: none
+  summary: Story 1.2 Start Interview + Madhab Selection.
+  evidence: Split from the epic-1 intent; independently shippable, though the engine has no Madhab concept so the choice cannot change results until Epic 2.
+- source_spec: none
+  summary: Story 1.3 Deceased Info + Add Heirs via Guided Interview Form.
+  evidence: Split from the epic-1 intent; independently shippable after Story 1.1.
+- source_spec: none
+  summary: Story 1.4 Family Tree Visualization (Basic Render + Updates).
+  evidence: Split from the epic-1 intent; independently shippable after Story 1.3.
+- source_spec: none
+  summary: Story 1.5 Real-Time Share Preview from Supported Engine Cases.
+  evidence: Split from the epic-1 intent; independently shippable, but needs an engine that can calculate from unpersisted session data.
+- source_spec: none
+  summary: Story 1.6 Fiqh-Aware Validation + Hajb (Blocking Heirs).
+  evidence: Split from the epic-1 intent; independently shippable after Story 1.3.
+- source_spec: none
+  summary: Decide what users are told about Madhab selection before the engine is multi-school, because choosing Jafari today would show shares calculated without any Madhab logic.
+  evidence: Review of the Epic 1 context found no requirement covering this gap between Story 1.2 and Epic 2; for an inheritance tool, undisclosed results are a serious risk.
+- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
+  summary: Fix the language switcher, which stores the chosen language in the cookie but sends the visitor back to the old language's URL, such as `/en/` after choosing French.
+  evidence: Reproduced on production on 2026-11-05 and locally on the code before and after that spec, with the same `302 /en/`; the URL prefix then keeps the page in the old language.
+- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
+  summary: Make `social:complete` handle a request with no OAuth state instead of returning 500.
+  evidence: Reproduced on production on 2026-11-05 and locally on the code before and after that spec; a real login round trip was not tested.
+- source_spec: none
+  summary: Add an "are you sure?" confirmation before deleting a whole case from the case list, as part of product development, using the confirmation dialog the UX spec defines for destructive actions.
+  evidence: `calc:delete` deletes on one click of the trash button, while `heir_delete` and `deceased_delete` already show a confirmation page; `_bmad-output/planning-artifacts/ux-design-specification/ux-consistency-patterns.md:17` requires a confirmation dialog for removing a case. The owner chose on 2026-11-05 to leave this out of the security fix in PR #93 and handle it in product work.
