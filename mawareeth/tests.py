@@ -93,12 +93,13 @@ class ProductionSettingsTests(SimpleTestCase):
             load_settings_module({"DATABASE_CONNECT_TIMEOUT": "0"})
 
     def test_explicit_database_ssl_mode_is_applied(self):
-        # "require" is what Heroku Postgres supports today.
-        for mode in ("disable", "require"):
-            with self.subTest(mode=mode):
-                module = load_settings_module({"DATABASE_SSL_MODE": mode})
-                self.assertEqual(module.DATABASES["default"]["OPTIONS"]["sslmode"], mode)
-                self.assertFalse(module.DEBUG)
+        module = load_settings_module({"DATABASE_SSL_MODE": "disable"})
+        self.assertEqual(module.DATABASES["default"]["OPTIONS"]["sslmode"], "disable")
+        self.assertFalse(module.DEBUG)
+
+    def test_unverified_database_ssl_mode_raises(self):
+        with self.assertRaisesRegex(ImproperlyConfigured, "DATABASE_SSL_MODE"):
+            load_settings_module({"DATABASE_SSL_MODE": "require"})
 
     def test_opportunistic_database_ssl_mode_raises(self):
         with self.assertRaisesRegex(ImproperlyConfigured, "DATABASE_SSL_MODE"):

@@ -167,7 +167,7 @@ restrict() {
   "$bin" -N DOCKER-USER 2>/dev/null || true
   "$bin" -C DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || "$bin" -I DOCKER-USER 1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
   "$bin" -C DOCKER-USER -p tcp -m multiport --dports 80,443 -j ACCEPT 2>/dev/null || "$bin" -I DOCKER-USER 2 -p tcp -m multiport --dports 80,443 -j ACCEPT
-  # Traffic that containers start (DNS, Mailgun, Storage Box, Heroku) leaves
+  # Traffic that containers start (DNS, Mailgun, Storage Box) leaves
   # through Docker's bridges. RETURN hands it back to Docker's own forwarding
   # and isolation rules; only traffic arriving from outside is limited to 80/443.
   "$bin" -C DOCKER-USER -i docker0 -j RETURN 2>/dev/null || "$bin" -I DOCKER-USER 3 -i docker0 -j RETURN
@@ -204,7 +204,7 @@ restrict() {
   # The unsourced accept of PUBLIC_WEB_SOURCES=any goes last, once the ranges
   # are in place, so the web never closes during a switch.
   prune_web_accepts "$bin" drop "$@"
-  # Traffic that containers start (DNS, Mailgun, Storage Box, Heroku) leaves
+  # Traffic that containers start (DNS, Mailgun, Storage Box) leaves
   # through Docker's bridges. RETURN hands it back to Docker's own forwarding
   # and isolation rules; only traffic arriving from outside is limited to 80/443.
   "$bin" -C DOCKER-USER -i docker0 -j RETURN 2>/dev/null || "$bin" -I DOCKER-USER "$position" -i docker0 -j RETURN

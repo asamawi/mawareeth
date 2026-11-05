@@ -25,9 +25,9 @@ if DJANGO_ENV not in VALID_DJANGO_ENVS:
 IS_PRODUCTION = DJANGO_ENV == "production"
 VALID_DATABASE_SSL_MODES = {"disable", "prefer", "require", "verify-ca", "verify-full"}
 VERIFIED_DATABASE_SSL_MODES = {"verify-ca", "verify-full"}
-# "require" stays allowed while production still runs on Heroku Postgres,
-# which does not support certificate verification. Drop it once off Heroku.
-PRODUCTION_DATABASE_SSL_MODES = {"disable", "require"} | VERIFIED_DATABASE_SSL_MODES
+# "disable" is for the private Compose PostgreSQL. Anything reached over a
+# network must verify the server's certificate.
+PRODUCTION_DATABASE_SSL_MODES = {"disable"} | VERIFIED_DATABASE_SSL_MODES
 
 
 def _csv_setting(name, *, required=False):
@@ -75,8 +75,9 @@ def _database_ssl_mode():
         allowed = ", ".join(sorted(VALID_DATABASE_SSL_MODES))
         raise ImproperlyConfigured(f"DATABASE_SSL_MODE must be one of: {allowed}.")
     if IS_PRODUCTION and mode not in PRODUCTION_DATABASE_SSL_MODES:
-        # "prefer" silently falls back to plaintext; production must state
-        # either private non-TLS ("disable") or an intentional TLS mode.
+        # "prefer" silently falls back to plaintext and "require" never checks
+        # the server's certificate; production must state either private
+        # non-TLS ("disable") or a verified TLS mode.
         allowed = ", ".join(sorted(PRODUCTION_DATABASE_SSL_MODES))
         raise ImproperlyConfigured(
             f"DATABASE_SSL_MODE must be one of {allowed} when DJANGO_ENV=production."
@@ -371,7 +372,7 @@ WAFFLE_CREATE_MISSING_SAMPLES = True
 # Django's own default logging only sends request-handling errors to the
 # console when DEBUG=True, and ADMINS is unset here, so with DEBUG=False
 # (always the case in production) unhandled-exception 500s were invisible
-# in Heroku's log stream. Route them to stdout unconditionally -- Heroku
+# in the container logs. Route them to stdout unconditionally -- Docker
 # captures stdout/stderr regardless of DEBUG.
 LOGGING = {
     "version": 1,
