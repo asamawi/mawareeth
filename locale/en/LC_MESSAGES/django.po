@@ -2292,5 +2292,8 @@ msgstr ""
 msgid "We couldn't complete your request. Please try again in a moment."
 msgstr ""
 
+msgid "Your account doesn't have access to this page. To proceed, please login with an account that has access."
+msgstr ""
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "Son of paternal brother"
