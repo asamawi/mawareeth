@@ -6,7 +6,7 @@ This directory contains the secured host baseline, the private Compose runtime, 
 
 Run runtime operations as root with `sudo`; Docker-group access is root-equivalent and is not the supported operator boundary. Copy the directly installable `runtime.env.example` to `/etc/mawareeth/runtime.env`, keep it `root:root` mode `0600`, and edit it with `sudoedit`. Values use a strict raw `KEY=VALUE` schema: no comments, blank lines, control characters, shell expansion, or extra keys. Compose consumes the generated app snapshot with `env_file.format: raw`, so values are passed literally rather than interpolated. PostgreSQL passwords must contain only URL-safe unreserved characters (`A-Z`, `a-z`, `0-9`, `.`, `_`, `~`, `-`) because the same value is embedded in `DATABASE_URL` without lossy transformation. Keep `DOMAIN` lowercase and within DNS label/total-length limits; `MAILGUN_SERVER_NAME` must also be a valid hostname.
 
-Five optional keys carry the sites-framework ID and social-login credentials that Heroku sets. They are left out of `runtime.env.example` so the example stays directly installable without fake OAuth credentials. Any that are present are appended to the app snapshot under the same names, after the standard lines, in this order:
+Five optional keys carry the sites-framework ID and social-login credentials. They are left out of `runtime.env.example` so the example stays directly installable without fake OAuth credentials. Any that are present are appended to the app snapshot under the same names, after the standard lines, in this order:
 
 - `SITE_ID`: a positive integer without leading zeros (`^[1-9][0-9]{0,9}$`) and at most `2147483647`, because Django's `Site.id` is a PostgreSQL `integer`. `mawareeth/settings.py` falls back to `1` when it is absent.
 - `FACEBOOK_KEY`: the Facebook **App ID**, 1–32 digits (`^[0-9]{1,32}$`), because settings cast it to `int`.
@@ -16,7 +16,7 @@ Five optional keys carry the sites-framework ID and social-login credentials tha
 
 `FACEBOOK_SECRET`, `LINKEDIN_KEY` and `LINKEDIN_SECRET` must each be at most 256 characters with no whitespace (an empty value is refused for every key). `FACEBOOK_KEY` and `FACEBOOK_SECRET` must both be set or both be absent, and so must `LINKEDIN_KEY` and `LINKEDIN_SECRET`. Errors name only the key, never the value. `settings.py` reads them as `SITE_ID`, `SOCIAL_AUTH_FACEBOOK_KEY`/`SOCIAL_AUTH_FACEBOOK_SECRET` and `SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_KEY`/`SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_SECRET`, and without them falls back to placeholder credentials that break social login.
 
-Append these lines to `/etc/mawareeth/runtime.env` with `sudoedit`. The values below are **placeholders only**: replace every one with the real value from the Heroku config or the provider console, and drop a provider's pair entirely if it is not used:
+Append these lines to `/etc/mawareeth/runtime.env` with `sudoedit`. The values below are **placeholders only**: replace every one with the real value from the provider console, and drop a provider's pair entirely if it is not used:
 
 ```
 SITE_ID=2
@@ -26,14 +26,14 @@ LINKEDIN_KEY=REPLACE_WITH_LINKEDIN_CLIENT_ID
 LINKEDIN_SECRET=REPLACE_WITH_LINKEDIN_CLIENT_SECRET
 ```
 
-**`SITE_ID` after a Heroku restore.** The database restored from Heroku carries Heroku's `django_site` rows, so `SITE_ID` must equal the Heroku value (`2` today), and a `django_site` row with that ID must exist in the restored database. Otherwise `Site.objects.get_current()` raises `Site.DoesNotExist`. Omitting the key does not fail validation: the app silently uses site `1`, which is the wrong site for the restored data.
+**`SITE_ID` in production.** The production database was imported from the previous host and kept its `django_site` rows, so `SITE_ID` must stay `2`, and a `django_site` row with that ID must exist, including after a restore. Otherwise `Site.objects.get_current()` raises `Site.DoesNotExist`. Omitting the key does not fail validation: the app silently uses site `1`, which is the wrong site for the restored data.
 
 A `runtime.env` without these keys renders the same snapshot, with the same hash, as before. Adding, changing or removing any of them changes the snapshot hash. `release.sh deploy` and `recover` refuse when the runtime file does not hash to the active slot's recorded snapshot (see Blue-green deployment). Adding these keys to a host with running slots is therefore a deliberate configuration rotation, not something a deploy does for you. No rotation command exists yet; it is an open deferred item (a phased runtime-configuration rotation operation). Until one exists, set these keys in `runtime.env` before the first deploy on a new host.
 
 Three more optional keys choose how Caddy terminates TLS (see [Cloudflare edge](#cloudflare-edge)). They configure Caddy only and never enter the app snapshot, so adding or changing them leaves the snapshot and its hash unchanged:
 
 - `EDGE_MODE`: `acme` (the default when absent) or `cloudflare`. Any other value is refused.
-  - `acme`: Caddy obtains a publicly trusted ACME certificate for `DOMAIN` alone. This is the rehearsal setup.
+  - `acme`: Caddy obtains a publicly trusted ACME certificate for `DOMAIN` alone.
   - `cloudflare`: Cloudflare proxies the site. Caddy serves `DOMAIN` with a Cloudflare Origin CA certificate installed out of band, and permanently redirects `REDIRECT_DOMAIN` to `https://DOMAIN` (path and query kept). It never requests an ACME certificate. The deploy verifies the edge against the repository's Origin CA roots.
 - `REDIRECT_DOMAIN`: required with `EDGE_MODE=cloudflare` and refused otherwise, because ACME cannot issue a certificate for a second name before DNS reaches the host. It must be a lowercase DNS hostname that differs from `DOMAIN`.
 - `ORIGIN_CLIENT_AUTH`: `off` (the default when absent) or `require`, accepted only with `EDGE_MODE=cloudflare`. `require` makes Caddy demand Cloudflare's Authenticated Origin Pulls client certificate on both names; enable it only through the ordered steps in [Authenticated Origin Pulls](#authenticated-origin-pulls). The example file leaves it out, because `runtime.env` takes no comments.
@@ -98,8 +98,8 @@ Compose mounts the Origin certificate directory at `/etc/caddy/origin-tls` in `c
 
 **Cloudflare setup** (in the Cloudflare dashboard; each change needs its own approval):
 
-1. Put the `mawareeth.com` zone on Cloudflare (see rehearsal step 1).
-2. Set SSL/TLS encryption mode to **Full (strict)**, so Cloudflare verifies the Origin certificate. The mode applies to the whole zone, including any records that are already proxied to Heroku. Before switching, confirm that Heroku presents a valid publicly trusted certificate for every proxied name. Right after switching, check that each of those names still loads (`curl -sI https://mawareeth.com/` and `https://www.mawareeth.com/`). Switch back at once if Cloudflare answers `526`.
+1. Put the `mawareeth.com` zone on Cloudflare.
+2. Set SSL/TLS encryption mode to **Full (strict)**, so Cloudflare verifies the Origin certificate. The mode applies to the whole zone. Right after switching, check that each of those names still loads (`curl -sI https://mawareeth.com/` and `https://www.mawareeth.com/`). Switch back at once if Cloudflare answers `526`.
 3. Turn on **Always Use HTTPS** (SSL/TLS → Edge Certificates). Full (strict) uses the visitor's scheme toward the origin. Without this setting, a plain-HTTP request crosses to the origin unencrypted on port 80. Caddy redirects it to HTTPS, and for the apex Caddy then redirects again to `www`. With the setting, Cloudflare's edge issues the first redirect and plain HTTP never reaches the origin. A plain-HTTP apex request still takes two redirects (to `https://mawareeth.com`, then to `https://www.mawareeth.com`); a single Cloudflare redirect rule from the apex to `www` would make it one, but none is configured here.
 4. Create an Origin CA certificate under SSL/TLS → Origin Server, with hostnames `mawareeth.com` and `*.mawareeth.com`. The key type can be RSA or ECDSA, both roots are pinned. Copy the certificate and the private key; Cloudflare shows the key only once.
 5. Install both on the host as root-only files. Paste each one and end with Ctrl-D:
@@ -119,7 +119,7 @@ Compose mounts the Origin certificate directory at `/etc/caddy/origin-tls` in `c
    - with `openssl` (required in `cloudflare` mode), the certificate parses as X.509, has not expired, covers both `DOMAIN` and `REDIRECT_DOMAIN` (wildcards count), and has the same public key as `key.pem`.
 
    Errors name the path or key, never the contents. The path can be overridden with `MAWAREETH_ORIGIN_TLS_DIR` (tests only).
-6. Create DNS records for `mawareeth.com` and `www` as **proxied** (orange cloud), as **A records only**, pointing at the host's IPv4 address. Do this only at the cutover's DNS step. Do not add AAAA records to the host. Docker IPv6 is off, so docker-proxy presents IPv6 connections as the bridge gateway, and Caddy could not recognise Cloudflare's address on them. Cloudflare still serves visitors over IPv6 at its edge.
+6. Create DNS records for `mawareeth.com` and `www` as **proxied** (orange cloud), as **A records only**, pointing at the host's IPv4 address. Do not add AAAA records to the host. Docker IPv6 is off, so docker-proxy presents IPv6 connections as the bridge gateway, and Caddy could not recognise Cloudflare's address on them. Cloudflare still serves visitors over IPv6 at its edge.
 
 **Pinned Origin CA roots.** `deploy/cloudflare-origin-ca.pem` holds Cloudflare's public Origin CA roots from <https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/>. In `cloudflare` mode, `release.sh` passes it to `curl --cacert` for every edge probe. Both roots expire on 2029-08-15.
 
@@ -458,7 +458,7 @@ sudo deploy/release.sh recover
 2. **Host key pin.** Fetch the Storage Box host key once (`ssh-keyscan -p 23 u123456.your-storagebox.de`), compare its fingerprint with the fingerprints Hetzner publishes for Storage Boxes, and only then save it as `/etc/mawareeth/storagebox_known_hosts` (`root:root`, mode 0600 or 0644). Restic connects with `ssh -p 23 ... -o StrictHostKeyChecking=yes`, so an unknown or changed host key fails the run.
 3. **Configuration.** Copy `backup.env.example` to `/etc/mawareeth/backup.env` (`root:root` 0600). It uses the same strict raw `KEY=VALUE` format as `runtime.env` and accepts exactly `STORAGE_BOX_USER`, `STORAGE_BOX_HOST`, and `RESTIC_REPOSITORY_PATH` (a path relative to the sub-account home). Restic secrets never go into `runtime.env`, CI, logs, or command lines.
 4. **Repository password.** Create a long random password, e.g. `(umask 077; head -c 32 /dev/urandom | base64 > /etc/mawareeth/restic.password)` (`root:root` 0600). Without it the backups are unreadable.
-5. **Escrow all four secrets before the first backup.** A lost host loses every copy on it, so store `backup.env`, `restic.password`, `storagebox_ed25519`, and `storagebox_known_hosts` off-host in an approved secret store, and keep the **password in two independent off-host places** (for example two password managers, or one password manager plus a sealed offline copy) held by different people. Record where they are, and test one password copy during each restore rehearsal. If the SSH key is lost with the host, regain access by generating a new key on the replacement host and registering its public key for the sub-account in Hetzner Robot (Storage Box → sub-account → SSH keys, or by resetting the sub-account password and installing the key over SFTP); the repository itself only needs the escrowed password.
+5. **Escrow all four secrets before the first backup.** A lost host loses every copy on it, so store `backup.env`, `restic.password`, `storagebox_ed25519`, and `storagebox_known_hosts` off-host in an approved secret store, and keep the **password in two independent off-host places** (for example two password managers, or one password manager plus a sealed offline copy) held by different people. Record where they are, and test one password copy during each manual restore. If the SSH key is lost with the host, regain access by generating a new key on the replacement host and registering its public key for the sub-account in Hetzner Robot (Storage Box → sub-account → SSH keys, or by resetting the sub-account password and installing the key over SFTP); the repository itself only needs the escrowed password.
 6. **Initialise, prove, schedule.**
 
    ```console
@@ -494,7 +494,7 @@ sudo deploy/release.sh recover
 
 **Real RPO.** A nightly run starts between 02:30 and 02:45 and the dump takes its own time, so successive recovery points are about 24 hours apart plus that jitter and the dump time; the gate tolerates 26 hours. One failed night means 48 hours or more without a new recovery point; `MawareethBackupUnhealthy` emails the operator when the last backup is not `ok` or its last success is older than 26 hours (see [Monitoring and alerting](#monitoring-and-alerting)).
 
-**Cutover precondition.** `sudo deploy/backup.sh gate` must exit 0 before production accepts irreplaceable writes (story 0.10).
+**Backup gate.** `sudo deploy/backup.sh gate` must exit 0 before a new or rebuilt production host accepts irreplaceable writes.
 
 ### Manual restore runbook
 
@@ -568,7 +568,7 @@ For a real recovery (a rebuilt host, or a deliberate data rollback), run as root
 ### Known limits (deferred)
 
 - The host holds the repository password and an SSH key with write access, so a compromised host can delete or prune the backups; the repository is not append-only (append-only or object-locked storage is deferred).
-- Only the application database is restored and verified. Roles and other cluster globals are archived as `globals.sql` but are never restored automatically (restores use `--no-owner --no-acl`; see the runbook), and host state is archived only partly: `host-state.tar` holds `runtime.env`, slot records, routes, and the snapshots the records name, but not the deploy journal or the other `/etc/mawareeth` secrets (keep those in escrow). Restoring host state is a manual runbook step (no automated command), and so is a full host rebuild: story 0.9 rehearses only the data restore and the cutover ([Cutover rehearsal](#cutover-rehearsal)).
+- Only the application database is restored and verified. Roles and other cluster globals are archived as `globals.sql` but are never restored automatically (restores use `--no-owner --no-acl`; see the runbook), and host state is archived only partly: `host-state.tar` holds `runtime.env`, slot records, routes, and the snapshots the records name, but not the deploy journal or the other `/etc/mawareeth` secrets (keep those in escrow). Restoring host state is a manual runbook step (no automated command), and so is a full host rebuild.
 - The host-state archive is taken without the deploy lock. A deploy that overlaps the nightly backup can change a record, route, or snapshot while it is read and fail that night's run (`failed:host-state`); rerun `backup.sh backup` after the deploy.
 - The checksum reads and detoasts every row of every table, so it lengthens both the nightly snapshot transaction (and with it how long old row versions are held) and the restore check, roughly in proportion to the database size. Columns whose text differs between clusters for identical data, such as `oid` or `reg*` columns or large-object references, would report `checksum-mismatch` after a correct restore; Django's schema has none, so a new table with such a column needs this revisited.
 - Content checksums detect corruption, not tampering (a sum of 64-bit hash prefixes); the archive's integrity rests on Restic's authenticated encryption. Runs from before content checksums are verified on counts alone. No application-level check (such as `manage.py migrate --check`) runs against the restored database: it would need networking and runtime secrets in the throwaway, and the checksums already cover `django_migrations` content exactly.
@@ -675,7 +675,7 @@ The steps:
 | `MawareethClockUnsynced` | `node_timex_sync_status == 0`, or `abs(node_timex_offset_seconds) > 0.5`, for 10 minutes | warning |
 | `MawareethWatchdog` | Always (`vector(1)`). Routed only to the `mawareeth-heartbeat` webhook, never emailed, never inhibited; see [Better Stack heartbeat](#better-stack-heartbeat) | heartbeat |
 
-`deploy/tests/test_monitor.sh` unit-tests these rules with `promtool test rules` and checks the route snippet with `amtool check-config` and `amtool config routes test`. Those checks run only when `promtool` and `amtool` are installed (otherwise only static checks run); with `CI` set, a missing tool fails the suite. The end-to-end path is proven by the operator's [alert-path drill](#alert-path-drill), which must pass before cutover and then every quarter.
+`deploy/tests/test_monitor.sh` unit-tests these rules with `promtool test rules` and checks the route snippet with `amtool check-config` and `amtool config routes test`. Those checks run only when `promtool` and `amtool` are installed (otherwise only static checks run); with `CI` set, a missing tool fails the suite. The end-to-end path is proven by the operator's [alert-path drill](#alert-path-drill), which must pass on a new host and then every quarter.
 
 The `deploy-shell` job in the `Django CI` workflow (`.github/workflows/django.yml`) installs pinned, checksum-verified ShellCheck, `promtool`, and `amtool`, runs ShellCheck over `deploy/*.sh` and `deploy/tests/*.sh`, and runs every `deploy/tests/*.sh` suite twice: unprivileged and as root. A failure there fails `Django CI`, so `Publish Release Image` does not publish.
 
@@ -711,7 +711,7 @@ What the heartbeat covers: `p1`'s Prometheus (rule evaluation), its Alertmanager
 
 ### Alert-path drill
 
-The drill proves that a host alert reaches the operator's inbox through `p1` and that Better Stack can notify the same inbox. It uses the existing `project=mawareeth` route and `mawareeth-email` receiver unchanged. Run it once before cutover (the launch drill) and then at least every quarter: `MawareethDrillOverdue` warns once the last pass is older than 92 days, and it warns on a fresh host until the launch drill passes.
+The drill proves that a host alert reaches the operator's inbox through `p1` and that Better Stack can notify the same inbox. It uses the existing `project=mawareeth` route and `mawareeth-email` receiver unchanged. Run it once on a new host (the launch drill) and then at least every quarter: `MawareethDrillOverdue` warns once the last pass is older than 92 days, and it warns on a fresh host until the launch drill passes.
 
 1. Run `sudo deploy/monitor.sh drill start`. It prints a random six-digit code and republishes `mawareeth.prom` at once with `mawareeth_drill_active_code` set to that code.
 2. Within about 10 minutes (scrape, rule evaluation, and Alertmanager `group_wait`), an email with the subject `[MAWAREETH info] MawareethAlertDrill (firing)` arrives at `SMTP_TO`. Its summary reads `Mawareeth alert-path drill code <code>`. Until the drill is confirmed or aborted it re-sends every 4 hours (`repeat_interval`).
@@ -927,7 +927,7 @@ The job's result is the wrapper's exit code, and the last line of the output is 
 | other, stage `prepare` | `runtime.sh prepare` | Prepare refused (2) or failed (124: time limit) | Restored |
 | any nonzero, stage `deploy` | `release.sh deploy` | As in the [`release.sh` table](#blue-green-deployment). 4, 7 and 8 mean running `release.sh recover` by hand | Not restored; `release.sh` owns rollback |
 
-Commands that are not deploys still run by hand on the host: contract releases (`--allow-contract`), `recover`, configuration rotation and the cutover steps. The workflow cannot run them. The CI lock serializes CI deploys only. Manual `runtime.sh` and `release.sh` work takes `release.sh`'s own deploy lock, but nothing stops an operator from changing the checkout or manifest under a running CI deploy. Do no manual deploy work while a CI deploy runs.
+Commands that are not deploys still run by hand on the host: contract releases (`--allow-contract`), `recover` and configuration rotation. The workflow cannot run them. The CI lock serializes CI deploys only. Manual `runtime.sh` and `release.sh` work takes `release.sh`'s own deploy lock, but nothing stops an operator from changing the checkout or manifest under a running CI deploy. Do no manual deploy work while a CI deploy runs.
 
 **A stuck wrapper.**
 - Find it with `pgrep -af mawareeth-deploy-release`, and its log as above.
@@ -1018,7 +1018,7 @@ The baseline creates `/etc/mawareeth/runtime.env`, owned by root with mode 0600.
 
 ## Application runtime contract
 
-With `DJANGO_ENV=production` the application refuses to start unless these are set: `DJANGO_KEY`, `DJANGO_ALLOWED_HOSTS` (explicit hostnames, no wildcards), `DJANGO_CSRF_TRUSTED_ORIGINS` (explicit `https://` origins), `DATABASE_URL`, `DATABASE_SSL_MODE`, `MAILGUN_ACCESS_KEY`, and `MAILGUN_SERVER_NAME`. Use `DATABASE_SSL_MODE=disable` for the private Compose PostgreSQL and `verify-ca`/`verify-full` for any new managed database; `prefer` is rejected because it silently falls back to plaintext. `require` (encrypted, server certificate not checked) is accepted only because Heroku Postgres supports nothing stronger, and will be rejected once production leaves Heroku. The verified modes also need `DATABASE_SSL_ROOT_CERT`: the in-container path of a readable CA file (e.g. a mounted Compose secret), not the certificate contents. Optional: `DATABASE_CONNECT_TIMEOUT` (default 5 seconds), `RELEASE_VERSION`, and `RELEASE_COMMIT_SHA` (baked into the image by CI).
+With `DJANGO_ENV=production` the application refuses to start unless these are set: `DJANGO_KEY`, `DJANGO_ALLOWED_HOSTS` (explicit hostnames, no wildcards), `DJANGO_CSRF_TRUSTED_ORIGINS` (explicit `https://` origins), `DATABASE_URL`, `DATABASE_SSL_MODE`, `MAILGUN_ACCESS_KEY`, and `MAILGUN_SERVER_NAME`. Use `DATABASE_SSL_MODE=disable` for the private Compose PostgreSQL and `verify-ca`/`verify-full` for any new managed database; `prefer` is rejected because it silently falls back to plaintext. `require` is rejected too, because it never checks the server certificate. The verified modes also need `DATABASE_SSL_ROOT_CERT`: the in-container path of a readable CA file (e.g. a mounted Compose secret), not the certificate contents. Optional: `DATABASE_CONNECT_TIMEOUT` (default 5 seconds), `RELEASE_VERSION`, and `RELEASE_COMMIT_SHA` (baked into the image by CI).
 
 Django trusts `X-Forwarded-Proto` from its upstream (`SECURE_PROXY_SSL_HEADER`), so it must stay reachable only through Caddy. Two invariants make that safe, and the offline tests (`deploy/tests/test_compose_runtime.sh`) pin both (case-insensitively for the header check, and also against `network_mode:` on the slots):
 
@@ -1037,281 +1037,10 @@ Changing the Caddyfile on a running host takes effect only after Caddy reloads i
 
 On the host, `sudo ufw status numbered` must show TCP 22 only from the configured CIDRs and TCP 80/443 only (only from the Cloudflare ranges with `PUBLIC_WEB_SOURCES=cloudflare`); it must not show app, Docker, or PostgreSQL ports. In Hetzner, inspect the attached edge firewall for the same allow-list. Confirm `sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|pubkeyauthentication'`, `docker --version`, `docker compose version`, `stat -c '%U %G %a' /etc/mawareeth/runtime.env`, and `hcloud server describe SERVER` (deletion protection). Public checks must find only ports 80 and 443 (with `PUBLIC_WEB_SOURCES=cloudflare`, not even those from outside Cloudflare); port 22 is reachable only from an approved source.
 
-Also confirm the Docker-port backstop is active and in effect: `systemctl is-active mawareeth-docker-firewall.service` must report `active`, and `sudo iptables -L DOCKER-USER -n` (plus `sudo ip6tables -L DOCKER-USER -n` where IPv6 is enabled) must show only the established-traffic accept, the 80/443 accept (one per Cloudflare range of that family with `PUBLIC_WEB_SOURCES=cloudflare`), a `RETURN` for traffic arriving from `docker0` and from `br-+` (connections containers start, such as DNS, Mailgun, the Storage Box, and Heroku; they continue to Docker's own rules), and the trailing drop. Without those two `RETURN` rules every container-started connection except to ports 80 and 443 is dropped, including DNS. Docker recreates its own chain independently of `ufw`, so the unit declares `BindsTo=docker.service` and `PartOf=docker.service` and is installed into `docker.service.wants`: it stops with Docker for any reason (including a crash) and reapplies the rules whenever Docker starts or restarts. `systemctl show -p BindsTo,PartOf,WantedBy mawareeth-docker-firewall.service` must list `docker.service`; on a host bootstrapped before this was added, rerun `bootstrap-host.sh` (idempotent) to install the updated unit. The same checks still apply after a `systemctl restart docker`.
+Also confirm the Docker-port backstop is active and in effect: `systemctl is-active mawareeth-docker-firewall.service` must report `active`, and `sudo iptables -L DOCKER-USER -n` (plus `sudo ip6tables -L DOCKER-USER -n` where IPv6 is enabled) must show only the established-traffic accept, the 80/443 accept (one per Cloudflare range of that family with `PUBLIC_WEB_SOURCES=cloudflare`), a `RETURN` for traffic arriving from `docker0` and from `br-+` (connections containers start, such as DNS, Mailgun, and the Storage Box; they continue to Docker's own rules), and the trailing drop. Without those two `RETURN` rules every container-started connection except to ports 80 and 443 is dropped, including DNS. Docker recreates its own chain independently of `ufw`, so the unit declares `BindsTo=docker.service` and `PartOf=docker.service` and is installed into `docker.service.wants`: it stops with Docker for any reason (including a crash) and reapplies the rules whenever Docker starts or restarts. `systemctl show -p BindsTo,PartOf,WantedBy mawareeth-docker-firewall.service` must list `docker.service`; on a host bootstrapped before this was added, rerun `bootstrap-host.sh` (idempotent) to install the updated unit. The same checks still apply after a `systemctl restart docker`.
 
-## Cutover rehearsal
+## Heroku cutover history
 
-`deploy/rehearse.sh` collects the evidence story 0.10 needs before go-live: how long the Heroku data move takes, whether that fits the 20-minute write-freeze budget, whether the CX33 holds both slots under load, and whether recovery is proven. `deploy/rehearsal.py` (standard library only) samples the host, evaluates the samples, and generates the workstation load. Run every `rehearse.sh` command as root on the host.
+Production moved from Heroku to this host on 2026-11-01, and Heroku is destroyed. See `_bmad-output/implementation-artifacts/spec-0-10-execute-production-cutover-and-retire-heroku.md` for timings and findings. The rehearsal and inventory tooling and their runbooks were removed afterwards; the last commit that has them is `e61f4dd`.
 
-The rehearsal copies live Heroku **read only**: one snapshot, no maintenance mode, no writes, and production DNS untouched. DNS is rehearsed on a throwaway name such as `rehearsal.mawareeth.com`, switched Heroku → Hetzner → Heroku to time propagation and the rollback. During the rehearsal the host's `DOMAIN` in `runtime.env` is that throwaway name, so Caddy gets a certificate for it.
-
-| Command | What it does |
-|---------|--------------|
-| `import [--freeze-marked] [--extensions-created]` | Copies Heroku's `public` schema into the empty private PostgreSQL in one transaction and checks it against the source |
-| `mark PHASE` | Records a manual cutover phase |
-| `capacity [--minutes N]` | Runs both slots and samples the host while the workstation load runs (default 30 minutes) |
-| `report` | Combines the evidence into a gate verdict and picks the cutover path |
-
-**Safety rules.**
-
-- `rehearse.sh` never switches the route, DNS, or Heroku maintenance mode.
-- `import` refuses unless the target database holds no user objects (relations, sequences, views, types, or functions outside the system schemas, apart from objects an extension owns) and neither application slot is running.
-- `import` and `capacity` both hold the deploy lock and the backup lock.
-- `capacity` starts only the idle slot, from its own slot record, and stops it on every exit path, including a signal.
-
-### Source credentials
-
-1. On the workstation, run `heroku pg:credentials:url DATABASE --app HEROKU_APP`. Do not save or paste its output anywhere else.
-2. On the host, write the connection values into `/etc/mawareeth/heroku-source.env` with `sudoedit` (`root:root` mode 0600). The file uses the same strict raw `KEY=VALUE` format as `runtime.env`, one key per line, and must contain exactly `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD`:
-
-   ```text
-   PGHOST=ec2-0-0-0-0.compute-1.amazonaws.com
-   PGPORT=5432
-   PGDATABASE=...
-   PGUSER=...
-   PGPASSWORD=...
-   ```
-
-   Never put a URL, the password, or the file in the repository, CI, a command line, or a log.
-
-The file goes to the pinned `POSTGRES_IMAGE` client (17.11) only through `docker run --env-file`.
-
-**These are the application's own read-write credentials.** Heroku's essential plans cannot create a read-only credential (`heroku pg:credentials:create` needs Standard or higher). Every source session is therefore held read only by the session itself:
-
-- `PGOPTIONS=-c default_transaction_read_only=on`;
-- a `BEGIN ... READ ONLY` snapshot transaction;
-- `pg_dump`'s own read-only transaction;
-- `PGSSLMODE=require`.
-
-Session timeouts are disabled (`idle_in_transaction_session_timeout=0`, `statement_timeout=0`), so the snapshot transaction survives the whole dump.
-
-Heroku rotates the credentials when the database is re-provisioned and on `heroku pg:credentials:rotate`. Delete the file once story 0.10 is finished.
-
-**Impact on live Heroku.** The import holds one `REPEATABLE READ` snapshot open on the production database for its whole duration: the count pass, the dump, and the sequence read. It also reads and detoasts every row twice, once for the checksums and once for the dump. While the snapshot is open, vacuum cannot remove row versions newer than it. Run the rehearsal at a quiet hour, and expect extra load on the essential-1 plan.
-
-### Rehearsal sequence
-
-Do this on a prepared host (`runtime.sh prepare`, PostgreSQL running, an **empty** database, both slots stopped), with backups configured.
-
-1. **Lower the TTL.** Set the TTL of the throwaway record to 60 seconds (and, for 0.10, the TTL of `mawareeth.com` and `www`). Wait at least the old TTL, then run `sudo deploy/rehearse.sh mark ttl-lowered`. The DNS host must let you set the TTL: eNom's basic DNS (`name-services.com`, today's host for `mawareeth.com`) has no TTL field and serves 1800 seconds, which alone fills the 30-minute `dns-switched` window and makes a DNS rollback take up to 30 minutes. Move the zone to a DNS host with TTL control (for example Cloudflare or Hetzner DNS) at least two days before story 0.10, since a nameserver change itself takes up to 48 hours.
-2. **Import.** Run `sudo deploy/rehearse.sh import`.
-   - It opens one `REPEATABLE READ, READ ONLY` session on Heroku and exports its snapshot.
-   - It refuses (exit 2, nothing written, each finding named) a source that:
-     - runs a major other than 17;
-     - has user tables outside `public`;
-     - holds large objects (`pg_largeobject_metadata`);
-     - uses extensions other than `plpgsql`;
-     - lacks `public.django_migrations`.
-   - **Extensions.** `pg_dump --schema=public` does not create extensions. Create each named extension on the target first, in the same schema as on Heroku. For Heroku's `heroku_ext`, that means `CREATE SCHEMA heroku_ext; CREATE EXTENSION <name> SCHEMA heroku_ext;`. Mawareeth's Heroku database has `pg_stat_statements` (Heroku's own monitoring) in `public`, so run `CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA public;` as `POSTGRES_USER` in the target before the first import (it is created empty; the application does not use it). Then rerun with `import --extensions-created`, which checks that the target has every one of them.
-   - It counts and checksums every source table inside the snapshot, using the queries from `backup.sh`.
-   - It streams `pg_dump -Fc --no-owner --no-acl --schema=public --snapshot=<id>` straight into `pg_restore --exit-on-error --single-transaction --no-owner --no-acl --schema=public`.
-     - The dump never touches the disk.
-     - `--schema=public` on the restore side skips the dump's `CREATE SCHEMA public`, which would otherwise fail against the existing schema.
-     - `--single-transaction` rolls back a failed restore, so `fail:restore` leaves the target empty.
-   - It then compares the target's counts and checksums with the source's.
-   - Before committing the snapshot transaction, it reads the `last_value` and `is_called` of every `public` sequence in the source session, and compares them with the target's. Sequences are not transactional, so a write on live Heroku during a rehearsal import can move one and fail the run with `fail:compare`. Under the 0.10 write freeze the comparison is exact.
-   - Differing tables and sequences are named, and the full diff goes to the root-only log.
-   - Finally it runs `ANALYZE` on the target (`analyze_seconds`).
-
-   A rehearsal simulates `freeze-start` at the moment the import starts (written once the source checks pass).
-3. **Deploy and validate.** Run `release.sh deploy` with the release manifest. It applies the migrations; `rehearse.sh` has no migrate step. Validate the application through the edge, then run `sudo deploy/rehearse.sh mark validated`.
-   - **Imported schema behind the recorded release.** When a slot record already exists (a release was deployed before the reset, as on any host that ran a previous rehearsal), Heroku's schema can lack this release's newest migrations. The recorded slot then never becomes ready (`Readiness check failed: unapplied migrations for this release`), `runtime.sh up` exits 2, and `release.sh deploy` refuses to deploy over an unready active slot, so the deploy cannot apply them. Apply them in the active slot first, then deploy as usual:
-
-     ```console
-     sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/runtime.sh up   # exits 2: the slot is not ready
-     SLOT="$(sudo docker ps -q --filter label=com.docker.compose.project=mawareeth --filter label=com.docker.compose.service=app-blue)"   # the active slot
-     sudo docker exec "$SLOT" python manage.py migrate --plan --no-color   # must contain none of release.sh's contract operations
-     sudo docker exec "$SLOT" python manage.py migrate --no-input
-     sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json deploy/release.sh deploy
-     ```
-
-     Check the plan against `contract_pattern` in `release.sh` (remove, delete or rename, raw SQL, or a custom state/database change) before migrating, and check any new constraint against the imported data. The rehearsal on 2026-10-27 needed this for two migrations (`calc.0026`, `social_django.0017`).
-4. **Switch DNS.** Point the throwaway record at the host. When it resolves to Hetzner from outside, run `mark dns-switched`.
-5. **Capacity, while the throwaway record still points at the host** (between `dns-switched` and `dns-rolled-back`). Deploy a second release first, so that both slots have a slot record. Then run from the workstation, with the host's public IPv4 as `HOST_IP`:
-
-   ```console
-   python3 deploy/rehearsal.py loadgen --url https://rehearsal.mawareeth.com --expect-address HOST_IP \
-       --concurrency 20 --minutes 32 --path / --path /health/ready/ \
-     | ssh admin@HOST sudo /srv/mawareeth/deploy/rehearse.sh capacity --minutes 30
-   ```
-
-   - Use the absolute path of the host's deployment checkout. The administrator needs passwordless `sudo` for this command, because `sudo` cannot prompt while the pipe feeds standard input.
-   - On a Windows workstation in Git Bash, prefix the load generator with `MSYS_NO_PATHCONV=1`; otherwise Git Bash rewrites `--path /en/` into a Windows path and the load generator refuses it.
-   - A dropped SSH session sends no hangup to a non-interactive command, only end-of-file on standard input. `capacity` therefore treats standard input closing while it still samples (for more than 5 seconds) as a stopped load or a lost workstation: it stops the slot and records `fail:load` instead of sampling on.
-   - `--expect-address` is required. The load generator refuses (exit 2) unless the URL's host currently resolves to that address, so the load reaches the host and not Heroku.
-   - It sends only `GET` (or `HEAD` with `--method HEAD`). Add a `--path` for each representative page.
-   - It prints its summary on standard output: requests, errors, `p95_ms` over the answered requests, the actual `seconds`, `requests_per_second`, and the `started_epoch` and `finished_epoch` of the load.
-   - `capacity` starts the idle slot and keeps the route on the active one. It samples `/proc` every 15 seconds for 30 minutes and waits up to 15 minutes for the load summary on standard input. Then it stops the slot and evaluates the samples.
-   - The load must cover the whole sampling window: it must start at or before the first sample, finish at or after the last, and last at least the measured sampling duration minus one interval. Otherwise the run fails with `fail:load`. The load therefore runs 2 minutes longer than the sampling, and the workstation and host clocks must both be NTP-synchronised.
-   - Keep the SSH session open. A hangup ends the run (exit 129, slot stopped, `fail:interrupted`), and Ctrl-C on the workstation stops the load with a partial summary (exit 130).
-6. **Roll DNS back.** Mark `rollback-point` where 0.10 would first accept a write. Then point the record back at Heroku and run `mark dns-rolled-back` once it resolves there again.
-7. **Restore proof.** After the import, run `sudo deploy/backup.sh backup` and then `sudo deploy/backup.sh verify-restore` (story 0.7).
-8. **Report.** Run `sudo deploy/rehearse.sh report`.
-
-**Capacity thresholds** (architecture AD-2; changing them needs an explicit decision):
-
-- The run fails when the mean CPU exceeds 70% or the memory used exceeds 80% over any 15-minute window. Windows roll over the 15-second samples. CPU is the busy share of the jiffy delta. Memory used is `1 − MemAvailable/MemTotal`, averaged over the window.
-- It fails on any `pswpin`, `pswpout`, or `oom_kill` increase.
-- It fails when more than 1% of the load requests failed, or none were made.
-- It fails with fewer than 15 minutes of samples.
-
-A redirect counts as an answer and is not followed. Point `--url` at the canonical HTTPS origin.
-
-**The report and the gate.** `report` prints and writes `<state dir>/rehearsal/report`:
-
-- the import, capacity, and restore results (`import_dump_seconds`, `import_restore_seconds`, `import_compare_seconds`, `import_analyze_seconds`, the measured `capacity_duration_seconds`, the capacity peaks and load figures, the restore duration);
-- each mark and the phase durations (`phase_freeze_to_validated_seconds`, `phase_freeze_to_dns_seconds`, `phase_dns_rollback_seconds`, `phase_ttl_lead_seconds`);
-- the chosen `path`;
-- `gate=pass|unmet`.
-
-The path is `write-freeze` when `validated − freeze-start` ≤ 1200 s **and** `dns-switched − freeze-start` ≤ 1800 s; otherwise it is `replication`, which fails the gate (0.10 would then need a replication-based cutover, which is not built).
-
-**Size note.** The import is one `pg_dump -Fc` stream (no `-j`, which a streamed dump cannot use), restored in one transaction. Its duration grows with the database. The rehearsal's measured `phase_freeze_to_validated_seconds` decides: if it exceeds 20 minutes, the replication path is required.
-
-The gate also requires:
-
-- a passing import;
-- a passing capacity run with at least 1800 seconds of measured samples (`duration_seconds`, not the requested minutes), started after the import finished;
-- a passing `restore-verified` that is:
-  - verified after the import finished;
-  - no more than 35 days old;
-  - within RPO and RTO: `rpo_seconds` and `dump_age_seconds` ≤ 86400, `rto_seconds` and `duration_seconds` ≤ 14400 (non-negative integers);
-- all six marks, none in the future, in order:
-  - `ttl-lowered` ≤ `freeze-start` ≤ `validated` ≤ `dns-switched` ≤ `rollback-point` ≤ `dns-rolled-back`;
-  - `validated` ≤ `rollback-point`.
-
-Each unmet item is printed.
-
-| Exit | Meaning |
-|------|---------|
-| 0 | Success; for `report`, the gate passed |
-| 1 | `report`: the gate is not met |
-| 2 | Refused before anything was written. Causes: an invalid source file or configuration; a running slot; a non-empty target; non-public source tables, large objects, or uncreated extensions; a different source major; a stale or reused `--freeze-marked` mark; an unknown phase; or a missing slot record |
-| 3 | The deploy or backup lock is held |
-| 4 | `import` or `capacity` failed, and the evidence records `fail:<stage>`; or `mark` or `report` could not write its record. Import stages: `source`, `dump`, `restore`, `compare`, `analyze`. Capacity stages: `start`, `samples`, `load`, `load-errors`, `cpu`, `memory`, `swap`, `oom`, `insufficient-samples`, `stop` |
-| 129, 130, 143 | Hangup, interrupt, or termination. A run in progress records `fail:interrupted`; `import` removes its source containers, and `capacity` stops its slot |
-
-**Evidence.** `<state dir>/rehearsal/` (root 0700) holds the following 0600 `key=value` files, each written atomically:
-
-- `import` and `capacity`;
-- one `mark-<phase>` per mark (`mark` replaces an earlier one);
-- `report`;
-- the raw `capacity-samples.tsv`.
-
-Diagnostic logs go to `logs/`. Like the other logs, they are never rotated automatically.
-
-**Resetting the target to empty.** A failed restore is rolled back, but a passing import, or a dump that failed after `pg_restore` accepted its output, leaves data that `import` refuses to overwrite. On the rehearsal host, or on the production host before story 0.10 opens any write, first confirm that no slot is running (`deploy/runtime.sh status`) and that the data is disposable. Then run as root from the deployment checkout:
-
-```console
-PGU="$(sed -n 's/^POSTGRES_USER=//p' /etc/mawareeth/runtime.env)"; PGD="$(sed -n 's/^POSTGRES_DB=//p' /etc/mawareeth/runtime.env)"
-PGC="$(docker ps -q --filter label=com.docker.compose.project=mawareeth --filter label=com.docker.compose.service=postgres)"
-docker exec -i "$PGC" psql -X -v ON_ERROR_STOP=1 -U "$PGU" -d "$PGD" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION pg_database_owner; GRANT USAGE ON SCHEMA public TO PUBLIC;'
-```
-
-`PGC` must be exactly one container ID. The reset leaves extensions in other schemas in place. Never run it on a database that has accepted production writes.
-
-### Production cutover preparation
-
-The rehearsal runs the host with `DOMAIN=rehearsal.mawareeth.com` in `acme` mode. A deploy cannot change `DOMAIN`, because the new runtime file no longer hashes to the active slot's snapshot (and no rotation command exists). Switching the host to its production configuration is therefore a one-time re-bootstrap, done days before the cutover. It discards the rehearsal's release state and data, never production writes. Do it once the Cloudflare setup (steps 1–5 under [Cloudflare edge](#cloudflare-edge)) is in place. Each step needs its own approval.
-
-Run everything as root from the checkout root (`/srv/mawareeth` on the host), checked out at the release commit. Set `STATE` to the absolute runtime state directory (default `/srv/mawareeth/deploy/runtime`):
-
-```console
-cd /srv/mawareeth && STATE=/srv/mawareeth/deploy/runtime
-```
-
-
-1. **Confirm nothing is in flight.** `deploy/release.sh recover --dry-run` must report nothing to recover. Also confirm that no backup or rehearsal command is running.
-2. **Stop the slots and Caddy, and keep PostgreSQL running:**
-
-   ```console
-   for svc in app-blue app-green caddy; do docker ps -q --filter label=com.docker.compose.project=mawareeth --filter label=com.docker.compose.service=$svc | xargs -r docker stop -t 35; done
-   ```
-
-3. **Archive the rehearsal's release state** to a root-only directory, so that `prepare` and the bootstrap start from no route, no slot record, and no journal:
-
-   ```console
-   ARCHIVE="/root/mawareeth-pre-cutover-$(date -u +%Y%m%dT%H%M%SZ)"; install -d -o root -g root -m 0700 "$ARCHIVE"
-   shopt -s nullglob
-   for item in "$STATE/slots" "$STATE/routes" "$STATE/deploy.journal" "$STATE"/*.snapshot.env; do
-     [ ! -e "$item" ] || mv -v -- "$item" "$ARCHIVE/"
-   done
-   shopt -u nullglob
-   ```
-
-   The loop moves only what exists, so a host without some of these (no journal, no slot records) is fine. Keep `$STATE/rehearsal/`, because cutover step 2 still reads its report. The snapshots hold secrets, so keep the archive root-only and delete it once the cutover has succeeded.
-4. **Reset the database to empty**, as described in "Resetting the target to empty" above. The rehearsal data is disposable.
-5. **Install the production `runtime.env`** with `sudoedit /etc/mawareeth/runtime.env`. Set `DOMAIN=www.mawareeth.com`, and add `EDGE_MODE=cloudflare` and `REDIRECT_DOMAIN=mawareeth.com`. Keep every other key. `SITE_ID` must match the Heroku value (see Private Compose runtime). Then check `sudo openssl x509 -in /etc/mawareeth/origin-tls/cert.pem -noout -ext subjectAltName` lists both names.
-6. **Prepare and bootstrap** against the empty database:
-
-   ```console
-   sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json /srv/mawareeth/deploy/runtime.sh prepare
-   sudo MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json /srv/mawareeth/deploy/release.sh deploy --allow-contract
-   ```
-
-   The bootstrap migrates the empty database from zero. That plan includes historical contract operations, which is why `--allow-contract` is needed. Caddy is recreated with the current Compose model, and the deploy verifies `https://www.mawareeth.com/health/ready/` through `--resolve` against the pinned Origin CA roots, while public DNS still points at Heroku.
-7. **Check the edge by hand:**
-
-   ```console
-   curl -sD - -o /dev/null --cacert /srv/mawareeth/deploy/cloudflare-origin-ca.pem --resolve www.mawareeth.com:443:127.0.0.1 https://www.mawareeth.com/health/ready/
-   curl -sD - -o /dev/null --cacert /srv/mawareeth/deploy/cloudflare-origin-ca.pem --resolve mawareeth.com:443:127.0.0.1 'https://mawareeth.com/some/path?q=1'
-   ```
-
-   The first must show `200` with `X-Mawareeth-Slot: blue`. The second must show `301` with `Location: https://www.mawareeth.com/some/path?q=1`. The deploy itself also probes the redirect site in `cloudflare` mode and rolls back if it does not answer this way.
-
-Afterwards, point external monitors at the canonical `https://www.mawareeth.com`. In the Facebook and LinkedIn consoles, register the OAuth redirect URIs for **both** `https://mawareeth.com` and `https://www.mawareeth.com` before the DNS switch. Heroku keeps serving the apex until the switch and Hetzner serves `www` after it, so both must work across the switch window. Remove the apex URIs only after Heroku is retired. Story 0.10 then starts from a prepared host in production configuration. Its step 2 stops the slots and empties the database again before the import.
-
-### Production cutover (story 0.10)
-
-**Executed 2026-11-01. Heroku is destroyed.** See `_bmad-output/implementation-artifacts/spec-0-10-execute-production-cutover-and-retire-heroku.md` for timings and findings. The final state of the Heroku database is kept in the restic repository as snapshot tag `heroku-final` (`heroku-final-20261101.dump`, a `pg_dump -Fc --schema=public` archive). Nightly retention never prunes it, because it lacks the `complete` tag. To inspect it, run Restic with the same repository settings as `backup.sh`, then `dump latest /heroku-final-20261101.dump --tag heroku-final` into `pg_restore -l` (or `pg_restore` into a scratch database, never into production).
-
-This sequence is not run during the rehearsal. Every step against Heroku, DNS, or the production host needs its own approval. It assumes the [preparation](#production-cutover-preparation) is done: the host runs `DOMAIN=www.mawareeth.com` in `cloudflare` mode.
-
-1. Lower the TTLs a day ahead (on a DNS host that allows it; see rehearsal step 1).
-2. **Before the freeze:**
-   - stop both slots, but keep PostgreSQL running (not `runtime.sh down`, which stops it too): `for svc in app-blue app-green; do docker ps -q --filter label=com.docker.compose.project=mawareeth --filter label=com.docker.compose.service=$svc | xargs -r docker stop -t 35; done`;
-   - reset the target to empty with the commands above;
-   - confirm `sudo deploy/backup.sh gate`;
-   - run `sudo deploy/rehearse.sh report` and confirm that the rehearsal gate passed.
-3. **Freeze.** Run `heroku maintenance:on --app HEROKU_APP`, then immediately `sudo deploy/rehearse.sh mark freeze-start`.
-4. **Import.** Run `sudo deploy/rehearse.sh import --freeze-marked` (add `--extensions-created` if needed). It keeps the operator's `freeze-start`, and refuses a mark older than 30 minutes or older than the last import, such as one left by the rehearsal.
-5. **Deploy and validate.** Check the imported site record first. The import brings Heroku's `django_site` rows, and the row whose `id` equals `SITE_ID` must name the canonical host. If it names the apex, set it to `www.mawareeth.com`:
-
-   ```console
-   SITE="$(sed -n 's/^SITE_ID=//p' /etc/mawareeth/runtime.env)"; SITE="${SITE:-1}"
-   docker exec -i "$PGC" psql -X -v ON_ERROR_STOP=1 -U "$PGU" -d "$PGD" -c "SELECT id, domain, name FROM django_site WHERE id = $SITE;"
-   docker exec -i "$PGC" psql -X -v ON_ERROR_STOP=1 -U "$PGU" -d "$PGD" -c "UPDATE django_site SET domain = 'www.mawareeth.com' WHERE id = $SITE AND domain = 'mawareeth.com';"
-   ```
-
-   `PGC`, `PGU` and `PGD` are set as in "Resetting the target to empty". Then run `release.sh deploy` and validate through the edge with `--resolve` and `--cacert /srv/mawareeth/deploy/cloudflare-origin-ca.pem` (DNS still points at Heroku). Then run `mark validated`. This must happen within 20 minutes of the freeze. If the imported schema is behind the recorded release, apply the pending migrations in the active slot first, as in rehearsal step 3.
-6. **DNS.** In Cloudflare, point the **proxied** A records for `mawareeth.com` and `www` at the host's IPv4 address. Remove any AAAA records for those names; there are none to the host (see [Cloudflare edge](#cloudflare-edge)). Run `mark dns-switched` within 30 minutes of the freeze, once both names answer from the host through Cloudflare. Check that `https://www.mawareeth.com/health/ready/` shows an `X-Mawareeth-Slot` header and that `https://mawareeth.com/` redirects to `https://www.mawareeth.com/`. Proxied names resolve to Cloudflare's addresses, not the host's, so `rehearsal.py loadgen --expect-address HOST_IP` cannot target them.
-7. **Rollback point.** Until Hetzner accepts its first write, `heroku maintenance:off` plus DNS back to Heroku is lossless. Run `mark rollback-point` just before opening writes. After that, rolling back means copying Hetzner's writes back to Heroku.
-
-**Known limits.**
-
-- Only `public` is copied. Large objects and extensions are refused rather than copied (see the import step).
-- Roles, ownership, and grants are not copied (`--no-owner --no-acl`). The application role owns everything it restores.
-- The capacity load reaches only the active slot. The idle slot contributes its memory and background work, which matches the overlap during a blue-green deploy.
-
-## Heroku migration inventory
-
-Capture the live migration baseline only from an operator workstation with Python dependencies installed, the Heroku CLI installed, and an authenticated account that has read access to the production app. Confirm the exact app identifier before running. The utility performs only read operations against Heroku and public DNS; it does not connect to PostgreSQL or change the app, configuration, add-ons, domains, DNS, releases, or data.
-
-Use an ignored local path for the first capture:
-
-```console
-python deploy/heroku_inventory.py capture --app HEROKU_APP --output deploy/heroku-inventory.local.json
-```
-
-Capture never exits zero, because a fresh report always lacks operator confirmations. Exit `2` means evidence is missing: the unknown sections are listed on stdout and each failure reason, such as authentication, app access, timeout or DNS, is printed to stderr without any Heroku output. Exit `3` means every section was captured and the report now needs review and confirmations. Capture writes only allow-listed app/process/database/add-on/domain fields, configuration key names, DNS A/AAAA answers, observation time, and the Heroku CLI version. Raw Heroku responses are never written. One-off `run` dynos are excluded, and a process command that looks like it carries an inline credential marks the processes section unknown instead of being written. Do not redirect CLI debugging output or save raw API responses; they may contain database URLs or credentials.
-
-`captured_at`, dyno `state`, and DNS answers are observation metadata: they can change between otherwise identical captures, so compare repeated captures on the remaining fields. A wildcard domain is resolved through an `inventory-wildcard-probe` label it covers.
-
-Review every section against the Heroku dashboard and the responsible operator's knowledge. `confirm` refuses a report with unknown sections; recapture first. Record confirmations explicitly after that review:
-
-```console
-python deploy/heroku_inventory.py confirm --input deploy/heroku-inventory.local.json --confirmation target_app_confirmed --confirmation database_reviewed --confirmation addons_reviewed --confirmation config_keys_reviewed --confirmation domains_and_dns_reviewed
-python deploy/heroku_inventory.py verify --input deploy/heroku-inventory.local.json
-```
-
-Verification fails closed when a required section is missing, malformed, unresolved, or unconfirmed, when the capture time or Heroku CLI version is absent, or when the captured app name differs from the target app. Never replace an unknown value with a repository default. Before proposing a reviewed baseline for source control, inspect the complete file and search for database URL schemes, credentials, tokens, cookies, private keys, certificate material, and configuration values. The default local output is ignored deliberately. The reviewed baseline at `docs/operations/heroku-inventory.redacted.json` is tracked, and the automated tests verify it and scan it for secret material, so any change to it must pass `python manage.py test` and operator review before merge.
+The final state of the Heroku database is kept in the restic repository as snapshot tag `heroku-final` (`heroku-final-20261101.dump`, a `pg_dump -Fc --schema=public` archive). Nightly retention never prunes it, because it lacks the `complete` tag. To inspect it, run Restic with the same repository settings as `backup.sh`, then `dump latest /heroku-final-20261101.dump --tag heroku-final` into `pg_restore -l` (or `pg_restore` into a scratch database, never into production).
