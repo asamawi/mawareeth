@@ -5,12 +5,20 @@
 #                                    IPv4 only (textfile and systemd
 #                                    collectors; re-run to upgrade the wrapper),
 #                                    UFW (9100 and SSH on tailscale0), journald
-#                                    bounds, collector
+#                                    bounds, collector, daily token check
 #   sudo deploy/monitor.sh collect   publish backup/restore records as metrics
 #                                    (including whether the last ok backup
-#                                    holds every archive)
-#   sudo deploy/monitor.sh status    print the metrics a collect would publish
-#                                    and the drill record
+#                                    holds every archive), each origin
+#                                    certificate file's earliest notAfter, and
+#                                    the token check record; never uses the
+#                                    network
+#   sudo deploy/monitor.sh token-check
+#                                    ask GitHub (/rate_limit, no quota) whether
+#                                    the deploy's read token works and when it
+#                                    expires, and record the answer; the next
+#                                    collect publishes it
+#   sudo deploy/monitor.sh status    print the metrics a collect would publish,
+#                                    the drill record and the token check record
 #   sudo deploy/monitor.sh drill start
 #   sudo deploy/monitor.sh drill confirm CODE --better-stack-received
 #   sudo deploy/monitor.sh drill abort
@@ -25,9 +33,15 @@
 # (invalid input, environment, usage, or drill state; nothing was changed);
 # 3 another monitor operation holds the monitor lock.
 # `collect` exits 0 even when a record is absent, mis-owned, or malformed: the
-# record's metrics are published as 0 so the matching alert fires. Staleness is
-# judged by the Prometheus rules (time() - metric); this script never compares
-# clocks. It never takes the deploy or backup locks and never touches slots,
+# record's metrics are published as 0 so the matching alert fires. An origin
+# certificate file that exists but cannot be read publishes 0 the same way; an
+# absent one publishes no series. `token-check` exits 0 for every answer it can
+# record, 1 only when it cannot write the record, and 3 when it cannot get the
+# monitor lock for the write (it never holds the lock across the network call,
+# and waits for it instead of giving up the day's check). The token value is never
+# printed, logged, or put on argv or in the environment. Staleness and expiry
+# are judged by the Prometheus rules (time() - metric); this script never
+# compares clocks. It never takes the deploy or backup locks and never touches slots,
 # routes, the deploy journal, snapshots, or the database. Tailscale is joined
 # interactively by the operator (deploy/README.md); no auth key is accepted.
 monitor_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,6 +69,12 @@ drill_dir="$state_dir/monitor"
 drill_file="$drill_dir/drill"
 drill_history_file="$drill_dir/drill-history"
 drill_usage='usage: monitor.sh drill {start|confirm CODE --better-stack-received|abort}'
+origin_certificate_files=(cert.pem aop-ca.pem aop-client.pem)
+token_file="${MAWAREETH_GITHUB_TOKEN_FILE:-/etc/mawareeth/github-read.token}"
+token_record="$drill_dir/github-token"
+token_unit=mawareeth-github-token-check
+token_url=https://api.github.com/rate_limit
+token_lock_wait="${MAWAREETH_TOKEN_LOCK_WAIT:-120}"
 
 die() { printf 'monitor: %s\n' "$*" >&2; exit 2; }
 say() { if ! printf 'monitor: %s\n' "$*" >&2 2>/dev/null; then :; fi; }
@@ -113,6 +133,11 @@ render_metrics() {
   drill_metrics
   gauge mawareeth_drill_active_code 'Code of the active alert-path drill; 0 when none is active or the drill record is unusable.' "$drill_code"
   gauge mawareeth_drill_last_pass_timestamp_seconds 'Time of the last passed alert-path drill; 0 if none passed or the drill record is unusable.' "$drill_last_pass"
+  origin_certificate_metrics
+  token_metrics
+  gauge mawareeth_github_token_usable '0 when GitHub rejected the read token, the token file is unusable, or the check record is unusable; a transient check failure stays 1.' "$token_usable"
+  gauge mawareeth_github_token_last_ok_timestamp_seconds 'Time of the last check GitHub accepted the read token; 0 if none is recorded or the check record is unusable.' "$token_last_ok"
+  gauge mawareeth_github_token_expiry_timestamp_seconds 'Expiry of the read token as GitHub reported it; 0 if it never expires, is unknown, or the check record is unusable.' "$token_expiry"
   gauge mawareeth_monitor_collect_timestamp_seconds 'Time this file was last written by monitor.sh collect.' "$now"
 }
 
@@ -125,6 +150,82 @@ drill_metrics() {
   read_record "$drill_file" || return 0
   if [[ "${record[state]:-}" == active && "${record[code]:-}" =~ $drill_code_re ]]; then drill_code=$((10#${record[code]})); fi
   if [[ "${record[last_pass_epoch]:-}" =~ $epoch_re ]]; then drill_last_pass=$((10#${record[last_pass_epoch]})); fi
+}
+
+# certificate_expiry FILE sets cert_expiry to the earliest notAfter epoch across
+# FILE's PEM certificate blocks, or 0 unless FILE is a root-owned regular
+# non-symlink file with the modes preflight accepts, holding at least one block,
+# every one of which parses. Text outside the blocks is ignored, as in
+# aop_certificates (runtime.sh), which is not called here because it dies.
+# Certificates are public; they reach openssl on stdin. A missing openssl fails
+# like an unparsable certificate.
+certificate_expiry() {
+  local file="$1" line block='' inside=0 end epoch earliest=0
+  local -a lines=()
+  cert_expiry=0
+  [[ -f "$file" && ! -L "$file" ]] || return 0
+  case "$(stat -c '%u:%g:%a' "$file" 2>/dev/null)" in 0:0:600 | 0:0:644) ;; *) return 0 ;; esac
+  mapfile -t lines < "$file" || return 0
+  for line in "${lines[@]}"; do
+    # Trailing whitespace (CRLF included) must not hide a PEM marker: a skipped
+    # block would overstate the earliest expiry.
+    line="${line%"${line##*[![:space:]]}"}"
+    if ((inside)); then
+      block+="$line"$'\n'
+      [[ "$line" == '-----END CERTIFICATE-----' ]] || continue
+      inside=0
+      end="$(openssl x509 -noout -enddate <<<"$block" 2>/dev/null)" || return 0
+      end="${end%$'\r'}"
+      [[ "$end" == notAfter=* ]] || return 0
+      epoch="$(date -u -d "${end#notAfter=}" +%s 2>/dev/null)" || return 0
+      [[ "$epoch" =~ $epoch_re ]] || return 0
+      if ((earliest == 0 || epoch < earliest)); then earliest="$epoch"; fi
+    elif [[ "$line" == '-----BEGIN CERTIFICATE-----' ]]; then
+      inside=1; block="$line"$'\n'
+    fi
+  done
+  ((inside == 0)) || return 0
+  cert_expiry="$earliest"
+}
+
+# origin_certificate_metrics prints one sample per origin certificate file that
+# exists (a dangling symlink counts, and publishes 0). HELP and TYPE appear only
+# with a sample: an acme host publishes nothing here.
+origin_certificate_metrics() {
+  local name path metric=mawareeth_origin_certificate_expiry_timestamp_seconds described=0
+  for name in "${origin_certificate_files[@]}"; do
+    # shellcheck disable=SC2154 # origin_tls_dir comes from runtime.sh, through backup.sh.
+    path="$origin_tls_dir/$name"
+    [[ -e "$path" || -L "$path" ]] || continue
+    certificate_expiry "$path"
+    if ((described == 0)); then
+      printf '# HELP %s Earliest notAfter across the certificates of an origin TLS file; 0 if the file cannot be read.\n# TYPE %s gauge\n' "$metric" "$metric"
+      described=1
+    fi
+    printf '%s{file="%s"} %s\n' "$metric" "$name" "$cert_expiry"
+  done
+}
+
+# token_metrics sets token_usable, token_last_ok and token_expiry from the token
+# check record, all 0 unless the whole record is well formed. Only a transient
+# result=error stays usable: its age is judged by the last ok time, which is 0
+# (so the alert fires) when no check has ever succeeded. expires_epoch=never
+# publishes expiry 0, which the rule reads as no expiry.
+token_metrics() {
+  token_usable=0; token_last_ok=0; token_expiry=0
+  read_record "$token_record" || return 0
+  local result="${record[result]:-}" last_ok="${record[last_ok_epoch]:-}" expires="${record[expires_epoch]:-}"
+  [[ "${record[checked_epoch]:-}" =~ $epoch_re ]] || return 0
+  [[ -z "$last_ok" || "$last_ok" =~ $epoch_re ]] || return 0
+  [[ -z "$expires" || "$expires" == never || "$expires" =~ $epoch_re ]] || return 0
+  case "$result" in
+    ok) [[ -n "$last_ok" && -n "$expires" ]] || return 0; token_usable=1 ;;
+    error) token_usable=1 ;;
+    rejected | missing) ;;
+    *) return 0 ;;
+  esac
+  if [[ -n "$last_ok" ]]; then token_last_ok=$((10#$last_ok)); fi
+  if [[ "$expires" =~ $epoch_re ]]; then token_expiry=$((10#$expires)); fi
 }
 
 check_textfile_dir() {
@@ -144,6 +245,7 @@ cmd_collect() {
   require_command flock; require_command mktemp; require_command sync
   clean_path "$state_dir" MAWAREETH_RUNTIME_DIR
   clean_path "$textfile_dir" MAWAREETH_TEXTFILE_DIR
+  clean_path "$origin_tls_dir" MAWAREETH_ORIGIN_TLS_DIR
   acquire_monitor_lock
   check_textfile_dir
   publish_metrics
@@ -153,6 +255,7 @@ cmd_status() {
   require_root
   clean_path "$state_dir" MAWAREETH_RUNTIME_DIR
   clean_path "$textfile_dir" MAWAREETH_TEXTFILE_DIR
+  clean_path "$origin_tls_dir" MAWAREETH_ORIGIN_TLS_DIR
   [[ -d "$state_dir" && ! -L "$state_dir" ]] || die "runtime state directory $state_dir is missing; run deploy/runtime.sh prepare first"
   printf '== metrics a collect would publish\n'
   render_metrics
@@ -167,6 +270,108 @@ cmd_status() {
   else
     printf '(absent: no drill has run)\n'
   fi
+  # The record never holds the token, only what GitHub said about it.
+  printf '== %s\n' "$token_record"
+  if read_record "$token_record"; then
+    printf 'result=%s\nchecked_epoch=%s\nlast_ok_epoch=%s\nexpires_epoch=%s\n' \
+      "${record[result]:-}" "${record[checked_epoch]:-}" "${record[last_ok_epoch]:-}" "${record[expires_epoch]:-}"
+  elif [[ -e "$token_record" || -L "$token_record" ]]; then
+    printf '(unusable: it must be a root:root 0600 file of key=value lines)\n'
+  else
+    printf '(absent: no token check has run)\n'
+  fi
+}
+
+# --- GitHub read token check ------------------------------------------------------
+# GitHub reports a fine-grained token's expiry only in a response header, so this
+# calls /rate_limit, which spends no quota. It runs from its own daily timer;
+# collect stays offline.
+
+# token_probe sets probe_result (ok, rejected, missing or error) and, for ok,
+# probe_expires (an epoch, or never when GitHub sends no expiry header). The
+# token reaches curl through a config on a pipe, never argv or the environment.
+# Redirects are not followed, so it is never sent to another host.
+token_probe() {
+  probe_result=missing; probe_expires=''
+  local token response code line value='' has_header=0 status=0
+  [[ -f "$token_file" && ! -L "$token_file" ]] || return 0
+  [[ "$(stat -c '%u:%g:%a' "$token_file" 2>/dev/null)" == 0:0:600 ]] || return 0
+  token="$(< "$token_file")" || return 0
+  [[ "$token" =~ ^[A-Za-z0-9_]{20,255}$ ]] || return 0
+  probe_result=error
+  response="$(curl --config <(printf 'header = "Authorization: Bearer %s"\n' "$token") \
+    --silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 20 --max-time 60 \
+    --retry 2 --retry-connrefused --retry-delay 15 \
+    --header 'Accept: application/vnd.github+json' --header 'X-GitHub-Api-Version: 2022-11-28' \
+    --dump-header - --output /dev/null --write-out '\n%{http_code}' "$token_url" 9>&-)" || status=$?
+  token=''
+  ((status == 0)) || return 0
+  code="${response##*$'\n'}"
+  case "$code" in
+    200) ;;
+    401 | 403) probe_result=rejected; return 0 ;;
+    *) return 0 ;;
+  esac
+  # Case-insensitive, as HTTP/1.1 and HTTP/2 spell header names differently; a
+  # new status line (a retried attempt, or a proxy's CONNECT answer, came first)
+  # starts over, so only the last response's headers count.
+  while IFS= read -r line; do
+    line="${line%$'\r'}"
+    if [[ "${line,,}" == http/* ]]; then
+      has_header=0; value=''
+    elif [[ "${line,,}" =~ ^github-authentication-token-expiration:[[:space:]]*(.*)$ ]]; then
+      has_header=1; value="${BASH_REMATCH[1]^^}"
+    fi
+  done <<<"$response"
+  if ((has_header == 0)); then
+    probe_result=ok; probe_expires=never
+    return 0
+  fi
+  # The shape is checked first: date -d also accepts words and the empty string.
+  [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}\ (UTC|[+-][0-9]{4})$ ]] || return 0
+  value="$(date -u -d "$value" +%s 2>/dev/null)" || return 0
+  [[ "$value" =~ $epoch_re ]] || return 0
+  probe_result=ok; probe_expires="$value"
+}
+
+# token_write (monitor lock held, record directory checked, token_probe done)
+# writes the record. Every result but ok keeps the previous good last_ok_epoch
+# and expires_epoch. The clock is read here, after the probe.
+token_write() {
+  local now last_ok='' expires=''
+  now="$(now_epoch)" || die 'cannot read the clock'
+  [[ "$now" =~ $epoch_re ]] || die 'the system clock is unreadable'
+  if read_record "$token_record" && [[ "${record[last_ok_epoch]:-}" =~ $epoch_re && "${record[expires_epoch]:-}" =~ ^(never|[1-9][0-9]{0,11})$ ]]; then
+    last_ok="${record[last_ok_epoch]}"; expires="${record[expires_epoch]}"
+  fi
+  if [[ "$probe_result" == ok ]]; then last_ok="$now"; expires="$probe_expires"; fi
+  if [[ ! -e "$drill_dir" ]]; then
+    mkdir -m 0700 -- "$drill_dir" || install_fail "could not create $drill_dir"
+  fi
+  atomic_write "$token_record" 0600 "$(printf 'result=%s\nchecked_epoch=%s\nlast_ok_epoch=%s\nexpires_epoch=%s' "$probe_result" "$now" "$last_ok" "$expires")" \
+    || install_fail "could not write $token_record"
+}
+
+# The probe can take minutes with retries, so it runs without the monitor lock:
+# collect and drill commands, which do not wait for the lock, are never refused
+# because of it. The lock is taken only for the read and write of the record.
+cmd_token_check() {
+  require_root
+  require_command flock; require_command mktemp; require_command sync
+  clean_path "$state_dir" MAWAREETH_RUNTIME_DIR
+  clean_path "$token_file" MAWAREETH_GITHUB_TOKEN_FILE
+  [[ "$token_lock_wait" =~ ^[0-9]{1,5}$ ]] || die 'MAWAREETH_TOKEN_LOCK_WAIT must be a number of seconds'
+  [[ -d "$state_dir" && ! -L "$state_dir" ]] || die "runtime state directory $state_dir is missing; run deploy/runtime.sh prepare first"
+  drill_check_dir
+  token_probe
+  exec 9>>"$monitor_lock_file" || die "cannot open $monitor_lock_file"
+  if ! flock -w "$token_lock_wait" 9; then
+    say "another monitor operation held $monitor_lock_file for ${token_lock_wait}s; nothing was recorded"
+    exit 3
+  fi
+  drill_check_dir
+  token_write
+  say "token check recorded result=$probe_result in $token_record; the next collect publishes it"
 }
 
 # --- Alert-path drill -------------------------------------------------------------
@@ -349,8 +554,16 @@ journald_content() {
 
 collect_service_content() {
   printf '[Unit]\nDescription=Mawareeth monitoring textfile collector\n'
-  printf '[Service]\nType=oneshot\nEnvironment=MAWAREETH_RUNTIME_DIR=%s\nEnvironment=MAWAREETH_TEXTFILE_DIR=%s\n' "$state_dir" "$textfile_dir"
+  printf '[Service]\nType=oneshot\nEnvironment=MAWAREETH_RUNTIME_DIR=%s\nEnvironment=MAWAREETH_TEXTFILE_DIR=%s\nEnvironment=MAWAREETH_ORIGIN_TLS_DIR=%s\n' "$state_dir" "$textfile_dir" "$origin_tls_dir"
   printf 'ExecStart=/bin/bash %s/monitor.sh collect\nTimeoutStartSec=120\nNice=10\n' "$deploy_dir"
+}
+
+# unit_service in backup.sh requires the container runtime; this needs only the
+# network.
+token_service_content() {
+  printf '[Unit]\nDescription=Mawareeth GitHub read token check\nWants=network-online.target\nAfter=network-online.target\n'
+  printf '[Service]\nType=oneshot\nEnvironment=MAWAREETH_RUNTIME_DIR=%s\nEnvironment=MAWAREETH_GITHUB_TOKEN_FILE=%s\n' "$state_dir" "$token_file"
+  printf 'ExecStart=/bin/bash %s/monitor.sh token-check\nTimeoutStartSec=360\nNice=10\n' "$deploy_dir"
 }
 
 cmd_install() {
@@ -364,6 +577,8 @@ cmd_install() {
   clean_path "$journald_dir" MAWAREETH_JOURNALD_DIR
   clean_path "$apt_dir" MAWAREETH_APT_DIR
   clean_path "$sbin_dir" MAWAREETH_SBIN_DIR
+  clean_path "$origin_tls_dir" MAWAREETH_ORIGIN_TLS_DIR
+  clean_path "$token_file" MAWAREETH_GITHUB_TOKEN_FILE
   [[ -r "$os_release_file" ]] || die 'cannot determine the operating system'
   local os_id os_version
   os_id="$(sed -n 's/^ID=//p' "$os_release_file" | tr -d '"')"
@@ -374,6 +589,7 @@ cmd_install() {
     [[ -d "$dir" && ! -L "$dir" ]] || die "$dir must be a directory"
   done
   acquire_monitor_lock
+  drill_check_dir
   # The 9100 rule below would enforce nothing on an inactive UFW; check first
   # so nothing is installed on an unfiltered host.
   local ufw_status
@@ -418,7 +634,14 @@ cmd_install() {
   atomic_write "$systemd_dir/$collect_unit.service" 0644 "$(collect_service_content)" || install_fail "could not write $collect_unit.service"
   atomic_write "$systemd_dir/$collect_unit.timer" 0644 "$(unit_timer 'Mawareeth monitoring collector every 5 minutes' '*:0/5' '' "$collect_unit.service")" \
     || install_fail "could not write $collect_unit.timer"
+  atomic_write "$systemd_dir/$token_unit.service" 0644 "$(token_service_content)" || install_fail "could not write $token_unit.service"
+  atomic_write "$systemd_dir/$token_unit.timer" 0644 "$(unit_timer 'Mawareeth GitHub read token check every day' daily 1h "$token_unit.service")" \
+    || install_fail "could not write $token_unit.timer"
 
+  # Publishes the token series on the first file; a host whose token is not
+  # installed yet records missing and alerts until it is.
+  token_probe
+  token_write
   publish_metrics
   timeout 60 systemctl daemon-reload || install_fail 'systemctl daemon-reload failed'
   timeout 60 systemctl restart systemd-journald || install_fail 'could not restart systemd-journald'
@@ -427,6 +650,7 @@ cmd_install() {
   # Starts asynchronously: until `tailscale up` has run, the exporter retries.
   timeout 60 systemctl restart --no-block "$exporter_unit" || install_fail "could not restart $exporter_unit"
   timeout 60 systemctl enable --now "$collect_unit.timer" || install_fail "could not enable $collect_unit.timer"
+  timeout 60 systemctl enable --now "$token_unit.timer" || install_fail "could not enable $token_unit.timer"
   say "installed; join the tailnet with 'sudo tailscale up' if not done yet, then add the p1 snippets (deploy/README.md)"
 }
 
@@ -436,8 +660,9 @@ monitor_main() {
     install) cmd_install ;;
     collect) cmd_collect ;;
     status) cmd_status ;;
+    token-check) cmd_token_check ;;
     drill) shift; cmd_drill "$@" ;;
-    *) die 'usage: monitor.sh {install|collect|status|drill}' ;;
+    *) die 'usage: monitor.sh {install|collect|token-check|status|drill}' ;;
   esac
 }
 
