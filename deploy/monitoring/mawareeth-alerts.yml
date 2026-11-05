@@ -8,7 +8,10 @@
 # "Alert-path drill"). The host-health rules (inodes, read-only filesystems,
 # memory, OOM kills, failed systemd units, clock sync) read node_exporter's
 # built-in collectors; the failed-unit rule needs the systemd collector that
-# monitor.sh install enables. MawareethWatchdog always fires: Alertmanager
+# monitor.sh install enables. The expiry rules judge each origin certificate
+# file (a file that cannot be read publishes 0, so it goes critical; an absent
+# file has no series) and the GitHub read token the deploy uses.
+# MawareethWatchdog always fires: Alertmanager
 # sends it to the Better Stack heartbeat (dead-man's switch for p1's
 # Prometheus and Alertmanager), never to email.
 groups:
@@ -126,6 +129,45 @@ groups:
           summary: 'Mawareeth alert-path drill is overdue, has never passed, or is future-dated'
           description: 'The last passed alert-path drill is older than 92 days, none has passed (or the drill record is unusable), the metric is missing from mawareeth.prom, or it is more than 5 minutes in the future (clock skew). Run the quarterly drill.'
           runbook: 'deploy/README.md#runbook-mawareethdrilloverdue'
+
+      - alert: MawareethOriginCertificateExpiring
+        expr: |
+          (mawareeth_origin_certificate_expiry_timestamp_seconds{job="mawareeth-node"} - time()) < 30 * 86400
+            and (mawareeth_origin_certificate_expiry_timestamp_seconds{job="mawareeth-node"} - time()) >= 7 * 86400
+        labels:
+          severity: warning
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth origin certificate file {{ $labels.file }} expires within 30 days'
+          description: 'A certificate in /etc/mawareeth/origin-tls/{{ $labels.file }} on {{ $labels.alias }} expires in under 30 days. While this file is in use, an expired certificate makes Cloudflare fail every visitor while Caddy keeps running. Rotate it; this goes critical at 7 days.'
+          runbook: 'deploy/README.md#runbook-mawareethorigincertificateexpiring'
+
+      - alert: MawareethOriginCertificateExpiring
+        expr: (mawareeth_origin_certificate_expiry_timestamp_seconds{job="mawareeth-node"} - time()) < 7 * 86400
+        labels:
+          severity: critical
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth origin certificate file {{ $labels.file }} expires within 7 days, has expired, or cannot be read'
+          description: 'A certificate in /etc/mawareeth/origin-tls/{{ $labels.file }} on {{ $labels.alias }} expires in under 7 days or has expired, or the file is unparsable, not root-owned, has the wrong mode, is a symlink or a directory, or openssl is missing (published as 0). While this file is in use, an expired certificate makes Cloudflare fail every visitor while Caddy keeps running.'
+          runbook: 'deploy/README.md#runbook-mawareethorigincertificateexpiring'
+
+      - alert: MawareethGithubTokenUnhealthy
+        expr: |
+          mawareeth_github_token_usable{job="mawareeth-node"} == 0
+            or (time() - mawareeth_github_token_last_ok_timestamp_seconds{job="mawareeth-node"}) > 2 * 86400
+            or (mawareeth_github_token_last_ok_timestamp_seconds{job="mawareeth-node"} - time()) > 300
+            or (mawareeth_github_token_expiry_timestamp_seconds{job="mawareeth-node"} > 0
+              and (mawareeth_github_token_expiry_timestamp_seconds{job="mawareeth-node"} - time()) < 30 * 86400)
+            or absent(mawareeth_github_token_usable{job="mawareeth-node"})
+        for: 5m
+        labels:
+          severity: warning
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth GitHub read token is rejected, unusable, unchecked for 2 days, future-dated, or expires within 30 days'
+          description: 'GitHub rejected /etc/mawareeth/github-read.token, the token file or its check record is unusable, no check has succeeded for 2 days, the last good check is more than 5 minutes in the future (clock skew), the token expires in under 30 days, or the metric is missing from mawareeth.prom, for 5 minutes. Production deploys refuse once the token stops working; the running site is not affected.'
+          runbook: 'deploy/README.md#runbook-mawareethgithubtokenunhealthy'
 
       - alert: MawareethInodesLow
         expr: |

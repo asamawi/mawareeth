@@ -187,3 +187,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-authenticated-origin-pulls.md`
   summary: Give the operator a check of Cloudflare's side of per-hostname Authenticated Origin Pulls (both hostnames `enabled` and status `active` via the API, or a probe through Cloudflare), since release.sh's loopback probes present the client certificate themselves and pass even when Cloudflare does not.
   evidence: Review noted a deploy with `require` succeeds while Cloudflare lacks or has lost the hostname association, leaving visitors on 52x; only the manual enablement order protects against it.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-credential-expiry-alerts.md`
+  summary: Extend `monitor.sh token-check` with a read-only probe of the repository's Actions artifacts endpoint, so a token that is alive but lost Actions read or repository access alerts before a deploy fails.
+  evidence: Review found that `/rate_limit` returns 200 for any live token, so `MawareethGithubTokenUnhealthy` stays silent for a re-scoped token; the approved spec limits the check to `/rate_limit` to spend no quota, and the runbook now documents the blind spot.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-credential-expiry-alerts.md`
+  summary: Alert when a certificate file the running configuration requires disappears (`cert.pem` in cloudflare mode, the AOP files under `ORIGIN_CLIENT_AUTH=require`), for example by comparing file presence with the edge mode.
+  evidence: Review found that deleting a required file removes its series, so an active `MawareethOriginCertificateExpiring` resolves and nothing fires until the next preflight; the approved matrix makes an absent file publish nothing, and telling required from unused needs `monitor.sh` to read `runtime.env`, which the spec lists as Ask First.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-credential-expiry-alerts.md`
+  summary: Decide whether a token record moving from a dated `expires_epoch` to `never` should be flagged, since a renamed or stripped GitHub expiry header would silently turn off the 30-day token alert.
+  evidence: Review found that HTTP 200 without `github-authentication-token-expiration` overwrites a known expiry with `never`; the approved matrix treats a missing header as a never-expiring token, and treating the change as an error would also alert on a legitimate rotation to a non-expiring token.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-credential-expiry-alerts.md`
+  summary: Add a `for:` delay or split out the `absent()` branches of the existing `MawareethCollectorStale` and `MawareethDrillOverdue` rules, so one failed scrape cannot fire them before `MawareethHostDown` inhibits them.
+  evidence: Review of the new token rule found this false-alarm path and fixed it there with `for: 5m`; both existing rules use `absent()` with no `for:`, and changing existing rules was outside this spec.

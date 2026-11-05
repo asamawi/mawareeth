@@ -39,7 +39,8 @@ case "$tmp" in "$root"/*) fail 'temporary directory must be outside the checkout
 trap '[[ -n "${KEEP_TMP:-}" ]] || rm -rf "$tmp"' EXIT
 stub="$tmp/bin"; S="$tmp/stub-state"; state="$tmp/state"; bundle="$tmp/bundle"; units="$tmp/systemd"
 textfile="$tmp/textfile"; journald="$tmp/journald.conf.d"; apt="$tmp/apt"; sbin="$tmp/sbin"
-mkdir -p "$stub" "$S" "$state/backup" "$bundle/deploy" "$units" "$textfile" "$apt"
+tls="$tmp/origin-tls"; github_token_file="$tmp/github-read.token"
+mkdir -p "$stub" "$S" "$state/backup" "$bundle/deploy" "$units" "$textfile" "$apt" "$tls"
 printf 'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\n' > "$tmp/os-release"
 
 # A disposable bundle; only the root execution gate is relaxed when unprivileged.
@@ -82,6 +83,16 @@ cat > "$stub/curl" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "curl \$*" >> '$S/calls.log'
 [[ ! -e '$S/curl-fails' ]] || exit 22
+# The token check: keep what curl was given (its environment and the config on
+# the pipe), then answer from "$S/github-response" or exit with "$S/github-rc".
+if [[ "\$*" == *api.github.com/rate_limit* ]]; then
+  env > '$S/curl-env'
+  if [[ -e '$S/curl-breaks-dir' ]]; then printf '0:0:755\n' > '$S/mode-monitor'; chmod 755 '$state/monitor'; fi
+  while (( \$# )); do if [[ "\$1" == --config ]]; then cat "\$2" > '$S/curl-config'; fi; shift; done
+  if [[ -e '$S/github-rc' ]]; then exit "\$(cat '$S/github-rc')"; fi
+  cat '$S/github-response'
+  exit 0
+fi
 while (( \$# )); do if [[ "\$1" == -o ]]; then printf 'stub-keyring\n' > "\$2"; fi; shift; done
 EOF
 cat > "$stub/tailscale" <<EOF
@@ -106,12 +117,21 @@ cat > "$stub/sync" <<EOF
 if [[ -e '$S/sync-fail-history' && "\${*: -1}" == */drill-history ]]; then exit 1; fi
 if (( $sync_works )); then exec '$real_sync' "\$@"; fi
 EOF
-# mktemp fails in the textfile directory while "$S/mktemp-fail-textfile" exists.
+# mktemp fails in the textfile directory while "$S/mktemp-fail-textfile" exists,
+# and in the monitor record directory while "$S/mktemp-fail-monitor" exists.
 real_mktemp="$(command -v mktemp)"
 cat > "$stub/mktemp" <<EOF
 #!/usr/bin/env bash
 if [[ -e '$S/mktemp-fail-textfile' && "\${*: -1}" == '$textfile/'* ]]; then exit 1; fi
+if [[ -e '$S/mktemp-fail-monitor' && "\${*: -1}" == '$state/monitor/'* ]]; then exit 1; fi
 exec '$real_mktemp' "\$@"
+EOF
+# openssl behaves as if not installed while "$S/openssl-missing" exists.
+real_openssl="$(command -v openssl)" || fail 'openssl is required to make the test certificates'
+cat > "$stub/openssl" <<EOF
+#!/usr/bin/env bash
+[[ ! -e '$S/openssl-missing' ]] || exit 127
+exec '$real_openssl' "\$@"
 EOF
 chmod 600 "$tmp/sync-probe"; modes_work=0
 [[ "$("$real_stat" -c %a "$tmp/sync-probe")" != 600 ]] || modes_work=1
@@ -132,7 +152,8 @@ fi
 chmod +x "$stub"/*
 
 base_env=(PATH="$stub:$PATH" MAWAREETH_RUNTIME_DIR="$state" MAWAREETH_SYSTEMD_DIR="$units" MAWAREETH_TEXTFILE_DIR="$textfile"
-  MAWAREETH_JOURNALD_DIR="$journald" MAWAREETH_APT_DIR="$apt" MAWAREETH_SBIN_DIR="$sbin" MAWAREETH_OS_RELEASE="$tmp/os-release")
+  MAWAREETH_JOURNALD_DIR="$journald" MAWAREETH_APT_DIR="$apt" MAWAREETH_SBIN_DIR="$sbin" MAWAREETH_OS_RELEASE="$tmp/os-release"
+  MAWAREETH_ORIGIN_TLS_DIR="$tls" MAWAREETH_GITHUB_TOKEN_FILE="$github_token_file")
 rc=0
 # run SCRIPT [ENV=VALUE...] COMMAND
 run() {
@@ -195,9 +216,10 @@ collected="$(metric mawareeth_monitor_collect_timestamp_seconds)"
 # shellcheck disable=SC2015 # fail exits, so it runs only when the check fails.
 [[ "$collected" =~ ^[1-9][0-9]+$ ]] && (( collected >= now && collected <= now + 120 )) || fail "collect timestamp $collected is not the current time"
 
-# Prom text format: HELP, TYPE gauge, then one sample, for exactly eight metrics.
-[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 8 ]] || fail 'expected eight gauges'
-[[ "$(grep -vc '^#' "$prom")" == 8 ]] || fail 'expected eight samples'
+# Prom text format: HELP, TYPE gauge, then one sample, for exactly eleven metrics
+# (no certificate files here, so no certificate metric).
+[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 11 ]] || fail 'expected eleven gauges'
+[[ "$(grep -vc '^#' "$prom")" == 11 ]] || fail 'expected eleven samples'
 while read -r name; do
   [[ "$(grep -A2 -x "# HELP $name .*" "$prom" | sed -n 2,3p)" == "# TYPE $name gauge"$'\n'"$name "* ]] || fail "$name lacks HELP/TYPE/sample order"
 done < <(grep -v '^#' "$prom" | cut -d' ' -f1)
@@ -326,6 +348,8 @@ run "$monitor" MAWAREETH_RUNTIME_DIR="$tmp/no-such-state" collect
 expect_rc 2 'missing state directory'
 run "$monitor" MAWAREETH_TEXTFILE_DIR='relative/dir' collect
 expect_rc 2 'relative textfile directory'
+run "$monitor" MAWAREETH_ORIGIN_TLS_DIR='relative/tls' collect
+expect_rc 2 'relative origin TLS directory'
 cp "$prom" "$tmp/prom-before"
 if [[ -n "$real_flock" ]]; then
   exec 7>>"$state/monitor.lock"; "$real_flock" -n 7
@@ -427,7 +451,7 @@ if (( modes_work )); then
   [[ "$("$real_stat" -c %a "$state/monitor")" == 700 ]] || fail 'the drill directory must be mode 0700'
 fi
 need "$prom" '# TYPE mawareeth_drill_active_code gauge'
-[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 8 ]] || fail 'drill publishing must keep eight gauges'
+[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 11 ]] || fail 'drill publishing must keep eleven gauges'
 
 # Refusals while active leave everything unchanged.
 snapshot
@@ -555,6 +579,320 @@ need "$drill_hist" "event=start code=$(field code)"
 drill abort; expect_rc 0 'abort after a failed publish'
 rm -f "$drill_rec"
 
+# --- Origin certificates: every certificate row of the matrix -----------------------
+cert_metric_name=mawareeth_origin_certificate_expiry_timestamp_seconds
+cert_metric() { metric "$cert_metric_name{file=\"$1\"}"; }
+expect_cert() { [[ "$(cert_metric "$1")" == "$2" ]] || fail "$3: the $1 series is '$(cert_metric "$1")', expected '$2'"; }
+# make_cert DAYS OUT writes a throwaway self-signed certificate.
+make_cert() {
+  MSYS2_ARG_CONV_EXCL='/CN=' "$real_openssl" req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
+    -keyout "$tmp/cert-key" -subj '/CN=mawareeth-test' -days "$1" -out "$2" > /dev/null 2>&1 || fail 'could not make a test certificate'
+}
+cert_end() { date -u -d "$("$real_openssl" x509 -in "$1" -noout -enddate | tr -d '\r' | sed 's/^notAfter=//')" +%s; }
+# put_cert SOURCE NAME installs SOURCE as origin TLS file NAME (root, 0644).
+put_cert() { rm -rf "${tls:?}/$2"; cp "$1" "$tls/$2"; chmod 644 "$tls/$2"; set_meta "$tls/$2" 0:0:644; }
+make_cert 400 "$tmp/c400"; make_cert 90 "$tmp/c90"; make_cert 60 "$tmp/c60"; make_cert 40 "$tmp/c40"; make_cert 5 "$tmp/c5"
+end90="$(cert_end "$tmp/c90")"; end60="$(cert_end "$tmp/c60")"; end40="$(cert_end "$tmp/c40")"; end5="$(cert_end "$tmp/c5")"
+(( end90 > now + 89 * 86400 && end90 < now + 91 * 86400 )) || fail 'the 90-day test certificate has the wrong notAfter'
+
+# Absent (acme mode, or AOP never set up): no series for that file.
+run "$monitor" collect; expect_rc 0 'collect with no certificate files'
+lacks "$prom" "$cert_metric_name"
+lacks "$S/calls.log" 'curl'
+put_cert "$tmp/c90" cert.pem
+run "$monitor" collect; expect_rc 0 'collect with only cert.pem'
+expect_cert cert.pem "$end90" 'cert.pem alone'
+[[ "$(grep -c "^$cert_metric_name" "$prom")" == 1 ]] || fail 'absent AOP files must publish no series'
+
+# Healthy: every file, and the earliest notAfter wherever it sits in the file
+# (with CRLF lines and text outside the blocks, as Caddy's loader tolerates).
+{ printf 'CA during a rotation\n'; cat "$tmp/c400"; printf 'between\n'; cat "$tmp/c60"; cat "$tmp/c90"; } > "$tmp/bundle-mid"
+put_cert "$tmp/bundle-mid" aop-ca.pem
+put_cert "$tmp/c40" aop-client.pem
+run "$monitor" collect; expect_rc 0 'collect with all certificate files'
+expect_cert cert.pem "$end90" 'healthy cert.pem'
+expect_cert aop-ca.pem "$end60" 'multi-certificate CA (earliest in the middle)'
+expect_cert aop-client.pem "$end40" 'healthy aop-client.pem'
+cat "$tmp/c60" "$tmp/c400" > "$tmp/bundle-first"; put_cert "$tmp/bundle-first" aop-ca.pem
+run "$monitor" collect; expect_cert aop-ca.pem "$end60" 'multi-certificate CA (earliest first)'
+cat "$tmp/c400" "$tmp/c5" > "$tmp/bundle-last"; put_cert "$tmp/bundle-last" aop-ca.pem
+run "$monitor" collect; expect_cert aop-ca.pem "$end5" 'multi-certificate CA (earliest last)'
+sed 's/$/\r/' "$tmp/c60" > "$tmp/crlf"; put_cert "$tmp/crlf" aop-ca.pem
+run "$monitor" collect; expect_cert aop-ca.pem "$end60" 'a CRLF certificate file'
+# Trailing whitespace on the markers must not hide the block with the earliest
+# expiry.
+{ cat "$tmp/c400"; sed -e 's/^-----BEGIN CERTIFICATE-----$/& /' -e 's/^-----END CERTIFICATE-----$/&\t /' "$tmp/c5"; } > "$tmp/spaced"; put_cert "$tmp/spaced" aop-ca.pem
+run "$monitor" collect; expect_cert aop-ca.pem "$end5" 'PEM markers with trailing whitespace'
+put_cert "$tmp/c60" aop-ca.pem; run "$monitor" collect; expect_cert aop-ca.pem "$end60" 'back to a plain CA file'
+# Format with the labelled metric: one HELP and TYPE, then one sample per file,
+# 12 gauges in all, and every line still valid.
+[[ "$(grep -c "^# HELP $cert_metric_name " "$prom")" == 1 && "$(grep -c "^# TYPE $cert_metric_name gauge\$" "$prom")" == 1 ]] || fail 'the certificate metric needs exactly one HELP and one TYPE'
+expected_samples="$cert_metric_name{file=\"cert.pem\"}"$'\n'"$cert_metric_name{file=\"aop-ca.pem\"}"$'\n'"$cert_metric_name{file=\"aop-client.pem\"}"
+[[ "$(grep -A3 "^# TYPE $cert_metric_name " "$prom" | sed -n 2,4p | cut -d' ' -f1)" == "$expected_samples" ]] || fail 'the certificate samples must follow their TYPE line'
+[[ "$(grep -c '^# TYPE .* gauge$' "$prom")" == 12 ]] || fail 'expected twelve gauges with certificate files'
+! grep -vE '^(# (HELP|TYPE) mawareeth_[a-z_]+ .+|mawareeth_[a-z_]+(\{file="(cert|aop-ca|aop-client)\.pem"\})? (0|[1-9][0-9]*))$' "$prom" || fail 'mawareeth.prom has a malformed line with certificate files'
+run "$monitor" status; expect_rc 0 'status with certificate files'; need "$tmp/out" "$cert_metric_name{file=\"cert.pem\"} $end90"
+
+# Unreadable: 0 for that file alone, and collect still exits 0.
+cert_unreadable() {
+  run "$monitor" collect
+  expect_rc 0 "$1 collect"
+  expect_cert aop-ca.pem 0 "$1"
+  expect_cert cert.pem "$end90" "$1 leaves the other files alone"
+}
+pem_begin='-----BEGIN CERTIFICATE-----'; pem_end='-----END CERTIFICATE-----'
+printf 'not a certificate\n' > "$tmp/garbage"; put_cert "$tmp/garbage" aop-ca.pem; cert_unreadable 'a file with no certificate block'
+: > "$tmp/empty"; put_cert "$tmp/empty" aop-ca.pem; cert_unreadable 'an empty file'
+printf '%s\nbm90IGRlcg==\n%s\n' "$pem_begin" "$pem_end" > "$tmp/bad-der"; put_cert "$tmp/bad-der" aop-ca.pem; cert_unreadable 'an unparsable block'
+cat "$tmp/c400" "$tmp/bad-der" > "$tmp/one-bad"; put_cert "$tmp/one-bad" aop-ca.pem; cert_unreadable 'one unparsable block among good ones'
+{ cat "$tmp/c400"; printf '%s\nAAAA\n' "$pem_begin"; } > "$tmp/unterminated"; put_cert "$tmp/unterminated" aop-ca.pem; cert_unreadable 'an unterminated block'
+put_cert "$tmp/c60" aop-ca.pem; set_meta "$tls/aop-ca.pem" 1000:1000:644; cert_unreadable 'a certificate not owned by root'
+put_cert "$tmp/c60" aop-ca.pem; set_meta "$tls/aop-ca.pem" 0:1000:644; cert_unreadable 'a certificate in another group'
+put_cert "$tmp/c60" aop-ca.pem; set_meta "$tls/aop-ca.pem" 0:0:666; cert_unreadable 'a world-writable certificate'
+put_cert "$tmp/c60" aop-ca.pem; set_meta "$tls/aop-ca.pem" 0:0:600
+run "$monitor" collect; expect_cert aop-ca.pem "$end60" 'a mode-0600 certificate is readable'
+set_meta "$tls/aop-ca.pem" 0:0:644
+rm -f "$tls/aop-ca.pem"; mkdir "$tls/aop-ca.pem"; cert_unreadable 'a directory'
+rm -rf "$tls/aop-ca.pem"; ln -s "$tmp/c60" "$tls/aop-ca.pem"
+if [[ -L "$tls/aop-ca.pem" ]]; then
+  cert_unreadable 'a symlink'
+  rm -f "$tls/aop-ca.pem"; ln -s "$tmp/no-such-cert" "$tls/aop-ca.pem"; cert_unreadable 'a dangling symlink'
+fi
+put_cert "$tmp/c60" aop-ca.pem
+touch "$S/openssl-missing"; run "$monitor" collect; rm -f "$S/openssl-missing"
+expect_rc 0 'collect without openssl'
+for name in cert.pem aop-ca.pem aop-client.pem; do expect_cert "$name" 0 'no openssl'; done
+[[ ! -e "$state/backup.lock" && ! -e "$state/deploy.lock" ]] || fail 'monitor.sh collect opened the backup or deploy lock'
+rm -rf "${tls:?}"/*
+
+# --- GitHub read token check: every token row of the matrix --------------------------
+token_rec="$state/monitor/github-token"
+token_value=github_pat_11TESTVALUE0123456789abcdefXYZ
+token_field() { sed -n "s/^$1=//p" "$token_rec"; }
+expect_token_record() {
+  [[ "$(token_field result)" == "$1" && "$(token_field last_ok_epoch)" == "$2" && "$(token_field expires_epoch)" == "$3" ]] \
+    || fail "$4: unexpected token record: $(tr '\n' ' ' < "$token_rec")"
+  local checked; checked="$(token_field checked_epoch)"
+  [[ "$checked" =~ ^[1-9][0-9]+$ ]] || fail "$4: checked_epoch $checked is not an epoch"
+  (( checked >= now )) || fail "$4: checked_epoch $checked is not the current time"
+}
+expect_token_metrics() {
+  run "$monitor" collect; expect_rc 0 "$4 collect"
+  lacks "$S/calls.log" 'curl'
+  expect_metric mawareeth_github_token_usable "$1" "$4"
+  expect_metric mawareeth_github_token_last_ok_timestamp_seconds "$2" "$4"
+  expect_metric mawareeth_github_token_expiry_timestamp_seconds "$3" "$4"
+}
+# github_answers CODE [HEADER-LINE] prepares the curl stub's answer to /rate_limit.
+github_answers() {
+  rm -f "$S/github-rc"
+  { printf 'HTTP/2 %s \r\ncontent-type: application/json\r\n' "$1"; [[ -z "${2:-}" ]] || printf '%s\r\n' "$2"; printf 'x-ratelimit-limit: 5000\r\n\r\n\n%s' "$1"; } > "$S/github-response"
+}
+# token_never_leaks checks every place the value could reach. Only the config
+# on the pipe may hold it.
+token_never_leaks() {
+  local path
+  for path in "$tmp/out" "$S/calls.log" "$token_rec" "$prom" "$S/curl-env"; do
+    if [[ -e "$path" ]]; then lacks "$path" "$token_value"; fi
+  done
+}
+token_check() {
+  rm -f "$S/curl-env" "$S/curl-config"
+  run "$monitor" token-check
+  expect_rc 0 "token-check ($1)"
+  token_never_leaks
+}
+write_token() { rm -rf "$github_token_file"; write_record "$github_token_file" "$token_value"; }
+rm -rf "$state/monitor"; write_token
+
+run "$monitor" status; expect_rc 0 'status with no token record'; need "$tmp/out" "== $token_rec"; need "$tmp/out" '(absent: no token check has run)'
+# Record unusable, absent: every metric 0.
+expect_token_metrics 0 0 0 'absent token record'
+
+# Token ok: the record, the curl call, and the metrics. collect makes no call.
+expires_at=$((now + 90 * 86400)); expires_text="$(date -u -d "@$expires_at" '+%Y-%m-%d %H:%M:%S UTC')"
+github_answers 200 "github-authentication-token-expiration: $expires_text"
+token_check 'ok'
+ok_epoch="$(token_field last_ok_epoch)"
+(( ok_epoch >= now && ok_epoch <= now + 600 )) || fail "last_ok_epoch $ok_epoch is not the current time"
+expect_token_record ok "$ok_epoch" "$expires_at" 'token ok'
+[[ "$(wc -l < "$token_rec")" == 4 ]] || fail 'the token record must hold exactly its four keys'
+grep -Fxq "header = \"Authorization: Bearer $token_value\"" "$S/curl-config" || fail 'the token must reach curl through the config on the pipe'
+[[ "$(grep -c rate_limit "$S/calls.log")" == 1 ]] || fail 'token-check must call GitHub exactly once'
+# The stub answers whatever flags it gets, so the flags the parser relies on are
+# checked here: headers on stdout, no body, the status last, and no --fail (a 401
+# must still report its status) or --location (the token stays on this host).
+for text in "--proto =https" '--max-time 60' 'https://api.github.com/rate_limit' '--config /' \
+  '--dump-header -' '--output /dev/null' '--write-out' '%{http_code}' '--retry 2' '--retry-connrefused' '--retry-delay 15'; do need "$S/calls.log" "$text"; done
+lacks "$S/calls.log" '--location'; lacks "$S/calls.log" '--fail'
+[[ -z "$(find "$state/monitor" -name '.tmp.*' -print -quit)" ]] || fail 'token-check left a temporary file'
+if (( modes_work )); then
+  [[ "$("$real_stat" -c %a "$token_rec")" == 600 ]] || fail 'the token record must be mode 0600'
+  [[ "$("$real_stat" -c %a "$state/monitor")" == 700 ]] || fail 'token-check must create the record directory with mode 0700'
+fi
+[[ ! -e "$state/backup.lock" && ! -e "$state/deploy.lock" ]] || fail 'token-check opened the backup or deploy lock'
+expect_token_metrics 1 "$ok_epoch" "$expires_at" 'token ok'
+token_never_leaks
+run "$monitor" status; expect_rc 0 'status with a token record'
+token_never_leaks; need "$tmp/out" 'result=ok'; need "$tmp/out" "expires_epoch=$expires_at"
+
+# Other header spellings: an offset, a mixed-case name, a proxy's CONNECT answer
+# ahead of the response, and a lowercase zone.
+github_answers 200 'github-authentication-token-expiration: 2036-01-31 00:00:00 -0700'
+token_check 'offset header'; expect_token_record ok "$(token_field last_ok_epoch)" "$(date -u -d '2036-01-31 07:00:00 UTC' +%s)" 'offset header'
+github_answers 200 'GitHub-Authentication-Token-Expiration: 2036-01-31 00:00:00 utc'
+token_check 'mixed-case header'; expect_token_record ok "$(token_field last_ok_epoch)" "$(date -u -d '2036-01-31 00:00:00 UTC' +%s)" 'mixed-case header'
+{ printf 'HTTP/1.1 200 Connection established\r\ngithub-authentication-token-expiration: junk\r\n\r\n'; cat "$S/github-response"; } > "$S/github-response.new"
+mv "$S/github-response.new" "$S/github-response"
+token_check 'proxy answer first'; [[ "$(token_field result)" == ok ]] || fail 'a proxy answer ahead of the response must not count'
+
+# curl --retry appends each attempt's headers: only the last response counts,
+# whether or not it carries the header.
+retried_503=$'HTTP/2 503 \r\ngithub-authentication-token-expiration: 2030-01-01 00:00:00 UTC\r\n\r\n'
+github_answers 200 "github-authentication-token-expiration: $expires_text"
+{ printf '%s' "$retried_503"; cat "$S/github-response"; } > "$S/github-response.new"; mv "$S/github-response.new" "$S/github-response"
+token_check 'a retried attempt with another date'; expect_token_record ok "$(token_field last_ok_epoch)" "$expires_at" 'a retried attempt with another date'
+github_answers 200
+{ printf '%s' "$retried_503"; cat "$S/github-response"; } > "$S/github-response.new"; mv "$S/github-response.new" "$S/github-response"
+token_check 'a retried attempt, then no header'; expect_token_record ok "$(token_field last_ok_epoch)" never 'a retried attempt, then no header'
+
+# Token never expires: HTTP 200 without the header publishes expiry 0.
+github_answers 200
+token_check 'no expiry header'
+ok_epoch="$(token_field last_ok_epoch)"
+expect_token_record ok "$ok_epoch" never 'never expires'
+expect_token_metrics 1 "$ok_epoch" 0 'never expires'
+# A transient failure keeps a token that never expires as it is.
+github_answers 500
+token_check 'never expires, then a transient failure'
+expect_token_record error "$ok_epoch" never 'never expires, then a transient failure'
+expect_token_metrics 1 "$ok_epoch" 0 'never expires, then a transient failure'
+
+# Back to a dated token for the rows that keep the previous values.
+github_answers 200 "github-authentication-token-expiration: $expires_text"
+token_check 'dated again'; ok_epoch="$(token_field last_ok_epoch)"
+
+# Token rejected: usable 0, exit 0, previous good values kept.
+for code in 401 403; do
+  github_answers "$code"
+  token_check "HTTP $code"
+  expect_token_record rejected "$ok_epoch" "$expires_at" "HTTP $code"
+  expect_token_metrics 0 "$ok_epoch" "$expires_at" "HTTP $code"
+done
+
+# Token file bad: result=missing, curl is never called, whatever else is true.
+github_answers 200
+token_bad() {
+  token_check "$1"
+  [[ ! -e "$S/curl-config" && ! -e "$S/curl-env" ]] || fail "$1: curl was called"
+  lacks "$S/calls.log" 'curl'
+  expect_token_record missing "$ok_epoch" "$expires_at" "$1"
+  expect_token_metrics 0 "$ok_epoch" "$expires_at" "$1"
+  write_token
+}
+rm -f "$github_token_file"; token_bad 'absent token file'
+set_meta "$github_token_file" 0:0:644; token_bad 'world-readable token file'
+set_meta "$github_token_file" 1000:1000:600; token_bad 'mis-owned token file'
+set_meta "$github_token_file" 0:1000:600; token_bad 'token file in another group'
+write_record "$github_token_file" 'short'; token_bad 'a token that is too short'
+write_record "$github_token_file" "$token_value"$'\n'"$token_value"; token_bad 'two lines'
+write_record "$github_token_file" "$token_value\" -H \"X: y"; token_bad 'a token with config syntax'
+write_record "$github_token_file" ''; token_bad 'an empty token file'
+rm -f "$github_token_file"; mkdir "$github_token_file"; token_bad 'a directory as the token file'
+rm -f "$github_token_file"; printf '%s\n' "$token_value" > "$tmp/elsewhere-token"; ln -s "$tmp/elsewhere-token" "$github_token_file"
+if [[ -L "$github_token_file" ]]; then token_bad 'symlinked token file'; fi
+write_token
+
+# Transient failure: result=error, previous good values kept, still usable, so
+# only the 2-day rule can fire.
+token_transient() {
+  token_check "$1"
+  expect_token_record error "$ok_epoch" "$expires_at" "$1"
+  expect_token_metrics 1 "$ok_epoch" "$expires_at" "$1"
+}
+github_answers 200; printf '7\n' > "$S/github-rc"; token_transient 'network error'
+github_answers 500; token_transient 'HTTP 500'
+github_answers 503; token_transient 'HTTP 503'
+github_answers 302; token_transient 'HTTP 302'
+github_answers 000; token_transient 'no answer'
+: > "$S/github-response"; token_transient 'an empty answer'
+for bad in 'tomorrow' '' '2027-13-45 00:00:00 UTC' '2027-01-31' '2027-01-31 00:00:00 PST' '1970-01-01 00:00:00 UTC'; do
+  github_answers 200 "github-authentication-token-expiration: $bad"; token_transient "unparsable header '$bad'"
+done
+# No previous good check: error keeps nothing, so last ok 0 fires the alert.
+rm -f "$token_rec"; github_answers 500; token_check 'first check fails'
+expect_token_record error '' '' 'first check fails'
+expect_token_metrics 1 0 0 'first check fails'
+# A previous record that cannot be trusted is not carried forward.
+write_record "$token_rec" "result=ok"$'\n'"checked_epoch=$now"$'\n'"last_ok_epoch=$now"$'\n'"expires_epoch=$expires_at"; set_meta "$token_rec" 1000:1000:600
+github_answers 500; token_check 'mis-owned previous record'
+set_meta "$token_rec" 0:0:600
+expect_token_record error '' '' 'mis-owned previous record'
+
+# Record unusable: mis-owned, world-readable, symlinked, malformed.
+good_rec="result=ok"$'\n'"checked_epoch=$now"$'\n'"last_ok_epoch=$now"$'\n'"expires_epoch=$expires_at"
+write_record "$token_rec" "$good_rec"; expect_token_metrics 1 "$now" "$expires_at" 'a good record'
+set_meta "$token_rec" 1000:1000:600; expect_token_metrics 0 0 0 'mis-owned token record'
+run "$monitor" status; expect_rc 0 'status with a mis-owned token record'; need "$tmp/out" '(unusable'; lacks "$tmp/out" 'checked_epoch='
+set_meta "$token_rec" 0:0:644; expect_token_metrics 0 0 0 'world-readable token record'
+set_meta "$token_rec" 0:0:600
+for bad in "$good_rec"$'\n'"not a key value line" "result=maybe"$'\n'"checked_epoch=$now"$'\n'"last_ok_epoch=$now"$'\n'"expires_epoch=$expires_at" \
+  "result=ok"$'\n'"checked_epoch=$now"$'\n'"last_ok_epoch=0x10"$'\n'"expires_epoch=$expires_at" \
+  "result=ok"$'\n'"checked_epoch=$now"$'\n'"last_ok_epoch=$now"$'\n'"expires_epoch=0$expires_at" \
+  "result=ok"$'\n'"checked_epoch=$now"$'\n'"last_ok_epoch=$now"$'\n'"expires_epoch=soon" \
+  "result=ok"$'\n'"checked_epoch=$now"$'\n'"last_ok_epoch=$now"$'\n'"expires_epoch=" \
+  "result=ok"$'\n'"checked_epoch=$now"$'\n'"last_ok_epoch="$'\n'"expires_epoch=$expires_at" \
+  "result=error"$'\n'"checked_epoch=later"$'\n'"last_ok_epoch=$now"$'\n'"expires_epoch=$expires_at" \
+  "result=ok"$'\n'"last_ok_epoch=$now"$'\n'"expires_epoch=$expires_at"; do
+  write_record "$token_rec" "$bad"; expect_token_metrics 0 0 0 "malformed token record: ${bad//$'\n'/ }"
+done
+rm -f "$token_rec"; ln -s "$tmp/elsewhere" "$token_rec"
+if [[ -L "$token_rec" ]]; then expect_token_metrics 0 0 0 'symlinked token record'; fi
+rm -f "$token_rec"
+
+# Refusals: the lock, a bad record directory, a relative path. Nothing is called.
+# The probe runs without the lock, so it happens even while the lock is held; the
+# write then waits a bounded time and gives up with exit 3, changing nothing.
+write_record "$token_rec" "$good_rec"; cp "$token_rec" "$tmp/token-before"; github_answers 200
+if [[ -n "$real_flock" ]]; then
+  exec 7>>"$state/monitor.lock"; "$real_flock" -n 7
+  run "$monitor" MAWAREETH_TOKEN_LOCK_WAIT=1 token-check
+  exec 7>&-
+else
+  touch "$S/lock-held"; run "$monitor" MAWAREETH_TOKEN_LOCK_WAIT=1 token-check; rm -f "$S/lock-held"
+fi
+expect_rc 3 'token-check while the monitor lock stays held'
+need "$S/calls.log" 'rate_limit'; cmp -s "$tmp/token-before" "$token_rec" || fail 'a locked-out token-check changed the record'
+token_never_leaks
+# A lock released within the wait: the check is recorded, not lost.
+if [[ -n "$real_flock" ]]; then
+  rm -f "$S/lock-holder-ready"
+  "$real_flock" "$state/monitor.lock" bash -c "touch '$S/lock-holder-ready'; sleep 3" > /dev/null 2>&1 &
+  holder=$!
+  until [[ -e "$S/lock-holder-ready" ]]; do sleep 0.2; done
+  run "$monitor" MAWAREETH_TOKEN_LOCK_WAIT=60 token-check
+  wait "$holder"
+  expect_rc 0 'token-check while the monitor lock is briefly held'
+  [[ "$(token_field result)" == ok ]] || fail 'a token-check that waited for the lock must record its result'
+fi
+run "$monitor" MAWAREETH_TOKEN_LOCK_WAIT=soon token-check
+expect_rc 2 'token-check with a bad lock wait'; lacks "$S/calls.log" 'curl'
+run "$monitor" MAWAREETH_RUNTIME_DIR="$tmp/no-such-state" token-check
+expect_rc 2 'token-check with a missing state directory'; lacks "$S/calls.log" 'curl'
+run "$monitor" MAWAREETH_GITHUB_TOKEN_FILE='relative/token' token-check
+expect_rc 2 'token-check with a relative token path'; lacks "$S/calls.log" 'curl'
+rm -f "$token_rec"; set_meta "$state/monitor" 0:0:755
+run "$monitor" token-check; expect_rc 2 'token-check with a mode-0755 record directory'; need "$tmp/out" 'mode 0700'
+lacks "$S/calls.log" 'curl'; [[ ! -e "$token_rec" ]] || fail 'token-check wrote into a wrong-mode record directory'
+set_meta "$state/monitor" 0:0:700
+# The directory is checked again under the lock: it went bad during the probe.
+touch "$S/curl-breaks-dir"; github_answers 200; run "$monitor" token-check; rm -f "$S/curl-breaks-dir"
+expect_rc 2 'token-check whose record directory went bad during the probe'; need "$tmp/out" 'mode 0700'
+[[ ! -e "$token_rec" ]] || fail 'token-check wrote into a record directory that went bad'
+chmod 700 "$state/monitor"; set_meta "$state/monitor" 0:0:700
+touch "$S/mktemp-fail-monitor"; github_answers 200; run "$monitor" token-check; rm -f "$S/mktemp-fail-monitor"
+expect_rc 1 'token-check that cannot write its record'; token_never_leaks
+
 # --- install: units, drop-ins, apt, UFW, journald --------------------------------
 printf 'ID=debian\nVERSION_ID="12"\n' > "$tmp/other-os"
 run "$monitor" MAWAREETH_OS_RELEASE="$tmp/other-os" install
@@ -565,6 +903,17 @@ expect_rc 1 'install with an unreachable key server'; lacks "$S/calls.log" 'apt-
 touch "$S/ufw-inactive"; run "$monitor" install; rm -f "$S/ufw-inactive"
 expect_rc 1 'install with UFW inactive'; need "$tmp/out" 'UFW is not active'
 lacks "$S/calls.log" 'ufw allow'; lacks "$S/calls.log" 'apt-get'; lacks "$S/calls.log" 'curl'
+
+# A bad record directory is refused before anything changes.
+set_meta "$state/monitor" 0:0:755
+run "$monitor" install; set_meta "$state/monitor" 0:0:700
+expect_rc 2 'install with a mode-0755 record directory'; [[ ! -s "$S/calls.log" ]] || fail 'a refused install ran commands'
+
+# The install below finds a healthy token and certificate, and publishes both
+# in its first file.
+rm -f "$token_rec"; put_cert "$tmp/c90" cert.pem; write_token
+github_answers 200 "github-authentication-token-expiration: $expires_text"
+rm -f "$prom"
 
 # Upgrade path: an old wrapper without --collector.systemd is rewritten before
 # the exporter is restarted.
@@ -612,6 +961,45 @@ for line in 'systemctl daemon-reload' 'systemctl restart systemd-journald' 'syst
   'systemctl enable prometheus-node-exporter.service' 'systemctl restart --no-block prometheus-node-exporter.service' \
   'systemctl enable --now mawareeth-monitor-collect.timer'; do need "$S/calls.log" "$line"; done
 expect_metric mawareeth_backup_last_result_ok 1 'install publishes metrics'
+# The token check: its timer is enabled, one check ran, and the first file
+# already holds the certificate and token series.
+token_timer="$units/mawareeth-github-token-check.timer"; token_service="$units/mawareeth-github-token-check.service"
+for line in 'OnCalendar=daily' 'RandomizedDelaySec=1h' 'Persistent=true' 'Unit=mawareeth-github-token-check.service' 'WantedBy=timers.target'; do need "$token_timer" "$line"; done
+for line in 'Type=oneshot' 'Wants=network-online.target' 'After=network-online.target' "Environment=MAWAREETH_RUNTIME_DIR=$state" "Environment=MAWAREETH_GITHUB_TOKEN_FILE=$github_token_file" \
+  "ExecStart=/bin/bash $bundle/deploy/monitor.sh token-check" 'TimeoutStartSec=360'; do need "$token_service" "$line"; done
+lacks "$token_service" 'docker'; lacks "$token_service" "$token_value"
+need "$service" "Environment=MAWAREETH_ORIGIN_TLS_DIR=$tls"
+lacks "$service" 'SuccessExitStatus'; lacks "$token_service" 'SuccessExitStatus'
+need "$S/calls.log" 'systemctl enable --now mawareeth-github-token-check.timer'
+[[ "$(grep -c rate_limit "$S/calls.log")" == 1 ]] || fail 'install must run exactly one token check'
+expect_cert cert.pem "$end90" 'install publishes the certificate series'
+expect_metric mawareeth_github_token_usable 1 'install publishes the token series'
+expect_metric mawareeth_github_token_expiry_timestamp_seconds "$expires_at" 'install publishes the token series'
+[[ "$(metric mawareeth_github_token_last_ok_timestamp_seconds)" == "$(token_field last_ok_epoch)" ]] || fail 'install must publish the check it just ran'
+token_never_leaks
+# Re-install with GitHub unreachable: it succeeds and keeps the previous good check.
+install_ok_epoch="$(token_field last_ok_epoch)"
+printf '7\n' > "$S/github-rc"
+run "$monitor" install; expect_rc 0 're-install with GitHub unreachable'
+expect_token_record error "$install_ok_epoch" "$expires_at" 're-install with GitHub unreachable'
+expect_metric mawareeth_github_token_usable 1 're-install with GitHub unreachable'
+expect_metric mawareeth_github_token_last_ok_timestamp_seconds "$install_ok_epoch" 're-install with GitHub unreachable'
+expect_metric mawareeth_github_token_expiry_timestamp_seconds "$expires_at" 're-install with GitHub unreachable'
+# First install with GitHub unreachable: it succeeds with no good check on record.
+rm -f "$token_rec"
+run "$monitor" install; expect_rc 0 'install with GitHub unreachable'
+expect_token_record error '' '' 'install with GitHub unreachable'
+expect_metric mawareeth_github_token_usable 1 'install with GitHub unreachable'
+expect_metric mawareeth_github_token_last_ok_timestamp_seconds 0 'install with GitHub unreachable'
+rm -f "$S/github-rc"
+# Install with no token file: it succeeds, curl is not asked, and the alert fires.
+rm -f "$token_rec" "$github_token_file"
+run "$monitor" install; expect_rc 0 'install with no token file'
+lacks "$S/calls.log" 'rate_limit'
+expect_token_record missing '' '' 'install with no token file'
+expect_metric mawareeth_github_token_usable 0 'install with no token file'
+expect_metric mawareeth_github_token_last_ok_timestamp_seconds 0 'install with no token file'
+rm -f "$tls/cert.pem"
 
 # --- Exporter wrapper: Tailscale IPv4 only, never a fallback ------------------------
 sed "s|/usr/bin/tailscale|$stub/tailscale|; s|/usr/bin/prometheus-node-exporter|$stub/exporter|" "$wrapper" > "$tmp/wrapper"
@@ -663,18 +1051,19 @@ need "$route" '    equal: [project, mountpoint]'
 [[ "$(grep -c '^  - source_matchers:$' "$route")" == 2 ]] || fail 'the route snippet must define exactly two inhibit rules'
 host_rules='MawareethInodesLow MawareethFilesystemReadOnly MawareethMemoryPressure MawareethOOMKill MawareethSystemdUnitFailed MawareethClockUnsynced'
 all_rules="MawareethHostDown MawareethBackupUnhealthy MawareethBackupIncomplete MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical
-  MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue $host_rules MawareethWatchdog"
+  MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue MawareethOriginCertificateExpiring MawareethGithubTokenUnhealthy $host_rules MawareethWatchdog"
 for name in $all_rules; do
   need "$alerts" "alert: $name"
   # Each rule's own runbook annotation names a README anchor that exists.
-  anchor="$(sed -n "/alert: $name\$/,/runbook: /s|^ *runbook: 'deploy/README.md#\(runbook-[a-z]*\)'\$|\1|p" "$alerts")"
+  anchor="$(sed -n "/alert: $name\$/,/runbook: /s|^ *runbook: 'deploy/README.md#\(runbook-[a-z]*\)'\$|\1|p" "$alerts" | sort -u)"
   [[ -n "$anchor" ]] || fail "$name has no runbook annotation"
   need "$root/deploy/README.md" "<a id=\"$anchor\"></a>"
 done
-[[ "$(grep -c '^ *- alert:' "$alerts")" == 16 ]] || fail 'expected exactly sixteen alert rules'
-[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 16 ]] || fail 'every rule needs a project: mawareeth label'
-[[ "$(grep -c '^ *severity: ' "$alerts")" == 16 ]] || fail 'every rule needs a severity label'
-[[ "$(grep -c '^ *runbook: ' "$alerts")" == 16 ]] || fail 'every rule needs a runbook annotation'
+[[ "$(grep -c '^ *- alert:' "$alerts")" == 19 ]] || fail 'expected exactly nineteen alert rules'
+[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 19 ]] || fail 'every rule needs a project: mawareeth label'
+[[ "$(grep -c '^ *severity: ' "$alerts")" == 19 ]] || fail 'every rule needs a severity label'
+[[ "$(grep -c '^ *runbook: ' "$alerts")" == 19 ]] || fail 'every rule needs a runbook annotation'
+[[ "$(grep -c '^ *- alert: MawareethOriginCertificateExpiring$' "$alerts")" == 2 ]] || fail 'the certificate alert needs a warning and a critical rule'
 # shellcheck disable=SC2013 # anchors are single words without spaces.
 for anchor in $(grep -o 'README.md#runbook-[a-z]*' "$alerts" | sort -u | cut -d# -f2); do
   need "$root/deploy/README.md" "<a id=\"$anchor\"></a>"
@@ -702,15 +1091,26 @@ for text in 'up{job="mawareeth-node"} == 0 or absent(up{job="mawareeth-node"})' 
   'or absent(node_systemd_unit_state{job="mawareeth-node"})' \
   'node_timex_sync_status{job="mawareeth-node"} == 0' \
   'or abs(node_timex_offset_seconds{job="mawareeth-node"}) > 0.5' \
+  '(mawareeth_origin_certificate_expiry_timestamp_seconds{job="mawareeth-node"} - time()) < 30 * 86400' \
+  'and (mawareeth_origin_certificate_expiry_timestamp_seconds{job="mawareeth-node"} - time()) >= 7 * 86400' \
+  'expr: (mawareeth_origin_certificate_expiry_timestamp_seconds{job="mawareeth-node"} - time()) < 7 * 86400' \
+  'mawareeth_github_token_usable{job="mawareeth-node"} == 0' \
+  'or (time() - mawareeth_github_token_last_ok_timestamp_seconds{job="mawareeth-node"}) > 2 * 86400' \
+  'or (mawareeth_github_token_last_ok_timestamp_seconds{job="mawareeth-node"} - time()) > 300' \
+  'or (mawareeth_github_token_expiry_timestamp_seconds{job="mawareeth-node"} > 0' \
+  'and (mawareeth_github_token_expiry_timestamp_seconds{job="mawareeth-node"} - time()) < 30 * 86400)' \
+  'or absent(mawareeth_github_token_usable{job="mawareeth-node"})' \
   'expr: vector(1)' 'severity: heartbeat'; do need "$alerts" "$text"; done
-# for: delays: HostDown and read-only 2m; disk, inodes, and failed units 5m;
-# memory and clock 10m. Backup, restore, collector, drill, OOM, and the
-# Watchdog fire at once.
-[[ "$(grep -c '^ *for: ' "$alerts")" == 8 ]] || fail 'expected exactly eight for: delays'
+# for: delays: HostDown and read-only 2m; disk, inodes, failed units, and the
+# GitHub token 5m (its absent() must not fire on one failed scrape, before
+# HostDown can inhibit it); memory and clock 10m. Backup, restore, collector,
+# drill, certificates, OOM, and the Watchdog fire at once.
+[[ "$(grep -c '^ *for: ' "$alerts")" == 9 ]] || fail 'expected exactly nine for: delays'
 [[ "$(grep -c '^ *for: 2m$' "$alerts")" == 2 ]] || fail 'HostDown and the read-only alert need for: 2m'
-[[ "$(grep -c '^ *for: 5m$' "$alerts")" == 4 ]] || fail 'the disk, inode, and failed-unit alerts need for: 5m'
+[[ "$(grep -c '^ *for: 5m$' "$alerts")" == 5 ]] || fail 'the disk, inode, failed-unit, and GitHub token alerts need for: 5m'
+sed -n '/alert: MawareethGithubTokenUnhealthy$/,/labels:/p' "$alerts" | grep -q 'for: 5m' || fail 'MawareethGithubTokenUnhealthy needs for: 5m'
 [[ "$(grep -c '^ *for: 10m$' "$alerts")" == 2 ]] || fail 'the memory and clock alerts need for: 10m'
-for name in MawareethOOMKill MawareethWatchdog; do
+for name in MawareethOOMKill MawareethOriginCertificateExpiring MawareethWatchdog; do
   ! sed -n "/alert: $name\$/,/labels:/p" "$alerts" | grep -q 'for: ' || fail "$name must fire at once"
 done
 
@@ -737,7 +1137,9 @@ elif command -v promtool >/dev/null 2>&1; then
   # promtool evaluates every rule once per evaluation_interval over a group's
   # whole span, so the day-scale groups (up to 94 days) are collected here and
   # run at 15m. Their alerts have no `for:` and every eval_time is a multiple of
-  # 15m, so the outcome is the same as at 1m.
+  # 15m, so the outcome is the same as at 1m. The one with `for:` (the GitHub
+  # token) samples every 15m instead: hourly samples go stale between evaluations,
+  # which would keep resetting its pending state.
   long_groups="$tmp/alerts-long.groups"
   : > "$long_groups"
   {
@@ -767,8 +1169,12 @@ elif command -v promtool >/dev/null 2>&1; then
     printf "      - {series: 'node_systemd_unit_state{%s,%s}', values: '1x40'}\n" "$labels" "${unit/failed/active}"
     printf "      - {series: 'node_timex_sync_status{%s}', values: '1x40'}\n" "$labels"
     printf "      - {series: 'node_timex_offset_seconds{%s}', values: '0.002x40'}\n" "$labels"
+    printf "      - {series: 'mawareeth_origin_certificate_expiry_timestamp_seconds{%s,file=\"cert.pem\"}', values: '99999999x40'}\n" "$labels"
+    printf "      - {series: 'mawareeth_github_token_usable{%s}', values: '1x40'}\n" "$labels"
+    printf "      - {series: 'mawareeth_github_token_last_ok_timestamp_seconds{%s}', values: '0x40'}\n" "$labels"
+    printf "      - {series: 'mawareeth_github_token_expiry_timestamp_seconds{%s}', values: '99999999x40'}\n" "$labels"
     printf '    alert_rule_test:\n'
-    for name in MawareethHostDown MawareethBackupUnhealthy MawareethBackupIncomplete MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical \
+    for name in MawareethOriginCertificateExpiring MawareethGithubTokenUnhealthy MawareethHostDown MawareethBackupUnhealthy MawareethBackupIncomplete MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical \
       MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue $host_rules; do
       printf '      - {eval_time: 30m, alertname: %s, exp_alerts: []}\n' "$name"
     done
@@ -901,6 +1307,82 @@ elif command -v promtool >/dev/null 2>&1; then
     printf "      - {series: 'up{%s}', values: '1x5'}\n" "$labels"
     printf '    alert_rule_test:\n'
     printf '      - eval_time: 1m\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethDrillOverdue, job: mawareeth-node}\n'
+    # Certificates, 30-day boundary: 5 minutes short of it the warning is silent,
+    # and it fires just past it, labelled with the file.
+    cert_series='mawareeth_origin_certificate_expiry_timestamp_seconds'
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: '%s{%s,file=\"cert.pem\"}', values: '2592300x10'}\n" "$cert_series" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 1m, alertname: MawareethOriginCertificateExpiring, exp_alerts: []}\n'
+    printf '      - eval_time: 6m\n        alertname: MawareethOriginCertificateExpiring\n        exp_alerts:\n'; alert_labels warning MawareethOriginCertificateExpiring ', file: cert.pem'
+    # 7-day boundary: warning before it, critical (and only critical) past it.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: '%s{%s,file=\"aop-client.pem\"}', values: '605100x10'}\n" "$cert_series" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - eval_time: 1m\n        alertname: MawareethOriginCertificateExpiring\n        exp_alerts:\n'; alert_labels warning MawareethOriginCertificateExpiring ', file: aop-client.pem'
+    printf '      - eval_time: 6m\n        alertname: MawareethOriginCertificateExpiring\n        exp_alerts:\n'; alert_labels critical MawareethOriginCertificateExpiring ', file: aop-client.pem'
+    # An unreadable file publishes 0: critical at once, for that file alone. An
+    # absent file has no series and no alert.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: '%s{%s,file=\"aop-ca.pem\"}', values: '0x5'}\n" "$cert_series" "$labels"
+    printf "      - {series: '%s{%s,file=\"cert.pem\"}', values: '99999999x5'}\n" "$cert_series" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - eval_time: 0m\n        alertname: MawareethOriginCertificateExpiring\n        exp_alerts:\n'; alert_labels critical MawareethOriginCertificateExpiring ', file: aop-ca.pem'
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'up{%s}', values: '1x5'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 1m, alertname: MawareethOriginCertificateExpiring, exp_alerts: []}\n'
+    # Token rejected or unusable (usable 0) from 3m fires at 8m (for: 5m).
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'mawareeth_github_token_usable{%s}', values: '1x2 0x10'}\n" "$labels"
+    printf "      - {series: 'mawareeth_github_token_last_ok_timestamp_seconds{%s}', values: '0x12'}\n" "$labels"
+    printf "      - {series: 'mawareeth_github_token_expiry_timestamp_seconds{%s}', values: '0x12'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 1m, alertname: MawareethGithubTokenUnhealthy, exp_alerts: []}\n'
+    printf '      - {eval_time: 7m, alertname: MawareethGithubTokenUnhealthy, exp_alerts: []}\n'
+    printf '      - eval_time: 9m\n        alertname: MawareethGithubTokenUnhealthy\n        exp_alerts:\n'; alert_labels warning MawareethGithubTokenUnhealthy
+    # Token expiry, 30-day boundary crossed at 6m, fires at 11m; expiry 0 (never
+    # expires) above stays silent.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'mawareeth_github_token_usable{%s}', values: '1x15'}\n" "$labels"
+    printf "      - {series: 'mawareeth_github_token_last_ok_timestamp_seconds{%s}', values: '0x15'}\n" "$labels"
+    printf "      - {series: 'mawareeth_github_token_expiry_timestamp_seconds{%s}', values: '2592300x15'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 1m, alertname: MawareethGithubTokenUnhealthy, exp_alerts: []}\n'
+    printf '      - {eval_time: 10m, alertname: MawareethGithubTokenUnhealthy, exp_alerts: []}\n'
+    printf '      - eval_time: 12m\n        alertname: MawareethGithubTokenUnhealthy\n        exp_alerts:\n'; alert_labels warning MawareethGithubTokenUnhealthy
+    # A last good check future-dated beyond 300s (clock skew) fires; within it not.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'mawareeth_github_token_usable{%s}', values: '1x10'}\n" "$labels"
+    printf "      - {series: 'mawareeth_github_token_last_ok_timestamp_seconds{%s}', values: '1000x10'}\n" "$labels"
+    printf "      - {series: 'mawareeth_github_token_expiry_timestamp_seconds{%s}', values: '0x10'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 4m, alertname: MawareethGithubTokenUnhealthy, exp_alerts: []}\n'
+    printf '      - eval_time: 6m\n        alertname: MawareethGithubTokenUnhealthy\n        exp_alerts:\n'; alert_labels warning MawareethGithubTokenUnhealthy
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'mawareeth_github_token_usable{%s}', values: '1x10'}\n" "$labels"
+    printf "      - {series: 'mawareeth_github_token_last_ok_timestamp_seconds{%s}', values: '300x10'}\n" "$labels"
+    printf "      - {series: 'mawareeth_github_token_expiry_timestamp_seconds{%s}', values: '0x10'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 6m, alertname: MawareethGithubTokenUnhealthy, exp_alerts: []}\n'
+    # The token metrics are missing while the host is scraped: it fires after 5m,
+    # so one failed scrape cannot fire it ahead of HostDown.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'up{%s}', values: '1x10'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 4m, alertname: MawareethGithubTokenUnhealthy, exp_alerts: []}\n'
+    printf '      - eval_time: 6m\n        alertname: MawareethGithubTokenUnhealthy\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethGithubTokenUnhealthy, job: mawareeth-node}\n'
+    # Last ok more than 2 days old, with the token still usable (a transient
+    # failure that persists).
+    {
+      printf '  - interval: 15m\n    input_series:\n'
+      printf "      - {series: 'mawareeth_github_token_usable{%s}', values: '1x200'}\n" "$labels"
+      printf "      - {series: 'mawareeth_github_token_last_ok_timestamp_seconds{%s}', values: '0x200'}\n" "$labels"
+      printf "      - {series: 'mawareeth_github_token_expiry_timestamp_seconds{%s}', values: '0x200'}\n" "$labels"
+      printf '    alert_rule_test:\n'
+      printf '      - {eval_time: 47h, alertname: MawareethGithubTokenUnhealthy, exp_alerts: []}\n'
+      printf '      - eval_time: 49h\n        alertname: MawareethGithubTokenUnhealthy\n        exp_alerts:\n'; alert_labels warning MawareethGithubTokenUnhealthy
+    } >> "$long_groups"
     # Inodes: 80% used is fine; 90% used from 4m fires at 9m (for: 5m).
     printf '  - interval: 1m\n    input_series:\n'
     printf "      - {series: 'node_filesystem_files{%s,%s}', values: '1000x20'}\n" "$labels" "$disk"
@@ -1032,7 +1514,7 @@ elif command -v promtool >/dev/null 2>&1; then
   sed '/^        annotations:$/,/^          runbook: /d' "$alerts" > "$tmp/mawareeth-alerts.yml"
   ! grep -v '^#' "$tmp/mawareeth-alerts.yml" | grep -Eq 'annotations|summary|runbook' || fail 'annotation stripping for promtool failed'
   promtool test rules "$tmp/alerts.test.yml" > "$tmp/out" 2>&1 || fail 'promtool rule unit tests failed'
-  [[ "$(grep -c '^  - interval: 1[hd]$' "$long_groups")" == 4 ]] || fail 'the day-scale rule test groups were not collected'
+  [[ "$(grep -c '^  - interval: \(1[hd]\|15m\)$' "$long_groups")" == 5 ]] || fail 'the day-scale rule test groups were not collected'
   ! grep -q '^  - interval: 1[hd]$' "$tmp/alerts.test.yml" || fail 'a day-scale rule test group would run at the 1m evaluation interval'
   { printf 'rule_files: [mawareeth-alerts.yml]\nevaluation_interval: 15m\ntests:\n'; cat "$long_groups"; } > "$tmp/alerts-long.test.yml"
   promtool test rules "$tmp/alerts-long.test.yml" > "$tmp/out" 2>&1 || fail 'promtool day-scale rule unit tests failed'

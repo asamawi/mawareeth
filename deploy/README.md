@@ -304,7 +304,7 @@ Disabling at Cloudflare first would make Cloudflare connect without a certificat
 
 **Emergency: an AOP file expired or broke.** With `require`, preflight then refuses every deploy and runtime command, including `up`, and an expired client certificate also makes Caddy reject Cloudflare's connections. Recover in this order: set `ORIGIN_CLIENT_AUTH=off` in `runtime.env`, run `deploy/runtime.sh up` (with `off` the AOP files are not checked, so it runs), confirm the site through Cloudflare, then fix or rotate the files and enable again from step 3. Meanwhile Cloudflare keeps presenting its certificate, which is harmless while the origin does not ask for one.
 
-**Expiry and rotation.** Check the dates with `sudo openssl x509 -in /etc/mawareeth/origin-tls/aop-client.pem -noout -enddate` (and the same for `aop-ca.pem`), and the certificate's `expires_on` at Cloudflare (`cf "$api/certificates/$CERT_ID" | jq -r '.result.expires_on'`). Preflight warns 30 days ahead. Rotate the client certificate at least a month before it expires.
+**Expiry and rotation.** Check the dates with `sudo openssl x509 -in /etc/mawareeth/origin-tls/aop-client.pem -noout -enddate` (and the same for `aop-ca.pem`), and the certificate's `expires_on` at Cloudflare (`cf "$api/certificates/$CERT_ID" | jq -r '.result.expires_on'`). Preflight warns 30 days ahead, and [`MawareethOriginCertificateExpiring`](#runbook-mawareethorigincertificateexpiring) alerts for both files on the same schedule without waiting for a deploy (it does not see Cloudflare's copy). Rotate the client certificate at least a month before it expires. After turning AOP off for good, remove these files, because the alert still watches them.
 
 *Renewing the client certificate with the existing CA* (the usual case; the CA and Caddy are unchanged):
 
@@ -588,7 +588,8 @@ Mawareeth reuses SCDF's monitoring stack instead of running its own. This host r
    - Adds the UFW rule `allow in on tailscale0 from 100.64.0.0/10 to any port 9100 proto tcp`.
    - Adds the UFW rule `allow in on tailscale0 from 100.64.0.0/10 to any port 22 proto tcp`, so administrators can SSH over the tailnet from any public address (see [Access, patching, and break-glass](#access-patching-and-break-glass)).
    - Writes `/etc/systemd/journald.conf.d/50-mawareeth.conf` (`SystemMaxUse=500M`, `SystemKeepFree=1G`, `MaxRetentionSec=30day`) and restarts journald.
-   - Writes and enables `mawareeth-monitor-collect.{service,timer}` (`OnCalendar=*:0/5`, `Persistent=true`) and publishes the first metrics.
+   - Writes and enables `mawareeth-monitor-collect.{service,timer}` (`OnCalendar=*:0/5`, `Persistent=true`).
+   - Writes and enables `mawareeth-github-token-check.{service,timer}` (`OnCalendar=daily`, `RandomizedDelaySec=1h`, `Persistent=true`), runs one [token check](#github-read-token-check), and publishes the first metrics, so `mawareeth.prom` already holds the certificate and token series. A host without `/etc/mawareeth/github-read.token` yet records `result=missing` and `MawareethGithubTokenUnhealthy` fires until the token is installed.
 
    Re-run `install` after moving the checkout. Re-running it also upgrades a host whose wrapper predates a flag (such as `--collector.systemd`): it rewrites the wrapper and restarts the exporter.
 2. **Join the tailnet interactively.** Run `sudo tailscale up --hostname=mawareeth-prod` and open the printed login URL as an SCDF tailnet admin. Never pass an auth key on the command line, and never put one in this repository, CI, or a log. In the Tailscale admin console, disable key expiry for this node, and restrict the tailnet ACL so that only `p1` may reach `mawareeth-prod:9100` and only administrators' devices may reach `mawareeth-prod:22`. Then run `sudo systemctl restart prometheus-node-exporter` (otherwise it starts within 15 seconds anyway).
@@ -597,19 +598,37 @@ Mawareeth reuses SCDF's monitoring stack instead of running its own. This host r
    - `sudo ss -ltnp 'sport = :9100'` shows only that address, never `0.0.0.0` or `*`.
    - `sudo ufw status numbered` shows 9100/tcp only on `tailscale0` from `100.64.0.0/10`, and 22/tcp on `tailscale0` from `100.64.0.0/10` besides the public SSH allow-list.
    - From an administrator's tailnet device, `ssh mawareeth-admin@mawareeth-prod` (or the `100.x` address) connects.
-   - `curl -s http://$(tailscale ip -4):9100/metrics | grep '^mawareeth_'` lists the eight metrics.
+   - `curl -s http://$(tailscale ip -4):9100/metrics | grep '^mawareeth_'` lists the eleven metrics, plus one `mawareeth_origin_certificate_expiry_timestamp_seconds` series per origin certificate file on the host.
    - `curl -s http://$(tailscale ip -4):9100/metrics | grep -c '^node_systemd_unit_state'` prints a number above 0 (the systemd collector is on).
    - `curl -s http://$(tailscale ip -4):9100/metrics | grep -oE '^node_(vmstat_oom_kill|timex_sync_status|filesystem_files|filesystem_readonly)' | sort -u` prints all four names (the host-health rules need them).
-   - `systemctl list-timers mawareeth-monitor-collect.timer` shows the timer.
+   - `systemctl list-timers mawareeth-monitor-collect.timer mawareeth-github-token-check.timer` shows both timers.
 
 **Collector.** `monitor.sh collect` runs every 5 minutes. It reads `<state dir>/backup/last-backup` and `restore-verified` with the same strict reader as `backup.sh gate`: root-owned, mode 0600, `key=value` lines. It then atomically writes `/var/lib/prometheus/node-exporter/mawareeth.prom` (0644). That file holds these gauges:
 - `mawareeth_backup_last_result_ok` and `mawareeth_backup_last_ok_timestamp_seconds` (the finish time when the result is `ok`).
 - `mawareeth_backup_last_archives_complete`: 1 only when the backup record is usable, `ok`, and its `host_state_snapshot` and `globals_snapshot` are both 64-hex Restic IDs; otherwise 0.
 - `mawareeth_restore_last_result_pass` and `mawareeth_restore_last_pass_timestamp_seconds` (the verification time when the result is `pass`).
 - `mawareeth_drill_active_code` (the code of the active alert-path drill, otherwise 0) and `mawareeth_drill_last_pass_timestamp_seconds` (the last passed drill), read from `<state dir>/monitor/drill` (see [Alert-path drill](#alert-path-drill)).
+- `mawareeth_origin_certificate_expiry_timestamp_seconds{file="..."}`: for each of `cert.pem`, `aop-ca.pem` and `aop-client.pem` that exists in `/etc/mawareeth/origin-tls`, the earliest `notAfter` across the file's certificates. It is 0 when the file cannot be read: unparsable, not a root-owned `0600` or `0644` regular file, a symlink, or `openssl` is missing. A file that does not exist (`acme` mode, or AOP never set up) has no series. AOP files left behind with `ORIGIN_CLIENT_AUTH=off` are still monitored, so remove them.
+- `mawareeth_github_token_usable`, `mawareeth_github_token_last_ok_timestamp_seconds` and `mawareeth_github_token_expiry_timestamp_seconds`, read from `<state dir>/monitor/github-token` (see [GitHub read token check](#github-read-token-check)).
 - `mawareeth_monitor_collect_timestamp_seconds`.
 
-A missing, mis-owned, or malformed record, or one with a non-decimal epoch, publishes 0, so the matching alert fires. The collector still exits 0 in that case. Ages are judged by the rules on `p1` (`time() - metric`). `monitor.sh status` prints what a collect would publish, the current file, and the drill state. Exit codes: 0 success, 1 an install or drill write step failed, 2 refused (bad input or environment), 3 another monitor operation holds `<state dir>/monitor.lock`.
+A missing, mis-owned, or malformed record, or one with a non-decimal epoch, publishes 0, so the matching alert fires. The collector still exits 0 in that case, and it never uses the network. Ages and expiries are judged by the rules on `p1` (`time() - metric`). `monitor.sh status` prints what a collect would publish, the current file, the drill state, and the token check record. Exit codes: 0 success, 1 an install, drill, or token check write step failed, 2 refused (bad input or environment), 3 another monitor operation holds `<state dir>/monitor.lock`.
+
+**Upgrading an existing host.** Re-run `sudo deploy/monitor.sh install` on the host first, then copy `mawareeth-alerts.yml` to `p1` and reload the rules. A new rule using `absent()`, such as `MawareethGithubTokenUnhealthy`, fires if the rules arrive before the host publishes the metric.
+
+<a id="github-read-token-check"></a>
+**GitHub read token check.** `monitor.sh token-check` runs once a day from its own timer, and on demand. It reads `/etc/mawareeth/github-read.token` and calls `https://api.github.com/rate_limit`, which spends no API quota, with up to two retries. The call runs without the monitor lock, so it never blocks `collect` or a drill. GitHub reports a fine-grained token's expiry only in the `github-authentication-token-expiration` response header. The token reaches curl through a config on a pipe; it is never printed or logged, and never appears on a command line, in the environment, or in the record. The check writes `<state dir>/monitor/github-token` (root, `0600`) and the next collect publishes it:
+
+| Outcome | `result` | Record | Published |
+|---------|----------|--------|-----------|
+| HTTP 200 with the header | `ok` | `last_ok_epoch` is now, `expires_epoch` the expiry | usable 1, last ok, expiry |
+| HTTP 200 without the header | `ok` | `last_ok_epoch` is now, `expires_epoch=never` | usable 1, last ok, expiry 0 |
+| HTTP 401 or 403 | `rejected` | previous values kept | usable 0 |
+| Token file missing, not `root:root` `0600`, or not one token; curl is not called | `missing` | previous values kept | usable 0 |
+| Network error, another status, or an unparsable header | `error` | previous values kept | usable 1, previous last ok and expiry |
+| Record absent, mis-owned, or malformed | | | usable 0, last ok 0, expiry 0 |
+
+A transient failure therefore alerts only once the last ok check is more than 2 days old. The command exits 0 for every outcome above, 1 if it cannot write the record, and 3 if another monitor operation keeps the lock for the whole 120-second wait for the write; the unit then shows as failed. It never rotates the token.
 
 ### Wiring `p1`
 
@@ -765,6 +784,26 @@ This alert is expected right after the change that added `globals.sql` ships, un
 3. `(unusable ...)` means the record is not `root:root` 0600 or is malformed. Inspect it with `sudo ls -l <state dir>/monitor/` and `sudo cat <state dir>/monitor/drill`, move it aside, and run the drill again.
 4. A `last_pass_at` more than 92 days old means the quarterly drill is due. A pass dated in the future means the host clock is wrong: fix time sync first.
 
+<a id="runbook-mawareethorigincertificateexpiring"></a>
+**MawareethOriginCertificateExpiring.** Warning under 30 days, critical under 7 days or when the file cannot be read. An expired certificate makes Cloudflare fail every visitor (52x/526) while Caddy keeps running. The `file` label names the file in `/etc/mawareeth/origin-tls/`.
+1. Run `sudo deploy/monitor.sh status` and read the `mawareeth_origin_certificate_expiry_timestamp_seconds` line for that file. Turn the value into a date with `date -u -d @<value>`.
+2. A value of 0 means the file cannot be read, not that it has expired. Check it with `sudo ls -l /etc/mawareeth/origin-tls/` (it must be a `root:root` `0600` or `0644` regular file, not a symlink), `command -v openssl`, and `sudo openssl x509 -in /etc/mawareeth/origin-tls/<file> -noout -enddate`. Every certificate block in the file must parse, which that command does not prove for a bundle: `openssl` reads only the first block. Fix the owner, mode, or content.
+3. `cert.pem`: create a new Origin CA certificate and install it with its key as in [Cloudflare edge](#cloudflare-edge), setup steps 4 and 5. Then reload Caddy with the `flock` command from [Authenticated Origin Pulls](#authenticated-origin-pulls), "Rotating the CA", step 2.
+4. `aop-client.pem` or `aop-ca.pem`, with `ORIGIN_CLIENT_AUTH=require`: follow "Expiry and rotation" in [Authenticated Origin Pulls](#authenticated-origin-pulls). Its "Emergency" paragraph covers a certificate that has already expired.
+5. `aop-client.pem` or `aop-ca.pem`, with AOP off: these are leftovers that nothing uses, but they are still monitored. Remove them (`sudo rm /etc/mawareeth/origin-tls/aop-ca.pem /etc/mawareeth/origin-tls/aop-client.pem /etc/mawareeth/origin-tls/aop-client-key.pem`).
+6. `cert.pem` left behind on an `acme` host (`EDGE_MODE` is absent or `acme` in `runtime.env`): nothing uses it, so do not issue a new certificate. Remove the leftovers (`sudo rm /etc/mawareeth/origin-tls/cert.pem /etc/mawareeth/origin-tls/key.pem`), then go to the last step.
+7. After replacing `cert.pem`, check the certificate actually being served, because the alert reads the file on disk and Caddy may not have reloaded it: `openssl s_client -connect 127.0.0.1:443 -servername www.mawareeth.com </dev/null 2>/dev/null | openssl x509 -noout -enddate` must print the new date. If it prints the old one, reload Caddy as in step 3.
+8. Run `sudo deploy/monitor.sh collect`. The alert resolves on the next scrape. This alert does not look at Cloudflare's copy of the client certificate; check its `expires_on` as "Expiry and rotation" describes.
+
+<a id="runbook-mawareethgithubtokenunhealthy"></a>
+**MawareethGithubTokenUnhealthy.** Production deploys depend on this token (see [GitHub token](#github-actions-one-time-setup)). The running site does not, so nothing is down yet. The check fires after 5 minutes. It uses `/rate_limit`, which proves the token is alive, not that it still has Actions read on this repository: a token that lost that permission shows up only at deploy, with this alert silent.
+1. Run `sudo deploy/monitor.sh status` and read the `github-token` section. The token itself is never shown. Turn an epoch into a date with `date -u -d @<epoch>`.
+2. `result=rejected` (GitHub answered 401 or 403): a 401 means the token is expired or revoked, but a 403 can also come from GitHub throttling or blocking. Re-run `sudo deploy/monitor.sh token-check` before replacing the token, and if it stays rejected, or `result=ok` with `expires_epoch` under 30 days away: create a new token as in [One-time setup](#github-actions-one-time-setup), step 2, and install it with `sudoedit /etc/mawareeth/github-read.token`. Go to step 6.
+3. `result=missing`: the token file is absent, is not `root:root` `0600`, or does not hold exactly one token. Check it with `sudo ls -l /etc/mawareeth/github-read.token`, and fix it without printing it. Go to step 6.
+4. A `last_ok_epoch` in the future means the host clock is wrong: fix time sync first. `result=error`, or `last_ok_epoch` more than 2 days old: the check cannot reach GitHub. Read `journalctl -u mawareeth-github-token-check -n 50`, check outbound HTTPS and DNS from the host, and check [GitHub's status page](https://www.githubstatus.com/). An empty `last_ok_epoch` means no check has ever succeeded. One failed day plus the timer's random delay can fire this briefly; it resolves after the next good check.
+5. `(unusable ...)` or `(absent ...)`: inspect the record with `sudo ls -l <state dir>/monitor/` and move a bad one aside; the check below writes a new one. If the metric is missing from `mawareeth.prom` altogether, or the timer is not listed by `systemctl list-timers mawareeth-github-token-check.timer`, the host's `monitor.sh` predates the rule: update the checkout and re-run `sudo deploy/monitor.sh install`.
+6. Run `sudo deploy/monitor.sh token-check`, then `sudo deploy/monitor.sh collect`, and confirm `result=ok` in `status`. The alert resolves on the next scrape.
+
 <a id="runbook-mawareethinodeslow"></a>
 **MawareethInodesLow.**
 1. Run `df -i` to confirm the filesystem, then find the directory with the most files: `sudo du -x --inodes --max-depth=3 <mountpoint> | sort -n | tail`.
@@ -886,6 +925,8 @@ Commands that are not deploys still run by hand on the host: contract releases (
 - During `release.sh deploy`, signal `release.sh` itself (`pgrep -af 'release.sh deploy'`), which takes its documented failure path. The wrapper ignores signals there and exits with `release.sh`'s code.
 - The lock is a `flock` held only by the wrapper process, so it is released when the wrapper exits. The file `/run/mawareeth-ci-deploy.lock` itself can stay. `sudo fuser -v /run/mawareeth-ci-deploy.lock` shows any holder. Never delete the file while a wrapper runs.
 
+<a id="github-actions-one-time-setup"></a>
+
 ### One-time setup
 
 Each step changes production access, so each needs its own approval.
@@ -895,7 +936,7 @@ Each step changes production access, so each needs its own approval.
    - Add an ACL grant that lets `tag:ci-deploy` reach only `mawareeth-prod:22`, and nothing else reach from that tag. For example: `{"action": "accept", "src": ["tag:ci-deploy"], "dst": ["mawareeth-prod:22"]}`, where `mawareeth-prod` is a host alias or tag for the server.
    - Create an OAuth client with the `auth_keys` write scope, limited to `tag:ci-deploy`. The action uses it to create ephemeral, pre-authorized nodes that are removed after the job.
    - The host already accepts SSH on `tailscale0` (see [Access, patching, and break-glass](#access-patching-and-break-glass)). The key's `from="100.64.0.0/10"` option is a second, host-side check that it is used only from the tailnet.
-2. **GitHub token.** Create a fine-grained personal access token for this repository only, with **Actions: read** and nothing else, and an expiry you will track. On the host, install it so it never touches a command line or shell history, for example: `sudo install -o root -g root -m 0600 /dev/null /etc/mawareeth/github-read.token && sudoedit /etc/mawareeth/github-read.token`. The file holds the token alone on one line. Artifact downloads need an authenticated call even for a public repository. Once the token expires, deploys refuse with "the GitHub read token is invalid or expired".
+2. **GitHub token.** Create a fine-grained personal access token for this repository only, with **Actions: read** and nothing else, and an expiry you will track. On the host, install it so it never touches a command line or shell history, for example: `sudo install -o root -g root -m 0600 /dev/null /etc/mawareeth/github-read.token && sudoedit /etc/mawareeth/github-read.token`. The file holds the token alone on one line. Artifact downloads need an authenticated call even for a public repository. Once the token expires, deploys refuse with "the GitHub read token is invalid or expired". `monitor.sh install` sets up a daily [check](#github-read-token-check), and [`MawareethGithubTokenUnhealthy`](#runbook-mawareethgithubtokenunhealthy) warns 30 days before the expiry GitHub reports, so re-run `sudo deploy/monitor.sh token-check` after installing or replacing the token.
 3. **Deploy key.** On an administrator workstation, run `ssh-keygen -t ed25519 -N '' -C mawareeth-ci-deploy -f ./mawareeth-ci-deploy`. Copy `mawareeth-ci-deploy.pub` to the host. The private key goes only into the GitHub secret below; delete the local copy afterwards.
 4. **Host install.** As root from the checkout, on a clean `deploy/` tree at a release that contains `deploy/ci-deploy.sh`:
 
@@ -943,7 +984,7 @@ Use any of these, fastest first:
 - Remove the tag grant from the tailnet policy, or revoke the OAuth client. Then delete any leftover `tag:ci-deploy` machines in the Tailscale admin console; ephemeral nodes normally disappear on their own after the job.
 - On the host, empty the key: `sudo truncate -s 0 /var/lib/mawareeth-deploy/.ssh/authorized_keys`.
 - Delete the `DEPLOY_SSH_KEY` secret, or the `production` environment.
-- Revoke the GitHub token and remove `/etc/mawareeth/github-read.token`.
+- Revoke the GitHub token and remove `/etc/mawareeth/github-read.token`. `MawareethGithubTokenUnhealthy` then fires at the next daily check, until a new token is installed.
 
 None of these stops a deploy that is already running on the host: it completes, or it takes its failure path. To stop it, see "A stuck wrapper" above.
 
