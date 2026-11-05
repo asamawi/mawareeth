@@ -2274,5 +2274,23 @@ msgstr "Update"
 msgid "Your account has been updated!"
 msgstr "Your account has been updated!"
 
+msgid "Page not found"
+msgstr ""
+
+msgid "This page doesn't exist, or you don't have access to it."
+msgstr ""
+
+msgid "Go to my calculations"
+msgstr ""
+
+msgid "Go to the home page"
+msgstr ""
+
+msgid "Something went wrong"
+msgstr ""
+
+msgid "We couldn't complete your request. Please try again in a moment."
+msgstr ""
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "Son of paternal brother"

@@ -2344,5 +2344,23 @@ msgstr "Mise à jour"
 msgid "Your account has been updated!"
 msgstr "Votre compte a été mis à jour!"
 
+msgid "Page not found"
+msgstr "Page introuvable"
+
+msgid "This page doesn't exist, or you don't have access to it."
+msgstr "Cette page n'existe pas, ou vous n'y avez pas accès."
+
+msgid "Go to my calculations"
+msgstr "Aller à mes calculs"
+
+msgid "Go to the home page"
+msgstr "Aller à la page d'accueil"
+
+msgid "Something went wrong"
+msgstr "Une erreur est survenue"
+
+msgid "We couldn't complete your request. Please try again in a moment."
+msgstr "Nous n'avons pas pu traiter votre demande. Veuillez réessayer dans un instant."
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "Fils de frère paternel"
