@@ -3,10 +3,11 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 from django.contrib.auth.views import LoginView
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_not_required, login_required
 from django.utils.decorators import method_decorator
 from django.views.generic import View
 from django.contrib import messages
+from django.db import transaction
 from user_auth.forms import UserCreationForm
 from django.urls import reverse_lazy
 from calc.forms import HeirForm, DeceasedForm
@@ -19,6 +20,25 @@ from waffle.mixins import WaffleFlagMixin, WaffleSwitchMixin
 import waffle
 
 
+def get_owned_calculation(request, pk):
+	"""Return the user's own calculation, or 404 so case IDs cannot be probed."""
+	return get_object_or_404(Calculation, pk=pk, user=request.user)
+
+
+class OwnedCalculationMixin:
+	"""Limit a Calculation view to the logged-in user's own calculations."""
+	def get_queryset(self):
+		return super().get_queryset().filter(user=self.request.user)
+
+
+class OwnedByCalculationMixin:
+	"""Limit a Deceased or Heir view to people in the user's own calculations."""
+	def get_queryset(self):
+		return super().get_queryset().filter(calc__user=self.request.user)
+
+
+
+@method_decorator(login_not_required, name='dispatch')
 class HomePage(TemplateView):
 	template_name="calc/home.html"
 
@@ -28,10 +48,13 @@ class HomePage(TemplateView):
 		else:
 			context = self.get_context_data(**kwargs)
 			return self.render_to_response(context)
+@method_decorator(login_not_required, name='dispatch')
 class Terms(TemplateView):
 	template_name="calc/terms.html"
+@method_decorator(login_not_required, name='dispatch')
 class Privacy(TemplateView):
 	template_name="calc/privacy.html"
+@method_decorator(login_not_required, name='dispatch')
 class About(TemplateView):
 	template_name="calc/about.html"
 class DeceasedCreate(CreateView):
@@ -43,7 +66,7 @@ class DeceasedCreate(CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		if self.calc.deceased_set.count() >= 1:
 			messages.error(request,_("Decease already exist"))
 			return HttpResponseRedirect(reverse( 'calc:error'))
@@ -55,19 +78,19 @@ class DeceasedCreate(CreateView):
 		form.instance.calc = self.calc
 		return super().form_valid(form)
 
-class DeceasedUpdate(UpdateView):
+class DeceasedUpdate(OwnedByCalculationMixin, UpdateView):
 	model = Deceased
 	fields = ['first_name','last_name', 'estate']
 
-class DeceasedDelete(DeleteView):
+class DeceasedDelete(OwnedByCalculationMixin, DeleteView):
 	model = Deceased
-	def delete(self, request, *args, **kwargs):
-		self.object = self.get_object()
-		self.calc = self.object.calc # assuming that deceased have a foreignkey reference to Calculation model
-		self.calc.heir_set.all().delete()
-		self.object.delete()
-		success_url = self.get_success_url()
-		return HttpResponseRedirect(success_url)
+	http_method_names = ['get', 'head', 'post', 'options']
+
+	def form_valid(self, form):
+		self.calc = self.object.calc
+		with transaction.atomic():
+			self.calc.heir_set.all().delete()
+			return super().form_valid(form)
 
 	def get_success_url(self):
 		calc = self.calc
@@ -85,7 +108,7 @@ class MotherCreate(CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		if self.calc.heir_set.instance_of(Mother).count() >= 1:
 			messages.error(request,_("Mother already exist"))
 			return HttpResponseRedirect(reverse( 'calc:error'))
@@ -112,7 +135,7 @@ class FatherCreate(CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		if self.calc.heir_set.instance_of(Father).count() >= 1:
 			messages.error(request,_("Father already exist"))
 			return HttpResponseRedirect(reverse( 'calc:error'))
@@ -139,7 +162,7 @@ class HusbandCreate(CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		if self.calc.heir_set.instance_of(Husband).count() >= 1:
 			messages.error(request,_("Husband already exist"))
 			return HttpResponseRedirect(reverse( 'calc:error'))
@@ -166,7 +189,7 @@ class WifeCreate(CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		if self.calc.heir_set.instance_of(Wife).count() >= 4:
 			messages.error(request,_("Cann't have more than 4 wifes"))
 			return HttpResponseRedirect(reverse( 'calc:error'))
@@ -193,7 +216,7 @@ class DaughterCreate(CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -231,7 +254,7 @@ class SonCreate(CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -270,7 +293,7 @@ class BrotherCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -295,7 +318,7 @@ class SisterCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -320,7 +343,7 @@ class GrandFatherCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		if self.calc.heir_set.instance_of(GrandFather).count() >= 1:
 			messages.error(request,_("Father already exist"))
 			return HttpResponseRedirect(reverse( 'calc:error'))
@@ -348,7 +371,7 @@ class GrandMotherCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -373,7 +396,7 @@ class SonOfSonCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -398,7 +421,7 @@ class DaughterOfSonCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -423,7 +446,7 @@ class PaternalSisterCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -448,7 +471,7 @@ class PaternalBrotherCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -473,7 +496,7 @@ class MaternalSisterCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -498,7 +521,7 @@ class MaternalBrotherCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -523,7 +546,7 @@ class SonOfBrotherCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -548,7 +571,7 @@ class SonOfPaternalBrotherCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -573,7 +596,7 @@ class UncleCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -598,7 +621,7 @@ class PaternalUncleCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -623,7 +646,7 @@ class SonOfUncleCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -648,7 +671,7 @@ class SonOfPaternalUncleCreate(WaffleFlagMixin, CreateView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['calc_id'])
+		self.calc = get_owned_calculation(request, kwargs['calc_id'])
 		return super().dispatch(request, *args, **kwargs)
 
 	def form_valid(self, form):
@@ -662,21 +685,19 @@ class SonOfPaternalUncleCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_sonOfPaternalUncle(self.object)
 		return super().form_valid(form)
 
-class HeirUpdate(UpdateView):
+class HeirUpdate(OwnedByCalculationMixin, UpdateView):
 	model = Heir
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
 
-class HeirDelete(DeleteView):
+class HeirDelete(OwnedByCalculationMixin, DeleteView):
 	model = Heir
 	template_name = 'calc/heir_confirm_delete.html'
+	http_method_names = ['get', 'head', 'post', 'options']
 
-	def delete(self, request, *args, **kwargs):
-		self.object = self.get_object()
-		self.calc = self.object.calc # assuming that deceased have a foreignkey reference to Calculation model
-		self.object.delete()
-		success_url = self.get_success_url()
-		return HttpResponseRedirect(success_url)
+	def form_valid(self, form):
+		self.calc = self.object.calc
+		return super().form_valid(form)
 
 	def get_success_url(self):
 		calc = self.calc
@@ -700,9 +721,17 @@ class IndexView(LoginRequired, generic.ListView):
 		return Calculation.objects.filter(user=self.request.user)
 
 
-class DetailView(LoginRequired, generic.DetailView):
+class DetailView(OwnedCalculationMixin, LoginRequired, generic.DetailView):
 	model = Calculation
 	template_name = 'calc/detail.html'
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Checked here too because get_queryset only runs on GET, and a
+		non-owner must also get 404 on POST.
+		"""
+		get_owned_calculation(request, kwargs['pk'])
+		return super().dispatch(request, *args, **kwargs)
 
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)
@@ -718,7 +747,7 @@ class DetailView(LoginRequired, generic.DetailView):
 		context['Heirs'] = self.object.heir_set.order_by('polymorphic_ctype_id')
 		return context
 
-class NewResultsView(WaffleFlagMixin, LoginRequired, generic.DetailView):
+class NewResultsView(OwnedCalculationMixin, WaffleFlagMixin, LoginRequired, generic.DetailView):
 	model = Calculation
 	template_name = 'calc/new_results.html'
 	waffle_flag= "new_results"
@@ -746,11 +775,11 @@ class NewResultsView(WaffleFlagMixin, LoginRequired, generic.DetailView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['pk'])
+		self.calc = get_owned_calculation(request, kwargs['pk'])
 		self.calc.compute()
 		return super().dispatch(request, *args, **kwargs)
 
-class ResultsView(LoginRequired, generic.DetailView):
+class ResultsView(OwnedCalculationMixin, LoginRequired, generic.DetailView):
 	model = Calculation
 	template_name = 'calc/results.html'
 
@@ -777,15 +806,18 @@ class ResultsView(LoginRequired, generic.DetailView):
 		Overridden so we can make sure the `calc` instance exists
 		before going any further.
 		"""
-		self.calc = get_object_or_404(Calculation, pk=kwargs['pk'])
+		self.calc = get_owned_calculation(request, kwargs['pk'])
 		self.calc.compute()
 		return super().dispatch(request, *args, **kwargs)
 
-class CalculationUpdate(UpdateView):
+class CalculationUpdate(OwnedCalculationMixin, UpdateView):
 	model = Calculation
 	fields = ['name']
 
 def new(request):
+	# A login redirect replays this URL as a GET, with no form data to read.
+	if request.method != "POST":
+		return HttpResponseRedirect(reverse('calc:index'))
 	name = request.POST["name"]
 	if name == "":
 		messages.error(request,_("Must enter a name for your calcualtion") )
@@ -807,17 +839,19 @@ def father(request, pk):
 
 
 def delete(request, pk):
-	calc = get_object_or_404(Calculation, pk=pk)
-	if calc.user == request.user:
-		calc.delete()
-		return HttpResponseRedirect(reverse('calc:index'))
-	else:
-		messages.error(request,_("user not allowed") )
-		return HttpResponseRedirect(reverse('calc:error'))
+	calc = get_owned_calculation(request, pk)
+	calc.delete()
+	return HttpResponseRedirect(reverse('calc:index'))
 
+# This view deletes on GET, so a login redirect must not carry a `next` that
+# would replay the delete as soon as the user signs in.
+delete.redirect_field_name = None
+
+@login_not_required
 def error(request):
 	return render(request, 'calc/error.html')
 
+@method_decorator(login_not_required, name='dispatch')
 class SignUp(generic.CreateView):
 	form_class = UserCreationForm
 	success_url = reverse_lazy('login')
