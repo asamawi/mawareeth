@@ -840,11 +840,14 @@ def father(request, pk):
 
 def delete(request, pk):
 	calc = get_owned_calculation(request, pk)
-	calc.delete()
+	# Only a POST deletes, so that CSRF protection applies and a link on
+	# another site cannot delete a case. An old link just lands on the list.
+	if request.method == "POST":
+		calc.delete()
 	return HttpResponseRedirect(reverse('calc:index'))
 
-# This view deletes on GET, so a login redirect must not carry a `next` that
-# would replay the delete as soon as the user signs in.
+# After login there is nothing useful to return to here: `next` would only
+# replay a GET, which never deletes. Send the user to their list instead.
 delete.redirect_field_name = None
 
 @login_not_required
