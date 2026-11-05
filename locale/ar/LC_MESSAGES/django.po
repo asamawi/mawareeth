@@ -2224,6 +2224,24 @@ msgstr "تحديث"
 msgid "Your account has been updated!"
 msgstr "تم تحديث بياناتك بنجاح!"
 
+msgid "Page not found"
+msgstr "الصفحة غير موجودة"
+
+msgid "This page doesn't exist, or you don't have access to it."
+msgstr "هذه الصفحة غير موجودة، أو ليس لديك إذن للوصول إليها."
+
+msgid "Go to my calculations"
+msgstr "الذهاب إلى حساباتي"
+
+msgid "Go to the home page"
+msgstr "الذهاب إلى الصفحة الرئيسية"
+
+msgid "Something went wrong"
+msgstr "حدث خطأ ما"
+
+msgid "We couldn't complete your request. Please try again in a moment."
+msgstr "تعذّر علينا إكمال طلبك. يرجى المحاولة مرة أخرى بعد قليل."
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "ابن أخ لأب"
 

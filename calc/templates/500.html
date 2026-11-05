@@ -1,0 +1,20 @@
+{% load i18n %}{% get_current_language as LANGUAGE_CODE %}{% get_current_language_bidi as LANGUAGE_BIDI %}<!doctype html>
+{# Standalone on purpose: Django renders this with no context, and base.html, the database or the static manifest may be what failed. #}
+<html lang="{{ LANGUAGE_CODE }}" dir="{% if LANGUAGE_BIDI %}rtl{% else %}ltr{% endif %}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% trans "Something went wrong" %} | {% trans "Mawareeth" %}</title>
+  <style>
+    body { margin: 0; padding: 4rem 1rem; font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; color: #212529; text-align: center; }
+    a { color: #0056b3; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>{% trans "Something went wrong" %}</h1>
+    <p>{% trans "We couldn't complete your request. Please try again in a moment." %}</p>
+    <p><a href="/">{% trans "Go to the home page" %}</a></p>
+  </main>
+</body>
+</html>
