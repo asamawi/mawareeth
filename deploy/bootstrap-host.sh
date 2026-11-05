@@ -374,6 +374,18 @@ allow_public_web
 ufw --force enable
 trap - ERR
 
+# Docker's veth interfaces trigger cloud-init's network hotplug hook when their
+# random MAC matches its udev rule. The hook then fails after about 90 seconds,
+# because they are not in Hetzner's metadata, which leaves
+# cloud-init-hotplugd.service failed. This host's network is configured at boot.
+install -d -o root -g root -m 0755 /etc/cloud/cloud.cfg.d
+install -o root -g root -m 0644 /dev/null /etc/cloud/cloud.cfg.d/99-mawareeth-no-network-hotplug.cfg
+cat > /etc/cloud/cloud.cfg.d/99-mawareeth-no-network-hotplug.cfg <<'CFG'
+updates:
+  network:
+    when: ['boot-new-instance']
+CFG
+
 install -d -o root -g root -m 0700 /etc/mawareeth
 persist_web_sources
 if [[ -e /etc/mawareeth/runtime.env ]]; then
