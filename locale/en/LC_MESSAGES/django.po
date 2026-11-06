@@ -2295,5 +2295,9 @@ msgstr ""
 msgid "Your account doesn't have access to this page. To proceed, please login with an account that has access."
 msgstr ""
 
+#: calc/templates/calc/home.html
+msgid "Start a case without an account"
+msgstr "Start a case without an account"
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "Son of paternal brother"

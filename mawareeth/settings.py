@@ -60,7 +60,7 @@ def _production_hosts():
     return hosts
 
 
-def _production_csrf_origins():
+def _csrf_trusted_origins():
     origins = _csv_setting("DJANGO_CSRF_TRUSTED_ORIGINS", required=IS_PRODUCTION)
     if IS_PRODUCTION:
         for origin in origins:
@@ -77,6 +77,10 @@ def _production_csrf_origins():
                 raise ImproperlyConfigured(
                     "DJANGO_CSRF_TRUSTED_ORIGINS must contain explicit HTTPS origins only."
                 )
+    else:
+        # `next dev` serves the pages on :3000 and proxies /api/ to Django, so its
+        # POSTs carry that Origin. Without this the first anonymous write is rejected.
+        origins = [*origins, "http://localhost:3000", "http://127.0.0.1:3000"]
     return origins
 
 
@@ -167,7 +171,7 @@ if IS_PRODUCTION and DEBUG:
     raise ImproperlyConfigured("DEBUG must be False when DJANGO_ENV=production.")
 
 ALLOWED_HOSTS = _production_hosts()
-CSRF_TRUSTED_ORIGINS = _production_csrf_origins()
+CSRF_TRUSTED_ORIGINS = _csrf_trusted_origins()
 
 
 # Application definition
@@ -311,7 +315,16 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
     'DEFAULT_PARSER_CLASSES': ['rest_framework.parsers.JSONParser'],
+    'DEFAULT_THROTTLE_RATES': {'case_write': '30/hour'},
+    # Caddy leaves X-Forwarded-For as "client, cloudflare" behind Cloudflare and replaces it
+    # with the single client address otherwise, so the client is the 2nd entry from the end
+    # (or the only one). Without this DRF keys on the whole header, which a client can vary.
+    'NUM_PROXIES': 2,
 }
+
+# Anonymous interview cases live in the Django session and expire after this much idle time.
+# Logged-in sessions keep Django's default (SESSION_COOKIE_AGE).
+ANONYMOUS_CASE_IDLE_SECONDS = 24 * 60 * 60
 
 
 SITE_ID = config("SITE_ID",default=1, cast=int)

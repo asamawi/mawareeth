@@ -2365,5 +2365,9 @@ msgstr "Nous n'avons pas pu traiter votre demande. Veuillez réessayer dans un i
 msgid "Your account doesn't have access to this page. To proceed, please login with an account that has access."
 msgstr "Votre compte n'a pas accès à cette page. Pour continuer, veuillez vous connecter avec un compte qui y a accès."
 
+#: calc/templates/calc/home.html
+msgid "Start a case without an account"
+msgstr "Commencer un dossier sans compte"
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "Fils de frère paternel"

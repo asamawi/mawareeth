@@ -18,8 +18,10 @@ scrape="$root/deploy/monitoring/prometheus-scrape.yml"
 route="$root/deploy/monitoring/alertmanager-route.yml"
 bash -n "$monitor_src" "$root/deploy/backup.sh" "$root/deploy/runtime.sh" "$0"
 ! grep -Eq '\|\|[[:space:]]*(true|:)([[:space:]]|$|;)' "$monitor_src" || fail 'monitor.sh must not mask failures with || true'
-! grep -Eq 'acquire_deploy_lock|deploy_lock_file|journal_file|route_file|slots_dir|write_snapshot|routes_dir|acquire_backup_lock|backup_lock_file|docker|compose' "$monitor_src" \
-  || fail 'monitor.sh must not take the deploy or backup locks or touch slots, routes, the journal, snapshots, containers, or the database'
+# Only the marked clear-sessions block may reach a container, and only through the active route.
+! sed '/^# --- clear-sessions begin/,/^# --- clear-sessions end/d' "$monitor_src" \
+  | grep -Eq 'acquire_deploy_lock|deploy_lock_file|journal_file|route_file|slots_dir|write_snapshot|routes_dir|acquire_backup_lock|backup_lock_file|docker|compose' \
+  || fail 'monitor.sh must not take the deploy or backup locks or touch slots, routes, the journal, snapshots, containers, or the database outside clear-sessions'
 ! grep -Eiq 'authkey|auth-key|SMTP_PASS|smtp_auth_password' "$monitor_src" "$alerts" "$scrape" "$route" || fail 'no Tailscale or SMTP secret may appear in the repository'
 ! grep -Eq '0\.0\.0\.0|\[::\]' "$monitor_src" || fail 'monitor.sh must never mention a wildcard listen address'
 # No real Better Stack heartbeat URL (it works as a bearer secret) anywhere in
@@ -971,6 +973,15 @@ lacks "$token_service" 'docker'; lacks "$token_service" "$token_value"
 need "$service" "Environment=MAWAREETH_ORIGIN_TLS_DIR=$tls"
 lacks "$service" 'SuccessExitStatus'; lacks "$token_service" 'SuccessExitStatus'
 need "$S/calls.log" 'systemctl enable --now mawareeth-github-token-check.timer'
+# The daily session cleanup: its timer is enabled and its service runs clear-sessions with Docker.
+sessions_timer="$units/mawareeth-clear-sessions.timer"; sessions_service="$units/mawareeth-clear-sessions.service"
+for line in 'OnCalendar=daily' 'RandomizedDelaySec=1h' 'Persistent=true' 'Unit=mawareeth-clear-sessions.service' 'WantedBy=timers.target'; do need "$sessions_timer" "$line"; done
+for line in 'Type=oneshot' 'Requires=docker.service' "Environment=MAWAREETH_RUNTIME_DIR=$state" 'Environment=MAWAREETH_CLEAR_SESSIONS_TIMEOUT=300'   "ExecStart=/bin/bash $bundle/deploy/monitor.sh clear-sessions" 'TimeoutStartSec=420' 'Restart=on-failure' 'RestartSec=900'   'StartLimitIntervalSec=7200' 'StartLimitBurst=3'; do need "$sessions_service" "$line"; done
+# The limits belong to [Unit] (before [Service]) and the restart policy to [Service].
+[[ "$(grep -n '^StartLimitBurst=' "$sessions_service" | cut -d: -f1)" -lt "$(grep -n '^\[Service\]' "$sessions_service" | cut -d: -f1)" ]] || fail 'StartLimit lines must be in [Unit]'
+[[ "$(grep -n '^Restart=' "$sessions_service" | cut -d: -f1)" -gt "$(grep -n '^\[Service\]' "$sessions_service" | cut -d: -f1)" ]] || fail 'Restart must be in [Service]'
+lacks "$sessions_service" 'SuccessExitStatus'
+need "$S/calls.log" 'systemctl enable --now mawareeth-clear-sessions.timer'
 [[ "$(grep -c rate_limit "$S/calls.log")" == 1 ]] || fail 'install must run exactly one token check'
 expect_cert cert.pem "$end90" 'install publishes the certificate series'
 expect_metric mawareeth_github_token_usable 1 'install publishes the token series'
@@ -1522,6 +1533,62 @@ elif command -v promtool >/dev/null 2>&1; then
 else
   missing_tool promtool 'rule unit tests'
 fi
+
+# --- clear-sessions: runs manage.py clearsessions in the active slot's container -----
+mkdir -p "$state/routes"
+route_active="$state/routes/active-slot.caddy"
+write_route() {
+  printf 'reverse_proxy app-%s:8000 {\n\thealth_uri /health/ready/\n\thealth_interval 10s\n\thealth_timeout 3s\n\thealth_status 200\n\theader_down X-Mawareeth-Slot %s\n}\n' "$1" "$1" > "$route_active"
+  chmod 644 "$route_active"; set_meta "$route_active" 0:0:644
+}
+# docker lists "$S/docker-ids" for a ps, and fails a ps or an exec while its marker file exists.
+cat > "$stub/docker" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "docker \$*" >> '$S/calls.log'
+case "\$1" in
+  ps) [[ ! -e '$S/docker-ps-fails' ]] || exit 1; [[ ! -e '$S/docker-ids' ]] || cat '$S/docker-ids' ;;
+  exec) [[ ! -e '$S/docker-exec-fails' ]] || exit 1 ;;
+esac
+EOF
+chmod +x "$stub/docker"
+container=0123456789ab
+
+rm -f "$route_active"
+run "$monitor" clear-sessions; expect_rc 2 'clear-sessions with no persisted route'
+lacks "$S/calls.log" 'docker exec'
+
+write_route green; printf '%s\n' "$container" > "$S/docker-ids"
+run "$monitor" clear-sessions; expect_rc 0 'clear-sessions on the green slot'
+need "$S/calls.log" 'label=com.docker.compose.service=app-green'
+compose_project="$(sed -n 's/^project=//p' "$root/deploy/runtime.sh")"
+[[ -n "$compose_project" ]] || fail 'cannot read the Compose project name from runtime.sh'
+need "$S/calls.log" "label=com.docker.compose.project=$compose_project"
+need "$S/calls.log" "docker exec $container timeout 300 python manage.py clearsessions"
+lacks "$S/calls.log" 'app-blue'
+write_route blue
+run "$monitor" clear-sessions; expect_rc 0 'clear-sessions on the blue slot'
+need "$S/calls.log" 'label=com.docker.compose.service=app-blue'
+
+: > "$S/docker-exec-fails"
+run "$monitor" clear-sessions; expect_rc 1 'clear-sessions when clearsessions fails'
+rm -f "$S/docker-exec-fails"
+: > "$S/docker-ps-fails"
+run "$monitor" clear-sessions; expect_rc 1 'clear-sessions when Docker cannot list containers'
+rm -f "$S/docker-ps-fails"
+: > "$S/docker-ids"
+run "$monitor" clear-sessions; expect_rc 1 'clear-sessions with no running container'
+lacks "$S/calls.log" 'docker exec'
+printf '%s\n%s\n' "$container" abcdef012345 > "$S/docker-ids"
+run "$monitor" clear-sessions; expect_rc 1 'clear-sessions with two containers'
+lacks "$S/calls.log" 'docker exec'
+printf '%s\n' "$container" > "$S/docker-ids"
+run "$monitor" MAWAREETH_CLEAR_SESSIONS_TIMEOUT=0 clear-sessions; expect_rc 2 'clear-sessions with a bad timeout'
+# install refuses a bad timeout before writing any unit.
+rm -f "$units"/mawareeth-*
+run "$monitor" MAWAREETH_CLEAR_SESSIONS_TIMEOUT=0 install; expect_rc 2 'install with a bad clear-sessions timeout'
+[[ ! -e "$units/mawareeth-clear-sessions.service" && ! -e "$units/mawareeth-github-token-check.service" ]] || fail 'install wrote units despite a bad timeout'
+[[ ! -e "$state/backup.lock" && ! -e "$state/deploy.lock" ]] || fail 'clear-sessions opened the backup or deploy lock'
+rm -f "$stub/docker" "$route_active"
 
 if ((rule_tools_skipped)); then
   :

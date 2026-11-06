@@ -60,6 +60,10 @@
       </a>
       {% trans "if you are an exiting user." %}
     </p>
+    <p>
+      {% get_current_language as LANGUAGE_CODE %}
+      <a class="btn btn-primary btn-lg" href="/app/{{ LANGUAGE_CODE }}/interview/">{% trans "Start a case without an account" %}</a>
+    </p>
   </div>
 </section>
 {% endblock %}

@@ -53,8 +53,8 @@ development_status:
   0-10-execute-production-cutover-and-retire-heroku: done
   epic-0-retrospective: optional
 
-  epic-1: backlog
-  1-1-zero-signup-case-start: backlog
+  epic-1: in-progress
+  1-1-zero-signup-case-start: review
   1-2-start-interview-madhab-selection: backlog
   1-3-deceased-info-add-heirs-via-guided-interview-form: backlog
   1-4-family-tree-visualization-basic-render-updates: backlog
@@ -104,4 +104,4 @@ development_status:
   7-5-certify-draft-report-as-approved-lawyer: backlog
   7-6-audit-trail-for-certification-actions: backlog
   epic-7-retrospective: optional
-last_updated: 10-26-2026 00:00
+last_updated: '2026-11-06'

@@ -5,7 +5,8 @@
 #                                    IPv4 only (textfile and systemd
 #                                    collectors; re-run to upgrade the wrapper),
 #                                    UFW (9100 and SSH on tailscale0), journald
-#                                    bounds, collector, daily token check
+#                                    bounds, collector, daily token check,
+#                                    daily expired-session cleanup
 #   sudo deploy/monitor.sh collect   publish backup/restore records as metrics
 #                                    (including whether the last ok backup
 #                                    holds every archive), each origin
@@ -17,6 +18,11 @@
 #                                    the deploy's read token works and when it
 #                                    expires, and record the answer; the next
 #                                    collect publishes it
+#   sudo deploy/monitor.sh clear-sessions
+#                                    delete expired Django sessions (manage.py
+#                                    clearsessions) in the container of the
+#                                    active slot; the only command here that
+#                                    touches a container or the database
 #   sudo deploy/monitor.sh status    print the metrics a collect would publish,
 #                                    the drill record and the token check record
 #   sudo deploy/monitor.sh drill start
@@ -41,9 +47,13 @@
 # and waits for it instead of giving up the day's check). The token value is never
 # printed, logged, or put on argv or in the environment. Staleness and expiry
 # are judged by the Prometheus rules (time() - metric); this script never
-# compares clocks. It never takes the deploy or backup locks and never touches slots,
-# routes, the deploy journal, snapshots, or the database. Tailscale is joined
-# interactively by the operator (deploy/README.md); no auth key is accepted.
+# compares clocks. Apart from `clear-sessions` (which reads the persisted route and
+# runs one command in the active slot's container), it never takes the deploy or
+# backup locks and never touches slots, routes, the deploy journal, snapshots,
+# containers, or the database. `clear-sessions` exits 0 on success, 1 when it cannot
+# clean (the unit retries, then fails and the existing failed-unit alert fires), 2 when
+# refused. Tailscale is joined interactively by the operator (deploy/README.md); no auth
+# key is accepted.
 monitor_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=deploy/backup.sh
 source "$monitor_script_dir/backup.sh"
@@ -73,6 +83,8 @@ origin_certificate_files=(cert.pem aop-ca.pem aop-client.pem)
 token_file="${MAWAREETH_GITHUB_TOKEN_FILE:-/etc/mawareeth/github-read.token}"
 token_record="$drill_dir/github-token"
 token_unit=mawareeth-github-token-check
+sessions_unit=mawareeth-clear-sessions
+sessions_timeout="${MAWAREETH_CLEAR_SESSIONS_TIMEOUT:-300}"
 token_url=https://api.github.com/rate_limit
 token_lock_wait="${MAWAREETH_TOKEN_LOCK_WAIT:-120}"
 
@@ -374,6 +386,44 @@ cmd_token_check() {
   say "token check recorded result=$probe_result in $token_record; the next collect publishes it"
 }
 
+# --- clear-sessions begin: the only part of this script that touches a container ---
+# Anonymous interview cases live in database-backed Django sessions, and nothing
+# else deletes them once they expire. The command runs in the container of the slot
+# the persisted route serves, found by its Compose labels (the same way backup.sh
+# finds PostgreSQL), so it needs no release manifest or runtime snapshot.
+check_sessions_timeout() {
+  [[ "$sessions_timeout" =~ ^[1-9][0-9]{0,3}$ ]] || die 'MAWAREETH_CLEAR_SESSIONS_TIMEOUT must be 1-9999 seconds'
+}
+
+cmd_clear_sessions() {
+  require_root
+  require_command docker; require_command timeout
+  clean_path "$state_dir" MAWAREETH_RUNTIME_DIR
+  check_sessions_timeout
+  read_active_slot || die 'no persisted route exists; run deploy/runtime.sh prepare, then bootstrap with deploy/release.sh deploy'
+  local ids
+  ids="$(timeout 60 docker ps --filter "label=com.docker.compose.project=$project" \
+    --filter "label=com.docker.compose.service=app-$ACTIVE_SLOT" --format '{{.ID}}' 9>&-)" \
+    || install_fail 'cannot list running containers'
+  [[ "$ids" =~ ^[0-9a-f]{12,64}$ ]] || install_fail "expected exactly one running app-$ACTIVE_SLOT container, found: ${ids:-none}"
+  # The inner timeout stops the work inside the container; the outer one stops docker itself.
+  timeout --kill-after=5 "$((sessions_timeout + 30))" docker exec "$ids" timeout "$sessions_timeout" python manage.py clearsessions 9>&- \
+    || install_fail "clearsessions failed in app-$ACTIVE_SLOT"
+  say "cleared expired sessions in app-$ACTIVE_SLOT"
+}
+
+# unit_service in backup.sh runs backup.sh; this runs monitor.sh and needs Docker. A deploy
+# can remove the container mid-run, so a failure retries (3 starts in 2 hours) and only a
+# persistent one ends failed and alerts.
+sessions_service_content() {
+  printf '[Unit]\nDescription=Mawareeth expired session cleanup\nWants=network-online.target\nAfter=network-online.target docker.service\nRequires=docker.service\n'
+  printf 'StartLimitIntervalSec=7200\nStartLimitBurst=3\n'
+  printf '[Service]\nType=oneshot\nEnvironment=HOME=/root\nEnvironment=MAWAREETH_RUNTIME_DIR=%s\nEnvironment=MAWAREETH_CLEAR_SESSIONS_TIMEOUT=%s\n' "$state_dir" "$sessions_timeout"
+  printf 'ExecStart=/bin/bash %s/monitor.sh clear-sessions\nTimeoutStartSec=%s\nNice=10\n' "$deploy_dir" "$((sessions_timeout + 120))"
+  printf 'Restart=on-failure\nRestartSec=900\n'
+}
+# --- clear-sessions end ---
+
 # --- Alert-path drill -------------------------------------------------------------
 # Refusals (exit 2) happen before anything is written. Only a start creates the
 # drill directory; confirm and abort never create anything. The record and its
@@ -572,6 +622,7 @@ cmd_install() {
   for tool in apt-get curl systemctl ufw timeout flock mktemp sync install; do require_command "$tool"; done
   clean_path "$deploy_dir" 'the deployment checkout'
   clean_path "$state_dir" MAWAREETH_RUNTIME_DIR
+  check_sessions_timeout
   clean_path "$textfile_dir" MAWAREETH_TEXTFILE_DIR
   clean_path "$systemd_dir" MAWAREETH_SYSTEMD_DIR
   clean_path "$journald_dir" MAWAREETH_JOURNALD_DIR
@@ -637,6 +688,8 @@ cmd_install() {
   atomic_write "$systemd_dir/$token_unit.service" 0644 "$(token_service_content)" || install_fail "could not write $token_unit.service"
   atomic_write "$systemd_dir/$token_unit.timer" 0644 "$(unit_timer 'Mawareeth GitHub read token check every day' daily 1h "$token_unit.service")" \
     || install_fail "could not write $token_unit.timer"
+  atomic_write "$systemd_dir/$sessions_unit.service" 0644 "$(sessions_service_content)" || install_fail "could not write $sessions_unit.service"
+  atomic_write "$systemd_dir/$sessions_unit.timer" 0644 "$(unit_timer 'Mawareeth expired session cleanup every day' daily 1h "$sessions_unit.service")" \n    || install_fail "could not write $sessions_unit.timer"
 
   # Publishes the token series on the first file; a host whose token is not
   # installed yet records missing and alerts until it is.
@@ -651,6 +704,7 @@ cmd_install() {
   timeout 60 systemctl restart --no-block "$exporter_unit" || install_fail "could not restart $exporter_unit"
   timeout 60 systemctl enable --now "$collect_unit.timer" || install_fail "could not enable $collect_unit.timer"
   timeout 60 systemctl enable --now "$token_unit.timer" || install_fail "could not enable $token_unit.timer"
+  timeout 60 systemctl enable --now "$sessions_unit.timer" || install_fail "could not enable $sessions_unit.timer"
   say "installed; join the tailnet with 'sudo tailscale up' if not done yet, then add the p1 snippets (deploy/README.md)"
 }
 
@@ -661,8 +715,9 @@ monitor_main() {
     collect) cmd_collect ;;
     status) cmd_status ;;
     token-check) cmd_token_check ;;
+    clear-sessions) cmd_clear_sessions ;;
     drill) shift; cmd_drill "$@" ;;
-    *) die 'usage: monitor.sh {install|collect|token-check|status|drill}' ;;
+    *) die 'usage: monitor.sh {install|collect|token-check|clear-sessions|status|drill}' ;;
   esac
 }
 

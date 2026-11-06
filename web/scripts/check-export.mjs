@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 
 const out = join(dirname(fileURLToPath(import.meta.url)), "..", "out");
 const expected = { ar: "rtl", en: "ltr", fr: "ltr" };
+// Every page under a locale that Django links to; each must exist in every locale.
+const pages = ["", "interview"];
 const problems = [];
 
 // A root index.html would be served at /app/ and shadow Django's language redirect.
@@ -24,17 +26,20 @@ function attribute(tag, name) {
 }
 
 for (const [locale, dir] of Object.entries(expected)) {
-  const page = join(out, locale, "index.html");
-  if (!existsSync(page)) {
-    problems.push(`out/${locale}/index.html is missing`);
-    continue;
-  }
-  const tag = readFileSync(page, "utf8").match(/<html\b[^>]*>/)?.[0] ?? "";
-  if (attribute(tag, "lang") !== locale) {
-    problems.push(`out/${locale}/index.html does not have lang="${locale}"`);
-  }
-  if (attribute(tag, "dir") !== dir) {
-    problems.push(`out/${locale}/index.html does not have dir="${dir}"`);
+  for (const route of pages) {
+    const name = [locale, route, "index.html"].filter(Boolean).join("/");
+    const page = join(out, ...name.split("/"));
+    if (!existsSync(page)) {
+      problems.push(`out/${name} is missing`);
+      continue;
+    }
+    const tag = readFileSync(page, "utf8").match(/<html\b[^>]*>/)?.[0] ?? "";
+    if (attribute(tag, "lang") !== locale) {
+      problems.push(`out/${name} does not have lang="${locale}"`);
+    }
+    if (attribute(tag, "dir") !== dir) {
+      problems.push(`out/${name} does not have dir="${dir}"`);
+    }
   }
 }
 

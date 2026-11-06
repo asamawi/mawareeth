@@ -1,6 +1,6 @@
 # Mawareeth web
 
-The Next.js frontend, built as a static export and served by Django under `/app/`. `/app/` links to nothing yet and every page is `noindex`.
+The Next.js frontend, built as a static export and served by Django under `/app/`. The landing page links to `/app/<locale>/interview/` (zero-signup case start) and every page is `noindex`.
 
 ## Local development
 
@@ -34,4 +34,4 @@ node scripts/check-export.mjs
 
 ## Limits of a static export
 
-There is no server-side rendering, Next middleware or image optimization, and every route must be known at build time. Adding a locale means updating `src/i18n/messages.ts`, `scripts/check-export.mjs` and Django's `LANGUAGES`.
+There is no server-side rendering, Next middleware or image optimization, and every route must be known at build time. Adding a route means updating `src/i18n/messages.ts` and `scripts/check-export.mjs`. Adding a locale also means Django's `LANGUAGES` and `languageNames` in `src/app/[locale]/site-nav.tsx`.

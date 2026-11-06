@@ -280,3 +280,21 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
   summary: Give the interview a fallback when JavaScript is off or its chunks fail to load, and a way to change language.
   evidence: The shell's static HTML stays on the checking message without hydration and has no language switcher; both are acceptable only while `/app/` is unlinked.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
+  summary: Add a Content-Security-Policy for pages under `/app/` before they reach production.
+  evidence: Story 1.1 links `/app/` from the landing page. The project owner deferred this on 2026-11-06 as a release blocker because product work stays on local `development` until all epics are complete.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
+  summary: Add browser-level tests for `/app/` routes, covering keyboard, RTL and reduced motion, before they reach production.
+  evidence: Deferred by the project owner on 2026-11-06 as a release blocker. The tests have more to cover once Stories 1.2 and 1.3 add interview content.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
+  summary: Handle failed or stale chunks on `/app/` routes, including tabs left open across a deploy, before they reach production.
+  evidence: Story 1.1 covers JavaScript being off with a `<noscript>` message only. The project owner deferred the rest on 2026-11-06 as a release blocker.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
+  summary: Confirm the real `X-Forwarded-For` value reaching Django behind Cloudflare before relying on the case-write throttle's `NUM_PROXIES = 2`.
+  evidence: A local Caddy run on 2026-11-06 confirmed Caddy appends the peer from a trusted proxy and replaces the header otherwise, but Cloudflare's own contribution can only be observed on the deployed stack. Release blocker.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
+  summary: Re-run `deploy/monitor.sh install` on the production host when this work ships, confirm `clear-sessions` runs in the real image, and consider a last-success metric for it.
+  evidence: The shell tests stub Docker, and a host that never re-runs `install` has no timer and raises no alert, so session rows would grow unnoticed. Release blocker.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
+  summary: Add a confirmation step to "Start over" before Story 1.3 stores interview answers in the case.
+  evidence: "Start over" replaces the case immediately, which is harmless while the case holds only an ID and a timestamp but becomes data loss once it holds answers.

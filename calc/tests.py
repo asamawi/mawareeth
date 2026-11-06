@@ -1269,6 +1269,19 @@ class TemplateTagTests(TestCase):
                 self.assertContains(response, f'type="submit">{text}</button>')
                 self.assertNotContains(response, '{%')
 
+    def test_home_links_to_the_interview_in_each_language(self):
+        expected = {
+            'en': 'Start a case without an account',
+            'ar': 'ابدأ حالة بدون حساب',
+            'fr': 'Commencer un dossier sans compte',
+        }
+        for language, text in expected.items():
+            with self.subTest(language=language):
+                response = self.client.get(f'/{language}/', secure=True)
+                self.assertContains(response, f'href="/app/{language}/interview/"')
+                self.assertContains(response, text)
+                self.assertNotContains(response, '{%')
+
     def test_login_no_access_message_is_translated(self):
         self.client.force_login(User.objects.create_user('someone', password='x'))
         expected = {

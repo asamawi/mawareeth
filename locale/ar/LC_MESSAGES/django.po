@@ -2245,6 +2245,10 @@ msgstr "تعذّر علينا إكمال طلبك. يرجى المحاولة م�
 msgid "Your account doesn't have access to this page. To proceed, please login with an account that has access."
 msgstr "حسابك لا يملك إذنًا للوصول إلى هذه الصفحة. للمتابعة، يرجى تسجيل الدخول بحساب لديه إذن."
 
+#: calc/templates/calc/home.html
+msgid "Start a case without an account"
+msgstr "ابدأ حالة بدون حساب"
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "ابن أخ لأب"
 

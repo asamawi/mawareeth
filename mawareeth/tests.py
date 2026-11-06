@@ -49,6 +49,15 @@ def load_settings_module(extra_env):
 
 
 class ProductionSettingsTests(SimpleTestCase):
+    def test_next_dev_origins_are_trusted_outside_production_only(self):
+        dev_origins = {"http://localhost:3000", "http://127.0.0.1:3000"}
+        production = load_settings_module({})
+        self.assertTrue(dev_origins.isdisjoint(production.CSRF_TRUSTED_ORIGINS))
+        for mode in ("development", "test"):
+            with self.subTest(mode=mode):
+                module = load_settings_module({"DJANGO_ENV": mode})
+                self.assertTrue(dev_origins <= set(module.CSRF_TRUSTED_ORIGINS))
+
     def test_app_version_comes_from_the_environment(self):
         settings_module = load_settings_module({"APP_VERSION": "3.0.7", "RELEASE_VERSION": "a" * 40})
         self.assertEqual(settings_module.APP_VERSION, "3.0.7")

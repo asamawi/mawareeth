@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 
 import { directionOf, isLocale, locales, messages } from "@/i18n/messages";
 
+import { SiteNav } from "./site-nav";
+
 import "./globals.css";
 
 export const dynamicParams = false;
@@ -38,7 +40,10 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} dir={directionOf(locale)}>
-      <body>{children}</body>
+      <body>
+        <SiteNav locale={locale} nav={messages[locale].nav} />
+        {children}
+      </body>
     </html>
   );
 }
