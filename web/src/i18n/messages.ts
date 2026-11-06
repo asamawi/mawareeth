@@ -1,3 +1,5 @@
+import type { MadhabId } from "../api/case.ts";
+
 export const locales = ["ar", "en", "fr"] as const;
 
 export type Locale = (typeof locales)[number];
@@ -33,7 +35,16 @@ export type Messages = {
     started: string;
     resumed: string;
     caseRef: string;
-    placeholder: string;
+    firstQuestionHeading: string;
+    firstQuestionText: string;
+    madhabLabel: string;
+    madhabChange: string;
+    madhabLegend: string;
+    madhabDefaultNotice: string;
+    madhabContinue: string;
+    madhabCancel: string;
+    madhabSaving: string;
+    madhabs: Record<MadhabId, { name: string; description: string }>;
     existing: string;
     resume: string;
     startOver: string;
@@ -70,7 +81,22 @@ export const messages: Record<Locale, Messages> = {
       started: "بدأت حالتك.",
       resumed: "أهلًا بعودتك. تمت متابعة حالتك.",
       caseRef: "رقم الحالة",
-      placeholder: "ستظهر أسئلة المقابلة هنا في الخطوة التالية.",
+      firstQuestionHeading: "السؤال الأول",
+      firstQuestionText: "من هو المتوفى؟ سنسألك عن بياناته في الخطوة التالية.",
+      madhabLabel: "المذهب",
+      madhabChange: "تغيير المذهب",
+      madhabLegend: "اختر المذهب لهذه الحالة",
+      madhabDefaultNotice: "تم اختيار المذهب الحنبلي افتراضيًا. اختر مذهبًا آخر إذا كان ينطبق على هذه الحالة.",
+      madhabContinue: "متابعة",
+      madhabCancel: "إبقاء الاختيار الحالي",
+      madhabSaving: "جارٍ الحفظ…",
+      madhabs: {
+        hanafi: { name: "الحنفي", description: "مذهب سني ينتسب إلى الإمام أبي حنيفة" },
+        maliki: { name: "المالكي", description: "مذهب سني ينتسب إلى الإمام مالك بن أنس" },
+        shafii: { name: "الشافعي", description: "مذهب سني ينتسب إلى الإمام الشافعي" },
+        hanbali: { name: "الحنبلي", description: "مذهب سني ينتسب إلى الإمام أحمد بن حنبل" },
+        jafari: { name: "الجعفري", description: "مذهب شيعي ينتسب إلى الإمام جعفر الصادق" },
+      },
       existing: "لديك حالة قائمة. هل تريد المتابعة أم البدء من جديد؟",
       resume: "متابعة حالتي",
       startOver: "البدء من جديد",
@@ -105,7 +131,22 @@ export const messages: Record<Locale, Messages> = {
       started: "Your case has started.",
       resumed: "Welcome back. Your case has been resumed.",
       caseRef: "Case reference",
-      placeholder: "The interview questions will appear here in the next step.",
+      firstQuestionHeading: "First question",
+      firstQuestionText: "Who has passed away? We will ask for their details in the next step.",
+      madhabLabel: "School of law",
+      madhabChange: "Change Madhab",
+      madhabLegend: "Choose the school of law (Madhab) for this case",
+      madhabDefaultNotice: "Hanbali is selected by default. Choose another school if it applies to this case.",
+      madhabContinue: "Continue",
+      madhabCancel: "Keep current choice",
+      madhabSaving: "Saving…",
+      madhabs: {
+        hanafi: { name: "Hanafi", description: "Sunni school named after Imam Abu Hanifa" },
+        maliki: { name: "Maliki", description: "Sunni school named after Imam Malik ibn Anas" },
+        shafii: { name: "Shafi'i", description: "Sunni school named after Imam al-Shafi'i" },
+        hanbali: { name: "Hanbali", description: "Sunni school named after Imam Ahmad ibn Hanbal" },
+        jafari: { name: "Jafari", description: "Shia school named after Imam Jafar al-Sadiq" },
+      },
       existing: "You already have a case in progress. Would you like to resume it or start over?",
       resume: "Resume my case",
       startOver: "Start over",
@@ -140,7 +181,22 @@ export const messages: Record<Locale, Messages> = {
       started: "Votre dossier a commencé.",
       resumed: "Bon retour. Votre dossier a été repris.",
       caseRef: "Référence du dossier",
-      placeholder: "Les questions de l'entretien apparaîtront ici à la prochaine étape.",
+      firstQuestionHeading: "Première question",
+      firstQuestionText: "Qui est décédé ? Nous vous demanderons ses informations à l'étape suivante.",
+      madhabLabel: "École juridique",
+      madhabChange: "Changer d'école",
+      madhabLegend: "Choisissez l'école juridique (madhab) pour ce dossier",
+      madhabDefaultNotice: "L'école hanbalite est sélectionnée par défaut. Choisissez une autre école si elle s'applique à ce dossier.",
+      madhabContinue: "Continuer",
+      madhabCancel: "Garder le choix actuel",
+      madhabSaving: "Enregistrement…",
+      madhabs: {
+        hanafi: { name: "Hanafite", description: "École sunnite nommée d'après l'imam Abu Hanifa" },
+        maliki: { name: "Malikite", description: "École sunnite nommée d'après l'imam Malik ibn Anas" },
+        shafii: { name: "Chaféite", description: "École sunnite nommée d'après l'imam al-Shafi'i" },
+        hanbali: { name: "Hanbalite", description: "École sunnite nommée d'après l'imam Ahmad ibn Hanbal" },
+        jafari: { name: "Jaafarite", description: "École chiite nommée d'après l'imam Jafar al-Sadiq" },
+      },
       existing: "Vous avez déjà un dossier en cours. Souhaitez-vous le reprendre ou recommencer ?",
       resume: "Reprendre mon dossier",
       startOver: "Recommencer",

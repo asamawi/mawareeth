@@ -298,3 +298,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
   summary: Add a confirmation step to "Start over" before Story 1.3 stores interview answers in the case.
   evidence: "Start over" replaces the case immediately, which is harmless while the case holds only an ID and a timestamp but becomes data loss once it holds answers.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-start-interview-madhab-selection.md`
+  summary: Serialize anonymous case writes, because Django saves the whole session dict and an overlapping `PATCH` can undo a concurrent start over.
+  evidence: `set_madhab` reads, compares and saves with no lock, so two tabs can race; the effect is small while the case holds only a school, but Story 1.3 adds deceased and heir data to the same dict.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-start-interview-madhab-selection.md`
+  summary: Make the locale test compare each pair of locales, so French copied from English fails.
+  evidence: `new Set(texts).size >= 2` in `web/src/api/case.test.ts` passes whenever Arabic alone differs, and this check predates Story 1.2.

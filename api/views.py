@@ -50,6 +50,25 @@ class CaseView(ApiView):
             return Response({'detail': 'A case already exists.', 'case': existing}, status=status.HTTP_409_CONFLICT)
         return Response({'case': anonymous_case.start(request)}, status=status.HTTP_201_CREATED)
 
+    def patch(self, request):
+        data = request.data
+        if not isinstance(data, dict):
+            return Response({'detail': 'Expected a JSON object.'}, status=status.HTTP_400_BAD_REQUEST)
+        case_id = data.get('case_id')
+        if case_id is not None and not isinstance(case_id, str):
+            return Response({'detail': 'case_id must be a string.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            case = anonymous_case.set_madhab(request, data.get('madhab'), case_id)
+        except ValueError:
+            return Response({'detail': 'Unknown madhab.'}, status=status.HTTP_400_BAD_REQUEST)
+        except anonymous_case.StaleCase as stale:
+            return Response(
+                {'detail': 'That case is no longer the current one.', 'case': stale.case},
+                status=status.HTTP_409_CONFLICT)
+        if case is None:
+            raise NotFound()
+        return Response({'case': case})
+
 
 class NotFoundView(ApiView):
     """Answer unknown /api/v1/ paths in JSON instead of Django's HTML 404 page."""

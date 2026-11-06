@@ -2,9 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { fetchCase, startCase, type Case } from "@/api/case";
+import { fetchCase, setMadhab, startCase, type Case, type MadhabId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
-import { pendingView, runAction, type Action, type Deps, type View } from "@/interview/flow";
+import {
+  cancelChange,
+  openChange,
+  pick,
+  pendingView,
+  runAction,
+  screenOf,
+  shouldFocus,
+  type Action,
+  type Deps,
+  type StartedView,
+  type View,
+} from "@/interview/flow";
+import { initialPick, selectionStore } from "@/interview/madhabs";
+
+import { MadhabSelector } from "./madhab-selector";
 
 const SEEN_KEY = "mawareeth.case-seen";
 
@@ -13,6 +28,8 @@ const SEEN_KEY = "mawareeth.case-seen";
 const deps: Deps = {
   fetchCase: (signal) => fetchCase(signal),
   startCase: (signal, options) => startCase(signal, options),
+  setMadhab: (signal, madhab, caseId) => setMadhab(signal, madhab, caseId),
+  selection: selectionStore(),
   seen: {
     get() {
       try {
@@ -45,22 +62,25 @@ export function StartCase({ messages }: { messages: Messages["interview"] }) {
   const live = useRef(true);
   const latest = useRef<View>(view);
   const target = useRef<HTMLDivElement>(null);
+  const previous = useRef<View | null>(null);
   const settledOnce = useRef(false);
 
   // Every click makes exactly one attempt; a failure offers a retry and never retries by itself.
-  const perform = useCallback(async (action: Action) => {
-    controller.current?.abort();
-    const own = new AbortController();
-    controller.current = own;
-    const existing = caseOf(latest.current);
-    setView(pendingView(action));
-    const next = await runAction(action, own.signal, deps, existing);
-    if (live.current && controller.current === own) setView(next);
-  }, []);
+  const perform = useCallback(
+    async (action: Action, choice?: { madhab: MadhabId; from: StartedView }) => {
+      controller.current?.abort();
+      const own = new AbortController();
+      controller.current = own;
+      const existing = caseOf(latest.current);
+      setView(pendingView(action, latest.current));
+      const next = await runAction(action, own.signal, deps, existing, choice);
+      if (live.current && controller.current === own) setView(next);
+    },
+    [],
+  );
 
   useEffect(() => {
     live.current = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void perform("load");
     return () => {
       live.current = false;
@@ -70,17 +90,23 @@ export function StartCase({ messages }: { messages: Messages["interview"] }) {
 
   useEffect(() => {
     latest.current = view;
-    if (view.name === "loading" || view.name === "starting") return;
+    const before = previous.current;
+    previous.current = view;
+    if (!shouldFocus(before, view)) return;
     // Land on the new view for keyboard and screen-reader users; the first view of a page
-    // load keeps the focus where the browser put it.
+    // load keeps the focus where the browser put it. A save in flight or failed keeps focus
+    // on the form.
     if (settledOnce.current) target.current?.focus();
     settledOnce.current = true;
   }, [view]);
 
+  const screen = screenOf(view);
+  const started = view.name === "started" ? view : null;
+
   const resumable = view.name === "throttled" || view.name === "failed" ? view.resumable : null;
 
   return (
-    <div data-js-only ref={target} tabIndex={-1} className="flex flex-col gap-4 outline-none">
+    <div data-js-only ref={target} tabIndex={-1} className="flex flex-col gap-4 outline-none [&>*:not(form)]:mx-auto [&>*:not(form)]:w-full [&>*:not(form)]:max-w-xl">
       {view.name === "loading" && <p role="status">{messages.loading}</p>}
       {view.name === "starting" && <p role="status">{messages.starting}</p>}
 
@@ -113,17 +139,52 @@ export function StartCase({ messages }: { messages: Messages["interview"] }) {
         </>
       )}
 
-      {view.name === "started" && (
+      {started && (
         <>
           <h2 className="text-xl font-semibold">
-            {view.resumed ? messages.resumed : messages.started}
+            {started.resumed ? messages.resumed : messages.started}
           </h2>
           {/* The only notice of where the case is kept and for how long. */}
-          {!view.resumed && <p>{messages.intro}</p>}
+          {!started.resumed && <p>{messages.intro}</p>}
           <p>
-            {messages.caseRef}: <bdi dir="ltr">{view.case.id.slice(0, 8)}</bdi>
+            {messages.caseRef}: <bdi dir="ltr">{started.case.id.slice(0, 8)}</bdi>
           </p>
-          <p>{messages.placeholder}</p>
+        </>
+      )}
+
+      {started && screen === "selector" && (
+        <MadhabSelector
+          key={started.case.id}
+          messages={messages}
+          stored={started.case.madhab}
+          initialPick={initialPick(deps.selection.get(), started.case)}
+          saving={started.saving}
+          notice={started.notice}
+          onPick={(madhab) => {
+            const current = latest.current;
+            if (current.name === "started") setView(pick(current, madhab, deps.selection));
+          }}
+          onSubmit={(madhab) => void perform("choose", { madhab, from: started })}
+          onCancel={() => setView(cancelChange(started, deps))}
+        />
+      )}
+
+      {started && screen === "question" && started.case.madhab && (
+        <>
+          <h3 className="text-lg font-semibold">{messages.firstQuestionHeading}</h3>
+          <p>{messages.firstQuestionText}</p>
+          <p>
+            {messages.madhabLabel}: <strong>{messages.madhabs[started.case.madhab].name}</strong>
+          </p>
+          <div>
+            <button
+              type="button"
+              className={buttonClass}
+              onClick={() => setView(openChange(started, deps))}
+            >
+              {messages.madhabChange}
+            </button>
+          </div>
         </>
       )}
 

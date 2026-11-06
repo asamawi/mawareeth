@@ -147,6 +147,17 @@ class CaseTests(TestCase):
         return client.post(
             CASE_URL, body or {}, format='json', secure=True, headers=self.csrf(client), **extra)
 
+    def patch(self, body, client=None, raw=None):
+        client = client or self.client
+        if raw is not None:
+            return client.generic(
+                'PATCH', CASE_URL, raw, content_type='application/json', secure=True,
+                headers=self.csrf(client))
+        return client.patch(CASE_URL, body, format='json', secure=True, headers=self.csrf(client))
+
+    def stored(self):
+        return Session.objects.get().get_decoded()[anonymous_case.SESSION_KEY]
+
     def remaining(self):
         return (Session.objects.get().expire_date - timezone.now()).total_seconds()
 
@@ -169,7 +180,8 @@ class CaseTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         case = response.json()['case']
-        self.assertEqual(set(case), {'id', 'started_at'})
+        self.assertEqual(set(case), {'id', 'started_at', 'madhab'})
+        self.assertIsNone(case['madhab'])
         self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
         self.assertEqual(self.client.get(CASE_URL, secure=True).json(), {'case': case})
 
@@ -304,6 +316,147 @@ class CaseTests(TestCase):
 
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()['case'], case)
+
+    def test_choosing_a_madhab_stores_it_in_the_session_case(self):
+        case = self.post().json()['case']
+
+        for madhab in anonymous_case.MADHABS:
+            with self.subTest(madhab=madhab):
+                response = self.patch({'madhab': madhab})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()['case'], {**case, 'madhab': madhab})
+                self.assertEqual(self.client.get(CASE_URL, secure=True).json()['case']['madhab'], madhab)
+        self.assertEqual(Calculation.objects.count(), 0)
+        self.assertEqual(Person.objects.count(), 0)
+
+    def test_invalid_madhab_bodies_are_json_400_and_change_nothing(self):
+        self.post()
+        self.patch({'madhab': 'hanafi'})
+        bodies = [
+            {}, {'madhab': 'Hanafi'}, {'madhab': 'zaydi'}, {'madhab': ''}, {'madhab': None},
+            {'madhab': 3}, {'madhab': ['hanafi']}, {'madhab': {'a': 'hanafi'}}, ['hanafi'], 'hanafi',
+            {'madhab': 'maliki', 'case_id': 5},
+        ]
+        for body in bodies:
+            with self.subTest(body=body):
+                response = self.patch(body)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response['Content-Type'], 'application/json')
+                self.assertEqual(self.stored()['madhab'], 'hanafi')
+
+    def test_malformed_json_is_a_json_400(self):
+        self.post()
+
+        response = self.patch(None, raw='{"madhab": ')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+    def test_choosing_without_a_live_case_is_a_404_and_creates_no_session(self):
+        response = self.patch({'madhab': 'hanafi'})
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertEqual(Session.objects.count(), 0)
+
+    def test_choosing_on_an_expired_case_is_a_404(self):
+        self.post()
+        Session.objects.update(expire_date=timezone.now() - timedelta(seconds=1))
+
+        self.assertEqual(self.patch({'madhab': 'hanafi'}).status_code, 404)
+
+    def test_choosing_with_a_case_id_but_no_live_case_is_a_404(self):
+        response = self.patch({'madhab': 'hanafi', 'case_id': 'a' * 32})
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(Session.objects.count(), 0)
+
+    def test_choosing_needs_csrf(self):
+        self.post()
+
+        response = self.client.patch(CASE_URL, {'madhab': 'hanafi'}, format='json', secure=True)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertNotIn('madhab', self.stored())
+
+    def test_choosing_shares_the_write_limit(self):
+        self.post()
+        for _ in range(29):
+            self.assertEqual(self.patch({'madhab': 'hanafi'}).status_code, 200)
+
+        response = self.patch({'madhab': 'maliki'})
+
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertEqual(self.stored()['madhab'], 'hanafi')
+
+    def test_choosing_refreshes_the_idle_expiry(self):
+        self.post()
+        Session.objects.update(expire_date=timezone.now() + timedelta(hours=1))
+
+        self.patch({'madhab': 'jafari'})
+
+        self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
+
+    def test_a_tampered_stored_madhab_reads_as_null(self):
+        self.post()
+        session = self.client.session
+        stored = session[anonymous_case.SESSION_KEY]
+        for value in ('shia', 7, ['hanafi'], {'x': 1}):
+            with self.subTest(value=value):
+                session[anonymous_case.SESSION_KEY] = {**stored, 'madhab': value}
+                session.save()
+                self.assertIsNone(self.client.get(CASE_URL, secure=True).json()['case']['madhab'])
+
+    def test_start_over_clears_the_madhab(self):
+        self.post()
+        self.patch({'madhab': 'hanafi'})
+
+        new = self.post({'replace': True}).json()['case']
+
+        self.assertIsNone(new['madhab'])
+        self.assertIsNone(self.client.get(CASE_URL, secure=True).json()['case']['madhab'])
+
+    def test_a_stale_tab_gets_409_with_the_live_case_and_changes_nothing(self):
+        old = self.post().json()['case']
+        live = self.post({'replace': True}).json()['case']
+        self.patch({'madhab': 'maliki'})
+
+        response = self.patch({'madhab': 'jafari', 'case_id': old['id']})
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['case'], {**live, 'madhab': 'maliki'})
+        self.assertEqual(self.stored()['madhab'], 'maliki')
+
+    def test_the_matching_case_id_is_accepted(self):
+        case = self.post().json()['case']
+
+        response = self.patch({'madhab': 'shafii', 'case_id': case['id']})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['case']['madhab'], 'shafii')
+
+    def test_logged_in_choice_keeps_the_login_session_expiry(self):
+        client = APIClient(enforce_csrf_checks=True)
+        client.force_login(get_user_model().objects.create_user('case-user'))
+        self.post(client=client)
+        before = Session.objects.get().expire_date
+
+        response = self.patch({'madhab': 'hanbali'}, client=client)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertAlmostEqual((Session.objects.get().expire_date - before).total_seconds(), 0, delta=5)
+        self.assertGreater(self.remaining(), 10 * 24 * 3600)
+
+    def test_login_keeps_the_madhab(self):
+        get_user_model().objects.create_user('login-user', password='pw-for-test-only')
+        self.post()
+        self.patch({'madhab': 'jafari'})
+
+        self.assertTrue(self.client.login(username='login-user', password='pw-for-test-only'))
+
+        self.assertEqual(self.client.get(CASE_URL, secure=True).json()['case']['madhab'], 'jafari')
 
     def test_probe_csrf_cookie_is_named_csrftoken_and_readable_by_script(self):
         cookie = self.client.get(SESSION_URL, secure=True).cookies[settings.CSRF_COOKIE_NAME]
