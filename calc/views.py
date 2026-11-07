@@ -1,4 +1,4 @@
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
@@ -206,6 +206,28 @@ class WifeCreate(CreateView):
 		form.instance.calc.add_wife(self.object)
 		return super().form_valid(form)
 
+def child_parents(calc, request):
+	"""The (mother, father) of a son or daughter being added to this case.
+
+	The mother is optional: the shares do not depend on her. A chosen mother must be
+	a wife in this case.
+	"""
+	deceased = calc.deceased_set.first()
+	if deceased.sex != 'M':
+		marriages = deceased.female_marriages
+		father = marriages.first().male if marriages.count() == 1 else None
+		return deceased, father
+	marriages = deceased.male_marriages
+	if marriages.count() == 1:
+		return marriages.first().female, deceased
+	chosen = request.POST.get('mother')
+	if not chosen:
+		return None, deceased
+	if not chosen.isdecimal():
+		raise Http404
+	return get_object_or_404(Wife, pk=chosen, calc=calc), deceased
+
+
 class DaughterCreate(CreateView):
 	model = Daughter
 	fields = ['first_name','last_name']
@@ -223,24 +245,12 @@ class DaughterCreate(CreateView):
 		"""
 		Overridden to add the relation to the calculation instance.
 		"""
+		# Checked first, so a refused request leaves no heir behind.
+		mother, father = child_parents(self.calc, self.request)
 		form.instance.calc = self.calc
 		self.object = form.save()
-		self.object.sex ="F"
+		self.object.sex = "F"
 		self.object.save()
-		if form.instance.calc.deceased_set.first().sex =='M':
-			father = form.instance.calc.deceased_set.first()
-			if form.instance.calc.deceased_set.first().male_marriages.count()==1:
-				mother =form.instance.calc.deceased_set.first().male_marriages.first().female
-			elif form.instance.calc.deceased_set.first().male_marriages.count()==0:
-				mother = None
-			else:
-				mother = get_object_or_404(Wife, pk=self.request.POST.get('mother'))
-		else:
-			 mother = form.instance.calc.deceased_set.first()
-			 if form.instance.calc.deceased_set.first().female_marriages.count()==1:
-				 father = form.instance.calc.deceased_set.first().female_marriages.first().male
-			 else:
-				 father = None
 		form.instance.calc.add_daughter(self.object, mother=mother, father=father)
 		return super().form_valid(form)
 
@@ -261,24 +271,12 @@ class SonCreate(CreateView):
 		"""
 		Overridden to add the relation to the calculation instance.
 		"""
+		# Checked first, so a refused request leaves no heir behind.
+		mother, father = child_parents(self.calc, self.request)
 		form.instance.calc = self.calc
 		self.object = form.save()
-		self.object.sex="M"
+		self.object.sex = "M"
 		self.object.save()
-		if form.instance.calc.deceased_set.first().sex =='M':
-			father = form.instance.calc.deceased_set.first()
-			if form.instance.calc.deceased_set.first().male_marriages.count()==1:
-				mother =form.instance.calc.deceased_set.first().male_marriages.first().female
-			elif form.instance.calc.deceased_set.first().male_marriages.count()==0:
-				mother = None
-			else:
-				mother = get_object_or_404(Wife, pk=self.request.POST.get('mother'))
-		else:
-			 mother = form.instance.calc.deceased_set.first()
-			 if form.instance.calc.deceased_set.first().female_marriages.count()==1:
-				 father = form.instance.calc.deceased_set.first().female_marriages.first().male
-			 else:
-				 father = None
 		form.instance.calc.add_son(self.object, mother=mother, father=father)
 		return super().form_valid(form)
 

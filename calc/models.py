@@ -99,7 +99,7 @@ class Person(PolymorphicModel):
         if self.sex == 'M':
             #check for marriages
             if self.male_marriages.count() != 0:
-                daughter.parents=Marriage.objects.get(male=self, female=mother)
+                daughter.parents=Marriage.objects.filter(male=self, female=mother).first() or Marriage.objects.create(male=self, female=mother)
             else:
                 daughter.parents=Marriage.objects.create()
                 daughter.parents.add_male(self)
@@ -119,7 +119,7 @@ class Person(PolymorphicModel):
         if self.sex == 'M':
             #check for marriages
             if self.male_marriages.count() != 0:
-                son.parents=Marriage.objects.get(male=self, female=mother)
+                son.parents=Marriage.objects.filter(male=self, female=mother).first() or Marriage.objects.create(male=self, female=mother)
             else:
                 son.parents=Marriage.objects.create()
                 son.parents.add_male(self)

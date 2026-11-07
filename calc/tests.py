@@ -1283,3 +1283,91 @@ class TemplateTagTests(TestCase):
                 response = self.client.get(reverse('login') + '?next=/en/', secure=True)
                 self.assertContains(response, text)
                 self.assertNotContains(response, '{%')
+
+
+class ChildMotherTests(TestCase):
+    """The mother of a son or daughter is optional, and a refused request adds no heir."""
+
+    def setUp(self):
+        cache.clear()
+        self.owner = User.objects.create_user('owner', password='x')
+        self.client.force_login(self.owner)
+
+    def make_case(self, wives=2, sex='M'):
+        calc = Calculation.objects.create(name='case', user=self.owner)
+        Deceased.objects.create(first_name='D', last_name='L', sex=sex, estate=1000, calc=calc)
+        made = []
+        for index in range(wives):
+            wife = Wife.objects.create(first_name=f'Wife{index}', last_name='L', sex='F', calc=calc)
+            calc.add_wife(wife)
+            made.append(wife)
+        return calc, made
+
+    def add(self, kind, calc, **data):
+        return self.client.post(
+            reverse(f'calc:{kind}', args=[calc.pk]), {'first_name': 'A', 'last_name': 'B', **data})
+
+    def count(self, kind, calc):
+        return calc.heir_set.instance_of(Son if kind == 'son' else Daughter).count()
+
+    def test_blank_or_missing_mother_adds_one_child(self):
+        for kind in ('son', 'daughter'):
+            for data in ({'mother': ''}, {}):
+                with self.subTest(kind=kind, data=data):
+                    calc, _wives = self.make_case()
+                    response = self.add(kind, calc, **data)
+                    self.assertEqual(response.status_code, 302)
+                    self.assertEqual(self.count(kind, calc), 1)
+                    child = calc.heir_set.instance_of(Son, Daughter).get()
+                    self.assertIsNone(child.parents.female)
+
+    def test_two_children_without_a_mother_share_one_link(self):
+        calc, _wives = self.make_case()
+        self.add('son', calc, mother='')
+        self.add('daughter', calc, mother='')
+        parents = {child.parents_id for child in calc.heir_set.instance_of(Son, Daughter)}
+        self.assertEqual(len(parents), 1)
+
+    def test_chosen_mother_is_stored(self):
+        for kind in ('son', 'daughter'):
+            with self.subTest(kind=kind):
+                calc, wives = self.make_case()
+                self.add(kind, calc, mother=wives[1].pk)
+                child = calc.heir_set.instance_of(Son, Daughter).get()
+                self.assertEqual(child.parents.female_id, wives[1].pk)
+
+    def test_refused_mother_adds_no_child(self):
+        other_case, other_wives = self.make_case()
+        for kind in ('son', 'daughter'):
+            for value in ('abc', '999999', other_wives[0].pk):
+                with self.subTest(kind=kind, value=value):
+                    calc, _wives = self.make_case()
+                    response = self.add(kind, calc, mother=value)
+                    self.assertEqual(response.status_code, 404)
+                    self.assertEqual(self.count(kind, calc), 0)
+
+    def test_child_added_before_and_after_a_wife(self):
+        calc, _wives = self.make_case(wives=0)
+        self.add('son', calc)
+        wife = Wife.objects.create(first_name='W', last_name='L', sex='F', calc=calc)
+        calc.add_wife(wife)
+        self.assertEqual(self.add('son', calc, mother='').status_code, 302)
+        self.assertEqual(self.add('son', calc, mother=wife.pk).status_code, 302)
+        self.assertEqual(self.count('son', calc), 3)
+
+    def test_female_deceased_ignores_the_mother_field(self):
+        calc, _wives = self.make_case(wives=0, sex='F')
+        self.assertEqual(self.add('son', calc, mother='').status_code, 302)
+        self.assertEqual(self.count('son', calc), 1)
+
+    def test_every_wife_is_named_in_the_mother_list(self):
+        calc, wives = self.make_case()
+        unnamed = Wife.objects.create(first_name='', last_name='', sex='F', calc=calc)
+        calc.add_wife(unnamed)
+        with translation.override('en'):
+            page = self.client.get(reverse('calc:detail', args=[calc.pk]))
+        self.assertEqual(page.status_code, 200)
+        html = re.sub(r'\s+', ' ', page.content.decode())
+        self.assertRegex(html, rf'<option selected value="{wives[0].pk}"> Wife0 </option>')
+        self.assertRegex(html, rf'<option value="{wives[1].pk}"> Wife1 </option>')
+        self.assertRegex(html, rf'<option value="{unnamed.pk}"> \S+ 3 </option>')
