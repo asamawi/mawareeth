@@ -147,6 +147,7 @@ Hanbali also lets a grandmother inherit alongside the father, which the current 
 - Father or grandfather with only female descendants and no siblings keeps showing the remainder in the Shortage column, as before, with `share` holding the fixed 1/6.
 - A paternal sister is now also blocked by a full sister who is residuary (with a daughter or son's daughter), the same as the paternal brother. Without this, a family of two daughters, a sister and a paternal sister added up to more than the estate.
 - The project owner chose on 2026-11-07 to remove the paternal-sister rule above, because it changed who inherits without the required ask. Paternal sisters follow the existing rules again. All families still total exactly 1, so the earlier reason for the rule did not hold. In some families a paternal sister now gets more than the full sister, so this needs the qualified review. The msgid "Paternal sister/s are blocked by sisters" stays in the catalogs, unused.
+- Restored on 2026-11-07: the project owner supplied Al-Mughni's ruling that with a daughter, the full sister takes all the rest and the paternal sister nothing. Fixtures now cite this ruling and Al-Mughni 6/168 on the 1/6 that completes 2/3.
 
 ## Suggested Review Order
 

@@ -1158,6 +1158,9 @@ class PaternalSister(Heir):
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Paternal sister/s are blocked by borther/s")
+        elif calc.get_sisters().filter(asaba=True):
+            self.blocked = True
+            self.quote_reason = _("Paternal sister/s are blocked by sisters")
         elif calc.has_paternalBrother():
             self.asaba = True
             self.quote_reason = _("Paternal sister/s with paternal half borther/s share the remainder or all the amount if no other heir exist. The brother will receive a share of two sisters")

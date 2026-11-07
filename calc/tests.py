@@ -1389,6 +1389,21 @@ FIXTURES = [
      [(Wife, F(1, 8)), (Daughter, F(1, 2)), (GrandFather, F(1, 4)), (Sister, F(1, 8))]),
     ('grandfather, two sisters and a paternal sister', 'M',
      [(GrandFather, F(2, 5)), (Sister, F(3, 10)), (Sister, F(3, 10)), (PaternalSister, F(0))]),
+    # Al-Mughni: the daughter takes 1/2, the full sister all the rest, the paternal sister nothing.
+    ('daughter, sister and paternal sister', 'M',
+     [(Daughter, F(1, 2)), (Sister, F(1, 2)), (PaternalSister, F(0))]),
+    ('two daughters, sister and paternal sister', 'M',
+     [(Daughter, F(1, 3)), (Daughter, F(1, 3)), (Sister, F(1, 3)), (PaternalSister, F(0))]),
+    ('mother, two daughters, sister and paternal sister', 'M',
+     [(Mother, F(1, 6)), (Daughter, F(1, 3)), (Daughter, F(1, 3)), (Sister, F(1, 6)), (PaternalSister, F(0))]),
+    # Al-Mughni 6/168: with no child, the full sister has 1/2 and the paternal sister 1/6 to complete 2/3.
+    ('uncle, sister and paternal sister', 'M',
+     [(Uncle, F(1, 3)), (Sister, F(1, 2)), (PaternalSister, F(1, 6))]),
+    ('sister and two paternal sisters, with radd', 'M',
+     [(Sister, F(3, 4)), (PaternalSister, F(1, 8)), (PaternalSister, F(1, 8))]),
+    # Al-Mughni 6/168: a paternal brother makes the paternal sister residuary, with twice her share.
+    ('sister, paternal brother and paternal sister', 'M',
+     [(Sister, F(1, 2)), (PaternalBrother, F(1, 3)), (PaternalSister, F(1, 6))]),
 ]
 
 
@@ -1529,6 +1544,7 @@ class DistributionFixtureTests(TestCase):
             "Sister/s share the estate with the grandfather",
             "Paternal brother/s share the estate with the grandfather",
             "Paternal sister/s share the estate with the grandfather",
+            "Paternal sister/s are blocked by sisters",
         ]
         for lang in ('fr', 'ar'):
             catalog = gettext.translation('django', settings.BASE_DIR / 'locale', languages=[lang])

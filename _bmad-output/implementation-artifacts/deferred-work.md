@@ -226,3 +226,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-fix-engine-share-distribution.md`
   summary: Have the qualified reviewer rule on whether a full sister who inherits as a residuary with a daughter or son's daughter blocks a paternal sister.
   evidence: The rule was removed on 2026-11-07 because it had not been asked for first. Without it, mother, 2 daughters, a full sister and a paternal sister give the paternal sister 1/6 and the full sister 0, while a paternal brother in the same position is blocked.
+- source_spec: `_bmad-output/implementation-artifacts/spec-fix-engine-share-distribution.md`
+  summary: Resolved: a full sister who is residuary with a daughter blocks a paternal sister, so the review question logged above is closed and the rule is back.
+  evidence: The project owner supplied Ibn Qudamah's ruling from Al-Mughni on 2026-11-07, which gives the paternal sister nothing in this case.
