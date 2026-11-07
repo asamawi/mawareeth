@@ -306,12 +306,8 @@ data-url="{% url 'calc:sonOfUncle' calculation.id %}">
                 {% trans '--- Select Mother ---' %}
               </option>
               {% for mother in Wife %}
-              {% if forloop.counter == 1%}
-              <option selected value="{{ mother.pk }}">
-              {% else %}
-              <option value="{{ mother.pk }}">
-                {{ mother.first_name }}
-              {% endif %}
+              <option {% if forloop.first %}selected {% endif %}value="{{ mother.pk }}">
+                {% if mother.first_name %}{{ mother.first_name }}{% else %}{% trans 'Wife' %} {{ forloop.counter }}{% endif %}
               </option>
               {% endfor %}
             </select>
