@@ -337,3 +337,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-fix-engine-share-distribution.md`
   summary: Resolved: a full sister who is residuary with a daughter blocks a paternal sister, so the review question logged above is closed and the rule is back.
   evidence: The project owner supplied Ibn Qudamah's ruling from Al-Mughni on 2026-11-07, which gives the paternal sister nothing in this case.
+- source_spec: none
+  summary: Resume Story 1.5 Real-Time Share Preview once the engine share fix lands, with previews by Madhab as follows: Hanafi and Hanbali for all supported families, Maliki and Shafi'i unavailable when a case needs radd, Jafari always unavailable; show shares and amounts, and change the estate hint in all three languages to ask for the amount after debts, funeral costs and bequests.
+  evidence: The project owner chose these on 2026-11-07 after `spec-fix-engine-share-distribution.md` found `Calculation.compute()` giving wrong shares; they chose to fix the engine first, so the preview runs on it in a rolled-back transaction. Which relationships count as preview-supported, and the preview's latency on Postgres, are still open.
+- source_spec: none
+  summary: Rework the Story 1.5 Madhab split, recorded above, around a Hanbali engine, because Hanbali is now the only school the engine fully follows.
+  evidence: The project owner chose on 2026-11-07 that the engine follows Hanbali alone (`spec-fix-engine-share-distribution.md`), after the split was recorded. Hanafi now differs when a grandfather and full or paternal siblings are both present; Maliki and Shafi'i also differ on Mushtaraka and on radd; Jafari stays unavailable.
