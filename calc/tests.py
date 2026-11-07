@@ -1305,7 +1305,7 @@ class ChildMotherTests(TestCase):
 
     def add(self, kind, calc, **data):
         return self.client.post(
-            reverse(f'calc:{kind}', args=[calc.pk]), {'first_name': 'A', 'last_name': 'B', **data})
+            reverse(f'calc:{kind}', args=[calc.pk]), {'first_name': 'A', 'last_name': 'B', **data}, secure=True)
 
     def count(self, kind, calc):
         return calc.heir_set.instance_of(Son if kind == 'son' else Daughter).count()
@@ -1365,7 +1365,7 @@ class ChildMotherTests(TestCase):
         unnamed = Wife.objects.create(first_name='', last_name='', sex='F', calc=calc)
         calc.add_wife(unnamed)
         with translation.override('en'):
-            page = self.client.get(reverse('calc:detail', args=[calc.pk]))
+            page = self.client.get(reverse('calc:detail', args=[calc.pk]), secure=True)
         self.assertEqual(page.status_code, 200)
         html = re.sub(r'\s+', ' ', page.content.decode())
         self.assertRegex(html, rf'<option selected value="{wives[0].pk}"> Wife0 </option>')
