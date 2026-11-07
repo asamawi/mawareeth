@@ -217,3 +217,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
   summary: Count production `Calculation` rows with `user=None` and decide what happens to them, since the app now answers 404 for them and only Django admin reaches them.
   evidence: The count was not checked before the change, so the number of affected cases is unknown.
+- source_spec: `_bmad-output/implementation-artifacts/spec-fix-engine-share-distribution.md`
+  summary: Say on the results pages that the shares follow the Hanbali school, whichever school the visitor follows.
+  evidence: The engine now follows the Hanbali school throughout, as the project owner chose on 2026-11-07; no results page tells the visitor, and the Madhab setting does not change the rules.
+- source_spec: `_bmad-output/implementation-artifacts/spec-fix-engine-share-distribution.md`
+  summary: Wrap `Calculation.compute()` in a transaction, so a failure or a second simultaneous results-page view cannot leave a case half-written.
+  evidence: `compute()` runs on every results-page GET and saves each heir and the calculation separately with no `transaction.atomic`, as it did before this fix, so heir columns can disagree with calculation columns after a mid-run failure.
+- source_spec: `_bmad-output/implementation-artifacts/spec-fix-engine-share-distribution.md`
+  summary: Have the qualified reviewer rule on whether a full sister who inherits as a residuary with a daughter or son's daughter blocks a paternal sister.
+  evidence: The rule was removed on 2026-11-07 because it had not been asked for first. Without it, mother, 2 daughters, a full sister and a paternal sister give the paternal sister 1/6 and the full sister 0, while a paternal brother in the same position is blocked.
