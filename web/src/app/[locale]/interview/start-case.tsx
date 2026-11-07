@@ -57,6 +57,7 @@ import { buttonClass } from "./form-bits";
 import { DeceasedSummary, HeirList } from "./heir-list";
 import { HeirForm } from "./heir-form";
 import { MadhabSelector } from "./madhab-selector";
+import { SharePreview } from "./share-preview";
 
 const SEEN_KEY = "mawareeth.case-seen";
 
@@ -410,6 +411,7 @@ export function StartCase({
             }
             onCancel={() => edit((current) => cancelEditHeir(current, deps))}
           />
+          <SharePreview messages={messages} locale={locale} kase={started.case} />
           <HeirList
             messages={messages}
             heirs={started.case.heirs}

@@ -388,3 +388,153 @@ export function removeHeir(
   const url = `${HEIRS_URL}${encodeURIComponent(heirId)}/?case_id=${encodeURIComponent(caseId)}`;
   return answer(signal, options, "DELETE", url, caseId, null);
 }
+
+/** The reasons the engine refuses a case, which the dictionary has a sentence for. */
+export const PREVIEW_REASONS = [
+  "school_not_supported",
+  "malikiyya_disputed",
+  "radd_disputed",
+  "grandmother_line_unknown",
+  "invalid_family",
+] as const;
+
+export type PreviewReason = (typeof PREVIEW_REASONS)[number];
+
+export function isPreviewReason(value: unknown): value is PreviewReason {
+  return typeof value === "string" && (PREVIEW_REASONS as readonly string[]).includes(value);
+}
+
+export type FractionBody = { numerator: number; denominator: number };
+
+export type PreviewShare = FractionBody & {
+  heir_id: string;
+  /** True when the heir receives nothing. */
+  blocked: boolean;
+  /** The amount with 2 decimals, or null when the case has no estate. */
+  amount: string | null;
+};
+
+/** What a preview was made for, with no names; compared with the case on screen. */
+export type PreviewBasis = {
+  madhab: MadhabId;
+  gender: Gender;
+  estate: string | null;
+  heirs: { id: string; relationship: RelationshipId }[];
+};
+
+export type Preview =
+  | { status: "not_ready" }
+  /** `reason` is any code the server sends; one with no sentence shows the generic text only. */
+  | { status: "unavailable"; madhab: MadhabId; reason: string; basis: PreviewBasis }
+  | {
+      status: "available";
+      madhab: MadhabId;
+      basis: PreviewBasis;
+      shares: PreviewShare[];
+      /** The part of the estate no heir takes, for a spouse alone; otherwise null. */
+      unallocated: FractionBody | null;
+    };
+
+export type PreviewResult =
+  | { kind: "preview"; preview: Preview }
+  /** The case this tab meant was replaced (409): no numbers for it. */
+  | { kind: "replaced" }
+  /** There is no live case any more (404, such as an expired session). */
+  | { kind: "gone" }
+  | { kind: "throttled" }
+  | { kind: "failed" };
+
+/** The preview is a luxury: it gives up sooner than the interview's own requests. */
+export const PREVIEW_TIMEOUT_MS = 5_000;
+
+const PREVIEW_URL = "/api/v1/case/preview/";
+const PREVIEW_AMOUNT = /^[0-9]{1,17}\.[0-9]{2}$/;
+
+function parseFraction(value: unknown): FractionBody | null {
+  if (typeof value !== "object" || value === null) return null;
+  const { numerator, denominator } = value as Record<string, unknown>;
+  if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator)) return null;
+  const top = numerator as number;
+  const bottom = denominator as number;
+  // A share is a part of the estate: never negative, never more than the whole.
+  return bottom > 0 && top >= 0 && top <= bottom ? { numerator: top, denominator: bottom } : null;
+}
+
+function parseBasis(value: unknown): PreviewBasis | null {
+  if (typeof value !== "object" || value === null) return null;
+  const { madhab, gender, estate, heirs } = value as Record<string, unknown>;
+  if (!isMadhabId(madhab) || !isGender(gender) || !Array.isArray(heirs)) return null;
+  if (estate !== null && !(typeof estate === "string" && STORED_ESTATE.test(estate))) return null;
+  const list: PreviewBasis["heirs"] = [];
+  for (const item of heirs as unknown[]) {
+    if (typeof item !== "object" || item === null) return null;
+    const { id, relationship } = item as Record<string, unknown>;
+    if (typeof id !== "string" || !isRelationshipId(relationship)) return null;
+    list.push({ id, relationship });
+  }
+  return { madhab, gender, estate, heirs: list };
+}
+
+/** Strict: anything that is not exactly the documented shape is rejected, never repaired. */
+export function parsePreview(body: unknown): Preview | null {
+  if (typeof body !== "object" || body === null) return null;
+  const value = body as Record<string, unknown>;
+  if (value.status === "not_ready") return { status: "not_ready" };
+  if (!isMadhabId(value.madhab)) return null;
+  const basis = parseBasis(value.basis);
+  if (!basis) return null;
+  if (value.status === "unavailable") {
+    return typeof value.reason === "string" && value.reason !== ""
+      ? { status: "unavailable", madhab: value.madhab, reason: value.reason, basis }
+      : null;
+  }
+  if (value.status !== "available" || !Array.isArray(value.shares)) return null;
+  const shares: PreviewShare[] = [];
+  for (const item of value.shares as unknown[]) {
+    const fraction = parseFraction(item);
+    if (!fraction) return null;
+    const { heir_id, blocked, amount } = item as Record<string, unknown>;
+    if (typeof heir_id !== "string" || typeof blocked !== "boolean") return null;
+    if (amount !== null && !(typeof amount === "string" && PREVIEW_AMOUNT.test(amount))) return null;
+    shares.push({ ...fraction, heir_id, blocked, amount });
+  }
+  let unallocated: FractionBody | null = null;
+  if (value.unallocated !== null) {
+    unallocated = parseFraction(value.unallocated);
+    if (!unallocated) return null;
+  }
+  return { status: "available", madhab: value.madhab, basis, shares, unallocated };
+}
+
+/**
+ * Asks for the shares of the saved case. One attempt, and it never throws: a hung, failed or
+ * malformed answer is `failed`. A read, so it needs no token and does not touch the session.
+ */
+export async function fetchPreview(
+  signal: AbortSignal,
+  caseId: string,
+  options: { timeoutMs?: number } = {},
+): Promise<PreviewResult> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timeout = setTimeout(abort, options.timeoutMs ?? PREVIEW_TIMEOUT_MS);
+  signal.addEventListener("abort", abort, { once: true });
+  try {
+    const response = await fetch(`${PREVIEW_URL}?case_id=${encodeURIComponent(caseId)}`, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (response.status === 429) return { kind: "throttled" };
+    if (response.status === 404) return { kind: "gone" };
+    if (response.status === 409) return { kind: "replaced" };
+    if (!response.ok) return { kind: "failed" };
+    const preview = parsePreview(await response.json());
+    return preview ? { kind: "preview", preview } : { kind: "failed" };
+  } catch {
+    return { kind: "failed" };
+  } finally {
+    clearTimeout(timeout);
+    signal.removeEventListener("abort", abort);
+  }
+}

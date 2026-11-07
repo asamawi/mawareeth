@@ -1,4 +1,4 @@
-import type { MadhabId, RelationshipId } from "../api/case.ts";
+import type { MadhabId, PreviewReason, RelationshipId } from "../api/case.ts";
 
 export const locales = ["ar", "en", "fr"] as const;
 
@@ -103,6 +103,26 @@ export type Messages = {
     failed: string;
     retry: string;
     recheck: string;
+    previewHeading: string;
+    /** Shown while the case has no heir yet. */
+    previewPrompt: string;
+    previewWaiting: string;
+    /** `{school}` is the school's name. */
+    previewSchool: string;
+    /** The one polite announcement when numbers appear. */
+    previewUpdated: string;
+    previewShare: string;
+    previewAmount: string;
+    previewNoShare: string;
+    previewUnallocated: string;
+    previewUnavailable: string;
+    previewReasons: Record<PreviewReason, string>;
+    previewFailed: string;
+    previewThrottled: string;
+    previewGone: string;
+    /** There is no live case any more: no retry, the page needs reloading. */
+    previewExpired: string;
+    previewRetry: string;
   };
   cta: string;
 };
@@ -135,8 +155,8 @@ export const messages: Record<Locale, Messages> = {
       genderLegend: "جنس المتوفى",
       genderMale: "ذكر",
       genderFemale: "أنثى",
-      estateLabel: "قيمة التركة كاملة",
-      estateHint: "اختياري. يمكنك إضافتها لاحقًا.",
+      estateLabel: "التركة القابلة للقسمة",
+      estateHint: "اختياري. أدخل المبلغ المتبقي بعد سداد الديون ونفقات التجهيز والدفن والوصايا. يمكنك إضافته لاحقًا.",
       deceasedSave: "حفظ ومتابعة",
       deceasedCancel: "إلغاء",
       deceasedEdit: "تعديل بيانات المتوفى",
@@ -234,6 +254,28 @@ export const messages: Record<Locale, Messages> = {
       failed: "تعذر الاتصال بالخدمة. يرجى المحاولة مرة أخرى.",
       retry: "إعادة المحاولة",
       recheck: "التحقق مرة أخرى",
+      previewHeading: "معاينة الأنصبة",
+      previewPrompt: "أضف وارثًا لتظهر الأنصبة هنا.",
+      previewWaiting: "جارٍ تحديث المعاينة…",
+      previewSchool: "محسوبة وفق المذهب {school}. هذه معاينة وليست حكمًا نهائيًا.",
+      previewUpdated: "تم تحديث معاينة الأنصبة.",
+      previewShare: "النصيب",
+      previewAmount: "المبلغ",
+      previewNoShare: "لا نصيب له في هذه الحالة.",
+      previewUnallocated: "الباقي غير الموزع على أي وارث",
+      previewUnavailable: "المعاينة غير متاحة لهذه الحالة. يمكنك متابعة إضافة الورثة.",
+      previewReasons: {
+        school_not_supported: "المذهب الجعفري غير مدعوم بعد، فلا تُعرض أنصبة.",
+        malikiyya_disputed: "اختلف علماء المذهب المالكي في هذه الحالة (المالكية)، فلا تُعرض أنصبة.",
+        radd_disputed: "الموقف الكلاسيكي لهذا المذهب يجعل الباقي لبيت المال، ولا تحسبه هذه الأداة، فلا تُعرض أنصبة.",
+        grandmother_line_unknown: "يعامل هذا المذهب الجدات بحسب الجهة (جهة الأم أو جهة الأب)، وهذا غير مسجّل بعد، فلا تُعرض أنصبة.",
+        invalid_family: "هذه الأسرة غير ممكنة (مثل أكثر من أب واحد، أو زوج لمتوفى ذكر)، فلا تُعرض أنصبة. يرجى مراجعة الورثة.",
+      },
+      previewFailed: "تعذّر تحميل المعاينة. بيانات الأسرة محفوظة، ويمكنك المتابعة.",
+      previewThrottled: "طلبات المعاينة كثيرة الآن. ستُجرَّب المعاينة مجددًا عند الحفظ التالي، ويمكنك المتابعة.",
+      previewGone: "لا معاينة لهذه الحالة لأنها تغيّرت في نافذة أخرى.",
+      previewExpired: "هذه الحالة لم تعد متاحة. أعد تحميل الصفحة للمتابعة.",
+      previewRetry: "إعادة تحميل المعاينة",
     },
     cta: "ابدأ حالة بدون حساب",
   },
@@ -264,13 +306,13 @@ export const messages: Record<Locale, Messages> = {
       genderLegend: "Gender of the deceased",
       genderMale: "Male",
       genderFemale: "Female",
-      estateLabel: "Total estate",
-      estateHint: "Optional. You can add this later.",
+      estateLabel: "Estate to divide",
+      estateHint: "Optional. Enter the amount left after debts, funeral costs and bequests. You can add this later.",
       deceasedSave: "Save and continue",
       deceasedCancel: "Cancel",
       deceasedEdit: "Edit the deceased",
       deceasedSummary: "The deceased",
-      estateSummary: "Total estate",
+      estateSummary: "Estate to divide",
       estateNone: "Not entered yet",
       heirsHeading: "Heirs",
       heirsEmpty: "You have not added any heirs yet.",
@@ -366,6 +408,28 @@ export const messages: Record<Locale, Messages> = {
       failed: "We could not reach the service. Please try again.",
       retry: "Try again",
       recheck: "Check again",
+      previewHeading: "Share preview",
+      previewPrompt: "Add an heir to see the shares here.",
+      previewWaiting: "Updating the preview…",
+      previewSchool: "Calculated under the {school} school. This is a preview, not a final ruling.",
+      previewUpdated: "The share preview was updated.",
+      previewShare: "Share",
+      previewAmount: "Amount",
+      previewNoShare: "Receives no share in this case.",
+      previewUnallocated: "Remainder not allocated to any heir",
+      previewUnavailable: "A preview is not available for this case. You can keep adding heirs.",
+      previewReasons: {
+        school_not_supported: "The Jafari school is not supported yet, so no shares are shown.",
+        malikiyya_disputed: "Scholars of the Maliki school disagree about this family (the Malikiyya case), so no shares are shown.",
+        radd_disputed: "The classical position of this school gives the remainder to the public treasury, which this tool does not calculate, so no shares are shown.",
+        grandmother_line_unknown: "This school treats grandmothers by line (the mother's or the father's side), which is not recorded yet, so no shares are shown.",
+        invalid_family: "This family is not possible (for example two fathers, or a husband for a male deceased), so no shares are shown. Please check the heirs.",
+      },
+      previewFailed: "The preview could not be loaded. Your family details are saved, and you can continue.",
+      previewThrottled: "There are too many preview requests right now. The preview will try again at your next save, and you can continue.",
+      previewGone: "There is no preview for this case because it changed in another tab.",
+      previewExpired: "This case is no longer available. Reload the page to continue.",
+      previewRetry: "Reload the preview",
     },
     cta: "Start a case without an account",
   },
@@ -396,8 +460,8 @@ export const messages: Record<Locale, Messages> = {
       genderLegend: "Sexe du défunt",
       genderMale: "Homme",
       genderFemale: "Femme",
-      estateLabel: "Montant de la succession (totalité)",
-      estateHint: "Facultatif. Vous pourrez l'ajouter plus tard.",
+      estateLabel: "Succession à partager",
+      estateHint: "Facultatif. Indiquez le montant restant après les dettes, les frais funéraires et les legs. Vous pourrez l'ajouter plus tard.",
       deceasedSave: "Enregistrer et continuer",
       deceasedCancel: "Annuler",
       deceasedEdit: "Modifier le défunt",
@@ -498,6 +562,28 @@ export const messages: Record<Locale, Messages> = {
       failed: "Impossible de joindre le service. Veuillez réessayer.",
       retry: "Réessayer",
       recheck: "Vérifier à nouveau",
+      previewHeading: "Aperçu des parts",
+      previewPrompt: "Ajoutez un héritier pour voir les parts ici.",
+      previewWaiting: "Mise à jour de l'aperçu…",
+      previewSchool: "Calculé selon l'école {school}. Il s'agit d'un aperçu, pas d'une décision définitive.",
+      previewUpdated: "L'aperçu des parts a été mis à jour.",
+      previewShare: "Part",
+      previewAmount: "Montant",
+      previewNoShare: "Ne reçoit aucune part dans ce cas.",
+      previewUnallocated: "Reste non attribué à un héritier",
+      previewUnavailable: "Aucun aperçu n'est disponible pour ce cas. Vous pouvez continuer à ajouter des héritiers.",
+      previewReasons: {
+        school_not_supported: "L'école jafarite n'est pas encore prise en charge, aucune part n'est donc affichée.",
+        malikiyya_disputed: "Les savants de l'école malikite divergent sur cette famille (le cas de la Malikiyya), aucune part n'est donc affichée.",
+        radd_disputed: "La position classique de cette école donne le reste au trésor public, ce que cet outil ne calcule pas, aucune part n'est donc affichée.",
+        grandmother_line_unknown: "Cette école traite les grands-mères selon leur lignée (côté de la mère ou du père), ce qui n'est pas encore enregistré, aucune part n'est donc affichée.",
+        invalid_family: "Cette famille n'est pas possible (par exemple deux pères, ou un mari pour un défunt de sexe masculin), aucune part n'est donc affichée. Vérifiez les héritiers.",
+      },
+      previewFailed: "L'aperçu n'a pas pu être chargé. Les informations de la famille sont enregistrées et vous pouvez continuer.",
+      previewThrottled: "Il y a trop de demandes d'aperçu en ce moment. L'aperçu sera réessayé à votre prochain enregistrement, et vous pouvez continuer.",
+      previewGone: "Il n'y a pas d'aperçu pour ce cas, car il a changé dans un autre onglet.",
+      previewExpired: "Ce cas n'est plus disponible. Rechargez la page pour continuer.",
+      previewRetry: "Recharger l'aperçu",
     },
     cta: "Commencer un dossier sans compte",
   },

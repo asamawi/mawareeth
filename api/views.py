@@ -1,3 +1,6 @@
+import logging
+import traceback
+
 from django.contrib.auth.decorators import login_not_required
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
@@ -8,9 +11,11 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api import anonymous_case
+from api import anonymous_case, preview
 from api.permissions import CsrfProtectedWrites
-from api.throttling import CaseWriteThrottle
+from api.throttling import CasePreviewThrottle, CaseWriteThrottle
+
+logger = logging.getLogger(__name__)
 
 
 @method_decorator(login_not_required, name='dispatch')
@@ -151,3 +156,36 @@ class NotFoundView(ApiView):
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
         raise NotFound()
+
+
+@method_decorator(never_cache, name='dispatch')
+class PreviewView(ApiView):
+    """The shares of the visitor's case under its school, from the engine. Writes nothing.
+
+    It reads the session and never touches it, so it does not refresh the expiry.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [CasePreviewThrottle]
+
+    def get(self, request):
+        case_id = request.query_params.get('case_id')
+        if not case_id:
+            return Response({'detail': 'case_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        case = anonymous_case.get(request)
+        if case is None:
+            return Response({'detail': 'There is no current case.', 'case': None}, status=status.HTTP_404_NOT_FOUND)
+        if case['id'] != case_id:
+            return Response(
+                {'detail': 'That case is no longer the current one.', 'case': case},
+                status=status.HTTP_409_CONFLICT)
+        try:
+            body = preview.preview(case)
+        except Exception as error:
+            # The kind of error and where it came from, never its message or locals: the case
+            # holds names and amounts.
+            logger.error(
+                'Share preview failed: %s\n%s', type(error).__name__,
+                ''.join(traceback.format_tb(error.__traceback__)))
+            return Response({'detail': 'The preview is unavailable.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response(body)

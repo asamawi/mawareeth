@@ -1,0 +1,929 @@
+{
+  "fixtures": [
+    {
+      "title": "Hanbali wife and son with an estate",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "male",
+          "estate": "8000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanbali",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "male",
+          "estate": "8000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "wife"
+            },
+            {
+              "id": "h2",
+              "relationship": "son"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 8,
+            "blocked": false,
+            "amount": "1000.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 7,
+            "denominator": 8,
+            "blocked": false,
+            "amount": "7000.00"
+          }
+        ],
+        "unallocated": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/8",
+            "percent": "12.5",
+            "amount": "1000.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": false,
+            "fraction": "7/8",
+            "percent": "87.5",
+            "amount": "7000.00"
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Hanbali wife and son without an estate",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "male",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanbali",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "male",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "wife"
+            },
+            {
+              "id": "h2",
+              "relationship": "son"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 8,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 7,
+            "denominator": 8,
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/8",
+            "percent": "12.5",
+            "amount": null
+          },
+          {
+            "heirId": "h2",
+            "blocked": false,
+            "fraction": "7/8",
+            "percent": "87.5",
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Two wives and a son, rounded half up",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "male",
+          "estate": "10"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h3",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanbali",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "male",
+          "estate": "10",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "wife"
+            },
+            {
+              "id": "h2",
+              "relationship": "wife"
+            },
+            {
+              "id": "h3",
+              "relationship": "son"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 16,
+            "blocked": false,
+            "amount": "0.63"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 1,
+            "denominator": 16,
+            "blocked": false,
+            "amount": "0.63"
+          },
+          {
+            "heir_id": "h3",
+            "numerator": 7,
+            "denominator": 8,
+            "blocked": false,
+            "amount": "8.75"
+          }
+        ],
+        "unallocated": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/16",
+            "percent": "6.3",
+            "amount": "0.63"
+          },
+          {
+            "heirId": "h2",
+            "blocked": false,
+            "fraction": "1/16",
+            "percent": "6.3",
+            "amount": "0.63"
+          },
+          {
+            "heirId": "h3",
+            "blocked": false,
+            "fraction": "7/8",
+            "percent": "87.5",
+            "amount": "8.75"
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Grandfather and brother under Hanbali",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "male",
+          "estate": "1000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "grandfather",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "brother",
+            "gender": "male",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanbali",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "male",
+          "estate": "1000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "grandfather"
+            },
+            {
+              "id": "h2",
+              "relationship": "brother"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 2,
+            "blocked": false,
+            "amount": "500.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 1,
+            "denominator": 2,
+            "blocked": false,
+            "amount": "500.00"
+          }
+        ],
+        "unallocated": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/2",
+            "percent": "50.0",
+            "amount": "500.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": false,
+            "fraction": "1/2",
+            "percent": "50.0",
+            "amount": "500.00"
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Grandfather and brother under Hanafi",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanafi",
+        "deceased": {
+          "gender": "male",
+          "estate": "1000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "grandfather",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "brother",
+            "gender": "male",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanafi",
+        "basis": {
+          "madhab": "hanafi",
+          "gender": "male",
+          "estate": "1000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "grandfather"
+            },
+            {
+              "id": "h2",
+              "relationship": "brother"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 1,
+            "blocked": false,
+            "amount": "1000.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 0,
+            "denominator": 1,
+            "blocked": true,
+            "amount": "0.00"
+          }
+        ],
+        "unallocated": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/1",
+            "percent": "100.0",
+            "amount": "1000.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": true,
+            "fraction": null,
+            "percent": null,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Father blocks the brother",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "male",
+          "estate": "1000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "father",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "brother",
+            "gender": "male",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanbali",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "male",
+          "estate": "1000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "father"
+            },
+            {
+              "id": "h2",
+              "relationship": "brother"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 1,
+            "blocked": false,
+            "amount": "1000.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 0,
+            "denominator": 1,
+            "blocked": true,
+            "amount": "0.00"
+          }
+        ],
+        "unallocated": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/1",
+            "percent": "100.0",
+            "amount": "1000.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": true,
+            "fraction": null,
+            "percent": null,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Wife alone leaves an unallocated remainder",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "male",
+          "estate": "1000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanbali",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "male",
+          "estate": "1000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "wife"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 4,
+            "blocked": false,
+            "amount": "250.00"
+          }
+        ],
+        "unallocated": {
+          "numerator": 3,
+          "denominator": 4
+        }
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/4",
+            "percent": "25.0",
+            "amount": "250.00"
+          }
+        ],
+        "unallocated": {
+          "fraction": "3/4",
+          "percent": "75.0"
+        }
+      }
+    },
+    {
+      "title": "Jafari is not supported",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "jafari",
+        "deceased": {
+          "gender": "male",
+          "estate": "1000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "unavailable",
+        "madhab": "jafari",
+        "reason": "school_not_supported",
+        "basis": {
+          "madhab": "jafari",
+          "gender": "male",
+          "estate": "1000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "wife"
+            },
+            {
+              "id": "h2",
+              "relationship": "son"
+            }
+          ]
+        }
+      },
+      "display": null
+    },
+    {
+      "title": "Maliki radd is refused",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "maliki",
+        "deceased": {
+          "gender": "female",
+          "estate": "1000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "mother",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "daughter",
+            "gender": "female",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "unavailable",
+        "madhab": "maliki",
+        "reason": "radd_disputed",
+        "basis": {
+          "madhab": "maliki",
+          "gender": "female",
+          "estate": "1000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "mother"
+            },
+            {
+              "id": "h2",
+              "relationship": "daughter"
+            }
+          ]
+        }
+      },
+      "display": null
+    },
+    {
+      "title": "Hanafi grandmother line is not recorded",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanafi",
+        "deceased": {
+          "gender": "male",
+          "estate": "1000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "father",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "grandmother",
+            "gender": "female",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "unavailable",
+        "madhab": "hanafi",
+        "reason": "grandmother_line_unknown",
+        "basis": {
+          "madhab": "hanafi",
+          "gender": "male",
+          "estate": "1000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "father"
+            },
+            {
+              "id": "h2",
+              "relationship": "grandmother"
+            }
+          ]
+        }
+      },
+      "display": null
+    },
+    {
+      "title": "Maliki Malikiyya is refused",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "maliki",
+        "deceased": {
+          "gender": "female",
+          "estate": "1000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "husband",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "mother",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h3",
+            "relationship": "grandfather",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h4",
+            "relationship": "maternal_brother",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h5",
+            "relationship": "maternal_sister",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h6",
+            "relationship": "paternal_brother",
+            "gender": "male",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "unavailable",
+        "madhab": "maliki",
+        "reason": "malikiyya_disputed",
+        "basis": {
+          "madhab": "maliki",
+          "gender": "female",
+          "estate": "1000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "husband"
+            },
+            {
+              "id": "h2",
+              "relationship": "mother"
+            },
+            {
+              "id": "h3",
+              "relationship": "grandfather"
+            },
+            {
+              "id": "h4",
+              "relationship": "maternal_brother"
+            },
+            {
+              "id": "h5",
+              "relationship": "maternal_sister"
+            },
+            {
+              "id": "h6",
+              "relationship": "paternal_brother"
+            }
+          ]
+        }
+      },
+      "display": null
+    },
+    {
+      "title": "Impossible family",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "male",
+          "estate": "1000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "husband",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "father",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h3",
+            "relationship": "father",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h4",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h5",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h6",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h7",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h8",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "unavailable",
+        "madhab": "hanbali",
+        "reason": "invalid_family",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "male",
+          "estate": "1000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "husband"
+            },
+            {
+              "id": "h2",
+              "relationship": "father"
+            },
+            {
+              "id": "h3",
+              "relationship": "father"
+            },
+            {
+              "id": "h4",
+              "relationship": "wife"
+            },
+            {
+              "id": "h5",
+              "relationship": "wife"
+            },
+            {
+              "id": "h6",
+              "relationship": "wife"
+            },
+            {
+              "id": "h7",
+              "relationship": "wife"
+            },
+            {
+              "id": "h8",
+              "relationship": "wife"
+            }
+          ]
+        }
+      },
+      "display": null
+    },
+    {
+      "title": "No heirs yet",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "male",
+          "estate": "1000"
+        },
+        "heirs": []
+      },
+      "response": {
+        "status": "not_ready"
+      },
+      "display": null
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import json
+from unittest import mock
 import logging
 import traceback
 from datetime import timedelta
@@ -1225,3 +1226,308 @@ class InterviewReviewTests(InterviewBase):
         self.assertTrue(handler.lines, 'refused writes are logged by django.request, so the capture works')
         for secret in secrets:
             self.assertNotIn(secret, logged)
+
+
+PREVIEW_URL = '/api/v1/case/preview/'
+PREVIEW_FIXTURES = json.loads(
+    (Path(__file__).parent / 'contracts' / 'preview-fixtures.json').read_text(encoding='utf-8'))['fixtures']
+
+
+class PreviewTests(InterviewBase):
+    def preview(self, case_id, client=None, **extra):
+        client = client or self.client
+        url = f'{PREVIEW_URL}?{urlencode({"case_id": case_id})}' if case_id is not None else PREVIEW_URL
+        return client.get(url, secure=True, **extra)
+
+    def build(self, madhab, gender, estate, relationships, names=None):
+        """A live case like the fixture's, through the API. Returns it with the heirs' real ids."""
+        case = self.start()
+        if madhab:
+            self.assertEqual(self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': madhab}).status_code, 200)
+        body = {'case_id': case['id'], 'gender': gender}
+        if estate is not None:
+            body['estate'] = estate
+        self.assertEqual(self.send('put', DECEASED_URL, body).status_code, 200)
+        for index, relationship in enumerate(relationships):
+            extra = {'name': names[index]} if names else {}
+            self.assertEqual(self.heir(case, relationship, **extra).status_code, 201)
+        return self.live()
+
+    def rows(self):
+        from calc.models import Calculation, Marriage, Person
+        return (Calculation.objects.count(), Person.objects.count(), Marriage.objects.count())
+
+    def test_route_is_versioned(self):
+        self.assertEqual(reverse('api:case-preview'), PREVIEW_URL)
+
+    def test_every_fixture_is_served_as_the_engine_computes_it(self):
+        from decimal import Decimal
+        from fractions import Fraction
+        from calc.models import money
+        from calc.tests import build_case
+        from api.preview import HEIR_CLASSES
+        for fixture in PREVIEW_FIXTURES:
+            with self.subTest(fixture['title']):
+                self.client = APIClient(enforce_csrf_checks=True)
+                case = fixture['case']
+                live = self.build(
+                    case['madhab'], case['deceased']['gender'], case['deceased']['estate'],
+                    [heir['relationship'] for heir in case['heirs']])
+                response = self.preview(live['id'])
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response['Content-Type'], 'application/json')
+                self.assertIn('no-store', response['Cache-Control'])
+                real_ids = {item['id']: heir['id'] for item, heir in zip(case['heirs'], live['heirs'])}
+                expected = json.loads(json.dumps(fixture['response']))
+                for share in expected.get('shares', []):
+                    share['heir_id'] = real_ids[share['heir_id']]
+                for item in expected.get('basis', {}).get('heirs', []):
+                    item['id'] = real_ids[item['id']]
+                self.assertEqual(response.json(), expected)
+                # And the numbers are the engine's own, run directly on a persisted case.
+                if expected['status'] == 'available':
+                    types = [HEIR_CLASSES[heir['relationship']] for heir in case['heirs']]
+                    sex = 'M' if case['deceased']['gender'] == 'male' else 'F'
+                    calc, heirs = build_case(sex, types, estate=1)
+                    final = calc.compute(madhab=case['madhab'])
+                    amount = case['deceased']['estate']
+                    for share, heir in zip(expected['shares'], heirs):
+                        fraction = final[heir.pk]
+                        self.assertEqual((share['numerator'], share['denominator']),
+                                         (fraction.numerator, fraction.denominator))
+                        self.assertEqual(
+                            share['amount'],
+                            None if amount is None else f'{money(Fraction(Decimal(amount)) * fraction):.2f}')
+                    calc.delete()
+
+    def test_the_bridge_reproduces_each_fixture_directly(self):
+        from api import preview
+        for fixture in PREVIEW_FIXTURES:
+            with self.subTest(fixture['title']):
+                self.assertEqual(preview.preview(fixture['case']), fixture['response'])
+
+    def test_the_matrix_answers(self):
+        by_title = {fixture['title']: fixture['response'] for fixture in PREVIEW_FIXTURES}
+        self.assertEqual(by_title['Hanbali wife and son with an estate']['shares'][0]['amount'], '1000.00')
+        self.assertEqual(by_title['Hanbali wife and son without an estate']['shares'][1]['amount'], None)
+        self.assertEqual(by_title['Wife alone leaves an unallocated remainder']['unallocated'],
+                         {'numerator': 3, 'denominator': 4})
+        self.assertEqual(by_title['Two wives and a son, rounded half up']['shares'][0]['amount'], '0.63')
+        self.assertEqual(by_title['Impossible family']['reason'], 'invalid_family')
+        reasons = {response.get('reason') for response in by_title.values()} - {None}
+        self.assertEqual(reasons, set(CONTRACT['previewReasons']))
+
+    def test_the_contract_lists_every_reason_the_engine_can_give(self):
+        from calc import schools
+        self.assertEqual(set(CONTRACT['previewReasons']), {*schools.REASONS, 'invalid_family'})
+
+    def test_a_response_says_what_family_it_is_for_without_names(self):
+        live = self.build('hanbali', 'male', '8000', ['wife', 'son'], names=['Secret Wife', 'Secret Son'])
+        body = self.preview(live['id']).json()
+        self.assertEqual(body['basis'], {
+            'madhab': 'hanbali', 'gender': 'male', 'estate': '8000',
+            'heirs': [{'id': heir['id'], 'relationship': heir['relationship']} for heir in live['heirs']],
+        })
+        self.assertNotIn('Secret', json.dumps(body))
+        self.send('patch', CASE_URL, {'case_id': live['id'], 'madhab': 'jafari'})
+        body = self.preview(live['id']).json()
+        self.assertNotIn('Secret', json.dumps(body))
+        self.assertEqual(body['status'], 'unavailable')
+        self.assertEqual(body['basis']['madhab'], 'jafari')
+
+    def test_a_changed_family_gives_a_different_basis(self):
+        live = self.build('hanbali', 'male', '8000', ['wife'])
+        first = self.preview(live['id']).json()['basis']
+        self.heir(live, 'son')
+        self.assertNotEqual(self.preview(live['id']).json()['basis'], first)
+
+    def test_not_ready_until_the_case_has_a_school_a_deceased_and_an_heir(self):
+        case = self.start()
+        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': 'hanbali'})
+        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.deceased(case)
+        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.heir(case, 'son')
+        self.assertEqual(self.preview(case['id']).json()['status'], 'available')
+
+    def test_an_impossible_family_is_refused_for_each_rule(self):
+        cases = [
+            ('male', ['husband']), ('female', ['wife']), ('female', ['husband', 'husband']),
+            ('male', ['father', 'father']), ('male', ['mother', 'mother']),
+            ('male', ['grandfather', 'grandfather']), ('male', ['wife'] * 5),
+        ]
+        for gender, relationships in cases:
+            with self.subTest(gender=gender, heirs=relationships):
+                self.client = APIClient(enforce_csrf_checks=True)
+                live = self.build('hanbali', gender, None, relationships)
+                body = self.preview(live['id']).json()
+                body.pop('basis')
+                self.assertEqual(body, {'status': 'unavailable', 'madhab': 'hanbali', 'reason': 'invalid_family'})
+        # The edge of each rule still calculates.
+        for gender, relationships in [('male', ['wife'] * 4), ('female', ['husband'])]:
+            with self.subTest(ok=relationships):
+                self.client = APIClient(enforce_csrf_checks=True)
+                live = self.build('hanbali', gender, None, relationships)
+                self.assertEqual(self.preview(live['id']).json()['status'], 'available')
+
+    def test_every_relationship_maps_to_an_engine_class_of_the_same_sex(self):
+        from api.preview import HEIR_CLASSES, SEX
+        from calc.tests import HEIR_SEX
+        self.assertEqual(set(HEIR_CLASSES), set(anonymous_case.RELATIONSHIPS))
+        # A literal table, so a wrong mapping in the code cannot also be wrong here.
+        literal = {
+            'father': 'Father', 'mother': 'Mother', 'husband': 'Husband', 'wife': 'Wife', 'son': 'Son',
+            'daughter': 'Daughter', 'son_of_son': 'SonOfSon', 'daughter_of_son': 'DaughterOfSon',
+            'grandfather': 'GrandFather', 'grandmother': 'GrandMother', 'brother': 'Brother',
+            'sister': 'Sister', 'paternal_brother': 'PaternalBrother', 'paternal_sister': 'PaternalSister',
+            'maternal_brother': 'MaternalBrother', 'maternal_sister': 'MaternalSister',
+            'son_of_brother': 'SonOfBrother', 'son_of_paternal_brother': 'SonOfPaternalBrother',
+            'uncle': 'Uncle', 'paternal_uncle': 'PaternalUncle', 'son_of_uncle': 'SonOfUncle',
+            'son_of_paternal_uncle': 'SonOfPaternalUncle',
+        }
+        self.assertEqual(len(literal), 22)
+        self.assertEqual({key: cls.__name__ for key, cls in HEIR_CLASSES.items()}, literal)
+        self.assertEqual(len(set(HEIR_CLASSES.values())), len(HEIR_CLASSES))
+        for relationship, cls in HEIR_CLASSES.items():
+            self.assertEqual(HEIR_SEX[cls], SEX[anonymous_case.RELATIONSHIPS[relationship]], relationship)
+
+    def test_every_relationship_previews_alone_without_a_server_error(self):
+        for relationship in anonymous_case.RELATIONSHIPS:
+            with self.subTest(relationship=relationship):
+                self.client = APIClient(enforce_csrf_checks=True)
+                gender = 'female' if relationship == 'husband' else 'male'
+                live = self.build('hanbali', gender, '100', [relationship])
+                self.assertEqual(self.preview(live['id']).status_code, 200)
+
+    def test_no_rows_remain_after_any_outcome(self):
+        before = self.rows()
+        outcomes = [
+            ('hanbali', 'male', '8000', ['wife', 'son']),
+            ('jafari', 'male', None, ['son']),
+            ('maliki', 'female', None, ['mother', 'daughter']),
+            ('hanafi', 'male', None, ['father', 'grandmother']),
+            ('hanbali', 'male', None, ['husband']),
+            ('hanbali', 'male', None, []),
+        ]
+        seen = set()
+        for args in outcomes:
+            self.client = APIClient(enforce_csrf_checks=True)
+            live = self.build(*args)
+            body = self.preview(live['id']).json()
+            seen.add(body['status'] + str(body.get('reason')))
+            self.assertEqual(self.rows(), before, args)
+        self.assertGreaterEqual(len(seen), 5)
+        # Even an engine error that escapes leaves nothing behind.
+        from calc.models import Calculation
+        live = self.build('hanbali', 'male', None, ['son'])
+        with mock.patch.object(Calculation, 'compute', side_effect=RuntimeError('boom')):
+            self.assertEqual(self.preview(live['id']).status_code, 503)
+        self.assertEqual(self.rows(), before)
+
+    def test_the_session_and_its_expiry_are_not_touched(self):
+        live = self.build('hanbali', 'male', '8000', ['wife', 'son'])
+        before = Session.objects.get()
+        stored, expires = before.get_decoded(), before.expire_date
+        for case_id in (live['id'], 'other', None):
+            self.preview(case_id)
+        after = Session.objects.get()
+        self.assertEqual(after.get_decoded(), stored)
+        self.assertEqual(after.expire_date, expires)
+        self.assertEqual(Session.objects.count(), 1)
+
+    def test_a_visitor_without_a_case_gets_a_404_and_no_session(self):
+        response = self.preview('abc')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {'detail': 'There is no current case.', 'case': None})
+        self.assertEqual(Session.objects.count(), 0)
+
+    def test_another_tabs_case_is_a_409_with_no_numbers(self):
+        live = self.build('hanbali', 'male', '8000', ['wife', 'son'])
+        response = self.preview('z' * 32)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['case'], live)
+        self.assertNotIn('shares', response.json())
+
+    def test_case_id_is_required(self):
+        self.start()
+        for value in (None, ''):
+            response = self.preview(value)
+            self.assertEqual(response.status_code, 400)
+            self.assertIn('detail', response.json())
+
+    def test_only_get_is_allowed(self):
+        case = self.start()
+        response = self.client.post(
+            PREVIEW_URL, {'case_id': case['id']}, format='json', secure=True, headers=self.csrf(self.client))
+        self.assertEqual(response.status_code, 405)
+
+    def test_names_never_reach_the_engine(self):
+        from calc.models import Calculation, Person
+        seen = []
+        real = Calculation.compute
+
+        def spy(calc, madhab='hanbali'):
+            seen.append((madhab, [(p.first_name, p.last_name, p.sex) for p in Person.objects.all()], calc.name))
+            return real(calc, madhab=madhab)
+
+        live = self.build('hanafi', 'male', '12345.67', ['wife', 'son'], names=['Secret Wife', 'Secret Son'])
+        with mock.patch.object(Calculation, 'compute', autospec=True, side_effect=spy):
+            self.assertEqual(self.preview(live['id']).status_code, 200)
+        self.assertEqual(len(seen), 1)
+        madhab, people, name = seen[0]
+        self.assertEqual(madhab, 'hanafi')
+        self.assertEqual(name, '')
+        self.assertEqual(sorted(people), [('', '', 'F'), ('', '', 'M'), ('', '', 'M')])
+
+    def test_names_and_amounts_never_reach_the_logs_even_when_the_engine_fails(self):
+        from calc.models import Calculation
+        handler = RecordingHandler()
+        loggers = [logging.getLogger(name) for name in ('', 'api', 'django.request')]
+        levels = [logger.level for logger in loggers]
+        for logger in loggers:
+            logger.addHandler(handler)
+            logger.setLevel(logging.DEBUG)
+        try:
+            live = self.build('hanbali', 'male', '987654.32', ['son'], names=['Secret Name'])
+            with mock.patch.object(Calculation, 'compute', side_effect=RuntimeError('Secret Name 987654.32')):
+                response = self.preview(live['id'])
+        finally:
+            for logger, level in zip(loggers, levels):
+                logger.removeHandler(handler)
+                logger.setLevel(level)
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {'detail': 'The preview is unavailable.'})
+        logged = '\n'.join(handler.lines)
+        self.assertIn('RuntimeError', logged)
+        self.assertIn('preview.py', logged, 'the traceback frames are logged so a 503 can be debugged')
+        for secret in ('Secret Name', '987654.32'):
+            self.assertNotIn(secret, logged)
+
+    def test_the_preview_limit_is_300_an_hour_and_apart_from_writes(self):
+        self.assertEqual(api_settings.DEFAULT_THROTTLE_RATES['case_preview'], '300/hour')
+        case = self.ready()
+        for _ in range(300):
+            self.assertEqual(self.preview(case['id']).status_code, 200)
+        response = self.preview(case['id'])
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        # Writes and reads of the case keep their own budgets.
+        self.assertEqual(self.client.get(CASE_URL, secure=True).status_code, 200)
+        self.assertEqual(self.heir(case, 'son').status_code, 201)
+
+    def test_a_second_client_is_not_throttled_with_the_first(self):
+        case = self.ready()
+        first, second = '203.0.113.9, 172.70.0.1', '198.51.100.7, 172.70.0.1'
+        for _ in range(300):
+            self.assertEqual(self.preview(case['id'], **{FORWARDED: first}).status_code, 200)
+        self.assertEqual(self.preview(case['id'], **{FORWARDED: first}).status_code, 429)
+        self.assertEqual(self.preview(case['id'], **{FORWARDED: second}).status_code, 200)
+
+    def test_previews_do_not_use_up_the_write_budget(self):
+        case = self.ready()
+        for _ in range(50):
+            self.preview(case['id'])
+        for _ in range(118):
+            self.assertEqual(self.deceased(case).status_code, 200)
+        self.assertEqual(self.deceased(case).status_code, 429)

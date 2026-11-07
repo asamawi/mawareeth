@@ -30,5 +30,6 @@
     "name": ["invalid", "too_long"],
     "heirs": ["limit"],
     "case": ["deceased_required"]
-  }
+  },
+  "previewReasons": ["school_not_supported", "malikiyya_disputed", "radd_disputed", "grandmother_line_unknown", "invalid_family"]
 }

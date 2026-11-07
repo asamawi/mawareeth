@@ -5,6 +5,8 @@ import { locales, messages } from "../i18n/messages.ts";
 import {
   addHeir,
   fetchCase,
+  fetchPreview,
+  parsePreview,
   MADHAB_IDS,
   readCsrfToken,
   removeHeir,
@@ -363,5 +365,130 @@ test("parseCase drops an estate that is not a stored amount, so it never renders
   ] as const) {
     stubFetch(async () => Response.json({ case: { ...CASE, deceased: { gender: "male", estate } } }));
     assert.equal((await fetchCase(signal()))?.deceased?.estate, expected, estate);
+  }
+});
+
+const BASIS = { madhab: "hanbali", gender: "male", estate: "8000", heirs: [{ id: "a1", relationship: "wife" }] };
+
+const AVAILABLE = {
+  status: "available",
+  madhab: "hanbali",
+  basis: BASIS,
+  shares: [{ heir_id: "a1", numerator: 1, denominator: 8, blocked: false, amount: "1000.00" }],
+  unallocated: null,
+};
+
+test("fetchPreview makes one read with the case id and returns the typed preview", async () => {
+  const calls = stubFetch(async () => Response.json(AVAILABLE));
+  assert.deepEqual(await fetchPreview(signal(), "a b"), { kind: "preview", preview: AVAILABLE });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "/api/v1/case/preview/?case_id=a%20b");
+  assert.equal(calls[0].init?.method, undefined);
+  assert.equal(header(calls[0], "X-CSRFToken"), undefined);
+});
+
+test("fetchPreview reads each status", async () => {
+  const cases: [number, unknown, unknown][] = [
+    [200, { status: "not_ready" }, { kind: "preview", preview: { status: "not_ready" } }],
+    [
+      200,
+      { status: "unavailable", madhab: "jafari", reason: "school_not_supported", basis: BASIS },
+      {
+        kind: "preview",
+        preview: { status: "unavailable", madhab: "jafari", reason: "school_not_supported", basis: BASIS },
+      },
+    ],
+    [429, { detail: "x" }, { kind: "throttled" }],
+    [404, { detail: "x", case: null }, { kind: "gone" }],
+    [409, { detail: "x", case: CASE }, { kind: "replaced" }],
+    [500, { detail: "x" }, { kind: "failed" }],
+    [503, { detail: "x" }, { kind: "failed" }],
+  ];
+  for (const [status, body, expected] of cases) {
+    stubFetch(async () => Response.json(body, { status }));
+    assert.deepEqual(await fetchPreview(signal(), "abc"), expected, String(status));
+  }
+});
+
+test("fetchPreview never throws: a network error, bad JSON or a bad body is a failure", async () => {
+  stubFetch(async () => {
+    throw new TypeError("network");
+  });
+  assert.deepEqual(await fetchPreview(signal(), "abc"), { kind: "failed" });
+  stubFetch(async () => new Response("not json"));
+  assert.deepEqual(await fetchPreview(signal(), "abc"), { kind: "failed" });
+  stubFetch(async () => Response.json({ status: "available" }));
+  assert.deepEqual(await fetchPreview(signal(), "abc"), { kind: "failed" });
+});
+
+test("a hung preview fails at the timeout, and an aborted one fails at once", async () => {
+  const hang = ({ init }: Call) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+    });
+  stubFetch(hang);
+  assert.deepEqual(await fetchPreview(signal(), "abc", { timeoutMs: 10 }), { kind: "failed" });
+  const own = new AbortController();
+  stubFetch(hang);
+  const pending = fetchPreview(own.signal, "abc", { timeoutMs: 60_000 });
+  own.abort();
+  assert.deepEqual(await pending, { kind: "failed" });
+});
+
+test("parsePreview rejects anything but the exact shape", () => {
+  assert.deepEqual(parsePreview(AVAILABLE), AVAILABLE);
+  const share = AVAILABLE.shares[0];
+  const bad: unknown[] = [
+    null,
+    "x",
+    {},
+    { status: "other", madhab: "hanbali" },
+    { ...AVAILABLE, madhab: "zaydi" },
+    { ...AVAILABLE, madhab: undefined },
+    { ...AVAILABLE, shares: "x" },
+    { ...AVAILABLE, unallocated: undefined },
+    { ...AVAILABLE, unallocated: { numerator: 1 } },
+    { ...AVAILABLE, unallocated: { numerator: 5, denominator: 4 } },
+    { ...AVAILABLE, shares: [{ ...share, denominator: 0 }] },
+    { ...AVAILABLE, shares: [{ ...share, numerator: -1 }] },
+    { ...AVAILABLE, shares: [{ ...share, numerator: 9 }] },
+    { ...AVAILABLE, shares: [{ ...share, numerator: 0.5 }] },
+    { ...AVAILABLE, shares: [{ ...share, numerator: "1" }] },
+    { ...AVAILABLE, shares: [{ ...share, blocked: "no" }] },
+    { ...AVAILABLE, shares: [{ ...share, heir_id: 5 }] },
+    { ...AVAILABLE, shares: [{ ...share, amount: "1000" }] },
+    { ...AVAILABLE, shares: [{ ...share, amount: "NaN" }] },
+    { ...AVAILABLE, shares: [{ ...share, amount: 1000 }] },
+    { ...AVAILABLE, shares: [{ ...share, amount: undefined }] },
+    { ...AVAILABLE, basis: undefined },
+    { ...AVAILABLE, basis: { ...BASIS, madhab: "zaydi" } },
+    { ...AVAILABLE, basis: { ...BASIS, gender: "x" } },
+    { ...AVAILABLE, basis: { ...BASIS, estate: "1,5" } },
+    { ...AVAILABLE, basis: { ...BASIS, heirs: [{ id: "a1", relationship: "cousin" }] } },
+    { ...AVAILABLE, basis: { ...BASIS, heirs: [{ id: 1, relationship: "wife" }] } },
+    { status: "unavailable", madhab: "jafari", reason: "", basis: BASIS },
+    { status: "unavailable", madhab: "jafari", reason: 5, basis: BASIS },
+    { status: "unavailable", madhab: "jafari", reason: "made_up" },
+    { status: "unavailable", madhab: "jafari", basis: BASIS },
+  ];
+  for (const body of bad) assert.equal(parsePreview(body), null, JSON.stringify(body));
+  assert.deepEqual(parsePreview({ ...AVAILABLE, shares: [{ ...share, amount: null }] })?.status, "available");
+  assert.deepEqual(parsePreview({ ...AVAILABLE, basis: { ...BASIS, estate: null } })?.status, "available");
+  // A reason added to the engine later is accepted, and shown with the generic text alone.
+  assert.deepEqual(parsePreview({ status: "unavailable", madhab: "jafari", reason: "made_up", basis: BASIS }), {
+    status: "unavailable",
+    madhab: "jafari",
+    reason: "made_up",
+    basis: BASIS,
+  });
+});
+
+test("every locale has the preview text", () => {
+  for (const locale of locales) {
+    const text = messages[locale].interview;
+    assert.ok(text.previewSchool.includes("{school}"), locale);
+    for (const key of ["previewHeading", "previewPrompt", "previewWaiting", "previewUpdated", "previewUnavailable", "previewFailed", "previewThrottled", "previewGone", "previewExpired", "previewRetry"] as const) {
+      assert.ok(text[key].length > 0, `${locale} ${key}`);
+    }
   }
 });

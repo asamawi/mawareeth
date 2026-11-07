@@ -361,3 +361,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
   summary: Have the refusal text explain that the classical Maliki and Shafi'i position gives the remainder to the public treasury, before Story 1.5 shows it to visitors.
   evidence: The `radd_disputed` message says only that the remainder cannot be shared out, which does not tell a visitor why, and the Arabic and French text is unreviewed.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-5-real-time-share-preview-from-supported-engine-cases.md`
+  summary: Show each heir's share on its tree node, with the fiqh citation and proof, in Story 2.2.
+  evidence: Story 1.5 shows shares in a list under the form only, and the spec rules out shares on tree nodes, citations and proof.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-5-real-time-share-preview-from-supported-engine-cases.md`
+  summary: Add browser tests (Playwright with axe) for the heir screen with the share preview: add, edit, remove, change school, a refused case, a failed request, RTL at 320px, dark mode, forced colors and a keyboard-only run.
+  evidence: The suite has no browser runner yet. The staleness and display rules are covered by pure tests against the shared fixtures, and the component's effects, focus behavior and layout were not run in a browser.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-5-real-time-share-preview-from-supported-engine-cases.md`
+  summary: Move the preview off database writes to an in-memory engine path before opening it widely.
+  evidence: Each anonymous preview creates rows and rolls them back, which advances Postgres sequences and leaves dead rows for vacuum, and a request the browser aborted still runs to the end on the server. It costs about 100 queries for 6 heirs and 645 for 50.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-5-real-time-share-preview-from-supported-engine-cases.md`
+  summary: Have a native reviewer check the preview's refusal sentences, especially the Malikiyya sentence, which in Arabic reads like a repeat of the school's name.
+  evidence: All Arabic and French preview text is unreviewed, and these sentences explain to visitors why no number is given.
