@@ -1,0 +1,34 @@
+{
+  "relationships": [
+    { "id": "father", "gender": "male" },
+    { "id": "mother", "gender": "female" },
+    { "id": "husband", "gender": "male" },
+    { "id": "wife", "gender": "female" },
+    { "id": "son", "gender": "male" },
+    { "id": "daughter", "gender": "female" },
+    { "id": "son_of_son", "gender": "male" },
+    { "id": "daughter_of_son", "gender": "female" },
+    { "id": "grandfather", "gender": "male" },
+    { "id": "grandmother", "gender": "female" },
+    { "id": "brother", "gender": "male" },
+    { "id": "sister", "gender": "female" },
+    { "id": "paternal_brother", "gender": "male" },
+    { "id": "paternal_sister", "gender": "female" },
+    { "id": "maternal_brother", "gender": "male" },
+    { "id": "maternal_sister", "gender": "female" },
+    { "id": "son_of_brother", "gender": "male" },
+    { "id": "son_of_paternal_brother", "gender": "male" },
+    { "id": "uncle", "gender": "male" },
+    { "id": "paternal_uncle", "gender": "male" },
+    { "id": "son_of_uncle", "gender": "male" },
+    { "id": "son_of_paternal_uncle", "gender": "male" }
+  ],
+  "errorCodes": {
+    "gender": ["required", "invalid"],
+    "estate": ["invalid", "not_positive", "too_large", "decimals"],
+    "relationship": ["required", "invalid"],
+    "name": ["invalid", "too_long"],
+    "heirs": ["limit"],
+    "case": ["deceased_required"]
+  }
+}

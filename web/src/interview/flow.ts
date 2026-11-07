@@ -1,10 +1,68 @@
-import type { Case, MadhabId, MadhabResult, StartResult } from "../api/case.ts";
+import type {
+  AnswerResult,
+  Case,
+  DeceasedFields,
+  Heir,
+  HeirFields,
+  MadhabId,
+  MadhabResult,
+  RelationshipId,
+  StartResult,
+} from "../api/case.ts";
+import {
+  BLANK_HEIR,
+  unnamedOrdinal,
+  deceasedValues,
+  firstInvalid,
+  formFor,
+  heirLimitReached,
+  heirValues,
+  validateDeceased,
+  validateField,
+  validateHeir,
+  type DeceasedValues,
+  type Errors,
+  type FormName,
+  type FormStore,
+  type HeirValues,
+} from "./answers.ts";
 import { selectionFor, type SelectionStore } from "./madhabs.ts";
 
-export type Action = "load" | "start" | "startOver" | "resume" | "choose";
+export type Action =
+  | "load"
+  | "start"
+  | "startOver"
+  | "resume"
+  | "choose"
+  | "saveDeceased"
+  | "addHeir"
+  | "saveHeir"
+  | "removeHeir";
 
-/** A write that did not go through; the visitor's selection stays on screen. */
-export type Notice = "throttled" | "failed";
+/** A write that did not go through, or a list that changed under the visitor. */
+export type Notice = "throttled" | "failed" | "heirGone";
+
+/** What the screen-reader live region says; `seq` makes a repeat count as new. */
+export type Announcement = {
+  kind: "added" | "updated" | "removed";
+  heir: { name: string | null; relationship: RelationshipId };
+  /** The heir number among unnamed heirs of the same relationship, when there are several. */
+  ordinal: number | null;
+  seq: number;
+};
+
+/**
+ * Every focus target flow.ts can ask for. Each is a `data-focus` value in the components, and
+ * a test reads their source to prove it.
+ */
+export const FOCUS_TARGETS = ["gender", "estate", "relationship", "name", "form-error", "list"] as const;
+export const FOCUS_PREFIXES = ["editHeir", "remove"] as const;
+export type FocusTarget =
+  | (typeof FOCUS_TARGETS)[number]
+  | `${(typeof FOCUS_PREFIXES)[number]}:${string}`;
+
+/** Where to move focus: a `data-focus` id on the page. `seq` makes a repeat count as new. */
+export type FocusRequest = { target: FocusTarget; seq: number };
 
 export type StartedView = {
   name: "started";
@@ -12,7 +70,17 @@ export type StartedView = {
   resumed: boolean;
   /** The visitor opened the selector although a school is stored. */
   changing: boolean;
+  /** The visitor opened the deceased form although one is stored. */
+  editingDeceased: boolean;
+  /** The heir whose details are in the heir form; null when the form adds a new heir. */
+  editingHeir: string | null;
+  /** Counts the times the heir form had to be cleared, so only those rebuild it. */
+  formEpoch: number;
   notice: Notice | null;
+  /** Field name to error code, from the client's rules or from the server. */
+  errors: Errors | null;
+  focus: FocusRequest | null;
+  announcement: Announcement | null;
   saving: boolean;
 };
 
@@ -21,6 +89,8 @@ export type View =
   | { name: "starting" }
   | { name: "none"; expired: boolean }
   | { name: "existing"; case: Case }
+  /** Starting over throws the answers away, so it is asked first. */
+  | { name: "confirmStartOver"; case: Case }
   | StartedView
   /** Over the limit: the visitor can re-check, and resume a case that is still valid. */
   | { name: "throttled"; resumable: Case | null }
@@ -29,12 +99,26 @@ export type View =
 
 export type Deps = {
   fetchCase: (signal: AbortSignal) => Promise<Case | null>;
-  startCase: (signal: AbortSignal, options: { replace: boolean }) => Promise<StartResult>;
+  startCase: (
+    signal: AbortSignal,
+    options: { replace: boolean; caseId?: string },
+  ) => Promise<StartResult>;
   setMadhab: (signal: AbortSignal, madhab: MadhabId, caseId: string) => Promise<MadhabResult>;
+  saveDeceased: (signal: AbortSignal, caseId: string, fields: DeceasedFields) => Promise<AnswerResult>;
+  addHeir: (signal: AbortSignal, caseId: string, fields: HeirFields) => Promise<AnswerResult>;
+  updateHeir: (
+    signal: AbortSignal,
+    caseId: string,
+    heirId: string,
+    fields: HeirFields,
+  ) => Promise<AnswerResult>;
+  removeHeir: (signal: AbortSignal, caseId: string, heirId: string) => Promise<AnswerResult>;
   /** Whether this browser has seen a case before; the only way to tell expired from new. */
   seen: { get: () => boolean; set: (value: boolean) => void };
   /** The selection in progress in this tab. */
   selection: SelectionStore;
+  /** The form open in this tab. */
+  forms: FormStore;
 };
 
 export type Screen =
@@ -42,21 +126,28 @@ export type Screen =
   | "starting"
   | "none"
   | "existing"
+  | "confirmStartOver"
   | "selector"
-  | "question"
+  | "deceased"
+  | "heirs"
   | "throttled"
   | "failed";
 
-/** Which screen a view shows: a case with no school, or one being changed, shows the selector. */
+/**
+ * Which screen a view shows: a case with no school, or one being changed, shows the selector;
+ * then a case with no deceased, or one being edited, shows the deceased form; then the heirs.
+ */
 export function screenOf(view: View): Screen {
   if (view.name !== "started") return view.name;
-  return view.case.madhab === null || view.changing ? "selector" : "question";
+  if (view.case.madhab === null || view.changing) return "selector";
+  if (view.case.deceased === null || view.editingDeceased) return "deceased";
+  return "heirs";
 }
 
 /**
  * Whether to move focus when `next` replaces `previous`. Focus moves only when the screen
  * changes: never while a save is in flight or has failed, and never for an in-place edit
- * such as a pick or a notice being cleared, which would pull focus off the radio.
+ * such as a pick or a notice being cleared, which would pull focus off the control.
  */
 export function shouldFocus(previous: View | null, next: View): boolean {
   if (next.name === "loading" || next.name === "starting") return false;
@@ -77,21 +168,53 @@ export function pick(view: StartedView, madhab: MadhabId, store: SelectionStore)
 }
 
 function started(kase: Case, resumed: boolean, changing = false): StartedView {
-  return { name: "started", case: kase, resumed, changing, notice: null, saving: false };
+  return {
+    name: "started",
+    case: kase,
+    resumed,
+    changing,
+    editingDeceased: false,
+    editingHeir: null,
+    formEpoch: 0,
+    notice: null,
+    errors: null,
+    focus: null,
+    announcement: null,
+    saving: false,
+  };
+}
+
+/** The case a view is about, if any. */
+export function caseOf(view: View): Case | null {
+  if (view.name === "existing" || view.name === "confirmStartOver" || view.name === "started") {
+    return view.case;
+  }
+  if (view.name === "throttled" || view.name === "failed") return view.resumable;
+  return null;
+}
+
+/** The heir form is rebuilt when its heir changes or it was cleared, and not otherwise. */
+export function heirFormKey(view: StartedView): string {
+  return `heir-${view.editingHeir ?? "new"}-${view.formEpoch}`;
+}
+
+function nextFocus(view: StartedView, target: FocusTarget): FocusRequest {
+  return { target, seq: (view.focus?.seq ?? 0) + 1 };
 }
 
 /** What to show while the action is in flight. */
 export function pendingView(action: Action, current?: View): View {
-  if (action === "choose") {
-    return current?.name === "started" ? { ...current, notice: null, saving: true } : { name: "loading" };
-  }
-  return action === "start" || action === "startOver" ? { name: "starting" } : { name: "loading" };
+  if (action === "load" || action === "resume") return { name: "loading" };
+  if (action === "start" || action === "startOver") return { name: "starting" };
+  if (current?.name !== "started") return { name: "loading" };
+  // The announcement stays, so the form below it is not rebuilt (and loses focus) mid-save.
+  return { ...current, notice: null, errors: null, saving: true };
 }
 
 /** Opens the selector on the first question, with the current choice selected. */
 export function openChange(view: StartedView, deps: Deps): StartedView {
   deps.selection.set({ caseId: view.case.id, madhab: null });
-  return { ...view, changing: true, notice: null };
+  return { ...view, changing: true, notice: null, errors: null };
 }
 
 /** Closes the selector without writing anything. */
@@ -100,28 +223,238 @@ export function cancelChange(view: StartedView, deps: Deps): StartedView {
   return { ...view, changing: false, notice: null };
 }
 
+/** Asks the visitor to confirm before the answers are thrown away. */
+export function askStartOver(view: View): View {
+  return view.name === "existing" || view.name === "started"
+    ? { name: "confirmStartOver", case: view.case }
+    : view;
+}
+
+/** Cancelling changes nothing. */
+export function cancelStartOver(view: View): View {
+  return view.name === "confirmStartOver" ? { name: "existing", case: view.case } : view;
+}
+
+function writeForm(
+  deps: Deps,
+  caseId: string,
+  form: FormName,
+  heirId: string | null,
+  values: Record<string, string>,
+) {
+  deps.forms.set({ caseId, form, heirId, values });
+}
+
+/** The new-heir draft that is open now, or the one already set aside. */
+function draftOf(deps: Deps, caseId: string): Record<string, string> | undefined {
+  const record = formFor(deps.forms.get(), caseId);
+  if (!record || record.form !== "heir") return record?.parked;
+  return record.heirId === null ? record.values : record.parked;
+}
+
+/** A blank new-heir form; any draft that was set aside is dropped. */
+function resetHeirForm(deps: Deps, caseId: string) {
+  writeForm(deps, caseId, "heir", null, { ...BLANK_HEIR });
+}
+
+/** The new-heir form again, with the draft that was set aside while an edit was open. */
+function restoreHeirForm(deps: Deps, caseId: string) {
+  const parked = formFor(deps.forms.get(), caseId)?.parked;
+  writeForm(deps, caseId, "heir", null, { ...BLANK_HEIR, ...(parked ?? {}) });
+}
+
+function writeParked(
+  deps: Deps,
+  caseId: string,
+  form: FormName,
+  heirId: string | null,
+  values: Record<string, string>,
+  parked: Record<string, string> | undefined,
+) {
+  deps.forms.set({ caseId, form, heirId, values, ...(parked ? { parked } : {}) });
+}
+
+/** Opens the deceased form filled in with what is stored. */
+export function startEditDeceased(view: StartedView, deps: Deps): StartedView {
+  const draft = draftOf(deps, view.case.id);
+  writeParked(deps, view.case.id, "deceased", null, { ...deceasedValues(view.case.deceased) }, draft);
+  return { ...view, editingDeceased: true, editingHeir: null, notice: null, errors: null };
+}
+
+/** Closes the deceased form without writing anything; the heir form is as it was. */
+export function cancelEditDeceased(view: StartedView, deps: Deps): StartedView {
+  restoreHeirForm(deps, view.case.id);
+  return {
+    ...view,
+    editingDeceased: false,
+    editingHeir: null,
+    formEpoch: view.formEpoch + 1,
+    notice: null,
+    errors: null,
+  };
+}
+
+/** Fills the heir form with the heir's details. */
+export function startEditHeir(view: StartedView, heirId: string, deps: Deps): StartedView {
+  const heir = view.case.heirs.find((item) => item.id === heirId);
+  if (!heir) return view;
+  writeParked(deps, view.case.id, "heir", heirId, { ...heirValues(heir) }, draftOf(deps, view.case.id));
+  return {
+    ...view,
+    editingHeir: heirId,
+    notice: null,
+    errors: null,
+    focus: nextFocus(view, "relationship"),
+  };
+}
+
+/** Clears the heir form without writing anything; focus returns to the heir's row. */
+export function cancelEditHeir(view: StartedView, deps: Deps): StartedView {
+  restoreHeirForm(deps, view.case.id);
+  return {
+    ...view,
+    editingHeir: null,
+    formEpoch: view.formEpoch + 1,
+    notice: null,
+    errors: null,
+    focus: view.editingHeir ? nextFocus(view, `editHeir:${view.editingHeir}`) : view.focus,
+  };
+}
+
 /**
- * Records that a selector is open, so a language switch or reload continues it. Every
- * started view goes through here; an existing record for the case is left alone.
+ * Records what the visitor has typed so a language switch or reload continues it. The
+ * changed field's error goes away; the others stay until their field changes.
+ */
+export function remember(
+  view: StartedView,
+  form: FormName,
+  values: Record<string, string>,
+  field: string,
+  store: FormStore,
+): StartedView {
+  const parked = formFor(store.get(), view.case.id)?.parked;
+  store.set({
+    caseId: view.case.id,
+    form,
+    heirId: form === "heir" ? view.editingHeir : null,
+    values,
+    ...(parked ? { parked } : {}),
+  });
+  const clearsError = view.errors !== null && view.errors[field] !== undefined;
+  if (!clearsError && view.notice === null) return view;
+  let errors = view.errors;
+  if (clearsError && errors) {
+    const rest = { ...errors };
+    delete rest[field];
+    errors = Object.keys(rest).length > 0 ? rest : null;
+  }
+  return { ...view, errors, notice: null };
+}
+
+/** Validation on blur: shows or clears the field's message. */
+export function blurField(
+  view: StartedView,
+  form: FormName,
+  field: string,
+  values: Record<string, string>,
+): StartedView {
+  const code = validateField(form, field, values);
+  if ((view.errors?.[field] ?? null) === code) return view;
+  const errors = { ...(view.errors ?? {}) };
+  if (code) errors[field] = code;
+  else delete errors[field];
+  return { ...view, errors: Object.keys(errors).length > 0 ? errors : null };
+}
+
+/**
+ * Records that a form or selector is open, so a language switch or reload continues it.
+ * Every started view goes through here; a record that already fits is left alone.
  */
 function settle(view: StartedView, deps: Deps): StartedView {
-  if (screenOf(view) === "selector" && !selectionFor(deps.selection.get(), view.case.id)) {
-    deps.selection.set({ caseId: view.case.id, madhab: null });
+  const screen = screenOf(view);
+  const record = formFor(deps.forms.get(), view.case.id);
+  if (screen === "selector") {
+    if (!selectionFor(deps.selection.get(), view.case.id)) {
+      deps.selection.set({ caseId: view.case.id, madhab: null });
+    }
+  } else if (screen === "deceased") {
+    if (record?.form !== "deceased") {
+      writeForm(deps, view.case.id, "deceased", null, { ...deceasedValues(view.case.deceased) });
+    }
+  } else if (screen === "heirs") {
+    if (record?.form !== "heir" || record.heirId !== view.editingHeir) {
+      const heir = view.case.heirs.find((item) => item.id === view.editingHeir);
+      const parked = formFor(deps.forms.get(), view.case.id)?.parked;
+      writeParked(
+        deps,
+        view.case.id,
+        "heir",
+        view.editingHeir,
+        view.editingHeir === null ? { ...BLANK_HEIR, ...(parked ?? {}) } : { ...heirValues(heir) },
+        view.editingHeir === null ? undefined : parked,
+      );
+    }
   }
   return view;
 }
 
-/** A page load or resume goes straight to the selector while one is in progress for the case. */
+function inProgress(deps: Deps, caseId: string): boolean {
+  return selectionFor(deps.selection.get(), caseId) !== null || formFor(deps.forms.get(), caseId) !== null;
+}
+
+/** A page load or resume goes straight on to what is in progress for the case. */
 function startedFor(found: Case, resumed: boolean, deps: Deps): StartedView {
-  const inProgress = selectionFor(deps.selection.get(), found.id) !== null;
-  return settle(started(found, resumed, inProgress), deps);
+  const changing = selectionFor(deps.selection.get(), found.id) !== null;
+  const record = formFor(deps.forms.get(), found.id);
+  const view = started(found, resumed, changing);
+  if (record?.form === "deceased" && found.deceased) view.editingDeceased = true;
+  if (record?.form === "heir" && record.heirId && found.heirs.some((heir) => heir.id === record.heirId)) {
+    view.editingHeir = record.heirId;
+  }
+  return settle(view, deps);
+}
+
+export type Answer =
+  | { kind: "saveDeceased"; from: StartedView; values: DeceasedValues }
+  | { kind: "addHeir"; from: StartedView; values: HeirValues }
+  | { kind: "saveHeir"; from: StartedView; heirId: string; values: HeirValues }
+  | { kind: "removeHeir"; from: StartedView; heirId: string };
+
+function formOf(answer: Answer): FormName {
+  return answer.kind === "saveDeceased" ? "deceased" : "heir";
+}
+
+function invalidView(from: StartedView, form: FormName, errors: Errors): StartedView {
+  return {
+    ...from,
+    notice: null,
+    saving: false,
+    errors,
+    focus: nextFocus(from, (firstInvalid(form, errors) ?? "form-error") as FocusTarget),
+  };
+}
+
+/**
+ * The client's own check before anything is sent: the view to show when an answer breaks a
+ * rule (focus on the first invalid field), or null when it can go to the server.
+ */
+export function precheck(answer: Answer): StartedView | null {
+  if (answer.kind === "removeHeir") return null;
+  if (answer.kind === "saveDeceased") {
+    const { errors } = validateDeceased(answer.values);
+    return Object.keys(errors).length > 0 ? invalidView(answer.from, "deceased", errors) : null;
+  }
+  const { errors } = validateHeir(answer.values);
+  if (answer.kind === "addHeir" && heirLimitReached(answer.from.case.heirs)) errors.heirs = "limit";
+  return Object.keys(errors).length > 0 ? invalidView(answer.from, "heir", errors) : null;
 }
 
 /**
  * Runs one action and settles on a view; it never throws. It makes one attempt per call,
  * except that a load which finds no case and nothing seen before reads once, then starts once.
  * `existing` is the case the visitor currently has on screen, if any. A choose needs the
- * `choice`: the school and the started view it was made from.
+ * `choice`: the school and the started view it was made from. An answer action needs the
+ * `answer`.
  */
 export async function runAction(
   action: Action,
@@ -129,10 +462,15 @@ export async function runAction(
   deps: Deps,
   existing: Case | null = null,
   choice?: { madhab: MadhabId; from: StartedView },
+  answer?: Answer,
 ): Promise<View> {
   if (action === "choose") {
     if (!choice) return { name: "failed", retry: "load", resumable: existing };
     return choose(choice.madhab, choice.from, signal, deps);
+  }
+  if (action === "saveDeceased" || action === "addHeir" || action === "saveHeir" || action === "removeHeir") {
+    if (!answer || answer.kind !== action) return { name: "failed", retry: "load", resumable: existing };
+    return save(answer, signal, deps);
   }
 
   if (action === "load" || action === "resume") {
@@ -145,8 +483,8 @@ export async function runAction(
     if (found) {
       deps.seen.set(true);
       if (action === "resume") return startedFor(found, true, deps);
-      // A selection in progress in this tab continues without the resume prompt.
-      return selectionFor(deps.selection.get(), found.id)
+      // A selection or form in progress in this tab continues without the resume prompt.
+      return inProgress(deps, found.id)
         ? startedFor(found, found.madhab !== null, deps)
         : { name: "existing", case: found };
     }
@@ -154,17 +492,23 @@ export async function runAction(
     const expired = deps.seen.get();
     if (expired) deps.seen.set(false);
     deps.selection.set(null);
+    deps.forms.set(null);
     // Arriving from "start a case" with nothing yet: go straight on to start one. An
     // expired case waits for the visitor's choice, and a resume never starts anything.
     if (expired || action === "resume") return { name: "none", expired };
     action = "start";
   }
 
-  const result = await deps.startCase(signal, { replace: action === "startOver" });
+  const replacing = action === "startOver";
+  const result = await deps.startCase(signal, {
+    replace: replacing,
+    ...(replacing && existing ? { caseId: existing.id } : {}),
+  });
   switch (result.kind) {
     case "started":
       deps.seen.set(true);
       deps.selection.set(null);
+      deps.forms.set(null);
       return settle(started(result.case, false), deps);
     case "exists":
       deps.seen.set(true);
@@ -191,17 +535,171 @@ async function choose(
   switch (result.kind) {
     case "updated":
       deps.selection.set(null);
-      return { ...started(result.case, from.resumed), changing: false };
+      // The answers are kept, and so is the screen the visitor came from.
+      return settle(
+        {
+          ...started(result.case, from.resumed),
+          editingDeceased: from.editingDeceased,
+          editingHeir: from.editingHeir,
+          announcement: from.announcement,
+          focus: from.focus,
+        },
+        deps,
+      );
     case "gone": {
       deps.selection.set(null);
+      deps.forms.set(null);
       deps.seen.set(false);
       return { name: "none", expired: true };
     }
     case "replaced":
       deps.selection.set(null);
+      deps.forms.set(null);
       deps.seen.set(true);
       return { name: "existing", case: result.case };
     default:
       return { ...from, notice: result.kind, saving: false };
+  }
+}
+
+function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerResult> {
+  const caseId = answer.from.case.id;
+  switch (answer.kind) {
+    case "saveDeceased":
+      return deps.saveDeceased(signal, caseId, validateDeceased(answer.values).fields as DeceasedFields);
+    case "addHeir":
+      return deps.addHeir(signal, caseId, validateHeir(answer.values).fields as HeirFields);
+    case "saveHeir":
+      return deps.updateHeir(signal, caseId, answer.heirId, validateHeir(answer.values).fields as HeirFields);
+    case "removeHeir":
+      return deps.removeHeir(signal, caseId, answer.heirId);
+  }
+}
+
+function announce(
+  from: StartedView,
+  kind: Announcement["kind"],
+  heirs: readonly Heir[],
+  heirId: string,
+): Announcement | null {
+  const heir = heirs.find((item) => item.id === heirId);
+  if (!heir) return from.announcement;
+  return {
+    kind,
+    heir: { name: heir.name, relationship: heir.relationship },
+    ordinal: unnamedOrdinal(heirs, heirId),
+    seq: (from.announcement?.seq ?? 0) + 1,
+  };
+}
+
+/** The view after the server stored an answer. */
+function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
+  const from = answer.from;
+  const base = { ...started(kase, from.resumed), formEpoch: from.formEpoch };
+  switch (answer.kind) {
+    case "saveDeceased":
+      return settle({ ...base, announcement: from.announcement, focus: from.focus }, deps);
+    case "addHeir": {
+      resetHeirForm(deps, kase.id);
+      return {
+        ...base,
+        formEpoch: from.formEpoch + 1,
+        announcement: announce(from, "added", kase.heirs, kase.heirs[kase.heirs.length - 1]?.id ?? ""),
+        focus: nextFocus(from, "relationship"),
+      };
+    }
+    case "saveHeir": {
+      restoreHeirForm(deps, kase.id);
+      return {
+        ...base,
+        formEpoch: from.formEpoch + 1,
+        announcement: announce(from, "updated", kase.heirs, answer.heirId),
+        focus: nextFocus(from, `editHeir:${answer.heirId}`),
+      };
+    }
+    case "removeHeir": {
+      // Removing the heir being edited ends the edit; removing another leaves the form alone.
+      const wasEditing = from.editingHeir === answer.heirId;
+      if (wasEditing) restoreHeirForm(deps, kase.id);
+      return settle(
+        {
+          ...base,
+          formEpoch: wasEditing ? from.formEpoch + 1 : from.formEpoch,
+          editingHeir: wasEditing ? null : from.editingHeir,
+          announcement: announce(from, "removed", from.case.heirs, answer.heirId),
+          focus: nextFocus(from, "list"),
+        },
+        deps,
+      );
+    }
+  }
+}
+
+/**
+ * After an add that may have been stored although the answer never came, one best-effort
+ * read shows the visitor whether it was. It is a read: the write still happened once. Any
+ * failure of the read changes nothing.
+ */
+async function refreshed(from: StartedView, signal: AbortSignal, deps: Deps): Promise<Case> {
+  try {
+    const live = await deps.fetchCase(signal);
+    return live && live.id === from.case.id ? live : from.case;
+  } catch {
+    return from.case;
+  }
+}
+
+async function save(answer: Answer, signal: AbortSignal, deps: Deps): Promise<View> {
+  const blocked = precheck(answer);
+  if (blocked) return blocked;
+  const from = answer.from;
+  const result = await send(answer, signal, deps);
+  switch (result.kind) {
+    case "saved":
+      return saved(answer, result.case, deps);
+    case "invalid":
+      return invalidView(from, formOf(answer), result.errors);
+    case "gone":
+      deps.selection.set(null);
+      deps.forms.set(null);
+      deps.seen.set(false);
+      return { name: "none", expired: true };
+    case "replaced":
+      deps.selection.set(null);
+      deps.forms.set(null);
+      deps.seen.set(true);
+      return { name: "existing", case: result.case };
+    case "missing": {
+      // The heir is gone: show the list as it is now, and tell the visitor.
+      const stillThere = result.case.heirs.some((heir) => heir.id === from.editingHeir);
+      const endsEdit = from.editingHeir !== null && !stillThere;
+      if (endsEdit) restoreHeirForm(deps, result.case.id);
+      return settle(
+        {
+          ...started(result.case, from.resumed),
+          editingDeceased: from.editingDeceased,
+          editingHeir: stillThere ? from.editingHeir : null,
+          formEpoch: endsEdit ? from.formEpoch + 1 : from.formEpoch,
+          announcement: from.announcement,
+          focus: nextFocus(from, "list"),
+          notice: "heirGone",
+        },
+        deps,
+      );
+    }
+    default: {
+      // A lost answer to an add may hide a stored heir, so look once; the input stays.
+      const fresh = answer.kind === "addHeir" && result.kind === "failed" ? await refreshed(from, signal, deps) : from.case;
+      return {
+        ...from,
+        case: fresh,
+        notice: result.kind,
+        // The errors pendingView cleared are not brought back by a failed save.
+        errors: null,
+        saving: false,
+        // A failed removal puts focus back on the row button, which the question replaced.
+        focus: answer.kind === "removeHeir" ? nextFocus(from, `remove:${answer.heirId}`) : from.focus,
+      };
+    }
   }
 }

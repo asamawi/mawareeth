@@ -84,7 +84,7 @@ test("the default notice shows only with nothing stored and nothing picked", () 
 });
 
 test("the initial pick comes from this case's record only", () => {
-  const kase = { id: "c1", started_at: "t", madhab: null };
+  const kase = { id: "c1", started_at: "t", madhab: null, deceased: null, heirs: [] };
   assert.equal(initialPick({ caseId: "c1", madhab: "jafari" }, kase), "jafari");
   assert.equal(initialPick({ caseId: "c1", madhab: null }, kase), null);
   assert.equal(initialPick({ caseId: "other", madhab: "jafari" }, kase), null);

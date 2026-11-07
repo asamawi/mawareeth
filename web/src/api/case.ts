@@ -9,12 +9,85 @@ export function isMadhabId(value: unknown): value is MadhabId {
   return typeof value === "string" && (MADHAB_IDS as readonly string[]).includes(value);
 }
 
+/** In display order. The server accepts exactly these, for every school. */
+export const RELATIONSHIP_IDS = [
+  "father",
+  "mother",
+  "husband",
+  "wife",
+  "son",
+  "daughter",
+  "son_of_son",
+  "daughter_of_son",
+  "grandfather",
+  "grandmother",
+  "brother",
+  "sister",
+  "paternal_brother",
+  "paternal_sister",
+  "maternal_brother",
+  "maternal_sister",
+  "son_of_brother",
+  "son_of_paternal_brother",
+  "uncle",
+  "paternal_uncle",
+  "son_of_uncle",
+  "son_of_paternal_uncle",
+] as const;
+
+export type RelationshipId = (typeof RELATIONSHIP_IDS)[number];
+
+export function isRelationshipId(value: unknown): value is RelationshipId {
+  return typeof value === "string" && (RELATIONSHIP_IDS as readonly string[]).includes(value);
+}
+
+export type Gender = "male" | "female";
+
+export function isGender(value: unknown): value is Gender {
+  return value === "male" || value === "female";
+}
+
+/** At most this many heirs per case; the server enforces it too. */
+export const MAX_HEIRS = 50;
+
+export type Deceased = {
+  gender: Gender;
+  /** The whole estate as a decimal string with no currency, or null when left out. */
+  estate: string | null;
+};
+
+export type Heir = {
+  id: string;
+  relationship: RelationshipId;
+  /** Derived from the relationship by the server. */
+  gender: Gender;
+  name: string | null;
+};
+
 export type Case = {
   id: string;
   started_at: string;
   /** Null until the visitor continues from the selector. */
   madhab: MadhabId | null;
+  deceased: Deceased | null;
+  heirs: Heir[];
 };
+
+/** A field name to the code of its broken rule. */
+export type FieldErrorCodes = Record<string, string>;
+
+export type AnswerResult =
+  | { kind: "saved"; case: Case }
+  /** The server refused the input; nothing was stored. */
+  | { kind: "invalid"; errors: FieldErrorCodes }
+  /** There is no live case any more. */
+  | { kind: "gone" }
+  /** The case this tab meant was replaced; `case` is the live one. */
+  | { kind: "replaced"; case: Case }
+  /** The heir no longer exists; `case` is the live case. */
+  | { kind: "missing"; case: Case }
+  | { kind: "throttled" }
+  | { kind: "failed" };
 
 export type MadhabResult =
   | { kind: "updated"; case: Case }
@@ -36,7 +109,13 @@ export const CASE_TIMEOUT_MS = 10_000;
 
 const CASE_URL = "/api/v1/case/";
 
-type CaseBody = { id: string; started_at: string; madhab?: unknown };
+type CaseBody = {
+  id: string;
+  started_at: string;
+  madhab?: unknown;
+  deceased?: unknown;
+  heirs?: unknown;
+};
 
 function isCaseBody(value: unknown): value is CaseBody {
   return (
@@ -47,16 +126,41 @@ function isCaseBody(value: unknown): value is CaseBody {
   );
 }
 
+const STORED_ESTATE = /^(0|[1-9][0-9]{0,14})(\.[0-9]{1,2})?$/;
+
+function parseDeceased(value: unknown): Deceased | null {
+  if (typeof value !== "object" || value === null) return null;
+  const { gender, estate } = value as { gender?: unknown; estate?: unknown };
+  if (!isGender(gender)) return null;
+  // An estate that is not a stored amount (which the server writes without leading zeros)
+  // reads as none, so it can never reach the display as "NaN".
+  return { gender, estate: typeof estate === "string" && STORED_ESTATE.test(estate) ? estate : null };
+}
+
+function parseHeirs(value: unknown): Heir[] {
+  if (!Array.isArray(value)) return [];
+  const heirs: Heir[] = [];
+  for (const item of value as unknown[]) {
+    if (typeof item !== "object" || item === null) continue;
+    const { id, relationship, gender, name } = item as Record<string, unknown>;
+    if (typeof id !== "string" || !isRelationshipId(relationship) || !isGender(gender)) continue;
+    heirs.push({ id, relationship, gender, name: typeof name === "string" ? name : null });
+  }
+  return heirs;
+}
+
 function parseCase(body: unknown): Case | null {
   const value =
     typeof body === "object" && body !== null ? (body as { case?: unknown }).case : undefined;
   if (value === null) return null;
   if (!isCaseBody(value)) throw new Error("Case endpoint returned an unexpected body");
-  // A missing or unknown madhab (an older shape) reads as none chosen.
+  // A missing or unknown madhab, deceased or heirs (an older shape) reads as none.
   return {
     id: value.id,
     started_at: value.started_at,
     madhab: isMadhabId(value.madhab) ? value.madhab : null,
+    deceased: parseDeceased(value.deceased),
+    heirs: parseHeirs(value.heirs),
   };
 }
 
@@ -103,7 +207,7 @@ type WriteOptions = { timeoutMs?: number; cookie?: () => string };
 async function write<T>(
   signal: AbortSignal,
   options: WriteOptions,
-  init: { method: string; body: string },
+  init: { method: string; body?: string; url?: string },
   handle: (response: Response) => Promise<T | null>,
 ): Promise<T | null> {
   const controller = new AbortController();
@@ -119,7 +223,7 @@ async function write<T>(
     }
     if (!token) return null;
 
-    const response = await fetch(CASE_URL, {
+    const response = await fetch(init.url ?? CASE_URL, {
       method: init.method,
       credentials: "same-origin",
       headers: {
@@ -141,12 +245,16 @@ async function write<T>(
 
 export async function startCase(
   signal: AbortSignal,
-  options: WriteOptions & { replace?: boolean } = {},
+  /** `caseId` is the case the visitor is replacing: the server refuses when another is live. */
+  options: WriteOptions & { replace?: boolean; caseId?: string } = {},
 ): Promise<StartResult> {
   const result = await write<StartResult>(
     signal,
     options,
-    { method: "POST", body: JSON.stringify(options.replace ? { replace: true } : {}) },
+    { method: "POST", body: JSON.stringify(
+        options.replace ? { replace: true, ...(options.caseId ? { case_id: options.caseId } : {}) } : {},
+      ),
+    },
     async (response) => {
       if (response.status === 429) return { kind: "throttled" };
       if (response.status === 409) {
@@ -186,4 +294,97 @@ export async function setMadhab(
     },
   );
   return result ?? { kind: "failed" };
+}
+
+function parseErrors(body: unknown): FieldErrorCodes | null {
+  const errors =
+    typeof body === "object" && body !== null ? (body as { errors?: unknown }).errors : undefined;
+  if (typeof errors !== "object" || errors === null || Array.isArray(errors)) return null;
+  const codes: FieldErrorCodes = {};
+  for (const [field, code] of Object.entries(errors)) {
+    if (typeof code === "string") codes[field] = code;
+  }
+  return Object.keys(codes).length > 0 ? codes : null;
+}
+
+/** One write to the interview answers; every one needs the case id it was made for. */
+async function answer(
+  signal: AbortSignal,
+  options: WriteOptions,
+  method: string,
+  url: string,
+  caseId: string,
+  /** Null for a write with no body: a DELETE carries the case id in the URL instead. */
+  fields: Record<string, unknown> | null,
+): Promise<AnswerResult> {
+  const result = await write<AnswerResult>(
+    signal,
+    options,
+    { method, url, body: fields ? JSON.stringify({ ...fields, case_id: caseId }) : undefined },
+    async (response) => {
+      if (response.status === 429) return { kind: "throttled" };
+      if (response.status === 400) {
+        const errors = parseErrors(await response.json());
+        return errors ? { kind: "invalid", errors } : null;
+      }
+      if (response.status === 404) {
+        const live = parseCase(await response.json());
+        return live ? { kind: "missing", case: live } : { kind: "gone" };
+      }
+      if (response.status === 409) {
+        const live = parseCase(await response.json());
+        return live ? { kind: "replaced", case: live } : null;
+      }
+      if (!response.ok) return null;
+      const saved = parseCase(await response.json());
+      return saved ? { kind: "saved", case: saved } : null;
+    },
+  );
+  return result ?? { kind: "failed" };
+}
+
+export type DeceasedFields = { gender: Gender; estate: string | null };
+export type HeirFields = { relationship: RelationshipId; name: string | null };
+
+const DECEASED_URL = "/api/v1/case/deceased/";
+const HEIRS_URL = "/api/v1/case/heirs/";
+
+/** Stores the deceased, replacing the earlier one. One attempt; never throws. */
+export function saveDeceased(
+  signal: AbortSignal,
+  caseId: string,
+  fields: DeceasedFields,
+  options: WriteOptions = {},
+): Promise<AnswerResult> {
+  return answer(signal, options, "PUT", DECEASED_URL, caseId, fields);
+}
+
+export function addHeir(
+  signal: AbortSignal,
+  caseId: string,
+  fields: HeirFields,
+  options: WriteOptions = {},
+): Promise<AnswerResult> {
+  return answer(signal, options, "POST", HEIRS_URL, caseId, fields);
+}
+
+export function updateHeir(
+  signal: AbortSignal,
+  caseId: string,
+  heirId: string,
+  fields: HeirFields,
+  options: WriteOptions = {},
+): Promise<AnswerResult> {
+  return answer(signal, options, "PUT", `${HEIRS_URL}${encodeURIComponent(heirId)}/`, caseId, fields);
+}
+
+export function removeHeir(
+  signal: AbortSignal,
+  caseId: string,
+  heirId: string,
+  options: WriteOptions = {},
+): Promise<AnswerResult> {
+  // Intermediaries may drop a DELETE body, so the case id is in the query string.
+  const url = `${HEIRS_URL}${encodeURIComponent(heirId)}/?case_id=${encodeURIComponent(caseId)}`;
+  return answer(signal, options, "DELETE", url, caseId, null);
 }

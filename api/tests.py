@@ -1,4 +1,9 @@
+import json
+import logging
+import traceback
 from datetime import timedelta
+from pathlib import Path
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core.cache import cache
@@ -22,6 +27,7 @@ from calc.models import Calculation, Person
 
 
 SESSION_URL = '/api/v1/session/'
+CONTRACT = json.loads((Path(__file__).parent / 'contracts' / 'interview.json').read_text(encoding='utf-8'))
 
 
 class GuardedView(ApiView):
@@ -180,7 +186,7 @@ class CaseTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         case = response.json()['case']
-        self.assertEqual(set(case), {'id', 'started_at', 'madhab'})
+        self.assertEqual(set(case), {'id', 'started_at', 'madhab', 'deceased', 'heirs'})
         self.assertIsNone(case['madhab'])
         self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
         self.assertEqual(self.client.get(CASE_URL, secure=True).json(), {'case': case})
@@ -269,7 +275,7 @@ class CaseTests(TestCase):
         self.assertGreater(self.remaining(), 10 * 24 * 3600)
 
     def test_write_limit_returns_json_429_and_reads_still_work(self):
-        for _ in range(30):
+        for _ in range(120):
             self.assertEqual(self.post({'replace': True}).status_code, 201)
 
         response = self.post({'replace': True})
@@ -280,7 +286,7 @@ class CaseTests(TestCase):
 
     def test_spoofed_forwarded_for_does_not_dodge_the_limit(self):
         # Behind Cloudflare the trusted tail is "client, cloudflare"; anything before is spoofable.
-        for n in range(30):
+        for n in range(120):
             response = self.post({'replace': True}, forwarded=f'spoof-{n}, 203.0.113.9, 172.70.0.1')
             self.assertEqual(response.status_code, 201)
 
@@ -289,7 +295,7 @@ class CaseTests(TestCase):
         self.assertEqual(response.status_code, 429)
 
     def test_different_clients_have_separate_limits(self):
-        for _ in range(30):
+        for _ in range(120):
             self.post({'replace': True}, forwarded='203.0.113.9, 172.70.0.1')
 
         other = self.post({'replace': True}, forwarded='203.0.113.10, 172.70.0.1')
@@ -382,7 +388,7 @@ class CaseTests(TestCase):
 
     def test_choosing_shares_the_write_limit(self):
         self.post()
-        for _ in range(29):
+        for _ in range(119):
             self.assertEqual(self.patch({'madhab': 'hanafi'}).status_code, 200)
 
         response = self.patch({'madhab': 'maliki'})
@@ -465,7 +471,7 @@ class CaseTests(TestCase):
         self.assertFalse(cookie['httponly'])
 
     def test_rejected_posts_do_not_use_up_the_quota(self):
-        for _ in range(31):
+        for _ in range(121):
             response = self.client.post(CASE_URL, {}, format='json', secure=True)
             self.assertEqual(response.status_code, 403)
             self.assertEqual(response['Content-Type'], 'application/json')
@@ -473,7 +479,7 @@ class CaseTests(TestCase):
         self.assertEqual(self.post().status_code, 201)
 
     def test_ipv6_clients_share_a_limit_per_64(self):
-        for n in range(30):
+        for n in range(120):
             self.post({'replace': True}, forwarded=f'2001:db8:1:2::{n + 1}, 172.70.0.1')
 
         same_prefix = self.post({'replace': True}, forwarded='2001:db8:1:2:ffff::9, 172.70.0.1')
@@ -511,3 +517,711 @@ class CaseTests(TestCase):
         self.assertTrue(self.client.login(username='plain-user', password='pw-for-test-only'))
 
         self.assertLess(self.remaining(), 3700)
+
+
+DECEASED_URL = '/api/v1/case/deceased/'
+HEIRS_URL = '/api/v1/case/heirs/'
+
+
+class InterviewBase(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient(enforce_csrf_checks=True)
+
+    def csrf(self, client):
+        token = client.get(SESSION_URL, secure=True).cookies[settings.CSRF_COOKIE_NAME].value
+        return {'X-CSRFToken': token, 'Referer': 'https://testserver/app/en/interview/'}
+
+    def send(self, method, url, body, client=None):
+        client = client or self.client
+        if method == 'delete':
+            # DELETE carries the case id in the query string; a body may be dropped on the way.
+            query = urlencode({k: v for k, v in body.items() if v is not None}) if isinstance(body, dict) else ''
+            return client.delete(
+                f'{url}?{query}' if query else url, secure=True, headers=self.csrf(client))
+        return getattr(client, method)(url, body, format='json', secure=True, headers=self.csrf(client))
+
+    def start(self, client=None):
+        client = client or self.client
+        return self.send('post', CASE_URL, {}, client).json()['case']
+
+    def deceased(self, case, gender='male', estate=None, **extra):
+        body = {'case_id': case['id'], 'gender': gender, **extra}
+        if estate is not None:
+            body['estate'] = estate
+        return self.send('put', DECEASED_URL, body)
+
+    def heir(self, case, relationship='son', **extra):
+        return self.send('post', HEIRS_URL, {'case_id': case['id'], 'relationship': relationship, **extra})
+
+    def ready(self):
+        case = self.start()
+        self.assertEqual(self.deceased(case).status_code, 200)
+        return case
+
+    def stored(self):
+        return Session.objects.get().get_decoded()[anonymous_case.SESSION_KEY]
+
+    def live(self):
+        return self.client.get(CASE_URL, secure=True).json()['case']
+
+    def remaining(self):
+        return (Session.objects.get().expire_date - timezone.now()).total_seconds()
+
+
+
+class InterviewAnswerTests(InterviewBase):
+    # Deceased
+
+    def test_a_new_case_has_no_answers(self):
+        case = self.start()
+
+        self.assertIsNone(case['deceased'])
+        self.assertEqual(case['heirs'], [])
+
+    def test_save_deceased_with_and_without_an_estate(self):
+        case = self.start()
+
+        response = self.deceased(case, 'female', '1250000.50')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['case']['deceased'], {'gender': 'female', 'estate': '1250000.50'})
+        again = self.deceased(case, 'male')
+        self.assertEqual(again.json()['case']['deceased'], {'gender': 'male', 'estate': None})
+        self.assertEqual(self.live()['deceased'], {'gender': 'male', 'estate': None})
+        self.assertEqual(Calculation.objects.count(), 0)
+        self.assertEqual(Person.objects.count(), 0)
+
+    def test_estate_accepts_eastern_arabic_digits_and_stores_ascii(self):
+        case = self.start()
+
+        response = self.deceased(case, 'male', '١٢٣٤٫٥')
+
+        self.assertEqual(response.json()['case']['deceased']['estate'], '1234.5')
+
+    def test_estate_limits(self):
+        case = self.start()
+        for estate in ('1', '0.01', '999999999999999', '999999999999999.99', '  12  '):
+            with self.subTest(estate=estate):
+                self.assertEqual(self.deceased(case, estate=estate).status_code, 200)
+        self.assertEqual(self.send('put', DECEASED_URL, {'case_id': case['id'], 'gender': 'male', 'estate': ''}).status_code, 200)
+        self.assertIsNone(self.live()['deceased']['estate'])
+        self.deceased(case, 'female', '5')
+        bad = {
+            '0': 'not_positive', '0.00': 'not_positive', '-5': 'invalid', '1.234': 'decimals',
+            '1000000000000000': 'too_large', 'abc': 'invalid', '1e5': 'invalid', '1,000': 'invalid',
+            '.5': 'invalid', '5.': 'invalid',
+        }
+        for estate, code in bad.items():
+            with self.subTest(estate=estate):
+                response = self.deceased(case, 'male', estate)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response['Content-Type'], 'application/json')
+                self.assertEqual(response.json()['errors'], {'estate': code})
+        for estate in (5, 1.5, True, ['5'], {'a': 1}):
+            with self.subTest(estate=estate):
+                response = self.send('put', DECEASED_URL, {'case_id': case['id'], 'gender': 'male', 'estate': estate})
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()['errors'], {'estate': 'invalid'})
+        self.assertEqual(self.live()['deceased'], {'gender': 'female', 'estate': '5'})
+
+    def test_bad_deceased_gender_is_a_field_error_and_stores_nothing(self):
+        case = self.start()
+        for body, code in (
+            ({}, 'required'), ({'gender': ''}, 'required'), ({'gender': 'other'}, 'invalid'),
+            ({'gender': 'Male'}, 'invalid'), ({'gender': 1}, 'invalid'), ({'gender': ['male']}, 'invalid'),
+        ):
+            with self.subTest(body=body):
+                response = self.send('put', DECEASED_URL, {'case_id': case['id'], **body})
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()['errors'], {'gender': code})
+        self.assertIsNone(self.live()['deceased'])
+
+    def test_every_field_error_is_reported_together(self):
+        case = self.start()
+
+        response = self.send('put', DECEASED_URL, {'case_id': case['id'], 'estate': '0'})
+
+        self.assertEqual(response.json()['errors'], {'gender': 'required', 'estate': 'not_positive'})
+
+    def test_saving_the_deceased_keeps_the_heirs(self):
+        case = self.ready()
+        self.heir(case)
+
+        response = self.deceased(case, 'female')
+
+        self.assertEqual(len(response.json()['case']['heirs']), 1)
+
+    # Heirs
+
+    def test_add_heir_derives_the_gender_and_keeps_order(self):
+        case = self.ready()
+
+        first = self.heir(case, 'daughter', name='  Amal  ')
+        second = self.heir(case, 'father')
+
+        self.assertEqual(first.status_code, 201)
+        heirs = second.json()['case']['heirs']
+        self.assertEqual([h['relationship'] for h in heirs], ['daughter', 'father'])
+        self.assertEqual([h['gender'] for h in heirs], ['female', 'male'])
+        self.assertEqual([h['name'] for h in heirs], ['Amal', None])
+        self.assertEqual(len({h['id'] for h in heirs}), 2)
+        self.assertEqual(set(heirs[0]), {'id', 'relationship', 'gender', 'name'})
+        self.assertEqual(self.live()['heirs'], heirs)
+
+    def test_every_relationship_is_accepted_with_the_gender_in_the_contract(self):
+        case = self.ready()
+        self.assertEqual(len(CONTRACT['relationships']), 22)
+        for index, expected in enumerate(CONTRACT['relationships']):
+            with self.subTest(relationship=expected['id']):
+                response = self.heir(case, expected['id'])
+                self.assertEqual(response.status_code, 201)
+                heir = response.json()['case']['heirs'][index]
+                self.assertEqual((heir['relationship'], heir['gender']), (expected['id'], expected['gender']))
+
+    def test_the_relationships_match_the_shared_contract(self):
+        self.assertEqual(
+            anonymous_case.RELATIONSHIPS,
+            {item['id']: item['gender'] for item in CONTRACT['relationships']})
+        self.assertEqual(list(anonymous_case.RELATIONSHIPS), [item['id'] for item in CONTRACT['relationships']])
+
+    def test_every_error_code_the_server_emits_is_in_the_shared_contract(self):
+        case = self.ready()
+        self.heir(case)
+        bodies = [
+            (DECEASED_URL, 'put', {}), (DECEASED_URL, 'put', {'gender': 'x', 'estate': 5}),
+            *[(DECEASED_URL, 'put', {'gender': 'male', 'estate': e})
+              for e in ('0', '1.234', 'x', '1' + '0' * 15, '1,234')],
+            (HEIRS_URL, 'post', {}), (HEIRS_URL, 'post', {'relationship': 'x', 'name': 5}),
+            (HEIRS_URL, 'post', {'relationship': 'son', 'name': 'x' * 101}),
+        ]
+        seen = {}
+        for url, method, body in bodies:
+            response = self.send(method, url, {'case_id': case['id'], **body})
+            self.assertEqual(response.status_code, 400)
+            for field, code in response.json()['errors'].items():
+                seen.setdefault(field, set()).add(code)
+        for _ in range(anonymous_case.MAX_HEIRS):
+            self.heir(case)
+        for field, code in self.heir(case).json()['errors'].items():
+            seen.setdefault(field, set()).add(code)
+        fresh = self.start()
+        for field, code in self.heir(fresh).json()['errors'].items():
+            seen.setdefault(field, set()).add(code)
+        for field, codes in seen.items():
+            self.assertLessEqual(codes, set(CONTRACT['errorCodes'][field]), field)
+        self.assertGreaterEqual({'gender', 'estate', 'relationship', 'name', 'heirs', 'case'}, set(seen))
+
+    def test_a_client_supplied_gender_or_id_is_ignored(self):
+        case = self.ready()
+
+        response = self.heir(case, 'son', gender='female', id='mine')
+
+        heir = response.json()['case']['heirs'][0]
+        self.assertEqual(heir['gender'], 'male')
+        self.assertNotEqual(heir['id'], 'mine')
+
+    def test_heir_before_deceased_is_refused(self):
+        case = self.start()
+
+        response = self.heir(case)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('case', response.json()['errors'])
+        self.assertEqual(self.live()['heirs'], [])
+
+    def test_bad_heir_fields_are_field_errors_and_store_nothing(self):
+        case = self.ready()
+        bodies = [
+            ({}, {'relationship': 'required'}),
+            ({'relationship': 'cousin'}, {'relationship': 'invalid'}),
+            ({'relationship': 'Son'}, {'relationship': 'invalid'}),
+            ({'relationship': 5}, {'relationship': 'invalid'}),
+            ({'relationship': 'son', 'name': 5}, {'name': 'invalid'}),
+            ({'relationship': 'son', 'name': ['a']}, {'name': 'invalid'}),
+            ({'relationship': 'son', 'name': 'x' * 101}, {'name': 'too_long'}),
+            ({'relationship': 'son', 'name': 'bad\x00name'}, {'name': 'invalid'}),
+            ({'relationship': 'son', 'name': 'bad\nname'}, {'name': 'invalid'}),
+            ({'relationship': 'son', 'name': 'bad name'}, {'name': 'invalid'}),
+            ({'name': 'x' * 101}, {'relationship': 'required', 'name': 'too_long'}),
+        ]
+        for body, errors in bodies:
+            with self.subTest(body=body):
+                response = self.send('post', HEIRS_URL, {'case_id': case['id'], **body})
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response['Content-Type'], 'application/json')
+                self.assertEqual(response.json()['errors'], errors)
+        self.assertEqual(self.live()['heirs'], [])
+
+    def test_name_limits(self):
+        case = self.ready()
+
+        for name in ('x' * 100, '  ', '', None, 'محمد'):
+            with self.subTest(name=name):
+                self.assertEqual(self.heir(case, name=name).status_code, 201)
+        names = [h['name'] for h in self.live()['heirs']]
+        self.assertEqual(names, ['x' * 100, None, None, None, 'محمد'])
+
+    def test_the_51st_heir_is_refused(self):
+        case = self.ready()
+        for _ in range(anonymous_case.MAX_HEIRS):
+            self.assertEqual(self.heir(case).status_code, 201)
+
+        response = self.heir(case)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('heirs', response.json()['errors'])
+        self.assertEqual(len(self.live()['heirs']), 50)
+
+    def test_edit_heir_keeps_id_and_place_and_derives_gender_again(self):
+        case = self.ready()
+        self.heir(case, 'son', name='A')
+        heirs = self.heir(case, 'father').json()['case']['heirs']
+
+        response = self.send(
+            'put', f'{HEIRS_URL}{heirs[0]["id"]}/', {'case_id': case['id'], 'relationship': 'daughter'})
+
+        self.assertEqual(response.status_code, 200)
+        edited = response.json()['case']['heirs']
+        self.assertEqual(
+            edited[0], {'id': heirs[0]['id'], 'relationship': 'daughter', 'gender': 'female', 'name': None})
+        self.assertEqual(edited[1], heirs[1])
+
+    def test_bad_edit_stores_nothing(self):
+        case = self.ready()
+        heirs = self.heir(case, 'son', name='A').json()['case']['heirs']
+
+        response = self.send(
+            'put', f'{HEIRS_URL}{heirs[0]["id"]}/', {'case_id': case['id'], 'relationship': 'nope'})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.live()['heirs'], heirs)
+
+    def test_remove_heir(self):
+        case = self.ready()
+        self.heir(case, 'son')
+        heirs = self.heir(case, 'father').json()['case']['heirs']
+
+        response = self.send('delete', f'{HEIRS_URL}{heirs[0]["id"]}/', {'case_id': case['id']})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['case']['heirs'], [heirs[1]])
+        self.assertEqual(self.live()['heirs'], [heirs[1]])
+
+    def test_unknown_heir_is_a_404_with_the_live_case(self):
+        case = self.ready()
+        self.heir(case)
+        live = self.live()
+
+        for method, body in (
+            ('put', {'case_id': case['id'], 'relationship': 'son'}),
+            ('delete', {'case_id': case['id']}),
+        ):
+            with self.subTest(method=method):
+                response = self.send(method, f'{HEIRS_URL}missing/', body)
+                self.assertEqual(response.status_code, 404)
+                self.assertEqual(response['Content-Type'], 'application/json')
+                self.assertEqual(response.json()['case'], live)
+
+    # Case checks shared by every new write
+
+    def writes(self, case):
+        heir = 'x' * 32
+        return [
+            ('put', DECEASED_URL, {'case_id': case['id'], 'gender': 'male'}),
+            ('post', HEIRS_URL, {'case_id': case['id'], 'relationship': 'son'}),
+            ('put', f'{HEIRS_URL}{heir}/', {'case_id': case['id'], 'relationship': 'son'}),
+            ('delete', f'{HEIRS_URL}{heir}/', {'case_id': case['id']}),
+        ]
+
+    def test_no_live_case_is_a_404_with_null_case_and_no_session(self):
+        for method, url, body in self.writes({'id': 'a' * 32}):
+            with self.subTest(method=method, url=url):
+                response = self.send(method, url, body)
+                self.assertEqual(response.status_code, 404)
+                self.assertEqual(response['Content-Type'], 'application/json')
+                self.assertIsNone(response.json()['case'])
+                self.assertEqual(Session.objects.count(), 0)
+
+    def test_an_expired_case_is_a_404(self):
+        case = self.ready()
+        Session.objects.update(expire_date=timezone.now() - timedelta(seconds=1))
+
+        for method, url, body in self.writes(case):
+            with self.subTest(method=method, url=url):
+                response = self.send(method, url, body)
+                self.assertEqual(response.status_code, 404)
+                self.assertIsNone(response.json()['case'])
+
+    def test_a_stale_tab_gets_409_with_the_live_case_and_changes_nothing(self):
+        old = self.start()
+        live = self.send('post', CASE_URL, {'replace': True}).json()['case']
+        self.deceased(live, 'female')
+        expected = self.live()
+
+        for method, url, body in self.writes(old):
+            with self.subTest(method=method, url=url):
+                response = self.send(method, url, body)
+                self.assertEqual(response.status_code, 409)
+                self.assertEqual(response.json()['case'], expected)
+        self.assertEqual(self.live(), expected)
+
+    def test_missing_or_bad_case_id_and_non_object_bodies_are_400(self):
+        case = self.ready()
+        for method, url, body in self.writes(case):
+            for bad in ({}, {'relationship': 'son', 'gender': 'male'}, {'case_id': 5}, {'case_id': ''},
+                        {'case_id': None}, [1, 2], 'text'):
+                if method == 'delete' and bad == {'case_id': 5}:
+                    continue  # a query string has no numbers, only text
+                with self.subTest(method=method, url=url, body=bad):
+                    response = self.send(method, url, bad)
+                    self.assertEqual(response.status_code, 400)
+                    self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertEqual(self.live()['heirs'], [])
+
+    def test_missing_csrf_is_a_json_403_and_stores_nothing(self):
+        case = self.ready()
+        before = self.live()
+        for method, url, body in self.writes(case):
+            with self.subTest(method=method, url=url):
+                response = getattr(self.client, method)(url, body, format='json', secure=True)
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertEqual(self.live(), before)
+
+    def test_writes_refresh_the_idle_expiry(self):
+        case = self.start()
+        Session.objects.update(expire_date=timezone.now() + timedelta(hours=1))
+        self.deceased(case)
+        self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
+
+        Session.objects.update(expire_date=timezone.now() + timedelta(hours=1))
+        heirs = self.heir(case).json()['case']['heirs']
+        self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
+
+        Session.objects.update(expire_date=timezone.now() + timedelta(hours=1))
+        self.send('put', f'{HEIRS_URL}{heirs[0]["id"]}/', {'case_id': case['id'], 'relationship': 'father'})
+        self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
+
+        Session.objects.update(expire_date=timezone.now() + timedelta(hours=1))
+        self.send('delete', f'{HEIRS_URL}{heirs[0]["id"]}/', {'case_id': case['id']})
+        self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
+
+    def test_a_logged_in_write_keeps_the_login_expiry(self):
+        client = APIClient(enforce_csrf_checks=True)
+        client.force_login(get_user_model().objects.create_user('case-user'))
+        case = self.start(client)
+        before = Session.objects.get().expire_date
+
+        response = self.send('put', DECEASED_URL, {'case_id': case['id'], 'gender': 'male'}, client)
+        added = self.send('post', HEIRS_URL, {'case_id': case['id'], 'relationship': 'son'}, client)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(added.status_code, 201)
+        self.assertAlmostEqual((Session.objects.get().expire_date - before).total_seconds(), 0, delta=5)
+        self.assertGreater(self.remaining(), 10 * 24 * 3600)
+
+    # Interactions with the rest of the case
+
+    def test_changing_the_madhab_keeps_the_answers(self):
+        case = self.ready()
+        self.heir(case, 'son', name='A')
+        before = self.live()
+
+        response = self.send('patch', CASE_URL, {'madhab': 'jafari', 'case_id': case['id']})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['case'], {**before, 'madhab': 'jafari'})
+
+    def test_start_over_clears_the_answers(self):
+        case = self.ready()
+        self.heir(case)
+
+        new = self.send('post', CASE_URL, {'replace': True}).json()['case']
+
+        self.assertNotEqual(new['id'], case['id'])
+        self.assertIsNone(new['deceased'])
+        self.assertEqual(new['heirs'], [])
+        self.assertNotIn('heirs', self.stored())
+
+    def test_login_keeps_the_answers(self):
+        get_user_model().objects.create_user('login-user', password='pw-for-test-only')
+        case = self.ready()
+        self.heir(case, 'son', name='A')
+        before = self.live()
+
+        self.assertTrue(self.client.login(username='login-user', password='pw-for-test-only'))
+
+        self.assertEqual(self.live(), before)
+
+    def test_tampered_stored_answers_are_dropped_on_read(self):
+        case = self.ready()
+        good = self.heir(case, 'son', name='A').json()['case']['heirs'][0]
+        session = self.client.session
+        stored = session[anonymous_case.SESSION_KEY]
+        session[anonymous_case.SESSION_KEY] = {
+            **stored,
+            'heirs': [
+                good, good,
+                {'id': 'a', 'relationship': 'cousin', 'name': None},
+                {'id': 'b', 'relationship': 'son', 'name': 5},
+                {'id': 'c', 'relationship': 'son', 'name': 'x' * 101},
+                {'id': 5, 'relationship': 'son', 'name': None},
+                'text', None,
+                {'id': 'd', 'relationship': 'wife', 'gender': 'male', 'name': None},
+            ],
+        }
+        session.save()
+
+        heirs = self.live()['heirs']
+
+        self.assertEqual([h['id'] for h in heirs], [good['id'], 'd'])
+        self.assertEqual(heirs[1]['gender'], 'female')
+        for value in ('text', 5, [], {'gender': 'x', 'estate': None}, {'gender': 'male', 'estate': '-1'},
+                      {'gender': 'male', 'estate': 5}):
+            with self.subTest(deceased=value):
+                session[anonymous_case.SESSION_KEY] = {**stored, 'deceased': value, 'heirs': 'nope'}
+                session.save()
+                case_now = self.live()
+                self.assertIsNone(case_now['deceased'])
+                self.assertEqual(case_now['heirs'], [])
+
+    # Throttling
+
+    def test_the_write_limit_is_120_an_hour_across_all_writes(self):
+        case = self.ready()
+        for _ in range(118):
+            self.deceased(case)
+
+        response = self.deceased(case)
+
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertEqual(self.client.get(CASE_URL, secure=True).status_code, 200)
+
+    def test_the_configured_rate_is_120_an_hour(self):
+        self.assertEqual(api_settings.DEFAULT_THROTTLE_RATES['case_write'], '120/hour')
+
+    def test_routes(self):
+        self.assertEqual(reverse('api:case-deceased'), DECEASED_URL)
+        self.assertEqual(reverse('api:case-heirs'), HEIRS_URL)
+        self.assertEqual(reverse('api:case-heir', args=['abc']), f'{HEIRS_URL}abc/')
+
+
+BACKSLASH = chr(92)
+
+
+class RecordingHandler(logging.Handler):
+    def __init__(self):
+        super().__init__(level=logging.DEBUG)
+        self.lines = []
+
+    def emit(self, record):
+        text = record.getMessage() + ' ' + repr(record.args)
+        if record.exc_info:
+            text += ' ' + ''.join(traceback.format_exception(*record.exc_info))
+        self.lines.append(text)
+
+
+class InterviewReviewTests(InterviewBase):
+    def raw(self, method, url, body):
+        return self.client.generic(
+            method.upper(), url, body, content_type='application/json', secure=True,
+            headers=self.csrf(self.client))
+
+    # Start over from a stale tab
+
+    def test_a_stale_start_over_does_not_replace_a_newer_case(self):
+        old = self.start()
+        live = self.send('post', CASE_URL, {'replace': True}).json()['case']
+        self.deceased(live, 'female', '50')
+        expected = self.live()
+
+        response = self.send('post', CASE_URL, {'replace': True, 'case_id': old['id']})
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['case'], expected)
+        self.assertEqual(self.live(), expected)
+
+    def test_start_over_with_the_live_case_id_replaces_it(self):
+        case = self.ready()
+
+        response = self.send('post', CASE_URL, {'replace': True, 'case_id': case['id']})
+
+        self.assertEqual(response.status_code, 201)
+        self.assertNotEqual(response.json()['case']['id'], case['id'])
+        self.assertIsNone(response.json()['case']['deceased'])
+
+    def test_start_over_naming_a_case_when_none_is_live_starts_a_new_one(self):
+        response = self.send('post', CASE_URL, {'replace': True, 'case_id': 'a' * 32})
+
+        self.assertEqual(response.status_code, 201)
+
+    # Names
+
+    def test_a_lone_surrogate_in_a_name_is_a_json_400(self):
+        case = self.ready()
+        heirs = self.heir(case).json()['case']['heirs']
+        body = '{"case_id": "%s", "relationship": "son", "name": "a%sud800"}' % (case['id'], BACKSLASH)
+
+        for method, url in (('post', HEIRS_URL), ('put', f'{HEIRS_URL}{heirs[0]["id"]}/')):
+            with self.subTest(method=method):
+                response = self.raw(method, url, body)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response['Content-Type'], 'application/json')
+                self.assertEqual(response.json()['errors'], {'name': 'invalid'})
+        self.assertEqual(self.live()['heirs'], heirs)
+
+    def test_bidi_controls_are_refused_in_names(self):
+        case = self.ready()
+        for code in (*range(0x202A, 0x202F), *range(0x2066, 0x206A)):
+            with self.subTest(code=hex(code)):
+                response = self.heir(case, name='ab' + chr(code) + 'cd')
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()['errors'], {'name': 'invalid'})
+        self.assertEqual(self.live()['heirs'], [])
+
+    def test_a_name_that_shows_nothing_is_left_out_but_joiners_stay_legal_inside_one(self):
+        case = self.ready()
+        zwnj, zwj, nbsp, zwsp = chr(0x200C), chr(0x200D), chr(0xA0), chr(0x200B)
+
+        for name in (zwnj, zwj + zwj, nbsp, zwsp + ' ' + zwnj):
+            with self.subTest(name=repr(name)):
+                self.assertEqual(self.heir(case, name=name).status_code, 201)
+        self.assertEqual([h['name'] for h in self.live()['heirs']], [None] * 4)
+        persian = 'می' + zwnj + 'خواهم'
+        heirs = self.heir(case, name=persian).json()['case']['heirs']
+        self.assertEqual(heirs[-1]['name'], persian)
+
+    # Estate
+
+    def test_leading_zeros_are_stripped_before_the_length_check_and_storing(self):
+        case = self.start()
+        table = {
+            '007': '7', '00.50': '0.50', '0.50': '0.50', '0000000000000007': '7',
+            '000000000000000000000012.5': '12.5', '10': '10', '0100': '100',
+        }
+        for estate, stored in table.items():
+            with self.subTest(estate=estate):
+                response = self.deceased(case, 'male', estate)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()['case']['deceased']['estate'], stored)
+        for estate, code in {'0000': 'not_positive', '00000000000000000.00': 'not_positive',
+                             '0' + '1' + '0' * 15: 'too_large'}.items():
+            with self.subTest(estate=estate):
+                self.assertEqual(self.deceased(case, 'male', estate).json()['errors'], {'estate': code})
+
+    def test_a_comma_is_a_decimal_separator_only_with_one_or_two_digits_after_it(self):
+        case = self.start()
+        for estate, stored in {'1250,50': '1250.50', '1,5': '1.5', '0,05': '0.05', '١٢٥٠٫٥': '1250.5'}.items():
+            with self.subTest(estate=estate):
+                response = self.deceased(case, 'male', estate)
+                self.assertEqual(response.json()['case']['deceased']['estate'], stored)
+        for estate, code in {'1,250': 'invalid', '1,2345': 'invalid', '1.250': 'decimals', '1,25,0': 'invalid',
+                             '1,234.5': 'invalid', ',5': 'invalid', '5,': 'invalid', '0,00': 'not_positive'}.items():
+            with self.subTest(estate=estate):
+                self.assertEqual(self.deceased(case, 'male', estate).json()['errors'], {'estate': code})
+
+    # Heirs, deletes and limits
+
+    def test_delete_needs_the_case_id_in_the_query_string(self):
+        case = self.ready()
+        heirs = self.heir(case).json()['case']['heirs']
+        url = f'{HEIRS_URL}{heirs[0]["id"]}/'
+        headers = self.csrf(self.client)
+
+        for query in ('', '?case_id=', '?other=1'):
+            with self.subTest(query=query):
+                response = self.client.delete(url + query, secure=True, headers=headers)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response['Content-Type'], 'application/json')
+        body_only = self.client.delete(url, {'case_id': case['id']}, format='json', secure=True, headers=headers)
+        self.assertEqual(body_only.status_code, 400, 'a body is not read')
+        stale = self.client.delete(f'{url}?case_id={"b" * 32}', secure=True, headers=headers)
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(self.live()['heirs'], heirs)
+        gone = self.client.delete(f'{url}?case_id={case["id"]}', secure=True, headers=headers)
+        self.assertEqual(gone.status_code, 200)
+
+    def test_editing_an_heir_with_50_stored_succeeds(self):
+        case = self.ready()
+        for _ in range(anonymous_case.MAX_HEIRS):
+            self.heir(case)
+        heirs = self.live()['heirs']
+        self.assertEqual(len(heirs), 50)
+
+        response = self.send(
+            'put', f'{HEIRS_URL}{heirs[0]["id"]}/', {'case_id': case['id'], 'relationship': 'wife', 'name': 'Huda'})
+
+        self.assertEqual(response.status_code, 200)
+        edited = response.json()['case']['heirs']
+        self.assertEqual(len(edited), 50)
+        self.assertEqual(edited[0]['relationship'], 'wife')
+
+    def test_malformed_json_is_a_json_400_on_the_new_routes(self):
+        case = self.ready()
+        heirs = self.heir(case).json()['case']['heirs']
+        for method, url in (
+            ('put', DECEASED_URL), ('post', HEIRS_URL), ('put', f'{HEIRS_URL}{heirs[0]["id"]}/'),
+        ):
+            with self.subTest(method=method, url=url):
+                response = self.raw(method, url, '{"gender": ')
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertEqual(self.live()['heirs'], heirs)
+
+    def test_once_the_budget_is_spent_every_new_write_is_a_json_429_and_stores_nothing(self):
+        case = self.ready()
+        heirs = self.heir(case).json()['case']['heirs']
+        for _ in range(117):
+            self.assertEqual(self.deceased(case).status_code, 200)
+        before = self.live()
+        url = f'{HEIRS_URL}{heirs[0]["id"]}/'
+
+        responses = {
+            'post heir': self.heir(case, 'father', name='New'),
+            'put heir': self.send('put', url, {'case_id': case['id'], 'relationship': 'wife'}),
+            'delete heir': self.send('delete', url, {'case_id': case['id']}),
+            'put deceased': self.deceased(case, 'female', '5'),
+        }
+
+        for name, response in responses.items():
+            with self.subTest(name=name):
+                self.assertEqual(response.status_code, 429)
+                self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertEqual(self.live(), before)
+
+    # Logs
+
+    def test_answers_never_reach_the_logs_even_when_a_write_is_refused(self):
+        secrets = ['Secret Name', '987654.32', 'Rejected Person', 'Edited Person', '13579.24']
+        handler = RecordingHandler()
+        names = ('', 'django.request', 'django.security')
+        loggers = [logging.getLogger(name) for name in names]
+        levels = [logger.level for logger in loggers]
+        for logger in loggers:
+            logger.addHandler(handler)
+            logger.setLevel(logging.DEBUG)
+        try:
+            case = self.start()
+            self.deceased(case, 'male', secrets[1])
+            heirs = self.heir(case, 'son', name=secrets[0]).json()['case']['heirs']
+            url = f'{HEIRS_URL}{heirs[0]["id"]}/'
+            self.heir(case, 'cousin', name=secrets[2])
+            self.send('put', DECEASED_URL, {'case_id': case['id'], 'gender': 'x', 'estate': secrets[4] + 'x'})
+            self.send('put', url, {'case_id': case['id'], 'relationship': 'wife', 'name': secrets[3]})
+            self.send('put', f'{HEIRS_URL}missing/', {'case_id': case['id'], 'relationship': 'son', 'name': secrets[2]})
+            self.send('post', HEIRS_URL, {'case_id': 'z' * 32, 'relationship': 'son', 'name': secrets[2]})
+            self.client.post(
+                HEIRS_URL, {'case_id': case['id'], 'relationship': 'son', 'name': secrets[2]},
+                format='json', secure=True)
+            self.send('delete', url, {'case_id': case['id']})
+        finally:
+            for logger, level in zip(loggers, levels):
+                logger.removeHandler(handler)
+                logger.setLevel(level)
+
+        logged = '\n'.join(handler.lines)
+        self.assertTrue(handler.lines, 'refused writes are logged by django.request, so the capture works')
+        for secret in secrets:
+            self.assertNotIn(secret, logged)

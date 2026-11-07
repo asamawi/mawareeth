@@ -304,3 +304,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-2-start-interview-madhab-selection.md`
   summary: Make the locale test compare each pair of locales, so French copied from English fails.
   evidence: `new Set(texts).size >= 2` in `web/src/api/case.test.ts` passes whenever Arabic alone differs, and this check predates Story 1.2.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-3-deceased-info-add-heirs-via-guided-interview-form.md`
+  summary: Serialize anonymous case writes from two tabs before this work reaches production, because simultaneous deceased, heir or Madhab writes can overwrite each other and lose an answer.
+  evidence: Each tab sends one write at a time and `case_id` blocks writes to a replaced case, but Django saves the whole session dict, so two truly simultaneous writes still race. The project owner deferred this on 2026-11-06 as a release blocker.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-3-deceased-info-add-heirs-via-guided-interview-form.md`
+  summary: Extend the heir relationship list before the engine goes multi-school, covering maternal and paternal grandparent lines, lower generations, and the relatives Jafari and Hanafi distant-kindred rules need.
+  evidence: The 22 ids mirror the existing calculator's `Heir` classes, as the project owner chose on 2026-11-06, so these heirs cannot be entered and `grandfather` and `grandmother` do not record which line they belong to.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-3-deceased-info-add-heirs-via-guided-interview-form.md`
+  summary: Decide whether the estate amount is entered before or after debts, funeral costs and bequests, and say so in the hint before Story 1.5 shows amounts.
+  evidence: The estate hint says only that the field is optional, and the amount will directly set the money shown for each heir.
