@@ -343,3 +343,21 @@
 - source_spec: none
   summary: Rework the Story 1.5 Madhab split, recorded above, around a Hanbali engine, because Hanbali is now the only school the engine fully follows.
   evidence: The project owner chose on 2026-11-07 that the engine follows Hanbali alone (`spec-fix-engine-share-distribution.md`), after the split was recorded. Hanafi now differs when a grandfather and full or paternal siblings are both present; Maliki and Shafi'i also differ on Mushtaraka and on radd; Jafari stays unavailable.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
+  summary: Add the Jafari school in its own story: its rules (no awl or radd as the Sunni schools have them, its own order of heirs and blocking), plus the relationships it needs that the engine does not model yet.
+  evidence: `compute(madhab='jafari')` raises `UnsupportedCase` with `school_not_supported`. Jafari needs at least the distinction between paternal and maternal lines for grandparents, siblings and uncles, which the current relationship types do not record.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
+  summary: Get a ruling on the Malikiyya (husband, mother or grandmother, grandfather, two or more maternal siblings and a paternal brother) for the Maliki school, then replace the refusal with a result.
+  evidence: The case raises `UnsupportedCase` with `malikiyya_disputed` under Maliki. Shafi'i gives the muqasama result (1/2, 1/6, 1/6, 0, 1/6 in the fixture).
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
+  summary: Decide whether to give radd to Maliki and Shafi'i cases where later scholars of those schools permit it, and what the engine should do with a remainder when they do not.
+  evidence: Any case that needs radd raises `UnsupportedCase` with `radd_disputed` under Maliki and Shafi'i, because the classical position gives the remainder to the public treasury and the engine has no place to put it.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
+  summary: Record the line of each grandmother (mother's or father's side) so Hanafi, Maliki and Shafi'i can calculate cases with a grandmother and a father, or with two grandmothers.
+  evidence: These cases raise `UnsupportedCase` with `grandmother_line_unknown`, because those schools block and share grandmothers by line.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
+  summary: Decide whether Maliki should also refuse the family like Malikiyya but with a full brother (Shibh al-Malikiyya), which Story 2.1 calculates by the general grandfather rule.
+  evidence: The spec's matrix refuses only the paternal-brother form and says anything unlisted matches Hanbali, but the author's understanding is that Malik rules on the full-brother form the same way, so a Maliki visitor could get a number their school disputes. This needs the qualified review.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
+  summary: Have the refusal text explain that the classical Maliki and Shafi'i position gives the remainder to the public treasury, before Story 1.5 shows it to visitors.
+  evidence: The `radd_disputed` message says only that the remainder cannot be shared out, which does not tell a visitor why, and the Arabic and French text is unreviewed.

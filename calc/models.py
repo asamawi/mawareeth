@@ -9,6 +9,8 @@ from decimal import Decimal
 from functools import reduce
 import math
 from django.db.models import Count
+from . import schools
+from .schools import UnsupportedCase
 
 
 
@@ -253,6 +255,8 @@ class Marriage(models.Model):
 
 class Calculation(models.Model):
     """Calculation for bequest class"""
+    # The school of the run in progress. It is an input to compute() and is never stored.
+    madhab = schools.DEFAULT
     shares = models.IntegerField(default=0)      # LCM for all prescribed shares
     excess = models.BooleanField(default=False)       # if prescribed shares is greater than gcm
     shortage = models.BooleanField(default=False)
@@ -530,7 +534,8 @@ class Calculation(models.Model):
 
         That is the case when there is no father (who would block him) and no
         male descendant (who would block the siblings)."""
-        return (self.has_grandFather() and not self.has_father() and not self.has_male_descendent()
+        return (not schools.grandfather_blocks_siblings(self.madhab)
+                and self.has_grandFather() and not self.has_father() and not self.has_male_descendent()
                 and self.heir_set.instance_of(Brother, Sister, PaternalBrother, PaternalSister).count() > 0)
 
     def is_akdariyya(self, live):
@@ -557,11 +562,16 @@ class Calculation(models.Model):
         gf_mode = self.gf_shares_with_siblings()
         sibs = [h for h in live if isinstance(h, (Brother, Sister, PaternalBrother, PaternalSister))] if gf_mode else []
         sib_ids = {h.pk for h in sibs}
+        mushtaraka = []
+        if schools.has_mushtaraka(self.madhab, self.live_counts(heirs)):
+            mushtaraka = [h for h in live if isinstance(h, (Brother, Sister, MaternalBrother, MaternalSister))]
+        mushtaraka_ids = {h.pk for h in mushtaraka}
 
         # fixed shares, one group per type (maternal siblings share one group)
+        reasons_pending = []
         fixed = {}
         for heir in live:
-            if heir.asaba or heir.pk in sib_ids or (gf_mode and isinstance(heir, GrandFather)):
+            if heir.asaba or heir.pk in sib_ids or heir.pk in mushtaraka_ids or (gf_mode and isinstance(heir, GrandFather)):
                 continue
             quote = heir.exact_quote()
             if quote <= 0:
@@ -574,12 +584,21 @@ class Calculation(models.Model):
                 fixed[key] = _Group(key, quote)
             fixed[key].add(heir)
         groups = list(fixed.values())
+        if mushtaraka:
+            # the full siblings join the maternal siblings, and all of them share the third equally
+            group = _Group('mushtaraka', Fraction(1, 3), kind='mushtaraka')
+            for heir in mushtaraka:
+                group.add(heir, 1)
+                heir.asaba = False
+                reasons_pending.append(heir)
+            groups.append(group)
         fixed_total = sum((g.amount for g in groups), zero)
 
         extra = None          # father or grandfather who also takes the remainder
         extra_remainder = zero
         radd_groups = []
-        reasons = {}
+        reasons = {heir.pk: _("Mushtaraka: the full siblings share the maternal siblings' third equally")
+                   for heir in reasons_pending}
         residual = zero
         if gf_mode:
             grandfather = next(h for h in live if isinstance(h, GrandFather))
@@ -633,7 +652,7 @@ class Calculation(models.Model):
                             else:
                                 reasons[heir.pk] = _("The shares of the grandfather and the others use up the whole estate, so nothing is left for the siblings")
         else:
-            asaba = [h for h in live if h.asaba]
+            asaba = [h for h in live if h.asaba and h.pk not in mushtaraka_ids]
             residual = max(zero, one - fixed_total)
             if asaba:
                 group = _Group('asaba', residual, kind='asaba')
@@ -660,6 +679,8 @@ class Calculation(models.Model):
         if extra is not None and extra_remainder > 0:
             extra.final = extra.amount + extra_remainder
         radd = bool(radd_groups) and total < 1
+        if radd and not schools.allows_radd(self.madhab):
+            raise UnsupportedCase(schools.RADD_DISPUTED)
         if radd:
             spouse_total = sum((g.amount for g in groups if g.is_spouse()), zero)
             radd_total = sum((g.amount for g in radd_groups), zero)
@@ -741,7 +762,7 @@ class Calculation(models.Model):
         deceased = self.deceased_set.first()
         estate = Fraction(deceased.estate) if deceased else zero
         for group in groups:
-            if group.kind == 'akdariyya':
+            if group.kind in ('akdariyya', 'mushtaraka'):
                 for heir, weight in zip(group.members, group.weights):
                     heir.set_quote(group.stage * weight / sum(group.weights))
             elif group.kind in ('asaba', 'siblings', 'grandfather') and group.stage > 0:
@@ -795,10 +816,39 @@ class Calculation(models.Model):
             heir.clear()
         self.save()
 
-    def compute(self):
+    def compute(self, madhab=schools.DEFAULT):
+        """Work out every heir's share under one school: hanafi, maliki, shafii or
+        hanbali. With no school the result is the Hanbali one, as before.
+
+        The school is an input to this run and is never stored. An unknown id raises
+        ValueError. A case the engine refuses raises UnsupportedCase with a stable
+        `reason` code, and no result is given for it.
+
+        The engine writes to the database while it works, and whether radd is needed
+        is only known after the shares are worked out, so a refusal can come after
+        writes. A caller that passes a school must run this inside a transaction that
+        it rolls back when UnsupportedCase is raised. Results pages never pass a
+        school, so they never raise."""
+        schools.check_school(madhab)
+        self.madhab = madhab
         self.clear()
         heirs = self.get_quotes()
+        live = self.live_counts(heirs)
+        maternal = sum(1 for h in heirs if isinstance(h, (MaternalBrother, MaternalSister)))
+        if self.has_descendent() or self.has_father():
+            maternal = 0
+        schools.check_family(madhab, live, maternal)
         return self.distribute(heirs)
+
+    @staticmethod
+    def live_counts(heirs):
+        """How many heirs of each type are not blocked, keyed by class name."""
+        counts = {}
+        for heir in heirs:
+            if not heir.blocked:
+                name = type(heir).__name__
+                counts[name] = counts.get(name, 0) + 1
+        return counts
 
     def get_absolute_url(self):
         return reverse('calc:detail', args=[self.id])
@@ -1002,6 +1052,9 @@ class Brother(Heir):
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Brother/s are blocked by father")
+        elif calc.has_grandFather() and schools.grandfather_blocks_siblings(calc.madhab):
+            self.blocked = True
+            self.quote_reason = _("Brother/s are blocked by grandfather")
         elif calc.has_grandFather():
             self.asaba = True
             self.quote_reason = _("Brother/s share the estate with the grandfather")
@@ -1026,6 +1079,9 @@ class Sister(Heir):
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Sister/s are blocked by father")
+        elif calc.has_grandFather() and schools.grandfather_blocks_siblings(calc.madhab):
+            self.blocked = True
+            self.quote_reason = _("Sister/s are blocked by grandfather")
         elif calc.has_grandFather():
             self.asaba = True
             self.quote_reason = _("Sister/s share the estate with the grandfather")
@@ -1152,6 +1208,9 @@ class PaternalSister(Heir):
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Paternal sister/s are blocked by father")
+        elif calc.has_grandFather() and schools.grandfather_blocks_siblings(calc.madhab):
+            self.blocked = True
+            self.quote_reason = _("Paternal sister/s are blocked by grandfather")
         elif calc.has_grandFather():
             self.asaba = True
             self.quote_reason = _("Paternal sister/s share the estate with the grandfather")
@@ -1199,6 +1258,9 @@ class PaternalBrother(Heir):
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Paternal brother/s are blocked by father")
+        elif calc.has_grandFather() and schools.grandfather_blocks_siblings(calc.madhab):
+            self.blocked = True
+            self.quote_reason = _("Paternal brother/s are blocked by grandfather")
         elif calc.has_grandFather():
             self.asaba = True
             self.quote_reason = _("Paternal brother/s share the estate with the grandfather")

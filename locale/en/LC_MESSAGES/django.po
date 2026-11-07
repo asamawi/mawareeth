@@ -2351,5 +2351,25 @@ msgstr "Paternal sister/s share the estate with the grandfather"
 msgid "Paternal sister/s are blocked by sisters"
 msgstr "Paternal sister/s are blocked by sisters"
 
+#: calc/schools.py
+msgid "This school of law is not supported yet"
+msgstr "This school of law is not supported yet"
+
+#: calc/schools.py
+msgid "The Malikiyya case is disputed within the Maliki school, so no result is given"
+msgstr "The Malikiyya case is disputed within the Maliki school, so no result is given"
+
+#: calc/schools.py
+msgid "The classical position of this school has no radd, so the remainder cannot be shared out"
+msgstr "The classical position of this school has no radd, so the remainder cannot be shared out"
+
+#: calc/schools.py
+msgid "The case does not record which line the grandmother belongs to, so no result is given"
+msgstr "The case does not record which line the grandmother belongs to, so no result is given"
+
+#: calc/schools.py
+msgid "Mushtaraka: the full siblings share the maternal siblings' third equally"
+msgstr "Mushtaraka: the full siblings share the maternal siblings' third equally"
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "Son of paternal brother"

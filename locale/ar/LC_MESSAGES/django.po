@@ -2301,6 +2301,26 @@ msgstr "الأخت أو الأخوات لأب يقتسمن التركة مع ا�
 msgid "Paternal sister/s are blocked by sisters"
 msgstr "الأخت أو الأخوات لأب محجوبات بالأخوات الشقيقات"
 
+#: calc/schools.py
+msgid "This school of law is not supported yet"
+msgstr "هذا المذهب غير مدعوم حتى الآن"
+
+#: calc/schools.py
+msgid "The Malikiyya case is disputed within the Maliki school, so no result is given"
+msgstr "مسألة المالكية مختلف فيها داخل المذهب المالكي، لذلك لا تُعطى نتيجة"
+
+#: calc/schools.py
+msgid "The classical position of this school has no radd, so the remainder cannot be shared out"
+msgstr "لا يقول هذا المذهب في موقفه الكلاسيكي بالرد، لذلك لا يمكن توزيع الباقي"
+
+#: calc/schools.py
+msgid "The case does not record which line the grandmother belongs to, so no result is given"
+msgstr "لا تسجّل المسألة جهة الجدة، لذلك لا تُعطى نتيجة"
+
+#: calc/schools.py
+msgid "Mushtaraka: the full siblings share the maternal siblings' third equally"
+msgstr "المشتركة: الأشقاء يشاركون الإخوة لأم في ثلثهم بالتساوي"
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "ابن أخ لأب"
 

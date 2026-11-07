@@ -62,8 +62,8 @@ development_status:
   1-6-fiqh-aware-validation-hajb-blocking-heirs: backlog
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-standard-share-calculation-across-all-required-schools: backlog
+  epic-2: in-progress
+  2-1-standard-share-calculation-across-all-required-schools: review
   2-2-deterministic-proof-output-for-multi-school-results: backlog
   2-3-expanded-multi-school-coverage-beyond-standard-cases: backlog
   2-4-full-recursive-manasikhat-calculation: backlog

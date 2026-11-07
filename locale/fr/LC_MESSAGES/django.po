@@ -2421,5 +2421,25 @@ msgstr "La ou les sœurs consanguines partagent la succession avec le grand-pèr
 msgid "Paternal sister/s are blocked by sisters"
 msgstr "La ou les sœurs consanguines sont bloquées par les sœurs"
 
+#: calc/schools.py
+msgid "This school of law is not supported yet"
+msgstr "Cette école juridique n'est pas encore prise en charge"
+
+#: calc/schools.py
+msgid "The Malikiyya case is disputed within the Maliki school, so no result is given"
+msgstr "Le cas de la Malikiyya est controversé au sein de l'école malikite, donc aucun résultat n'est donné"
+
+#: calc/schools.py
+msgid "The classical position of this school has no radd, so the remainder cannot be shared out"
+msgstr "La position classique de cette école ne connaît pas le radd, donc le reste ne peut pas être réparti"
+
+#: calc/schools.py
+msgid "The case does not record which line the grandmother belongs to, so no result is given"
+msgstr "Le dossier n'indique pas la lignée de la grand-mère, donc aucun résultat n'est donné"
+
+#: calc/schools.py
+msgid "Mushtaraka: the full siblings share the maternal siblings' third equally"
+msgstr "Mushtaraka : les frères et sœurs germains partagent à parts égales le tiers des utérins"
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "Fils de frère paternel"
