@@ -1,6 +1,7 @@
 {% extends "calc/base.html" %}
 {% load static %}
 {% load i18n %}
+{% load l10n %}
 {% load calc_extras %}
 {% load icons %}
 {% load waffle_tags %}
@@ -306,7 +307,7 @@ data-url="{% url 'calc:sonOfUncle' calculation.id %}">
                 {% trans '--- Select Mother ---' %}
               </option>
               {% for mother in Wife %}
-              <option {% if forloop.first %}selected {% endif %}value="{{ mother.pk }}">
+              <option {% if forloop.first %}selected {% endif %}value="{{ mother.pk|unlocalize }}">
                 {% if mother.first_name %}{{ mother.first_name }}{% else %}{% trans 'Wife' %} {{ forloop.counter }}{% endif %}
               </option>
               {% endfor %}
