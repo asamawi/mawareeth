@@ -1376,6 +1376,28 @@ class ChildMotherTests(TestCase):
         self.assertEqual(self.add('son', calc, mother='').status_code, 302)
         self.assertEqual(self.count('son', calc), 1)
 
+    def test_mother_offered_by_the_page_is_accepted_in_every_language(self):
+        """A large id must not be formatted as a number ("123,456") in the form."""
+        for language, base in (('en', 123456), ('fr', 123556), ('ar', 123656)):
+            for kind in ('son', 'daughter'):
+                with self.subTest(language=language, kind=kind):
+                    calc, _wives = self.make_case(wives=0)
+                    wives = []
+                    for offset in (0, 1):
+                        wife = Wife.objects.create(id=base + offset, first_name='W', last_name='L', sex='F', calc=calc)
+                        calc.add_wife(wife)
+                        wives.append(wife)
+                    base += 10
+                    with translation.override(language):
+                        page = self.client.get(reverse('calc:detail', args=[calc.pk]), secure=True)
+                        html = page.content.decode().split('id="mother"')[1].split('</select>')[0]
+                        offered = re.findall(r'<option[^>]*value="([^"]+)"', html)
+                        self.assertEqual(offered, [str(wife.pk) for wife in wives])
+                        response = self.add(kind, calc, mother=offered[0])
+                    self.assertEqual(response.status_code, 302)
+                    child = calc.heir_set.instance_of(Son, Daughter).get()
+                    self.assertEqual(child.parents.female_id, wives[0].pk)
+
     def test_every_wife_is_named_in_the_mother_list(self):
         calc, wives = self.make_case()
         unnamed = Wife.objects.create(first_name='', last_name='', sex='F', calc=calc)
