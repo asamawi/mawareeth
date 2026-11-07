@@ -50,6 +50,15 @@ export type Messages = {
     heirsHeading: string;
     heirsEmpty: string;
     heirsListLabel: string;
+    treeHeading: string;
+    treeDeceasedMale: string;
+    treeDeceasedFemale: string;
+    /** Shown under a tree that has only the deceased. */
+    treePrompt: string;
+    /** `{deceased}` is the deceased text and `{heirs}` the counts, such as " Son: 2. Wife: 1.". */
+    treeSummary: string;
+    /** `{relationship}` and `{n}`: one entry of the description, such as "Son: 2.". */
+    treeCount: string;
     heirRelationshipLabel: string;
     heirRelationshipPlaceholder: string;
     heirNameLabel: string;
@@ -137,6 +146,12 @@ export const messages: Record<Locale, Messages> = {
       heirsHeading: "الورثة",
       heirsEmpty: "لم تضف أي وارث بعد.",
       heirsListLabel: "الورثة المضافون",
+      treeHeading: "شجرة العائلة",
+      treeDeceasedMale: "المتوفى (ذكر)",
+      treeDeceasedFemale: "المتوفاة (أنثى)",
+      treePrompt: "أضف أول وارث ليظهر في الشجرة.",
+      treeSummary: "شجرة العائلة. {deceased}.{heirs}",
+      treeCount: "{relationship}: {n}.",
       heirRelationshipLabel: "صلة القرابة بالمتوفى",
       heirRelationshipPlaceholder: "اختر صلة القرابة",
       heirNameLabel: "الاسم (اختياري)",
@@ -260,6 +275,12 @@ export const messages: Record<Locale, Messages> = {
       heirsHeading: "Heirs",
       heirsEmpty: "You have not added any heirs yet.",
       heirsListLabel: "Heirs added",
+      treeHeading: "Family tree",
+      treeDeceasedMale: "The deceased, male",
+      treeDeceasedFemale: "The deceased, female",
+      treePrompt: "Add the first heir to see them in the tree.",
+      treeSummary: "Family tree. {deceased}.{heirs}",
+      treeCount: "{relationship}: {n}.",
       heirRelationshipLabel: "Relationship to the deceased",
       heirRelationshipPlaceholder: "Choose a relationship",
       heirNameLabel: "Name (optional)",
@@ -386,6 +407,12 @@ export const messages: Record<Locale, Messages> = {
       heirsHeading: "Héritiers",
       heirsEmpty: "Vous n'avez pas encore ajouté d'héritier.",
       heirsListLabel: "Héritiers ajoutés",
+      treeHeading: "Arbre généalogique",
+      treeDeceasedMale: "Le défunt, homme",
+      treeDeceasedFemale: "La défunte, femme",
+      treePrompt: "Ajoutez le premier héritier pour le voir dans l'arbre.",
+      treeSummary: "Arbre généalogique. {deceased}.{heirs}",
+      treeCount: "{relationship} : {n}.",
       heirRelationshipLabel: "Lien avec le défunt",
       heirRelationshipPlaceholder: "Choisissez un lien de parenté",
       heirNameLabel: "Nom (facultatif)",

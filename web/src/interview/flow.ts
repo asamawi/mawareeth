@@ -45,6 +45,8 @@ export type Notice = "throttled" | "failed" | "heirGone";
 /** What the screen-reader live region says; `seq` makes a repeat count as new. */
 export type Announcement = {
   kind: "added" | "updated" | "removed";
+  /** The id of the heir the change was about. */
+  id: string;
   heir: { name: string | null; relationship: RelationshipId };
   /** The heir number among unnamed heirs of the same relationship, when there are several. */
   ordinal: number | null;
@@ -576,6 +578,14 @@ function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerRe
   }
 }
 
+/** The heir to bring into view after a successful add or edit; nothing for anything else. */
+export function revealOf(view: View): string | null {
+  if (view.name !== "started") return null;
+  const note = view.announcement;
+  if (!note || (note.kind !== "added" && note.kind !== "updated")) return null;
+  return view.case.heirs.some((heir) => heir.id === note.id) ? note.id : null;
+}
+
 function announce(
   from: StartedView,
   kind: Announcement["kind"],
@@ -586,6 +596,7 @@ function announce(
   if (!heir) return from.announcement;
   return {
     kind,
+    id: heirId,
     heir: { name: heir.name, relationship: heir.relationship },
     ordinal: unnamedOrdinal(heirs, heirId),
     seq: (from.announcement?.seq ?? 0) + 1,
@@ -614,7 +625,7 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
         ...base,
         formEpoch: from.formEpoch + 1,
         announcement: announce(from, "updated", kase.heirs, answer.heirId),
-        focus: nextFocus(from, `editHeir:${answer.heirId}`),
+        focus: nextFocus(from, "relationship"),
       };
     }
     case "removeHeir": {

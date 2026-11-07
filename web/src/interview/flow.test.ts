@@ -18,6 +18,7 @@ import {
   FOCUS_TARGETS,
   heirFormKey,
   openChange,
+  revealOf,
   pick,
   pendingView,
   precheck,
@@ -523,7 +524,7 @@ test("Add heir: appears in the list, the form is cleared, focus on relationship,
     { call: "addHeir", caseId: WITH_DECEASED.id, fields: { relationship: "son", name: null } },
   ]);
   assert.deepEqual(view.case.heirs, [SON]);
-  assert.deepEqual(view.announcement, { kind: "added", heir: { name: null, relationship: "son" }, ordinal: null, seq: 1 });
+  assert.deepEqual(view.announcement, { kind: "added", id: "h1", heir: { name: null, relationship: "son" }, ordinal: null, seq: 1 });
   assert.deepEqual(view.focus, { target: "relationship", seq: 1 });
   assert.equal(screenOf(view), "heirs");
   assert.deepEqual(log.form, BLANK_RECORD(WITH_DECEASED.id));
@@ -533,7 +534,7 @@ test("Add heir: appears in the list, the form is cleared, focus on relationship,
 test("Add heir: a repeat announcement is a new one", async () => {
   const { value } = deps({ answer: () => ({ kind: "saved", case: WITH_TWO }) });
   const from = startedOf(WITH_SON, true, {
-    announcement: { kind: "added", heir: { name: null, relationship: "son" }, ordinal: null, seq: 4 },
+    announcement: { kind: "added", id: "h1", heir: { name: null, relationship: "son" }, ordinal: null, seq: 4 },
     focus: { target: "relationship", seq: 4 },
   });
   const view = (await runAction("addHeir", signal, value, WITH_SON, undefined, {
@@ -596,7 +597,7 @@ test("Edit heir: filled in, saving announces and returns focus to the row", asyn
   });
   assert.equal(view.editingHeir, null);
   assert.equal(view.announcement?.kind, "updated");
-  assert.deepEqual(view.focus, { target: "editHeir:h2", seq: 2 });
+  assert.deepEqual(view.focus, { target: "relationship", seq: 2 });
   assert.deepEqual(log.form, BLANK_RECORD(WITH_TWO.id));
 });
 
@@ -640,6 +641,7 @@ test("Remove heir: gone from the list, announced, focus on the list", async () =
   assert.deepEqual(view.case.heirs, [SON]);
   assert.deepEqual(view.announcement, {
     kind: "removed",
+    id: "h2",
     heir: { name: "Amal", relationship: "daughter" },
     ordinal: null,
     seq: 1,
@@ -742,7 +744,7 @@ test("An answer action without its answer fails safely", async () => {
 });
 
 test("Pending view for a save: same screen, saving, announcement kept", () => {
-  const announcement = { kind: "added", heir: { name: null, relationship: "son" }, ordinal: null, seq: 2 } as const;
+  const announcement = { kind: "added", id: "h1", heir: { name: null, relationship: "son" }, ordinal: null, seq: 2 } as const;
   const current = startedOf(WITH_SON, true, { announcement, errors: { name: "invalid" }, notice: "failed" });
   assert.deepEqual(pendingView("addHeir", current), { ...current, notice: null, errors: null, saving: true });
   assert.equal(pendingView("removeHeir").name, "loading");
@@ -1157,4 +1159,32 @@ test("every focus target flow.ts can emit is a data-focus value in the component
   for (const [, target] of flowSource.matchAll(/nextFocus\([^,]+,\s*"([^"]+)"\)/g)) {
     assert.ok((FOCUS_TARGETS as readonly string[]).includes(target), target);
   }
+});
+
+test("revealOf: add reveals the new heir even when it is not last, edit reveals the edited heir", () => {
+  const added = startedOf(WITH_TWO, true, {
+    announcement: { kind: "added", id: "h1", heir: { name: null, relationship: "son" }, ordinal: null, seq: 1 },
+  });
+  assert.equal(revealOf(added), "h1");
+  const updated = startedOf(WITH_TWO, true, {
+    announcement: { kind: "updated", id: "h2", heir: { name: "Amal", relationship: "daughter" }, ordinal: null, seq: 2 },
+  });
+  assert.equal(revealOf(updated), "h2");
+});
+
+test("revealOf: removal, failed or empty states and other views reveal nothing", async () => {
+  const removed = startedOf(WITH_SON, true, {
+    announcement: { kind: "removed", id: "h2", heir: { name: "Amal", relationship: "daughter" }, ordinal: null, seq: 1 },
+  });
+  assert.equal(revealOf(removed), null);
+  assert.equal(revealOf(startedOf(WITH_SON, true)), null);
+  assert.equal(revealOf({ name: "loading" }), null);
+  const { value } = deps({});
+  const from = startedOf(WITH_DECEASED, true);
+  const failed = (await runAction("addHeir", signal, value, WITH_DECEASED, undefined, {
+    kind: "addHeir",
+    from,
+    values: { relationship: "son", name: "" },
+  })) as StartedView;
+  assert.equal(revealOf(failed), null);
 });

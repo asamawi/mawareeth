@@ -313,3 +313,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-3-deceased-info-add-heirs-via-guided-interview-form.md`
   summary: Decide whether the estate amount is entered before or after debts, funeral costs and bequests, and say so in the hint before Story 1.5 shows amounts.
   evidence: The estate hint says only that the field is optional, and the amount will directly set the money shown for each heir.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-family-tree-visualization-basic-render-updates.md`
+  summary: Add node selection with arrow-key navigation, and pan or pinch zoom, to the family tree.
+  evidence: Cut from Story 1.4, which draws a static tree inside a focusable scroll area with `role="img"`; the UX spec expects selectable nodes, and the list remains the way to edit and remove heirs.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-family-tree-visualization-basic-render-updates.md`
+  summary: Build the full-viewport tree layout with the floating question card on desktop and the bottom sheet on tablet and mobile.
+  evidence: Cut from Story 1.4, which keeps the tree, form and list stacked on the heir screen; the UX spec and epic context describe the immersive view.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-family-tree-visualization-basic-render-updates.md`
+  summary: Add repeatable browser tests for the tree's rendering, reveal scrolling, RTL mirroring and keyboard path.
+  evidence: The repo has no browser test tool, so these were checked once with a throwaway headless Edge script that is not in the repo, and a regression would pass lint, typecheck, unit tests and build.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-4-family-tree-visualization-basic-render-updates.md`
+  summary: Decide how to keep the deceased visible once the tree outgrows its 45% viewport cap.
+  evidence: In a headless browser, a six-heir family already overflowed the cap at 375px and 1280px, and revealing a new node on the last line scrolled the deceased out of view.

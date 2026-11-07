@@ -32,6 +32,7 @@ import {
   cancelStartOver,
   heirFormKey,
   openChange,
+  revealOf,
   pick,
   pendingView,
   precheck,
@@ -48,8 +49,10 @@ import {
   type View,
 } from "@/interview/flow";
 import { initialPick, selectionStore } from "@/interview/madhabs";
+import { scrollTopFor } from "@/interview/tree";
 
 import { DeceasedForm } from "./deceased-form";
+import { FamilyTree } from "./family-tree";
 import { buttonClass } from "./form-bits";
 import { DeceasedSummary, HeirList } from "./heir-list";
 import { HeirForm } from "./heir-form";
@@ -100,6 +103,9 @@ export function StartCase({
   const target = useRef<HTMLDivElement>(null);
   const previous = useRef<View | null>(null);
   const settledOnce = useRef(false);
+  // The announcement last brought into view, compared by identity because `seq` restarts
+  // with a new case.
+  const revealed = useRef<unknown>(null);
 
   // Every click makes exactly one attempt; a failure offers a retry and never retries by itself.
   const perform = useCallback(
@@ -183,6 +189,32 @@ export function StartCase({
     (control ?? target.current)?.focus();
   }, [focusRequest]);
 
+  // After a successful add or edit the tree and the heir's node come into view, once. It runs
+  // after the focus effect above, so focus stays in the form. Returning from another screen
+  // finds the same announcement and does nothing.
+  useEffect(() => {
+    if (view.name !== "started" || screenOf(view) !== "heirs") return;
+    const heirId = revealOf(view);
+    if (heirId === null || view.announcement === revealed.current) return;
+    revealed.current = view.announcement;
+    const root = target.current;
+    const section = root?.querySelector<HTMLElement>("[data-tree]");
+    const area = section?.querySelector<HTMLElement>("[data-tree-area]");
+    const node = area?.querySelector<HTMLElement>(`[data-node="${CSS.escape(heirId)}"]`);
+    if (!section || !area || !node) return;
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const behavior: ScrollBehavior = calm ? "instant" : "smooth";
+    // The node may still be gliding, so its final place is read from its style.
+    const top = scrollTopFor(
+      parseFloat(node.style.top) || 0,
+      parseFloat(node.style.height) || 0,
+      area.scrollTop,
+      area.clientHeight,
+    );
+    if (top !== area.scrollTop) area.scrollTo({ top, behavior });
+    section.scrollIntoView({ block: "nearest", behavior });
+  }, [view]);
+
   const resumable = view.name === "throttled" || view.name === "failed" ? view.resumable : null;
 
   const editingHeir = started?.case.heirs.find((heir) => heir.id === started.editingHeir);
@@ -215,7 +247,7 @@ export function StartCase({
   ) : null;
 
   return (
-    <div data-js-only ref={target} tabIndex={-1} className="flex flex-col gap-4 outline-none [&>*:not(form)]:mx-auto [&>*:not(form)]:w-full [&>*:not(form)]:max-w-xl">
+    <div data-js-only ref={target} tabIndex={-1} className="flex flex-col gap-4 outline-none [&>*:not(form,[data-wide])]:mx-auto [&>*:not(form,[data-wide])]:w-full [&>*:not(form,[data-wide])]:max-w-xl">
       {view.name === "loading" && <p role="status">{messages.loading}</p>}
       {view.name === "starting" && <p role="status">{messages.starting}</p>}
 
@@ -344,14 +376,11 @@ export function StartCase({
             disabled={started.saving}
             onEdit={() => edit((current) => startEditDeceased(current, deps))}
           />
-          <HeirList
+          <FamilyTree
             messages={messages}
+            deceased={started.case.deceased}
             heirs={started.case.heirs}
             editingId={started.editingHeir}
-            saving={started.saving}
-            announcement={announcement}
-            onEdit={(heirId) => edit((current) => startEditHeir(current, heirId, deps))}
-            onRemove={(heirId) => submit((from) => ({ kind: "removeHeir", from, heirId }))}
           />
           {started.notice === "heirGone" && <p role="alert">{messages.heirGone}</p>}
           <HeirForm
@@ -380,6 +409,15 @@ export function StartCase({
               )
             }
             onCancel={() => edit((current) => cancelEditHeir(current, deps))}
+          />
+          <HeirList
+            messages={messages}
+            heirs={started.case.heirs}
+            editingId={started.editingHeir}
+            saving={started.saving}
+            announcement={announcement}
+            onEdit={(heirId) => edit((current) => startEditHeir(current, heirId, deps))}
+            onRemove={(heirId) => submit((from) => ({ kind: "removeHeir", from, heirId }))}
           />
         </>
       )}

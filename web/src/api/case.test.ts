@@ -153,6 +153,15 @@ test("every locale has its own interview text", () => {
     assert.ok(new Set(texts).size >= 2, path);
   }
   assert.ok(byLocale[0].has("interview.madhabs.hanbali.name"));
+  for (const key of ["treeHeading", "treeDeceasedMale", "treeDeceasedFemale", "treePrompt", "treeSummary", "treeCount"]) {
+    assert.ok(byLocale[0].has(`interview.${key}`), key);
+  }
+  for (const locale of locales) {
+    const template = messages[locale].interview.treeSummary;
+    assert.ok(template.includes("{deceased}") && template.includes("{heirs}"), locale);
+    const count = messages[locale].interview.treeCount;
+    assert.ok(count.includes("{relationship}") && count.includes("{n}"), locale);
+  }
   assert.deepEqual(
     byLocale.map((map) => [...map.keys()].sort()),
     byLocale.map(() => [...byLocale[0].keys()].sort()),
