@@ -1,6 +1,7 @@
 import re
 from unittest import mock
 
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 from django.conf import settings
@@ -12,6 +13,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.http.request import HttpRequest
 from django.urls import resolve, reverse
+from waffle.testutils import override_flag
 
 from . import views
 from mawareeth.urls import calc_patterns
@@ -1296,3 +1298,464 @@ class TemplateTagTests(TestCase):
                 response = self.client.get(reverse('login') + '?next=/en/', secure=True)
                 self.assertContains(response, text)
                 self.assertNotContains(response, '{%')
+
+
+class ChildMotherTests(TestCase):
+    """The mother of a son or daughter is optional, and a refused request adds no heir."""
+
+    def setUp(self):
+        cache.clear()
+        self.owner = User.objects.create_user('owner', password='x')
+        self.client.force_login(self.owner)
+
+    def make_case(self, wives=2, sex='M'):
+        calc = Calculation.objects.create(name='case', user=self.owner)
+        Deceased.objects.create(first_name='D', last_name='L', sex=sex, estate=1000, calc=calc)
+        made = []
+        for index in range(wives):
+            wife = Wife.objects.create(first_name=f'Wife{index}', last_name='L', sex='F', calc=calc)
+            calc.add_wife(wife)
+            made.append(wife)
+        return calc, made
+
+    def add(self, kind, calc, **data):
+        return self.client.post(
+            reverse(f'calc:{kind}', args=[calc.pk]), {'first_name': 'A', 'last_name': 'B', **data}, secure=True)
+
+    def count(self, kind, calc):
+        return calc.heir_set.instance_of(Son if kind == 'son' else Daughter).count()
+
+    def test_blank_or_missing_mother_adds_one_child(self):
+        for kind in ('son', 'daughter'):
+            for data in ({'mother': ''}, {}):
+                with self.subTest(kind=kind, data=data):
+                    calc, _wives = self.make_case()
+                    response = self.add(kind, calc, **data)
+                    self.assertEqual(response.status_code, 302)
+                    self.assertEqual(self.count(kind, calc), 1)
+                    child = calc.heir_set.instance_of(Son, Daughter).get()
+                    self.assertIsNone(child.parents.female)
+
+    def test_two_children_without_a_mother_share_one_link(self):
+        calc, _wives = self.make_case()
+        self.add('son', calc, mother='')
+        self.add('daughter', calc, mother='')
+        parents = {child.parents_id for child in calc.heir_set.instance_of(Son, Daughter)}
+        self.assertEqual(len(parents), 1)
+
+    def test_chosen_mother_is_stored(self):
+        for kind in ('son', 'daughter'):
+            with self.subTest(kind=kind):
+                calc, wives = self.make_case()
+                self.add(kind, calc, mother=wives[1].pk)
+                child = calc.heir_set.instance_of(Son, Daughter).get()
+                self.assertEqual(child.parents.female_id, wives[1].pk)
+
+    def test_refused_mother_adds_no_child(self):
+        other_case, other_wives = self.make_case()
+        for kind in ('son', 'daughter'):
+            for value in ('abc', '999999', other_wives[0].pk):
+                with self.subTest(kind=kind, value=value):
+                    calc, _wives = self.make_case()
+                    response = self.add(kind, calc, mother=value)
+                    self.assertEqual(response.status_code, 404)
+                    self.assertEqual(self.count(kind, calc), 0)
+
+    def test_child_added_before_and_after_a_wife(self):
+        calc, _wives = self.make_case(wives=0)
+        self.add('son', calc)
+        wife = Wife.objects.create(first_name='W', last_name='L', sex='F', calc=calc)
+        calc.add_wife(wife)
+        self.assertEqual(self.add('son', calc, mother='').status_code, 302)
+        self.assertEqual(self.add('son', calc, mother=wife.pk).status_code, 302)
+        self.assertEqual(self.count('son', calc), 3)
+
+    def test_female_deceased_ignores_the_mother_field(self):
+        calc, _wives = self.make_case(wives=0, sex='F')
+        self.assertEqual(self.add('son', calc, mother='').status_code, 302)
+        self.assertEqual(self.count('son', calc), 1)
+
+    def test_every_wife_is_named_in_the_mother_list(self):
+        calc, wives = self.make_case()
+        unnamed = Wife.objects.create(first_name='', last_name='', sex='F', calc=calc)
+        calc.add_wife(unnamed)
+        with translation.override('en'):
+            page = self.client.get(reverse('calc:detail', args=[calc.pk]), secure=True)
+        self.assertEqual(page.status_code, 200)
+        html = re.sub(r'\s+', ' ', page.content.decode())
+        self.assertRegex(html, rf'<option selected value="{wives[0].pk}"> Wife0 </option>')
+        self.assertRegex(html, rf'<option value="{wives[1].pk}"> Wife1 </option>')
+        self.assertRegex(html, rf'<option value="{unnamed.pk}"> \S+ 3 </option>')
+
+
+# ---------------------------------------------------------------------------
+# Hanbali distribution: fixture table and invariants
+# ---------------------------------------------------------------------------
+
+F = Fraction
+
+HEIR_SEX = {
+    Father: 'M', Mother: 'F', Husband: 'M', Wife: 'F', Daughter: 'F', Son: 'M',
+    Brother: 'M', Sister: 'F', GrandFather: 'M', GrandMother: 'F', SonOfSon: 'M',
+    DaughterOfSon: 'F', PaternalSister: 'F', PaternalBrother: 'M', MaternalSister: 'F',
+    MaternalBrother: 'M', SonOfBrother: 'M', SonOfPaternalBrother: 'M', Uncle: 'M',
+    PaternalUncle: 'M', SonOfUncle: 'M', SonOfPaternalUncle: 'M',
+}
+ALL_HEIR_TYPES = list(HEIR_SEX)
+ESTATE = 7000
+
+
+def build_case(deceased_sex, heir_types, estate=ESTATE):
+    """Create a case with one heir per entry of `heir_types`, in that order."""
+    user, _created = User.objects.get_or_create(username='fixture-owner')
+    calc = Calculation.objects.create(name='case', user=user)
+    Deceased.objects.create(first_name='Deceased', sex=deceased_sex, estate=estate, calc=calc)
+    heirs = [cls.objects.create(first_name=cls.__name__, sex=HEIR_SEX[cls], calc=calc) for cls in heir_types]
+    return calc, heirs
+
+
+def half_up(estate, fraction):
+    exact = Decimal(fraction.numerator) * estate / Decimal(fraction.denominator)
+    return exact.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+
+def stored(heir):
+    return Heir.objects.get(pk=heir.pk)
+
+
+# (title, deceased sex, [(heir type, expected fraction of the whole estate for that heir), ...])
+FIXTURES = [
+    ('two wives, one son', 'M', [(Wife, F(1, 16)), (Wife, F(1, 16)), (Son, F(7, 8))]),
+    ('three wives, mother, two sons', 'M',
+     [(Wife, F(1, 24))] * 3 + [(Mother, F(1, 6)), (Son, F(17, 48)), (Son, F(17, 48))]),
+    ('radd with spouse', 'M',
+     [(Wife, F(1, 8)), (Mother, F(7, 40))] + [(Daughter, F(7, 30))] * 3),
+    ('radd, deceased female', 'F', [(Husband, F(1, 4))] + [(Daughter, F(1, 4))] * 3),
+    ('radd, two wives', 'M',
+     [(Wife, F(1, 16)), (Wife, F(1, 16)), (Mother, F(7, 32)), (Daughter, F(21, 32))]),
+    ('awl', 'M',
+     [(Wife, F(1, 18)), (Wife, F(1, 18)), (Mother, F(4, 27)), (Father, F(4, 27)),
+      (Daughter, F(8, 27)), (Daughter, F(8, 27))]),
+    ('father with daughters', 'M',
+     [(Wife, F(1, 16)), (Wife, F(1, 16)), (Father, F(5, 24)), (Daughter, F(1, 3)), (Daughter, F(1, 3))]),
+    ('mushtaraka gives the full brother nothing', 'F',
+     [(Husband, F(1, 2)), (Mother, F(1, 6)), (MaternalBrother, F(1, 6)), (MaternalBrother, F(1, 6)),
+      (Brother, F(0))]),
+    ('sister residuary blocks the paternal brother', 'M',
+     [(Daughter, F(1, 3)), (Daughter, F(1, 3)), (Sister, F(1, 6)), (Sister, F(1, 6)),
+      (PaternalBrother, F(0))]),
+    ('grandfather, one brother', 'M', [(GrandFather, F(1, 2)), (Brother, F(1, 2))]),
+    ('grandfather, three brothers', 'M',
+     [(GrandFather, F(1, 3))] + [(Brother, F(2, 9))] * 3),
+    ('grandfather, sister', 'M', [(GrandFather, F(2, 3)), (Sister, F(1, 3))]),
+    ('grandfather after a spouse', 'M', [(Wife, F(1, 4)), (GrandFather, F(3, 8)), (Brother, F(3, 8))]),
+    ("grandfather's minimum, deceased female", 'F',
+     [(Husband, F(1, 2)), (Mother, F(1, 3)), (GrandFather, F(1, 6)), (Brother, F(0))]),
+    ('daughter, sister, grandfather', 'M', [(Daughter, F(1, 2)), (GrandFather, F(1, 3)), (Sister, F(1, 6))]),
+    ('akdariyya', 'F',
+     [(Husband, F(9, 27)), (Mother, F(6, 27)), (GrandFather, F(8, 27)), (Sister, F(4, 27))]),
+    ('akdariyya with a paternal sister', 'F',
+     [(Husband, F(9, 27)), (Mother, F(6, 27)), (GrandFather, F(8, 27)), (PaternalSister, F(4, 27))]),
+    ('counting paternal siblings', 'M',
+     [(GrandFather, F(1, 3)), (Brother, F(2, 3)), (PaternalBrother, F(0))]),
+    ('ashariyya', 'M', [(GrandFather, F(2, 5)), (Sister, F(1, 2)), (PaternalBrother, F(1, 10))]),
+    ('spouse alone', 'M', [(Wife, F(1, 4))]),
+    ('no heirs yet', 'M', []),
+    # classical cases
+    ('umariyyatan, deceased male', 'M', [(Wife, F(1, 4)), (Mother, F(1, 4)), (Father, F(1, 2))]),
+    ('umariyyatan, deceased female', 'F', [(Husband, F(1, 2)), (Mother, F(1, 6)), (Father, F(1, 3))]),
+    ('minbariyya', 'M',
+     [(Wife, F(1, 9)), (Mother, F(4, 27)), (Father, F(4, 27)), (Daughter, F(8, 27)), (Daughter, F(8, 27))]),
+    ('husband with two full sisters', 'F',
+     [(Husband, F(3, 7)), (Sister, F(2, 7)), (Sister, F(2, 7))]),
+    ("daughter with son's daughter", 'M', [(Daughter, F(3, 4)), (DaughterOfSon, F(1, 4))]),
+    ("daughter, son's daughter and father", 'M',
+     [(Daughter, F(1, 2)), (DaughterOfSon, F(1, 6)), (Father, F(1, 3))]),
+    ("daughter, son's daughter and brother", 'M',
+     [(Daughter, F(1, 2)), (DaughterOfSon, F(1, 6)), (Brother, F(1, 3))]),
+    ('mother and daughter', 'M', [(Mother, F(1, 4)), (Daughter, F(3, 4))]),
+    ('grandfather, full sister and paternal sister', 'M',
+     [(GrandFather, F(1, 2)), (Sister, F(1, 2)), (PaternalSister, F(0))]),
+    ('grandfather, brother and sister', 'M', [(GrandFather, F(2, 5)), (Brother, F(2, 5)), (Sister, F(1, 5))]),
+    ('grandfather, two sisters and a paternal brother', 'M',
+     [(GrandFather, F(1, 3)), (Sister, F(1, 3)), (Sister, F(1, 3)), (PaternalBrother, F(0))]),
+    ('grandfather still blocks maternal siblings, nephews and uncles', 'M',
+     [(GrandFather, F(1, 2)), (Brother, F(1, 2)), (MaternalBrother, F(0)), (SonOfBrother, F(0)), (Uncle, F(0))]),
+    ('grandfather with a daughter and no siblings', 'M', [(Daughter, F(1, 2)), (GrandFather, F(1, 2))]),
+    ('grandfather with a son', 'M', [(Son, F(5, 6)), (GrandFather, F(1, 6)), (Brother, F(0))]),
+    ('son of brother blocks the uncle', 'M', [(SonOfBrother, F(1)), (Uncle, F(0))]),
+    ('son of brother blocks the son of a paternal brother', 'M', [(SonOfBrother, F(1)), (SonOfPaternalBrother, F(0))]),
+    ('paternal brother blocks the son of a brother', 'M', [(PaternalBrother, F(1)), (SonOfBrother, F(0))]),
+    ('wife, daughter, grandfather and sister', 'M',
+     [(Wife, F(1, 8)), (Daughter, F(1, 2)), (GrandFather, F(1, 4)), (Sister, F(1, 8))]),
+    ('grandfather, two sisters and a paternal sister', 'M',
+     [(GrandFather, F(2, 5)), (Sister, F(3, 10)), (Sister, F(3, 10)), (PaternalSister, F(0))]),
+    # Al-Mughni: the daughter takes 1/2, the full sister all the rest, the paternal sister nothing.
+    ('daughter, sister and paternal sister', 'M',
+     [(Daughter, F(1, 2)), (Sister, F(1, 2)), (PaternalSister, F(0))]),
+    ('two daughters, sister and paternal sister', 'M',
+     [(Daughter, F(1, 3)), (Daughter, F(1, 3)), (Sister, F(1, 3)), (PaternalSister, F(0))]),
+    ('mother, two daughters, sister and paternal sister', 'M',
+     [(Mother, F(1, 6)), (Daughter, F(1, 3)), (Daughter, F(1, 3)), (Sister, F(1, 6)), (PaternalSister, F(0))]),
+    # Al-Mughni 6/168: with no child, the full sister has 1/2 and the paternal sister 1/6 to complete 2/3.
+    ('uncle, sister and paternal sister', 'M',
+     [(Uncle, F(1, 3)), (Sister, F(1, 2)), (PaternalSister, F(1, 6))]),
+    ('sister and two paternal sisters, with radd', 'M',
+     [(Sister, F(3, 4)), (PaternalSister, F(1, 8)), (PaternalSister, F(1, 8))]),
+    # Al-Mughni 6/168: a paternal brother makes the paternal sister residuary, with twice her share.
+    ('sister, paternal brother and paternal sister', 'M',
+     [(Sister, F(1, 2)), (PaternalBrother, F(1, 3)), (PaternalSister, F(1, 6))]),
+]
+
+
+class DistributionFixtureTests(TestCase):
+    """Whole-estate shares for classical families, as the Hanbali school gives them."""
+
+    def test_fixture_table(self):
+        for title, sex, expected in FIXTURES:
+            with self.subTest(title):
+                calc, heirs = build_case(sex, [cls for cls, _fraction in expected])
+                exact = calc.compute()
+                self.assertEqual([exact[h.pk] for h in heirs], [fraction for _cls, fraction in expected])
+                for heir, (cls, fraction) in zip(heirs, expected):
+                    self.assertEqual(stored(heir).amount, half_up(ESTATE, fraction), cls.__name__)
+                if expected and not all(cls in (Wife, Husband) for cls, _fraction in expected):
+                    total = sum(stored(h).amount for h in heirs)
+                    self.assertAlmostEqual(float(total), ESTATE, delta=0.05)
+
+    def test_awl_columns(self):
+        calc, heirs = build_case('M', [Wife, Wife, Mother, Father, Daughter, Daughter])
+        calc.compute()
+        calc.refresh_from_db()
+        self.assertEqual((calc.shares, calc.shares_excess, calc.excess), (24, 27, True))
+        self.assertEqual((calc.correction, calc.shares_corrected), (True, 54))
+        wife, _wife2, mother, father, daughter, _daughter2 = [stored(h) for h in heirs]
+        self.assertEqual((wife.share, mother.share, father.share, daughter.share), (3, 4, 4, 8))
+        self.assertEqual((wife.corrected_share, daughter.corrected_share), (3, 16))
+        self.assertEqual(calc.get_shares(), 27)
+
+    def test_radd_columns(self):
+        calc, heirs = build_case('M', [Wife, Mother, Daughter, Daughter, Daughter])
+        calc.compute()
+        calc.refresh_from_db()
+        self.assertEqual((calc.shortage, calc.shortage_calc), (True, True))
+        self.assertEqual((calc.shares_shorted, calc.shortage_union_shares), (8, 40))
+        wife, mother, daughter = stored(heirs[0]), stored(heirs[1]), stored(heirs[2])
+        self.assertEqual((wife.shorted_share, mother.shorted_share), (1, 7))
+        self.assertEqual((wife.shortage_union_share, mother.shortage_union_share), (5, 7))
+        self.assertEqual(calc.correction, True)
+        self.assertEqual(daughter.amount, half_up(ESTATE, F(7, 30)))
+
+    def test_radd_without_spouse_columns(self):
+        calc, heirs = build_case('M', [Mother, Daughter])
+        calc.compute()
+        calc.refresh_from_db()
+        mother, daughter = stored(heirs[0]), stored(heirs[1])
+        self.assertTrue(calc.shortage)
+        self.assertFalse(calc.shortage_calc)
+        self.assertEqual(calc.shares_shorted, 4)
+        self.assertEqual((mother.shorted_share, daughter.shorted_share), (1, 3))
+
+    def test_grandfather_quote_is_stored_and_shown(self):
+        calc, heirs = build_case('M', [GrandFather, Brother])
+        calc.compute()
+        grandfather = stored(heirs[0])
+        self.assertEqual(grandfather.get_fraction(), F(1, 2))
+        self.assertEqual(stored(heirs[1]).get_fraction(), F(1, 2))
+        cache.clear()
+        client = Client()
+        client.force_login(calc.user)
+        response = client.get(f'/en/{calc.id}/results/', secure=True)
+        self.assertTemplateUsed(response, 'calc/results.html')
+        self.assertContains(response, '<td>1/2</td>', count=1)
+
+    def test_fiqh_order_covers_every_heir_type(self):
+        concrete = {cls for cls in Heir.__subclasses__()}
+        self.assertEqual(concrete, set(FIQH_ORDER))
+        self.assertEqual(len(FIQH_ORDER), len(set(FIQH_ORDER)))
+
+    def test_unknown_heir_type_sorts_last_instead_of_failing(self):
+        calc, heirs = build_case('M', [Father])
+        with mock.patch('calc.models.FIQH_ORDER', [Son]):
+            calc.compute()
+        self.assertEqual(stored(heirs[0]).amount, Decimal(ESTATE))
+
+    def test_father_with_daughters_shows_the_remainder_as_shortage(self):
+        calc, heirs = build_case('M', [Father, Daughter])
+        calc.compute()
+        calc.refresh_from_db()
+        father, daughter = stored(heirs[0]), stored(heirs[1])
+        self.assertEqual((calc.shares, calc.shortage, calc.shares_shorted), (6, True, 6))
+        self.assertEqual((father.share, father.shorted_share, daughter.shorted_share), (1, 3, 3))
+
+    def test_amounts_round_half_up(self):
+        calc, heirs = build_case('M', [Wife, Mother, Son], estate=1)
+        calc.compute()
+        self.assertEqual([stored(h).amount for h in heirs], [Decimal('0.13'), Decimal('0.17'), Decimal('0.71')])
+
+    def test_stale_results_correct_themselves_on_compute(self):
+        calc, heirs = build_case('M', [Wife, Wife, Son])
+        for heir in heirs:
+            heir.share = 99
+            heir.amount = Decimal('1234.00')
+            heir.save()
+        Calculation.objects.filter(pk=calc.pk).update(shares=77, excess=True, shares_excess=88)
+        calc = Calculation.objects.get(pk=calc.pk)
+        calc.compute()
+        calc.refresh_from_db()
+        self.assertEqual((calc.shares, calc.excess, calc.shares_excess), (8, False, 0))
+        self.assertEqual(stored(heirs[0]).amount, Decimal('437.50'))
+        self.assertEqual(stored(heirs[2]).amount, Decimal('6125.00'))
+
+    def test_results_pages_show_columns_that_add_up(self):
+        cases = {
+            'awl': ('M', [Wife, Wife, Mother, Father, Daughter, Daughter]),
+            'radd': ('M', [Wife, Mother, Daughter, Daughter, Daughter]),
+            'correction': ('M', [Wife, Wife, Wife, Son, Son]),
+            'grandfather': ('F', [Husband, Mother, GrandFather, Sister]),
+        }
+        cache.clear()
+        client = Client()
+        for title, (sex, types) in cases.items():
+            calc, heirs = build_case(sex, types)
+            client.force_login(calc.user)
+            for lang in ('en', 'ar'):
+                for page in ('results', 'new-results'):
+                    with self.subTest(f'{title} {lang} {page}'), override_flag('new_results', active=True):
+                        response = client.get(f'/{lang}/{calc.id}/{page}/', secure=True)
+                        self.assertEqual(response.status_code, 200)
+                        self.assertTemplateUsed(response, f'calc/{page.replace("-", "_")}.html')
+                        for heir in heirs:
+                            self.assertContains(response, f'{stored(heir).amount:,}')
+            total = sum(stored(h).amount for h in heirs)
+            self.assertAlmostEqual(float(total), ESTATE, delta=0.05)
+
+    def test_new_reasons_are_translated(self):
+        import gettext
+        po_ids = [
+            "Grandfather shares the estate with the full and paternal siblings and takes the best of his options",
+            "Grandfather shares the remainder with the siblings as one more brother, which is the best of his options",
+            "Grandfather gets 1/3 of the remainder, which is the best of his options with siblings",
+            "Grandfather gets 1/6 of the estate, which is the best of his options with siblings",
+            "Akdariyya: the grandfather and the sister pool their shares and split them two to one",
+            "Paternal siblings count against the grandfather but get nothing because of the full siblings",
+            "The shares of the grandfather and the others use up the whole estate, so nothing is left for the siblings",
+            "The fixed shares use up the whole estate, so nothing is left for the residuary heirs",
+            "Brother/s share the estate with the grandfather",
+            "Sister/s share the estate with the grandfather",
+            "Paternal brother/s share the estate with the grandfather",
+            "Paternal sister/s share the estate with the grandfather",
+            "Paternal sister/s are blocked by sisters",
+        ]
+        for lang in ('fr', 'ar'):
+            catalog = gettext.translation('django', settings.BASE_DIR / 'locale', languages=[lang])
+            for msgid in po_ids:
+                with self.subTest(f'{lang}: {msgid}'):
+                    translated = catalog.gettext(msgid)
+                    self.assertTrue(translated)
+                    self.assertNotEqual(translated, msgid)
+        calc, heirs = build_case('F', [Husband, Mother, GrandFather, Sister])
+        with translation.override('fr'):
+            calc.compute()
+            self.assertNotIn('Akdariyya: the grandfather', stored(heirs[2]).quote_reason)
+
+
+def family_types(rng, deceased_sex):
+    """A random family, with only as many of each heir as the model allows."""
+    types = []
+    for cls in ALL_HEIR_TYPES:
+        if (cls is Husband and deceased_sex != 'F') or (cls is Wife and deceased_sex != 'M'):
+            continue
+        if rng.random() > 0.3:
+            continue
+        if cls in (Father, Mother, Husband, GrandFather):
+            count = 1
+        elif cls is Wife:
+            count = rng.randint(1, 4)
+        else:
+            count = rng.randint(1, 3)
+        types += [cls] * count
+    return types
+
+
+def families():
+    """Every type on its own and in a few common contexts, plus random families."""
+    import random
+    rng = random.Random(20261107)
+    found = []
+    for cls in ALL_HEIR_TYPES:
+        sex = 'F' if cls is Husband else 'M'
+        spouse = Wife if sex == 'M' else Husband
+        for context in ([], [Mother], [Father, Mother], [Daughter, Daughter], [GrandFather], [spouse]):
+            if cls in context:
+                continue
+            found.append((sex, [cls] + context))
+        if cls not in (Father, Mother, Husband, GrandFather):
+            found.append((sex, [cls, cls]))
+    found.append(('M', [Wife] * 4))
+    for _ in range(60):
+        sex = rng.choice('MF')
+        types = family_types(rng, sex)
+        if types:
+            found.append((sex, types))
+    return found
+
+
+def fingerprint(calc, heirs, exact):
+    """Everything stored for each heir, without the order they were entered in."""
+    rows = []
+    for heir in heirs:
+        row = stored(heir)
+        rows.append((type(heir).__name__, exact[heir.pk], row.amount, row.share, row.shorted_share,
+                     row.corrected_share, row.blocked, row.asaba, row.correction))
+    calc.refresh_from_db()
+    return sorted(rows, key=repr), (calc.shares, calc.shares_excess, calc.shares_shorted, calc.shares_corrected,
+                                    calc.shortage_calc_shares, calc.shortage_union_shares)
+
+
+class DistributionInvariantTests(TestCase):
+    """Properties that hold for every family, over all 22 relationship types."""
+
+    def test_every_family_adds_up_and_is_fair(self):
+        for sex, types in families():
+            with self.subTest(f'{sex}: {[t.__name__ for t in types]}'):
+                calc, heirs = build_case(sex, types)
+                exact = calc.compute()
+                rows = {h.pk: stored(h) for h in heirs}
+                live = [h for h in heirs if not rows[h.pk].blocked]
+                total = sum(exact[h.pk] for h in heirs)
+                if all(isinstance(h, (Husband, Wife)) for h in live):
+                    self.assertLessEqual(total, 1)
+                else:
+                    self.assertEqual(total, 1)
+                for h in heirs:
+                    if rows[h.pk].blocked:
+                        self.assertEqual(exact[h.pk], 0)
+                        self.assertEqual(rows[h.pk].amount, 0)
+                    self.assertEqual(rows[h.pk].amount, half_up(ESTATE, exact[h.pk]))
+                calc.refresh_from_db()
+                if calc.correction and total == 1:
+                    # a spouse with no other heir leaves part of the estate unallocated, so only whole estates are checked
+                    self.assertEqual(sum(rows[h.pk].corrected_share for h in live), calc.shares_corrected)
+                for cls in {type(h) for h in heirs}:
+                    self.assertLessEqual(len({exact[h.pk] for h in live if type(h) is cls}), 1)
+                if calc.gf_shares_with_siblings():
+                    groups = [[h for h in live if isinstance(h, (Brother, Sister))],
+                              [h for h in live if isinstance(h, (PaternalBrother, PaternalSister))]]
+                else:
+                    groups = [[h for h in live if rows[h.pk].asaba]]
+                for group in groups:
+                    males = {exact[h.pk] for h in group if HEIR_SEX[type(h)] == 'M' and exact[h.pk] > 0}
+                    females = {exact[h.pk] for h in group if HEIR_SEX[type(h)] == 'F' and exact[h.pk] > 0}
+                    if males and females:
+                        self.assertEqual(males.pop(), 2 * females.pop())
+
+    def test_entry_order_does_not_matter(self):
+        for sex, types in families():
+            with self.subTest(f'{sex}: {[t.__name__ for t in types]}'):
+                forward, forward_heirs = build_case(sex, types)
+                backward, backward_heirs = build_case(sex, list(reversed(types)))
+                self.assertEqual(
+                    fingerprint(forward, forward_heirs, forward.compute()),
+                    fingerprint(backward, backward_heirs, backward.compute()),
+                )

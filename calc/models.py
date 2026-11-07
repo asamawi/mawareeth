@@ -5,10 +5,54 @@ from django.urls import reverse
 from django.utils.translation import gettext as _
 from polymorphic.managers import PolymorphicManager, PolymorphicQuerySet
 from fractions import Fraction
+from decimal import Decimal
 from functools import reduce
 import math
 from django.db.models import Count
 
+
+
+class _Group:
+    """Heirs who share one amount of the estate: one fixed share, the residue, or a pool."""
+
+    def __init__(self, key, amount, kind='fixed'):
+        self.key = key
+        self.kind = kind
+        self.amount = Fraction(amount)
+        self.stage = self.final = self.amount
+        self.members = []
+        self.weights = []
+
+    def add(self, heir, weight=1):
+        self.members.append(heir)
+        self.weights.append(weight)
+
+    def set_weights_by_sex(self):
+        mixed = len({is_male(h) for h in self.members}) > 1
+        self.weights = [2 if (mixed and is_male(h)) else 1 for h in self.members]
+
+    def is_spouse(self):
+        return isinstance(self.key, type) and issubclass(self.key, (Husband, Wife))
+
+    def column(self, base, amount):
+        """Each member's whole number of parts of `base`. When the group's
+        parts do not divide, every member shows the group's total instead and
+        the result is flagged as needing a correction."""
+        total_weight = sum(self.weights)
+        values = [amount * weight * base / total_weight for weight in self.weights]
+        if all(value.denominator == 1 for value in values):
+            return [int(value) for value in values], False
+        return [round(amount * base)] * len(values), True
+
+
+def is_male(heir):
+    return isinstance(heir, MALE_HEIRS)
+
+
+def money(value):
+    """Round an exact amount half up to 2 decimals."""
+    cents = math.floor(Fraction(value) * 100 + Fraction(1, 2))
+    return Decimal(cents) / 100
 
 
 from django.contrib.auth.models import User
@@ -99,7 +143,7 @@ class Person(PolymorphicModel):
         if self.sex == 'M':
             #check for marriages
             if self.male_marriages.count() != 0:
-                daughter.parents=Marriage.objects.get(male=self, female=mother)
+                daughter.parents=Marriage.objects.filter(male=self, female=mother).first() or Marriage.objects.create(male=self, female=mother)
             else:
                 daughter.parents=Marriage.objects.create()
                 daughter.parents.add_male(self)
@@ -119,7 +163,7 @@ class Person(PolymorphicModel):
         if self.sex == 'M':
             #check for marriages
             if self.male_marriages.count() != 0:
-                son.parents=Marriage.objects.get(male=self, female=mother)
+                son.parents=Marriage.objects.filter(male=self, female=mother).first() or Marriage.objects.create(male=self, female=mother)
             else:
                 son.parents=Marriage.objects.create()
                 son.parents.add_male(self)
@@ -328,8 +372,12 @@ class Calculation(models.Model):
         return str(self.name)
 
     def get_quotes(self):
-        for heir in self.heir_set.all().order_by('polymorphic_ctype_id'):
+        """Classify every heir in a fixed fiqh order, so that no heir reads a
+        flag another heir has not set yet. Returns the classified heirs."""
+        heirs = sorted(self.heir_set.all(), key=lambda heir: (FIQH_ORDER.index(type(heir)) if type(heir) in FIQH_ORDER else len(FIQH_ORDER), heir.pk))
+        for heir in heirs:
             heir.get_quote(self)
+        return heirs
 
     def lcm(self, a, b):
         return abs(a*b) // math.gcd(a, b)
@@ -383,7 +431,7 @@ class Calculation(models.Model):
         return self.heir_set.instance_of(PaternalBrother).count() > 0
 
     def has_sonOfBrother(self):
-        return self.heir_set.instance_of(PaternalBrother).count() > 0
+        return self.heir_set.instance_of(SonOfBrother).count() > 0
 
     def has_sonOfPaternalBrother(self):
         return self.heir_set.instance_of(SonOfPaternalBrother).count() > 0
@@ -448,241 +496,286 @@ class Calculation(models.Model):
             fractions.add(heir.get_fraction())
         return fractions
 
-    def set_calc_shares(self):
-        count = self.heir_set.filter(blocked=False).count()
-        #if all are asaba (agnates)
-        if self.heir_set.filter(asaba=True).count() == count:
-            males = self.heir_set.filter(sex='M',blocked=False).count()
-            females = self.heir_set.filter(sex='F',blocked=False).count()
-            #if all same gender
-            if   males == count or females  == count:
-                self.shares = count
-            else:
-                for heir in self.heir_set.filter(blocked=False):
-                    self.shares = males * 2 + females
-        else:
-            denom_list = []
-            fractions_set = self.get_fractions(self.heir_set.filter(blocked=False))
-            for fraction in fractions_set:
-                denom_list.append(fraction.denominator)
-            self.shares = self.lcm_list(denom_list)
-        self.save()
-        return self.shares
     def get_shares(self):
-        shares = 0
-        #first get shares without asaba
-        for  heir in self.heir_set.filter(correction=False, asaba=False, blocked=False):
-            shares = shares + heir.share
-        if self.correction == True:
-            correction_set = self.heir_set.filter(correction=True, asaba=False).values('polymorphic_ctype_id','share').annotate(total=Count('id'))
-            for result in correction_set:
-                shares = shares + result["share"]
-        #if there is asaba with need for correction
-        asaba = self.heir_set.filter(asaba=True, correction=True).first()
-        if asaba:
-            shares = shares + asaba.share
-        else:
-            for asaba in self.heir_set.filter(asaba=True, correction=False):
-                shares = shares + asaba.share
-        if shares > self.shares:
-            if self.common_quote == False:
-                self.excess = True
-                self.shares_excess = shares
-                self.save()
-                return self.shares_excess
-        return shares
-
-    def set_shares(self):
+        """Sum of the shares in the Shares column (each group counted once)."""
+        total = 0
+        seen = set()
+        gf_mode = self.gf_shares_with_siblings()
         for heir in self.heir_set.filter(blocked=False):
-            heir.set_share(self)
+            if heir.correction:
+                if heir.asaba:
+                    key = ('asaba', isinstance(heir, (Brother, Sister)) if gf_mode else None, heir.share)
+                elif self.maternal_quote and isinstance(heir, (MaternalBrother, MaternalSister)):
+                    key = ('maternal', heir.share)
+                else:
+                    key = (heir.polymorphic_ctype_id, heir.share)
+                if key in seen:
+                    continue
+                seen.add(key)
+            total += heir.share
+        return total
+
+    def set_calc_shares(self):
+        return self.shares
 
     def set_calc_correction(self):
-        if self.correction == True:
-            shares = 0
-            if self.excess == True:
-                shares = self.shares_excess
-            elif self.shortage == True:
-                shares = self.shares_shorted
-            else:
-                shares = self.shares
-            correction_set = self.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
-            asaba_set = self.heir_set.filter(asaba=True, correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
-            if self.common_quote == True:
-                heir_share = self.heir_set.filter(correction=True).first().share
-                count = self.heir_set.filter(correction=True).count()
-                if count % heir_share == 0:
-                    self.shares_corrected = math.gcd(count, heir_share) * shares
-                else:
-                    self.shares_corrected = count * shares
-            elif correction_set.count() == 1:
-                heir_share = self.heir_set.filter(correction=True).first().share
-                count = self.heir_set.filter(correction=True).count()
-                if count % heir_share == 0:
-                    self.shares_corrected = math.gcd(count, heir_share) * shares
-                else:
-                    self.shares_corrected = count * shares
-            elif asaba_set.count() == 2:
-                factors = set()
-                correction_set_without_asaba = self.heir_set.filter(correction=True, asaba=False).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
-                males = self.heir_set.filter(asaba=True, sex='M').count()
-                females = self.heir_set.filter(asaba=True, sex='F').count()
-                asaba_count = males * 2 + females
-                asaba_share = self.heir_set.filter(asaba=True).first().share
-                if asaba_share != 0:
-                    if asaba_share % asaba_count == 0:
-                        factors.add(math.gcd(asaba_count, asaba_share))
-                    else:
-                        factors.add(asaba_count)
-                for result in correction_set_without_asaba:
-                    heir_share = Fraction(result["quote"]).limit_denominator().numerator
-                    count = result["total"]
-                    if heir_share != 0:
-                        if heir_share % count == 0:
-                            factors.add(math.gcd(count, heir_share))
-                        else:
-                            factors.add(count)
-                self.shares_corrected = self.lcm_list(factors) * shares
-            else:
-                factors = set()
-                for result in correction_set:
-                    heir_share = Fraction(result["quote"]).limit_denominator().numerator
-                    count = result["total"]
-                    if heir_share != 0:
-                        if heir_share % count == 0:
-                            factors.add(math.gcd(count, heir_share))
-                        else:
-                            factors.add(count)
-                self.shares_corrected = self.lcm_list(factors) * shares
-
-
-            self.save()
-            return self.shares_corrected
+        return self.shares_corrected if self.correction else None
 
     def get_corrected_shares(self):
-        if self.correction == True and self.shares_corrected != 0:
-            shares = 0
-            for  heir in self.heir_set.filter(blocked=False):
-                shares = shares + heir.get_corrected_share(self)
-            return shares
+        if self.correction and self.shares_corrected != 0:
+            return sum(heir.corrected_share for heir in self.heir_set.filter(blocked=False))
 
-    def set_calc_shortage(self):
-        shares = self.get_shares()
-        if self.shares > shares:
-            self.shortage = True
-            remainder = self.shares - shares
-            if self.has_father() or self.has_grandFather() == True :
-                self.shares_shorted = self.shares
-            elif self.has_spouse() == False:
-                self.shares_shorted = shares
-            elif self.has_spouse() == True:
-                spouse = self.get_spouse().first()
-                self.shares_shorted = spouse.get_fraction().denominator
-            self.save()
-    def set_asaba_quotes(self):
-        #check for asaba exclude father with quote
-        asaba = self.heir_set.filter(asaba=True).exclude(quote__gt=0)
-        if asaba:
-            #check for residual_shares
-            if self.residual_shares > 0 or self.common_quote == True:
+    def gf_shares_with_siblings(self):
+        """True when the grandfather shares the estate with full or paternal siblings.
+
+        That is the case when there is no father (who would block him) and no
+        male descendant (who would block the siblings)."""
+        return (self.has_grandFather() and not self.has_father() and not self.has_male_descendent()
+                and self.heir_set.instance_of(Brother, Sister, PaternalBrother, PaternalSister).count() > 0)
+
+    def is_akdariyya(self, live):
+        """Husband, mother, grandfather and one full or paternal sister, and no other heir."""
+        if len(live) != 4:
+            return False
+        husband = [h for h in live if isinstance(h, Husband)]
+        mother = [h for h in live if isinstance(h, Mother)]
+        sisters = [h for h in live if isinstance(h, (Sister, PaternalSister))]
+        grandfather = [h for h in live if isinstance(h, GrandFather)]
+        return (len(husband) == 1 and len(mother) == 1 and len(sisters) == 1 and len(grandfather) == 1
+                and husband[0].exact_quote() == Fraction(1, 2) and mother[0].exact_quote() == Fraction(1, 3))
+
+    def distribute(self, heirs):
+        """Share the estate between the classified heirs, with exact fractions.
+
+        This is the only place where results are worked out. Every stored column
+        (shares, excess, shortage, correction and amount) is derived from the
+        one fraction each heir ends up with. Returns those fractions, keyed by
+        heir id."""
+        zero = Fraction(0)
+        one = Fraction(1)
+        live = [h for h in heirs if not h.blocked]
+        gf_mode = self.gf_shares_with_siblings()
+        sibs = [h for h in live if isinstance(h, (Brother, Sister, PaternalBrother, PaternalSister))] if gf_mode else []
+        sib_ids = {h.pk for h in sibs}
+
+        # fixed shares, one group per type (maternal siblings share one group)
+        fixed = {}
+        for heir in live:
+            if heir.asaba or heir.pk in sib_ids or (gf_mode and isinstance(heir, GrandFather)):
+                continue
+            quote = heir.exact_quote()
+            if quote <= 0:
+                continue
+            if self.maternal_quote and isinstance(heir, (MaternalBrother, MaternalSister)):
+                key = 'maternal'
+            else:
+                key = type(heir)
+            if key not in fixed:
+                fixed[key] = _Group(key, quote)
+            fixed[key].add(heir)
+        groups = list(fixed.values())
+        fixed_total = sum((g.amount for g in groups), zero)
+
+        extra = None          # father or grandfather who also takes the remainder
+        extra_remainder = zero
+        radd_groups = []
+        reasons = {}
+        residual = zero
+        if gf_mode:
+            grandfather = next(h for h in live if isinstance(h, GrandFather))
+            left = max(zero, one - fixed_total)
+            units = sum(2 if is_male(h) else 1 for h in sibs)
+            options = [
+                (left * 2 / (2 + units), _("Grandfather shares the remainder with the siblings as one more brother, which is the best of his options")),
+                (left / 3, _("Grandfather gets 1/3 of the remainder, which is the best of his options with siblings")),
+                (Fraction(1, 6), _("Grandfather gets 1/6 of the estate, which is the best of his options with siblings")),
+            ]
+            grandfather_amount, grandfather_reason = max(options, key=lambda option: option[0])
+            pool = max(zero, left - grandfather_amount)
+            if self.is_akdariyya(live):
+                group = _Group('akdariyya', grandfather_amount + Fraction(1, 2), kind='akdariyya')
+                group.add(grandfather, 2)
+                group.add(sibs[0], 1)
+                groups.append(group)
+                for heir in (grandfather, sibs[0]):
+                    reasons[heir.pk] = _("Akdariyya: the grandfather and the sister pool their shares and split them two to one")
+            else:
+                group = _Group('grandfather', grandfather_amount, kind='grandfather')
+                group.add(grandfather)
+                groups.append(group)
+                reasons[grandfather.pk] = grandfather_reason
+                full = [h for h in sibs if isinstance(h, (Brother, Sister))]
+                paternal = [h for h in sibs if isinstance(h, (PaternalBrother, PaternalSister))]
+                full_units = sum(2 if is_male(h) else 1 for h in full)
+                paternal_units = sum(2 if is_male(h) else 1 for h in paternal)
+                if not paternal:
+                    full_total = pool
+                elif not full:
+                    full_total = zero
+                elif any(is_male(h) for h in full):
+                    full_total = pool
+                else:
+                    cap = Fraction(1, 2) if len(full) == 1 else Fraction(2, 3)
+                    counted = pool * full_units / (full_units + paternal_units)
+                    full_total = min(pool, max(counted, cap))
+                for members, total in ((full, full_total), (paternal, pool - full_total)):
+                    if not members:
+                        continue
+                    group = _Group('full' if members is full else 'paternal', total, kind='siblings')
+                    for heir in members:
+                        group.add(heir, 1)
+                    group.set_weights_by_sex()
+                    groups.append(group)
+                    if total == 0:
+                        for heir in members:
+                            if members is paternal and full and full_total > 0:
+                                reasons[heir.pk] = _("Paternal siblings count against the grandfather but get nothing because of the full siblings")
+                            else:
+                                reasons[heir.pk] = _("The shares of the grandfather and the others use up the whole estate, so nothing is left for the siblings")
+        else:
+            asaba = [h for h in live if h.asaba]
+            residual = max(zero, one - fixed_total)
+            if asaba:
+                group = _Group('asaba', residual, kind='asaba')
                 for heir in asaba:
-                    heir.set_asaba_quote(self)
-
-    def set_amounts(self):
-        for heir in self.heir_set.filter(blocked=False):
-            heir.set_amount(self)
-
-    def set_asaba_shares(self):
-        if self.residual_shares > 0 or self.common_quote == True:
-            for heir in self.heir_set.filter(blocked=False):
-                heir.set_asaba_share(self)
-
-    def set_remainder(self):
-        if self.common_quote == False:
-            shares = self.get_shares()
-            self.residual_shares=  self.shares - shares
-            return self.residual_shares
-
-    def set_calc_excess(self):
-        shares = self.get_shares()
-        if shares > self.shares and self.common_quote == False:
-            self.excess = True
-            self.shares_excess = shares
-            self.save()
-
-    def set_shortage_shares(self):
-        if self.shortage == True:
-            #check for Father
-            if self.has_father():
-                father = self.get_father()
-                remainder = self.shares - self.get_shares()
-                father.shorted_share = father.share + remainder
-                father.save()
-                heirs = self.heir_set.not_instance_of(Father)
-                for heir in heirs:
-                    heir.shorted_share = heir.share
-                    heir.save()
-            #check for Grandfather
-            elif self.has_grandFather():
-                grandfather = self.get_grandFather()
-                remainder = self.shares - self.get_shares()
-                grandfather.shorted_share = grandfather.share + remainder
-                grandfather.save()
-                heirs = self.heir_set.not_instance_of(GrandFather)
-                for heir in heirs:
-                    heir.shorted_share = heir.share
-                    heir.save()
+                    group.add(heir, 1)
+                group.set_weights_by_sex()
+                groups.append(group)
+                if residual == 0:
+                    for heir in asaba:
+                        reasons[heir.pk] = _("The fixed shares use up the whole estate, so nothing is left for the residuary heirs")
             else:
-                spouse_set =  self.get_spouse()
-                for spouse in spouse_set:
-                    spouse.shorted_share = spouse.get_fraction().numerator
-                    spouse.save()
-                for heir in self.heir_set.not_instance_of(Husband,Wife):
-                    heir.set_shortage_share(self)
+                if self.has_female_descendent() and not self.has_male_descendent():
+                    extra = next((g for g in groups if g.key in (Father, GrandFather)), None)
+                if extra is not None:
+                    extra_remainder = residual
+                elif residual > 0:
+                    radd_groups = [g for g in groups if not g.is_spouse()]
 
-    def set_shortage_calc_shares(self):
-        if self.shortage_calc == True:
-            denom_list = []
-            heirs = self.get_heirs_no_spouse()
-            fractions_set = self.get_fractions(heirs)
-            for fraction in fractions_set:
-                denom_list.append(fraction.denominator)
-            self.shortage_calc_shares = self.lcm_list(denom_list)
-            self.save()
+        total = sum((g.amount for g in groups), zero)
+        for group in groups:
+            group.stage = group.amount
+            group.final = group.amount / total if total > 1 else group.amount
+        excess = total > 1
+        if extra is not None and extra_remainder > 0:
+            extra.final = extra.amount + extra_remainder
+        radd = bool(radd_groups) and total < 1
+        if radd:
+            spouse_total = sum((g.amount for g in groups if g.is_spouse()), zero)
+            radd_total = sum((g.amount for g in radd_groups), zero)
+            for group in radd_groups:
+                group.final = group.amount * (one - spouse_total) / radd_total
 
-    def set_shortage_calc_share(self):
-        if self.shortage_calc == True:
-            heirs = self.get_heirs_no_spouse()
-            for heir in heirs:
-                heir.set_shortage_calc_share(self)
+        # the final fraction of every heir
+        final = {heir.pk: zero for heir in heirs}
+        for group in groups:
+            for heir, weight in zip(group.members, group.weights):
+                final[heir.pk] = group.final * weight / sum(group.weights)
 
-    def set_shortage_union_shares(self):
-        if self.shortage_calc == True:
-            heirs = self.get_heirs_no_spouse()
-            shorted_shares = 0
-            remainder = heirs.first().shorted_share
-            for heir in heirs:
-                shorted_shares = shorted_shares + heir.shortage_calc_share
-            if shorted_shares % remainder == 0:
-                self.shortage_union_shares = self.shortage_calc_shares
+        # shares: the lowest common base of the groups before awl or radd
+        if not groups:
+            base = 0
+        elif all(g.kind == 'asaba' for g in groups):
+            base = sum(groups[0].weights)
+        else:
+            dens = [g.stage.denominator for g in groups if g.stage > 0] or [1]
+            base = self.lcm_list(dens)
+
+        columns = {h.pk: {'share': 0, 'shorted_share': 0, 'shortage_calc_share': 0, 'shortage_union_share': 0,
+                          'correction': False} for h in heirs}
+
+        def put(group, column, values, fell_back):
+            for heir, value in zip(group.members, values):
+                columns[heir.pk][column] = value
+                if fell_back:
+                    columns[heir.pk]['correction'] = True
+
+        for group in groups:
+            put(group, 'share', *group.column(base, group.stage))
+
+        shares_excess = shares_shorted = shortage_calc_shares = shortage_union_shares = 0
+        shortage = shortage_calc = False
+        final_base = base
+        if excess:
+            shares_excess = sum(round(g.stage * base) for g in groups)
+            final_base = shares_excess
+        elif extra is not None and extra_remainder > 0:
+            shortage = True
+            shares_shorted = base
+            final_base = shares_shorted
+            for group in groups:
+                put(group, 'shorted_share', *group.column(base, group.final))
+        elif radd:
+            shortage = True
+            spouse = [g for g in groups if g.is_spouse()]
+            if not spouse:
+                shares_shorted = sum(round(g.stage * base) for g in radd_groups)
+                final_base = shares_shorted
+                for group in radd_groups:
+                    put(group, 'shorted_share', *group.column(shares_shorted, group.final))
             else:
-                self.shortage_union_shares = shorted_shares * self.shares_shorted
-            self.save()
-    def set_shortage_union_share(self):
-        if self.shortage_calc == True:
-            spouse_set =  self.get_spouse()
-            multiplier = self.shortage_union_shares // self.shares_shorted
-            for spouse in spouse_set:
-                spouse.shortage_union_share = spouse.shorted_share * multiplier
-                spouse.save()
-            heirs = self.get_heirs_no_spouse()
-            for heir in heirs:
-                heir.set_shortage_union_share(self)
+                spouse = spouse[0]
+                shares_shorted = spouse.stage.denominator
+                final_base = shares_shorted
+                put(spouse, 'shorted_share', *spouse.column(shares_shorted, spouse.final))
+                remainder = shares_shorted - spouse.stage.numerator
+                if len(radd_groups) == 1:
+                    put(radd_groups[0], 'shorted_share', *radd_groups[0].column(shares_shorted, radd_groups[0].final))
+                else:
+                    shortage_calc = True
+                    shortage_calc_shares = self.lcm_list([g.stage.denominator for g in radd_groups])
+                    for group in radd_groups:
+                        put(group, 'shorted_share', [remainder] * len(group.members), False)
+                        put(group, 'shortage_calc_share', *group.column(shortage_calc_shares, group.stage))
+                    shortage_union_shares = self.lcm_list([g.final.denominator for g in groups if g.final > 0] or [1])
+                    final_base = shortage_union_shares
+                    for group in groups:
+                        put(group, 'shortage_union_share', *group.column(shortage_union_shares, group.final))
+        correction = any(c['correction'] for c in columns.values())
+        shares_corrected = 0
+        if correction:
+            dens = [f.denominator for f in final.values() if f > 0]
+            shares_corrected = self.lcm_list([final_base or 1] + dens)
 
-    def check_common_quote(self):
-        # check for common_quote
-        if self.heir_set.instance_of(MaternalSister, MaternalBrother).filter(quote__gt=0).count() > 1 and self.heir_set.instance_of(Brother).filter(asaba=True).count() >= 1 and self.heir_set.instance_of(Husband).filter(quote__gt=1/4) and self.heir_set.instance_of(Mother).filter(quote__gt=0) :
-            self.common_quote = True
-            self.save()
+        # amounts: exact fraction of the estate, rounded half up to 2 decimals
+        deceased = self.deceased_set.first()
+        estate = Fraction(deceased.estate) if deceased else zero
+        for group in groups:
+            if group.kind == 'akdariyya':
+                for heir, weight in zip(group.members, group.weights):
+                    heir.set_quote(group.stage * weight / sum(group.weights))
+            elif group.kind in ('asaba', 'siblings', 'grandfather') and group.stage > 0:
+                for heir in group.members:
+                    heir.set_quote(group.stage)
+        calc_ids = {h.pk for g in radd_groups for h in g.members} if shortage_calc else set()
+        for heir in heirs:
+            heir.share = columns[heir.pk]['share']
+            heir.shorted_share = columns[heir.pk]['shorted_share']
+            heir.shortage_calc = heir.pk in calc_ids
+            heir.shortage_calc_share = columns[heir.pk]['shortage_calc_share']
+            heir.shortage_union_share = columns[heir.pk]['shortage_union_share']
+            heir.correction = columns[heir.pk]['correction']
+            fraction = final.get(heir.pk, zero)
+            heir.corrected_share = round(fraction * shares_corrected) if correction and not heir.blocked else 0
+            heir.amount = money(estate * fraction)
+            if heir.pk in reasons:
+                heir.quote_reason = reasons[heir.pk]
+            heir.save()
+
+        self.shares = base
+        self.residual_shares = round(residual * base) if base else 0
+        self.excess = excess
+        self.shares_excess = shares_excess
+        self.shortage = shortage
+        self.shares_shorted = shares_shorted
+        self.shortage_calc = shortage_calc
+        self.shortage_calc_shares = shortage_calc_shares
+        self.shortage_union_shares = shortage_union_shares
+        self.correction = correction
+        self.shares_corrected = shares_corrected
+        self.common_quote = False
+        self.save()
+        return final
 
     def clear(self):
         self.shares = 0
@@ -704,26 +797,8 @@ class Calculation(models.Model):
 
     def compute(self):
         self.clear()
-        self.get_quotes()
-        self.check_common_quote()
-        self.set_calc_shares()
-        self.set_shares()
-        self.set_remainder()
-        self.set_asaba_quotes()
-        self.set_asaba_shares()
-        self.get_shares()
-        self.set_calc_excess()
-        self.set_calc_shortage()
-        self.set_shortage_shares()
-        if self.shortage_calc:
-            self.set_shortage_calc_shares()
-            self.set_shortage_calc_share()
-            self.set_shortage_union_shares()
-            self.set_shortage_union_share()
-        self.set_calc_correction()
-        self.get_corrected_shares()
-        self.set_amounts()
-        self.save()
+        heirs = self.get_quotes()
+        return self.distribute(heirs)
 
     def get_absolute_url(self):
         return reverse('calc:detail', args=[self.id])
@@ -756,207 +831,29 @@ class Heir(Person):
         return (self.first_name if self.first_name else " ")
     def get_quote(self, calc):
         pass
+    def set_quote(self, quote):
+        """Keep the prescribed share exactly, and store it rounded in the quote column."""
+        quote = Fraction(quote)
+        self._exact_quote = quote
+        self.quote = (Decimal(quote.numerator) / Decimal(quote.denominator)).quantize(Decimal('1e-10'))
+
+    def exact_quote(self):
+        quote = getattr(self, '_exact_quote', None)
+        if quote is None:
+            quote = Fraction(self.quote).limit_denominator(10 ** 6)
+        return quote
+
     def set_share(self, calc):
-        if self.quote != 0 and self.asaba == False:
-            share = calc.shares * self.get_fraction().numerator // self.get_fraction().denominator
-            if self.shared_quote == True:
-                if calc.maternal_quote == True:
-                    if calc.common_quote == True:
-                        count = calc.heir_set.instance_of(MaternalSister, MaternalBrother, Sister, Brother).count()
-                    else:
-                        count = calc.heir_set.instance_of(MaternalSister, MaternalBrother).count()
-                elif calc.common_quote == True:
-                        count = calc.heir_set.instance_of(MaternalSister, MaternalBrother, Sister, Brother).count()
-
-                else:
-                    count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
-                if share % count == 0:
-                    self.share = share // count
-                    self.save()
-                else:
-                    self.correction=True
-                    calc.correction=True
-                    self.share = share
-                    self.save()
-                    calc.save()
-            else:
-                self.share=share
-                self.save()
-            return self.share
-        else:
-            return 0
-    def set_shortage_share(self, calc):
-        if calc.shortage == True:
-            if calc.has_spouse():
-                spouse = calc.get_spouse().first()
-                remainder = calc.shares_shorted - spouse.shorted_share
-                shorted_types = calc.heir_set.not_instance_of(Husband, Wife).values('polymorphic_ctype_id','share').annotate(total=Count('id'))
-                if shorted_types.count() == 1:
-                    if self.shared_quote == True:
-                        count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
-                        if remainder % count == 0:
-                            self.shorted_share = remainder // count
-                        else:
-                            self.correction=True
-                            calc.correction=True
-                            self.shorted_share = remainder
-                            calc.save()
-                    else :
-                        self.shorted_share = remainder
-                elif shorted_types.count() > 1:
-                    self.shorted_share = remainder
-                    self.shortage_calc = True
-                    calc.shortage_calc = True
-                    calc.save()
-            else:
-                self.shorted_share = self.share
-        self.save()
-        return self.shorted_share
-    def set_shortage_calc_share(self, calc):
-        if self.shortage_calc == True:
-            share = calc.shortage_calc_shares * self.get_fraction().numerator // self.get_fraction().denominator
-            if self.shared_quote == True:
-                count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
-                if share % count == 0:
-                    self.shortage_calc_share = share // count
-                    self.save()
-                else:
-                    self.correction=True
-                    calc.correction=True
-                    self.share = share
-                    self.save()
-                    calc.save()
-            else:
-                self.shortage_calc_share=share
-                self.save()
-            return self.shortage_calc_share
-    def set_shortage_union_share(self, calc):
-            self.shortage_union_share = self.shortage_calc_share * self.shorted_share
-            self.save()
-
-    def set_asaba_share(self,calc):
-        if self.asaba == True:
-            if calc.common_quote == True:
-                share = calc.shares * self.get_fraction().numerator // self.get_fraction().denominator
-                count = calc.heir_set.instance_of(MaternalSister, MaternalBrother, Sister, Brother).count()
-                if share % count == 0:
-                    self.share = share // count
-                    self.save()
-                else:
-                    self.correction=True
-                    calc.correction=True
-                    self.share = share
-                    self.save()
-                    calc.save()
-            else:
-                shares = calc.shares
-                remainder = calc.residual_shares
-                asaba_count = calc.heir_set.filter(asaba=True).count()
-                if asaba_count == 1:
-                    self.share = remainder
-                else:
-                    #check for correction
-                    males = calc.heir_set.filter(asaba=True, sex='M').count()
-                    females = calc.heir_set.filter(asaba=True, sex='F').count()
-                    if males == asaba_count or females == asaba_count:
-                        if remainder % asaba_count == 0:
-                            self.share = remainder // asaba_count
-                        else:
-                            self.share = remainder
-                            self.correction = True
-                            calc.correction = True
-                            calc.save()
-                    elif remainder % (males*2+females) == 0:
-                        if self.sex == "M":
-                            self.share = remainder // (2 * males + females) * 2
-                        else:
-                            self.share = remainder // (2 * males + females)
-                    else:
-                        self.share= remainder
-                        self.correction = True
-                        calc.correction = True
-                        calc.save()
-                self.save()
-            return self.share
-
-    def set_asaba_quote(self, calc):
-        remainder = calc.residual_shares
-        shares =  calc.shares
-        if remainder > 0 and shares > 0:
-            if self.quote == 0:
-                quote = remainder / calc.shares
-                self.quote = quote
-                self.save()
-            else:
-                quote = (remainder + self.share )/calc.shares
-                self.quote = quote
-                self.save()
-        elif calc.common_quote == True:
-            self.quote = 1/3
-            self.quote_reason = _("Asaba with maternal siblings share 1/3")
-            self.shared_quote = True
-            self.save()
+        return self.share
 
     def get_corrected_share(self, calc):
-        correction_set = calc.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
-        asaba_set = calc.heir_set.filter(asaba=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
-        if calc.correction==True and calc.shares_corrected != 0:
-            if calc.excess == True:
-                multiplier = calc.shares_corrected // calc.shares_excess
-                share = self.share
-            elif calc.shortage == True:
-                multiplier = calc.shares_corrected // calc.shares_shorted
-                share = self.shorted_share
-            else:
-                multiplier = calc.shares_corrected // calc.shares
-                share = self.share
-            if calc.common_quote == True:
-                self.corrected_share = share
-            elif correction_set.count() == 1:
-                if self.shared_quote == True:
-                    self.corrected_share = share
-                else:
-                    self.corrected_share = share * multiplier
-            elif self.asaba == True and asaba_set.count() == 2 :
-                males = calc.heir_set.filter(asaba=True, sex='M').count()
-                females = calc.heir_set.filter(asaba=True, sex='F').count()
-                asaba_count = calc.heir_set.filter(asaba=True).count()
+        return self.corrected_share
 
-                if self.sex == "M":
-                    self.corrected_share = share * multiplier // (2 * males + females) * 2
-                else:
-                    self.corrected_share = share * multiplier // (2 * males + females)
-            else :
-                count = calc.heir_set.filter(polymorphic_ctype_id=self.polymorphic_ctype_id).count()
-                if self.shared_quote == True:
-                    self.corrected_share = share * multiplier // count
-                else:
-                    self.corrected_share = share * multiplier
-
-            self.save()
-            return self.corrected_share
-
-    def set_amount(self, calc):
-        estate = calc.deceased_set.first().estate
-        amount = 0
-        if calc.correction == False:
-            if calc.excess == True:
-                amount = estate / calc.shares_excess * self.share
-            elif calc.shortage == True:
-                if calc.shortage_calc == True:
-                    amount = estate / calc.shortage_union_shares * self.shortage_union_share
-                else:
-                    amount = estate / calc.shares_shorted * self.shorted_share
-            else:
-                amount = estate / calc.shares * self.share
-        else:
-            amount = estate / calc.shares_corrected * self.corrected_share
-        self.amount = amount
-        self.save()
     def get_fraction(self):
         return Fraction(self.quote).limit_denominator()
     def clear(self):
         self.quote = 0
+        self._exact_quote = Fraction(0)
         self.shared_quote = False
         self.share = 0
         self.corrected_share = 0
@@ -977,10 +874,10 @@ class Father(Heir):
         calc.deceased_set.first().add_father(father=self)
     def get_quote(self, calc):
         if calc.has_male_descendent():
-            self.quote = 1/6
+            self.set_quote(Fraction(1, 6))
             self.quote_reason = _("father gets 1/6 prescribed share because of male descendant")
         elif calc.has_female_descendent():
-            self.quote = 1/6
+            self.set_quote(Fraction(1, 6))
             #self.asaba = True
             self.quote_reason = _("father gets 1/6 plus remainder because of female descendant")
         else:
@@ -997,20 +894,20 @@ class Mother(Heir):
 
     def get_quote(self, calc):
         if calc.has_descendent():
-            self.quote = 1/6
+            self.set_quote(Fraction(1, 6))
             self.quote_reason = _("mother gets 1/6 because of descendant")
         elif calc.has_siblings():
-            self.quote = 1/6
+            self.set_quote(Fraction(1, 6))
             self.quote_reason = _("mother gets 1/6 because of siblings")
         elif calc.has_spouse() and calc.has_father():
             if calc.deceased_set.first().sex == 'M':
-                self.quote = 1/4
+                self.set_quote(Fraction(1, 4))
                 self.quote_reason = _("mother gets 1/3 of the remainder which is 1/4.")
             else:
-                self.quote = 1/6
+                self.set_quote(Fraction(1, 6))
                 self.quote_reason = _("mother gets 1/3 of the remainder which is 1/6")
         else:
-            self.quote = 1/3
+            self.set_quote(Fraction(1, 3))
             self.quote_reason = _("mother gets 1/3 because no descendant or siblings")
         self.save()
         return self.quote
@@ -1024,10 +921,10 @@ class Husband(Heir):
 
     def get_quote(self, calc):
         if calc.has_descendent():
-            self.quote = 1/4
+            self.set_quote(Fraction(1, 4))
             self.quote_reason = _("husband gets 1/4 becuase of descendant")
         else:
-            self.quote = 1/2
+            self.set_quote(Fraction(1, 2))
             self.quote_reason = _("husband gets 1/2 becuase there is no descendant")
         self.save()
         return self.quote
@@ -1040,17 +937,17 @@ class Wife(Heir):
     def get_quote(self, calc):
         if calc.heir_set.instance_of(Wife).count() == 1:
             if calc.has_descendent():
-                self.quote = 1/8
+                self.set_quote(Fraction(1, 8))
                 self.quote_reason = _("wife gets 1/8 becuase of descendant")
             else:
-                self.quote = 1/4
+                self.set_quote(Fraction(1, 4))
                 self.quote_reason = _("wife gets 1/4 becuase there is no descendant")
         else:
             if calc.has_descendent():
-                self.quote = 1/8
+                self.set_quote(Fraction(1, 8))
                 self.quote_reason = _("wives share the qoute of 1/8 becuase of descendant")
             else:
-                self.quote = 1/4
+                self.set_quote(Fraction(1, 4))
                 self.quote_reason = _("wives share the quote of 1/4 becuase there is no descendant")
             self.shared_quote = True
         self.save()
@@ -1068,10 +965,10 @@ class Daughter(Heir):
             if calc.heir_set.instance_of(Daughter).count() > 1:
                 self.shared_quote = True
         elif calc.heir_set.instance_of(Daughter).count() == 1:
-            self.quote = 1/2
+            self.set_quote(Fraction(1, 2))
             self.quote_reason = _("Daughter gets 1/2 when she has no other sibling/s")
         else:
-            self.quote = 2/3
+            self.set_quote(Fraction(2, 3))
             self.shared_quote = True
             self.quote_reason = _("Daughters share the quote of 2/3 when there is no son/s")
         self.save()
@@ -1106,8 +1003,8 @@ class Brother(Heir):
             self.blocked = True
             self.quote_reason = _("Brother/s are blocked by father")
         elif calc.has_grandFather():
-            self.blocked = True
-            self.quote_reason = _("Brother/s are blocked by grandfather")
+            self.asaba = True
+            self.quote_reason = _("Brother/s share the estate with the grandfather")
         else:
             self.asaba =  True
             self.quote_reason = _("Brother/s share the remainder or all amount if no other heir exist")
@@ -1130,8 +1027,8 @@ class Sister(Heir):
             self.blocked = True
             self.quote_reason = _("Sister/s are blocked by father")
         elif calc.has_grandFather():
-            self.blocked = True
-            self.quote_reason = _("Sister/s are blocked by grandfather")
+            self.asaba = True
+            self.quote_reason = _("Sister/s share the estate with the grandfather")
         elif calc.has_brother():
             self.asaba = True
             self.quote_reason = _("Sister/s with borther/s share the remainder or all the amount if no other heir exist. The brother will receive a share of two sisters")
@@ -1140,10 +1037,10 @@ class Sister(Heir):
             self.quote_reason = _("Sister/s with female descendant share the remainder")
         else:
             if sisters.count() == 1:
-                self.quote = 1/2
+                self.set_quote(Fraction(1, 2))
                 self.quote_reason = _("Sister gets half when no father or son. ")
             else:
-                self.quote = 2/3
+                self.set_quote(Fraction(2, 3))
                 self.quote_reason = _("Sisters share 2/3 when no father or son.")
         self.save()
         return self.quote
@@ -1158,10 +1055,12 @@ class GrandFather(Heir):
             self.blocked = True
             self.quote_reason = _("Grandfather is blocked by father")
         elif calc.has_male_descendent():
-            self.quote = 1/6
+            self.set_quote(Fraction(1, 6))
             self.quote_reason = _("Grandfather gets 1/6 prescribed share because of male descendant")
+        elif calc.gf_shares_with_siblings():
+            self.quote_reason = _("Grandfather shares the estate with the full and paternal siblings and takes the best of his options")
         elif calc.has_female_descendent():
-            self.quote = 1/6
+            self.set_quote(Fraction(1, 6))
             #self.asaba = True
             self.quote_reason = _("Grandfather gets 1/6 plus remainder because of female descendant")
         else:
@@ -1183,7 +1082,7 @@ class GrandMother(Heir):
             grandmothers = calc.heir_set.instance_of(GrandMother)
             if grandmothers.count() > 1:
                 self.shared_quote = True
-            self.quote = 1/6
+            self.set_quote(Fraction(1, 6))
             self.quote_reason = _("Grandmother gets 1/6 if no mother")
         self.save()
         return self.quote
@@ -1223,16 +1122,16 @@ class DaughterOfSon(Heir):
         elif calc.has_daughter():
             daughters = calc.heir_set.instance_of(Daughter)
             if daughters.count()==1:
-                self.quote = 1/6
+                self.set_quote(Fraction(1, 6))
                 self.quote_reason = _("Daughter of son get 1/6, with daughter")
             else:
                 self.blocked = True
                 self.quote_reason = _("Daughter/s of son are blocked by daugters")
         elif daughtersOfSon.count() == 1:
-            self.quote = 1/2
+            self.set_quote(Fraction(1, 2))
             self.quote_reason = _("Daughter of son gets 1/2 when she has no other sibling/s")
         else:
-            self.quote = 2/3
+            self.set_quote(Fraction(2, 3))
             self.quote_reason = _("Daughters of son share the quote of 2/3 when there is no son/s of son")
         self.save()
         return self.quote
@@ -1254,18 +1153,21 @@ class PaternalSister(Heir):
             self.blocked = True
             self.quote_reason = _("Paternal sister/s are blocked by father")
         elif calc.has_grandFather():
-            self.blocked = True
-            self.quote_reason = _("Paternal sister/s are blocked by grandfather")
+            self.asaba = True
+            self.quote_reason = _("Paternal sister/s share the estate with the grandfather")
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Paternal sister/s are blocked by borther/s")
+        elif calc.get_sisters().filter(asaba=True):
+            self.blocked = True
+            self.quote_reason = _("Paternal sister/s are blocked by sisters")
         elif calc.has_paternalBrother():
             self.asaba = True
             self.quote_reason = _("Paternal sister/s with paternal half borther/s share the remainder or all the amount if no other heir exist. The brother will receive a share of two sisters")
         elif calc.has_sister():
             sisters= calc.heir_set.instance_of(Sister)
             if sisters.count()==1:
-                self.quote = 1/6
+                self.set_quote(Fraction(1, 6))
                 self.quote_reason = _("Paternal sister/s get 1/6 with sister")
             else:
                 self.blocked = True
@@ -1274,10 +1176,10 @@ class PaternalSister(Heir):
             self.asaba = True
             self.quote_reason = _("Paternal sister/s with female descendant share the remainder")
         elif paternalSisters.count() == 1:
-            self.quote = 1/2
+            self.set_quote(Fraction(1, 2))
             self.quote_reason = _("Paternal sister gets half when no father or son. ")
         else:
-            self.quote = 2/3
+            self.set_quote(Fraction(2, 3))
             self.quote_reason = _("Paternal sisters share 2/3 when no father or son.")
         self.save()
         return self.quote
@@ -1298,8 +1200,8 @@ class PaternalBrother(Heir):
             self.blocked = True
             self.quote_reason = _("Paternal brother/s are blocked by father")
         elif calc.has_grandFather():
-            self.blocked = True
-            self.quote_reason = _("Paternal brother/s are blocked by grandfather")
+            self.asaba = True
+            self.quote_reason = _("Paternal brother/s share the estate with the grandfather")
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Paternal brother/s are blocked by brothers")
@@ -1339,13 +1241,13 @@ class MaternalSister(Heir):
             calc.maternal_quote = True
             calc.save()
             self.shared_quote = True
-            self.quote = 1/3
+            self.set_quote(Fraction(1, 3))
             self.quote_reason = _("Maternal sister/s with maternal brother/s share 1/3")
         elif maternalSisters.count() == 1:
-            self.quote =  1/6
+            self.set_quote(Fraction(1, 6))
             self.quote_reason = _("Maternal sister get 1/6")
         else:
-            self.quote = 1/3
+            self.set_quote(Fraction(1, 3))
             self.quote_reason = _("Maternal sisters share 1/3")
         self.save()
         return self.quote
@@ -1372,13 +1274,13 @@ class MaternalBrother(Heir):
             calc.maternal_quote = True
             calc.save()
             self.shared_quote = True
-            self.quote = 1/3
+            self.set_quote(Fraction(1, 3))
             self.quote_reason = _("Maternal brother/s with maternal sister/s share 1/3")
         elif MaternalBrothers.count() == 1:
-            self.quote =  1/6
+            self.set_quote(Fraction(1, 6))
             self.quote_reason = _("Maternal brother get 1/6")
         else:
-            self.quote = 1/3
+            self.set_quote(Fraction(1, 3))
             self.quote_reason = _("Maternal brothers share 1/3")
         self.save()
         return self.quote
@@ -1643,3 +1545,17 @@ class SonOfPaternalUncle(Heir):
             self.quote_reason = _("Son/s of paternal Uncle/s share the remainder or all amount if no other heir exist")
         self.save()
         return self.quote
+
+
+# The order heirs are classified in: descendants, ascendants and spouses,
+# siblings, then nephews and uncles. A heir only depends on those before it.
+FIQH_ORDER = [
+    Son, Daughter, SonOfSon, DaughterOfSon,
+    Father, GrandFather, Mother, GrandMother, Husband, Wife,
+    Brother, Sister, PaternalBrother, PaternalSister, MaternalBrother, MaternalSister,
+    SonOfBrother, SonOfPaternalBrother, Uncle, PaternalUncle, SonOfUncle, SonOfPaternalUncle,
+]
+MALE_HEIRS = (
+    Father, GrandFather, Husband, Son, SonOfSon, Brother, PaternalBrother, MaternalBrother,
+    SonOfBrother, SonOfPaternalBrother, Uncle, PaternalUncle, SonOfUncle, SonOfPaternalUncle,
+)

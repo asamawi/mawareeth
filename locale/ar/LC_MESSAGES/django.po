@@ -2249,6 +2249,58 @@ msgstr "حسابك لا يملك إذنًا للوصول إلى هذه الصف�
 msgid "Start a case without an account"
 msgstr "ابدأ حالة بدون حساب"
 
+#: calc/models.py
+msgid "Grandfather shares the estate with the full and paternal siblings and takes the best of his options"
+msgstr "الجد يشارك الإخوة والأخوات الأشقاء ولأب في التركة ويأخذ أفضل خياراته"
+
+#: calc/models.py
+msgid "Grandfather shares the remainder with the siblings as one more brother, which is the best of his options"
+msgstr "الجد يقاسم الإخوة والأخوات الباقي كأنه أخ إضافي، وهذا أفضل خياراته"
+
+#: calc/models.py
+msgid "Grandfather gets 1/3 of the remainder, which is the best of his options with siblings"
+msgstr "الجد يأخذ ثلث الباقي، وهذا أفضل خياراته مع الإخوة والأخوات"
+
+#: calc/models.py
+msgid "Grandfather gets 1/6 of the estate, which is the best of his options with siblings"
+msgstr "الجد يأخذ سدس التركة، وهذا أفضل خياراته مع الإخوة والأخوات"
+
+#: calc/models.py
+msgid "Akdariyya: the grandfather and the sister pool their shares and split them two to one"
+msgstr "الأكدرية: الجد والأخت يجمعان نصيبيهما ثم يقتسمانه للذكر مثل حظ الأنثيين"
+
+#: calc/models.py
+msgid "Paternal siblings count against the grandfather but get nothing because of the full siblings"
+msgstr "الإخوة والأخوات لأب يُعدّون على الجد لكنهم لا يرثون شيئاً بسبب الإخوة الأشقاء"
+
+#: calc/models.py
+msgid "The shares of the grandfather and the others use up the whole estate, so nothing is left for the siblings"
+msgstr "أنصبة الجد وبقية الورثة تستغرق التركة كلها، فلا يبقى شيء للإخوة والأخوات"
+
+#: calc/models.py
+msgid "The fixed shares use up the whole estate, so nothing is left for the residuary heirs"
+msgstr "الفروض تستغرق التركة كلها، فلا يبقى شيء للعصبة"
+
+#: calc/models.py
+msgid "Brother/s share the estate with the grandfather"
+msgstr "الأخ أو الإخوة يقتسمون التركة مع الجد"
+
+#: calc/models.py
+msgid "Sister/s share the estate with the grandfather"
+msgstr "الأخت أو الأخوات يقتسمن التركة مع الجد"
+
+#: calc/models.py
+msgid "Paternal brother/s share the estate with the grandfather"
+msgstr "الأخ أو الإخوة لأب يقتسمون التركة مع الجد"
+
+#: calc/models.py
+msgid "Paternal sister/s share the estate with the grandfather"
+msgstr "الأخت أو الأخوات لأب يقتسمن التركة مع الجد"
+
+#: calc/models.py
+msgid "Paternal sister/s are blocked by sisters"
+msgstr "الأخت أو الأخوات لأب محجوبات بالأخوات الشقيقات"
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "ابن أخ لأب"
 
