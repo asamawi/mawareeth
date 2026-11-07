@@ -2,6 +2,7 @@ import re
 from unittest import mock
 
 from decimal import Decimal, ROUND_HALF_UP
+from itertools import product
 from pathlib import Path
 
 from django.conf import settings
@@ -1693,7 +1694,7 @@ def families():
         if cls not in (Father, Mother, Husband, GrandFather):
             found.append((sex, [cls, cls]))
     found.append(('M', [Wife] * 4))
-    for _ in range(60):
+    for _ in range(200):
         sex = rng.choice('MF')
         types = family_types(rng, sex)
         if types:
@@ -1759,3 +1760,73 @@ class DistributionInvariantTests(TestCase):
                     fingerprint(forward, forward_heirs, forward.compute()),
                     fingerprint(backward, backward_heirs, backward.compute()),
                 )
+
+
+def core_family_reference(wives, husband, father, mother, sons, daughters):
+    """The expected whole-group shares of a family of spouses, parents and children.
+
+    Written separately from the engine, so that the two can only agree by being right. It
+    follows the Hanbali position: awl, radd to non-spouse sharers, and Umariyyatan.
+    """
+    has_child = sons + daughters > 0
+    fixed = {}
+    if husband:
+        fixed[Husband] = F(1, 4) if has_child else F(1, 2)
+    if wives:
+        fixed[Wife] = F(1, 8) if has_child else F(1, 4)
+    spouse = sum(fixed.values(), F(0))
+    if mother:
+        if has_child:
+            fixed[Mother] = F(1, 6)
+        elif spouse and father:
+            fixed[Mother] = (1 - spouse) / 3
+        else:
+            fixed[Mother] = F(1, 3)
+    if father and has_child:
+        fixed[Father] = F(1, 6)
+    if daughters and not sons:
+        fixed[Daughter] = F(1, 2) if daughters == 1 else F(2, 3)
+    total = sum(fixed.values(), F(0))
+    if total > 1:
+        fixed = {cls: share / total for cls, share in fixed.items()}
+        total = F(1)
+    remainder = 1 - total
+    shares = dict(fixed)
+    if remainder:
+        if sons:
+            unit = remainder / (2 * sons + daughters)
+            shares[Son] = 2 * unit * sons
+            if daughters:
+                shares[Daughter] = unit * daughters
+        elif father:
+            shares[Father] = shares.get(Father, F(0)) + remainder
+        else:
+            sharers = {cls: share for cls, share in fixed.items() if cls not in (Husband, Wife)}
+            base = sum(sharers.values(), F(0))
+            for cls, share in sharers.items():
+                shares[cls] = share + remainder * share / base
+    return shares
+
+
+class CoreFamilyReferenceTests(TestCase):
+    """Every mix of spouses, parents, and up to three sons and three daughters."""
+
+    def test_every_core_family_matches_the_reference(self):
+        checked = 0
+        spouses = [('M', count, 0) for count in range(5)] + [('F', 0, 0), ('F', 0, 1)]
+        for sex, wives, husband in spouses:
+            for father, mother, sons, daughters in product((0, 1), (0, 1), range(4), range(4)):
+                if not (wives or husband or father or mother or sons or daughters):
+                    continue
+                types = ([Wife] * wives + [Husband] * husband + [Father] * father + [Mother] * mother
+                         + [Son] * sons + [Daughter] * daughters)
+                with self.subTest(f'{sex}: {[t.__name__ for t in types]}'):
+                    calc, heirs = build_case(sex, types)
+                    exact = calc.compute()
+                    groups = {}
+                    for heir in heirs:
+                        groups[type(heir)] = groups.get(type(heir), F(0)) + exact[heir.pk]
+                    expected = core_family_reference(wives, husband, father, mother, sons, daughters)
+                    self.assertEqual(groups, expected)
+                checked += 1
+        self.assertEqual(checked, 446)
