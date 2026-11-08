@@ -391,3 +391,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
   summary: Cut the cost of the hajb engine-comparison tests (`HeirRulesTests`), which take about 9 minutes and bring the full Django suite to about 17, for example by using fewer seeded families or classifying without a database round trip.
   evidence: Measured during Story 1.6. CI runs a plain `manage.py test` with no time limit, so every run pays this cost.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-case-write-integrity.md`
+  summary: Wrap `Calculation.compute()` in one transaction that first locks its own `Calculation` row, so a mid-run failure or two simultaneous results-page views cannot leave heir columns disagreeing with calculation columns, and a refused school is undone without a caller transaction.
+  evidence: Split from the case write integrity spec at the project owner's request on 2026-11-08 to keep that spec within the size target; it is independent of the session write lock and can ship on its own.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-case-write-integrity.md`
+  summary: Resolved: the session write race recorded in Stories 1.2 and 1.3 (two simultaneous case writes from one browser, where the last session save wins) is fixed by `CaseWriteLockMiddleware`, which row-locks the visitor's session for the whole of each unsafe case API request.
+  evidence: The lock sits directly before `SessionMiddleware`, so the session load, the view and the session save run inside one transaction. `CaseWriteLockTests` forces the overlaps on PostgreSQL and fails without the middleware.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-case-write-integrity.md`
+  summary: Decide whether to bound the case write lock wait (for example `SET LOCAL lock_timeout` with a clear "another change is in progress" response) and add a metric or log for lock wait time, before the interview opens widely.
+  evidence: `CaseWriteLockMiddleware` waits with no timeout, so one visitor firing many parallel writes, or a hung request inside the lock, ties up workers and DB connections until gunicorn's timeout; the spec put any lock timeout under Ask First, and review flagged the lack of visibility.

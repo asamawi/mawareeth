@@ -1,5 +1,7 @@
 import json
 import random
+import threading
+import unittest
 import uuid
 from unittest import mock
 import logging
@@ -13,7 +15,8 @@ from django.core.cache import cache
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.backends.db import SessionStore
 from django.contrib.sessions.models import Session
-from django.test import RequestFactory, TestCase, override_settings
+from django.db import connection, connections
+from django.test import RequestFactory, SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from django.urls import path, reverse
 from rest_framework.permissions import IsAuthenticated
@@ -29,6 +32,7 @@ from api.throttling import CaseWriteThrottle
 from api.views import ApiView, SessionView
 from calc import schools
 from calc.models import Calculation, Person
+from mawareeth.middleware import CaseWriteLockMiddleware
 
 
 SESSION_URL = '/api/v1/session/'
@@ -1940,3 +1944,271 @@ class HeirRulesApiTests(InterviewBase):
         ])
         body = self.preview_body()
         self.assertEqual((body['status'], body['reason']), ('unavailable', 'invalid_family'))
+
+
+class CaseWriteLockOrderTests(SimpleTestCase):
+    def test_the_lock_sits_directly_before_the_session_middleware(self):
+        middleware = list(settings.MIDDLEWARE)
+        lock = middleware.index('mawareeth.middleware.CaseWriteLockMiddleware')
+        self.assertEqual(middleware[lock + 1], 'django.contrib.sessions.middleware.SessionMiddleware')
+
+    def test_sessions_are_database_backed(self):
+        self.assertEqual(settings.SESSION_ENGINE, 'django.contrib.sessions.backends.db')
+
+
+@unittest.skipUnless(connection.vendor == 'postgresql', 'Row locks need PostgreSQL.')
+class CaseWriteLockTests(TransactionTestCase):
+    """Overlapping writes from one browser run one after another.
+
+    The first request is held inside the view, after it has read the case. A second
+    request is then sent, and the first is released only once the second has either
+    reached the view (no lock: both read the same old case and the last save wins) or
+    is seen waiting on a database lock (the lock works: it runs after the first saves).
+    """
+
+    WAIT = 10
+
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient(enforce_csrf_checks=True)
+        self.entered = threading.Event()
+        self.overtaken = threading.Event()
+        self.release = threading.Event()
+        self.threads = []
+        self.failures = []
+        # A failed test must not leave a held request behind.
+        self.addCleanup(self.release.set)
+
+    def headers(self):
+        token = self.client.get(SESSION_URL, secure=True).cookies[settings.CSRF_COOKIE_NAME].value
+        return {'X-CSRFToken': token, 'Referer': 'https://testserver/app/en/interview/'}
+
+    def twin(self):
+        """Another tab: a client holding the same cookies."""
+        other = APIClient(enforce_csrf_checks=True)
+        other.cookies = self.client.cookies
+        return other
+
+    def start(self, headers):
+        response = self.client.post(CASE_URL, {}, format='json', secure=True, headers=headers)
+        self.assertEqual(response.status_code, 201)
+        return response.json()['case']
+
+    def with_deceased(self, headers):
+        case = self.start(headers)
+        response = self.client.put(
+            DECEASED_URL, {'case_id': case['id'], 'gender': 'male'}, format='json', secure=True, headers=headers)
+        self.assertEqual(response.status_code, 200)
+        return case
+
+    def stored(self):
+        key = self.client.cookies[settings.SESSION_COOKIE_NAME].value
+        return Session.objects.get(session_key=key).get_decoded()[anonymous_case.SESSION_KEY]
+
+    def hold_first(self):
+        """Patch the case lookup so the thread named 'first' waits after reading the case."""
+        real = anonymous_case._live
+        test = self
+
+        def live(request, case_id):
+            case = real(request, case_id)
+            if threading.current_thread().name == 'first':
+                test.entered.set()
+                test.release.wait(60)
+            else:
+                test.overtaken.set()
+            return case
+
+        real_start = anonymous_case.start
+
+        def start(request):
+            # A start over never looks the case up, so reaching it is its way of "arriving".
+            test.overtaken.set()
+            return real_start(request)
+
+        return mock.patch.multiple(anonymous_case, _live=live, start=start)
+
+    def spawn(self, name, send, results):
+        def call():
+            try:
+                results[name] = send()
+            except BaseException:
+                self.failures.append(f'{name}:\n{traceback.format_exc()}')
+            finally:
+                connections.close_all()
+
+        thread = threading.Thread(name=name, target=call, daemon=True)
+        self.threads.append(thread)
+        thread.start()
+        return thread
+
+    def finish(self):
+        for thread in self.threads:
+            thread.join(30)
+        self.assertEqual([t.name for t in self.threads if t.is_alive()], [])
+        if self.failures:
+            self.fail('A request thread raised:\n' + '\n'.join(self.failures))
+
+    def other_backend_waits_on_a_lock(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT 1 FROM pg_stat_activity WHERE datname = current_database() "
+                "AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'")
+            return cursor.fetchone() is not None
+
+    def run_pair(self, first, second):
+        """Send first(), then second() once first is held. Returns both responses."""
+        results = {}
+        self.spawn('first', first, results)
+        self.assertTrue(self.entered.wait(self.WAIT), 'The first request never reached the view.')
+        self.spawn('second', second, results)
+        pause = threading.Event()
+        for _ in range(self.WAIT * 100):
+            if self.overtaken.is_set() or self.other_backend_waits_on_a_lock():
+                break
+            pause.wait(0.01)
+        else:
+            self.release.set()
+            self.finish()
+            self.fail('The second request neither reached the view nor waited on a lock.')
+        self.release.set()
+        self.finish()
+        self.assertEqual(set(results), {'first', 'second'})
+        return results['first'], results['second']
+
+    def test_two_overlapping_heir_adds_both_persist(self):
+        headers = self.headers()
+        case = self.with_deceased(headers)
+        other = self.twin()
+
+        def add(client, relationship):
+            return lambda: client.post(
+                HEIRS_URL, {'case_id': case['id'], 'relationship': relationship}, format='json',
+                secure=True, headers=headers)
+
+        with self.hold_first():
+            first, second = self.run_pair(add(self.client, 'son'), add(other, 'daughter'))
+
+        self.assertEqual((first.status_code, second.status_code), (201, 201))
+        self.assertEqual(
+            sorted(heir['relationship'] for heir in self.stored()['heirs']), ['daughter', 'son'])
+
+    def test_heir_add_and_madhab_change_both_persist(self):
+        headers = self.headers()
+        case = self.with_deceased(headers)
+        other = self.twin()
+
+        with self.hold_first():
+            first, second = self.run_pair(
+                lambda: self.client.post(
+                    HEIRS_URL, {'case_id': case['id'], 'relationship': 'son'}, format='json',
+                    secure=True, headers=headers),
+                lambda: other.patch(
+                    CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'}, format='json',
+                    secure=True, headers=headers))
+
+        self.assertEqual((first.status_code, second.status_code), (201, 200))
+        stored = self.stored()
+        self.assertEqual([heir['relationship'] for heir in stored['heirs']], ['son'])
+        self.assertEqual(stored['madhab'], 'hanafi')
+
+    def test_start_over_and_old_tab_write_never_land_on_a_replaced_case(self):
+        headers = self.headers()
+        case = self.start(headers)
+        other = self.twin()
+
+        with self.hold_first():
+            first, second = self.run_pair(
+                lambda: self.client.put(
+                    DECEASED_URL, {'case_id': case['id'], 'gender': 'male'}, format='json',
+                    secure=True, headers=headers),
+                lambda: other.post(
+                    CASE_URL, {'replace': True, 'case_id': case['id']}, format='json',
+                    secure=True, headers=headers))
+
+        # The write ran first, then the start over replaced that case.
+        self.assertEqual((first.status_code, second.status_code), (200, 201))
+        stored = self.stored()
+        self.assertEqual(stored['id'], second.json()['case']['id'])
+        self.assertNotEqual(stored['id'], case['id'])
+        self.assertNotIn('deceased', stored)
+
+    def test_preview_does_not_wait_for_a_write(self):
+        headers = self.headers()
+        case = self.start(headers)
+        other = self.twin()
+        results = {}
+
+        with self.hold_first():
+            self.spawn(
+                'first',
+                lambda: self.client.patch(
+                    CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'}, format='json',
+                    secure=True, headers=headers),
+                results)
+            self.assertTrue(self.entered.wait(self.WAIT), 'The write never reached the view.')
+            # The write is still held: the preview must answer anyway.
+            preview = self.spawn(
+                'preview', lambda: other.get(f'{PREVIEW_URL}?case_id={case["id"]}', secure=True), results)
+            preview.join(self.WAIT)
+            answered = 'preview' in results
+            self.release.set()
+            self.finish()
+
+        self.assertTrue(answered, 'The preview waited for the write.')
+        self.assertEqual(results['preview'].status_code, 200)
+        self.assertEqual(results['first'].status_code, 200)
+
+    def test_only_unsafe_case_requests_with_a_cookie_take_the_lock(self):
+        with mock.patch.object(CaseWriteLockMiddleware, 'lock') as lock:
+            # No session cookie yet: the first start has nothing to lock.
+            fresh = APIClient(enforce_csrf_checks=True)
+            token = fresh.get(SESSION_URL, secure=True).cookies[settings.CSRF_COOKIE_NAME].value
+            headers = {'X-CSRFToken': token, 'Referer': 'https://testserver/app/en/interview/'}
+            response = fresh.post(CASE_URL, {}, format='json', secure=True, headers=headers)
+            self.assertEqual(response.status_code, 201)
+            self.assertEqual(lock.call_count, 0)
+
+            case = response.json()['case']
+            fresh.get(CASE_URL, secure=True)
+            fresh.get(f'{PREVIEW_URL}?case_id={case["id"]}', secure=True)
+            self.assertEqual(lock.call_count, 0)
+
+            fresh.patch(
+                CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'}, format='json', secure=True,
+                headers=headers)
+            self.assertEqual(lock.call_count, 1)
+            self.assertEqual(lock.call_args.args[0], fresh.cookies[settings.SESSION_COOKIE_NAME].value)
+
+            # Not under the case API: no lock.
+            fresh.post(SESSION_URL, {}, format='json', secure=True, headers=headers)
+            self.assertEqual(lock.call_count, 1)
+
+    def test_a_missing_session_and_a_refused_write_behave_as_before(self):
+        headers = self.headers()
+        self.client.cookies[settings.SESSION_COOKIE_NAME] = 'nosuchsession'
+        response = self.client.patch(
+            CASE_URL, {'case_id': 'x', 'madhab': 'hanafi'}, format='json', secure=True, headers=headers)
+        self.assertEqual(response.status_code, 404)
+
+        case = self.start(headers)
+        refused = self.client.patch(
+            CASE_URL, {'case_id': case['id'], 'madhab': 'nope'}, format='json', secure=True, headers=headers)
+        self.assertEqual(refused.status_code, 400)
+        # The lock was released: a later write goes through.
+        again = self.client.patch(
+            CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'}, format='json', secure=True, headers=headers)
+        self.assertEqual(again.status_code, 200)
+
+        # A stale tab is refused with the live case, and the lock is released after it too.
+        fresh = self.client.post(
+            CASE_URL, {'replace': True, 'case_id': case['id']}, format='json', secure=True, headers=headers)
+        self.assertEqual(fresh.status_code, 201)
+        stale = self.client.put(
+            DECEASED_URL, {'case_id': case['id'], 'gender': 'male'}, format='json', secure=True, headers=headers)
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(stale.json()['case']['id'], fresh.json()['case']['id'])
+        after = self.client.put(
+            DECEASED_URL, {'case_id': fresh.json()['case']['id'], 'gender': 'male'}, format='json',
+            secure=True, headers=headers)
+        self.assertEqual(after.status_code, 200)

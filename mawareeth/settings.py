@@ -217,6 +217,10 @@ MIDDLEWARE = [
     'mawareeth.middleware.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Must stay directly before SessionMiddleware: it locks the visitor's session
+    # row before the session is loaded and releases it after the session is saved,
+    # so overlapping case writes run one after another.
+    'mawareeth.middleware.CaseWriteLockMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
 
     'django.middleware.locale.LocaleMiddleware',
