@@ -2111,3 +2111,400 @@ class SchoolInvariantTests(TestCase):
                         checked += 1
         self.assertGreater(refused, 0)
         self.assertEqual(checked + refused, 446 * 4)
+
+
+# Proof of a result
+# ---------------------------------------------------------------------------
+
+from calc import proof as proof_module
+
+
+def proof_run(sex, types, madhab):
+    """Compute under `madhab` and return (proof, heirs, outcome)."""
+    outcome, calc, heirs = run(sex, types, madhab)
+    assert not isinstance(outcome, str), outcome
+    return calc.proof, heirs, outcome
+
+
+def entry_of(proof, heir):
+    return next(e for e in proof['heirs'] if e['heir'] == heir.pk)
+
+
+def summary(entry):
+    """rule / condition / blocked_by / verse / school_rule, as the spec's matrix reads."""
+    return (entry['rule'], entry['condition'], entry['blocked_by'], entry['verse'], entry['school_rule'])
+
+
+def without_refs(proof):
+    return {**proof, 'heirs': [{k: v for k, v in e.items() if k != 'heir'} for e in proof['heirs']]}
+
+
+def step_names(proof):
+    return [s['step'] for s in proof['steps']]
+
+
+def step_value(proof, name):
+    return next(s['value'] for s in proof['steps'] if s['step'] == name)
+
+
+class ProofMatrixTests(TestCase):
+    """One test per row of the proof matrix."""
+
+    def test_hanbali_wife_and_son(self):
+        proof, (wife, son), _outcome = proof_run('M', [Wife, Son], HANBALI)
+        self.assertEqual(proof['version'], 1)
+        self.assertEqual(proof['madhab'], HANBALI)
+        self.assertEqual(summary(entry_of(proof, wife)), ('fixed', 'descendant', None, '4:12', None))
+        self.assertEqual(entry_of(proof, wife)['fraction'], {'numerator': 1, 'denominator': 8})
+        self.assertEqual(entry_of(proof, wife)['share'], {'numerator': 1, 'denominator': 8})
+        self.assertEqual(summary(entry_of(proof, son)), ('residuary', None, None, '4:11', None))
+        self.assertEqual(entry_of(proof, son)['fraction'], None)
+        self.assertEqual(entry_of(proof, son)['share'], {'numerator': 7, 'denominator': 8})
+        self.assertEqual(proof['steps'], [{'step': 'base', 'value': 8}])
+        self.assertEqual(proof['school_rules'], [])
+
+    def test_hanafi_grandfather_blocks_the_brother(self):
+        proof, (grandfather, brother), _outcome = proof_run('M', [GrandFather, Brother], HANAFI)
+        self.assertEqual(summary(entry_of(proof, brother)),
+                         ('blocked', None, 'grandfather', None, 'grandfather_blocks_siblings'))
+        self.assertEqual(entry_of(proof, brother)['share'], {'numerator': 0, 'denominator': 1})
+        self.assertEqual(entry_of(proof, grandfather)['school_rule'], 'grandfather_blocks_siblings')
+        self.assertEqual(proof['school_rules'], ['grandfather_blocks_siblings'])
+        self.assertEqual(proof['steps'], [{'step': 'base', 'value': 1}])
+
+    def test_the_other_schools_share_between_grandfather_and_brother(self):
+        for madhab in (HANBALI, MALIKI, SHAFII):
+            with self.subTest(madhab):
+                proof, (grandfather, brother), _outcome = proof_run('M', [GrandFather, Brother], madhab)
+                entry = entry_of(proof, grandfather)
+                self.assertEqual((entry['rule'], entry['option']), ('grandfather_best_option', 'muqasama'))
+                self.assertEqual(entry['school_rule'], 'grandfather_shares_with_siblings')
+                self.assertEqual(entry_of(proof, brother)['school_rule'], 'grandfather_shares_with_siblings')
+                self.assertEqual(entry_of(proof, brother)['rule'], 'residuary')
+                self.assertEqual(proof['school_rules'], ['grandfather_shares_with_siblings'])
+
+    def test_each_grandfather_option_is_named(self):
+        # (family, option, the grandfather share), each worked out by hand
+        cases = [
+            # the whole estate is left: sharing as one more brother gives 2/4 against 1/3 and 1/6
+            ('M', [GrandFather, Brother], 'muqasama', F(1, 2)),
+            # four brothers: sharing gives 2/10 = 1/5, a third of the remainder gives 1/3, a sixth is smaller
+            ('M', [GrandFather] + [Brother] * 4, 'third_of_remainder', F(1, 3)),
+            # husband 1/2 and mother 1/6 leave 1/3: sharing with three brothers gives 1/3 * 2/8 = 1/12,
+            # a third of the remainder gives 1/9, and a sixth of the estate gives 1/6
+            ('F', [Husband, Mother, GrandFather, Brother, Brother, Brother], 'sixth_of_estate', F(1, 6)),
+        ]
+        for sex, types, option, share in cases:
+            with self.subTest(option):
+                proof, heirs, _outcome = proof_run(sex, types, HANBALI)
+                grandfather = next(h for h in heirs if isinstance(h, GrandFather))
+                entry = entry_of(proof, grandfather)
+                self.assertEqual(entry['rule'], 'grandfather_best_option')
+                self.assertEqual(entry['option'], option)
+                self.assertEqual(entry['share'], {'numerator': share.numerator, 'denominator': share.denominator})
+
+    def test_maliki_and_shafii_mushtaraka(self):
+        types = [Husband, Mother, MaternalBrother, MaternalBrother, Brother]
+        for madhab in (MALIKI, SHAFII):
+            with self.subTest(madhab):
+                proof, heirs, _outcome = proof_run('F', types, madhab)
+                for heir in heirs[2:]:
+                    self.assertEqual(entry_of(proof, heir)['rule'], 'mushtaraka')
+                    self.assertEqual(entry_of(proof, heir)['school_rule'], 'mushtaraka')
+                    self.assertIsNone(entry_of(proof, heir)['verse'])
+                self.assertEqual(proof['school_rules'], ['mushtaraka'])
+
+    def test_hanafi_and_hanbali_keep_the_brother_residuary(self):
+        types = [Husband, Mother, MaternalBrother, MaternalBrother, Brother]
+        for madhab in (HANAFI, HANBALI):
+            with self.subTest(madhab):
+                proof, (_husband, _mother, first, second, brother), _outcome = proof_run('F', types, madhab)
+                self.assertEqual(summary(entry_of(proof, brother)),
+                                 ('residuary', 'estate_exhausted', None, '4:176', 'no_mushtaraka'))
+                self.assertEqual(entry_of(proof, brother)['share'], {'numerator': 0, 'denominator': 1})
+                for heir in (first, second):
+                    self.assertEqual(summary(entry_of(proof, heir)), ('fixed', 'several', None, '4:12', 'no_mushtaraka'))
+                    self.assertEqual(entry_of(proof, heir)['fraction'], {'numerator': 1, 'denominator': 3})
+                self.assertEqual(proof['school_rules'], ['no_mushtaraka'])
+
+    def test_awl(self):
+        for madhab in SUNNI_SCHOOLS:
+            with self.subTest(madhab):
+                proof, _heirs, _outcome = proof_run('F', [Husband, Sister, Sister], madhab)
+                self.assertEqual(step_value(proof, 'base'), 6)
+                self.assertEqual(step_value(proof, 'awl'), 7)
+                self.assertEqual(step_names(proof), ['base', 'awl'])
+
+    def test_radd(self):
+        for madhab in (HANAFI, HANBALI):
+            with self.subTest(madhab):
+                proof, heirs, _outcome = proof_run('M', [Mother, Daughter], madhab)
+                self.assertIn('radd', step_names(proof))
+                self.assertEqual(proof['school_rules'], ['radd'])
+                for heir in heirs:
+                    self.assertEqual(entry_of(proof, heir)['school_rule'], 'radd')
+        for madhab in (MALIKI, SHAFII):
+            with self.subTest(madhab):
+                calc, _heirs = build_case('M', [Mother, Daughter])
+                with self.assertRaises(schools.UnsupportedCase):
+                    calc.compute(madhab=madhab)
+                self.assertIsNone(calc.proof)
+
+    def test_a_spouse_alone_leaves_an_unallocated_part(self):
+        for madhab in SUNNI_SCHOOLS:
+            with self.subTest(madhab):
+                proof, _heirs, _outcome = proof_run('M', [Wife], madhab)
+                self.assertEqual(step_value(proof, 'unallocated'), {'numerator': 3, 'denominator': 4})
+                self.assertEqual(step_names(proof), ['base', 'unallocated'])
+
+    def test_correction_step(self):
+        # two wives get 1/16 each and three sons 7/24 each: the base 8 is multiplied up to 48
+        proof, _heirs, _outcome = proof_run('M', [Wife, Wife, Son, Son, Son], HANBALI)
+        self.assertEqual(proof['steps'], [{'step': 'base', 'value': 8}, {'step': 'correction', 'value': 48}])
+
+    def test_a_father_with_a_daughter_takes_a_sixth_and_the_remainder(self):
+        proof, (father, daughter), _outcome = proof_run('M', [Father, Daughter], HANBALI)
+        entry = entry_of(proof, father)
+        self.assertEqual((entry['rule'], entry['condition']), ('fixed_and_residuary', 'female_descendant'))
+        self.assertEqual(entry['fraction'], {'numerator': 1, 'denominator': 6})
+        self.assertEqual(entry['share'], {'numerator': 1, 'denominator': 2})
+        self.assertEqual(entry_of(proof, daughter)['share'], {'numerator': 1, 'denominator': 2})
+
+    def test_a_father_left_no_remainder_does_not_claim_one(self):
+        # husband 1/4, daughters 2/3, father 1/6 and mother 1/6 exceed the estate, so awl applies
+        proof, heirs, _outcome = proof_run('F', [Husband, Daughter, Daughter, Father, Mother], HANBALI)
+        entry = entry_of(proof, heirs[3])
+        self.assertEqual((entry['rule'], entry['condition']), ('fixed_and_residuary', 'estate_exhausted'))
+        self.assertEqual(entry['fraction'], {'numerator': 1, 'denominator': 6})
+        self.assertEqual(entry['share'], {'numerator': 2, 'denominator': 15})
+        self.assertIn('awl', step_names(proof))
+
+    def test_paternal_siblings_beside_full_siblings_get_nothing(self):
+        proof, (_grandfather, brother, paternal), _outcome = proof_run(
+            'M', [GrandFather, Brother, PaternalBrother], HANBALI)
+        entry = entry_of(proof, paternal)
+        self.assertEqual((entry['rule'], entry['condition']), ('residuary', 'excluded_by_full_siblings'))
+        self.assertEqual(entry['share'], {'numerator': 0, 'denominator': 1})
+        self.assertEqual(entry_of(proof, brother)['condition'], 'with_grandfather')
+
+    def test_radd_with_a_spouse_reports_the_base_the_shares_end_in(self):
+        for madhab in (HANAFI, HANBALI):
+            with self.subTest(f'{madhab}: one radd group'):
+                # wife 1/8, daughter 7/8: the base is the wife denominator, 8
+                proof, (wife, daughter), _outcome = proof_run('M', [Wife, Daughter], madhab)
+                self.assertEqual(proof['steps'], [{'step': 'base', 'value': 8}, {'step': 'radd', 'value': 8}])
+                self.assertIsNone(entry_of(proof, wife)['school_rule'])
+                self.assertEqual(entry_of(proof, daughter)['school_rule'], 'radd')
+            with self.subTest(f'{madhab}: two radd groups'):
+                # wife 1/8, mother 7/32, daughter 21/32: the shares end in thirty-seconds
+                proof, (wife, mother, daughter), _outcome = proof_run('M', [Wife, Mother, Daughter], madhab)
+                self.assertEqual(proof['steps'], [{'step': 'base', 'value': 24}, {'step': 'radd', 'value': 32}])
+                self.assertIsNone(entry_of(proof, wife)['school_rule'])
+                for heir in (mother, daughter):
+                    self.assertEqual(entry_of(proof, heir)['school_rule'], 'radd')
+                self.assertEqual(entry_of(proof, mother)['share'], {'numerator': 7, 'denominator': 32})
+                self.assertEqual(entry_of(proof, daughter)['share'], {'numerator': 21, 'denominator': 32})
+                self.assertEqual(proof['school_rules'], ['radd'])
+
+    def test_a_proof_without_a_basis_or_a_known_class_is_refused(self):
+        share = F(1)
+        basis = {'rule': 'fixed', 'condition': None, 'blocked_by': None, 'fraction': F(1, 2),
+                 'school_rule': None, 'option': None}
+        steps = {'base': 1, 'awl': None, 'radd': None, 'correction': None, 'unallocated': None}
+        with self.assertRaisesMessage(ValueError, 'Son'):
+            proof_module.build(HANBALI, [(1, 'Son', None, share)], steps)
+        with self.assertRaisesMessage(ValueError, 'Stranger'):
+            proof_module.build(HANBALI, [(1, 'Stranger', basis, share)], steps)
+        built = proof_module.build(HANBALI, [(1, 'Son', basis, share)], steps)
+        self.assertEqual(built['heirs'][0]['relationship'], 'son')
+
+    def test_akdariyya(self):
+        proof, (_husband, _mother, grandfather, sister), _outcome = proof_run(
+            'F', [Husband, Mother, GrandFather, Sister], HANBALI)
+        for heir in (grandfather, sister):
+            self.assertEqual(entry_of(proof, heir)['rule'], 'akdariyya')
+        self.assertEqual(entry_of(proof, grandfather)['school_rule'], 'grandfather_shares_with_siblings')
+
+    def test_hanafi_has_no_akdariyya(self):
+        proof, (_husband, _mother, grandfather, sister), _outcome = proof_run(
+            'F', [Husband, Mother, GrandFather, Sister], HANAFI)
+        self.assertEqual(entry_of(proof, sister)['rule'], 'blocked')
+        self.assertEqual(entry_of(proof, grandfather)['rule'], 'residuary')
+
+    def test_a_refused_case_has_no_proof(self):
+        calc, _heirs = build_case('M', [Son])
+        with self.assertRaises(schools.UnsupportedCase):
+            calc.compute(madhab=schools.JAFARI)
+        self.assertIsNone(calc.proof)
+        calc, _heirs = build_case('M', [Mother, Daughter])
+        calc.compute(madhab=HANBALI)
+        self.assertIsNotNone(calc.proof)
+        with self.assertRaises(schools.UnsupportedCase):
+            calc.compute(madhab=MALIKI)
+        self.assertIsNone(calc.proof, 'a refused run leaves no proof from an earlier one')
+        calc.compute(madhab=HANBALI)
+        with self.assertRaises(schools.UnsupportedCase):
+            calc.compute(madhab=schools.JAFARI)
+        self.assertIsNone(calc.proof)
+        calc.compute(madhab=HANBALI)
+        with self.assertRaises(ValueError):
+            calc.compute(madhab='nonsense')
+        self.assertIsNone(calc.proof)
+        self.assertIsNone(calc._proof_steps)
+
+    def test_two_schools_name_their_own_rule(self):
+        hanafi, _heirs, _outcome = proof_run('M', [GrandFather, Brother], HANAFI)
+        hanbali, _heirs, _outcome = proof_run('M', [GrandFather, Brother], HANBALI)
+        self.assertNotEqual(hanafi['school_rules'], hanbali['school_rules'])
+
+    def test_the_proof_is_never_stored_and_no_argument_still_works(self):
+        self.assertNotIn('proof', [f.name for f in Calculation._meta.get_fields()])
+        self.assertNotIn('basis', [f.name for f in Heir._meta.get_fields()])
+        calc, heirs = build_case('M', [Wife, Son])
+        exact = calc.compute()
+        self.assertEqual([exact[h.pk] for h in heirs], [F(1, 8), F(7, 8)])
+        self.assertEqual(calc.proof['madhab'], HANBALI)
+
+    def test_fractions_are_exact_plain_data(self):
+        import json
+        proof, _heirs, _outcome = proof_run('M', [Wife, Wife, Son], HANBALI)
+        self.assertEqual(json.loads(json.dumps(proof)), proof)
+
+
+class ProofInvariantTests(TestCase):
+    """Properties of the proof over every family and school."""
+
+    def test_every_family_under_every_school(self):
+        from calc.proof import VOCABULARY
+        checked = 0
+        for sex, types in families():
+            for madhab in SUNNI_SCHOOLS:
+                with self.subTest(label(madhab, sex, types)):
+                    outcome, calc, heirs = run(sex, types, madhab)
+                    if isinstance(outcome, str):
+                        self.assertIsNone(calc.proof)
+                        continue
+                    proof = calc.proof
+                    checked += 1
+                    self.assertEqual(proof['version'], 1)
+                    self.assertEqual(proof['madhab'], madhab)
+                    self.assertEqual(sorted(e['heir'] for e in proof['heirs']), sorted(h.pk for h in heirs))
+                    for heir in heirs:
+                        entry = entry_of(proof, heir)
+                        self.assertEqual((entry['share']['numerator'], entry['share']['denominator']),
+                                         (outcome[heir.pk].numerator, outcome[heir.pk].denominator))
+                        self.assertEqual(entry['relationship'], proof_module.RELATIONSHIPS[type(heir).__name__])
+                        self.assertIn(entry['rule'], VOCABULARY['rule'])
+                        self.assertEqual(entry['rule'] == 'blocked', entry['blocked_by'] is not None)
+                        if entry['rule'] == 'blocked':
+                            self.assertEqual(entry['share']['numerator'], 0)
+                            self.assertIsNone(entry['verse'])
+                        for kind in ('condition', 'blocked_by', 'school_rule', 'option', 'verse'):
+                            if entry[kind] is not None:
+                                self.assertIn(entry[kind], VOCABULARY[kind])
+                        self.assertEqual(entry['fraction'] is not None,
+                                         entry['rule'] in ('fixed', 'fixed_and_residuary'))
+                        self.assertEqual(entry['option'] is not None, entry['rule'] == 'grandfather_best_option')
+                    for step in proof['steps']:
+                        self.assertIn(step['step'], VOCABULARY['step'])
+                    self.assertEqual(proof['steps'][0]['step'], 'base')
+                    self.assertEqual(proof['school_rules'],
+                                     sorted({e['school_rule'] for e in proof['heirs'] if e['school_rule']}))
+                    for rule in proof['school_rules']:
+                        self.assertIn(rule, VOCABULARY['school_rule'])
+                    # the same family under the same school gives the same proof on a second run
+                    again = calc.compute(madhab=madhab)
+                    self.assertEqual(again, outcome)
+                    self.assertEqual(calc.proof, proof)
+        self.assertGreater(checked, 500)
+
+    def test_the_grandfather_gets_what_his_named_option_gives(self):
+        sibling_names = {'brother', 'sister', 'paternal_brother', 'paternal_sister'}
+        seen = set()
+        for sex, types in families():
+            for madhab in SUNNI_SCHOOLS:
+                outcome, calc, heirs = run(sex, types, madhab)
+                if isinstance(outcome, str):
+                    continue
+                entries = calc.proof['heirs']
+                for grandfather in (e for e in entries if e['rule'] == 'grandfather_best_option'):
+                    with self.subTest(label(madhab, sex, types)):
+                        if 'awl' in step_names(calc.proof):
+                            continue
+                        fixed = {(e['relationship'], e['fraction']['numerator'], e['fraction']['denominator'])
+                                 for e in entries if e['rule'] == 'fixed'}
+                        left = 1 - sum((F(n, d) for _r, n, d in fixed), F(0))
+                        units = sum(2 if e['relationship'] in ('brother', 'paternal_brother') else 1
+                                    for e in entries if e['relationship'] in sibling_names)
+                        formula = {'muqasama': left * 2 / (2 + units), 'third_of_remainder': left / 3,
+                                   'sixth_of_estate': F(1, 6)}
+                        share = F(grandfather['share']['numerator'], grandfather['share']['denominator'])
+                        self.assertEqual(share, formula[grandfather['option']])
+                        self.assertEqual(share, max(formula.values()))
+                        seen.add(grandfather['option'])
+        self.assertEqual(seen, {'muqasama', 'third_of_remainder', 'sixth_of_estate'})
+
+    def test_entry_order_does_not_change_the_proof(self):
+        # every 3rd family keeps the run short; the invariants test above runs all of them
+        for sex, types in families()[::3]:
+            for madhab in SUNNI_SCHOOLS:
+                with self.subTest(label(madhab, sex, types)):
+                    forward, forward_calc, _heirs = run(sex, types, madhab)
+                    backward, backward_calc, _heirs = run(sex, list(reversed(types)), madhab)
+                    if isinstance(forward, str) or isinstance(backward, str):
+                        self.assertEqual(forward if isinstance(forward, str) else None,
+                                         backward if isinstance(backward, str) else None)
+                        continue
+                    self.assertEqual(without_refs(forward_calc.proof), without_refs(backward_calc.proof))
+
+    def test_the_proof_names_the_rule_wherever_the_grandfather_rule_decides(self):
+        sibling_types = {Brother, Sister, PaternalBrother, PaternalSister}
+        sibling_names = {'brother', 'sister', 'paternal_brother', 'paternal_sister'}
+        for sex, types in families():
+            for madhab in SUNNI_SCHOOLS:
+                outcome, calc, heirs = run(sex, types, madhab)
+                if isinstance(outcome, str):
+                    continue
+                with self.subTest(label(madhab, sex, types)):
+                    kinds = set(types)
+                    decided = (GrandFather in kinds and not kinds & {Father, Son, SonOfSon}
+                               and bool(kinds & sibling_types))
+                    rules = set(calc.proof['school_rules'])
+                    both = {'grandfather_blocks_siblings', 'grandfather_shares_with_siblings'}
+                    if decided:
+                        expected = ('grandfather_blocks_siblings' if madhab == HANAFI
+                                    else 'grandfather_shares_with_siblings')
+                        self.assertEqual(rules & both, {expected})
+                        for entry in calc.proof['heirs']:
+                            if entry['relationship'] == 'grandfather' or entry['relationship'] in sibling_names:
+                                self.assertEqual(entry['school_rule'], expected)
+                    else:
+                        self.assertFalse(rules & both)
+
+
+class ProofLabelTests(TestCase):
+    def test_every_code_has_a_label_in_every_language(self):
+        import gettext
+        from calc.proof import LABELS, VOCABULARY
+        for kind, codes in VOCABULARY.items():
+            self.assertEqual(set(LABELS[kind]), set(codes), kind)
+        for lang in ('ar', 'en', 'fr'):
+            catalog = gettext.translation('django', settings.BASE_DIR / 'locale', languages=[lang])
+            with translation.override('en'):
+                msgids = [str(LABELS[kind][code]) for kind, codes in VOCABULARY.items() for code in codes]
+            self.assertEqual(len(set(msgids)), len(msgids), 'two codes share one label')
+            for msgid in msgids:
+                with self.subTest(f'{lang}: {msgid}'):
+                    translated = catalog.gettext(msgid)
+                    self.assertTrue(translated)
+                    if lang != 'en':
+                        self.assertNotEqual(translated, msgid)
+
+    def test_labels_follow_the_active_language(self):
+        from calc.proof import label
+        with translation.override('en'):
+            english = label('rule', 'blocked')
+        with translation.override('ar'):
+            arabic = label('rule', 'blocked')
+        self.assertNotEqual(english, arabic)
+        self.assertIsNone(label('rule', None))

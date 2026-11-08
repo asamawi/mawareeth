@@ -46,6 +46,80 @@ test("every fixture response parses strictly and displays as the fixture says", 
   }
 });
 
+test("every available fixture carries a version 1 proof that parses as served", () => {
+  const available = fixtures.filter((fixture) => (fixture.response as Preview).status === "available");
+  assert.ok(available.length >= 10);
+  for (const fixture of available) {
+    const preview = parsePreview(fixture.response) as Extract<Preview, { status: "available" }>;
+    assert.equal(preview.proof.version, 1, fixture.title);
+    assert.deepEqual(
+      preview.proof.heirs.map((heir) => heir.heir).sort(),
+      preview.shares.map((share) => share.heir_id).sort(),
+      fixture.title,
+    );
+  }
+  const hanafi = fixtures.find((fixture) => fixture.title === "Grandfather and brother under Hanafi");
+  const proof = (parsePreview(hanafi?.response) as Extract<Preview, { status: "available" }>).proof;
+  assert.deepEqual(proof.school_rules, ["grandfather_blocks_siblings"]);
+  assert.equal(proof.heirs.find((heir) => heir.rule === "blocked")?.blocked_by, "grandfather");
+});
+
+test("a malformed proof is rejected, never repaired", () => {
+  const source = fixtures.find((fixture) => fixture.title === "Grandfather and brother under Hanafi")?.response;
+  // The breakers reach into a parsed body at will, so it is deliberately untyped.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type Body = Record<string, any>;
+  const fresh = () => JSON.parse(JSON.stringify(source)) as Body;
+  assert.ok(parsePreview(fresh()));
+  const breakers: [string, (body: Body) => void][] = [
+    ["no proof", (body) => delete body.proof],
+    ["null proof", (body) => (body.proof = null)],
+    ["version 2", (body) => (body.proof.version = 2)],
+    ["another school", (body) => (body.proof.madhab = "maliki")],
+    ["heirs not a list", (body) => (body.proof.heirs = {})],
+    ["empty rule", (body) => (body.proof.heirs[0].rule = "")],
+    ["unknown relationship", (body) => (body.proof.heirs[0].relationship = "cousin")],
+    ["fraction as a number", (body) => (body.proof.heirs[0].share = 0.5)],
+    ["share above the whole", (body) => (body.proof.heirs[0].share = { numerator: 3, denominator: 2 })],
+    ["label without a code", (body) => (body.proof.heirs[0].labels.verse = "Quran")],
+    ["code without a label", (body) => (body.proof.heirs[1].labels.blocked_by = null)],
+    ["missing labels", (body) => delete body.proof.heirs[0].labels],
+    ["extra label", (body) => (body.proof.heirs[0].labels.extra = "x")],
+    ["school rule labels out of step", (body) => (body.proof.school_rule_labels = [])],
+    ["steps not starting at base", (body) => (body.proof.steps = [{ step: "awl", value: 7, label: "Awl" }])],
+    ["no steps", (body) => (body.proof.steps = [])],
+    ["step value is text", (body) => (body.proof.steps[0].value = "1")],
+    ["step value is negative", (body) => (body.proof.steps[0].value = -1)],
+    ["step without a label", (body) => delete body.proof.steps[0].label],
+    ["extra key on the proof", (body) => (body.proof.extra = 1)],
+    ["extra key on a heir entry", (body) => (body.proof.heirs[0].extra = 1)],
+    ["extra key on a step", (body) => (body.proof.steps[0].extra = 1)],
+    ["unknown step name", (body) => (body.proof.steps[0].step = "other")],
+    ["duplicate step", (body) => body.proof.steps.push({ ...body.proof.steps[0] })],
+    ["base as a fraction", (body) => (body.proof.steps[0].value = { numerator: 1, denominator: 2 })],
+    ["base of zero", (body) => (body.proof.steps[0].value = 0)],
+    ["unallocated as a number", (body) => body.proof.steps.push({ step: "unallocated", value: 1, label: "x" })],
+    ["a heir entry missing", (body) => body.proof.heirs.pop()],
+    ["a heir entry twice", (body) => (body.proof.heirs[1] = { ...body.proof.heirs[0] })],
+    ["a heir that has no share", (body) => (body.proof.heirs[0].heir = "nobody")],
+    ["a proof share unlike the share", (body) => (body.proof.heirs[0].share = { numerator: 1, denominator: 3 })],
+    ["school rules unsorted", (body) => {
+      body.proof.school_rules = ["radd", "grandfather_blocks_siblings"];
+      body.proof.school_rule_labels = ["a", "b"];
+    }],
+    ["school rules repeated", (body) => {
+      body.proof.school_rules = ["grandfather_blocks_siblings", "grandfather_blocks_siblings"];
+      body.proof.school_rule_labels = ["a", "a"];
+    }],
+    ["a heir school rule not in the list", (body) => (body.proof.heirs[0].school_rule = "radd")],
+  ];
+  for (const [name, breakIt] of breakers) {
+    const body = fresh();
+    breakIt(body);
+    assert.equal(parsePreview(body), null, name);
+  }
+});
+
 test("the fixtures cover every refusal reason and each kind of answer", () => {
   assert.deepEqual([...PREVIEW_REASONS], contract.previewReasons);
   const seen = new Set(fixtures.map((fixture) => (fixture.response as Preview & { reason?: string }).reason).filter(Boolean));

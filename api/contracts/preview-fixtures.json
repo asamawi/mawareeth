@@ -59,7 +59,71 @@
             "amount": "7000.00"
           }
         ],
-        "unallocated": null
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "hanbali",
+          "school_rules": [],
+          "heirs": [
+            {
+              "heir": "h2",
+              "relationship": "son",
+              "rule": "residuary",
+              "condition": null,
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 7,
+                "denominator": 8
+              },
+              "verse": "4:11",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Residuary heir, who takes what is left",
+                "condition": null,
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h1",
+              "relationship": "wife",
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 8
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 8
+              },
+              "verse": "4:12",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is a descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:12 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 8,
+              "label": "The common base of the fixed shares"
+            }
+          ],
+          "school_rule_labels": []
+        }
       },
       "display": {
         "rows": [
@@ -140,7 +204,71 @@
             "amount": null
           }
         ],
-        "unallocated": null
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "hanbali",
+          "school_rules": [],
+          "heirs": [
+            {
+              "heir": "h2",
+              "relationship": "son",
+              "rule": "residuary",
+              "condition": null,
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 7,
+                "denominator": 8
+              },
+              "verse": "4:11",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Residuary heir, who takes what is left",
+                "condition": null,
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h1",
+              "relationship": "wife",
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 8
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 8
+              },
+              "verse": "4:12",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is a descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:12 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 8,
+              "label": "The common base of the fixed shares"
+            }
+          ],
+          "school_rule_labels": []
+        }
       },
       "display": {
         "rows": [
@@ -238,7 +366,102 @@
             "amount": "8.75"
           }
         ],
-        "unallocated": null
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "hanbali",
+          "school_rules": [],
+          "heirs": [
+            {
+              "heir": "h3",
+              "relationship": "son",
+              "rule": "residuary",
+              "condition": null,
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 7,
+                "denominator": 8
+              },
+              "verse": "4:11",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Residuary heir, who takes what is left",
+                "condition": null,
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h1",
+              "relationship": "wife",
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 8
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 16
+              },
+              "verse": "4:12",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is a descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:12 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h2",
+              "relationship": "wife",
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 8
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 16
+              },
+              "verse": "4:12",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is a descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:12 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 8,
+              "label": "The common base of the fixed shares"
+            },
+            {
+              "step": "correction",
+              "value": 16,
+              "label": "Correction: the base is multiplied so that every heir gets whole parts"
+            }
+          ],
+          "school_rule_labels": []
+        }
       },
       "display": {
         "rows": [
@@ -326,7 +549,72 @@
             "amount": "500.00"
           }
         ],
-        "unallocated": null
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "hanbali",
+          "school_rules": [
+            "grandfather_shares_with_siblings"
+          ],
+          "heirs": [
+            {
+              "heir": "h1",
+              "relationship": "grandfather",
+              "rule": "grandfather_best_option",
+              "condition": "with_siblings",
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "verse": null,
+              "school_rule": "grandfather_shares_with_siblings",
+              "option": "muqasama",
+              "labels": {
+                "rule": "The grandfather takes the best of his options with the siblings",
+                "condition": "Together with full or paternal siblings",
+                "blocked_by": null,
+                "verse": null,
+                "school_rule": "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings",
+                "option": "Sharing the estate with the siblings as one more brother"
+              }
+            },
+            {
+              "heir": "h2",
+              "relationship": "brother",
+              "rule": "residuary",
+              "condition": "with_grandfather",
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "verse": "4:176",
+              "school_rule": "grandfather_shares_with_siblings",
+              "option": null,
+              "labels": {
+                "rule": "Residuary heir, who takes what is left",
+                "condition": "Together with the grandfather",
+                "blocked_by": null,
+                "verse": "Quran 4:176 (An-Nisa)",
+                "school_rule": "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings",
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 2,
+              "label": "The common base of the fixed shares"
+            }
+          ],
+          "school_rule_labels": [
+            "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings"
+          ]
+        }
       },
       "display": {
         "rows": [
@@ -407,7 +695,72 @@
             "amount": "0.00"
           }
         ],
-        "unallocated": null
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "hanafi",
+          "school_rules": [
+            "grandfather_blocks_siblings"
+          ],
+          "heirs": [
+            {
+              "heir": "h1",
+              "relationship": "grandfather",
+              "rule": "residuary",
+              "condition": "no_descendant",
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "verse": null,
+              "school_rule": "grandfather_blocks_siblings",
+              "option": null,
+              "labels": {
+                "rule": "Residuary heir, who takes what is left",
+                "condition": "There is no descendant",
+                "blocked_by": null,
+                "verse": null,
+                "school_rule": "Hanafi school: the grandfather blocks the full and paternal siblings",
+                "option": null
+              }
+            },
+            {
+              "heir": "h2",
+              "relationship": "brother",
+              "rule": "blocked",
+              "condition": null,
+              "blocked_by": "grandfather",
+              "fraction": null,
+              "share": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "verse": null,
+              "school_rule": "grandfather_blocks_siblings",
+              "option": null,
+              "labels": {
+                "rule": "Blocked from inheriting",
+                "condition": null,
+                "blocked_by": "Blocked by the grandfather",
+                "verse": null,
+                "school_rule": "Hanafi school: the grandfather blocks the full and paternal siblings",
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 1,
+              "label": "The common base of the fixed shares"
+            }
+          ],
+          "school_rule_labels": [
+            "Hanafi school: the grandfather blocks the full and paternal siblings"
+          ]
+        }
       },
       "display": {
         "rows": [
@@ -488,7 +841,68 @@
             "amount": "0.00"
           }
         ],
-        "unallocated": null
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "hanbali",
+          "school_rules": [],
+          "heirs": [
+            {
+              "heir": "h1",
+              "relationship": "father",
+              "rule": "residuary",
+              "condition": "no_descendant",
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "verse": "4:11",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Residuary heir, who takes what is left",
+                "condition": "There is no descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h2",
+              "relationship": "brother",
+              "rule": "blocked",
+              "condition": null,
+              "blocked_by": "father",
+              "fraction": null,
+              "share": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "verse": null,
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Blocked from inheriting",
+                "condition": null,
+                "blocked_by": "Blocked by the father",
+                "verse": null,
+                "school_rule": null,
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 1,
+              "label": "The common base of the fixed shares"
+            }
+          ],
+          "school_rule_labels": []
+        }
       },
       "display": {
         "rows": [
@@ -555,6 +969,55 @@
         "unallocated": {
           "numerator": 3,
           "denominator": 4
+        },
+        "proof": {
+          "version": 1,
+          "madhab": "hanbali",
+          "school_rules": [],
+          "heirs": [
+            {
+              "heir": "h1",
+              "relationship": "wife",
+              "rule": "fixed",
+              "condition": "no_descendant",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 4
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 4
+              },
+              "verse": "4:12",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is no descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:12 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 4,
+              "label": "The common base of the fixed shares"
+            },
+            {
+              "step": "unallocated",
+              "value": {
+                "numerator": 3,
+                "denominator": 4
+              },
+              "label": "The part of the estate that no heir takes"
+            }
+          ],
+          "school_rule_labels": []
         }
       },
       "display": {
@@ -571,6 +1034,1219 @@
           "fraction": "3/4",
           "percent": "75.0"
         }
+      }
+    },
+    {
+      "title": "Maliki mushtaraka shares the third",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "maliki",
+        "deceased": {
+          "gender": "female",
+          "estate": "9000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "husband",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "mother",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h3",
+            "relationship": "maternal_brother",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h4",
+            "relationship": "maternal_brother",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h5",
+            "relationship": "brother",
+            "gender": "male",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "maliki",
+        "basis": {
+          "madhab": "maliki",
+          "gender": "female",
+          "estate": "9000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "husband"
+            },
+            {
+              "id": "h2",
+              "relationship": "mother"
+            },
+            {
+              "id": "h3",
+              "relationship": "maternal_brother"
+            },
+            {
+              "id": "h4",
+              "relationship": "maternal_brother"
+            },
+            {
+              "id": "h5",
+              "relationship": "brother"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 2,
+            "blocked": false,
+            "amount": "4500.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 1,
+            "denominator": 6,
+            "blocked": false,
+            "amount": "1500.00"
+          },
+          {
+            "heir_id": "h3",
+            "numerator": 1,
+            "denominator": 9,
+            "blocked": false,
+            "amount": "1000.00"
+          },
+          {
+            "heir_id": "h4",
+            "numerator": 1,
+            "denominator": 9,
+            "blocked": false,
+            "amount": "1000.00"
+          },
+          {
+            "heir_id": "h5",
+            "numerator": 1,
+            "denominator": 9,
+            "blocked": false,
+            "amount": "1000.00"
+          }
+        ],
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "maliki",
+          "school_rules": [
+            "mushtaraka"
+          ],
+          "heirs": [
+            {
+              "heir": "h2",
+              "relationship": "mother",
+              "rule": "fixed",
+              "condition": "siblings",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "verse": "4:11",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There are two or more siblings",
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h1",
+              "relationship": "husband",
+              "rule": "fixed",
+              "condition": "no_descendant",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "verse": "4:12",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is no descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:12 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h5",
+              "relationship": "brother",
+              "rule": "mushtaraka",
+              "condition": null,
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 1,
+                "denominator": 9
+              },
+              "verse": null,
+              "school_rule": "mushtaraka",
+              "option": null,
+              "labels": {
+                "rule": "Shares the maternal siblings' third equally",
+                "condition": null,
+                "blocked_by": null,
+                "verse": null,
+                "school_rule": "Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third",
+                "option": null
+              }
+            },
+            {
+              "heir": "h3",
+              "relationship": "maternal_brother",
+              "rule": "mushtaraka",
+              "condition": null,
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 1,
+                "denominator": 9
+              },
+              "verse": null,
+              "school_rule": "mushtaraka",
+              "option": null,
+              "labels": {
+                "rule": "Shares the maternal siblings' third equally",
+                "condition": null,
+                "blocked_by": null,
+                "verse": null,
+                "school_rule": "Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third",
+                "option": null
+              }
+            },
+            {
+              "heir": "h4",
+              "relationship": "maternal_brother",
+              "rule": "mushtaraka",
+              "condition": null,
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 1,
+                "denominator": 9
+              },
+              "verse": null,
+              "school_rule": "mushtaraka",
+              "option": null,
+              "labels": {
+                "rule": "Shares the maternal siblings' third equally",
+                "condition": null,
+                "blocked_by": null,
+                "verse": null,
+                "school_rule": "Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third",
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 6,
+              "label": "The common base of the fixed shares"
+            },
+            {
+              "step": "correction",
+              "value": 18,
+              "label": "Correction: the base is multiplied so that every heir gets whole parts"
+            }
+          ],
+          "school_rule_labels": [
+            "Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third"
+          ]
+        }
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/2",
+            "percent": "50.0",
+            "amount": "4500.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": false,
+            "fraction": "1/6",
+            "percent": "16.7",
+            "amount": "1500.00"
+          },
+          {
+            "heirId": "h3",
+            "blocked": false,
+            "fraction": "1/9",
+            "percent": "11.1",
+            "amount": "1000.00"
+          },
+          {
+            "heirId": "h4",
+            "blocked": false,
+            "fraction": "1/9",
+            "percent": "11.1",
+            "amount": "1000.00"
+          },
+          {
+            "heirId": "h5",
+            "blocked": false,
+            "fraction": "1/9",
+            "percent": "11.1",
+            "amount": "1000.00"
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Hanafi keeps the full brother residuary",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanafi",
+        "deceased": {
+          "gender": "female",
+          "estate": "9000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "husband",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "mother",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h3",
+            "relationship": "maternal_brother",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h4",
+            "relationship": "maternal_brother",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h5",
+            "relationship": "brother",
+            "gender": "male",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanafi",
+        "basis": {
+          "madhab": "hanafi",
+          "gender": "female",
+          "estate": "9000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "husband"
+            },
+            {
+              "id": "h2",
+              "relationship": "mother"
+            },
+            {
+              "id": "h3",
+              "relationship": "maternal_brother"
+            },
+            {
+              "id": "h4",
+              "relationship": "maternal_brother"
+            },
+            {
+              "id": "h5",
+              "relationship": "brother"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 2,
+            "blocked": false,
+            "amount": "4500.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 1,
+            "denominator": 6,
+            "blocked": false,
+            "amount": "1500.00"
+          },
+          {
+            "heir_id": "h3",
+            "numerator": 1,
+            "denominator": 6,
+            "blocked": false,
+            "amount": "1500.00"
+          },
+          {
+            "heir_id": "h4",
+            "numerator": 1,
+            "denominator": 6,
+            "blocked": false,
+            "amount": "1500.00"
+          },
+          {
+            "heir_id": "h5",
+            "numerator": 0,
+            "denominator": 1,
+            "blocked": true,
+            "amount": "0.00"
+          }
+        ],
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "hanafi",
+          "school_rules": [
+            "no_mushtaraka"
+          ],
+          "heirs": [
+            {
+              "heir": "h2",
+              "relationship": "mother",
+              "rule": "fixed",
+              "condition": "siblings",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "verse": "4:11",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There are two or more siblings",
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h1",
+              "relationship": "husband",
+              "rule": "fixed",
+              "condition": "no_descendant",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "verse": "4:12",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is no descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:12 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h5",
+              "relationship": "brother",
+              "rule": "residuary",
+              "condition": "estate_exhausted",
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "verse": "4:176",
+              "school_rule": "no_mushtaraka",
+              "option": null,
+              "labels": {
+                "rule": "Residuary heir, who takes what is left",
+                "condition": "The fixed shares use up the whole estate",
+                "blocked_by": null,
+                "verse": "Quran 4:176 (An-Nisa)",
+                "school_rule": "Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third",
+                "option": null
+              }
+            },
+            {
+              "heir": "h3",
+              "relationship": "maternal_brother",
+              "rule": "fixed",
+              "condition": "several",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 3
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "verse": "4:12",
+              "school_rule": "no_mushtaraka",
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "Several of this kind of heir share one fixed share",
+                "blocked_by": null,
+                "verse": "Quran 4:12 (An-Nisa)",
+                "school_rule": "Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third",
+                "option": null
+              }
+            },
+            {
+              "heir": "h4",
+              "relationship": "maternal_brother",
+              "rule": "fixed",
+              "condition": "several",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 3
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "verse": "4:12",
+              "school_rule": "no_mushtaraka",
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "Several of this kind of heir share one fixed share",
+                "blocked_by": null,
+                "verse": "Quran 4:12 (An-Nisa)",
+                "school_rule": "Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third",
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 6,
+              "label": "The common base of the fixed shares"
+            }
+          ],
+          "school_rule_labels": [
+            "Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third"
+          ]
+        }
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/2",
+            "percent": "50.0",
+            "amount": "4500.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": false,
+            "fraction": "1/6",
+            "percent": "16.7",
+            "amount": "1500.00"
+          },
+          {
+            "heirId": "h3",
+            "blocked": false,
+            "fraction": "1/6",
+            "percent": "16.7",
+            "amount": "1500.00"
+          },
+          {
+            "heirId": "h4",
+            "blocked": false,
+            "fraction": "1/6",
+            "percent": "16.7",
+            "amount": "1500.00"
+          },
+          {
+            "heirId": "h5",
+            "blocked": true,
+            "fraction": null,
+            "percent": null,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Husband and two sisters need awl",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "shafii",
+        "deceased": {
+          "gender": "female",
+          "estate": "7000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "husband",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "sister",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h3",
+            "relationship": "sister",
+            "gender": "female",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "shafii",
+        "basis": {
+          "madhab": "shafii",
+          "gender": "female",
+          "estate": "7000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "husband"
+            },
+            {
+              "id": "h2",
+              "relationship": "sister"
+            },
+            {
+              "id": "h3",
+              "relationship": "sister"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 3,
+            "denominator": 7,
+            "blocked": false,
+            "amount": "3000.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 2,
+            "denominator": 7,
+            "blocked": false,
+            "amount": "2000.00"
+          },
+          {
+            "heir_id": "h3",
+            "numerator": 2,
+            "denominator": 7,
+            "blocked": false,
+            "amount": "2000.00"
+          }
+        ],
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "shafii",
+          "school_rules": [],
+          "heirs": [
+            {
+              "heir": "h1",
+              "relationship": "husband",
+              "rule": "fixed",
+              "condition": "no_descendant",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "share": {
+                "numerator": 3,
+                "denominator": 7
+              },
+              "verse": "4:12",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is no descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:12 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h2",
+              "relationship": "sister",
+              "rule": "fixed",
+              "condition": "several",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 2,
+                "denominator": 3
+              },
+              "share": {
+                "numerator": 2,
+                "denominator": 7
+              },
+              "verse": "4:176",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "Several of this kind of heir share one fixed share",
+                "blocked_by": null,
+                "verse": "Quran 4:176 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h3",
+              "relationship": "sister",
+              "rule": "fixed",
+              "condition": "several",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 2,
+                "denominator": 3
+              },
+              "share": {
+                "numerator": 2,
+                "denominator": 7
+              },
+              "verse": "4:176",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "Several of this kind of heir share one fixed share",
+                "blocked_by": null,
+                "verse": "Quran 4:176 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 6,
+              "label": "The common base of the fixed shares"
+            },
+            {
+              "step": "awl",
+              "value": 7,
+              "label": "Awl: the base is raised because the fixed shares exceed the estate"
+            }
+          ],
+          "school_rule_labels": []
+        }
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "3/7",
+            "percent": "42.9",
+            "amount": "3000.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": false,
+            "fraction": "2/7",
+            "percent": "28.6",
+            "amount": "2000.00"
+          },
+          {
+            "heirId": "h3",
+            "blocked": false,
+            "fraction": "2/7",
+            "percent": "28.6",
+            "amount": "2000.00"
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Hanafi mother and daughter need radd",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanafi",
+        "deceased": {
+          "gender": "male",
+          "estate": "4000"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "mother",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "daughter",
+            "gender": "female",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanafi",
+        "basis": {
+          "madhab": "hanafi",
+          "gender": "male",
+          "estate": "4000",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "mother"
+            },
+            {
+              "id": "h2",
+              "relationship": "daughter"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 4,
+            "blocked": false,
+            "amount": "1000.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 3,
+            "denominator": 4,
+            "blocked": false,
+            "amount": "3000.00"
+          }
+        ],
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "hanafi",
+          "school_rules": [
+            "radd"
+          ],
+          "heirs": [
+            {
+              "heir": "h2",
+              "relationship": "daughter",
+              "rule": "fixed",
+              "condition": "single",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "share": {
+                "numerator": 3,
+                "denominator": 4
+              },
+              "verse": "4:11",
+              "school_rule": "radd",
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "Only one of this kind of heir",
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": "The remainder is returned to the heirs in proportion to their shares",
+                "option": null
+              }
+            },
+            {
+              "heir": "h1",
+              "relationship": "mother",
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 4
+              },
+              "verse": "4:11",
+              "school_rule": "radd",
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is a descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": "The remainder is returned to the heirs in proportion to their shares",
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 6,
+              "label": "The common base of the fixed shares"
+            },
+            {
+              "step": "radd",
+              "value": 4,
+              "label": "Radd: the shares are recalculated so that the remainder returns to the heirs"
+            }
+          ],
+          "school_rule_labels": [
+            "The remainder is returned to the heirs in proportion to their shares"
+          ]
+        }
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/4",
+            "percent": "25.0",
+            "amount": "1000.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": false,
+            "fraction": "3/4",
+            "percent": "75.0",
+            "amount": "3000.00"
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Hanbali akdariyya",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "female",
+          "estate": "5400"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "husband",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "mother",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h3",
+            "relationship": "grandfather",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h4",
+            "relationship": "sister",
+            "gender": "female",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanbali",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "female",
+          "estate": "5400",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "husband"
+            },
+            {
+              "id": "h2",
+              "relationship": "mother"
+            },
+            {
+              "id": "h3",
+              "relationship": "grandfather"
+            },
+            {
+              "id": "h4",
+              "relationship": "sister"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 3,
+            "blocked": false,
+            "amount": "1800.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 2,
+            "denominator": 9,
+            "blocked": false,
+            "amount": "1200.00"
+          },
+          {
+            "heir_id": "h3",
+            "numerator": 8,
+            "denominator": 27,
+            "blocked": false,
+            "amount": "1600.00"
+          },
+          {
+            "heir_id": "h4",
+            "numerator": 4,
+            "denominator": 27,
+            "blocked": false,
+            "amount": "800.00"
+          }
+        ],
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "hanbali",
+          "school_rules": [
+            "grandfather_shares_with_siblings"
+          ],
+          "heirs": [
+            {
+              "heir": "h3",
+              "relationship": "grandfather",
+              "rule": "akdariyya",
+              "condition": null,
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 8,
+                "denominator": 27
+              },
+              "verse": null,
+              "school_rule": "grandfather_shares_with_siblings",
+              "option": null,
+              "labels": {
+                "rule": "The grandfather and the sister pool their shares and split them two to one",
+                "condition": null,
+                "blocked_by": null,
+                "verse": null,
+                "school_rule": "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings",
+                "option": null
+              }
+            },
+            {
+              "heir": "h2",
+              "relationship": "mother",
+              "rule": "fixed",
+              "condition": "no_descendant_or_siblings",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 3
+              },
+              "share": {
+                "numerator": 2,
+                "denominator": 9
+              },
+              "verse": "4:11",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is no descendant and fewer than two siblings",
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h1",
+              "relationship": "husband",
+              "rule": "fixed",
+              "condition": "no_descendant",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 3
+              },
+              "verse": "4:12",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is no descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:12 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h4",
+              "relationship": "sister",
+              "rule": "akdariyya",
+              "condition": null,
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 4,
+                "denominator": 27
+              },
+              "verse": null,
+              "school_rule": "grandfather_shares_with_siblings",
+              "option": null,
+              "labels": {
+                "rule": "The grandfather and the sister pool their shares and split them two to one",
+                "condition": null,
+                "blocked_by": null,
+                "verse": null,
+                "school_rule": "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings",
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 6,
+              "label": "The common base of the fixed shares"
+            },
+            {
+              "step": "awl",
+              "value": 9,
+              "label": "Awl: the base is raised because the fixed shares exceed the estate"
+            },
+            {
+              "step": "correction",
+              "value": 27,
+              "label": "Correction: the base is multiplied so that every heir gets whole parts"
+            }
+          ],
+          "school_rule_labels": [
+            "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings"
+          ]
+        }
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/3",
+            "percent": "33.3",
+            "amount": "1800.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": false,
+            "fraction": "2/9",
+            "percent": "22.2",
+            "amount": "1200.00"
+          },
+          {
+            "heirId": "h3",
+            "blocked": false,
+            "fraction": "8/27",
+            "percent": "29.6",
+            "amount": "1600.00"
+          },
+          {
+            "heirId": "h4",
+            "blocked": false,
+            "fraction": "4/27",
+            "percent": "14.8",
+            "amount": "800.00"
+          }
+        ],
+        "unallocated": null
       }
     },
     {

@@ -12,7 +12,7 @@ from fractions import Fraction
 from django.db import transaction
 
 from api import anonymous_case, heir_rules
-from calc import schools
+from calc import proof as proof_codes, schools
 from calc.models import (
     Brother, Calculation, Daughter, DaughterOfSon, Deceased, Father, GrandFather, GrandMother,
     Heir, Husband, MaternalBrother, MaternalSister, Mother, PaternalBrother, PaternalSister,
@@ -71,8 +71,28 @@ def _fraction(value):
     return {'numerator': value.numerator, 'denominator': value.denominator}
 
 
+def _labelled(proof, ids):
+    """The engine's proof for the client: heirs named by session id, and a label in the active
+    language beside every code. The codes themselves stay as the engine gave them."""
+    label = proof_codes.label
+    heirs = []
+    for entry in proof['heirs']:
+        heirs.append({
+            **entry,
+            'heir': ids[entry['heir']],
+            'labels': {kind: label(kind, entry[kind]) for kind in
+                       ('rule', 'condition', 'blocked_by', 'verse', 'school_rule', 'option')},
+        })
+    return {
+        **proof,
+        'heirs': heirs,
+        'school_rule_labels': [label('school_rule', code) for code in proof['school_rules']],
+        'steps': [{**step, 'label': label('step', step['step'])} for step in proof['steps']],
+    }
+
+
 def _compute(case):
-    """The engine's fractions and blocked flags by session heir id. Leaves rows; roll back."""
+    """The engine's fractions, blocked flags and proof by session heir id. Leaves rows; roll back."""
     calc = Calculation.objects.create(name='')
     Deceased.objects.create(sex=SEX[case['deceased']['gender']], estate=PLACEHOLDER_ESTATE, calc=calc)
     by_pk = {}
@@ -81,10 +101,11 @@ def _compute(case):
         by_pk[row.pk] = heir['id']
     final = calc.compute(madhab=case['madhab'])
     blocked = dict(Heir.objects.filter(calc=calc).values_list('pk', 'blocked'))
-    return {
+    outcome = {
         by_pk[pk]: (Fraction(fraction), bool(blocked.get(pk)))
         for pk, fraction in final.items() if pk in by_pk
     }
+    return outcome, _labelled(calc.proof, by_pk)
 
 
 def preview(case):
@@ -101,7 +122,7 @@ def preview(case):
     try:
         with transaction.atomic():
             try:
-                outcome = _compute(case)
+                outcome, proof = _compute(case)
             finally:
                 transaction.set_rollback(True)
     except schools.UnsupportedCase as refused:
@@ -124,4 +145,5 @@ def preview(case):
         'basis': basis(case),
         'shares': shares,
         'unallocated': _fraction(left) if left > 0 else None,
+        'proof': proof,
     }

@@ -64,7 +64,7 @@ development_status:
 
   epic-2: in-progress
   2-1-standard-share-calculation-across-all-required-schools: review
-  2-2-deterministic-proof-output-for-multi-school-results: backlog
+  2-2-deterministic-proof-output-for-multi-school-results: review
   2-3-expanded-multi-school-coverage-beyond-standard-cases: backlog
   2-4-full-recursive-manasikhat-calculation: backlog
   epic-2-retrospective: optional
@@ -104,4 +104,4 @@ development_status:
   7-5-certify-draft-report-as-approved-lawyer: backlog
   7-6-audit-trail-for-certification-actions: backlog
   epic-7-retrospective: optional
-last_updated: '2026-11-07'
+last_updated: '2026-11-09'

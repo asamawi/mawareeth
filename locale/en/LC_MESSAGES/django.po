@@ -2371,5 +2371,245 @@ msgstr "The case does not record which line the grandmother belongs to, so no re
 msgid "Mushtaraka: the full siblings share the maternal siblings' third equally"
 msgstr "Mushtaraka: the full siblings share the maternal siblings' third equally"
 
+#: calc/proof.py
+msgid "Fixed share"
+msgstr "Fixed share"
+
+#: calc/proof.py
+msgid "Fixed share plus the remainder"
+msgstr "Fixed share plus the remainder"
+
+#: calc/proof.py
+msgid "Residuary heir, who takes what is left"
+msgstr "Residuary heir, who takes what is left"
+
+#: calc/proof.py
+msgid "Blocked from inheriting"
+msgstr "Blocked from inheriting"
+
+#: calc/proof.py
+msgid "The grandfather takes the best of his options with the siblings"
+msgstr "The grandfather takes the best of his options with the siblings"
+
+#: calc/proof.py
+msgid "Shares the maternal siblings' third equally"
+msgstr "Shares the maternal siblings' third equally"
+
+#: calc/proof.py
+msgid "The grandfather and the sister pool their shares and split them two to one"
+msgstr "The grandfather and the sister pool their shares and split them two to one"
+
+#: calc/proof.py
+msgid "There is a male descendant"
+msgstr "There is a male descendant"
+
+#: calc/proof.py
+msgid "There is a female descendant and no male descendant"
+msgstr "There is a female descendant and no male descendant"
+
+#: calc/proof.py
+msgid "There is a descendant"
+msgstr "There is a descendant"
+
+#: calc/proof.py
+msgid "There is no descendant"
+msgstr "There is no descendant"
+
+#: calc/proof.py
+msgid "There are two or more siblings"
+msgstr "There are two or more siblings"
+
+#: calc/proof.py
+msgid "There is no descendant and fewer than two siblings"
+msgstr "There is no descendant and fewer than two siblings"
+
+#: calc/proof.py
+msgid "A spouse and the father are present, so she takes a third of the remainder"
+msgstr "A spouse and the father are present, so she takes a third of the remainder"
+
+#: calc/proof.py
+msgid "Together with a son"
+msgstr "Together with a son"
+
+#: calc/proof.py
+msgid "Together with a son of a son"
+msgstr "Together with a son of a son"
+
+#: calc/proof.py
+msgid "Together with one daughter"
+msgstr "Together with one daughter"
+
+#: calc/proof.py
+msgid "Together with a full brother"
+msgstr "Together with a full brother"
+
+#: calc/proof.py
+msgid "Together with a paternal brother"
+msgstr "Together with a paternal brother"
+
+#: calc/proof.py
+msgid "Together with the grandfather"
+msgstr "Together with the grandfather"
+
+#: calc/proof.py
+msgid "Together with full or paternal siblings"
+msgstr "Together with full or paternal siblings"
+
+#: calc/proof.py
+msgid "Together with one full sister"
+msgstr "Together with one full sister"
+
+#: calc/proof.py
+msgid "Maternal brothers and sisters share one third"
+msgstr "Maternal brothers and sisters share one third"
+
+#: calc/proof.py
+msgid "There is no mother"
+msgstr "There is no mother"
+
+#: calc/proof.py
+msgid "Only one of this kind of heir"
+msgstr "Only one of this kind of heir"
+
+#: calc/proof.py
+msgid "Several of this kind of heir share one fixed share"
+msgstr "Several of this kind of heir share one fixed share"
+
+#: calc/proof.py
+msgid "The fixed shares use up the whole estate"
+msgstr "The fixed shares use up the whole estate"
+
+#: calc/proof.py
+msgid "The full siblings take all that is left"
+msgstr "The full siblings take all that is left"
+
+#: calc/proof.py
+msgid "Blocked by a male descendant"
+msgstr "Blocked by a male descendant"
+
+#: calc/proof.py
+msgid "Blocked by a descendant"
+msgstr "Blocked by a descendant"
+
+#: calc/proof.py
+msgid "Blocked by the father"
+msgstr "Blocked by the father"
+
+#: calc/proof.py
+msgid "Blocked by the grandfather"
+msgstr "Blocked by the grandfather"
+
+#: calc/proof.py
+msgid "Blocked by the mother"
+msgstr "Blocked by the mother"
+
+#: calc/proof.py
+msgid "Blocked by a son"
+msgstr "Blocked by a son"
+
+#: calc/proof.py
+msgid "Blocked by two or more daughters"
+msgstr "Blocked by two or more daughters"
+
+#: calc/proof.py
+msgid "Blocked by a full brother"
+msgstr "Blocked by a full brother"
+
+#: calc/proof.py
+msgid "Blocked by the full sisters"
+msgstr "Blocked by the full sisters"
+
+#: calc/proof.py
+msgid "Blocked by a paternal brother"
+msgstr "Blocked by a paternal brother"
+
+#: calc/proof.py
+msgid "Blocked by a paternal sister"
+msgstr "Blocked by a paternal sister"
+
+#: calc/proof.py
+msgid "Blocked by a son of a full brother"
+msgstr "Blocked by a son of a full brother"
+
+#: calc/proof.py
+msgid "Blocked by a son of a paternal brother"
+msgstr "Blocked by a son of a paternal brother"
+
+#: calc/proof.py
+msgid "Blocked by a full uncle"
+msgstr "Blocked by a full uncle"
+
+#: calc/proof.py
+msgid "Blocked by a paternal uncle"
+msgstr "Blocked by a paternal uncle"
+
+#: calc/proof.py
+msgid "Blocked by a son of a full uncle"
+msgstr "Blocked by a son of a full uncle"
+
+#: calc/proof.py
+msgid "Hanafi school: the grandfather blocks the full and paternal siblings"
+msgstr "Hanafi school: the grandfather blocks the full and paternal siblings"
+
+#: calc/proof.py
+msgid "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings"
+msgstr "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings"
+
+#: calc/proof.py
+msgid "Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third"
+msgstr "Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third"
+
+#: calc/proof.py
+msgid "Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third"
+msgstr "Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third"
+
+#: calc/proof.py
+msgid "The remainder is returned to the heirs in proportion to their shares"
+msgstr "The remainder is returned to the heirs in proportion to their shares"
+
+#: calc/proof.py
+msgid "Sharing the estate with the siblings as one more brother"
+msgstr "Sharing the estate with the siblings as one more brother"
+
+#: calc/proof.py
+msgid "A third of what is left after the fixed shares"
+msgstr "A third of what is left after the fixed shares"
+
+#: calc/proof.py
+msgid "A sixth of the whole estate"
+msgstr "A sixth of the whole estate"
+
+#: calc/proof.py
+msgid "The common base of the fixed shares"
+msgstr "The common base of the fixed shares"
+
+#: calc/proof.py
+msgid "Awl: the base is raised because the fixed shares exceed the estate"
+msgstr "Awl: the base is raised because the fixed shares exceed the estate"
+
+#: calc/proof.py
+msgid "Radd: the shares are recalculated so that the remainder returns to the heirs"
+msgstr "Radd: the shares are recalculated so that the remainder returns to the heirs"
+
+#: calc/proof.py
+msgid "Correction: the base is multiplied so that every heir gets whole parts"
+msgstr "Correction: the base is multiplied so that every heir gets whole parts"
+
+#: calc/proof.py
+msgid "The part of the estate that no heir takes"
+msgstr "The part of the estate that no heir takes"
+
+#: calc/proof.py
+msgid "Quran 4:11 (An-Nisa)"
+msgstr "Quran 4:11 (An-Nisa)"
+
+#: calc/proof.py
+msgid "Quran 4:12 (An-Nisa)"
+msgstr "Quran 4:12 (An-Nisa)"
+
+#: calc/proof.py
+msgid "Quran 4:176 (An-Nisa)"
+msgstr "Quran 4:176 (An-Nisa)"
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "Son of paternal brother"

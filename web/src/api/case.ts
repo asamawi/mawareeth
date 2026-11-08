@@ -467,6 +467,51 @@ export type PreviewBasis = {
   heirs: { id: string; relationship: RelationshipId }[];
 };
 
+/** A label for each code of a heir's proof, in the language of the request; null where there is no code. */
+export type PreviewProofLabels = {
+  rule: string;
+  condition: string | null;
+  blocked_by: string | null;
+  verse: string | null;
+  school_rule: string | null;
+  option: string | null;
+};
+
+export type PreviewProofHeir = {
+  /** The session id of the heir. */
+  heir: string;
+  relationship: RelationshipId;
+  rule: string;
+  condition: string | null;
+  blocked_by: string | null;
+  /** The prescribed fraction for a fixed share; null for any other rule. */
+  fraction: FractionBody | null;
+  /** The final share of the whole estate. */
+  share: FractionBody;
+  verse: string | null;
+  school_rule: string | null;
+  option: string | null;
+  labels: PreviewProofLabels;
+};
+
+export type PreviewProofStep = {
+  step: string;
+  /** A whole number, or a fraction for the unallocated part. */
+  value: number | FractionBody;
+  label: string;
+};
+
+/** Why each heir gets their share: stable codes with labels, version 1. Nothing shows it yet. */
+export type PreviewProof = {
+  version: 1;
+  madhab: MadhabId;
+  school_rules: string[];
+  /** The label of each of `school_rules`, in the same order. */
+  school_rule_labels: string[];
+  heirs: PreviewProofHeir[];
+  steps: PreviewProofStep[];
+};
+
 export type Preview =
   | { status: "not_ready" }
   /** `reason` is any code the server sends; one with no sentence shows the generic text only. */
@@ -478,6 +523,7 @@ export type Preview =
       shares: PreviewShare[];
       /** The part of the estate no heir takes, for a spouse alone; otherwise null. */
       unallocated: FractionBody | null;
+      proof: PreviewProof;
     };
 
 export type PreviewResult =
@@ -520,6 +566,128 @@ function parseBasis(value: unknown): PreviewBasis | null {
   return { madhab, gender, estate, heirs: list };
 }
 
+function isCode(value: unknown): value is string {
+  return typeof value === "string" && value !== "";
+}
+
+/** A code or null, and a label that is a string exactly when the code is. */
+function parseCoded(code: unknown, label: unknown): boolean {
+  return code === null ? label === null : isCode(code) && typeof label === "string" && label !== "";
+}
+
+const PROOF_STEPS = ["base", "awl", "radd", "correction", "unallocated"] as const;
+const PROOF_KEYS = ["version", "madhab", "school_rules", "school_rule_labels", "heirs", "steps"];
+const PROOF_HEIR_KEYS = [
+  "heir", "relationship", "rule", "condition", "blocked_by", "fraction", "share", "verse", "school_rule", "option",
+  "labels",
+];
+const PROOF_STEP_KEYS = ["step", "value", "label"];
+
+/** True when the object has exactly these keys, no more and no fewer. */
+function hasExactKeys(value: object, keys: readonly string[]): boolean {
+  const own = Object.keys(value);
+  return own.length === keys.length && keys.every((key) => own.includes(key));
+}
+
+function parseProofHeir(item: unknown): PreviewProofHeir | null {
+  if (typeof item !== "object" || item === null) return null;
+  const value = item as Record<string, unknown>;
+  if (!hasExactKeys(value, PROOF_HEIR_KEYS)) return null;
+  const { heir, relationship, rule, condition, blocked_by, verse, school_rule, option, labels } = value;
+  if (typeof heir !== "string" || !isRelationshipId(relationship) || !isCode(rule)) return null;
+  if (typeof labels !== "object" || labels === null) return null;
+  const given = labels as Record<string, unknown>;
+  if (Object.keys(given).length !== 6 || typeof given.rule !== "string" || given.rule === "") return null;
+  const pairs: [unknown, unknown][] = [
+    [condition, given.condition],
+    [blocked_by, given.blocked_by],
+    [verse, given.verse],
+    [school_rule, given.school_rule],
+    [option, given.option],
+  ];
+  if (!pairs.every(([code, label]) => parseCoded(code, label))) return null;
+  const share = parseFraction(value.share);
+  if (!share) return null;
+  let fraction: FractionBody | null = null;
+  if (value.fraction !== null) {
+    fraction = parseFraction(value.fraction);
+    if (!fraction) return null;
+  }
+  return {
+    heir,
+    relationship,
+    rule,
+    condition: condition as string | null,
+    blocked_by: blocked_by as string | null,
+    fraction,
+    share,
+    verse: verse as string | null,
+    school_rule: school_rule as string | null,
+    option: option as string | null,
+    labels: {
+      rule: given.rule,
+      condition: given.condition as string | null,
+      blocked_by: given.blocked_by as string | null,
+      verse: given.verse as string | null,
+      school_rule: given.school_rule as string | null,
+      option: given.option as string | null,
+    },
+  };
+}
+
+function parseProof(value: unknown, madhab: MadhabId, shares: readonly PreviewShare[]): PreviewProof | null {
+  if (typeof value !== "object" || value === null || !hasExactKeys(value, PROOF_KEYS)) return null;
+  const { version, school_rules, school_rule_labels, heirs, steps } = value as Record<string, unknown>;
+  if (version !== 1 || (value as Record<string, unknown>).madhab !== madhab) return null;
+  if (!Array.isArray(school_rules) || !Array.isArray(school_rule_labels) || !Array.isArray(heirs) || !Array.isArray(steps)) {
+    return null;
+  }
+  if (!school_rules.every(isCode) || !school_rule_labels.every(isCode)) return null;
+  if (school_rules.length !== school_rule_labels.length) return null;
+  // sorted and unique, as the engine lists them
+  if (!school_rules.every((code, index) => index === 0 || (school_rules[index - 1] as string) < code)) return null;
+  const parsedHeirs: PreviewProofHeir[] = [];
+  for (const item of heirs as unknown[]) {
+    const parsed = parseProofHeir(item);
+    if (!parsed) return null;
+    if (parsed.school_rule !== null && !school_rules.includes(parsed.school_rule)) return null;
+    parsedHeirs.push(parsed);
+  }
+  // every share's heir has exactly one entry, with the same fraction
+  if (parsedHeirs.length !== shares.length) return null;
+  for (const share of shares) {
+    const matches = parsedHeirs.filter((heir) => heir.heir === share.heir_id);
+    if (matches.length !== 1) return null;
+    const mine = matches[0].share;
+    if (mine.numerator * share.denominator !== share.numerator * mine.denominator) return null;
+  }
+  const parsedSteps: PreviewProofStep[] = [];
+  for (const item of steps as unknown[]) {
+    if (typeof item !== "object" || item === null || !hasExactKeys(item, PROOF_STEP_KEYS)) return null;
+    const { step, value: amount, label } = item as Record<string, unknown>;
+    if (!isCode(label) || !(PROOF_STEPS as readonly unknown[]).includes(step)) return null;
+    if (parsedSteps.some((done) => done.step === step)) return null;
+    // the unallocated part is a fraction; every other step is a whole number of parts
+    const parsedValue =
+      step === "unallocated"
+        ? parseFraction(amount)
+        : typeof amount === "number" && Number.isSafeInteger(amount) && amount > 0
+          ? amount
+          : null;
+    if (parsedValue === null) return null;
+    parsedSteps.push({ step: step as string, value: parsedValue, label });
+  }
+  if (parsedSteps.length === 0 || parsedSteps[0].step !== "base") return null;
+  return {
+    version: 1,
+    madhab,
+    school_rules: school_rules as string[],
+    school_rule_labels: school_rule_labels as string[],
+    heirs: parsedHeirs,
+    steps: parsedSteps,
+  };
+}
+
 /** Strict: anything that is not exactly the documented shape is rejected, never repaired. */
 export function parsePreview(body: unknown): Preview | null {
   if (typeof body !== "object" || body === null) return null;
@@ -548,7 +716,9 @@ export function parsePreview(body: unknown): Preview | null {
     unallocated = parseFraction(value.unallocated);
     if (!unallocated) return null;
   }
-  return { status: "available", madhab: value.madhab, basis, shares, unallocated };
+  const proof = parseProof(value.proof, value.madhab, shares);
+  if (!proof) return null;
+  return { status: "available", madhab: value.madhab, basis, shares, unallocated, proof };
 }
 
 /**

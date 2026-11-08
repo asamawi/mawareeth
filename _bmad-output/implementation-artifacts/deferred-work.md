@@ -400,3 +400,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-case-write-integrity.md`
   summary: Decide whether to bound the case write lock wait (for example `SET LOCAL lock_timeout` with a clear "another change is in progress" response) and add a metric or log for lock wait time, before the interview opens widely.
   evidence: `CaseWriteLockMiddleware` waits with no timeout, so one visitor firing many parallel writes, or a hung request inside the lock, ties up workers and DB connections until gunicorn's timeout; the spec put any lock timeout under Ask First, and review flagged the lack of visibility.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-deterministic-proof-output-for-multi-school-results.md`
+  summary: Add hadith, ijma and scholar citations to the proof, where the schools rest on them rather than on a verse.
+  evidence: The spec allowed only 4:11, 4:12 and 4:176, so every rule without a verse (the grandfather with siblings, the mushtaraka, the akdariyya, awl and radd) names its school rule and no source text.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-deterministic-proof-output-for-multi-school-results.md`
+  summary: Have a qualified reviewer check the proof's codes, the verse given to each relationship, and the Arabic and French labels.
+  evidence: `calc/proof.py` and the three `django.po` files are unreviewed. In particular the verse is given by relationship (a grandfather, a grandchild and a grandmother get none), the paternal siblings are put under 4:176, and the labels state fiqh positions for each school.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-deterministic-proof-output-for-multi-school-results.md`
+  summary: Show the proof on the results and preview screens (Epic 3).
+  evidence: The preview API now returns `proof` with labels in the request language, but nothing in the web app displays it.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-deterministic-proof-output-for-multi-school-results.md`
+  summary: Say in the proof when a fixed share is split among several heirs of one type (e.g. two wives each with fraction 1/8 and share 1/16), with a count or a 'shared' condition, so the gap between fraction and share is explained.
+  evidence: Story 2.2 review found wives and grandmothers keep their single-heir condition while their share is the group's fraction divided among them; changing it alters the version-1 proof contract and every fixture, so it needs its own change.

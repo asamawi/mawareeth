@@ -22,6 +22,14 @@ MALIKIYYA_DISPUTED = 'malikiyya_disputed'
 RADD_DISPUTED = 'radd_disputed'
 GRANDMOTHER_LINE_UNKNOWN = 'grandmother_line_unknown'
 
+# The school rules a proof can name where the schools diverge. Stable codes, never translated here.
+GRANDFATHER_BLOCKS_SIBLINGS = 'grandfather_blocks_siblings'
+GRANDFATHER_SHARES_WITH_SIBLINGS = 'grandfather_shares_with_siblings'
+MUSHTARAKA = 'mushtaraka'
+NO_MUSHTARAKA = 'no_mushtaraka'
+RADD = 'radd'
+SCHOOL_RULES = (GRANDFATHER_BLOCKS_SIBLINGS, GRANDFATHER_SHARES_WITH_SIBLINGS, MUSHTARAKA, NO_MUSHTARAKA, RADD)
+
 REASONS = {
     SCHOOL_NOT_SUPPORTED: _("This school of law is not supported yet"),
     MALIKIYYA_DISPUTED: _("The Malikiyya case is disputed within the Maliki school, so no result is given"),
@@ -51,13 +59,11 @@ def grandfather_blocks_siblings(madhab):
     return madhab == HANAFI
 
 
-def has_mushtaraka(madhab, live):
-    """Maliki and Shafi'i: husband, mother or grandmother, two or more maternal siblings
-    and a full brother. The full siblings join the maternal ones in their third.
+def is_mushtaraka_family(live):
+    """The shape of the family the mushtaraka is about, whichever school it is: husband,
+    mother or grandmother, two or more maternal siblings and a full brother.
 
     `live` maps the class name of each heir that is not blocked to how many there are."""
-    if madhab not in (MALIKI, SHAFII):
-        return False
     allowed = {'Husband', 'Mother', 'GrandMother', 'MaternalBrother', 'MaternalSister', 'Brother', 'Sister'}
     if not set(live) <= allowed:
         return False
@@ -66,6 +72,27 @@ def has_mushtaraka(madhab, live):
             and live.get('Mother', 0) + live.get('GrandMother', 0) == 1
             and maternal >= 2
             and live.get('Brother', 0) >= 1)
+
+
+def has_mushtaraka(madhab, live):
+    """Maliki and Shafi'i: the full siblings of that family join the maternal ones in their third."""
+    return madhab in (MALIKI, SHAFII) and is_mushtaraka_family(live)
+
+
+def mushtaraka_rule(madhab):
+    """The school rule that decides the mushtaraka family: Maliki and Shafi'i share the
+    third, the others keep the full siblings as residuary heirs."""
+    return MUSHTARAKA if madhab in (MALIKI, SHAFII) else NO_MUSHTARAKA
+
+
+def grandfather_rule(madhab):
+    """The school rule that decides a grandfather with full or paternal siblings."""
+    return GRANDFATHER_BLOCKS_SIBLINGS if grandfather_blocks_siblings(madhab) else GRANDFATHER_SHARES_WITH_SIBLINGS
+
+
+def radd_rule(madhab):
+    """The school rule that lets the remainder go back to the heirs, or None when the school has none."""
+    return RADD if allows_radd(madhab) else None
 
 
 def is_malikiyya_family(madhab, live, maternal_count):

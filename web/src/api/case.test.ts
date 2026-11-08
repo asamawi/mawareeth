@@ -377,6 +377,35 @@ const AVAILABLE = {
   basis: BASIS,
   shares: [{ heir_id: "a1", numerator: 1, denominator: 8, blocked: false, amount: "1000.00" }],
   unallocated: null,
+  proof: {
+    version: 1,
+    madhab: "hanbali",
+    school_rules: [],
+    school_rule_labels: [],
+    heirs: [
+      {
+        heir: "a1",
+        relationship: "wife",
+        rule: "fixed",
+        condition: "descendant",
+        blocked_by: null,
+        fraction: { numerator: 1, denominator: 8 },
+        share: { numerator: 1, denominator: 8 },
+        verse: "4:12",
+        school_rule: null,
+        option: null,
+        labels: {
+          rule: "Fixed share",
+          condition: "There is a descendant",
+          blocked_by: null,
+          verse: "Quran 4:12 (An-Nisa)",
+          school_rule: null,
+          option: null,
+        },
+      },
+    ],
+    steps: [{ step: "base", value: 8, label: "The common base of the fixed shares" }],
+  },
 };
 
 test("fetchPreview makes one read with the case id and returns the typed preview", async () => {

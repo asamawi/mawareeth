@@ -1299,7 +1299,7 @@ class PreviewTests(InterviewBase):
                 live = self.build(
                     case['madhab'], case['deceased']['gender'], case['deceased']['estate'],
                     [heir['relationship'] for heir in case['heirs']])
-                response = self.preview(live['id'])
+                response = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en')
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response['Content-Type'], 'application/json')
                 self.assertIn('no-store', response['Cache-Control'])
@@ -1309,6 +1309,8 @@ class PreviewTests(InterviewBase):
                     share['heir_id'] = real_ids[share['heir_id']]
                 for item in expected.get('basis', {}).get('heirs', []):
                     item['id'] = real_ids[item['id']]
+                for item in expected.get('proof', {}).get('heirs', []):
+                    item['heir'] = real_ids[item['heir']]
                 self.assertEqual(response.json(), expected)
                 # And the numbers are the engine's own, run directly on a persisted case.
                 if expected['status'] == 'available':
@@ -1316,6 +1318,12 @@ class PreviewTests(InterviewBase):
                     sex = 'M' if case['deceased']['gender'] == 'male' else 'F'
                     calc, heirs = build_case(sex, types, estate=1)
                     final = calc.compute(madhab=case['madhab'])
+                    self.assertEqual(
+                        [{k: v for k, v in e.items() if k not in ('heir', 'labels')} for e in expected['proof']['heirs']],
+                        [{k: v for k, v in e.items() if k != 'heir'} for e in calc.proof['heirs']])
+                    self.assertEqual(
+                        [{k: v for k, v in step.items() if k != 'label'} for step in expected['proof']['steps']],
+                        calc.proof['steps'])
                     amount = case['deceased']['estate']
                     for share, heir in zip(expected['shares'], heirs):
                         fraction = final[heir.pk]
@@ -1327,10 +1335,66 @@ class PreviewTests(InterviewBase):
                     calc.delete()
 
     def test_the_bridge_reproduces_each_fixture_directly(self):
+        from django.utils import translation
         from api import preview
         for fixture in PREVIEW_FIXTURES:
-            with self.subTest(fixture['title']):
+            with self.subTest(fixture['title']), translation.override('en'):
                 self.assertEqual(preview.preview(fixture['case']), fixture['response'])
+
+    def test_every_available_fixture_carries_a_version_one_proof(self):
+        for fixture in PREVIEW_FIXTURES:
+            response = fixture['response']
+            with self.subTest(fixture['title']):
+                if response['status'] != 'available':
+                    self.assertNotIn('proof', response)
+                    continue
+                proof = response['proof']
+                self.assertEqual(proof['version'], 1)
+                self.assertEqual(proof['madhab'], response['madhab'])
+                self.assertEqual({e['heir'] for e in proof['heirs']}, {s['heir_id'] for s in response['shares']})
+                shares = {s['heir_id']: (s['numerator'], s['denominator']) for s in response['shares']}
+                for entry in proof['heirs']:
+                    self.assertEqual((entry['share']['numerator'], entry['share']['denominator']), shares[entry['heir']])
+                    self.assertEqual(set(entry['labels']), {'rule', 'condition', 'blocked_by', 'verse', 'school_rule', 'option'})
+                    for kind, label in entry['labels'].items():
+                        self.assertEqual(label is None, entry[kind] is None, kind)
+
+    def test_the_proof_names_each_schools_own_rule(self):
+        by_title = {f['title']: f['response'] for f in PREVIEW_FIXTURES}
+        self.assertEqual(by_title['Grandfather and brother under Hanafi']['proof']['school_rules'],
+                         ['grandfather_blocks_siblings'])
+        self.assertEqual(by_title['Grandfather and brother under Hanbali']['proof']['school_rules'],
+                         ['grandfather_shares_with_siblings'])
+        self.assertEqual(by_title['Maliki mushtaraka shares the third']['proof']['school_rules'], ['mushtaraka'])
+        self.assertEqual(by_title['Hanafi keeps the full brother residuary']['proof']['school_rules'], ['no_mushtaraka'])
+        self.assertEqual(by_title['Hanafi mother and daughter need radd']['proof']['school_rules'], ['radd'])
+        steps = [s['step'] for s in by_title['Husband and two sisters need awl']['proof']['steps']]
+        self.assertEqual(steps, ['base', 'awl'])
+
+    def test_labels_follow_the_request_language(self):
+        fixture = next(f for f in PREVIEW_FIXTURES if f['title'] == 'Grandfather and brother under Hanafi')
+        case = fixture['case']
+        live = self.build(case['madhab'], case['deceased']['gender'], case['deceased']['estate'],
+                          [heir['relationship'] for heir in case['heirs']])
+        english = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()['proof']
+        arabic = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='ar').json()['proof']
+        french = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='fr').json()['proof']
+        for other in (arabic, french):
+            self.assertEqual([(e['heir'], e['rule'], e['school_rule']) for e in other['heirs']],
+                             [(e['heir'], e['rule'], e['school_rule']) for e in english['heirs']])
+            self.assertEqual(other['school_rules'], english['school_rules'])
+            self.assertNotEqual(other['school_rule_labels'], english['school_rule_labels'])
+            for mine, theirs in zip(other['heirs'], english['heirs']):
+                self.assertNotEqual(mine['labels']['rule'], theirs['labels']['rule'])
+        self.assertTrue(any('؀' <= ch <= 'ۿ' for ch in arabic['school_rule_labels'][0]))
+        self.assertEqual(english['school_rule_labels'],
+                         ['Hanafi school: the grandfather blocks the full and paternal siblings'])
+
+    def test_a_refused_case_has_no_proof(self):
+        for title in ('Jafari is not supported', 'Maliki radd is refused', 'Impossible family'):
+            response = next(f['response'] for f in PREVIEW_FIXTURES if f['title'] == title)
+            self.assertEqual(response['status'], 'unavailable')
+            self.assertNotIn('proof', response)
 
     def test_the_matrix_answers(self):
         by_title = {fixture['title']: fixture['response'] for fixture in PREVIEW_FIXTURES}
