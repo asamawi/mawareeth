@@ -49,7 +49,6 @@ export function HeirForm({
   const nameError = errorText(messages, "name", errors);
   // Every relative stays offered: a blocked one can still change the others' shares.
   const offered = heirOptionLabels(options, !editing, messages.relationships, messages.heirRelationshipBlocked);
-  const anyBlocked = offered.some((option) => option.blocked);
 
   function change(field: keyof HeirValues, value: string) {
     // Read-only while saving: what is typed now would be wiped when the save finishes.
@@ -79,7 +78,7 @@ export function HeirForm({
           data-focus="relationship"
           aria-required="true"
           aria-invalid={relationshipError !== null}
-          aria-describedby={anyBlocked ? "heir-relationship-hint heir-relationship-error" : "heir-relationship-error"}
+          aria-describedby="heir-relationship-error"
           onChange={(event) => change("relationship", event.target.value)}
           onBlur={() => onBlur("relationship", values)}
           className={inputClass}
@@ -91,11 +90,6 @@ export function HeirForm({
             </option>
           ))}
         </select>
-        {anyBlocked && (
-          <p id="heir-relationship-hint" className="text-sm">
-            {messages.heirRelationshipHint}
-          </p>
-        )}
         <FieldError id="heir-relationship-error" text={relationshipError} />
       </div>
 

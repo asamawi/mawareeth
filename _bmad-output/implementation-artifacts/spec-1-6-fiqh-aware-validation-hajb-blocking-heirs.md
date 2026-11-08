@@ -27,7 +27,7 @@ context:
 - Saved heirs are never changed or removed by these rules. Saving an heir with an unchanged relationship always passes, so it can be renamed.
 - Entered data survives every error, and all errors on the form show together.
 - Every message says what is wrong and what to do, in Arabic, English and French. No message assumes the deceased's gender, and kinship messages fit both adding and editing.
-- The server decides every save. A blur check from the case's options is only advice, so a tab left open never blocks a save on its own.
+- The server decides every save. A check from the case's options in the add form (when a relationship is picked, and on blur) is only advice, so a tab left open never blocks a save on its own.
 
 **Ask First:** Any change to engine rules or refusals. Any schema migration. Any new frontend library. Any new limit beyond those in the matrix.
 
@@ -42,7 +42,7 @@ context:
 | School differs | Grandfather, Hanbali vs Hanafi | Brother unlabelled under Hanbali, labelled under Hanafi | N/A |
 | Block lifted | 2 daughters, then son's son added | Son's daughter labelled, then not | N/A |
 | Jafari or no school | Father | Nothing labelled | N/A |
-| Second father | Father exists; add father, or edit a son into one | `400`, `relationship: second_father`, suggests editing the existing one; nothing stored | Also on blur in the add form |
+| Second father | Father exists; add father, or edit a son into one | `400`, `relationship: second_father`, suggests editing the existing one; nothing stored | Also on pick and blur in the add form |
 | Same for | mother, husband, grandfather | Own code each | Same |
 | Fifth wife | 4 wives; add or edit into a wife | `relationship: fifth_wife` | Same |
 | Spouse mismatch | Male deceased with husband; female with wife | `husband_of_male` / `wife_of_female`, suggests the other spouse or correcting the gender | Same |
@@ -80,8 +80,8 @@ context:
 - [x] `api/tests.py` -- cover every matrix row. Assert that every rule code is in the contract. Compare with the engine across a female and a male deceased: every single-heir family under all four schools, a seeded sample of 300 larger families under each school, and directed families (two sisters with and without a paternal brother, two daughters with a son's son, grandfather with sisters and paternal siblings).
 - [x] `web/src/api/case.ts`, `case.test.ts` -- parse `heir_options` strictly against the known codes and relationships. Anything malformed or unknown reads as empty.
 - [x] `web/src/interview/answers.ts`, `flow.ts`, tests -- add pure `relationshipIssue` for blur in the add form only, and pure `heirOptionLabels` for the list. `precheck` no longer refuses on options. A server refusal of a relationship fetches the case again.
-- [x] `web/src/app/[locale]/interview/heir-form.tsx`, `start-case.tsx` -- label blocked options in the add form. Below the field, a hint says labelled relatives can still be added and some, such as siblings, can change others' shares. The edit form shows plain labels.
-- [x] `web/src/i18n/messages.ts` -- every code's message, the label and the hint in all three languages.
+- [x] `web/src/app/[locale]/interview/heir-form.tsx`, `start-case.tsx` -- label blocked options in the add form. The edit form shows plain labels. (A hint below the field saying labelled relatives can still be added was removed on 2026-11-08: shown beside an impossible pick, such as a husband for a male deceased, it read as if that pick were allowed.)
+- [x] `web/src/i18n/messages.ts` -- every code's message and the label in all three languages.
 - [x] `_bmad-output/implementation-artifacts/deferred-work.md` -- append blur checks in the edit form, browser tests for the add form's labels, native and fiqh review of the new text, and whether a grandmother limit is needed.
 
 **Acceptance Criteria:**
@@ -160,13 +160,13 @@ A relationship in `invalid` is never also in `blocked`.
 - A refusal fetches the case again, so a stale tab gets current.
   [`flow.ts:676`](../../web/src/interview/flow.ts#L676)
 
-- Blur advice for the add form only; the server decides every save.
+- Advice on pick and blur for the add form only; the server decides every save.
   [`answers.ts:157`](../../web/src/interview/answers.ts#L157)
 
 - Labels blocked options in the add form, plain labels in the edit form.
   [`heir-form.tsx:51`](../../web/src/app/%5Blocale%5D/interview/heir-form.tsx#L51)
 
-- The label and hint text; Arabic and French still need native review.
+- The label text; Arabic and French still need native review.
   [`messages.ts:182`](../../web/src/i18n/messages.ts#L182)
 
 **Tests**

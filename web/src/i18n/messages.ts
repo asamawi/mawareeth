@@ -64,7 +64,6 @@ export type Messages = {
     /** An option the server says would inherit nothing with the family so far; {relationship} is its name. */
     heirRelationshipBlocked: string;
     /** Under the add form's list, when an option is labelled. */
-    heirRelationshipHint: string;
     heirNameLabel: string;
     heirNameHint: string;
     heirAdd: string;
@@ -179,7 +178,6 @@ export const messages: Record<Locale, Messages> = {
       heirRelationshipLabel: "صلة القرابة بالمتوفى",
       heirRelationshipPlaceholder: "اختر صلة القرابة",
       heirRelationshipBlocked: "{relationship} (لا نصيب في الإرث مع الأسرة المسجّلة حتى الآن)",
-      heirRelationshipHint: "يمكن إضافة الأقارب الذين عليهم هذه الإشارة، فبعضهم، مثل الإخوة، قد يغيّر أنصبة غيرهم من الورثة.",
       heirNameLabel: "الاسم (اختياري)",
       heirNameHint: "يمكنك ترك الاسم فارغًا، وسيظهر الوارث بصلة القرابة.",
       heirAdd: "إضافة وارث",
@@ -348,7 +346,6 @@ export const messages: Record<Locale, Messages> = {
       heirRelationshipLabel: "Relationship to the deceased",
       heirRelationshipPlaceholder: "Choose a relationship",
       heirRelationshipBlocked: "{relationship} (does not inherit with the family so far)",
-      heirRelationshipHint: "Relatives with this label can still be added. Some of them, such as siblings, can change the shares of other heirs.",
       heirNameLabel: "Name (optional)",
       heirNameHint: "You can leave the name empty. The heir will be shown by relationship.",
       heirAdd: "Add heir",
@@ -520,7 +517,6 @@ export const messages: Record<Locale, Messages> = {
       heirRelationshipLabel: "Lien avec le défunt",
       heirRelationshipPlaceholder: "Choisissez un lien de parenté",
       heirRelationshipBlocked: "{relationship} (n'hérite pas avec la famille saisie jusqu'ici)",
-      heirRelationshipHint: "Les parents portant cette mention peuvent quand même être ajoutés. Certains, comme les frères et sœurs, peuvent modifier la part des autres héritiers.",
       heirNameLabel: "Nom (facultatif)",
       heirNameHint: "Vous pouvez laisser le nom vide. L'héritier sera affiché par son lien de parenté.",
       heirAdd: "Ajouter l'héritier",

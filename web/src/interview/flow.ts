@@ -326,7 +326,9 @@ export function cancelEditHeir(view: StartedView, deps: Deps): StartedView {
 
 /**
  * Records what the visitor has typed so a language switch or reload continues it. The
- * changed field's error goes away; the others stay until their field changes.
+ * changed field's error goes away; the others stay until their field changes. A relationship
+ * is a select, so a pick is final: a kinship rule it breaks (a husband for a male deceased)
+ * shows at once instead of waiting for blur, which a select may never get before submit.
  */
 export function remember(
   view: StartedView,
@@ -343,14 +345,19 @@ export function remember(
     values,
     ...(parked ? { parked } : {}),
   });
+  const issue =
+    form === "heir" && field === "relationship"
+      ? relationshipIssue(view.case, view.editingHeir, values.relationship ?? "")
+      : null;
   const clearsError = view.errors !== null && view.errors[field] !== undefined;
-  if (!clearsError && view.notice === null) return view;
+  if (!clearsError && issue === null && view.notice === null) return view;
   let errors = view.errors;
   if (clearsError && errors) {
     const rest = { ...errors };
     delete rest[field];
     errors = Object.keys(rest).length > 0 ? rest : null;
   }
+  if (issue !== null) errors = { ...(errors ?? {}), [field]: issue };
   return { ...view, errors, notice: null };
 }
 

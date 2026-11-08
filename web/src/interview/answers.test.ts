@@ -467,7 +467,6 @@ test("heirOptionLabels offers every relationship and labels only the blocked one
   assert.ok(heirOptionLabels({ blocked: [], invalid: {} }, true, names, template).every((option) => !option.blocked));
   for (const locale of Object.values(messages)) {
     assert.ok(locale.interview.heirRelationshipBlocked.includes("{relationship}"));
-    assert.ok(locale.interview.heirRelationshipHint.length > 0);
   }
 });
 

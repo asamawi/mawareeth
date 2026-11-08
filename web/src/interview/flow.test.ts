@@ -1212,6 +1212,27 @@ test("blur flags a kinship rule from the case's options, never a blocked relativ
   });
 });
 
+test("picking a relationship flags a kinship rule at once, since a select may never blur", () => {
+  const { value } = deps({});
+  const view = startedOf(WITH_FATHER_OPTIONS, true);
+  const picked = remember(view, "heir", { relationship: "father", name: "" }, "relationship", value.forms);
+  assert.deepEqual(picked.errors, { relationship: "second_father" });
+  // Picking a possible relative clears it; a blocked one is only labelled.
+  const fixed = remember(picked, "heir", { relationship: "brother", name: "" }, "relationship", value.forms);
+  assert.equal(fixed.errors, null);
+  // Typing a name leaves the relationship's error alone and never adds one.
+  assert.deepEqual(
+    remember(picked, "heir", { relationship: "father", name: "x" }, "name", value.forms).errors,
+    { relationship: "second_father" },
+  );
+  // An edit is left to the server.
+  const editing = startedOf(WITH_FATHER_OPTIONS, true, { editingHeir: "h9" });
+  assert.equal(
+    remember(editing, "heir", { relationship: "father", name: "" }, "relationship", value.forms).errors,
+    null,
+  );
+});
+
 test("submit never refuses on the options: the server decides, and a stale tab is not stuck", async () => {
   const view = startedOf(WITH_FATHER_OPTIONS, true);
   for (const relationship of ["father", "brother"]) {
