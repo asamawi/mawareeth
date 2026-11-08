@@ -24,9 +24,12 @@
     { "id": "son_of_paternal_uncle", "gender": "male" }
   ],
   "errorCodes": {
-    "gender": ["required", "invalid"],
+    "gender": ["required", "invalid", "has_husband", "has_wife", "has_both_spouses"],
     "estate": ["invalid", "not_positive", "too_large", "decimals"],
-    "relationship": ["required", "invalid"],
+    "relationship": [
+      "required", "invalid", "second_father", "second_mother", "second_husband",
+      "second_grandfather", "fifth_wife", "husband_of_male", "wife_of_female"
+    ],
     "name": ["invalid", "too_long"],
     "heirs": ["limit"],
     "case": ["deceased_required"]

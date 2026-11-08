@@ -61,6 +61,10 @@ export type Messages = {
     treeCount: string;
     heirRelationshipLabel: string;
     heirRelationshipPlaceholder: string;
+    /** An option the server says would inherit nothing with the family so far; {relationship} is its name. */
+    heirRelationshipBlocked: string;
+    /** Under the add form's list, when an option is labelled. */
+    heirRelationshipHint: string;
     heirNameLabel: string;
     heirNameHint: string;
     heirAdd: string;
@@ -174,6 +178,8 @@ export const messages: Record<Locale, Messages> = {
       treeCount: "{relationship}: {n}.",
       heirRelationshipLabel: "صلة القرابة بالمتوفى",
       heirRelationshipPlaceholder: "اختر صلة القرابة",
+      heirRelationshipBlocked: "{relationship} (لا نصيب في الإرث مع الأسرة المسجّلة حتى الآن)",
+      heirRelationshipHint: "يمكن إضافة الأقارب الذين عليهم هذه الإشارة، فبعضهم، مثل الإخوة، قد يغيّر أنصبة غيرهم من الورثة.",
       heirNameLabel: "الاسم (اختياري)",
       heirNameHint: "يمكنك ترك الاسم فارغًا، وسيظهر الوارث بصلة القرابة.",
       heirAdd: "إضافة وارث",
@@ -220,14 +226,30 @@ export const messages: Record<Locale, Messages> = {
         son_of_paternal_uncle: "ابن العم لأب",
       },
       fieldErrors: {
-        gender: { required: "اختر جنس المتوفى.", invalid: "اختر ذكرًا أو أنثى." },
+        gender: {
+          required: "اختر جنس المتوفى.",
+          invalid: "اختر ذكرًا أو أنثى.",
+          has_husband: "هناك زوج مسجّل في هذه الأسرة، فلا يمكن أن يكون المتوفى ذكرًا. احذف الزوج أو اختر أنثى.",
+          has_wife: "هناك زوجة مسجّلة في هذه الأسرة، فلا يمكن أن يكون المتوفى أنثى. احذف الزوجة أو اختر ذكرًا.",
+          has_both_spouses: "سُجّل زوج وزوجة معًا، وهذا لا يصح مع أي جنس للمتوفى. احذف أحدهما ثم احفظ.",
+        },
         estate: {
           invalid: "أدخل مبلغًا صحيحًا بالأرقام وفاصلة عشرية واحدة على الأكثر، بدون فاصل للآلاف.",
           not_positive: "يجب أن يكون المبلغ أكبر من صفر.",
           too_large: "المبلغ كبير جدًا. الحد الأقصى 15 رقمًا قبل الفاصلة.",
           decimals: "يُسمح بخانتين عشريتين على الأكثر.",
         },
-        relationship: { required: "اختر صلة القرابة.", invalid: "اختر صلة قرابة من القائمة." },
+        relationship: {
+          required: "اختر صلة القرابة.",
+          invalid: "اختر صلة قرابة من القائمة.",
+          second_father: "يمكن تسجيل أب واحد فقط. عدّل الأب المسجّل، أو اختر صلة قرابة أخرى لهذا القريب.",
+          second_mother: "يمكن تسجيل أم واحدة فقط. عدّل الأم المسجّلة، أو اختر صلة قرابة أخرى لهذا القريب.",
+          second_husband: "يمكن تسجيل زوج واحد فقط. عدّل الزوج المسجّل، أو اختر صلة قرابة أخرى لهذا القريب.",
+          second_grandfather: "يمكن تسجيل جد واحد فقط. عدّل الجد المسجّل، أو اختر صلة قرابة أخرى لهذا القريب.",
+          fifth_wife: "لا يزيد عدد الزوجات على أربع. عدّل إحدى الزوجات المسجّلات أو احذفها، أو اختر صلة قرابة أخرى لهذا القريب.",
+          husband_of_male: "المتوفى مسجّل ذكرًا، ولا يكون للذكر زوج. اختر «زوجة» إن كنت تقصد القرينة، أو صحّح جنس المتوفى.",
+          wife_of_female: "المتوفى مسجّل أنثى، ولا تكون للأنثى زوجة. اختر «زوج» إن كنت تقصد القرين، أو صحّح جنس المتوفى.",
+        },
         name: { invalid: "الاسم يحتوي على رموز غير مسموحة.", too_long: "الاسم أطول من 100 حرف." },
         heirs: { limit: "بلغت الحد الأقصى وهو 50 وارثًا." },
         case: { deceased_required: "أدخل بيانات المتوفى أولًا." },
@@ -325,6 +347,8 @@ export const messages: Record<Locale, Messages> = {
       treeCount: "{relationship}: {n}.",
       heirRelationshipLabel: "Relationship to the deceased",
       heirRelationshipPlaceholder: "Choose a relationship",
+      heirRelationshipBlocked: "{relationship} (does not inherit with the family so far)",
+      heirRelationshipHint: "Relatives with this label can still be added. Some of them, such as siblings, can change the shares of other heirs.",
       heirNameLabel: "Name (optional)",
       heirNameHint: "You can leave the name empty. The heir will be shown by relationship.",
       heirAdd: "Add heir",
@@ -371,14 +395,30 @@ export const messages: Record<Locale, Messages> = {
         son_of_paternal_uncle: "Son of father's half-brother",
       },
       fieldErrors: {
-        gender: { required: "Choose the gender of the deceased.", invalid: "Choose male or female." },
+        gender: {
+          required: "Choose the gender of the deceased.",
+          invalid: "Choose male or female.",
+          has_husband: "A husband is saved in this family, so the deceased cannot be male. Remove the husband, or choose female.",
+          has_wife: "A wife is saved in this family, so the deceased cannot be female. Remove the wife, or choose male.",
+          has_both_spouses: "A husband and a wife are both saved, which fits neither gender. Remove one of them, then save.",
+        },
         estate: {
           invalid: "Enter a valid amount using digits and at most one decimal separator. Do not use thousands separators.",
           not_positive: "The amount must be greater than zero.",
           too_large: "The amount is too large. Use at most 15 digits before the decimal point.",
           decimals: "Use at most 2 decimal places.",
         },
-        relationship: { required: "Choose a relationship.", invalid: "Choose a relationship from the list." },
+        relationship: {
+          required: "Choose a relationship.",
+          invalid: "Choose a relationship from the list.",
+          second_father: "Only one father can be recorded. Edit the saved father, or choose another relationship for this relative.",
+          second_mother: "Only one mother can be recorded. Edit the saved mother, or choose another relationship for this relative.",
+          second_husband: "Only one husband can be recorded. Edit the saved husband, or choose another relationship for this relative.",
+          second_grandfather: "Only one grandfather can be recorded. Edit the saved grandfather, or choose another relationship for this relative.",
+          fifth_wife: "At most four wives can be recorded. Edit or remove one of the saved wives, or choose another relationship for this relative.",
+          husband_of_male: "The deceased is recorded as male, and a male has no husband. Choose wife if you meant the spouse, or correct the gender of the deceased.",
+          wife_of_female: "The deceased is recorded as female, and a female has no wife. Choose husband if you meant the spouse, or correct the gender of the deceased.",
+        },
         name: {
           invalid: "The name contains characters that are not allowed.",
           too_long: "The name is longer than 100 characters.",
@@ -479,6 +519,8 @@ export const messages: Record<Locale, Messages> = {
       treeCount: "{relationship} : {n}.",
       heirRelationshipLabel: "Lien avec le défunt",
       heirRelationshipPlaceholder: "Choisissez un lien de parenté",
+      heirRelationshipBlocked: "{relationship} (n'hérite pas avec la famille saisie jusqu'ici)",
+      heirRelationshipHint: "Les parents portant cette mention peuvent quand même être ajoutés. Certains, comme les frères et sœurs, peuvent modifier la part des autres héritiers.",
       heirNameLabel: "Nom (facultatif)",
       heirNameHint: "Vous pouvez laisser le nom vide. L'héritier sera affiché par son lien de parenté.",
       heirAdd: "Ajouter l'héritier",
@@ -525,14 +567,30 @@ export const messages: Record<Locale, Messages> = {
         son_of_paternal_uncle: "Fils de l'oncle consanguin",
       },
       fieldErrors: {
-        gender: { required: "Choisissez le sexe du défunt.", invalid: "Choisissez homme ou femme." },
+        gender: {
+          required: "Choisissez le sexe du défunt.",
+          invalid: "Choisissez homme ou femme.",
+          has_husband: "Un mari est enregistré dans cette famille, le défunt ne peut donc pas être un homme. Retirez le mari, ou choisissez femme.",
+          has_wife: "Une épouse est enregistrée dans cette famille, le défunt ne peut donc pas être une femme. Retirez l'épouse, ou choisissez homme.",
+          has_both_spouses: "Un mari et une épouse sont tous deux enregistrés, ce qui ne convient à aucun sexe. Retirez l'un des deux, puis enregistrez.",
+        },
         estate: {
           invalid: "Saisissez un montant valide : des chiffres et au plus un séparateur décimal, sans séparateur de milliers.",
           not_positive: "Le montant doit être supérieur à zéro.",
           too_large: "Le montant est trop grand. Utilisez au plus 15 chiffres avant la virgule.",
           decimals: "Utilisez au plus 2 décimales.",
         },
-        relationship: { required: "Choisissez un lien de parenté.", invalid: "Choisissez un lien dans la liste." },
+        relationship: {
+          required: "Choisissez un lien de parenté.",
+          invalid: "Choisissez un lien dans la liste.",
+          second_father: "Un seul père peut être enregistré. Modifiez le père enregistré, ou choisissez un autre lien pour ce parent.",
+          second_mother: "Une seule mère peut être enregistrée. Modifiez la mère enregistrée, ou choisissez un autre lien pour ce parent.",
+          second_husband: "Un seul mari peut être enregistré. Modifiez le mari enregistré, ou choisissez un autre lien pour ce parent.",
+          second_grandfather: "Un seul grand-père peut être enregistré. Modifiez le grand-père enregistré, ou choisissez un autre lien pour ce parent.",
+          fifth_wife: "Au plus quatre épouses peuvent être enregistrées. Modifiez ou retirez l'une des épouses enregistrées, ou choisissez un autre lien pour ce parent.",
+          husband_of_male: "Le défunt est enregistré comme un homme, et un homme n'a pas de mari. Choisissez épouse si vous parliez du conjoint, ou corrigez le sexe du défunt.",
+          wife_of_female: "Le défunt est enregistré comme une femme, et une femme n'a pas d'épouse. Choisissez mari si vous parliez du conjoint, ou corrigez le sexe du défunt.",
+        },
         name: {
           invalid: "Le nom contient des caractères non autorisés.",
           too_long: "Le nom dépasse 100 caractères.",

@@ -17,6 +17,7 @@ import {
   formFor,
   heirLimitReached,
   heirValues,
+  relationshipIssue,
   validateDeceased,
   validateField,
   validateHeir,
@@ -360,7 +361,10 @@ export function blurField(
   field: string,
   values: Record<string, string>,
 ): StartedView {
-  const code = validateField(form, field, values);
+  let code = validateField(form, field, values);
+  if (code === null && form === "heir" && field === "relationship") {
+    code = relationshipIssue(view.case, view.editingHeir, values.relationship ?? "");
+  }
   if ((view.errors?.[field] ?? null) === code) return view;
   const errors = { ...(view.errors ?? {}) };
   if (code) errors[field] = code;
@@ -446,6 +450,7 @@ export function precheck(answer: Answer): StartedView | null {
     const { errors } = validateDeceased(answer.values);
     return Object.keys(errors).length > 0 ? invalidView(answer.from, "deceased", errors) : null;
   }
+  // The options are advice for blur only: the server decides every save.
   const { errors } = validateHeir(answer.values);
   if (answer.kind === "addHeir" && heirLimitReached(answer.from.case.heirs)) errors.heirs = "limit";
   return Object.keys(errors).length > 0 ? invalidView(answer.from, "heir", errors) : null;
@@ -668,8 +673,23 @@ async function save(answer: Answer, signal: AbortSignal, deps: Deps): Promise<Vi
   switch (result.kind) {
     case "saved":
       return saved(answer, result.case, deps);
-    case "invalid":
-      return invalidView(from, formOf(answer), result.errors);
+    case "invalid": {
+      // A refused relationship or gender may mean this tab's list is stale (a spouse it never
+      // saw, or an heir removed elsewhere), so read the case again. A failed read changes nothing.
+      if (!result.errors.relationship && !result.errors.gender) {
+        return invalidView(from, formOf(answer), result.errors);
+      }
+      const fresh = await refreshed(from, signal, deps);
+      const gone = from.editingHeir !== null && !fresh.heirs.some((heir) => heir.id === from.editingHeir);
+      if (gone) restoreHeirForm(deps, fresh.id);
+      return invalidView(
+        gone
+          ? { ...from, case: fresh, editingHeir: null, formEpoch: from.formEpoch + 1 }
+          : { ...from, case: fresh },
+        formOf(answer),
+        result.errors,
+      );
+    }
     case "gone":
       deps.selection.set(null);
       deps.forms.set(null);

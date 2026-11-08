@@ -373,3 +373,21 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-5-real-time-share-preview-from-supported-engine-cases.md`
   summary: Have a native reviewer check the preview's refusal sentences, especially the Malikiyya sentence, which in Arabic reads like a repeat of the school's name.
   evidence: All Arabic and French preview text is unreviewed, and these sentences explain to visitors why no number is given.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
+  summary: Check the relationship on blur in the edit form too, not only on save.
+  evidence: `heir_options` describes adding to the whole family, and an edit leaves that heir out, so the edit form shows plain labels, runs no blur check, and only the server judges it on save.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
+  summary: Add browser tests (Playwright with axe) for the add form's labels on blocked relatives, the hint, the second-father and spouse errors, a changed gender with a saved spouse, Arabic at 320px, and a keyboard-only run.
+  evidence: The labels, hint and error display were covered by pure tests and a built export only; no browser runner exists yet.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
+  summary: Have a native Arabic and French speaker and a fiqh reviewer check the new text: the kinship messages, the "does not inherit with the family so far" label and the hint under the relationship list.
+  evidence: All new Arabic and French text is unreviewed, and the label states a fiqh result (hajb) to the visitor.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
+  summary: Decide whether a limit on grandmothers is needed.
+  evidence: Only one grandmother line is modelled and the rules accept any number of grandmothers, since the engine does not refuse them; the spec added no limit beyond its matrix.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
+  summary: Check the engine's grandfather-with-siblings rule (mu'adda) against the schools that use it, for example a grandfather, a full brother and a paternal brother, where the paternal brother is counted against the grandfather and then gets nothing.
+  evidence: Review of Story 1.6 found that the engine, and the hajb labels that copy it, treat the paternal brother as sharing with the grandfather even when a full brother is present. That is an engine fiqh question, out of scope for 1.6, which must not change engine rules.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
+  summary: Cut the cost of the hajb engine-comparison tests (`HeirRulesTests`), which take about 9 minutes and bring the full Django suite to about 17, for example by using fewer seeded families or classifying without a database round trip.
+  evidence: Measured during Story 1.6. CI runs a plain `manage.py test` with no time limit, so every run pays this cost.

@@ -64,6 +64,31 @@ export type Heir = {
   name: string | null;
 };
 
+/**
+ * What adding a relative to the whole family would meet, decided by the server. The client
+ * holds no fiqh rules: it only reads this.
+ */
+export type HeirOptions = {
+  /** Relationships that would inherit nothing (hajb): labelled in the add form, never refused. */
+  blocked: RelationshipId[];
+  /** A relationship to the code of the kinship rule it would break (such as a second father). */
+  invalid: Partial<Record<RelationshipId, string>>;
+};
+
+/** The kinship codes the server can send in `invalid`; anything else reads as no options. */
+export const KINSHIP_CODES: readonly string[] = [
+  "second_father",
+  "second_mother",
+  "second_husband",
+  "second_grandfather",
+  "fifth_wife",
+  "husband_of_male",
+  "wife_of_female",
+];
+
+/** A fresh empty value each time, so no caller can change what another reads. */
+export const noHeirOptions = (): HeirOptions => ({ blocked: [], invalid: {} });
+
 export type Case = {
   id: string;
   started_at: string;
@@ -71,6 +96,8 @@ export type Case = {
   madhab: MadhabId | null;
   deceased: Deceased | null;
   heirs: Heir[];
+  /** Nothing labelled and nothing invalid when the server sent none or sent it malformed. */
+  heir_options: HeirOptions;
 };
 
 /** A field name to the code of its broken rule. */
@@ -115,6 +142,7 @@ type CaseBody = {
   madhab?: unknown;
   deceased?: unknown;
   heirs?: unknown;
+  heir_options?: unknown;
 };
 
 function isCaseBody(value: unknown): value is CaseBody {
@@ -149,6 +177,22 @@ function parseHeirs(value: unknown): Heir[] {
   return heirs;
 }
 
+/** Strict: anything malformed or unknown reads as no options, so nothing is ever flagged by a guess. */
+export function parseHeirOptions(value: unknown): HeirOptions {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return noHeirOptions();
+  const { blocked, invalid } = value as { blocked?: unknown; invalid?: unknown };
+  if (!Array.isArray(blocked) || !blocked.every(isRelationshipId)) return noHeirOptions();
+  if (typeof invalid !== "object" || invalid === null || Array.isArray(invalid)) return noHeirOptions();
+  const codes: Partial<Record<RelationshipId, string>> = {};
+  for (const [relationship, code] of Object.entries(invalid)) {
+    if (!isRelationshipId(relationship) || !KINSHIP_CODES.includes(code as string)) return noHeirOptions();
+    codes[relationship] = code;
+  }
+  // A relationship cannot be both labelled and invalid: the server never sends that.
+  if (blocked.some((relationship) => relationship in codes)) return noHeirOptions();
+  return { blocked: [...new Set(blocked)], invalid: codes };
+}
+
 function parseCase(body: unknown): Case | null {
   const value =
     typeof body === "object" && body !== null ? (body as { case?: unknown }).case : undefined;
@@ -161,6 +205,7 @@ function parseCase(body: unknown): Case | null {
     madhab: isMadhabId(value.madhab) ? value.madhab : null,
     deceased: parseDeceased(value.deceased),
     heirs: parseHeirs(value.heirs),
+    heir_options: parseHeirOptions(value.heir_options),
   };
 }
 

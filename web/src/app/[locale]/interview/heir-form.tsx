@@ -2,9 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 
-import { RELATIONSHIP_IDS } from "@/api/case";
+import type { HeirOptions } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
-import type { Errors, HeirValues } from "@/interview/answers";
+import { heirOptionLabels, type Errors, type HeirValues } from "@/interview/answers";
 import type { Notice } from "@/interview/flow";
 
 import { buttonClass, errorText, FieldError, FormError, inputClass, SaveNotice } from "./form-bits";
@@ -18,6 +18,12 @@ type Props = {
   saving: boolean;
   /** An existing heir is being corrected, so cancelling is possible. */
   editing: boolean;
+  /**
+   * What the server says about adding a relative to the family. Only the add form labels the
+   * relatives who would inherit nothing: the options describe adding to the whole family, and an
+   * edit leaves that heir out, so the edit form shows plain labels and relies on the server.
+   */
+  options: HeirOptions;
   onChange: (values: HeirValues, field: string) => void;
   onBlur: (field: string, values: HeirValues) => void;
   onSubmit: (values: HeirValues) => void;
@@ -32,6 +38,7 @@ export function HeirForm({
   notice,
   saving,
   editing,
+  options,
   onChange,
   onBlur,
   onSubmit,
@@ -40,6 +47,9 @@ export function HeirForm({
   const [values, setValues] = useState(initial);
   const relationshipError = errorText(messages, "relationship", errors);
   const nameError = errorText(messages, "name", errors);
+  // Every relative stays offered: a blocked one can still change the others' shares.
+  const offered = heirOptionLabels(options, !editing, messages.relationships, messages.heirRelationshipBlocked);
+  const anyBlocked = offered.some((option) => option.blocked);
 
   function change(field: keyof HeirValues, value: string) {
     // Read-only while saving: what is typed now would be wiped when the save finishes.
@@ -69,18 +79,23 @@ export function HeirForm({
           data-focus="relationship"
           aria-required="true"
           aria-invalid={relationshipError !== null}
-          aria-describedby="heir-relationship-error"
+          aria-describedby={anyBlocked ? "heir-relationship-hint heir-relationship-error" : "heir-relationship-error"}
           onChange={(event) => change("relationship", event.target.value)}
           onBlur={() => onBlur("relationship", values)}
           className={inputClass}
         >
           <option value="">{messages.heirRelationshipPlaceholder}</option>
-          {RELATIONSHIP_IDS.map((id) => (
-            <option key={id} value={id}>
-              {messages.relationships[id]}
+          {offered.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
             </option>
           ))}
         </select>
+        {anyBlocked && (
+          <p id="heir-relationship-hint" className="text-sm">
+            {messages.heirRelationshipHint}
+          </p>
+        )}
         <FieldError id="heir-relationship-error" text={relationshipError} />
       </div>
 

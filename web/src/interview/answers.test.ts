@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { RELATIONSHIP_IDS } from "../api/case.ts";
+import { KINSHIP_CODES, parseHeirOptions, RELATIONSHIP_IDS } from "../api/case.ts";
 import { locales, messages } from "../i18n/messages.ts";
 import {
   BLANK_DECEASED,
@@ -24,6 +24,8 @@ import {
   unnamedOrdinal,
   parseEstate,
   parseName,
+  heirOptionLabels,
+  relationshipIssue,
   validateDeceased,
   validateField,
   validateHeir,
@@ -175,9 +177,19 @@ test("every locale names every relationship", () => {
 
 test("every error code the client or server can report has text in every locale", () => {
   const codes: Record<string, string[]> = {
-    gender: ["required", "invalid"],
+    gender: ["required", "invalid", "has_husband", "has_wife", "has_both_spouses"],
     estate: ["invalid", "not_positive", "too_large", "decimals"],
-    relationship: ["required", "invalid"],
+    relationship: [
+      "required",
+      "invalid",
+      "second_father",
+      "second_mother",
+      "second_husband",
+      "second_grandfather",
+      "fifth_wife",
+      "husband_of_male",
+      "wife_of_female",
+    ],
     name: ["invalid", "too_long"],
     heirs: ["limit"],
     case: ["deceased_required"],
@@ -419,4 +431,62 @@ test("the shared contract matches the relationship ids, their text and every err
     ["name", parseName("x".repeat(101)).code],
   ];
   for (const [field, code] of produced) assert.ok(code && contract.errorCodes[field].includes(code), `${field} ${code}`);
+});
+
+test("relationshipIssue only reads what the server sent, and only for the add form", () => {
+  const kase = { heir_options: { blocked: ["brother" as const], invalid: { father: "second_father" } } };
+  assert.equal(relationshipIssue(kase, null, "father"), "second_father");
+  // A relative who would inherit nothing is labelled, never flagged.
+  assert.equal(relationshipIssue(kase, null, "brother"), null);
+  assert.equal(relationshipIssue(kase, null, "son"), null);
+  assert.equal(relationshipIssue(kase, null, ""), null);
+  assert.equal(relationshipIssue(kase, null, "cousin"), null);
+  // An edit is left to the server.
+  assert.equal(relationshipIssue(kase, "h1", "father"), null);
+  assert.equal(relationshipIssue({ heir_options: { blocked: [], invalid: {} } }, null, "father"), null);
+});
+
+test("heirOptionLabels offers every relationship and labels only the blocked ones in the add form", () => {
+  const names = messages.en.interview.relationships;
+  const template = messages.en.interview.heirRelationshipBlocked;
+  const options = { blocked: ["brother" as const, "sister" as const], invalid: { father: "second_father" } };
+  const add = heirOptionLabels(options, true, names, template);
+  assert.deepEqual(
+    add.map((option) => option.id),
+    [...RELATIONSHIP_IDS],
+  );
+  assert.deepEqual(
+    add.filter((option) => option.blocked).map((option) => option.id),
+    RELATIONSHIP_IDS.filter((id) => id === "brother" || id === "sister"),
+  );
+  const brother = add.find((option) => option.id === "brother");
+  assert.equal(brother?.label, template.replace("{relationship}", names.brother));
+  assert.equal(add.find((option) => option.id === "father")?.label, names.father);
+  const edit = heirOptionLabels(options, false, names, template);
+  assert.ok(edit.every((option) => !option.blocked && option.label === names[option.id]));
+  assert.ok(heirOptionLabels({ blocked: [], invalid: {} }, true, names, template).every((option) => !option.blocked));
+  for (const locale of Object.values(messages)) {
+    assert.ok(locale.interview.heirRelationshipBlocked.includes("{relationship}"));
+    assert.ok(locale.interview.heirRelationshipHint.length > 0);
+  }
+});
+
+test("the shared fixtures are read as they are, and the kinship codes match the contract", () => {
+  const contract = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../../api/contracts/interview.json"), "utf8"));
+  const fixtures = JSON.parse(
+    readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../../api/contracts/heir-options-fixtures.json"), "utf8"),
+  ) as { families: { name: string; heirs: string[]; heir_options: unknown }[] };
+  assert.deepEqual(
+    [...KINSHIP_CODES].sort(),
+    contract.errorCodes.relationship.filter((code: string) => code !== "required" && code !== "invalid").sort(),
+  );
+  assert.ok(fixtures.families.length >= 10);
+  for (const family of fixtures.families) {
+    const options = parseHeirOptions(family.heir_options);
+    assert.deepEqual(options, family.heir_options, family.name);
+    for (const [relationship, code] of Object.entries(options.invalid)) {
+      assert.equal(relationshipIssue({ heir_options: options }, null, relationship), code, family.name);
+      assert.ok(!options.blocked.includes(relationship as never), family.name);
+    }
+  }
 });

@@ -35,13 +35,14 @@ import {
 } from "./flow.ts";
 import type { Selection } from "./madhabs.ts";
 
-const CASE: Case = { id: "abc12345", started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [] };
+const CASE: Case = { id: "abc12345", started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} } };
 const NEW_CASE: Case = {
   id: "def67890",
   started_at: "2026-11-06T11:00:00Z",
   madhab: null,
   deceased: null,
   heirs: [],
+  heir_options: { blocked: [], invalid: {} },
 };
 const signal = new AbortController().signal;
 
@@ -1187,4 +1188,138 @@ test("revealOf: removal, failed or empty states and other views reveal nothing",
     values: { relationship: "son", name: "" },
   })) as StartedView;
   assert.equal(revealOf(failed), null);
+});
+
+// Story 1.6: the server's rules, read from the case
+
+const WITH_FATHER_OPTIONS: Case = {
+  ...WITH_DECEASED,
+  heirs: [{ id: "h9", relationship: "father", gender: "male", name: null }],
+  heir_options: { blocked: ["brother", "sister"], invalid: { father: "second_father" } },
+};
+
+test("blur flags a kinship rule from the case's options, never a blocked relative", () => {
+  const view = startedOf(WITH_FATHER_OPTIONS, true);
+  assert.deepEqual(blurField(view, "heir", "relationship", { relationship: "father", name: "" }).errors, {
+    relationship: "second_father",
+  });
+  // A blocked relative can still be added, so blur has nothing to say.
+  assert.equal(blurField(view, "heir", "relationship", { relationship: "brother", name: "" }).errors, null);
+  assert.equal(blurField(view, "heir", "relationship", { relationship: "son", name: "" }).errors, null);
+  // A required relationship still says so first.
+  assert.deepEqual(blurField(view, "heir", "relationship", { relationship: "", name: "" }).errors, {
+    relationship: "required",
+  });
+});
+
+test("submit never refuses on the options: the server decides, and a stale tab is not stuck", async () => {
+  const view = startedOf(WITH_FATHER_OPTIONS, true);
+  for (const relationship of ["father", "brother"]) {
+    assert.equal(precheck({ kind: "addHeir", from: view, values: { relationship, name: "" } }), null);
+  }
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: WITH_FATHER_OPTIONS }) });
+  await runAction("addHeir", signal, value, WITH_FATHER_OPTIONS, undefined, {
+    kind: "addHeir",
+    from: view,
+    values: { relationship: "father", name: "" },
+  });
+  assert.equal(log.answers.length, 1, "sent for the server to decide");
+});
+
+test("an edit is left to the server and a case without options flags nothing", () => {
+  const editing = startedOf(WITH_FATHER_OPTIONS, true, { editingHeir: "h9" });
+  assert.equal(blurField(editing, "heir", "relationship", { relationship: "father", name: "" }).errors, null);
+  const older = startedOf({ ...WITH_FATHER_OPTIONS, heir_options: { blocked: [], invalid: {} } }, true);
+  assert.equal(blurField(older, "heir", "relationship", { relationship: "father", name: "" }).errors, null);
+});
+
+test("the server's refusal of a relationship is shown with all errors, values kept, and the case is fetched again", async () => {
+  const live: Case = { ...WITH_FATHER_OPTIONS, heirs: [] };
+  const { value, log } = deps({
+    answer: () => ({ kind: "invalid", errors: { relationship: "second_father", name: "too_long" } }),
+    read: async () => live,
+  });
+  const view = startedOf(WITH_FATHER_OPTIONS, true);
+  const result = (await runAction("addHeir", signal, value, WITH_FATHER_OPTIONS, undefined, {
+    kind: "addHeir",
+    from: view,
+    values: { relationship: "father", name: "Keep" },
+  })) as StartedView;
+  assert.deepEqual(result.errors, { relationship: "second_father", name: "too_long" });
+  assert.equal(result.focus?.target, "relationship");
+  assert.equal(log.reads, 1);
+  assert.deepEqual(result.case, live);
+});
+
+test("a refusal that is not about the relationship does not fetch the case again", async () => {
+  const { value, log } = deps({
+    answer: () => ({ kind: "invalid", errors: { name: "too_long" } }),
+    read: async () => WITH_DECEASED,
+  });
+  const view = startedOf(WITH_DECEASED, true);
+  const result = (await runAction("addHeir", signal, value, WITH_DECEASED, undefined, {
+    kind: "addHeir",
+    from: view,
+    values: { relationship: "son", name: "Keep" },
+  })) as StartedView;
+  assert.deepEqual(result.errors, { name: "too_long" });
+  assert.equal(log.reads, 0);
+});
+
+test("a refused gender fetches the case again, so a spouse the tab never saw shows", async () => {
+  const live: Case = { ...WITH_DECEASED, heirs: [{ id: "h5", relationship: "husband", gender: "male", name: null }] };
+  const { value, log } = deps({
+    answer: () => ({ kind: "invalid", errors: { gender: "has_husband" } }),
+    read: async () => live,
+  });
+  const view = startedOf(WITH_DECEASED, true);
+  const result = (await runAction("saveDeceased", signal, value, WITH_DECEASED, undefined, {
+    kind: "saveDeceased",
+    from: view,
+    values: { gender: "male", estate: "5" },
+  })) as StartedView;
+  assert.deepEqual(result.errors, { gender: "has_husband" });
+  assert.equal(log.reads, 1);
+  assert.deepEqual(result.case, live);
+});
+
+test("an edit of an heir removed elsewhere closes when the refusal refreshes the case", async () => {
+  const editing = startedOf(WITH_FATHER_OPTIONS, true, { editingHeir: "h9" });
+  const live: Case = { ...WITH_DECEASED, heirs: [] };
+  const { value } = deps({
+    answer: () => ({ kind: "invalid", errors: { relationship: "second_father" } }),
+    read: async () => live,
+  });
+  const result = (await runAction("saveHeir", signal, value, WITH_FATHER_OPTIONS, undefined, {
+    kind: "saveHeir",
+    from: editing,
+    heirId: "h9",
+    values: { relationship: "father", name: "Keep" },
+  })) as StartedView;
+  assert.equal(result.editingHeir, null);
+  assert.deepEqual(result.errors, { relationship: "second_father" });
+  assert.deepEqual(result.case, live);
+});
+
+test("a failed or aborted read after a refusal still shows the refusal and throws nothing", async () => {
+  for (const read of [
+    async (): Promise<Case | null> => {
+      throw new Error("offline");
+    },
+    async (): Promise<Case | null> => {
+      throw new DOMException("aborted", "AbortError");
+    },
+  ]) {
+    const editing = startedOf(WITH_FATHER_OPTIONS, true, { editingHeir: "h9" });
+    const { value } = deps({ answer: () => ({ kind: "invalid", errors: { relationship: "second_father" } }), read });
+    const result = (await runAction("saveHeir", signal, value, WITH_FATHER_OPTIONS, undefined, {
+      kind: "saveHeir",
+      from: editing,
+      heirId: "h9",
+      values: { relationship: "father", name: "Keep" },
+    })) as StartedView;
+    assert.deepEqual(result.errors, { relationship: "second_father" });
+    assert.equal(result.editingHeir, "h9");
+    assert.deepEqual(result.case, WITH_FATHER_OPTIONS);
+  }
 });

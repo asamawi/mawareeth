@@ -1,4 +1,6 @@
 import json
+import random
+import uuid
 from unittest import mock
 import logging
 import traceback
@@ -9,6 +11,7 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.core.cache import cache
 from django.contrib.auth import get_user_model
+from django.contrib.sessions.backends.db import SessionStore
 from django.contrib.sessions.models import Session
 from django.test import RequestFactory, TestCase, override_settings
 from django.utils import timezone
@@ -21,9 +24,10 @@ from rest_framework.test import APIClient
 from rest_framework.views import APIView
 
 from api import urls as api_urls
-from api import anonymous_case
+from api import anonymous_case, heir_rules
 from api.throttling import CaseWriteThrottle
 from api.views import ApiView, SessionView
+from calc import schools
 from calc.models import Calculation, Person
 
 
@@ -187,7 +191,7 @@ class CaseTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         case = response.json()['case']
-        self.assertEqual(set(case), {'id', 'started_at', 'madhab', 'deceased', 'heirs'})
+        self.assertEqual(set(case), {'id', 'started_at', 'madhab', 'deceased', 'heirs', 'heir_options'})
         self.assertIsNone(case['madhab'])
         self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
         self.assertEqual(self.client.get(CASE_URL, secure=True).json(), {'case': case})
@@ -566,6 +570,14 @@ class InterviewBase(TestCase):
     def live(self):
         return self.client.get(CASE_URL, secure=True).json()['case']
 
+    def plant(self, **changes):
+        """Change the stored case directly, as an older session or a tampered one would be."""
+        row = Session.objects.get(session_key=self.client.cookies[settings.SESSION_COOKIE_NAME].value)
+        data = row.get_decoded()
+        data[anonymous_case.SESSION_KEY].update(changes)
+        row.session_data = SessionStore().encode(data)
+        row.save()
+
     def remaining(self):
         return (Session.objects.get().expire_date - timezone.now()).total_seconds()
 
@@ -671,13 +683,16 @@ class InterviewAnswerTests(InterviewBase):
         self.assertEqual(self.live()['heirs'], heirs)
 
     def test_every_relationship_is_accepted_with_the_gender_in_the_contract(self):
-        case = self.ready()
         self.assertEqual(len(CONTRACT['relationships']), 22)
-        for index, expected in enumerate(CONTRACT['relationships']):
+        for expected in CONTRACT['relationships']:
             with self.subTest(relationship=expected['id']):
+                # One case each: a family holds only relatives it can have together.
+                self.client = APIClient(enforce_csrf_checks=True)
+                case = self.start()
+                self.assertEqual(self.deceased(case, 'female' if expected['id'] == 'husband' else 'male').status_code, 200)
                 response = self.heir(case, expected['id'])
                 self.assertEqual(response.status_code, 201)
-                heir = response.json()['case']['heirs'][index]
+                heir = response.json()['case']['heirs'][0]
                 self.assertEqual((heir['relationship'], heir['gender']), (expected['id'], expected['gender']))
 
     def test_the_relationships_match_the_shared_contract(self):
@@ -1248,10 +1263,17 @@ class PreviewTests(InterviewBase):
         if estate is not None:
             body['estate'] = estate
         self.assertEqual(self.send('put', DECEASED_URL, body).status_code, 200)
-        for index, relationship in enumerate(relationships):
-            extra = {'name': names[index]} if names else {}
-            self.assertEqual(self.heir(case, relationship, **extra).status_code, 201)
+        self.put_heirs(relationships, names)
         return self.live()
+
+    def put_heirs(self, relationships, names=None):
+        """Set the heirs in the session directly: the writes refuse a family that cannot exist,
+        and a preview still has to answer for one saved before they did."""
+        self.plant(heirs=[
+            {'id': uuid.uuid4().hex, 'relationship': relationship,
+             'gender': anonymous_case.RELATIONSHIPS[relationship], 'name': names[index] if names else None}
+            for index, relationship in enumerate(relationships)
+        ])
 
     def rows(self):
         from calc.models import Calculation, Marriage, Person
@@ -1531,3 +1553,390 @@ class PreviewTests(InterviewBase):
         for _ in range(118):
             self.assertEqual(self.deceased(case).status_code, 200)
         self.assertEqual(self.deceased(case).status_code, 429)
+
+
+FIXTURES = json.loads(
+    (Path(__file__).parent / 'contracts' / 'heir-options-fixtures.json').read_text(encoding='utf-8'))
+
+
+class HeirRulesTests(TestCase):
+    """The pure rules, held to the engine's own blocked flags."""
+
+    @staticmethod
+    def engine_blocked(madhab, gender, family, candidate):
+        """Whether the engine blocks `candidate` when it joins `family` (a list of relationships).
+
+        `get_quotes` sets the flags without distributing, so a family the radd refuses still
+        answers. Set the school and clear first, as `compute` does.
+        """
+        from django.db import transaction
+        from calc.models import Calculation as EngineCalculation, Deceased, Heir
+        from api.preview import HEIR_CLASSES, SEX
+        with transaction.atomic():
+            try:
+                calc = EngineCalculation.objects.create(name='')
+                Deceased.objects.create(sex=SEX[gender], estate=1, calc=calc)
+                for relationship in family:
+                    HEIR_CLASSES[relationship].objects.create(
+                        sex=SEX[anonymous_case.RELATIONSHIPS[relationship]], calc=calc)
+                last = HEIR_CLASSES[candidate].objects.create(
+                    sex=SEX[anonymous_case.RELATIONSHIPS[candidate]], calc=calc)
+                calc.madhab = madhab
+                calc.clear()
+                calc.get_quotes()
+                return Heir.objects.get(pk=last.pk).blocked
+            finally:
+                transaction.set_rollback(True)
+
+    @staticmethod
+    def counts(family):
+        return heir_rules.counts({'relationship': name} for name in family)
+
+    def assert_agrees(self, madhab, family, candidates, genders=('female', 'male')):
+        blocked = heir_rules.blocked_relationships(madhab, self.counts(family))
+        for gender in genders:
+            for candidate in candidates:
+                with self.subTest(madhab=madhab, gender=gender, family=family, candidate=candidate):
+                    self.assertEqual(
+                        candidate in blocked, self.engine_blocked(madhab, gender, family, candidate))
+
+    def test_rules_equal_the_engine_for_every_single_heir_family_under_every_sunni_school(self):
+        relationships = list(anonymous_case.RELATIONSHIPS)
+        for madhab in schools.SUNNI:
+            self.assert_agrees(madhab, [], relationships)
+            for existing in relationships:
+                self.assert_agrees(madhab, [existing], relationships)
+
+    def test_rules_equal_the_engine_for_a_seeded_sample_of_larger_families(self):
+        rng = random.Random(16_2026)
+        relationships = list(anonymous_case.RELATIONSHIPS)
+        for madhab in schools.SUNNI:
+            for _ in range(300):
+                family = [rng.choice(relationships) for _ in range(rng.randint(2, 7))]
+                self.assert_agrees(
+                    madhab, family, rng.sample(relationships, 4), genders=(rng.choice(('female', 'male')),))
+
+    def test_rules_equal_the_engine_for_directed_families(self):
+        relationships = list(anonymous_case.RELATIONSHIPS)
+        families = [
+            ['sister', 'sister'],
+            ['sister', 'sister', 'paternal_brother'],
+            ['sister', 'sister', 'paternal_sister'],
+            ['sister', 'daughter'],
+            ['sister', 'paternal_sister', 'paternal_brother'],
+            ['paternal_sister', 'paternal_sister', 'daughter'],
+            ['daughter', 'daughter', 'son_of_son'],
+            ['daughter', 'daughter', 'daughter_of_son'],
+            ['daughter', 'daughter_of_son', 'son_of_son'],
+            ['son_of_son', 'daughter_of_son'],
+            ['grandfather', 'sister', 'paternal_brother', 'paternal_sister'],
+            ['grandfather', 'brother', 'sister'],
+            ['grandfather', 'father'],
+            ['mother', 'grandmother', 'maternal_sister'],
+            ['brother', 'son_of_brother', 'son_of_paternal_brother', 'uncle'],
+            ['paternal_brother', 'son_of_brother', 'paternal_uncle', 'son_of_uncle'],
+            ['sister', 'daughter', 'son_of_paternal_brother', 'uncle', 'paternal_uncle'],
+        ]
+        for madhab in schools.SUNNI:
+            for family in families:
+                self.assert_agrees(madhab, family, relationships)
+
+    def test_the_documented_cases(self):
+        hanbali, hanafi = 'hanbali', 'hanafi'
+        self.assertTrue(heir_rules.blocked_relationships(hanbali, {'father': 1}) >= {'brother', 'sister', 'grandfather'})
+        self.assertNotIn('brother', heir_rules.blocked_relationships(hanbali, {'grandfather': 1}))
+        self.assertIn('brother', heir_rules.blocked_relationships(hanafi, {'grandfather': 1}))
+        self.assertIn('daughter_of_son', heir_rules.blocked_relationships(hanbali, {'daughter': 2}))
+        self.assertNotIn(
+            'daughter_of_son', heir_rules.blocked_relationships(hanbali, {'daughter': 2, 'son_of_son': 1}))
+        self.assertEqual(heir_rules.blocked_relationships('jafari', {'father': 1}), set())
+        self.assertEqual(heir_rules.blocked_relationships(None, {'father': 1}), set())
+
+    def test_kinship_codes(self):
+        for relationship, code in (
+                ('father', 'second_father'), ('mother', 'second_mother'),
+                ('husband', 'second_husband'), ('grandfather', 'second_grandfather')):
+            self.assertEqual(heir_rules.kinship_code(relationship, 'female', {relationship: 1}), code)
+        self.assertEqual(heir_rules.kinship_code('wife', 'male', {'wife': 4}), 'fifth_wife')
+        self.assertIsNone(heir_rules.kinship_code('wife', 'male', {'wife': 3}))
+        self.assertEqual(heir_rules.kinship_code('husband', 'male', {}), 'husband_of_male')
+        self.assertEqual(heir_rules.kinship_code('wife', 'female', {}), 'wife_of_female')
+        self.assertIsNone(heir_rules.kinship_code('son', 'male', {'son': 9}))
+        self.assertTrue(heir_rules.is_impossible_family('male', {'father': 2}))
+        self.assertFalse(heir_rules.is_impossible_family('male', {'wife': 4}))
+
+    def test_gender_conflicts(self):
+        self.assertEqual(heir_rules.gender_conflict('male', {'husband': 1}), 'has_husband')
+        self.assertEqual(heir_rules.gender_conflict('female', {'wife': 1}), 'has_wife')
+        self.assertIsNone(heir_rules.gender_conflict('female', {'husband': 1}))
+        for gender in ('male', 'female'):
+            self.assertEqual(heir_rules.gender_conflict(gender, {'husband': 1, 'wife': 1}), 'has_both_spouses')
+
+    def test_every_code_is_in_the_contract(self):
+        codes = CONTRACT['errorCodes']
+        self.assertEqual(set(codes['relationship']), set(heir_rules.RELATIONSHIP_CODES) | {'required', 'invalid'})
+        self.assertEqual(set(codes['gender']), set(heir_rules.GENDER_CODES) | {'required', 'invalid'})
+
+    def test_the_shared_fixtures_give_the_same_options(self):
+        self.assertGreaterEqual(len(FIXTURES['families']), 10)
+        for family in FIXTURES['families']:
+            with self.subTest(family=family['name']):
+                heirs = [{'relationship': name} for name in family['heirs']]
+                deceased = {'gender': family['gender'], 'estate': None}
+                self.assertEqual(
+                    anonymous_case.heir_options(family['madhab'], deceased, heirs), family['heir_options'])
+                for relationship, code in family['heir_options']['invalid'].items():
+                    self.assertNotIn(relationship, family['heir_options']['blocked'])
+                    self.assertIn(code, CONTRACT['errorCodes']['relationship'])
+
+
+class HeirRulesApiTests(InterviewBase):
+    def setUp(self):
+        super().setUp()
+        self.case = self.start()
+        self.send('patch', CASE_URL, {'case_id': self.case['id'], 'madhab': 'hanbali'})
+        self.deceased(self.case, 'male')
+
+    def fresh(self, gender='male', madhab='hanbali'):
+        Session.objects.all().delete()
+        self.client = APIClient(enforce_csrf_checks=True)
+        self.case = self.start()
+        self.send('patch', CASE_URL, {'case_id': self.case['id'], 'madhab': madhab})
+        self.deceased(self.case, gender)
+
+    def add(self, relationship, **extra):
+        return self.heir(self.case, relationship, **extra)
+
+    def edit(self, heir_id, relationship, **extra):
+        return self.send(
+            'put', f'{HEIRS_URL}{heir_id}/', {'case_id': self.case['id'], 'relationship': relationship, **extra})
+
+    def errors(self, response):
+        self.assertEqual(response.status_code, 400)
+        return response.json()['errors']
+
+    def heirs(self):
+        return self.live()['heirs']
+
+    def preview_body(self):
+        return self.client.get(f'{PREVIEW_URL}?case_id={self.case["id"]}', secure=True).json()
+
+    def test_heir_options_ride_with_every_case_and_are_never_stored(self):
+        self.assertEqual(self.live()['heir_options'], {'blocked': [], 'invalid': {'husband': 'husband_of_male'}})
+        self.add('father')
+        options = self.live()['heir_options']
+        self.assertEqual(options['invalid']['father'], 'second_father')
+        self.assertIn('brother', options['blocked'])
+        self.assertIn('sister', options['blocked'])
+        self.assertNotIn('heir_options', self.stored())
+        self.assertEqual(self.add('mother').json()['case']['heir_options'], self.live()['heir_options'])
+
+    def test_a_blocker_labels_and_the_labelled_relatives_still_save(self):
+        self.add('father')
+        blocked = self.live()['heir_options']['blocked']
+        self.assertTrue({'brother', 'sister'} <= set(blocked))
+        for relationship in ('brother', 'sister'):
+            self.assertEqual(self.add(relationship).status_code, 201)
+        self.assertEqual([heir['relationship'] for heir in self.heirs()], ['father', 'brother', 'sister'])
+
+    def test_removing_the_blocker_takes_the_label_away(self):
+        father = self.add('father').json()['case']['heirs'][0]['id']
+        self.assertIn('brother', self.live()['heir_options']['blocked'])
+        self.send('delete', f'{HEIRS_URL}{father}/', {'case_id': self.case['id']})
+        self.assertNotIn('brother', self.live()['heir_options']['blocked'])
+
+    def test_the_family_gives_the_same_shares_in_any_order(self):
+        for order in (('father', 'mother', 'brother', 'brother'), ('brother', 'brother', 'mother', 'father'),
+                      ('brother', 'father', 'brother', 'mother')):
+            with self.subTest(order=order):
+                self.fresh()
+                for relationship in order:
+                    self.assertEqual(self.add(relationship).status_code, 201)
+                body = self.preview_body()
+                self.assertEqual(body['status'], 'available')
+                mother = next(heir['id'] for heir in self.heirs() if heir['relationship'] == 'mother')
+                share = next(item for item in body['shares'] if item['heir_id'] == mother)
+                self.assertEqual((share['numerator'], share['denominator']), (1, 6))
+
+    def test_the_grandfather_labels_a_brother_under_hanafi_only(self):
+        self.add('grandfather')
+        self.assertNotIn('brother', self.live()['heir_options']['blocked'])
+        self.send('patch', CASE_URL, {'case_id': self.case['id'], 'madhab': 'hanafi'})
+        self.assertIn('brother', self.live()['heir_options']['blocked'])
+
+    def test_a_conditional_block_comes_and_goes(self):
+        self.add('daughter')
+        self.add('daughter')
+        self.assertIn('daughter_of_son', self.live()['heir_options']['blocked'])
+        self.add('son_of_son')
+        self.assertNotIn('daughter_of_son', self.live()['heir_options']['blocked'])
+
+    def test_jafari_and_no_school_label_nothing(self):
+        self.add('father')
+        self.send('patch', CASE_URL, {'case_id': self.case['id'], 'madhab': 'jafari'})
+        self.assertEqual(self.live()['heir_options']['blocked'], [])
+        self.assertEqual(self.add('brother').status_code, 201)
+        self.plant(madhab=None)
+        self.assertEqual(self.live()['heir_options']['blocked'], [])
+
+    def test_a_second_of_a_single_relative_has_its_own_code(self):
+        for relationship, code in (('father', 'second_father'), ('mother', 'second_mother'),
+                                   ('grandfather', 'second_grandfather')):
+            with self.subTest(relationship=relationship):
+                self.fresh()
+                self.assertEqual(self.add(relationship).status_code, 201)
+                before = self.stored()
+                self.assertEqual(self.errors(self.add(relationship)), {'relationship': code})
+                self.assertEqual(self.stored(), before)
+        self.fresh('female')
+        self.add('husband')
+        self.assertEqual(self.errors(self.add('husband')), {'relationship': 'second_husband'})
+
+    def test_editing_into_a_second_of_one_is_refused_and_nothing_is_stored(self):
+        for relationship, code in (('father', 'second_father'), ('mother', 'second_mother'),
+                                   ('grandfather', 'second_grandfather')):
+            with self.subTest(relationship=relationship):
+                self.fresh()
+                self.add(relationship)
+                other = 'son' if anonymous_case.RELATIONSHIPS[relationship] == 'male' else 'daughter'
+                heir = self.add(other).json()['case']['heirs'][1]['id']
+                before = self.stored()
+                self.assertEqual(self.errors(self.edit(heir, relationship)), {'relationship': code})
+                self.assertEqual(self.stored(), before)
+
+    def test_the_fifth_wife_on_add_and_on_edit(self):
+        for _ in range(4):
+            self.assertEqual(self.add('wife').status_code, 201)
+        self.assertEqual(self.errors(self.add('wife')), {'relationship': 'fifth_wife'})
+        son = self.add('son').json()['case']['heirs'][4]['id']
+        before = self.stored()
+        self.assertEqual(self.errors(self.edit(son, 'wife')), {'relationship': 'fifth_wife'})
+        self.assertEqual(self.stored(), before)
+
+    def test_a_spouse_that_does_not_fit_the_deceased(self):
+        self.assertEqual(self.errors(self.add('husband')), {'relationship': 'husband_of_male'})
+        self.deceased(self.case, 'female')
+        self.assertEqual(self.errors(self.add('wife')), {'relationship': 'wife_of_female'})
+        daughter = self.add('daughter').json()['case']['heirs'][0]['id']
+        self.assertEqual(self.errors(self.edit(daughter, 'wife')), {'relationship': 'wife_of_female'})
+
+    def test_editing_into_a_husband_for_a_male_deceased_or_a_second_husband(self):
+        son = self.add('son').json()['case']['heirs'][0]['id']
+        before = self.stored()
+        self.assertEqual(self.errors(self.edit(son, 'husband')), {'relationship': 'husband_of_male'})
+        self.assertEqual(self.stored(), before)
+        self.fresh('female')
+        self.add('husband')
+        daughter = self.add('daughter').json()['case']['heirs'][1]['id']
+        self.assertEqual(self.errors(self.edit(daughter, 'husband')), {'relationship': 'second_husband'})
+
+    def test_the_invalid_spouse_flips_with_the_deceased_gender(self):
+        self.assertEqual(self.live()['heir_options']['invalid'], {'husband': 'husband_of_male'})
+        self.assertEqual(self.deceased(self.case, 'female').status_code, 200)
+        self.assertEqual(self.live()['heir_options']['invalid'], {'wife': 'wife_of_female'})
+        self.assertEqual(self.deceased(self.case, 'male').status_code, 200)
+        self.assertEqual(self.live()['heir_options']['invalid'], {'husband': 'husband_of_male'})
+
+    def test_has_wife_and_an_estate_error_come_together(self):
+        self.add('wife')
+        self.assertEqual(
+            self.errors(self.deceased(self.case, 'female', '0')), {'gender': 'has_wife', 'estate': 'not_positive'})
+
+    def test_the_edited_heir_is_left_out_of_its_own_check(self):
+        father = self.add('father').json()['case']['heirs'][0]['id']
+        self.assertEqual(self.edit(father, 'grandfather').status_code, 200)
+        self.assertEqual(self.heirs()[0]['relationship'], 'grandfather')
+        for _ in range(4):
+            self.add('wife')
+        fourth = self.heirs()[-1]['id']
+        self.assertEqual(self.edit(fourth, 'wife', name='Renamed').status_code, 200)
+        self.assertEqual(self.heirs()[-1]['name'], 'Renamed')
+
+    def test_a_saved_heir_can_be_renamed_whatever_the_family_says(self):
+        # An older session: two fathers and a husband for a male deceased are already saved.
+        first = self.add('father').json()['case']['heirs'][0]['id']
+        self.plant(heirs=[
+            *self.stored()['heirs'],
+            {'id': 'second', 'relationship': 'father', 'gender': 'male', 'name': None},
+            {'id': 'spouse', 'relationship': 'husband', 'gender': 'male', 'name': None},
+        ])
+        for heir_id, relationship in ((first, 'father'), ('second', 'father'), ('spouse', 'husband')):
+            self.assertEqual(self.edit(heir_id, relationship, name='Renamed').status_code, 200)
+
+    def test_kinship_wins_over_hajb(self):
+        self.add('father')
+        self.add('grandfather')
+        options = self.live()['heir_options']
+        self.assertEqual(options['invalid']['grandfather'], 'second_grandfather')
+        self.assertNotIn('grandfather', options['blocked'])
+        self.assertEqual(self.errors(self.add('grandfather')), {'relationship': 'second_grandfather'})
+
+    def test_a_gender_that_contradicts_a_saved_spouse_is_refused(self):
+        self.deceased(self.case, 'female')
+        self.add('husband')
+        before = self.stored()
+        self.assertEqual(self.errors(self.deceased(self.case, 'male', '500')), {'gender': 'has_husband'})
+        self.assertEqual(self.stored(), before)
+        self.fresh()
+        self.add('wife')
+        self.assertEqual(self.errors(self.deceased(self.case, 'female')), {'gender': 'has_wife'})
+
+    def test_both_spouses_in_an_older_session_fit_no_gender(self):
+        self.plant(heirs=[
+            {'id': 'a', 'relationship': 'husband', 'gender': 'male', 'name': None},
+            {'id': 'b', 'relationship': 'wife', 'gender': 'female', 'name': None},
+        ])
+        for gender in ('male', 'female'):
+            self.assertEqual(self.errors(self.deceased(self.case, gender)), {'gender': 'has_both_spouses'})
+
+    def test_editing_when_the_stored_deceased_is_unreadable_is_a_400(self):
+        heir = self.add('son').json()['case']['heirs'][0]['id']
+        self.plant(deceased={'gender': 'robot'})
+        self.assertIsNone(self.live()['deceased'])
+        self.assertEqual(self.errors(self.edit(heir, 'daughter')), {'case': 'deceased_required'})
+        # A rename keeps passing: the relationship is unchanged.
+        self.assertEqual(self.edit(heir, 'son', name='Renamed').status_code, 200)
+
+    def test_several_issues_come_together_on_add_and_edit(self):
+        self.add('father')
+        self.assertEqual(
+            self.errors(self.add('father', name='x' * 101)), {'relationship': 'second_father', 'name': 'too_long'})
+        son = self.add('son').json()['case']['heirs'][1]['id']
+        self.assertEqual(
+            self.errors(self.edit(son, 'father', name='x' * 101)),
+            {'relationship': 'second_father', 'name': 'too_long'})
+
+    def test_several_issues_come_together_at_the_heir_limit(self):
+        self.plant(heirs=[
+            {'id': f'h{index}', 'relationship': 'son', 'gender': 'male', 'name': None}
+            for index in range(anonymous_case.MAX_HEIRS - 1)
+        ])
+        self.assertEqual(self.add('father').status_code, 201)
+        self.assertEqual(
+            self.errors(self.add('father', name='x' * 101)),
+            {'relationship': 'second_father', 'name': 'too_long', 'heirs': 'limit'})
+
+    def test_gender_and_estate_errors_come_together(self):
+        self.deceased(self.case, 'female')
+        self.add('husband')
+        self.assertEqual(
+            self.errors(self.deceased(self.case, 'male', '0')), {'gender': 'has_husband', 'estate': 'not_positive'})
+
+    def test_corrected_input_is_saved(self):
+        self.add('father')
+        self.assertEqual(self.add('father', name='x' * 101).status_code, 400)
+        self.assertEqual(self.add('mother', name='Fine').status_code, 201)
+
+    def test_the_server_decides_whatever_the_client_knew(self):
+        # A body that never read `heir_options` is held to the kinship rules all the same.
+        self.add('father')
+        self.assertEqual(self.errors(self.add('father')), {'relationship': 'second_father'})
+        self.assertEqual(self.add('sister').status_code, 201)
+
+    def test_a_second_father_in_a_preview_of_an_older_session_is_still_unavailable(self):
+        self.plant(heirs=[
+            {'id': 'a', 'relationship': 'father', 'gender': 'male', 'name': None},
+            {'id': 'b', 'relationship': 'father', 'gender': 'male', 'name': None},
+        ])
+        body = self.preview_body()
+        self.assertEqual((body['status'], body['reason']), ('unavailable', 'invalid_family'))

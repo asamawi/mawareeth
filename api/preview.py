@@ -11,7 +11,7 @@ from fractions import Fraction
 
 from django.db import transaction
 
-from api import anonymous_case
+from api import anonymous_case, heir_rules
 from calc import schools
 from calc.models import (
     Brother, Calculation, Daughter, DaughterOfSon, Deceased, Father, GrandFather, GrandMother,
@@ -49,24 +49,11 @@ SEX = {'male': 'M', 'female': 'F'}
 INVALID_FAMILY = 'invalid_family'
 # The engine's estate is an integer, so it always gets this and amounts are worked out here.
 PLACEHOLDER_ESTATE = 1
-# Relationship id to the most the family can hold of it.
-AT_MOST_ONE = ('husband', 'father', 'mother', 'grandfather')
-MAX_WIVES = 4
 
 
 def is_impossible(case):
-    """Whether the family cannot exist. A stop-gap for the fiqh validation of Story 1.6."""
-    counts = {}
-    for heir in case['heirs']:
-        counts[heir['relationship']] = counts.get(heir['relationship'], 0) + 1
-    gender = case['deceased']['gender']
-    if counts.get('husband') and gender == 'male':
-        return True
-    if counts.get('wife') and gender == 'female':
-        return True
-    if any(counts.get(name, 0) > 1 for name in AT_MOST_ONE):
-        return True
-    return counts.get('wife', 0) > MAX_WIVES
+    """Whether the family cannot exist. A guard for sessions saved before the writes enforced it."""
+    return heir_rules.is_impossible_family(case['deceased']['gender'], heir_rules.counts(case['heirs']))
 
 
 def basis(case):

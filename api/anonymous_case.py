@@ -12,6 +12,8 @@ from decimal import Decimal
 from django.conf import settings
 from django.utils import timezone
 
+from api import heir_rules
+
 SESSION_KEY = 'anonymous_case'
 MADHABS = ('hanafi', 'maliki', 'shafii', 'hanbali', 'jafari')
 GENDERS = ('male', 'female')
@@ -196,22 +198,48 @@ def _read_heirs(value):
     return heirs[:MAX_HEIRS]
 
 
+def heir_options(madhab, deceased, heirs):
+    """What adding a relative to the whole family would meet: {'blocked': [...], 'invalid': {...}}.
+
+    `blocked` lists the relationships the engine would give nothing (hajb): they are labelled,
+    never refused. `invalid` maps a relationship to the code of the kinship rule it would
+    break. The two never overlap: kinship comes first.
+    """
+    if deceased is None:
+        return {'blocked': [], 'invalid': {}}
+    counts = heir_rules.counts(heirs)
+    invalid = {}
+    for relationship in RELATIONSHIPS:
+        code = heir_rules.kinship_code(relationship, deceased['gender'], counts)
+        if code is not None:
+            invalid[relationship] = code
+    blocked = heir_rules.blocked_relationships(madhab, counts)
+    return {
+        'blocked': [name for name in RELATIONSHIPS if name in blocked and name not in invalid],
+        'invalid': invalid,
+    }
+
+
 def get(request):
-    """The current case as {'id', 'started_at', 'madhab', 'deceased', 'heirs'}, or None.
+    """The current case as {'id', 'started_at', 'madhab', 'deceased', 'heirs', 'heir_options'}, or None.
 
     A stored madhab that is not one of MADHABS reads as None, an invalid deceased as None,
-    and invalid heirs are left out.
+    and invalid heirs are left out. `heir_options` is worked out here and never stored.
     """
     case = request.session.get(SESSION_KEY)
     if not isinstance(case, dict) or 'id' not in case or 'started_at' not in case:
         return None
     madhab = case.get('madhab')
+    madhab = madhab if isinstance(madhab, str) and madhab in MADHABS else None
+    deceased = _read_deceased(case.get('deceased'))
+    heirs = _read_heirs(case.get('heirs'))
     return {
         'id': case['id'],
         'started_at': case['started_at'],
-        'madhab': madhab if isinstance(madhab, str) and madhab in MADHABS else None,
-        'deceased': _read_deceased(case.get('deceased')),
-        'heirs': _read_heirs(case.get('heirs')),
+        'madhab': madhab,
+        'deceased': deceased,
+        'heirs': heirs,
+        'heir_options': heir_options(madhab, deceased, heirs),
     }
 
 
@@ -263,23 +291,51 @@ def set_deceased(request, data, case_id):
     current = _live(request, case_id)
     if current is None:
         return None
-    return _save(request, deceased=clean_deceased(data), heirs=current['heirs'])
+    errors = {}
+    deceased = None
+    try:
+        deceased = clean_deceased(data)
+    except FieldErrors as invalid:
+        errors.update(invalid.errors)
+    gender = data.get('gender')
+    if isinstance(gender, str) and gender in GENDERS:
+        conflict = heir_rules.gender_conflict(gender, heir_rules.counts(current['heirs']))
+        if conflict is not None:
+            errors['gender'] = conflict
+    if errors:
+        raise FieldErrors(errors)
+    return _save(request, deceased=deceased, heirs=current['heirs'])
 
 
 def add_heir(request, data, case_id):
     """Append an heir. Returns the case, or None without one.
 
-    Raises StaleCase, or FieldErrors for a bad field, no deceased yet (`case`) or a full
-    list (`heirs`). Nothing is stored in any of those.
+    Raises StaleCase, or FieldErrors for a bad field, a relationship the family cannot
+    have (kinship, never hajb: a blocked relative is allowed), a full list
+    (`heirs`); all those errors come together. No deceased yet (`case`) comes alone, before
+    the other checks. Nothing is stored in any of those.
     """
     current = _live(request, case_id)
     if current is None:
         return None
     if current['deceased'] is None:
         raise FieldErrors({'case': 'deceased_required'})
-    fields = clean_heir(data)
+    errors = {}
+    fields = None
+    try:
+        fields = clean_heir(data)
+    except FieldErrors as invalid:
+        errors.update(invalid.errors)
+    relationship = data.get('relationship')
+    if isinstance(relationship, str) and relationship in RELATIONSHIPS:
+        issue = heir_rules.kinship_code(
+            relationship, current['deceased']['gender'], heir_rules.counts(current['heirs']))
+        if issue is not None:
+            errors['relationship'] = issue
     if len(current['heirs']) >= MAX_HEIRS:
-        raise FieldErrors({'heirs': 'limit'})
+        errors['heirs'] = 'limit'
+    if errors:
+        raise FieldErrors(errors)
     heir = {'id': uuid.uuid4().hex, **fields, 'gender': RELATIONSHIPS[fields['relationship']]}
     return _save(request, heirs=[*current['heirs'], heir])
 
@@ -287,14 +343,36 @@ def add_heir(request, data, case_id):
 def update_heir(request, heir_id, data, case_id):
     """Replace an heir's fields, keeping its id and place. Gender is derived again.
 
-    Raises StaleCase, HeirNotFound or FieldErrors. Returns None without a live case.
+    Raises StaleCase, HeirNotFound or FieldErrors (a bad field, or a changed relationship the
+    family cannot have, the edited heir left out of the count; `case` when the deceased cannot
+    be read). Returns None without a live case.
     """
     current = _live(request, case_id)
     if current is None:
         return None
     if not any(heir['id'] == heir_id for heir in current['heirs']):
         raise HeirNotFound(current)
-    fields = clean_heir(data)
+    errors = {}
+    fields = None
+    try:
+        fields = clean_heir(data)
+    except FieldErrors as invalid:
+        errors.update(invalid.errors)
+    relationship = data.get('relationship')
+    if isinstance(relationship, str) and relationship in RELATIONSHIPS:
+        before = next(heir for heir in current['heirs'] if heir['id'] == heir_id)
+        # An unchanged relationship always passes, so any saved heir can still be renamed.
+        if relationship != before['relationship']:
+            if current['deceased'] is None:
+                errors['case'] = 'deceased_required'
+            else:
+                others = [heir for heir in current['heirs'] if heir['id'] != heir_id]
+                issue = heir_rules.kinship_code(
+                    relationship, current['deceased']['gender'], heir_rules.counts(others))
+                if issue is not None:
+                    errors['relationship'] = issue
+    if errors:
+        raise FieldErrors(errors)
     heirs = [
         {'id': heir_id, **fields, 'gender': RELATIONSHIPS[fields['relationship']]}
         if heir['id'] == heir_id else heir

@@ -398,6 +398,7 @@ export function StartCase({
             notice={started.notice}
             saving={started.saving}
             editing={started.editingHeir !== null}
+            options={started.case.heir_options}
             onChange={(values, field) =>
               track((current) => remember(current, "heir", values, field, deps.forms))
             }

@@ -34,7 +34,7 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-const CASE = { id: "abc123", started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [] };
+const CASE = { id: "abc123", started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} } };
 const signal = () => new AbortController().signal;
 const withToken = { cookie: () => "other=1; csrftoken=tok%3D1" };
 const header = (call: Call, name: string) => (call.init?.headers as Record<string, string>)[name];
@@ -263,6 +263,7 @@ test("parseCase reads deceased and heirs, and tolerates the older shape", async 
     madhab: null,
     deceased: null,
     heirs: [],
+    heir_options: { blocked: [], invalid: {} },
   });
   stubFetch(async () =>
     Response.json({
@@ -491,4 +492,39 @@ test("every locale has the preview text", () => {
       assert.ok(text[key].length > 0, `${locale} ${key}`);
     }
   }
+});
+
+test("heir_options is read strictly: anything malformed reads as nothing hidden", async () => {
+  const good = { blocked: ["brother", "sister"], invalid: { father: "second_father" } };
+  stubFetch(async () => Response.json({ case: { ...CASE, heir_options: good } }));
+  assert.deepEqual((await fetchCase(signal()))?.heir_options, good);
+  const bad: unknown[] = [
+    null,
+    "brother",
+    [],
+    {},
+    { blocked: "brother", invalid: {} },
+    { blocked: ["cousin"], invalid: {} },
+    { blocked: [1], invalid: {} },
+    { blocked: ["brother"] },
+    { blocked: ["brother"], invalid: [] },
+    { blocked: ["brother"], invalid: { cousin: "second_father" } },
+    { blocked: ["brother"], invalid: { father: 1 } },
+    { blocked: ["brother"], invalid: { father: "" } },
+    { blocked: ["brother"], invalid: { father: "second_cousin" } },
+    { blocked: ["brother"], invalid: { father: "blocked" } },
+    { blocked: ["father"], invalid: { father: "second_father" } },
+  ];
+  for (const value of bad) {
+    stubFetch(async () => Response.json({ case: { ...CASE, heir_options: value } }));
+    assert.deepEqual((await fetchCase(signal()))?.heir_options, { blocked: [], invalid: {} }, JSON.stringify(value));
+  }
+});
+
+test("each read of missing options is a fresh object", async () => {
+  stubFetch(async () => Response.json({ case: { ...CASE, heir_options: null } }));
+  const first = (await fetchCase(signal()))!.heir_options;
+  first.blocked.push("brother");
+  const second = (await fetchCase(signal()))!.heir_options;
+  assert.deepEqual(second, { blocked: [], invalid: {} });
 });
