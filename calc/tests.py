@@ -11,7 +11,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.cache import cache
 from django.db import connection, connections
-from django.test import TestCase, TransactionTestCase, Client, override_settings
+from django.test import TestCase, TransactionTestCase, Client, override_settings, tag
 from django.utils import translation
 from calc.models import *
 from django.contrib.auth.models import User
@@ -777,8 +777,9 @@ class CalculationSetCalcCorrectionTestCase(TestCase):
         self.assertEqual(calc2.get_sons().first().get_quote(calc2), 7/8)
         self.assertEqual(calc2.get_fractions(calc2.heir_set.all()), {Fraction(1,8),Fraction(7,8)})
         self.assertEqual(calc2.get_sons().first().share, 7)
-        self.assertEqual(calc2.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))[0]["total"],2)
-        self.assertEqual(calc2.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))[1]["total"],3)
+        # The grouped rows come back in no fixed order, so compare their totals sorted.
+        totals = calc2.heir_set.filter(correction=True).values('polymorphic_ctype_id','quote').annotate(total=Count('id'))
+        self.assertEqual(sorted(row["total"] for row in totals), [2, 3])
         self.assertEqual(calc2.set_calc_correction(),48)
         self.assertEqual(calc2.get_wives().first().shared_quote,True)
         self.assertEqual(calc2.get_sons().first().shared_quote,True)
@@ -1306,7 +1307,9 @@ class TemplateTagTests(TestCase):
                 self.assertNotContains(response, '{%')
 
 
-class ChildMotherTests(TestCase):
+# Engine-heavy tests are TransactionTestCase: inside TestCase's per-test transaction every
+# compute() is a savepoint, and past 64 subtransactions PostgreSQL slows every query sharply.
+class ChildMotherTests(TransactionTestCase):
     """The mother of a son or daughter is optional, and a refused request adds no heir."""
 
     def setUp(self):
@@ -1536,7 +1539,7 @@ FIXTURES = [
 ]
 
 
-class DistributionFixtureTests(TestCase):
+class DistributionFixtureTests(TransactionTestCase):
     """Whole-estate shares for classical families, as the Hanbali school gives them."""
 
     def test_fixture_table(self):
@@ -1773,7 +1776,8 @@ def assert_invariants(test, calc, heirs, exact):
             test.assertEqual(males.pop(), 2 * females.pop())
 
 
-class DistributionInvariantTests(TestCase):
+@tag('slow')
+class DistributionInvariantTests(TransactionTestCase):
     """Properties that hold for every family, over all 22 relationship types."""
 
     def test_every_family_adds_up_and_is_fair(self):
@@ -1781,6 +1785,11 @@ class DistributionInvariantTests(TestCase):
             with self.subTest(f'{sex}: {[t.__name__ for t in types]}'):
                 calc, heirs = build_case(sex, types)
                 assert_invariants(self, calc, heirs, calc.compute())
+
+
+@tag('slow')
+class DistributionEntryOrderTests(TransactionTestCase):
+    """Entry order never changes a result, over every family."""
 
     def test_entry_order_does_not_matter(self):
         for sex, types in families():
@@ -1839,7 +1848,8 @@ def core_family_reference(wives, husband, father, mother, sons, daughters):
     return shares
 
 
-class CoreFamilyReferenceTests(TestCase):
+@tag('slow')
+class CoreFamilyReferenceTests(TransactionTestCase):
     """Every mix of spouses, parents, and up to three sons and three daughters."""
 
     def test_every_core_family_matches_the_reference(self):
@@ -1965,7 +1975,7 @@ MUADDA_FIXTURES = [
 ]
 
 
-class MuaddaTests(TestCase):
+class MuaddaTests(TransactionTestCase):
     def test_fractions_are_unchanged_and_the_predicate_holds(self):
         for madhab in (MALIKI, SHAFII, HANBALI):
             for title, types, expected in MUADDA_FIXTURES:
@@ -1995,7 +2005,7 @@ class MuaddaTests(TestCase):
                 self.assertFalse(calc.paternal_siblings_counted_out())
 
 
-class SchoolFixtureTests(TestCase):
+class SchoolFixtureTests(TransactionTestCase):
     """The matrix of school differences, one family per row."""
 
     def test_school_fixture_table(self):
@@ -2098,7 +2108,8 @@ class SchoolFixtureTests(TestCase):
                         self.assertNotEqual(translated, msgid)
 
 
-class SchoolInvariantTests(TestCase):
+@tag('slow')
+class SchoolInvariantTests(TransactionTestCase):
     """The engine's invariants and its agreement with the Hanbali results, school by school."""
 
     def test_every_family_under_every_school(self):
@@ -2140,6 +2151,10 @@ class SchoolInvariantTests(TestCase):
         # families() holds no Malikiyya family, so no school refuses any of them
         self.assertEqual(refused, {madhab: 0 for madhab in SUNNI_SCHOOLS})
 
+
+class SchoolAgreementTests(TransactionTestCase):
+    """A family all four schools agree on gets the same result in each."""
+
     def test_agreed_family_matches_in_all_four_schools(self):
         for sex, types in (('M', [Wife, Mother, Son, Daughter]), ('M', [Father, Mother, Daughter]),
                            ('F', [Husband, Mother, Sister]), ('M', [Daughter, Sister, PaternalSister]),
@@ -2154,6 +2169,11 @@ class SchoolInvariantTests(TestCase):
                 else:
                     self.assertEqual(len(set(map(repr, prints))), 1)
 
+
+@tag('slow')
+class SchoolEntryOrderTests(TransactionTestCase):
+    """Entry order never changes a result, under every school."""
+
     def test_entry_order_does_not_matter_under_every_school(self):
         # every 5th family keeps the run short; the Hanbali test already covers all of them
         for sex, types in families()[::5]:
@@ -2167,6 +2187,11 @@ class SchoolInvariantTests(TestCase):
                         continue
                     self.assertEqual(fingerprint(forward_calc, forward_heirs, forward),
                                      fingerprint(backward_calc, backward_heirs, backward))
+
+
+@tag('slow')
+class SchoolCoreFamilyTests(TransactionTestCase):
+    """The core families match the reference under every school."""
 
     def test_core_families_match_the_reference_under_every_school(self):
         checked = 0
@@ -2228,7 +2253,7 @@ def step_value(proof, name):
     return next(s['value'] for s in proof['steps'] if s['step'] == name)
 
 
-class ProofMatrixTests(TestCase):
+class ProofMatrixTests(TransactionTestCase):
     """One test per row of the proof matrix."""
 
     def test_hanbali_wife_and_son(self):
@@ -2484,7 +2509,8 @@ class ProofMatrixTests(TestCase):
         self.assertEqual(json.loads(json.dumps(proof)), proof)
 
 
-class ProofInvariantTests(TestCase):
+@tag('slow')
+class ProofInvariantTests(TransactionTestCase):
     """Properties of the proof over every family and school."""
 
     def test_every_family_under_every_school(self):
@@ -2531,6 +2557,11 @@ class ProofInvariantTests(TestCase):
                     self.assertEqual(calc.proof, proof)
         self.assertGreater(checked, 500)
 
+
+@tag('slow')
+class ProofGrandfatherOptionTests(TransactionTestCase):
+    """The grandfather's share is what the proof's named option gives."""
+
     def test_the_grandfather_gets_what_his_named_option_gives(self):
         sibling_names = {'brother', 'sister', 'paternal_brother', 'paternal_sister'}
         seen = set()
@@ -2557,6 +2588,11 @@ class ProofInvariantTests(TestCase):
                         seen.add(grandfather['option'])
         self.assertEqual(seen, {'muqasama', 'third_of_remainder', 'sixth_of_estate'})
 
+
+@tag('slow')
+class ProofEntryOrderTests(TransactionTestCase):
+    """Entry order never changes the proof."""
+
     def test_entry_order_does_not_change_the_proof(self):
         # every 3rd family keeps the run short; the invariants test above runs all of them
         for sex, types in families()[::3]:
@@ -2569,6 +2605,11 @@ class ProofInvariantTests(TestCase):
                                          backward if isinstance(backward, str) else None)
                         continue
                     self.assertEqual(without_refs(forward_calc.proof), without_refs(backward_calc.proof))
+
+
+@tag('slow')
+class ProofGrandfatherRuleTests(TransactionTestCase):
+    """The proof names the grandfather rule wherever it decides a share."""
 
     def test_the_proof_names_the_rule_wherever_the_grandfather_rule_decides(self):
         sibling_types = {Brother, Sister, PaternalBrother, PaternalSister}

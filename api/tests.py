@@ -16,7 +16,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.sessions.backends.db import SessionStore
 from django.contrib.sessions.models import Session
 from django.db import connection, connections
-from django.test import RequestFactory, SimpleTestCase, TestCase, TransactionTestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, TestCase, TransactionTestCase, override_settings, tag
 from django.utils import timezone
 from django.urls import path, reverse
 from rest_framework.permissions import IsAuthenticated
@@ -532,7 +532,7 @@ DECEASED_URL = '/api/v1/case/deceased/'
 HEIRS_URL = '/api/v1/case/heirs/'
 
 
-class InterviewBase(TestCase):
+class InterviewHelpers:
     def setUp(self):
         cache.clear()
         self.client = APIClient(enforce_csrf_checks=True)
@@ -585,6 +585,9 @@ class InterviewBase(TestCase):
     def remaining(self):
         return (Session.objects.get().expire_date - timezone.now()).total_seconds()
 
+
+class InterviewBase(InterviewHelpers, TestCase):
+    pass
 
 
 class InterviewAnswerTests(InterviewBase):
@@ -1252,7 +1255,9 @@ PREVIEW_FIXTURES = json.loads(
     (Path(__file__).parent / 'contracts' / 'preview-fixtures.json').read_text(encoding='utf-8'))['fixtures']
 
 
-class PreviewTests(InterviewBase):
+# Engine-heavy tests are TransactionTestCase: inside TestCase's per-test transaction every
+# compute() and case write is a savepoint, and past 64 subtransactions PostgreSQL slows every query sharply.
+class PreviewTests(InterviewHelpers, TransactionTestCase):
     def preview(self, case_id, client=None, **extra):
         client = client or self.client
         url = f'{PREVIEW_URL}?{urlencode({"case_id": case_id})}' if case_id is not None else PREVIEW_URL
@@ -1640,19 +1645,23 @@ FIXTURES = json.loads(
     (Path(__file__).parent / 'contracts' / 'heir-options-fixtures.json').read_text(encoding='utf-8'))
 
 
-class HeirRulesTests(TestCase):
-    """The pure rules, held to the engine's own blocked flags."""
+class HeirRulesEngine:
+    """Holds the pure rules to the engine's own blocked flags."""
 
     @staticmethod
-    def engine_blocked(madhab, gender, family, candidate):
-        """Whether the engine blocks `candidate` when it joins `family` (a list of relationships).
+    def engine_blocked(madhab, gender, family, candidates):
+        """Which of `candidates` the engine blocks when each joins `family` (a list of
+        relationships) on its own, as {candidate: blocked}.
 
-        `get_quotes` sets the flags without distributing, so a family the radd refuses still
-        answers. Set the school and clear first, as `compute` does.
+        The family is built once and each candidate is tried in a savepoint that is rolled
+        back, so the family returns to its stored state before the next one. `get_quotes`
+        sets the flags without distributing, so a family the radd refuses still answers.
+        Set the school and clear first, as `compute` does.
         """
         from django.db import transaction
         from calc.models import Calculation as EngineCalculation, Deceased, Heir
         from api.preview import HEIR_CLASSES, SEX
+        answers = {}
         with transaction.atomic():
             try:
                 calc = EngineCalculation.objects.create(name='')
@@ -1660,16 +1669,23 @@ class HeirRulesTests(TestCase):
                 for relationship in family:
                     HEIR_CLASSES[relationship].objects.create(
                         sex=SEX[anonymous_case.RELATIONSHIPS[relationship]], calc=calc)
-                last = HEIR_CLASSES[candidate].objects.create(
-                    sex=SEX[anonymous_case.RELATIONSHIPS[candidate]], calc=calc)
-                calc.madhab = madhab
-                calc.clear()
-                calc.get_quotes()
-                blocked = Heir.objects.get(pk=last.pk).blocked
-                return blocked or (candidate in ('paternal_brother', 'paternal_sister')
-                                   and calc.paternal_siblings_counted_out())
+                for candidate in candidates:
+                    with transaction.atomic():
+                        try:
+                            last = HEIR_CLASSES[candidate].objects.create(
+                                sex=SEX[anonymous_case.RELATIONSHIPS[candidate]], calc=calc)
+                            calc.madhab = madhab
+                            calc.clear()
+                            calc.get_quotes()
+                            blocked = Heir.objects.get(pk=last.pk).blocked
+                            answers[candidate] = blocked or (
+                                candidate in ('paternal_brother', 'paternal_sister')
+                                and calc.paternal_siblings_counted_out())
+                        finally:
+                            transaction.set_rollback(True)
             finally:
                 transaction.set_rollback(True)
+        return answers
 
     @staticmethod
     def counts(family):
@@ -1678,10 +1694,15 @@ class HeirRulesTests(TestCase):
     def assert_agrees(self, madhab, family, candidates, genders=('female', 'male')):
         blocked = heir_rules.blocked_relationships(madhab, self.counts(family))
         for gender in genders:
+            engine = self.engine_blocked(madhab, gender, family, candidates)
             for candidate in candidates:
                 with self.subTest(madhab=madhab, gender=gender, family=family, candidate=candidate):
-                    self.assertEqual(
-                        candidate in blocked, self.engine_blocked(madhab, gender, family, candidate))
+                    self.assertEqual(candidate in blocked, engine[candidate])
+
+
+@tag('slow')
+class HeirRulesSingleHeirSweepTests(HeirRulesEngine, TransactionTestCase):
+    """The rules equal the engine for every single-heir family."""
 
     def test_rules_equal_the_engine_for_every_single_heir_family_under_every_sunni_school(self):
         relationships = list(anonymous_case.RELATIONSHIPS)
@@ -1689,6 +1710,11 @@ class HeirRulesTests(TestCase):
             self.assert_agrees(madhab, [], relationships)
             for existing in relationships:
                 self.assert_agrees(madhab, [existing], relationships)
+
+
+@tag('slow')
+class HeirRulesSeededSweepTests(HeirRulesEngine, TransactionTestCase):
+    """The rules equal the engine for a seeded sample of larger families."""
 
     def test_rules_equal_the_engine_for_a_seeded_sample_of_larger_families(self):
         rng = random.Random(16_2026)
@@ -1698,6 +1724,11 @@ class HeirRulesTests(TestCase):
                 family = [rng.choice(relationships) for _ in range(rng.randint(2, 7))]
                 self.assert_agrees(
                     madhab, family, rng.sample(relationships, 4), genders=(rng.choice(('female', 'male')),))
+
+
+@tag('slow')
+class HeirRulesDirectedSweepTests(HeirRulesEngine, TransactionTestCase):
+    """The rules equal the engine for directed families."""
 
     def test_rules_equal_the_engine_for_directed_families(self):
         relationships = list(anonymous_case.RELATIONSHIPS)
@@ -1734,6 +1765,10 @@ class HeirRulesTests(TestCase):
         for madhab in schools.SUNNI:
             for family in families:
                 self.assert_agrees(madhab, family, relationships)
+
+
+class HeirRulesTests(HeirRulesEngine, TransactionTestCase):
+    """The pure rules, held to the engine's own blocked flags."""
 
     def test_the_documented_cases(self):
         hanbali, hanafi = 'hanbali', 'hanafi'
@@ -1795,7 +1830,7 @@ class HeirRulesTests(TestCase):
                     self.assertIn(code, CONTRACT['errorCodes']['relationship'])
 
 
-class HeirRulesApiTests(InterviewBase):
+class HeirRulesApiTests(InterviewHelpers, TransactionTestCase):
     def setUp(self):
         super().setUp()
         self.case = self.start()

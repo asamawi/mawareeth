@@ -563,7 +563,7 @@ class WorkflowContractTests(SimpleTestCase):
             "python manage.py migrate --noinput",
             "python manage.py collectstatic --noinput",
             "python manage.py check --deploy --fail-level WARNING",
-            "python manage.py test",
+            "python manage.py test --parallel auto --durations 20",
         ]
         for command in required_commands:
             with self.subTest(command=command):

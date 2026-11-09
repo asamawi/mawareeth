@@ -41,3 +41,11 @@ dependencies = [
 
 [tool.uv]
 package = false
+# tblib lets parallel test runs report a failure's traceback; CI and the image
+# pass --no-default-groups, so CI asks for it with --group test.
+default-groups = ["test"]
+
+[dependency-groups]
+test = [
+    "tblib>=3.2.2",
+]

@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -263,6 +264,11 @@ DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
+
+# The default hasher is deliberately slow; tests create and log in many users, so
+# `manage.py test` (and the workers it spawns, which inherit argv) use a fast one.
+if sys.argv[1:2] == ["test"]:
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 AUTH_PASSWORD_VALIDATORS = [
     {

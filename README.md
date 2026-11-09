@@ -22,6 +22,22 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 Please make sure to update tests as appropriate.
 
+### Running the tests
+
+The tests need PostgreSQL. For a quick local run, keep the test database between runs and skip the exhaustive engine sweeps:
+
+```bash
+uv run python manage.py test --keepdb --parallel auto --exclude-tag slow
+```
+
+Run the full suite, as CI does, before opening a pull request:
+
+```bash
+uv run python manage.py test --keepdb --parallel auto
+```
+
+Tests that run the engine many times derive from `TransactionTestCase`, not `TestCase`. Inside `TestCase`'s per-test transaction each engine run is a savepoint, and once a transaction holds more than 64 subtransactions PostgreSQL slows every query sharply.
+
 ## License
 
 Mawareeth 2.0 is licensed under the GNU Affero General Public License v3.0 [AGPL-3.0](https://choosealicense.com/licenses/agpl-3.0/).

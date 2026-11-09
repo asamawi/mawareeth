@@ -55,7 +55,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --locked --no-default-groups
+          uv sync --locked --no-default-groups --group test
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Verify committed migrations
@@ -78,10 +78,22 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
         run: python manage.py check --deploy --fail-level WARNING
 
+      # The service database is thrown away after the job, so durability only
+      # costs time; all three settings take effect on reload.
+      - name: Turn off durability on the throwaway database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p ${{ job.services.postgres.ports[5432] }} -U postgres -d mydb_test -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET fsync = off" \
+            -c "ALTER SYSTEM SET synchronous_commit = off" \
+            -c "ALTER SYSTEM SET full_page_writes = off" \
+            -c "SELECT pg_reload_conf()"
+
       - name: Run tests
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
-        run: python manage.py test
+        run: python manage.py test --parallel auto --durations 20
 
   # Decides whether the slow deploy suites need to run. Anything unclear runs
   # them. On master the comparison starts from the last successful run, not the
