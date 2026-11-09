@@ -415,6 +415,15 @@ class Calculation(models.Model):
     def has_grandFather(self):
         return self.heir_set.instance_of(GrandFather).count() > 0
 
+    def grandmother_count(self):
+        """How many grandmothers of either line the family has that are not blocked. The
+        mother blocks both lines, and that case never reaches this count; the father blocks
+        only his own mother, and only under the schools where he does."""
+        count = self.heir_set.instance_of(MaternalGrandMother).count()
+        if not (self.has_father() and schools.father_blocks_his_mother(self.madhab)):
+            count += self.heir_set.instance_of(GrandMother).count()
+        return count
+
     def has_mohter(self):
         return self.heir_set.instance_of(Mother).count() > 0
 
@@ -584,6 +593,8 @@ class Calculation(models.Model):
                 continue
             if self.maternal_quote and isinstance(heir, (MaternalBrother, MaternalSister)):
                 key = 'maternal'
+            elif isinstance(heir, (GrandMother, MaternalGrandMother)):
+                key = 'grandmother'
             else:
                 key = type(heir)
             if key not in fixed:
@@ -840,6 +851,10 @@ class Calculation(models.Model):
         if schools.is_mushtaraka_family(self.live_counts(heirs)):
             tag([h for h in live if isinstance(h, (Brother, Sister, MaternalBrother, MaternalSister))],
                 schools.mushtaraka_rule(self.madhab))
+        if (any(isinstance(h, Father) for h in heirs) and any(isinstance(h, GrandMother) for h in heirs)
+                and not any(isinstance(h, Mother) for h in heirs)):
+            tag([h for h in heirs if isinstance(h, (GrandMother, MaternalGrandMother))],
+                schools.grandmother_rule(self.madhab))
         if radd_members:
             tag(radd_members, schools.radd_rule(self.madhab))
 
@@ -1224,7 +1239,7 @@ class GrandFather(Heir):
         return self.quote
 
 class GrandMother(Heir):
-    """GrandMother class"""
+    """GrandMother class: the paternal grandmother, the father's mother."""
     def add(self, calc):
         calc.deceased_set.first().add_grandMother(grandMother=self)
 
@@ -1233,12 +1248,34 @@ class GrandMother(Heir):
             self.blocked = True
             self.quote_reason = _("Grandmother is blocked by mother")
             self.set_basis('blocked', blocked_by='mother')
+        elif calc.has_father() and schools.father_blocks_his_mother(calc.madhab):
+            self.blocked = True
+            self.quote_reason = _("Paternal grandmother is blocked by father")
+            self.set_basis('blocked', blocked_by='father')
         else:
-            grandmothers = calc.heir_set.instance_of(GrandMother)
-            if grandmothers.count() > 1:
+            if calc.grandmother_count() > 1:
                 self.shared_quote = True
             self.set_quote(Fraction(1, 6))
             self.quote_reason = _("Grandmother gets 1/6 if no mother")
+            self.set_basis('fixed', 'no_mother')
+        self.save()
+        return self.quote
+
+class MaternalGrandMother(Heir):
+    """MaternalGrandMother class: the mother's mother."""
+    def add(self, calc):
+        pass
+
+    def get_quote(self, calc):
+        if calc.has_mohter():
+            self.blocked = True
+            self.quote_reason = _("Maternal grandmother is blocked by mother")
+            self.set_basis('blocked', blocked_by='mother')
+        else:
+            if calc.grandmother_count() > 1:
+                self.shared_quote = True
+            self.set_quote(Fraction(1, 6))
+            self.quote_reason = _("Maternal grandmother gets 1/6 if no mother")
             self.set_basis('fixed', 'no_mother')
         self.save()
         return self.quote
@@ -1816,7 +1853,7 @@ class SonOfPaternalUncle(Heir):
 # siblings, then nephews and uncles. A heir only depends on those before it.
 FIQH_ORDER = [
     Son, Daughter, SonOfSon, DaughterOfSon,
-    Father, GrandFather, Mother, GrandMother, Husband, Wife,
+    Father, GrandFather, Mother, GrandMother, MaternalGrandMother, Husband, Wife,
     Brother, Sister, PaternalBrother, PaternalSister, MaternalBrother, MaternalSister,
     SonOfBrother, SonOfPaternalBrother, Uncle, PaternalUncle, SonOfUncle, SonOfPaternalUncle,
 ]

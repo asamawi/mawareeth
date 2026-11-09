@@ -2434,10 +2434,6 @@ msgid "The classical position of this school has no radd, so the remainder canno
 msgstr "La position classique de cette école ne connaît pas le radd, donc le reste ne peut pas être réparti"
 
 #: calc/schools.py
-msgid "The case does not record which line the grandmother belongs to, so no result is given"
-msgstr "Le dossier n'indique pas la lignée de la grand-mère, donc aucun résultat n'est donné"
-
-#: calc/schools.py
 msgid "Mushtaraka: the full siblings share the maternal siblings' third equally"
 msgstr "Mushtaraka : les frères et sœurs germains partagent à parts égales le tiers des utérins"
 
@@ -2680,6 +2676,26 @@ msgstr "Coran 4:12 (An-Nisa)"
 #: calc/proof.py
 msgid "Quran 4:176 (An-Nisa)"
 msgstr "Coran 4:176 (An-Nisa)"
+
+#: calc/models.py
+msgid "Paternal grandmother is blocked by father"
+msgstr "La grand-mère paternelle est bloquée par le père"
+
+#: calc/models.py
+msgid "Maternal grandmother is blocked by mother"
+msgstr "La grand-mère maternelle est bloquée par la mère"
+
+#: calc/models.py
+msgid "Maternal grandmother gets 1/6 if no mother"
+msgstr "La grand-mère maternelle reçoit 1/6 s'il n'y a pas de mère"
+
+#: calc/proof.py
+msgid "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
+msgstr "Écoles hanafite, malikite et chafiite : le père exclut sa propre mère, la grand-mère paternelle"
+
+#: calc/proof.py
+msgid "Hanbali school: the paternal grandmother inherits although her son, the father, is alive"
+msgstr "École hanbalite : la grand-mère paternelle hérite même si son fils, le père, est vivant"
 
 #~ msgid "Son of paternal brother"
 #~ msgstr "Fils de frère paternel"

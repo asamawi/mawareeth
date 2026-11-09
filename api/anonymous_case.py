@@ -28,7 +28,8 @@ RELATIONSHIPS = {
     'son_of_son': 'male',
     'daughter_of_son': 'female',
     'grandfather': 'male',
-    'grandmother': 'female',
+    'paternal_grandmother': 'female',
+    'maternal_grandmother': 'female',
     'brother': 'male',
     'sister': 'female',
     'paternal_brother': 'male',
@@ -42,6 +43,8 @@ RELATIONSHIPS = {
     'son_of_uncle': 'male',
     'son_of_paternal_uncle': 'male',
 }
+# Ids that older sessions and clients still use, and the relationship they now mean.
+ALIASES = {'grandmother': 'paternal_grandmother'}
 MAX_HEIRS = 50
 MAX_NAME_LENGTH = 100
 ESTATE_PATTERN = re.compile(r'^([0-9]+)(?:([.,])([0-9]+))?$')
@@ -146,10 +149,17 @@ def clean_name(value):
     return text
 
 
+def canonical(relationship):
+    """The relationship id an alias stands for; anything else is returned as it came."""
+    if isinstance(relationship, str):
+        return ALIASES.get(relationship, relationship)
+    return relationship
+
+
 def clean_heir(data):
     """The heir's editable fields as {'relationship', 'name'}. Raises FieldErrors."""
     errors = {}
-    relationship = data.get('relationship')
+    relationship = canonical(data.get('relationship'))
     if relationship is None or relationship == '':
         errors['relationship'] = 'required'
     elif not isinstance(relationship, str) or relationship not in RELATIONSHIPS:
@@ -326,7 +336,7 @@ def add_heir(request, data, case_id):
         fields = clean_heir(data)
     except FieldErrors as invalid:
         errors.update(invalid.errors)
-    relationship = data.get('relationship')
+    relationship = canonical(data.get('relationship'))
     if isinstance(relationship, str) and relationship in RELATIONSHIPS:
         issue = heir_rules.kinship_code(
             relationship, current['deceased']['gender'], heir_rules.counts(current['heirs']))
@@ -358,7 +368,7 @@ def update_heir(request, heir_id, data, case_id):
         fields = clean_heir(data)
     except FieldErrors as invalid:
         errors.update(invalid.errors)
-    relationship = data.get('relationship')
+    relationship = canonical(data.get('relationship'))
     if isinstance(relationship, str) and relationship in RELATIONSHIPS:
         before = next(heir for heir in current['heirs'] if heir['id'] == heir_id)
         # An unchanged relationship always passes, so any saved heir can still be renamed.

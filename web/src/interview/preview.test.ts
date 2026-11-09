@@ -133,7 +133,7 @@ test("every refusal reason has a sentence in every language", () => {
     assert.deepEqual(Object.keys(messages[locale].interview.previewReasons).sort(), [...PREVIEW_REASONS].sort());
   }
   assert.match(messages.en.interview.previewReasons.radd_disputed, /public treasury/);
-  assert.match(messages.en.interview.previewReasons.grandmother_line_unknown, /not recorded/);
+  assert.ok(!("grandmother_line_unknown" in messages.en.interview.previewReasons));
 });
 
 test("the matrix's displayed rows", () => {

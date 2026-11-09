@@ -60,7 +60,7 @@ function check(layout: TreeLayout, count: number) {
 
 test("the lines are the table of the design notes", () => {
   assert.deepEqual(generationLines(), [
-    { line: 1, relationships: ["grandfather", "grandmother"] },
+    { line: 1, relationships: ["grandfather", "paternal_grandmother", "maternal_grandmother"] },
     { line: 2, relationships: ["father", "mother", "uncle", "paternal_uncle"] },
     {
       line: 3,

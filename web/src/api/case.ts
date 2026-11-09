@@ -20,7 +20,8 @@ export const RELATIONSHIP_IDS = [
   "son_of_son",
   "daughter_of_son",
   "grandfather",
-  "grandmother",
+  "paternal_grandmother",
+  "maternal_grandmother",
   "brother",
   "sister",
   "paternal_brother",
@@ -81,6 +82,8 @@ export const KINSHIP_CODES: readonly string[] = [
   "second_mother",
   "second_husband",
   "second_grandfather",
+  "second_paternal_grandmother",
+  "second_maternal_grandmother",
   "fifth_wife",
   "husband_of_male",
   "wife_of_female",
@@ -439,7 +442,6 @@ export const PREVIEW_REASONS = [
   "school_not_supported",
   "malikiyya_disputed",
   "radd_disputed",
-  "grandmother_line_unknown",
   "invalid_family",
 ] as const;
 

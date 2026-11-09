@@ -15,7 +15,7 @@ from api import anonymous_case, heir_rules
 from calc import proof as proof_codes, schools
 from calc.models import (
     Brother, Calculation, Daughter, DaughterOfSon, Deceased, Father, GrandFather, GrandMother,
-    Heir, Husband, MaternalBrother, MaternalSister, Mother, PaternalBrother, PaternalSister,
+    Heir, Husband, MaternalBrother, MaternalGrandMother, MaternalSister, Mother, PaternalBrother, PaternalSister,
     PaternalUncle, Sister, Son, SonOfBrother, SonOfPaternalBrother, SonOfPaternalUncle,
     SonOfSon, SonOfUncle, Uncle, Wife, money,
 )
@@ -31,7 +31,8 @@ HEIR_CLASSES = {
     'son_of_son': SonOfSon,
     'daughter_of_son': DaughterOfSon,
     'grandfather': GrandFather,
-    'grandmother': GrandMother,
+    'paternal_grandmother': GrandMother,
+    'maternal_grandmother': MaternalGrandMother,
     'brother': Brother,
     'sister': Sister,
     'paternal_brother': PaternalBrother,

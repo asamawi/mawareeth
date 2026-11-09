@@ -118,8 +118,8 @@ test("deceased: gender is required, estate is optional", () => {
   });
 });
 
-test("heir: relationship is required, from the 22 ids", () => {
-  assert.equal(RELATIONSHIP_IDS.length, 22);
+test("heir: relationship is required, from the 23 ids", () => {
+  assert.equal(RELATIONSHIP_IDS.length, 23);
   assert.deepEqual(validateHeir({ relationship: "", name: "" }).errors, { relationship: "required" });
   assert.deepEqual(validateHeir({ relationship: "cousin", name: "" }).errors, { relationship: "invalid" });
   assert.deepEqual(validateHeir({ relationship: "son", name: "x".repeat(101) }).errors, { name: "too_long" });
@@ -186,6 +186,8 @@ test("every error code the client or server can report has text in every locale"
       "second_mother",
       "second_husband",
       "second_grandfather",
+      "second_paternal_grandmother",
+      "second_maternal_grandmother",
       "fifth_wife",
       "husband_of_male",
       "wife_of_female",
@@ -409,7 +411,7 @@ test("the shared contract matches the relationship ids, their text and every err
     errorCodes: Record<string, string[]>;
   };
   assert.deepEqual([...RELATIONSHIP_IDS], contract.relationships.map((item) => item.id));
-  assert.equal(contract.relationships.length, 22);
+  assert.equal(contract.relationships.length, 23);
   for (const locale of locales) {
     const text = messages[locale].interview;
     assert.deepEqual(Object.keys(text.relationships), [...RELATIONSHIP_IDS], locale);

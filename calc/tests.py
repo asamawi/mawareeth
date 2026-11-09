@@ -1420,7 +1420,7 @@ F = Fraction
 
 HEIR_SEX = {
     Father: 'M', Mother: 'F', Husband: 'M', Wife: 'F', Daughter: 'F', Son: 'M',
-    Brother: 'M', Sister: 'F', GrandFather: 'M', GrandMother: 'F', SonOfSon: 'M',
+    Brother: 'M', Sister: 'F', GrandFather: 'M', GrandMother: 'F', MaternalGrandMother: 'F', SonOfSon: 'M',
     DaughterOfSon: 'F', PaternalSister: 'F', PaternalBrother: 'M', MaternalSister: 'F',
     MaternalBrother: 'M', SonOfBrother: 'M', SonOfPaternalBrother: 'M', Uncle: 'M',
     PaternalUncle: 'M', SonOfUncle: 'M', SonOfPaternalUncle: 'M',
@@ -1904,10 +1904,29 @@ SCHOOL_FIXTURES = [
     ('mother, daughter', (MALIKI, SHAFII), 'M', [Mother, Daughter], schools.RADD_DISPUTED),
     ('wife, grandmother', (MALIKI, SHAFII), 'M', [Wife, GrandMother], schools.RADD_DISPUTED),
     ('spouse alone', (MALIKI, SHAFII), 'M', [Wife], [F(1, 4)]),
-    ('father, grandmother', (HANAFI, MALIKI, SHAFII), 'M', [Father, GrandMother], schools.GRANDMOTHER_LINE_UNKNOWN),
-    ('two grandmothers', (HANAFI, MALIKI, SHAFII), 'M', [GrandMother, GrandMother], schools.GRANDMOTHER_LINE_UNKNOWN),
     ('one grandmother and a son is not refused', (HANAFI, MALIKI, SHAFII), 'M', [GrandMother, Son], [F(1, 6), F(5, 6)]),
-    ('father, grandmother, as Hanbali', (HANBALI,), 'M', [Father, GrandMother], [F(5, 6), F(1, 6)]),
+    ('mother blocks both grandmothers', SUNNI_SCHOOLS, 'M', [Mother, MaternalGrandMother, GrandMother, Son],
+     [F(1, 6), F(0), F(0), F(5, 6)]),
+    ('father, paternal and maternal grandmother', (HANBALI,), 'M', [Father, GrandMother, MaternalGrandMother],
+     [F(5, 6), F(1, 12), F(1, 12)]),
+    ('father blocks his mother', (HANAFI, MALIKI, SHAFII), 'M', [Father, GrandMother, MaternalGrandMother],
+     [F(5, 6), F(0), F(1, 6)]),
+    ('father, paternal grandmother', (HANBALI,), 'M', [Father, GrandMother], [F(5, 6), F(1, 6)]),
+    ('father, paternal grandmother', (HANAFI, MALIKI, SHAFII), 'M', [Father, GrandMother], [F(1), F(0)]),
+    ('father, maternal grandmother', SUNNI_SCHOOLS, 'M', [Father, MaternalGrandMother], [F(5, 6), F(1, 6)]),
+    ('both grandmothers share one sixth', SUNNI_SCHOOLS, 'M', [GrandMother, MaternalGrandMother, Son],
+     [F(1, 12), F(1, 12), F(5, 6)]),
+    ('grandfather does not block the grandmother', SUNNI_SCHOOLS, 'M', [GrandFather, GrandMother], [F(5, 6), F(1, 6)]),
+    ('grandfather does not block the maternal grandmother', SUNNI_SCHOOLS, 'M',
+     [GrandFather, MaternalGrandMother], [F(5, 6), F(1, 6)]),
+    ('wife, maternal grandmother', (HANAFI, HANBALI), 'M', [Wife, MaternalGrandMother], [F(1, 4), F(3, 4)]),
+    ('wife, maternal grandmother', (MALIKI, SHAFII), 'M', [Wife, MaternalGrandMother], schools.RADD_DISPUTED),
+    ('mushtaraka with both grandmothers', (MALIKI, SHAFII), 'F',
+     [Husband, MaternalGrandMother, GrandMother, MaternalBrother, MaternalBrother, Brother],
+     [F(1, 2), F(1, 12), F(1, 12), F(1, 9), F(1, 9), F(1, 9)]),
+    ('malikiyya with a maternal grandmother', (MALIKI,), 'F',
+     [Husband, MaternalGrandMother, GrandFather, MaternalBrother, MaternalBrother, PaternalBrother],
+     schools.MALIKIYYA_DISPUTED),
     ('jafari', (schools.JAFARI,), 'M', [Son], schools.SCHOOL_NOT_SUPPORTED),
 ]
 
@@ -1944,6 +1963,15 @@ class SchoolFixtureTests(TestCase):
                         self.assertEqual(stored(heir).amount, half_up(ESTATE, fraction))
                     assert_invariants(self, calc, heirs, outcome)
 
+    def test_a_blocked_grandmother_does_not_make_the_other_one_shared(self):
+        for madhab, shared in ((HANAFI, False), (MALIKI, False), (SHAFII, False), (HANBALI, True)):
+            with self.subTest(madhab):
+                _outcome, _calc, (_father, paternal, maternal) = run(
+                    'M', [Father, GrandMother, MaternalGrandMother], madhab)
+                self.assertEqual(stored(maternal).shared_quote, shared)
+                if shared:
+                    self.assertTrue(stored(paternal).shared_quote)
+
     def test_a_refusal_is_not_a_generic_failure(self):
         calc, _heirs = build_case('M', [Mother, Daughter])
         with self.assertRaises(schools.UnsupportedCase) as caught:
@@ -1972,7 +2000,7 @@ class SchoolFixtureTests(TestCase):
         self.assertNotIn('madhab', [f.name for f in Calculation._meta.get_fields()])
 
     def test_refused_run_then_normal_compute_gives_the_normal_result(self):
-        for madhab, sex, types in ((MALIKI, 'M', [Mother, Daughter]), (HANAFI, 'M', [Father, GrandMother]),
+        for madhab, sex, types in ((MALIKI, 'M', [Mother, Daughter]), (SHAFII, 'M', [Wife, MaternalGrandMother]),
                                    (schools.JAFARI, 'M', [Mother, Daughter])):
             with self.subTest(madhab):
                 calc, heirs = build_case(sex, types)
@@ -2004,6 +2032,9 @@ class SchoolFixtureTests(TestCase):
             "Sister/s are blocked by grandfather",
             "Paternal sister/s are blocked by grandfather",
             "Paternal brother/s are blocked by grandfather",
+            "Paternal grandmother is blocked by father",
+            "Maternal grandmother is blocked by mother",
+            "Maternal grandmother gets 1/6 if no mother",
         ]
         for lang in ('ar', 'en', 'fr'):
             catalog = gettext.translation('django', settings.BASE_DIR / 'locale', languages=[lang])
@@ -2025,9 +2056,9 @@ class SchoolInvariantTests(TestCase):
         """One pass over every family: invariants under each school, refusals bounded by
         school, no argument equal to Hanbali, and no difference from Hanbali but the listed ones."""
         allowed = {
-            HANAFI: {schools.GRANDMOTHER_LINE_UNKNOWN},
-            MALIKI: {schools.RADD_DISPUTED, schools.GRANDMOTHER_LINE_UNKNOWN, schools.MALIKIYYA_DISPUTED},
-            SHAFII: {schools.RADD_DISPUTED, schools.GRANDMOTHER_LINE_UNKNOWN},
+            HANAFI: set(),
+            MALIKI: {schools.RADD_DISPUTED, schools.MALIKIYYA_DISPUTED},
+            SHAFII: {schools.RADD_DISPUTED},
         }
         refused = {madhab: 0 for madhab in SUNNI_SCHOOLS}
         for sex, types in families():
@@ -2039,8 +2070,10 @@ class SchoolInvariantTests(TestCase):
                 continue
             expected = fingerprint(hanbali_calc, hanbali_heirs, hanbali)
             live = Calculation.live_counts([stored(h) for h in hanbali_heirs])
-            differs = {HANAFI: hanbali_calc.gf_shares_with_siblings(),
-                       MALIKI: schools.has_mushtaraka(MALIKI, live), SHAFII: schools.has_mushtaraka(SHAFII, live)}
+            father_and_his_mother = bool(live.get('Father') and live.get('GrandMother') and not live.get('Mother'))
+            differs = {HANAFI: hanbali_calc.gf_shares_with_siblings() or father_and_his_mother,
+                       MALIKI: schools.has_mushtaraka(MALIKI, live) or father_and_his_mother,
+                       SHAFII: schools.has_mushtaraka(SHAFII, live) or father_and_his_mother}
             with self.subTest(f'no argument: {sex}: {[t.__name__ for t in types]}'):
                 plain, plain_calc, plain_heirs = run(sex, types)
                 self.assertEqual(fingerprint(plain_calc, plain_heirs, plain), expected)
@@ -2054,7 +2087,8 @@ class SchoolInvariantTests(TestCase):
                     assert_invariants(self, calc, heirs, outcome)
                     if not differs[madhab]:
                         self.assertEqual(fingerprint(calc, heirs, outcome), expected)
-        for madhab in (HANAFI, MALIKI, SHAFII):
+        self.assertEqual(refused[HANAFI], 0)
+        for madhab in (MALIKI, SHAFII):
             self.assertGreater(refused[madhab], 0, madhab)
 
     def test_agreed_family_matches_in_all_four_schools(self):
@@ -2213,6 +2247,30 @@ class ProofMatrixTests(TestCase):
                     self.assertEqual(entry_of(proof, heir)['school_rule'], 'mushtaraka')
                     self.assertIsNone(entry_of(proof, heir)['verse'])
                 self.assertEqual(proof['school_rules'], ['mushtaraka'])
+
+    def test_the_father_rule_for_his_mother_is_named_by_school(self):
+        for madhab, rule in ((HANBALI, 'grandmother_inherits_with_her_son'), (HANAFI, 'father_blocks_his_mother'),
+                             (MALIKI, 'father_blocks_his_mother'), (SHAFII, 'father_blocks_his_mother')):
+            with self.subTest(madhab):
+                proof, (father, paternal, maternal), _outcome = proof_run(
+                    'M', [Father, GrandMother, MaternalGrandMother], madhab)
+                self.assertEqual(proof['school_rules'], [rule])
+                self.assertEqual(entry_of(proof, paternal)['school_rule'], rule)
+                self.assertEqual(entry_of(proof, maternal)['school_rule'], rule)
+                self.assertEqual(entry_of(proof, paternal)['relationship'], 'paternal_grandmother')
+                self.assertEqual(entry_of(proof, maternal)['relationship'], 'maternal_grandmother')
+                blocked = madhab != HANBALI
+                self.assertEqual(entry_of(proof, paternal)['blocked_by'], 'father' if blocked else None)
+                self.assertEqual(entry_of(proof, paternal)['rule'], 'blocked' if blocked else 'fixed')
+
+    def test_no_grandmother_rule_is_named_when_the_mother_or_no_father_decides(self):
+        for madhab in SUNNI_SCHOOLS:
+            for types in ([Mother, GrandMother, MaternalGrandMother, Son], [Father, MaternalGrandMother],
+                          [GrandMother, MaternalGrandMother, Son], [Father, Mother, GrandMother]):
+                with self.subTest(f'{madhab} {[t.__name__ for t in types]}'):
+                    proof, _heirs, _outcome = proof_run('M', types, madhab)
+                    self.assertFalse({'father_blocks_his_mother', 'grandmother_inherits_with_her_son'}
+                                     & set(proof['school_rules']))
 
     def test_hanafi_and_hanbali_keep_the_brother_residuary(self):
         types = [Husband, Mother, MaternalBrother, MaternalBrother, Brother]

@@ -2364,10 +2364,6 @@ msgid "The classical position of this school has no radd, so the remainder canno
 msgstr "The classical position of this school has no radd, so the remainder cannot be shared out"
 
 #: calc/schools.py
-msgid "The case does not record which line the grandmother belongs to, so no result is given"
-msgstr "The case does not record which line the grandmother belongs to, so no result is given"
-
-#: calc/schools.py
 msgid "Mushtaraka: the full siblings share the maternal siblings' third equally"
 msgstr "Mushtaraka: the full siblings share the maternal siblings' third equally"
 
@@ -2610,6 +2606,26 @@ msgstr "Quran 4:12 (An-Nisa)"
 #: calc/proof.py
 msgid "Quran 4:176 (An-Nisa)"
 msgstr "Quran 4:176 (An-Nisa)"
+
+#: calc/models.py
+msgid "Paternal grandmother is blocked by father"
+msgstr "Paternal grandmother is blocked by father"
+
+#: calc/models.py
+msgid "Maternal grandmother is blocked by mother"
+msgstr "Maternal grandmother is blocked by mother"
+
+#: calc/models.py
+msgid "Maternal grandmother gets 1/6 if no mother"
+msgstr "Maternal grandmother gets 1/6 if no mother"
+
+#: calc/proof.py
+msgid "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
+msgstr "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
+
+#: calc/proof.py
+msgid "Hanbali school: the paternal grandmother inherits although her son, the father, is alive"
+msgstr "Hanbali school: the paternal grandmother inherits although her son, the father, is alive"
 
 #~ msgid "Son of paternal brother"
 #~ msgstr "Son of paternal brother"

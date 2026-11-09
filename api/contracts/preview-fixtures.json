@@ -2344,14 +2344,14 @@
       "display": null
     },
     {
-      "title": "Hanafi grandmother line is not recorded",
+      "title": "Hanafi father blocks his mother, the maternal grandmother takes the sixth",
       "case": {
         "id": "c1",
         "started_at": "2026-11-07T10:00:00Z",
         "madhab": "hanafi",
         "deceased": {
           "gender": "male",
-          "estate": "1000"
+          "estate": "1200"
         },
         "heirs": [
           {
@@ -2362,20 +2362,25 @@
           },
           {
             "id": "h2",
-            "relationship": "grandmother",
+            "relationship": "paternal_grandmother",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h3",
+            "relationship": "maternal_grandmother",
             "gender": "female",
             "name": null
           }
         ]
       },
       "response": {
-        "status": "unavailable",
+        "status": "available",
         "madhab": "hanafi",
-        "reason": "grandmother_line_unknown",
         "basis": {
           "madhab": "hanafi",
           "gender": "male",
-          "estate": "1000",
+          "estate": "1200",
           "heirs": [
             {
               "id": "h1",
@@ -2383,12 +2388,360 @@
             },
             {
               "id": "h2",
-              "relationship": "grandmother"
+              "relationship": "paternal_grandmother"
+            },
+            {
+              "id": "h3",
+              "relationship": "maternal_grandmother"
             }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 5,
+            "denominator": 6,
+            "blocked": false,
+            "amount": "1000.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 0,
+            "denominator": 1,
+            "blocked": true,
+            "amount": "0.00"
+          },
+          {
+            "heir_id": "h3",
+            "numerator": 1,
+            "denominator": 6,
+            "blocked": false,
+            "amount": "200.00"
+          }
+        ],
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "hanafi",
+          "school_rules": [
+            "father_blocks_his_mother"
+          ],
+          "heirs": [
+            {
+              "heir": "h1",
+              "relationship": "father",
+              "rule": "residuary",
+              "condition": "no_descendant",
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 5,
+                "denominator": 6
+              },
+              "verse": "4:11",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Residuary heir, who takes what is left",
+                "condition": "There is no descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h2",
+              "relationship": "paternal_grandmother",
+              "rule": "blocked",
+              "condition": null,
+              "blocked_by": "father",
+              "fraction": null,
+              "share": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "verse": null,
+              "school_rule": "father_blocks_his_mother",
+              "option": null,
+              "labels": {
+                "rule": "Blocked from inheriting",
+                "condition": null,
+                "blocked_by": "Blocked by the father",
+                "verse": null,
+                "school_rule": "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother",
+                "option": null
+              }
+            },
+            {
+              "heir": "h3",
+              "relationship": "maternal_grandmother",
+              "rule": "fixed",
+              "condition": "no_mother",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "verse": null,
+              "school_rule": "father_blocks_his_mother",
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is no mother",
+                "blocked_by": null,
+                "verse": null,
+                "school_rule": "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother",
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 6,
+              "label": "The common base of the fixed shares"
+            }
+          ],
+          "school_rule_labels": [
+            "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
           ]
         }
       },
-      "display": null
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "5/6",
+            "percent": "83.3",
+            "amount": "1000.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": true,
+            "fraction": null,
+            "percent": null,
+            "amount": null
+          },
+          {
+            "heirId": "h3",
+            "blocked": false,
+            "fraction": "1/6",
+            "percent": "16.7",
+            "amount": "200.00"
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Hanbali father and both grandmothers",
+      "case": {
+        "id": "c1",
+        "started_at": "2026-11-07T10:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "male",
+          "estate": "1200"
+        },
+        "heirs": [
+          {
+            "id": "h1",
+            "relationship": "father",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "h2",
+            "relationship": "paternal_grandmother",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "h3",
+            "relationship": "maternal_grandmother",
+            "gender": "female",
+            "name": null
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanbali",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "male",
+          "estate": "1200",
+          "heirs": [
+            {
+              "id": "h1",
+              "relationship": "father"
+            },
+            {
+              "id": "h2",
+              "relationship": "paternal_grandmother"
+            },
+            {
+              "id": "h3",
+              "relationship": "maternal_grandmother"
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 5,
+            "denominator": 6,
+            "blocked": false,
+            "amount": "1000.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 1,
+            "denominator": 12,
+            "blocked": false,
+            "amount": "100.00"
+          },
+          {
+            "heir_id": "h3",
+            "numerator": 1,
+            "denominator": 12,
+            "blocked": false,
+            "amount": "100.00"
+          }
+        ],
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "hanbali",
+          "school_rules": [
+            "grandmother_inherits_with_her_son"
+          ],
+          "heirs": [
+            {
+              "heir": "h1",
+              "relationship": "father",
+              "rule": "residuary",
+              "condition": "no_descendant",
+              "blocked_by": null,
+              "fraction": null,
+              "share": {
+                "numerator": 5,
+                "denominator": 6
+              },
+              "verse": "4:11",
+              "school_rule": null,
+              "option": null,
+              "labels": {
+                "rule": "Residuary heir, who takes what is left",
+                "condition": "There is no descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": null,
+                "option": null
+              }
+            },
+            {
+              "heir": "h2",
+              "relationship": "paternal_grandmother",
+              "rule": "fixed",
+              "condition": "no_mother",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 12
+              },
+              "verse": null,
+              "school_rule": "grandmother_inherits_with_her_son",
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is no mother",
+                "blocked_by": null,
+                "verse": null,
+                "school_rule": "Hanbali school: the paternal grandmother inherits although her son, the father, is alive",
+                "option": null
+              }
+            },
+            {
+              "heir": "h3",
+              "relationship": "maternal_grandmother",
+              "rule": "fixed",
+              "condition": "no_mother",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 12
+              },
+              "verse": null,
+              "school_rule": "grandmother_inherits_with_her_son",
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is no mother",
+                "blocked_by": null,
+                "verse": null,
+                "school_rule": "Hanbali school: the paternal grandmother inherits although her son, the father, is alive",
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 6,
+              "label": "The common base of the fixed shares"
+            },
+            {
+              "step": "correction",
+              "value": 12,
+              "label": "Correction: the base is multiplied so that every heir gets whole parts"
+            }
+          ],
+          "school_rule_labels": [
+            "Hanbali school: the paternal grandmother inherits although her son, the father, is alive"
+          ]
+        }
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "5/6",
+            "percent": "83.3",
+            "amount": "1000.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": false,
+            "fraction": "1/12",
+            "percent": "8.3",
+            "amount": "100.00"
+          },
+          {
+            "heirId": "h3",
+            "blocked": false,
+            "fraction": "1/12",
+            "percent": "8.3",
+            "amount": "100.00"
+          }
+        ],
+        "unallocated": null
+      }
     },
     {
       "title": "Maliki Malikiyya is refused",

@@ -9,7 +9,8 @@
     { "id": "son_of_son", "gender": "male" },
     { "id": "daughter_of_son", "gender": "female" },
     { "id": "grandfather", "gender": "male" },
-    { "id": "grandmother", "gender": "female" },
+    { "id": "paternal_grandmother", "gender": "female" },
+    { "id": "maternal_grandmother", "gender": "female" },
     { "id": "brother", "gender": "male" },
     { "id": "sister", "gender": "female" },
     { "id": "paternal_brother", "gender": "male" },
@@ -28,11 +29,11 @@
     "estate": ["invalid", "not_positive", "too_large", "decimals"],
     "relationship": [
       "required", "invalid", "second_father", "second_mother", "second_husband",
-      "second_grandfather", "fifth_wife", "husband_of_male", "wife_of_female"
+      "second_grandfather", "second_paternal_grandmother", "second_maternal_grandmother", "fifth_wife", "husband_of_male", "wife_of_female"
     ],
     "name": ["invalid", "too_long"],
     "heirs": ["limit"],
     "case": ["deceased_required"]
   },
-  "previewReasons": ["school_not_supported", "malikiyya_disputed", "radd_disputed", "grandmother_line_unknown", "invalid_family"]
+  "previewReasons": ["school_not_supported", "malikiyya_disputed", "radd_disputed", "invalid_family"]
 }

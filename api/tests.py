@@ -687,7 +687,7 @@ class InterviewAnswerTests(InterviewBase):
         self.assertEqual(self.live()['heirs'], heirs)
 
     def test_every_relationship_is_accepted_with_the_gender_in_the_contract(self):
-        self.assertEqual(len(CONTRACT['relationships']), 22)
+        self.assertEqual(len(CONTRACT['relationships']), 23)
         for expected in CONTRACT['relationships']:
             with self.subTest(relationship=expected['id']):
                 # One case each: a family holds only relatives it can have together.
@@ -1469,14 +1469,15 @@ class PreviewTests(InterviewBase):
         literal = {
             'father': 'Father', 'mother': 'Mother', 'husband': 'Husband', 'wife': 'Wife', 'son': 'Son',
             'daughter': 'Daughter', 'son_of_son': 'SonOfSon', 'daughter_of_son': 'DaughterOfSon',
-            'grandfather': 'GrandFather', 'grandmother': 'GrandMother', 'brother': 'Brother',
+            'grandfather': 'GrandFather', 'paternal_grandmother': 'GrandMother',
+            'maternal_grandmother': 'MaternalGrandMother', 'brother': 'Brother',
             'sister': 'Sister', 'paternal_brother': 'PaternalBrother', 'paternal_sister': 'PaternalSister',
             'maternal_brother': 'MaternalBrother', 'maternal_sister': 'MaternalSister',
             'son_of_brother': 'SonOfBrother', 'son_of_paternal_brother': 'SonOfPaternalBrother',
             'uncle': 'Uncle', 'paternal_uncle': 'PaternalUncle', 'son_of_uncle': 'SonOfUncle',
             'son_of_paternal_uncle': 'SonOfPaternalUncle',
         }
-        self.assertEqual(len(literal), 22)
+        self.assertEqual(len(literal), 23)
         self.assertEqual({key: cls.__name__ for key, cls in HEIR_CLASSES.items()}, literal)
         self.assertEqual(len(set(HEIR_CLASSES.values())), len(HEIR_CLASSES))
         for relationship, cls in HEIR_CLASSES.items():
@@ -1496,7 +1497,7 @@ class PreviewTests(InterviewBase):
             ('hanbali', 'male', '8000', ['wife', 'son']),
             ('jafari', 'male', None, ['son']),
             ('maliki', 'female', None, ['mother', 'daughter']),
-            ('hanafi', 'male', None, ['father', 'grandmother']),
+            ('hanafi', 'male', None, ['father', 'paternal_grandmother']),
             ('hanbali', 'male', None, ['husband']),
             ('hanbali', 'male', None, []),
         ]
@@ -1700,7 +1701,12 @@ class HeirRulesTests(TestCase):
             ['grandfather', 'sister', 'paternal_brother', 'paternal_sister'],
             ['grandfather', 'brother', 'sister'],
             ['grandfather', 'father'],
-            ['mother', 'grandmother', 'maternal_sister'],
+            ['mother', 'paternal_grandmother', 'maternal_sister'],
+            ['mother', 'paternal_grandmother', 'maternal_grandmother'],
+            ['father', 'paternal_grandmother', 'maternal_grandmother'],
+            ['father', 'maternal_grandmother'],
+            ['grandfather', 'paternal_grandmother', 'maternal_grandmother'],
+            ['paternal_grandmother', 'son'],
             ['brother', 'son_of_brother', 'son_of_paternal_brother', 'uncle'],
             ['paternal_brother', 'son_of_brother', 'paternal_uncle', 'son_of_uncle'],
             ['sister', 'daughter', 'son_of_paternal_brother', 'uncle', 'paternal_uncle'],
@@ -1723,7 +1729,9 @@ class HeirRulesTests(TestCase):
     def test_kinship_codes(self):
         for relationship, code in (
                 ('father', 'second_father'), ('mother', 'second_mother'),
-                ('husband', 'second_husband'), ('grandfather', 'second_grandfather')):
+                ('husband', 'second_husband'), ('grandfather', 'second_grandfather'),
+                ('paternal_grandmother', 'second_paternal_grandmother'),
+                ('maternal_grandmother', 'second_maternal_grandmother')):
             self.assertEqual(heir_rules.kinship_code(relationship, 'female', {relationship: 1}), code)
         self.assertEqual(heir_rules.kinship_code('wife', 'male', {'wife': 4}), 'fifth_wife')
         self.assertIsNone(heir_rules.kinship_code('wife', 'male', {'wife': 3}))
@@ -1849,7 +1857,9 @@ class HeirRulesApiTests(InterviewBase):
 
     def test_a_second_of_a_single_relative_has_its_own_code(self):
         for relationship, code in (('father', 'second_father'), ('mother', 'second_mother'),
-                                   ('grandfather', 'second_grandfather')):
+                                   ('grandfather', 'second_grandfather'),
+                                   ('paternal_grandmother', 'second_paternal_grandmother'),
+                                   ('maternal_grandmother', 'second_maternal_grandmother')):
             with self.subTest(relationship=relationship):
                 self.fresh()
                 self.assertEqual(self.add(relationship).status_code, 201)
@@ -1862,7 +1872,9 @@ class HeirRulesApiTests(InterviewBase):
 
     def test_editing_into_a_second_of_one_is_refused_and_nothing_is_stored(self):
         for relationship, code in (('father', 'second_father'), ('mother', 'second_mother'),
-                                   ('grandfather', 'second_grandfather')):
+                                   ('grandfather', 'second_grandfather'),
+                                   ('paternal_grandmother', 'second_paternal_grandmother'),
+                                   ('maternal_grandmother', 'second_maternal_grandmother')):
             with self.subTest(relationship=relationship):
                 self.fresh()
                 self.add(relationship)
@@ -1930,6 +1942,52 @@ class HeirRulesApiTests(InterviewBase):
         ])
         for heir_id, relationship in ((first, 'father'), ('second', 'father'), ('spouse', 'husband')):
             self.assertEqual(self.edit(heir_id, relationship, name='Renamed').status_code, 200)
+
+    def test_grandmother_is_an_alias_of_the_paternal_grandmother(self):
+        response = self.add('grandmother', name='Amal')
+        self.assertEqual(response.status_code, 201)
+        heir = response.json()['case']['heirs'][0]
+        self.assertEqual((heir['relationship'], heir['gender']), ('paternal_grandmother', 'female'))
+        self.assertEqual(self.stored()['heirs'][0]['relationship'], 'paternal_grandmother')
+        # the alias meets the same limit as the new id, in both directions
+        self.assertEqual(self.errors(self.add('grandmother')), {'relationship': 'second_paternal_grandmother'})
+        self.assertEqual(self.errors(self.add('paternal_grandmother')),
+                         {'relationship': 'second_paternal_grandmother'})
+        self.assertEqual(self.add('maternal_grandmother').status_code, 201)
+        # an edit by the alias, and a rename that keeps it
+        other = self.add('son').json()['case']['heirs'][2]['id']
+        self.assertEqual(self.errors(self.edit(other, 'grandmother')),
+                         {'relationship': 'second_paternal_grandmother'})
+        self.assertEqual(self.edit(heir['id'], 'grandmother', name='Renamed').status_code, 200)
+        self.assertEqual(self.stored()['heirs'][0]['relationship'], 'paternal_grandmother')
+
+    def test_a_stored_grandmother_is_read_labelled_and_previewed_as_the_paternal_one(self):
+        self.fresh(madhab='hanafi')
+        self.plant(heirs=[
+            {'id': 'old', 'relationship': 'grandmother', 'gender': 'female', 'name': None},
+            {'id': 'dad', 'relationship': 'father', 'gender': 'male', 'name': None},
+        ])
+        live = self.live()
+        self.assertEqual([h['relationship'] for h in live['heirs']], ['paternal_grandmother', 'father'])
+        self.assertEqual(live['heirs'][0]['gender'], 'female')
+        self.assertEqual(live['heir_options']['invalid']['paternal_grandmother'], 'second_paternal_grandmother')
+        self.assertNotIn('maternal_grandmother', live['heir_options']['blocked'])
+        body = self.preview_body()
+        self.assertEqual(body['status'], 'available')
+        self.assertEqual(body['basis']['heirs'][0], {'id': 'old', 'relationship': 'paternal_grandmother'})
+        shares = {share['heir_id']: (share['numerator'], share['denominator']) for share in body['shares']}
+        self.assertEqual(shares, {'old': (0, 1), 'dad': (1, 1)})
+
+    def test_the_paternal_grandmother_is_labelled_blocked_by_school(self):
+        for madhab, labelled in (('hanafi', True), ('maliki', True), ('shafii', True), ('hanbali', False)):
+            with self.subTest(madhab):
+                self.fresh(madhab=madhab)
+                self.add('father')
+                blocked = self.live()['heir_options']['blocked']
+                self.assertEqual('paternal_grandmother' in blocked, labelled)
+                self.assertNotIn('maternal_grandmother', blocked)
+        self.add('mother')
+        self.assertIn('maternal_grandmother', self.live()['heir_options']['blocked'])
 
     def test_kinship_wins_over_hajb(self):
         self.add('father')

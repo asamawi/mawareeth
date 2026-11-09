@@ -17,6 +17,8 @@ SECOND_OF = {
     'mother': 'second_mother',
     'husband': 'second_husband',
     'grandfather': 'second_grandfather',
+    'paternal_grandmother': 'second_paternal_grandmother',
+    'maternal_grandmother': 'second_maternal_grandmother',
 }
 MAX_WIVES = 4
 FIFTH_WIFE = 'fifth_wife'
@@ -118,7 +120,9 @@ def _is_blocked(relationship, madhab, c):
         return False
     if relationship == 'grandfather':
         return bool(father)
-    if relationship == 'grandmother':
+    if relationship == 'paternal_grandmother':
+        return bool(c['mother'] or (father and schools.father_blocks_his_mother(madhab)))
+    if relationship == 'maternal_grandmother':
         return bool(c['mother'])
     if relationship == 'son_of_son':
         return bool(c['son'])
@@ -173,7 +177,7 @@ def _facts(counts):
 
 # The relationships the engine can ever block. The others are never labelled.
 BLOCKABLE = (
-    'son_of_son', 'daughter_of_son', 'grandfather', 'grandmother', 'brother', 'sister',
+    'son_of_son', 'daughter_of_son', 'grandfather', 'paternal_grandmother', 'maternal_grandmother', 'brother', 'sister',
     'paternal_brother', 'paternal_sister', 'maternal_brother', 'maternal_sister', 'son_of_brother',
     'son_of_paternal_brother', 'uncle', 'paternal_uncle', 'son_of_uncle', 'son_of_paternal_uncle',
 )

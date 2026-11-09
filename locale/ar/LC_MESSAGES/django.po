@@ -2314,10 +2314,6 @@ msgid "The classical position of this school has no radd, so the remainder canno
 msgstr "لا يقول هذا المذهب في موقفه الكلاسيكي بالرد، لذلك لا يمكن توزيع الباقي"
 
 #: calc/schools.py
-msgid "The case does not record which line the grandmother belongs to, so no result is given"
-msgstr "لا تسجّل المسألة جهة الجدة، لذلك لا تُعطى نتيجة"
-
-#: calc/schools.py
 msgid "Mushtaraka: the full siblings share the maternal siblings' third equally"
 msgstr "المشتركة: الأشقاء يشاركون الإخوة لأم في ثلثهم بالتساوي"
 
@@ -2560,6 +2556,26 @@ msgstr "القرآن الكريم، سورة النساء، الآية 12"
 #: calc/proof.py
 msgid "Quran 4:176 (An-Nisa)"
 msgstr "القرآن الكريم، سورة النساء، الآية 176"
+
+#: calc/models.py
+msgid "Paternal grandmother is blocked by father"
+msgstr "الجدة لأب محجوبة بالأب"
+
+#: calc/models.py
+msgid "Maternal grandmother is blocked by mother"
+msgstr "الجدة لأم محجوبة بالأم"
+
+#: calc/models.py
+msgid "Maternal grandmother gets 1/6 if no mother"
+msgstr "الجدة لأم تأخذ السدس في حال عدم وجود الأم"
+
+#: calc/proof.py
+msgid "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
+msgstr "المذاهب الحنفي والمالكي والشافعي: الأب يحجب أمه، وهي الجدة لأب"
+
+#: calc/proof.py
+msgid "Hanbali school: the paternal grandmother inherits although her son, the father, is alive"
+msgstr "المذهب الحنبلي: الجدة لأب ترث مع وجود ابنها، وهو الأب"
 
 #~ msgid "Son of paternal brother"
 #~ msgstr "ابن أخ لأب"

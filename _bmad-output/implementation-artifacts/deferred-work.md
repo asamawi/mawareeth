@@ -355,6 +355,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
   summary: Record the line of each grandmother (mother's or father's side) so Hanafi, Maliki and Shafi'i can calculate cases with a grandmother and a father, or with two grandmothers.
   evidence: These cases raise `UnsupportedCase` with `grandmother_line_unknown`, because those schools block and share grandmothers by line.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-2-3-expanded-multi-school-coverage-beyond-standard-cases.md`; the existing grandmother became the paternal grandmother, a maternal grandmother was added, and `grandmother_line_unknown` was removed
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
   summary: Decide whether Maliki should also refuse the family like Malikiyya but with a full brother (Shibh al-Malikiyya), which Story 2.1 calculates by the general grandfather rule.
   evidence: The spec's matrix refuses only the paternal-brother form and says anything unlisted matches Hanbali, but the author's understanding is that Malik rules on the full-brother form the same way, so a Maliki visitor could get a number their school disputes. This needs the qualified review.
@@ -385,6 +386,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
   summary: Decide whether a limit on grandmothers is needed.
   evidence: Only one grandmother line is modelled and the rules accept any number of grandmothers, since the engine does not refuse them; the spec added no limit beyond its matrix.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-2-3-expanded-multi-school-coverage-beyond-standard-cases.md`; a second paternal or maternal grandmother is refused with `second_paternal_grandmother` and `second_maternal_grandmother`
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
   summary: Check the engine's grandfather-with-siblings rule (mu'adda) against the schools that use it, for example a grandfather, a full brother and a paternal brother, where the paternal brother is counted against the grandfather and then gets nothing.
   evidence: Review of Story 1.6 found that the engine, and the hajb labels that copy it, treat the paternal brother as sharing with the grandfather even when a full brother is present. That is an engine fiqh question, out of scope for 1.6, which must not change engine rules.
@@ -412,3 +414,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-2-deterministic-proof-output-for-multi-school-results.md`
   summary: Say in the proof when a fixed share is split among several heirs of one type (e.g. two wives each with fraction 1/8 and share 1/16), with a count or a 'shared' condition, so the gap between fraction and share is explained.
   evidence: Story 2.2 review found wives and grandmothers keep their single-heir condition while their share is the group's fraction divided among them; changing it alters the version-1 proof contract and every fixture, so it needs its own change.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-3-expanded-multi-school-coverage-beyond-standard-cases.md`
+  summary: Give Maliki and Shafi'i the later scholars' radd in place of the `radd_disputed` refusal: as in Hanbali, the remainder returns to the non-spouse sharers in proportion, a spouse alone still leaves it unallocated, and the proof tags those heirs `radd_later_scholars` (Hanafi and Hanbali keep `radd`).
+  evidence: The project owner chose this position on 2026-11-09 while scoping Story 2.3, then split it out to keep the spec within size; it is engine-only (`calc/models.py` radd at `:684-701`, `schools.allows_radd`) and turns the `radd_disputed` tests and the "Maliki radd is refused" preview fixture into results.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-3-expanded-multi-school-coverage-beyond-standard-cases.md`
+  summary: Make the mu'adda explicit for Maliki, Shafi'i and Hanbali and make the hajb labels follow it: paternal siblings counted against the grandfather are labelled blocked when a full brother is present, or when full sisters are residuary with a daughter or son's daughter and take the whole siblings' pool (daughter, grandfather, sister, paternal sister gives 1/2, 1/4, 1/4, 0); the Ashariyya's paternal brother still inherits.
+  evidence: The project owner ruled on 2026-11-09 that the paternal sister is wholly blocked there because the full sister became residuary with the daughter and took all the remainder. The engine already gives these zeros by arithmetic (`calc/models.py:636-657`), but `api/heir_rules.py:139-151` never labels paternal siblings blocked when a grandfather is present. Split from Story 2.3 to keep the spec within size.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-3-expanded-multi-school-coverage-beyond-standard-cases.md`
+  summary: Have a qualified reviewer read the grandmother rules, labels and positions added by Story 2.3.
+  evidence: Unreviewed: the matrix of grandmother positions (father blocks his mother under Hanafi, Maliki and Shafi'i, not under Hanbali; the mother blocks both; unblocked grandmothers share one sixth), the school-rule codes `father_blocks_his_mother` and `grandmother_inherits_with_her_son` and their three-language labels, the new relationship labels (paternal and maternal grandmother, in Arabic and French) and the new engine and kinship messages in the three `django.po` files. The father rule is tagged on both grandmothers of the family, which a reviewer should confirm.

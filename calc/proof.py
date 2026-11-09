@@ -60,7 +60,8 @@ VERSE_CODES = ('4:11', '4:12', '4:176')
 RELATIONSHIPS = {
     'Father': 'father', 'Mother': 'mother', 'Husband': 'husband', 'Wife': 'wife', 'Son': 'son',
     'Daughter': 'daughter', 'SonOfSon': 'son_of_son', 'DaughterOfSon': 'daughter_of_son',
-    'GrandFather': 'grandfather', 'GrandMother': 'grandmother', 'Brother': 'brother', 'Sister': 'sister',
+    'GrandFather': 'grandfather', 'GrandMother': 'paternal_grandmother',
+    'MaternalGrandMother': 'maternal_grandmother', 'Brother': 'brother', 'Sister': 'sister',
     'PaternalBrother': 'paternal_brother', 'PaternalSister': 'paternal_sister',
     'MaternalBrother': 'maternal_brother', 'MaternalSister': 'maternal_sister',
     'SonOfBrother': 'son_of_brother', 'SonOfPaternalBrother': 'son_of_paternal_brother',
@@ -125,6 +126,8 @@ LABELS = {
         schools.MUSHTARAKA: _("Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third"),
         schools.NO_MUSHTARAKA: _("Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third"),
         schools.RADD: _("The remainder is returned to the heirs in proportion to their shares"),
+        schools.FATHER_BLOCKS_HIS_MOTHER: _("Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"),
+        schools.GRANDMOTHER_INHERITS_WITH_HER_SON: _("Hanbali school: the paternal grandmother inherits although her son, the father, is alive"),
     },
     'option': {
         'muqasama': _("Sharing the estate with the siblings as one more brother"),

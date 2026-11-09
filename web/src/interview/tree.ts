@@ -6,7 +6,7 @@ import type { Messages } from "../i18n/messages.ts";
  * Order within a line follows the order of these lists, then the order added.
  */
 const LINES: readonly (readonly RelationshipId[])[] = [
-  ["grandfather", "grandmother"],
+  ["grandfather", "paternal_grandmother", "maternal_grandmother"],
   ["father", "mother", "uncle", "paternal_uncle"],
   [
     "husband",
