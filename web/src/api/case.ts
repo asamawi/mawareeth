@@ -441,7 +441,6 @@ export function removeHeir(
 export const PREVIEW_REASONS = [
   "school_not_supported",
   "malikiyya_disputed",
-  "radd_disputed",
   "invalid_family",
 ] as const;
 

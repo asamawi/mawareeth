@@ -2297,7 +2297,7 @@
       "display": null
     },
     {
-      "title": "Maliki radd is refused",
+      "title": "Maliki mother and daughter take radd by the later scholars",
       "case": {
         "id": "c1",
         "started_at": "2026-11-07T10:00:00Z",
@@ -2322,9 +2322,8 @@
         ]
       },
       "response": {
-        "status": "unavailable",
+        "status": "available",
         "madhab": "maliki",
-        "reason": "radd_disputed",
         "basis": {
           "madhab": "maliki",
           "gender": "female",
@@ -2339,9 +2338,120 @@
               "relationship": "daughter"
             }
           ]
+        },
+        "shares": [
+          {
+            "heir_id": "h1",
+            "numerator": 1,
+            "denominator": 4,
+            "blocked": false,
+            "amount": "250.00"
+          },
+          {
+            "heir_id": "h2",
+            "numerator": 3,
+            "denominator": 4,
+            "blocked": false,
+            "amount": "750.00"
+          }
+        ],
+        "unallocated": null,
+        "proof": {
+          "version": 1,
+          "madhab": "maliki",
+          "school_rules": [
+            "radd_later_scholars"
+          ],
+          "heirs": [
+            {
+              "heir": "h2",
+              "relationship": "daughter",
+              "rule": "fixed",
+              "condition": "single",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "share": {
+                "numerator": 3,
+                "denominator": 4
+              },
+              "verse": "4:11",
+              "school_rule": "radd_later_scholars",
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "Only one of this kind of heir",
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": "Later Maliki and Shafi'i scholars: the remainder is returned to the heirs other than a spouse, in proportion to their shares",
+                "option": null
+              }
+            },
+            {
+              "heir": "h1",
+              "relationship": "mother",
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "share": {
+                "numerator": 1,
+                "denominator": 4
+              },
+              "verse": "4:11",
+              "school_rule": "radd_later_scholars",
+              "option": null,
+              "labels": {
+                "rule": "Fixed share",
+                "condition": "There is a descendant",
+                "blocked_by": null,
+                "verse": "Quran 4:11 (An-Nisa)",
+                "school_rule": "Later Maliki and Shafi'i scholars: the remainder is returned to the heirs other than a spouse, in proportion to their shares",
+                "option": null
+              }
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "value": 6,
+              "label": "The common base of the fixed shares"
+            },
+            {
+              "step": "radd",
+              "value": 4,
+              "label": "Radd: the shares are recalculated so that the remainder returns to the heirs"
+            }
+          ],
+          "school_rule_labels": [
+            "Later Maliki and Shafi'i scholars: the remainder is returned to the heirs other than a spouse, in proportion to their shares"
+          ]
         }
       },
-      "display": null
+      "display": {
+        "rows": [
+          {
+            "heirId": "h1",
+            "blocked": false,
+            "fraction": "1/4",
+            "percent": "25.0",
+            "amount": "250.00"
+          },
+          {
+            "heirId": "h2",
+            "blocked": false,
+            "fraction": "3/4",
+            "percent": "75.0",
+            "amount": "750.00"
+          }
+        ],
+        "unallocated": null
+      }
     },
     {
       "title": "Hanafi father blocks his mother, the maternal grandmother takes the sixth",

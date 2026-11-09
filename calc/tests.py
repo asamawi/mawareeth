@@ -1867,6 +1867,9 @@ HANAFI, MALIKI, SHAFII, HANBALI = schools.HANAFI, schools.MALIKI, schools.SHAFII
 MUSHTARAKA_REASON = "Mushtaraka: the full siblings share the maternal siblings' third equally"
 
 # (title, schools, deceased sex, heirs, [expected fraction of the whole estate per heir] or a refusal reason code)
+# The Malikiyya family, which only Maliki refuses.
+MALIKIYYA = [Husband, Mother, GrandFather, MaternalBrother, MaternalBrother, PaternalBrother]
+
 SCHOOL_FIXTURES = [
     ('grandfather, brother', (HANBALI,), 'M', [GrandFather, Brother], [F(1, 2), F(1, 2)]),
     ('grandfather, brother', (HANAFI,), 'M', [GrandFather, Brother], [F(1), F(0)]),
@@ -1890,9 +1893,9 @@ SCHOOL_FIXTURES = [
      [F(1, 2), F(1, 6), F(1, 12), F(1, 12), F(1, 12), F(1, 12)]),
     ('no full brother, so no sharing, awl to 9', (MALIKI, SHAFII), 'F',
      [Husband, Mother, MaternalBrother, MaternalBrother, Sister], [F(3, 9), F(1, 9), F(1, 9), F(1, 9), F(3, 9)]),
-    ('muqasama', (SHAFII,), 'F', [Husband, Mother, GrandFather, MaternalBrother, MaternalBrother, PaternalBrother],
+    ('muqasama', (SHAFII,), 'F', MALIKIYYA,
      [F(1, 2), F(1, 6), F(1, 6), F(0), F(0), F(1, 6)]),
-    ('malikiyya', (MALIKI,), 'F', [Husband, Mother, GrandFather, MaternalBrother, MaternalBrother, PaternalBrother],
+    ('malikiyya', (MALIKI,), 'F', MALIKIYYA,
      schools.MALIKIYYA_DISPUTED),
     ('malikiyya with a grandmother', (MALIKI,), 'F',
      [Husband, GrandMother, GrandFather, MaternalBrother, MaternalBrother, PaternalBrother],
@@ -1901,8 +1904,10 @@ SCHOOL_FIXTURES = [
      [Husband, Mother, GrandFather, MaternalBrother, PaternalBrother], [F(1, 2), F(1, 6), F(1, 6), F(0), F(1, 6)]),
     ('no paternal brother is not the malikiyya', (MALIKI,), 'F',
      [Husband, Mother, GrandFather, MaternalBrother, MaternalBrother], [F(1, 2), F(1, 6), F(1, 3), F(0), F(0)]),
-    ('mother, daughter', (MALIKI, SHAFII), 'M', [Mother, Daughter], schools.RADD_DISPUTED),
-    ('wife, grandmother', (MALIKI, SHAFII), 'M', [Wife, GrandMother], schools.RADD_DISPUTED),
+    ('mother, daughter', (MALIKI, SHAFII), 'M', [Mother, Daughter], [F(1, 4), F(3, 4)]),
+    ('wife, grandmother', (MALIKI, SHAFII), 'M', [Wife, GrandMother], [F(1, 4), F(3, 4)]),
+    ('radd with a spouse, as Hanbali', (MALIKI, SHAFII), 'M', [Wife, Mother, Daughter, Daughter, Daughter],
+     [F(1, 8), F(7, 40), F(7, 30), F(7, 30), F(7, 30)]),
     ('spouse alone', (MALIKI, SHAFII), 'M', [Wife], [F(1, 4)]),
     ('one grandmother and a son is not refused', (HANAFI, MALIKI, SHAFII), 'M', [GrandMother, Son], [F(1, 6), F(5, 6)]),
     ('mother blocks both grandmothers', SUNNI_SCHOOLS, 'M', [Mother, MaternalGrandMother, GrandMother, Son],
@@ -1920,7 +1925,7 @@ SCHOOL_FIXTURES = [
     ('grandfather does not block the maternal grandmother', SUNNI_SCHOOLS, 'M',
      [GrandFather, MaternalGrandMother], [F(5, 6), F(1, 6)]),
     ('wife, maternal grandmother', (HANAFI, HANBALI), 'M', [Wife, MaternalGrandMother], [F(1, 4), F(3, 4)]),
-    ('wife, maternal grandmother', (MALIKI, SHAFII), 'M', [Wife, MaternalGrandMother], schools.RADD_DISPUTED),
+    ('wife, maternal grandmother', (MALIKI, SHAFII), 'M', [Wife, MaternalGrandMother], [F(1, 4), F(3, 4)]),
     ('mushtaraka with both grandmothers', (MALIKI, SHAFII), 'F',
      [Husband, MaternalGrandMother, GrandMother, MaternalBrother, MaternalBrother, Brother],
      [F(1, 2), F(1, 12), F(1, 12), F(1, 9), F(1, 9), F(1, 9)]),
@@ -1973,10 +1978,10 @@ class SchoolFixtureTests(TestCase):
                     self.assertTrue(stored(paternal).shared_quote)
 
     def test_a_refusal_is_not_a_generic_failure(self):
-        calc, _heirs = build_case('M', [Mother, Daughter])
+        calc, _heirs = build_case('F', MALIKIYYA)
         with self.assertRaises(schools.UnsupportedCase) as caught:
             calc.compute(madhab=MALIKI)
-        self.assertEqual(caught.exception.reason, schools.RADD_DISPUTED)
+        self.assertEqual(caught.exception.reason, schools.MALIKIYYA_DISPUTED)
         self.assertNotIsInstance(caught.exception, ValueError)
         self.assertTrue(caught.exception.message)
 
@@ -2000,7 +2005,7 @@ class SchoolFixtureTests(TestCase):
         self.assertNotIn('madhab', [f.name for f in Calculation._meta.get_fields()])
 
     def test_refused_run_then_normal_compute_gives_the_normal_result(self):
-        for madhab, sex, types in ((MALIKI, 'M', [Mother, Daughter]), (SHAFII, 'M', [Wife, MaternalGrandMother]),
+        for madhab, sex, types in ((MALIKI, 'F', MALIKIYYA),
                                    (schools.JAFARI, 'M', [Mother, Daughter])):
             with self.subTest(madhab):
                 calc, heirs = build_case(sex, types)
@@ -2057,8 +2062,8 @@ class SchoolInvariantTests(TestCase):
         school, no argument equal to Hanbali, and no difference from Hanbali but the listed ones."""
         allowed = {
             HANAFI: set(),
-            MALIKI: {schools.RADD_DISPUTED, schools.MALIKIYYA_DISPUTED},
-            SHAFII: {schools.RADD_DISPUTED},
+            MALIKI: {schools.MALIKIYYA_DISPUTED},
+            SHAFII: set(),
         }
         refused = {madhab: 0 for madhab in SUNNI_SCHOOLS}
         for sex, types in families():
@@ -2088,8 +2093,8 @@ class SchoolInvariantTests(TestCase):
                     if not differs[madhab]:
                         self.assertEqual(fingerprint(calc, heirs, outcome), expected)
         self.assertEqual(refused[HANAFI], 0)
-        for madhab in (MALIKI, SHAFII):
-            self.assertGreater(refused[madhab], 0, madhab)
+        # families() holds no Malikiyya family, so no school refuses any of them
+        self.assertEqual(refused, {madhab: 0 for madhab in SUNNI_SCHOOLS})
 
     def test_agreed_family_matches_in_all_four_schools(self):
         for sex, types in (('M', [Wife, Mother, Son, Daughter]), ('M', [Father, Mother, Daughter]),
@@ -2120,7 +2125,7 @@ class SchoolInvariantTests(TestCase):
                                      fingerprint(backward_calc, backward_heirs, backward))
 
     def test_core_families_match_the_reference_under_every_school(self):
-        checked = refused = 0
+        checked = 0
         spouses = [('M', count, 0) for count in range(5)] + [('F', 0, 0), ('F', 0, 1)]
         for sex, wives, husband in spouses:
             for father, mother, sons, daughters in product((0, 1), (0, 1), range(4), range(4)):
@@ -2130,27 +2135,25 @@ class SchoolInvariantTests(TestCase):
                          + [Son] * sons + [Daughter] * daughters)
                 expected = core_family_reference(wives, husband, father, mother, sons, daughters)
                 hanbali = run(sex, types, HANBALI)
-                needs_radd = hanbali[1].shortage and not father
                 for madhab in SUNNI_SCHOOLS:
                     with self.subTest(label(madhab, sex, types)):
                         outcome, calc, heirs = hanbali if madhab == HANBALI else run(sex, types, madhab)
-                        if madhab in (MALIKI, SHAFII) and needs_radd:
-                            self.assertEqual(outcome, schools.RADD_DISPUTED)
-                            refused += 1
-                            continue
+                        self.assertNotIsInstance(outcome, str)
                         groups = {}
                         for heir in heirs:
                             groups[type(heir)] = groups.get(type(heir), F(0)) + outcome[heir.pk]
                         self.assertEqual(groups, expected)
                         checked += 1
-        self.assertGreater(refused, 0)
-        self.assertEqual(checked + refused, 446 * 4)
+        self.assertEqual(checked, 446 * 4)
 
 
 # Proof of a result
 # ---------------------------------------------------------------------------
 
 from calc import proof as proof_module
+
+
+RADD_CODES = {HANAFI: 'radd', HANBALI: 'radd', MALIKI: 'radd_later_scholars', SHAFII: 'radd_later_scholars'}
 
 
 def proof_run(sex, types, madhab):
@@ -2294,19 +2297,27 @@ class ProofMatrixTests(TestCase):
                 self.assertEqual(step_names(proof), ['base', 'awl'])
 
     def test_radd(self):
-        for madhab in (HANAFI, HANBALI):
+        for madhab, code in RADD_CODES.items():
             with self.subTest(madhab):
                 proof, heirs, _outcome = proof_run('M', [Mother, Daughter], madhab)
                 self.assertIn('radd', step_names(proof))
-                self.assertEqual(proof['school_rules'], ['radd'])
+                self.assertEqual(proof['school_rules'], [code])
                 for heir in heirs:
-                    self.assertEqual(entry_of(proof, heir)['school_rule'], 'radd')
-        for madhab in (MALIKI, SHAFII):
-            with self.subTest(madhab):
-                calc, _heirs = build_case('M', [Mother, Daughter])
-                with self.assertRaises(schools.UnsupportedCase):
-                    calc.compute(madhab=madhab)
-                self.assertIsNone(calc.proof)
+                    self.assertEqual(entry_of(proof, heir)['school_rule'], code)
+
+    def test_later_scholars_radd_proof_is_hanbalis_but_for_the_code(self):
+        for sex, types in (('M', [Wife, Mother, Daughter, Daughter, Daughter]), ('M', [Wife, GrandMother])):
+            hanbali, _heirs, _outcome = proof_run(sex, types, HANBALI)
+            for madhab in (MALIKI, SHAFII):
+                with self.subTest(f'{madhab}: {[t.__name__ for t in types]}'):
+                    proof, heirs, _outcome = proof_run(sex, types, madhab)
+                    self.assertEqual(proof['steps'], hanbali['steps'])
+                    self.assertEqual(proof['school_rules'], ['radd_later_scholars'])
+                    for mine, theirs in zip(proof['heirs'], hanbali['heirs']):
+                        self.assertEqual(mine['share'], theirs['share'])
+                    for heir in heirs:
+                        expected = None if isinstance(heir, Wife) else 'radd_later_scholars'
+                        self.assertEqual(entry_of(proof, heir)['school_rule'], expected)
 
     def test_a_spouse_alone_leaves_an_unallocated_part(self):
         for madhab in SUNNI_SCHOOLS:
@@ -2346,23 +2357,23 @@ class ProofMatrixTests(TestCase):
         self.assertEqual(entry_of(proof, brother)['condition'], 'with_grandfather')
 
     def test_radd_with_a_spouse_reports_the_base_the_shares_end_in(self):
-        for madhab in (HANAFI, HANBALI):
+        for madhab, code in RADD_CODES.items():
             with self.subTest(f'{madhab}: one radd group'):
                 # wife 1/8, daughter 7/8: the base is the wife denominator, 8
                 proof, (wife, daughter), _outcome = proof_run('M', [Wife, Daughter], madhab)
                 self.assertEqual(proof['steps'], [{'step': 'base', 'value': 8}, {'step': 'radd', 'value': 8}])
                 self.assertIsNone(entry_of(proof, wife)['school_rule'])
-                self.assertEqual(entry_of(proof, daughter)['school_rule'], 'radd')
+                self.assertEqual(entry_of(proof, daughter)['school_rule'], code)
             with self.subTest(f'{madhab}: two radd groups'):
                 # wife 1/8, mother 7/32, daughter 21/32: the shares end in thirty-seconds
                 proof, (wife, mother, daughter), _outcome = proof_run('M', [Wife, Mother, Daughter], madhab)
                 self.assertEqual(proof['steps'], [{'step': 'base', 'value': 24}, {'step': 'radd', 'value': 32}])
                 self.assertIsNone(entry_of(proof, wife)['school_rule'])
                 for heir in (mother, daughter):
-                    self.assertEqual(entry_of(proof, heir)['school_rule'], 'radd')
+                    self.assertEqual(entry_of(proof, heir)['school_rule'], code)
                 self.assertEqual(entry_of(proof, mother)['share'], {'numerator': 7, 'denominator': 32})
                 self.assertEqual(entry_of(proof, daughter)['share'], {'numerator': 21, 'denominator': 32})
-                self.assertEqual(proof['school_rules'], ['radd'])
+                self.assertEqual(proof['school_rules'], [code])
 
     def test_a_proof_without_a_basis_or_a_known_class_is_refused(self):
         share = F(1)
@@ -2394,7 +2405,7 @@ class ProofMatrixTests(TestCase):
         with self.assertRaises(schools.UnsupportedCase):
             calc.compute(madhab=schools.JAFARI)
         self.assertIsNone(calc.proof)
-        calc, _heirs = build_case('M', [Mother, Daughter])
+        calc, _heirs = build_case('F', MALIKIYYA)
         calc.compute(madhab=HANBALI)
         self.assertIsNotNone(calc.proof)
         with self.assertRaises(schools.UnsupportedCase):

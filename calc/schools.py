@@ -19,7 +19,6 @@ DEFAULT = HANBALI
 
 SCHOOL_NOT_SUPPORTED = 'school_not_supported'
 MALIKIYYA_DISPUTED = 'malikiyya_disputed'
-RADD_DISPUTED = 'radd_disputed'
 
 # The school rules a proof can name where the schools diverge. Stable codes, never translated here.
 GRANDFATHER_BLOCKS_SIBLINGS = 'grandfather_blocks_siblings'
@@ -27,15 +26,15 @@ GRANDFATHER_SHARES_WITH_SIBLINGS = 'grandfather_shares_with_siblings'
 MUSHTARAKA = 'mushtaraka'
 NO_MUSHTARAKA = 'no_mushtaraka'
 RADD = 'radd'
+RADD_LATER_SCHOLARS = 'radd_later_scholars'
 FATHER_BLOCKS_HIS_MOTHER = 'father_blocks_his_mother'
 GRANDMOTHER_INHERITS_WITH_HER_SON = 'grandmother_inherits_with_her_son'
 SCHOOL_RULES = (GRANDFATHER_BLOCKS_SIBLINGS, GRANDFATHER_SHARES_WITH_SIBLINGS, MUSHTARAKA, NO_MUSHTARAKA, RADD,
-                FATHER_BLOCKS_HIS_MOTHER, GRANDMOTHER_INHERITS_WITH_HER_SON)
+                RADD_LATER_SCHOLARS, FATHER_BLOCKS_HIS_MOTHER, GRANDMOTHER_INHERITS_WITH_HER_SON)
 
 REASONS = {
     SCHOOL_NOT_SUPPORTED: _("This school of law is not supported yet"),
     MALIKIYYA_DISPUTED: _("The Malikiyya case is disputed within the Maliki school, so no result is given"),
-    RADD_DISPUTED: _("The classical position of this school has no radd, so the remainder cannot be shared out"),
 }
 
 
@@ -105,8 +104,8 @@ def grandfather_rule(madhab):
 
 
 def radd_rule(madhab):
-    """The school rule that lets the remainder go back to the heirs, or None when the school has none."""
-    return RADD if allows_radd(madhab) else None
+    """The school rule that lets the remainder go back to the heirs. Maliki and Shafi'i follow the later scholars."""
+    return RADD_LATER_SCHOLARS if madhab in (MALIKI, SHAFII) else RADD
 
 
 def is_malikiyya_family(madhab, live, maternal_count):
@@ -119,11 +118,6 @@ def is_malikiyya_family(madhab, live, maternal_count):
             and live.get('GrandFather', 0) == 1
             and live.get('PaternalBrother', 0) >= 1
             and maternal_count >= 2)
-
-
-def allows_radd(madhab):
-    """Maliki and Shafi'i classically give the remainder to the public treasury."""
-    return madhab not in (MALIKI, SHAFII)
 
 
 def check_school(madhab):

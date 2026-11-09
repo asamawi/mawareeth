@@ -352,6 +352,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
   summary: Decide whether to give radd to Maliki and Shafi'i cases where later scholars of those schools permit it, and what the engine should do with a remainder when they do not.
   evidence: Any case that needs radd raises `UnsupportedCase` with `radd_disputed` under Maliki and Shafi'i, because the classical position gives the remainder to the public treasury and the engine has no place to put it.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-maliki-shafii-later-radd.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
   summary: Record the line of each grandmother (mother's or father's side) so Hanafi, Maliki and Shafi'i can calculate cases with a grandmother and a father, or with two grandmothers.
   evidence: These cases raise `UnsupportedCase` with `grandmother_line_unknown`, because those schools block and share grandmothers by line.
@@ -362,6 +363,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
   summary: Have the refusal text explain that the classical Maliki and Shafi'i position gives the remainder to the public treasury, before Story 1.5 shows it to visitors.
   evidence: The `radd_disputed` message says only that the remainder cannot be shared out, which does not tell a visitor why, and the Arabic and French text is unreviewed.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-maliki-shafii-later-radd.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-5-real-time-share-preview-from-supported-engine-cases.md`
   summary: Show each heir's share on its tree node, with the fiqh citation and proof, in Story 2.2.
   evidence: Story 1.5 shows shares in a list under the form only, and the spec rules out shares on tree nodes, citations and proof.
@@ -417,9 +419,13 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-expanded-multi-school-coverage-beyond-standard-cases.md`
   summary: Give Maliki and Shafi'i the later scholars' radd in place of the `radd_disputed` refusal: as in Hanbali, the remainder returns to the non-spouse sharers in proportion, a spouse alone still leaves it unallocated, and the proof tags those heirs `radd_later_scholars` (Hanafi and Hanbali keep `radd`).
   evidence: The project owner chose this position on 2026-11-09 while scoping Story 2.3, then split it out to keep the spec within size; it is engine-only (`calc/models.py` radd at `:684-701`, `schools.allows_radd`) and turns the `radd_disputed` tests and the "Maliki radd is refused" preview fixture into results.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-maliki-shafii-later-radd.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-expanded-multi-school-coverage-beyond-standard-cases.md`
   summary: Make the mu'adda explicit for Maliki, Shafi'i and Hanbali and make the hajb labels follow it: paternal siblings counted against the grandfather are labelled blocked when a full brother is present, or when full sisters are residuary with a daughter or son's daughter and take the whole siblings' pool (daughter, grandfather, sister, paternal sister gives 1/2, 1/4, 1/4, 0); the Ashariyya's paternal brother still inherits.
   evidence: The project owner ruled on 2026-11-09 that the paternal sister is wholly blocked there because the full sister became residuary with the daughter and took all the remainder. The engine already gives these zeros by arithmetic (`calc/models.py:636-657`), but `api/heir_rules.py:139-151` never labels paternal siblings blocked when a grandfather is present. Split from Story 2.3 to keep the spec within size.
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-expanded-multi-school-coverage-beyond-standard-cases.md`
   summary: Have a qualified reviewer read the grandmother rules, labels and positions added by Story 2.3.
   evidence: Unreviewed: the matrix of grandmother positions (father blocks his mother under Hanafi, Maliki and Shafi'i, not under Hanbali; the mother blocks both; unblocked grandmothers share one sixth), the school-rule codes `father_blocks_his_mother` and `grandmother_inherits_with_her_son` and their three-language labels, the new relationship labels (paternal and maternal grandmother, in Arabic and French) and the new engine and kinship messages in the three `django.po` files. The father rule is tagged on both grandmothers of the family, which a reviewer should confirm.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-maliki-shafii-later-radd.md`
+  summary: Have a qualified reviewer and native Arabic and French speakers check the `radd_later_scholars` label ("Later Maliki and Shafi'i scholars: ...", "المتأخرون من المالكية والشافعية ...", "Les savants malikites et chaféites tardifs ...") and whether the plain `radd` label should also say that a spouse takes no radd.
+  evidence: The label states a fiqh position for two schools and was written without review; review of this change flagged the French "tardifs" as awkward and the plain radd label as silent on the spouse.

@@ -703,8 +703,6 @@ class Calculation(models.Model):
         if extra is not None and extra_remainder > 0:
             extra.final = extra.amount + extra_remainder
         radd = bool(radd_groups) and total < 1
-        if radd and not schools.allows_radd(self.madhab):
-            raise UnsupportedCase(schools.RADD_DISPUTED)
         if radd:
             spouse_total = sum((g.amount for g in groups if g.is_spouse()), zero)
             radd_total = sum((g.amount for g in radd_groups), zero)

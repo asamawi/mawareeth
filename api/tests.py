@@ -1368,6 +1368,8 @@ class PreviewTests(InterviewBase):
         self.assertEqual(by_title['Maliki mushtaraka shares the third']['proof']['school_rules'], ['mushtaraka'])
         self.assertEqual(by_title['Hanafi keeps the full brother residuary']['proof']['school_rules'], ['no_mushtaraka'])
         self.assertEqual(by_title['Hanafi mother and daughter need radd']['proof']['school_rules'], ['radd'])
+        self.assertEqual(by_title['Maliki mother and daughter take radd by the later scholars']['proof']['school_rules'],
+                         ['radd_later_scholars'])
         steps = [s['step'] for s in by_title['Husband and two sisters need awl']['proof']['steps']]
         self.assertEqual(steps, ['base', 'awl'])
 
@@ -1390,8 +1392,18 @@ class PreviewTests(InterviewBase):
         self.assertEqual(english['school_rule_labels'],
                          ['Hanafi school: the grandfather blocks the full and paternal siblings'])
 
+    def test_the_later_scholars_label_is_translated(self):
+        fixture = next(f for f in PREVIEW_FIXTURES
+                       if f['title'] == 'Maliki mother and daughter take radd by the later scholars')
+        case = fixture['case']
+        live = self.build(case['madhab'], case['deceased']['gender'], case['deceased']['estate'],
+                          [heir['relationship'] for heir in case['heirs']])
+        arabic = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='ar').json()['proof']
+        self.assertEqual(arabic['school_rules'], ['radd_later_scholars'])
+        self.assertTrue(any('؀' <= ch <= 'ۿ' for ch in arabic['school_rule_labels'][0]))
+
     def test_a_refused_case_has_no_proof(self):
-        for title in ('Jafari is not supported', 'Maliki radd is refused', 'Impossible family'):
+        for title in ('Jafari is not supported', 'Impossible family'):
             response = next(f['response'] for f in PREVIEW_FIXTURES if f['title'] == title)
             self.assertEqual(response['status'], 'unavailable')
             self.assertNotIn('proof', response)
@@ -1496,7 +1508,7 @@ class PreviewTests(InterviewBase):
         outcomes = [
             ('hanbali', 'male', '8000', ['wife', 'son']),
             ('jafari', 'male', None, ['son']),
-            ('maliki', 'female', None, ['mother', 'daughter']),
+            ('maliki', 'female', None, ['husband', 'mother', 'grandfather', 'maternal_brother', 'maternal_brother', 'paternal_brother']),
             ('hanafi', 'male', None, ['father', 'paternal_grandmother']),
             ('hanbali', 'male', None, ['husband']),
             ('hanbali', 'male', None, []),

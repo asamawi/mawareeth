@@ -2360,10 +2360,6 @@ msgid "The Malikiyya case is disputed within the Maliki school, so no result is 
 msgstr "The Malikiyya case is disputed within the Maliki school, so no result is given"
 
 #: calc/schools.py
-msgid "The classical position of this school has no radd, so the remainder cannot be shared out"
-msgstr "The classical position of this school has no radd, so the remainder cannot be shared out"
-
-#: calc/schools.py
 msgid "Mushtaraka: the full siblings share the maternal siblings' third equally"
 msgstr "Mushtaraka: the full siblings share the maternal siblings' third equally"
 
@@ -2562,6 +2558,10 @@ msgstr "Hanafi and Hanbali schools: the full siblings stay residuary heirs and d
 #: calc/proof.py
 msgid "The remainder is returned to the heirs in proportion to their shares"
 msgstr "The remainder is returned to the heirs in proportion to their shares"
+
+#: calc/proof.py
+msgid "Later Maliki and Shafi'i scholars: the remainder is returned to the heirs other than a spouse, in proportion to their shares"
+msgstr "Later Maliki and Shafi'i scholars: the remainder is returned to the heirs other than a spouse, in proportion to their shares"
 
 #: calc/proof.py
 msgid "Sharing the estate with the siblings as one more brother"

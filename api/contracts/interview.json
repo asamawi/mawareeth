@@ -35,5 +35,5 @@
     "heirs": ["limit"],
     "case": ["deceased_required"]
   },
-  "previewReasons": ["school_not_supported", "malikiyya_disputed", "radd_disputed", "invalid_family"]
+  "previewReasons": ["school_not_supported", "malikiyya_disputed", "invalid_family"]
 }

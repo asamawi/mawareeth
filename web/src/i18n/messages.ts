@@ -290,7 +290,6 @@ export const messages: Record<Locale, Messages> = {
       previewReasons: {
         school_not_supported: "المذهب الجعفري غير مدعوم بعد، فلا تُعرض أنصبة.",
         malikiyya_disputed: "اختلف علماء المذهب المالكي في هذه الحالة (المالكية)، فلا تُعرض أنصبة.",
-        radd_disputed: "الموقف الكلاسيكي لهذا المذهب يجعل الباقي لبيت المال، ولا تحسبه هذه الأداة، فلا تُعرض أنصبة.",
         invalid_family: "هذه الأسرة غير ممكنة (مثل أكثر من أب واحد، أو زوج لمتوفى ذكر)، فلا تُعرض أنصبة. يرجى مراجعة الورثة.",
       },
       previewFailed: "تعذّر تحميل المعاينة. بيانات الأسرة محفوظة، ويمكنك المتابعة.",
@@ -463,7 +462,6 @@ export const messages: Record<Locale, Messages> = {
       previewReasons: {
         school_not_supported: "The Jafari school is not supported yet, so no shares are shown.",
         malikiyya_disputed: "Scholars of the Maliki school disagree about this family (the Malikiyya case), so no shares are shown.",
-        radd_disputed: "The classical position of this school gives the remainder to the public treasury, which this tool does not calculate, so no shares are shown.",
         invalid_family: "This family is not possible (for example two fathers, or a husband for a male deceased), so no shares are shown. Please check the heirs.",
       },
       previewFailed: "The preview could not be loaded. Your family details are saved, and you can continue.",
@@ -636,7 +634,6 @@ export const messages: Record<Locale, Messages> = {
       previewReasons: {
         school_not_supported: "L'école jafarite n'est pas encore prise en charge, aucune part n'est donc affichée.",
         malikiyya_disputed: "Les savants de l'école malikite divergent sur cette famille (le cas de la Malikiyya), aucune part n'est donc affichée.",
-        radd_disputed: "La position classique de cette école donne le reste au trésor public, ce que cet outil ne calcule pas, aucune part n'est donc affichée.",
         invalid_family: "Cette famille n'est pas possible (par exemple deux pères, ou un mari pour un défunt de sexe masculin), aucune part n'est donc affichée. Vérifiez les héritiers.",
       },
       previewFailed: "L'aperçu n'a pas pu être chargé. Les informations de la famille sont enregistrées et vous pouvez continuer.",

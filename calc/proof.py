@@ -126,6 +126,7 @@ LABELS = {
         schools.MUSHTARAKA: _("Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third"),
         schools.NO_MUSHTARAKA: _("Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third"),
         schools.RADD: _("The remainder is returned to the heirs in proportion to their shares"),
+        schools.RADD_LATER_SCHOLARS: _("Later Maliki and Shafi'i scholars: the remainder is returned to the heirs other than a spouse, in proportion to their shares"),
         schools.FATHER_BLOCKS_HIS_MOTHER: _("Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"),
         schools.GRANDMOTHER_INHERITS_WITH_HER_SON: _("Hanbali school: the paternal grandmother inherits although her son, the father, is alive"),
     },
