@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from polymorphic.models import PolymorphicModel
 from polymorphic.managers import PolymorphicManager
 from django.urls import reverse
@@ -894,26 +894,32 @@ class Calculation(models.Model):
         ValueError. A case the engine refuses raises UnsupportedCase with a stable
         `reason` code, and no result is given for it.
 
-        The engine writes to the database while it works, and whether radd is needed
-        is only known after the shares are worked out, so a refusal can come after
-        writes. A caller that passes a school must run this inside a transaction that
-        it rolls back when UnsupportedCase is raised. Results pages never pass a
-        school, so they never raise."""
+        The run is one transaction that first locks this calculation's row, so on
+        PostgreSQL simultaneous runs on one case go one after another (a run waits,
+        with no time limit, while another holds the lock), other readers only see
+        complete results, and any exception, a refusal included, rolls back every
+        write the run made. The in-memory instance and its heirs are not restored
+        after such a failure, so do not save them. Inside a caller's transaction the
+        run is a savepoint and the lock is held until that outer transaction ends.
+        A deleted case raises Calculation.DoesNotExist and writes nothing. Results
+        pages never pass a school, so they never raise UnsupportedCase."""
         self.proof = None
         self._proof_steps = None
         schools.check_school(madhab)
-        self.madhab = madhab
-        self.clear()
-        heirs = self.get_quotes()
-        live = self.live_counts(heirs)
-        maternal = sum(1 for h in heirs if isinstance(h, (MaternalBrother, MaternalSister)))
-        if self.has_descendent() or self.has_father():
-            maternal = 0
-        schools.check_family(madhab, live, maternal)
-        final = self.distribute(heirs)
-        self.proof = proof.build(
-            madhab, [(h.pk, type(h).__name__, h.basis, final[h.pk]) for h in heirs], self._proof_steps)
-        return final
+        with transaction.atomic():
+            Calculation.objects.select_for_update().get(pk=self.pk)
+            self.madhab = madhab
+            self.clear()
+            heirs = self.get_quotes()
+            live = self.live_counts(heirs)
+            maternal = sum(1 for h in heirs if isinstance(h, (MaternalBrother, MaternalSister)))
+            if self.has_descendent() or self.has_father():
+                maternal = 0
+            schools.check_family(madhab, live, maternal)
+            final = self.distribute(heirs)
+            self.proof = proof.build(
+                madhab, [(h.pk, type(h).__name__, h.basis, final[h.pk]) for h in heirs], self._proof_steps)
+            return final
 
     @staticmethod
     def live_counts(heirs):

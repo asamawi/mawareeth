@@ -431,3 +431,16 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-maliki-shafii-later-radd.md`
   summary: Have a qualified reviewer and native Arabic and French speakers check the `radd_later_scholars` label ("Later Maliki and Shafi'i scholars: ...", "المتأخرون من المالكية والشافعية ...", "Les savants malikites et chaféites tardifs ...") and whether the plain `radd` label should also say that a spouse takes no radd.
   evidence: The label states a fiqh position for two schools and was written without review; review of this change flagged the French "tardifs" as awkward and the plain radd label as silent on the spouse.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-compute-transaction.md`
+  summary: The `compute()` transaction entries recorded in `spec-fix-engine-share-distribution.md` and `spec-deferred-case-write-integrity.md` are resolved by this spec.
+  evidence: `Calculation.compute()` now runs in one `transaction.atomic()` that locks its own calculation row first, so runs are serialized, readers see only complete results, and any exception or refusal rolls back the run's writes.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-compute-transaction.md`
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-compute-transaction.md`
+  summary: Reload the `Calculation` instance (`refresh_from_db()`) after `compute()` takes its row lock, or save only result columns, so a run that waited for the lock does not write back a stale `name` or `user`.
+  evidence: Review found that `clear()` saves every field of an instance loaded before the lock; a rename committed while the run waited would be undone. Writing stale fields predates this change, but the lock wait widens the window, and the spec chose not to refresh.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-compute-transaction.md`
+  summary: Decide whether to bound the `compute()` row-lock wait (for example `SET LOCAL lock_timeout`) on the results pages, which run it on every GET.
+  evidence: Overlapping results-page views of one case now wait on `select_for_update()` with no limit, so a slow or stuck run ties up web workers; the spec put any lock timeout under Ask First.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-compute-transaction.md`
+  summary: Make deleting a case and editing or deleting heirs take the `Calculation` row lock first, and have the results views answer 404 when `compute()` raises `Calculation.DoesNotExist`.
+  evidence: A case delete cascades heirs before the calculation row, so it can now deadlock with a results-page run (one side gets a 500), and a heir deleted mid-run can still be re-inserted by that run's `heir.save()`; a case deleted between the view's lookup and `compute()` gives a 500 instead of a 404. Changing those views was Ask First in the spec.

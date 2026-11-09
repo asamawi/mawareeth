@@ -1,4 +1,7 @@
 import re
+import threading
+import traceback
+import unittest
 from unittest import mock
 
 from decimal import Decimal, ROUND_HALF_UP
@@ -7,7 +10,8 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.cache import cache
-from django.test import TestCase, Client, override_settings
+from django.db import connection, connections
+from django.test import TestCase, TransactionTestCase, Client, override_settings
 from django.utils import translation
 from calc.models import *
 from django.contrib.auth.models import User
@@ -2617,3 +2621,135 @@ class ProofLabelTests(TestCase):
             arabic = label('rule', 'blocked')
         self.assertNotEqual(english, arabic)
         self.assertIsNone(label('rule', None))
+
+
+class ComputeTransactionTests(TransactionTestCase):
+    """compute() is one locked transaction. These are TransactionTestCase so no outer
+    test transaction hides a rollback."""
+
+    def settled(self):
+        calc, heirs = build_case('F', MALIKIYYA)
+        exact = calc.compute(madhab=HANBALI)
+        return calc, heirs, exact
+
+    def test_mid_run_failure_leaves_the_stored_result(self):
+        calc, heirs, exact = self.settled()
+        before = fingerprint(calc, heirs, exact)
+        with mock.patch.object(Calculation, 'distribute', side_effect=RuntimeError('boom')):
+            with self.assertRaises(RuntimeError):
+                calc.compute()
+        self.assertEqual(fingerprint(calc, heirs, exact), before)
+
+    def test_refusal_without_a_caller_transaction_leaves_the_stored_result(self):
+        calc, heirs, exact = self.settled()
+        before = fingerprint(calc, heirs, exact)
+        with self.assertRaises(schools.UnsupportedCase):
+            calc.compute(madhab=MALIKI)
+        self.assertEqual(fingerprint(calc, heirs, exact), before)
+
+    def test_deleted_case_is_not_recreated(self):
+        calc, heirs = build_case('M', [Son])
+        Calculation.objects.filter(pk=calc.pk).delete()
+        with self.assertRaises(Calculation.DoesNotExist):
+            calc.compute()
+        self.assertFalse(Calculation.objects.filter(pk=calc.pk).exists())
+        self.assertFalse(Heir.objects.filter(pk=heirs[0].pk).exists())
+
+
+@unittest.skipUnless(connection.vendor == 'postgresql', 'Row locks need PostgreSQL.')
+class ComputeConcurrencyTests(TransactionTestCase):
+    """The first run is held after clear(), while it holds the row lock."""
+
+    WAIT = 10
+
+    def setUp(self):
+        self.calc, self.heirs = build_case('F', MALIKIYYA)
+        self.exact = self.calc.compute()
+        self.before = fingerprint(self.calc, self.heirs, self.exact)
+        self.held = threading.Event()
+        self.release = threading.Event()
+        self.second_cleared = threading.Event()
+        self.threads = []
+        self.failures = []
+        self.results = {}
+        self.pids = {}
+        self.addCleanup(self.release.set)
+
+    def patched_clear(self):
+        real = Calculation.clear
+
+        def clear(calc):
+            if threading.current_thread().name == 'first':
+                real(calc)
+                self.held.set()
+                if not self.release.wait(60):
+                    raise RuntimeError('The first run was never released.')
+            else:
+                self.second_cleared.set()
+                real(calc)
+
+        return mock.patch.object(Calculation, 'clear', clear)
+
+    def spawn(self, name):
+        def call():
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute('SELECT pg_backend_pid()')
+                    self.pids[name] = cursor.fetchone()[0]
+                self.results[name] = Calculation.objects.get(pk=self.calc.pk).compute()
+            except BaseException:
+                self.failures.append(f'{name}:\n{traceback.format_exc()}')
+            finally:
+                connections.close_all()
+
+        thread = threading.Thread(name=name, target=call, daemon=True)
+        self.threads.append(thread)
+        thread.start()
+
+    def finish(self):
+        for thread in self.threads:
+            thread.join(30)
+        self.assertEqual([t.name for t in self.threads if t.is_alive()], [])
+        if self.failures:
+            self.fail('A run raised:\n' + '\n'.join(self.failures))
+
+    def second_waits_on_a_lock(self):
+        pid = self.pids.get('second')
+        if pid is None:
+            return False
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT 1 FROM pg_stat_activity WHERE pid = %s AND wait_event_type = 'Lock'", [pid])
+            return cursor.fetchone() is not None
+
+    def test_two_runs_at_once_go_one_after_another(self):
+        with self.patched_clear():
+            self.spawn('first')
+            self.assertTrue(self.held.wait(self.WAIT), 'The first run never reached clear().')
+            self.spawn('second')
+            pause = threading.Event()
+            for _ in range(self.WAIT * 100):
+                if self.second_cleared.is_set() or self.second_waits_on_a_lock():
+                    break
+                pause.wait(0.01)
+            reached = self.second_cleared.is_set()
+            waiting = self.second_waits_on_a_lock()
+            self.release.set()
+            self.finish()
+        self.assertFalse(reached, 'The second run reached clear() while the first was held.')
+        self.assertTrue(waiting, 'The second run was not waiting on a lock.')
+        self.assertEqual(set(self.results), {'first', 'second'})
+        self.assertEqual(self.results['first'], self.results['second'])
+        self.assertEqual(fingerprint(self.calc, self.heirs, self.exact), self.before)
+
+    def test_a_reader_never_sees_the_zeroed_state(self):
+        with self.patched_clear():
+            self.spawn('first')
+            self.assertTrue(self.held.wait(self.WAIT), 'The first run never reached clear().')
+            try:
+                during = fingerprint(self.calc, self.heirs, self.exact)
+            finally:
+                self.release.set()
+            self.finish()
+        self.assertEqual(during, self.before)
+
