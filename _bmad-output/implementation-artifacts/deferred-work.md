@@ -392,6 +392,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
   summary: Check the engine's grandfather-with-siblings rule (mu'adda) against the schools that use it, for example a grandfather, a full brother and a paternal brother, where the paternal brother is counted against the grandfather and then gets nothing.
   evidence: Review of Story 1.6 found that the engine, and the hajb labels that copy it, treat the paternal brother as sharing with the grandfather even when a full brother is present. That is an engine fiqh question, out of scope for 1.6, which must not change engine rules.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-muadda-hajb-labels.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
   summary: Cut the cost of the hajb engine-comparison tests (`HeirRulesTests`), which take about 9 minutes and bring the full Django suite to about 17, for example by using fewer seeded families or classifying without a database round trip.
   evidence: Measured during Story 1.6. CI runs a plain `manage.py test` with no time limit, so every run pays this cost.
@@ -423,6 +424,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-expanded-multi-school-coverage-beyond-standard-cases.md`
   summary: Make the mu'adda explicit for Maliki, Shafi'i and Hanbali and make the hajb labels follow it: paternal siblings counted against the grandfather are labelled blocked when a full brother is present, or when full sisters are residuary with a daughter or son's daughter and take the whole siblings' pool (daughter, grandfather, sister, paternal sister gives 1/2, 1/4, 1/4, 0); the Ashariyya's paternal brother still inherits.
   evidence: The project owner ruled on 2026-11-09 that the paternal sister is wholly blocked there because the full sister became residuary with the daughter and took all the remainder. The engine already gives these zeros by arithmetic (`calc/models.py:636-657`), but `api/heir_rules.py:139-151` never labels paternal siblings blocked when a grandfather is present. Split from Story 2.3 to keep the spec within size.
+  resolved_by: `_bmad-output/implementation-artifacts/spec-deferred-muadda-hajb-labels.md`
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-expanded-multi-school-coverage-beyond-standard-cases.md`
   summary: Have a qualified reviewer read the grandmother rules, labels and positions added by Story 2.3.
   evidence: Unreviewed: the matrix of grandmother positions (father blocks his mother under Hanafi, Maliki and Shafi'i, not under Hanbali; the mother blocks both; unblocked grandmothers share one sixth), the school-rule codes `father_blocks_his_mother` and `grandmother_inherits_with_her_son` and their three-language labels, the new relationship labels (paternal and maternal grandmother, in Arabic and French) and the new engine and kinship messages in the three `django.po` files. The father rule is tagged on both grandmothers of the family, which a reviewer should confirm.

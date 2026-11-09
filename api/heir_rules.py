@@ -3,7 +3,9 @@
 Two kinds of rule live here. Impossible kinship (two fathers, a fifth wife, a husband for a
 male deceased) holds for every school. Hajb (blocking) says which relatives would inherit
 nothing given the family so far; it mirrors the `blocked` flags the engine sets in
-`calc.models`, which stay the authority for shares, and a test holds the two together.
+`calc.models`, which stay the authority for shares, and a test holds the two together. It also
+labels the paternal siblings the engine counts against a grandfather and then gives nothing (the
+mu'adda exclusion, `paternal_siblings_counted_out`), though the engine keeps them live.
 
 Every function takes plain facts: a school id, the deceased's gender and `counts`, a mapping
 of relationship id to how many of that relative the family has. Jafari and an unknown school
@@ -101,6 +103,12 @@ def _paternal_sisters_asaba(madhab, c):
     return bool(c['paternal_brother'] or (not c['sister'] and c['female_desc']))
 
 
+def _paternal_counted_out(c):
+    """The mu'adda exclusion beside a sharing grandfather, as `Calculation.paternal_siblings_counted_out`:
+    a full brother, or full sisters residuary with a female descendant, take the whole siblings' pool."""
+    return bool(c['brother'] or (c['sister'] and c['female_desc']))
+
+
 # The relatives after the siblings, each with the extra blockers the engine checks for it, in order.
 LATER_BLOCKERS = {
     'son_of_brother': [],
@@ -141,13 +149,13 @@ def _is_blocked(relationship, madhab, c):
         if siblings_blocked:
             return True
         if grandfather:
-            return False
+            return _paternal_counted_out(c)
         return bool(c['brother'] or _sisters_asaba(madhab, c))
     if relationship == 'paternal_sister':
         if siblings_blocked:
             return True
         if grandfather:
-            return False
+            return _paternal_counted_out(c)
         if c['brother'] or _sisters_asaba(madhab, c):
             return True
         if c['paternal_brother']:

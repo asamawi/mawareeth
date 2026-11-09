@@ -518,6 +518,61 @@
           "maternal_grandmother": "second_maternal_grandmother"
         }
       }
+    },
+    {
+      "name": "grandfather and full brother under Hanbali",
+      "madhab": "hanbali",
+      "gender": "male",
+      "heirs": [
+        "grandfather",
+        "brother"
+      ],
+      "heir_options": {
+        "blocked": [
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "husband": "husband_of_male",
+          "grandfather": "second_grandfather"
+        }
+      }
+    },
+    {
+      "name": "daughter, grandfather and sister under Maliki",
+      "madhab": "maliki",
+      "gender": "male",
+      "heirs": [
+        "daughter",
+        "grandfather",
+        "sister"
+      ],
+      "heir_options": {
+        "blocked": [
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "husband": "husband_of_male",
+          "grandfather": "second_grandfather"
+        }
+      }
     }
   ]
 }

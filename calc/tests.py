@@ -1951,6 +1951,46 @@ def label(madhab, sex, types):
     return f'{madhab} {sex}: {[t.__name__ for t in types]}'
 
 
+MUADDA_FIXTURES = [
+    ('full brother', [GrandFather, Brother, PaternalBrother, PaternalSister],
+     [F(1, 3), F(2, 3), F(0), F(0)]),
+    ('sister with a daughter', [Daughter, GrandFather, Sister, PaternalSister],
+     [F(1, 2), F(1, 4), F(1, 4), F(0)]),
+    ("sisters with a son's daughter", [DaughterOfSon, GrandFather, Sister, Sister, PaternalBrother],
+     [F(1, 2), F(1, 6), F(1, 6), F(1, 6), F(0)]),
+]
+
+
+class MuaddaTests(TestCase):
+    def test_fractions_are_unchanged_and_the_predicate_holds(self):
+        for madhab in (MALIKI, SHAFII, HANBALI):
+            for title, types, expected in MUADDA_FIXTURES:
+                with self.subTest(f'{madhab}: {title}'):
+                    outcome, calc, heirs = run('M', types, madhab)
+                    if expected is not None:
+                        self.assertEqual([outcome[h.pk] for h in heirs], expected)
+                    self.assertEqual(outcome[heirs[-1].pk], F(0))
+                    self.assertFalse(stored(heirs[-1]).blocked)
+                    self.assertTrue(calc.paternal_siblings_counted_out())
+
+    def test_ashariyya_is_not_counted_out(self):
+        for madhab in (MALIKI, SHAFII, HANBALI):
+            with self.subTest(madhab):
+                outcome, calc, heirs = run('M', [GrandFather, Sister, PaternalBrother], madhab)
+                self.assertEqual([outcome[h.pk] for h in heirs], [F(2, 5), F(1, 2), F(1, 10)])
+                self.assertFalse(calc.paternal_siblings_counted_out())
+
+    def test_predicate_is_false_without_the_conditions(self):
+        for madhab, types in ((HANAFI, [GrandFather, Brother, PaternalBrother]),
+                              (HANBALI, [GrandFather, Sister, PaternalSister]),
+                              (HANBALI, [GrandFather, Brother]),
+                              (HANBALI, [Brother, PaternalBrother]),
+                              (HANBALI, [Daughter, Sister, PaternalSister])):
+            with self.subTest(madhab=madhab, types=[t.__name__ for t in types]):
+                _outcome, calc, _heirs = run('M', types, madhab)
+                self.assertFalse(calc.paternal_siblings_counted_out())
+
+
 class SchoolFixtureTests(TestCase):
     """The matrix of school differences, one family per row."""
 

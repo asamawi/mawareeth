@@ -1665,7 +1665,9 @@ class HeirRulesTests(TestCase):
                 calc.madhab = madhab
                 calc.clear()
                 calc.get_quotes()
-                return Heir.objects.get(pk=last.pk).blocked
+                blocked = Heir.objects.get(pk=last.pk).blocked
+                return blocked or (candidate in ('paternal_brother', 'paternal_sister')
+                                   and calc.paternal_siblings_counted_out())
             finally:
                 transaction.set_rollback(True)
 
@@ -1712,6 +1714,12 @@ class HeirRulesTests(TestCase):
             ['son_of_son', 'daughter_of_son'],
             ['grandfather', 'sister', 'paternal_brother', 'paternal_sister'],
             ['grandfather', 'brother', 'sister'],
+            ['grandfather', 'brother'],
+            ['daughter', 'grandfather', 'sister'],
+            ['daughter_of_son', 'grandfather', 'sister', 'sister'],
+            ['daughter', 'grandfather', 'sister', 'paternal_sister'],
+            ['grandfather', 'sister'],
+            ['grandfather', 'sister', 'paternal_brother'],
             ['grandfather', 'father'],
             ['mother', 'paternal_grandmother', 'maternal_sister'],
             ['mother', 'paternal_grandmother', 'maternal_grandmother'],
@@ -1732,6 +1740,15 @@ class HeirRulesTests(TestCase):
         self.assertTrue(heir_rules.blocked_relationships(hanbali, {'father': 1}) >= {'brother', 'sister', 'grandfather'})
         self.assertNotIn('brother', heir_rules.blocked_relationships(hanbali, {'grandfather': 1}))
         self.assertIn('brother', heir_rules.blocked_relationships(hanafi, {'grandfather': 1}))
+        paternal = {'paternal_brother', 'paternal_sister'}
+        for madhab in ('hanbali', 'maliki', 'shafii'):
+            self.assertTrue(paternal <= heir_rules.blocked_relationships(madhab, {'grandfather': 1, 'brother': 1}))
+            self.assertTrue(paternal <= heir_rules.blocked_relationships(
+                madhab, {'daughter': 1, 'grandfather': 1, 'sister': 1}))
+            self.assertTrue(paternal <= heir_rules.blocked_relationships(
+                madhab, {'daughter_of_son': 1, 'grandfather': 1, 'sister': 2}))
+        ashariyya = heir_rules.blocked_relationships(hanbali, {'grandfather': 1, 'sister': 1})
+        self.assertFalse(paternal & ashariyya)
         self.assertIn('daughter_of_son', heir_rules.blocked_relationships(hanbali, {'daughter': 2}))
         self.assertNotIn(
             'daughter_of_son', heir_rules.blocked_relationships(hanbali, {'daughter': 2, 'son_of_son': 1}))

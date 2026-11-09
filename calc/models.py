@@ -553,6 +553,16 @@ class Calculation(models.Model):
         That is the case when the school does not let him block them."""
         return not schools.grandfather_blocks_siblings(self.madhab) and self.gf_meets_siblings()
 
+    def paternal_siblings_counted_out(self):
+        """True when paternal siblings are counted against a grandfather and then get nothing.
+
+        Only where the grandfather shares with the siblings (Maliki, Shafi'i, Hanbali): a full
+        brother takes the whole siblings' pool, and so do full sisters who are residuary with a
+        female descendant. The paternal siblings stay live, so they still count in his muqasama."""
+        paternal = self.heir_set.instance_of(PaternalBrother, PaternalSister).count() > 0
+        return (self.gf_shares_with_siblings() and paternal
+                and (self.has_brother() or (self.has_sister() and self.has_female_descendent())))
+
     def is_akdariyya(self, live):
         """Husband, mother, grandfather and one full or paternal sister, and no other heir."""
         if len(live) != 4:
@@ -652,6 +662,8 @@ class Calculation(models.Model):
                     full_total = pool
                 elif not full:
                     full_total = zero
+                elif self.paternal_siblings_counted_out():
+                    full_total = pool
                 elif any(is_male(h) for h in full):
                     full_total = pool
                 else:
