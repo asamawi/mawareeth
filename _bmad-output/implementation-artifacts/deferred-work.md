@@ -444,3 +444,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-compute-transaction.md`
   summary: Make deleting a case and editing or deleting heirs take the `Calculation` row lock first, and have the results views answer 404 when `compute()` raises `Calculation.DoesNotExist`.
   evidence: A case delete cascades heirs before the calculation row, so it can now deadlock with a results-page run (one side gets a 500), and a heir deleted mid-run can still be re-inserted by that run's `heir.save()`; a case deleted between the view's lookup and `compute()` gives a 500 instead of a 404. Changing those views was Ask First in the spec.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-compute-transaction.md`
+  summary: Resolved in part: `calc:delete` now locks the `Calculation` row before the cascade, the same order as `compute()`, so a delete and a results-page run cannot deadlock; heir edits taking the lock and a 404 for `Calculation.DoesNotExist` in the results views remain open.
+  evidence: `ComputeConcurrencyTests.test_delete_waits_for_compute` forces the heir-first cascade order and fails with `deadlock detected` without the lock. Django's collector currently deletes the nullable-FK case row first anyway, so the lock guarantees the order rather than fixing a deadlock users could hit today.

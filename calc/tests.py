@@ -11,6 +11,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.cache import cache
 from django.db import connection, connections
+from django.db.models.signals import post_delete
 from django.test import TestCase, TransactionTestCase, Client, override_settings, tag
 from django.utils import translation
 from calc.models import *
@@ -2699,7 +2700,7 @@ class ComputeTransactionTests(TransactionTestCase):
 
 @unittest.skipUnless(connection.vendor == 'postgresql', 'Row locks need PostgreSQL.')
 class ComputeConcurrencyTests(TransactionTestCase):
-    """The first run is held after clear(), while it holds the row lock."""
+    """Concurrent compute and delete requests obey the calculation row lock."""
 
     WAIT = 10
 
@@ -2794,3 +2795,72 @@ class ComputeConcurrencyTests(TransactionTestCase):
             self.finish()
         self.assertEqual(during, self.before)
 
+    def test_delete_waits_for_compute(self):
+        pk = self.calc.pk
+        heirs_gone = threading.Event()
+
+        def hold_delete(sender, instance, **kwargs):
+            # Subclass signals fire before the base Heir rows are deleted.
+            if (isinstance(instance, Heir) and sender is Heir
+                    and threading.current_thread().name == 'delete'
+                    and not heirs_gone.is_set()):
+                heirs_gone.set()
+                if not self.release.wait(60):
+                    raise RuntimeError('The delete was never released.')
+
+        def call(name):
+            try:
+                if name == 'delete':
+                    client = Client()
+                    client.force_login(self.calc.user)
+                with connection.cursor() as cursor:
+                    cursor.execute('SELECT pg_backend_pid()')
+                    self.pids[name] = cursor.fetchone()[0]
+                if name == 'delete':
+                    # Nullable cascade FKs otherwise let Django delete the case first.
+                    # Require the heir-first order whose lock inversion we exercise.
+                    with mock.patch.object(Heir._meta.get_field('calc'), 'null', False):
+                        self.results[name] = client.post(reverse('calc:delete', args=[pk]), secure=True)
+                else:
+                    Calculation.objects.get(pk=pk).compute()
+            except Calculation.DoesNotExist as exc:
+                if name == 'compute':
+                    self.results[name] = exc
+                else:
+                    self.failures.append(f'{name}:\n{traceback.format_exc()}')
+            except BaseException:
+                self.failures.append(f'{name}:\n{traceback.format_exc()}')
+            finally:
+                connections.close_all()
+
+        def start(name):
+            thread = threading.Thread(name=name, target=call, args=(name,), daemon=True)
+            self.threads.append(thread)
+            thread.start()
+
+        post_delete.connect(hold_delete)
+        try:
+            start('delete')
+            self.assertTrue(heirs_gone.wait(self.WAIT), 'The delete never reached its heir cascade.')
+            start('compute')
+            waiting = False
+            pause = threading.Event()
+            for _ in range(self.WAIT * 100):
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT 1 FROM pg_stat_activity WHERE pid = %s AND wait_event_type = 'Lock'",
+                        [self.pids.get('compute')])
+                    waiting = cursor.fetchone() is not None
+                if waiting:
+                    break
+                pause.wait(0.01)
+        finally:
+            self.release.set()
+            try:
+                self.finish()
+            finally:
+                post_delete.disconnect(hold_delete)
+        self.assertTrue(waiting, 'The compute was not waiting on a lock.')
+        self.assertEqual(self.results['delete'].status_code, 302)
+        self.assertFalse(Calculation.objects.filter(pk=pk).exists())
+        self.assertIsInstance(self.results.get('compute'), Calculation.DoesNotExist)

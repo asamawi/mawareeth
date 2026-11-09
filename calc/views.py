@@ -841,7 +841,10 @@ def delete(request, pk):
 	# Only a POST deletes, so that CSRF protection applies and a link on
 	# another site cannot delete a case. An old link just lands on the list.
 	if request.method == "POST":
-		calc.delete()
+		with transaction.atomic():
+			# Match the lock order in compute().
+			list(Calculation.objects.select_for_update().filter(pk=calc.pk).values_list('pk', flat=True))
+			calc.delete()
 	return HttpResponseRedirect(reverse('calc:index'))
 
 # After login there is nothing useful to return to here: `next` would only
