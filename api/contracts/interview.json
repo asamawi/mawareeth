@@ -28,12 +28,14 @@
     "gender": ["required", "invalid", "has_husband", "has_wife", "has_both_spouses"],
     "estate": ["invalid", "not_positive", "too_large", "decimals"],
     "relationship": [
-      "required", "invalid", "second_father", "second_mother", "second_husband",
+      "required", "invalid", "gender_locked", "second_father", "second_mother", "second_husband",
       "second_grandfather", "second_paternal_grandmother", "second_maternal_grandmother", "fifth_wife", "husband_of_male", "wife_of_female"
     ],
     "name": ["invalid", "too_long"],
     "heirs": ["limit"],
-    "case": ["deceased_required"]
+    "case": ["deceased_required"],
+    "same_as": ["gender_mismatch", "not_alive", "already_linked"],
+    "death": ["order_required", "simultaneous", "unknown", "order_conflict", "limit", "already_deceased"]
   },
-  "previewReasons": ["school_not_supported", "malikiyya_disputed", "invalid_family"]
+  "previewReasons": ["school_not_supported", "malikiyya_disputed", "invalid_family", "manasikhat_unsupported"]
 }

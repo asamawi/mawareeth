@@ -116,6 +116,10 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Django / API
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-7-successive-deaths-manasikhat-in-the-interview.md`
+  summary: Arrange qualified fiqh review of layered previews built from interview input.
+  evidence: Story 1.7a adds linked identities, inferred death order and combined shares across layers; these interview-built previews need qualified review across the supported schools.
+
 - source_spec: none
   summary: Run real end-to-end testing of the OAuth/social-login flow after the oauthlib and social-auth-core major-version upgrades.
   evidence: Both are major-version bumps directly backing `mawareeth/settings.py`'s social-login configuration; flattening `requirements.txt` (this story's earlier fix) made GitHub's dependency graph visible for the first time, surfacing these alerts. Deferred rather than bumped blind because a regression here breaks login, not just a lint check, and this environment has no way to exercise the live OAuth flow end-to-end. Partly shipped in `43eb2f1`, `e39cb3e` and `e800326`: dependency upgrades landed; no end-to-end social-login evidence is recorded.
@@ -278,3 +282,11 @@ Completed and obsolete items are removed; their history is in git.
   summary: Show the proof on the results and preview screens (Epic 3).
   evidence: The preview API now returns `proof` with labels in the request language, but nothing in the web app displays it.
 
+
+- source_spec: none
+  summary: Move the anonymous interview case out of the database-backed Django session into browser storage, so no case data reaches the server's database before an explicit save.
+  evidence: Raised by the project owner on 2026-11-10 while planning Story 1.7; the session storage of Stories 1.1-1.6 is kept for 1.7.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-7-successive-deaths-manasikhat-in-the-interview.md`
+  summary: Story 1.7b, the web interview for successive deaths: strict parsing of `deaths`, the new writes and `proof: null`; the active layer, the mark/unmark and order-of-death question, and the "someone already in this case" link choice in the flow; a breadcrumb of deaths, the tree drawing one layer at a time with its deceased labelled by death order, the list actions "also died" / "open their heirs" / "did not die", people named by their earliest row in the preview; all text in ar/en/fr; and the TypeScript side of the layered preview fixtures.
+  evidence: Split from Story 1.7 on 2026-11-10 to keep the spec within size; 1.7a delivers the session layers, writes, preview and contracts that this builds on.

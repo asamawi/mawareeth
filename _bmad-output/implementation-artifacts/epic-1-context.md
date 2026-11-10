@@ -14,12 +14,14 @@ Let a visitor with no account start an inheritance case, choose a Madhab, enter 
 - Story 1.4: Family Tree Visualization (Basic Render + Updates)
 - Story 1.5: Real-Time Share Preview from Supported Engine Cases
 - Story 1.6: Fiqh-Aware Validation + Hajb (Blocking Heirs)
+- Story 1.7: Successive Deaths (Manasikhat) in the Interview
 
 ## Requirements & Constraints
 
 - No signup before calculation. Signup stays optional and available in the navbar, and must never block progress.
+- Successive deaths (manasikhat) are captured in the same interview: an heir can be marked as also deceased, gets their own layer of heirs, and people already in the case are linked rather than entered twice. The engine bounds a case to the first death plus up to two later deaths, with a known order of death; Jafari, simultaneous or unknown order (gharqa) and a later deceased's own property are refused or out of scope.
 - Family data is captured through step-by-step kinship discovery, and the interview adapts to the selected Madhab (four Sunni schools plus Jafari).
-- Invalid kinship inputs are flagged against fiqh constraints, with an explanation and a suggested correction. Heirs blocked by hajb are not offered.
+- Invalid kinship inputs are flagged against fiqh constraints, with an explanation and a suggested correction. Heirs blocked by hajb stay offered and are labelled (project owner decision, 2026-11-08), because a blocked heir can still change other shares.
 - Live previews come from the deterministic engine only. Cases outside the supported ruleset say that preview is unavailable and never show provisional numbers. A failed or timed-out preview shows a graceful message and never presents a stale result as current.
 - Standard calculations return in under 200ms. Calculation output cannot be manually overridden.
 - Arabic, English and French, with correct RTL/LTR switching.
@@ -57,6 +59,7 @@ Let a visitor with no account start an inheritance case, choose a Madhab, enter 
 
 - 1.1 establishes the anonymous case state that every later story reads and writes.
 - 1.2 and 1.3 feed 1.4 (tree) and 1.5 (preview). 1.6 constrains the heir options offered in 1.3.
+- 1.7 builds on the 1.3 interview, 1.4 tree, 1.5 preview and 1.6 rules, and on the Epic 2 layered engine (Story 2.4), which computes layers from database rows and refuses out-of-bounds topologies with one `manasikhat_unsupported` reason. The legacy Django results pages stay out of scope.
 - 1.5 depends on the Epic 2 engine for anything beyond its supported ruleset, and 1.2's Madhab choice only affects results once the engine is multi-school.
 - Open decision: what users are told about Madhab selection before the engine is multi-school, because choosing Jafari today would show shares calculated without any Madhab logic.
 - Epic 4 (save and share) picks up the anonymous case state at the account gate.

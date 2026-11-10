@@ -18,6 +18,16 @@ type Fixture = {
   display: ReturnType<typeof previewRows> | null;
 };
 const fixtures = (read("preview-fixtures.json") as { fixtures: Fixture[] }).fixtures;
+// This refusal is in the contract but has no shared fixture yet.
+const layered = fixtures.find((fixture) => fixture.title === "Layered two under hanafi");
+assert.ok(layered);
+const layeredBasis = (layered.response as Exclude<Preview, { status: "not_ready" }>).basis;
+fixtures.push({
+  title: "Successive deaths are not supported for this case",
+  case: layered.case,
+  response: { status: "unavailable", madhab: "hanafi", reason: "manasikhat_unsupported", basis: layeredBasis },
+  display: null,
+});
 const contract = read("interview.json") as { previewReasons: string[] };
 
 const BASE: Case = {
@@ -46,11 +56,17 @@ test("every fixture response parses strictly and displays as the fixture says", 
   }
 });
 
-test("every available fixture carries a version 1 proof that parses as served", () => {
+test("every available single-layer fixture carries a version 1 proof; layered proofs are null", () => {
   const available = fixtures.filter((fixture) => (fixture.response as Preview).status === "available");
   assert.ok(available.length >= 10);
   for (const fixture of available) {
     const preview = parsePreview(fixture.response) as Extract<Preview, { status: "available" }>;
+    assert.ok(preview, fixture.title);
+    if (preview.basis.deaths) {
+      assert.equal(preview.proof, null, fixture.title);
+      continue;
+    }
+    assert.ok(preview.proof, fixture.title);
     assert.equal(preview.proof.version, 1, fixture.title);
     assert.deepEqual(
       preview.proof.heirs.map((heir) => heir.heir).sort(),
@@ -58,8 +74,10 @@ test("every available fixture carries a version 1 proof that parses as served", 
       fixture.title,
     );
   }
+  assert.equal(available.filter((fixture) => (fixture.response as Exclude<Preview, { status: "not_ready" }>).basis.deaths).length, 12);
   const hanafi = fixtures.find((fixture) => fixture.title === "Grandfather and brother under Hanafi");
   const proof = (parsePreview(hanafi?.response) as Extract<Preview, { status: "available" }>).proof;
+  assert.ok(proof);
   assert.deepEqual(proof.school_rules, ["grandfather_blocks_siblings"]);
   assert.equal(proof.heirs.find((heir) => heir.rule === "blocked")?.blocked_by, "grandfather");
 });

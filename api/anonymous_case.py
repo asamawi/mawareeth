@@ -243,14 +243,17 @@ def get(request):
     madhab = madhab if isinstance(madhab, str) and madhab in MADHABS else None
     deceased = _read_deceased(case.get('deceased'))
     heirs = _read_heirs(case.get('heirs'))
-    return {
+    result = {
         'id': case['id'],
         'started_at': case['started_at'],
         'madhab': madhab,
         'deceased': deceased,
         'heirs': heirs,
         'heir_options': heir_options(madhab, deceased, heirs),
+        'deaths': [],
     }
+    _read_deaths(result, case.get('deaths'))
+    return result
 
 
 def start(request):
@@ -272,8 +275,11 @@ def _live(request, case_id):
 
 
 def _save(request, **changes):
-    stored = dict(request.session[SESSION_KEY])
+    stored = get(request)
     stored.update(changes)
+    stored.pop('heir_options', None)
+    for death in stored.get('deaths', []):
+        death.pop('heir_options', None)
     # Reassign: changing the nested dict would not mark the session modified.
     request.session[SESSION_KEY] = stored
     touch(request)
@@ -317,92 +323,279 @@ def set_deceased(request, data, case_id):
     return _save(request, deceased=deceased, heirs=current['heirs'])
 
 
-def add_heir(request, data, case_id):
-    """Append an heir. Returns the case, or None without one.
-
-    Raises StaleCase, or FieldErrors for a bad field, a relationship the family cannot
-    have (kinship, never hajb: a blocked relative is allowed), a full list
-    (`heirs`); all those errors come together. No deceased yet (`case`) comes alone, before
-    the other checks. Nothing is stored in any of those.
-    """
-    current = _live(request, case_id)
-    if current is None:
-        return None
-    if current['deceased'] is None:
-        raise FieldErrors({'case': 'deceased_required'})
-    errors = {}
-    fields = None
-    try:
-        fields = clean_heir(data)
-    except FieldErrors as invalid:
-        errors.update(invalid.errors)
-    relationship = canonical(data.get('relationship'))
-    if isinstance(relationship, str) and relationship in RELATIONSHIPS:
-        issue = heir_rules.kinship_code(
-            relationship, current['deceased']['gender'], heir_rules.counts(current['heirs']))
-        if issue is not None:
-            errors['relationship'] = issue
-    if len(current['heirs']) >= MAX_HEIRS:
-        errors['heirs'] = 'limit'
-    if errors:
-        raise FieldErrors(errors)
-    heir = {'id': uuid.uuid4().hex, **fields, 'gender': RELATIONSHIPS[fields['relationship']]}
-    return _save(request, heirs=[*current['heirs'], heir])
-
-
-def update_heir(request, heir_id, data, case_id):
-    """Replace an heir's fields, keeping its id and place. Gender is derived again.
-
-    Raises StaleCase, HeirNotFound or FieldErrors (a bad field, or a changed relationship the
-    family cannot have, the edited heir left out of the count; `case` when the deceased cannot
-    be read). Returns None without a live case.
-    """
-    current = _live(request, case_id)
-    if current is None:
-        return None
-    if not any(heir['id'] == heir_id for heir in current['heirs']):
-        raise HeirNotFound(current)
-    errors = {}
-    fields = None
-    try:
-        fields = clean_heir(data)
-    except FieldErrors as invalid:
-        errors.update(invalid.errors)
-    relationship = canonical(data.get('relationship'))
-    if isinstance(relationship, str) and relationship in RELATIONSHIPS:
-        before = next(heir for heir in current['heirs'] if heir['id'] == heir_id)
-        # An unchanged relationship always passes, so any saved heir can still be renamed.
-        if relationship != before['relationship']:
-            if current['deceased'] is None:
-                errors['case'] = 'deceased_required'
-            else:
-                others = [heir for heir in current['heirs'] if heir['id'] != heir_id]
-                issue = heir_rules.kinship_code(
-                    relationship, current['deceased']['gender'], heir_rules.counts(others))
-                if issue is not None:
-                    errors['relationship'] = issue
-    if errors:
-        raise FieldErrors(errors)
-    heirs = [
-        {'id': heir_id, **fields, 'gender': RELATIONSHIPS[fields['relationship']]}
-        if heir['id'] == heir_id else heir
-        for heir in current['heirs']
-    ]
-    return _save(request, heirs=heirs)
-
-
-def remove_heir(request, heir_id, case_id):
-    """Remove an heir. Raises StaleCase or HeirNotFound. Returns None without a live case."""
-    current = _live(request, case_id)
-    if current is None:
-        return None
-    heirs = [heir for heir in current['heirs'] if heir['id'] != heir_id]
-    if len(heirs) == len(current['heirs']):
-        raise HeirNotFound(current)
-    return _save(request, heirs=heirs)
-
-
 def touch(request):
     """Refresh the idle expiry. Only anonymous sessions get the short one."""
     if not request.user.is_authenticated:
         request.session.set_expiry(settings.ANONYMOUS_CASE_IDLE_SECONDS)
+
+
+def _layers(case):
+    yield None, case['deceased'], case['heirs']
+    for death in case['deaths']:
+        yield death['heir_id'], {'gender': death['gender']}, death['heirs']
+
+
+def _rows(case):
+    return {row['id']: row for _, _, rows in _layers(case) for row in rows}
+
+
+def _person(row):
+    return row.get('same_as') or row['id']
+
+
+def _decorate(case):
+    rows = _rows(case)
+    for death in case['deaths']:
+        death['gender'] = rows[death['heir_id']]['gender']
+        death['heir_options'] = heir_options(case['madhab'], death, death['heirs'])
+        for row in death['heirs']:
+            if row.get('same_as'):
+                row['name'] = rows[row['same_as']]['name']
+
+
+def _read_deaths(case, value):
+    """Read forward only: every identity and death must refer to an earlier live row."""
+    if not isinstance(value, list):
+        return
+    for item in sorted((d for d in value if isinstance(d, dict)),
+                       key=lambda d: d.get('order') if type(d.get('order')) is int else 99):
+        order = item.get('order')
+        rows = _rows(case)
+        target = item.get('heir_id')
+        if (type(order) is not int or order != len(case['deaths']) + 2
+                or not isinstance(target, str) or target not in rows
+                or _person(rows[target]) != target
+                or any(d['heir_id'] == target for d in case['deaths'])
+                or len(case['deaths']) >= 2):
+            continue
+        dead = {d['heir_id'] for d in case['deaths']} | {target}
+        heirs, people = [], set()
+        raw = item.get('heirs', [])
+        raw = raw if isinstance(raw, list) else []
+        for original in raw:
+            if len(heirs) >= MAX_HEIRS:
+                break
+            valid = _read_heirs([original])
+            if not valid:
+                continue
+            row = valid[0]
+            if row['id'] in rows or any(h['id'] == row['id'] for h in heirs):
+                continue
+            link = original.get('same_as')
+            if link is not None:
+                if (not isinstance(link, str) or link not in rows or _person(rows[link]) != link
+                        or link in dead or rows[link]['gender'] != row['gender'] or link in people):
+                    continue
+                row['same_as'] = link
+            people.add(_person(row))
+            heirs.append(row)
+        case['deaths'].append({'heir_id': target, 'order': len(case['deaths']) + 2,
+                               'gender': rows[target]['gender'], 'heirs': heirs})
+    _decorate(case)
+
+
+def _store_case(request, case):
+    _decorate(case)
+    return _save(request, **case)
+
+
+def _order(case, first=None):
+    deaths = case['deaths']
+    if first in ('simultaneous', 'unknown'):
+        raise FieldErrors({'death': first})
+    if first is not None and (not isinstance(first, str)
+                              or first not in {d['heir_id'] for d in deaths}):
+        raise FieldErrors({'death': 'order_conflict'})
+    if len(deaths) < 2:
+        return
+    a, b = deaths
+    # An heir outlives the deceased whose layer contains that heir.
+    a_after_b = any(_person(r) == a['heir_id'] for r in b['heirs'])
+    b_after_a = any(_person(r) == b['heir_id'] for r in a['heirs'])
+    if a_after_b and b_after_a:
+        raise FieldErrors({'death': 'order_conflict'})
+    implied = b['heir_id'] if a_after_b else a['heir_id'] if b_after_a else None
+    if first is not None and (not isinstance(first, str) or first not in (a['heir_id'], b['heir_id'])
+                              or implied is not None and first != implied):
+        raise FieldErrors({'death': 'order_conflict'})
+    chosen = implied or first
+    if chosen is None:
+        raise FieldErrors({'death': 'order_required'})
+    deaths.sort(key=lambda d: d['heir_id'] != chosen)
+    for i, death in enumerate(deaths, 2):
+        death['order'] = i
+    positions = {r['id']: i for i, (_, _, rows) in enumerate(_layers(case), 1) for r in rows}
+    dead = {d['heir_id']: d['order'] for d in deaths}
+    for _, _, rows in _layers(case):
+        for row in rows:
+            person = _person(row)
+            if (row.get('same_as') and positions[person] >= positions[row['id']]
+                    or dead.get(person, 4) <= positions[row['id']]):
+                raise FieldErrors({'death': 'order_conflict'})
+
+
+def mark_deceased(request, heir_id, first=None, case_id=None):
+    """Add a person's death layer. Raises StaleCase, HeirNotFound or FieldErrors."""
+    case = _live(request, case_id)
+    if case is None:
+        return None
+    rows = _rows(case)
+    if not isinstance(heir_id, str) or heir_id not in rows:
+        raise HeirNotFound(case)
+    person = _person(rows[heir_id])
+    if any(d['heir_id'] == person for d in case['deaths']):
+        raise FieldErrors({'death': 'already_deceased'})
+    if len(case['deaths']) == 2:
+        raise FieldErrors({'death': 'limit'})
+    case['deaths'].append({'heir_id': person, 'order': len(case['deaths']) + 2,
+                           'gender': rows[person]['gender'], 'heirs': []})
+    _order(case, first)
+    return _store_case(request, case)
+
+
+def _remove_rows(case, removed, old=None):
+    """Promote surviving identities, then recursively prune deaths with no surviving row."""
+    old = _rows(case) if old is None else old
+    while True:
+        for _, _, rows in _layers(case):
+            rows[:] = [r for r in rows if r['id'] not in removed]
+        remaining = _rows(case)
+        groups = {}
+        for row in remaining.values():
+            groups.setdefault(_person(row), []).append(row)
+        replacements = {}
+        for person, group in groups.items():
+            earliest = group[0]
+            replacements[person] = earliest['id']
+            earliest['name'] = old[person]['name']
+            for row in group:
+                row.pop('same_as', None)
+                if row is not earliest:
+                    row['same_as'] = earliest['id']
+        lost = [d for d in case['deaths'] if d['heir_id'] not in replacements]
+        for d in case['deaths']:
+            if d not in lost:
+                d['heir_id'] = replacements[d['heir_id']]
+        if not lost:
+            break
+        for d in lost:
+            removed.update(r['id'] for r in d['heirs'])
+            case['deaths'].remove(d)
+    for i, d in enumerate(case['deaths'], 2):
+        d['order'] = i
+
+
+def unmark_deceased(request, heir_id, case_id=None):
+    """Remove a death and prune its layer, promoting surviving identities. Raises StaleCase or HeirNotFound."""
+    case = _live(request, case_id)
+    if case is None:
+        return None
+    rows = _rows(case)
+    person = _person(rows[heir_id]) if heir_id in rows else heir_id
+    death = next((d for d in case['deaths'] if d['heir_id'] == person), None)
+    if death is None:
+        raise HeirNotFound(case)
+    removed = {r['id'] for r in death['heirs']}
+    old = _rows(case)
+    case['deaths'].remove(death)
+    _remove_rows(case, removed, old)
+    return _store_case(request, case)
+
+
+def add_heir(request, data, case_id, layer=None, same_as=None):
+    """Add a row to a layer, optionally linking a person. Raises StaleCase, HeirNotFound or FieldErrors."""
+    case = _live(request, case_id)
+    if case is None:
+        return None
+    layer = data.get('layer', layer)
+    link = data.get('same_as', same_as)
+    selected = next((entry for entry in _layers(case) if entry[0] == layer), None)
+    if selected is None:
+        raise HeirNotFound(case)
+    _, deceased, heirs = selected
+    if deceased is None:
+        raise FieldErrors({'case': 'deceased_required'})
+    errors = {}
+    try:
+        fields = clean_heir(data)
+    except FieldErrors as error:
+        errors.update(error.errors)
+    relationship = canonical(data.get('relationship'))
+    if isinstance(relationship, str) and relationship in RELATIONSHIPS:
+        issue = heir_rules.kinship_code(relationship, deceased['gender'], heir_rules.counts(heirs))
+        if issue:
+            errors['relationship'] = issue
+    if len(heirs) >= MAX_HEIRS:
+        errors['heirs'] = 'limit'
+    rows = _rows(case)
+    if link is not None:
+        if not isinstance(link, str) or link not in rows:
+            errors['same_as'] = 'not_alive'
+        else:
+            link = _person(rows[link])
+            positions = {r['id']: i for i, (key, _, rs) in enumerate(_layers(case), 1) for r in rs}
+            order = next((d['order'] for d in case['deaths'] if d['heir_id'] == layer), 1)
+            died = next((d['order'] for d in case['deaths'] if d['heir_id'] == link), 4)
+            if any(_person(r) == link for r in heirs):
+                errors['same_as'] = 'already_linked'
+            elif positions[link] >= order or died <= order:
+                errors['same_as'] = 'not_alive'
+            elif (isinstance(relationship, str) and relationship in RELATIONSHIPS
+                  and rows[link]['gender'] != RELATIONSHIPS[relationship]):
+                errors['same_as'] = 'gender_mismatch'
+    if errors:
+        raise FieldErrors(errors)
+    row = {'id': uuid.uuid4().hex, **fields, 'gender': RELATIONSHIPS[relationship]}
+    if link is not None:
+        row['same_as'] = link
+    heirs.append(row)
+    return _store_case(request, case)
+
+
+def update_heir(request, heir_id, data, case_id):
+    """Edit a row in any layer and rename all its links. Raises StaleCase, HeirNotFound or FieldErrors."""
+    case = _live(request, case_id)
+    if case is None:
+        return None
+    rows = _rows(case)
+    if heir_id not in rows:
+        raise HeirNotFound(case)
+    row = rows[heir_id]
+    errors = {}
+    try:
+        fields = clean_heir(data)
+    except FieldErrors as error:
+        errors.update(error.errors)
+    rel = canonical(data.get('relationship'))
+    if isinstance(rel, str) and rel in RELATIONSHIPS:
+        person = _person(row)
+        locked = (any(_person(r) == person and r['id'] != row['id'] for r in rows.values())
+                  or any(d['heir_id'] == person for d in case['deaths']))
+        if locked and RELATIONSHIPS[rel] != row['gender']:
+            errors['relationship'] = 'gender_locked'
+        elif rel != row['relationship']:
+            _, deceased, heirs = next(e for e in _layers(case) if row in e[2])
+            if deceased is None:
+                errors['case'] = 'deceased_required'
+            else:
+                issue = heir_rules.kinship_code(
+                    rel, deceased['gender'], heir_rules.counts(r for r in heirs if r is not row))
+                if issue:
+                    errors['relationship'] = issue
+    if errors:
+        raise FieldErrors(errors)
+    rows[_person(row)]['name'] = fields['name']
+    row['relationship'] = rel
+    row['gender'] = RELATIONSHIPS[rel]
+    return _store_case(request, case)
+
+
+def remove_heir(request, heir_id, case_id):
+    """Remove a row, promoting linked identities and pruning lost deaths. Raises StaleCase or HeirNotFound."""
+    case = _live(request, case_id)
+    if case is None:
+        return None
+    if heir_id not in _rows(case):
+        raise HeirNotFound(case)
+    _remove_rows(case, {heir_id})
+    return _store_case(request, case)

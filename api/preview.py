@@ -13,6 +13,7 @@ from django.db import transaction
 
 from api import anonymous_case, heir_rules
 from calc import proof as proof_codes, schools
+from calc.manasikhat import compute_manasikhat
 from calc.models import (
     Brother, Calculation, Daughter, DaughterOfSon, Deceased, Father, GrandFather, GrandMother,
     Heir, Husband, MaternalBrother, MaternalGrandMother, MaternalSister, Mother, PaternalBrother, PaternalSister,
@@ -60,12 +61,18 @@ def is_impossible(case):
 def basis(case):
     """What the numbers are for, with no names: the client compares it with its own case."""
     deceased = case['deceased']
-    return {
+    result = {
         'madhab': case['madhab'],
         'gender': deceased['gender'],
         'estate': deceased['estate'],
         'heirs': [{'id': heir['id'], 'relationship': heir['relationship']} for heir in case['heirs']],
     }
+    if case.get('deaths'):
+        result['deaths'] = [
+            {'heir_id': d['heir_id'], 'order': d['order'],
+             'heirs': [{k: r[k] for k in ('id', 'relationship', 'same_as') if k in r}
+                       for r in d['heirs']]} for d in case['deaths']]
+    return result
 
 
 def _fraction(value):
@@ -109,6 +116,27 @@ def _compute(case):
     return outcome, _labelled(calc.proof, by_pk)
 
 
+def _compute_layered(case):
+    root = Calculation.objects.create(name='')
+    Deceased.objects.create(sex=SEX[case['deceased']['gender']], estate=PLACEHOLDER_ESTATE, calc=root)
+    by_id, by_pk = {}, {}
+    for key, deceased, heirs in anonymous_case._layers(case):
+        calc = root
+        if key is not None:
+            death = next(d for d in case['deaths'] if d['heir_id'] == key)
+            calc = Calculation.objects.create(name='', parent=root)
+            Deceased.objects.create(sex=SEX[deceased['gender']], estate=PLACEHOLDER_ESTATE,
+                                    calc=calc, heir=by_id[key], death_order=death['order'])
+        for heir in heirs:
+            row = HEIR_CLASSES[heir['relationship']].objects.create(
+                sex=SEX[heir['gender']], calc=calc,
+                same_person=by_id.get(heir.get('same_as')))
+            by_id[heir['id']] = row
+            by_pk[row.pk] = heir['id']
+    final, _ = compute_manasikhat(root, case['madhab'])
+    return {by_pk[pk]: (Fraction(value), value == 0) for pk, value in final.items()}, None
+
+
 def preview(case):
     """The preview body for a session case: available, unavailable or not ready.
 
@@ -117,13 +145,16 @@ def preview(case):
     """
     if case['madhab'] is None or case['deceased'] is None or not case['heirs']:
         return {'status': 'not_ready'}
+    if any(not d['heirs'] for d in case.get('deaths', [])):
+        return {'status': 'not_ready'}
     madhab = case['madhab']
-    if is_impossible(case):
+    if is_impossible(case) or any(heir_rules.is_impossible_family(
+            d['gender'], heir_rules.counts(d['heirs'])) for d in case.get('deaths', [])):
         return {'status': 'unavailable', 'madhab': madhab, 'reason': INVALID_FAMILY, 'basis': basis(case)}
     try:
         with transaction.atomic():
             try:
-                outcome, proof = _compute(case)
+                outcome, proof = _compute_layered(case) if case.get('deaths') else _compute(case)
             finally:
                 transaction.set_rollback(True)
     except schools.UnsupportedCase as refused:
@@ -131,8 +162,12 @@ def preview(case):
 
     estate = case['deceased']['estate']
     shares = []
-    for heir in case['heirs']:
-        fraction, blocked = outcome[heir['id']]
+    rows = anonymous_case._rows(case) if case.get('deaths') else {r['id']: r for r in case['heirs']}
+    for heir_id in rows:
+        if heir_id not in outcome:
+            continue
+        heir = rows[heir_id]
+        fraction, blocked = outcome[heir_id]
         shares.append({
             'heir_id': heir['id'],
             **_fraction(fraction),

@@ -89,7 +89,10 @@ export type Messages = {
     startOverNo: string;
     relationships: Record<RelationshipId, string>;
     /** Field name, then the error code the form or the server reports. */
-    fieldErrors: Record<string, Record<string, string>>;
+    fieldErrors: Record<string, Record<string, string>> & Record<
+      "gender" | "estate" | "relationship" | "name" | "heirs" | "case" | "same_as" | "death",
+      Record<string, string>
+    >;
     madhabLabel: string;
     madhabChange: string;
     madhabLegend: string;
@@ -239,6 +242,8 @@ export const messages: Record<Locale, Messages> = {
           decimals: "يُسمح بخانتين عشريتين على الأكثر.",
         },
         relationship: {
+          // Native-language review pending.
+          gender_locked: "هذا الشخص مرتبط بسجل آخر أو مسجل ضمن الوفيات، لذا لا يمكن تغيير جنسه. يرجى اختيار صلة قرابة من الجنس نفسه.",
           required: "اختر صلة القرابة.",
           invalid: "اختر صلة قرابة من القائمة.",
           second_father: "يمكن تسجيل أب واحد فقط. عدّل الأب المسجّل، أو اختر صلة قرابة أخرى لهذا القريب.",
@@ -250,6 +255,20 @@ export const messages: Record<Locale, Messages> = {
           fifth_wife: "لا يزيد عدد الزوجات على أربع. عدّل إحدى الزوجات المسجّلات أو احذفها، أو اختر صلة قرابة أخرى لهذا القريب.",
           husband_of_male: "المتوفى مسجّل ذكرًا، ولا يكون للذكر زوج. اختر «زوجة» إن كنت تقصد القرينة، أو صحّح جنس المتوفى.",
           wife_of_female: "المتوفى مسجّل أنثى، ولا تكون للأنثى زوجة. اختر «زوج» إن كنت تقصد القرين، أو صحّح جنس المتوفى.",
+        },
+        // Native-language review pending.
+        same_as: {
+          gender_mismatch: "جنس الشخص المختار مختلف. يرجى اختيار شخص من الجنس نفسه أو تصحيح صلة القرابة.",
+          not_alive: "لم يكن الشخص المختار على قيد الحياة عند هذه الوفاة. يرجى اختيار شخص كان حيًا آنذاك.",
+          already_linked: "هذا الشخص موجود بالفعل ضمن هؤلاء الورثة. يرجى تعديل السجل الموجود أو اختيار شخص آخر.",
+        },
+        death: {
+          order_required: "يلزم تحديد ترتيب هاتين الوفاتين. يرجى تحديد الشخص الذي توفي أولًا.",
+          simultaneous: "الوفيات المتزامنة غير مدعومة. يرجى التحقق من ترتيب الوفاة والمتابعة فقط إذا كان معلومًا.",
+          unknown: "ترتيب الوفاة المجهول غير مدعوم. يرجى التحقق من الشخص الذي توفي أولًا قبل المتابعة.",
+          order_conflict: "ترتيب الوفاة المختار يتعارض مع الورثة المسجلين. يرجى مراجعة الترتيب وورثة كل شخص توفي.",
+          limit: "تتضمن الحالة وفاتين لاحقتين بالفعل، وهو الحد المدعوم. يرجى إزالة وفاة مسجلة قبل إضافة أخرى.",
+          already_deceased: "هذا الشخص مسجل ضمن الوفيات بالفعل. يرجى تعديل الوفاة المسجلة.",
         },
         name: { invalid: "الاسم يحتوي على رموز غير مسموحة.", too_long: "الاسم أطول من 100 حرف." },
         heirs: { limit: "بلغت الحد الأقصى وهو 50 وارثًا." },
@@ -288,6 +307,8 @@ export const messages: Record<Locale, Messages> = {
       previewUnallocated: "الباقي غير الموزع على أي وارث",
       previewUnavailable: "المعاينة غير متاحة لهذه الحالة. يمكنك متابعة إضافة الورثة.",
       previewReasons: {
+        // Native-language review pending.
+        manasikhat_unsupported: "معاينة الوفيات المتعاقبة غير مدعومة لهذه الحالة. يرجى مراجعة البيانات وطلب مراجعة من مختص في المواريث.",
         school_not_supported: "المذهب الجعفري غير مدعوم بعد، فلا تُعرض أنصبة.",
         malikiyya_disputed: "اختلف علماء المذهب المالكي في هذه الحالة (المالكية)، فلا تُعرض أنصبة.",
         invalid_family: "هذه الأسرة غير ممكنة (مثل أكثر من أب واحد، أو زوج لمتوفى ذكر)، فلا تُعرض أنصبة. يرجى مراجعة الورثة.",
@@ -408,6 +429,7 @@ export const messages: Record<Locale, Messages> = {
           decimals: "Use at most 2 decimal places.",
         },
         relationship: {
+          gender_locked: "This person is linked or recorded as deceased, so their gender cannot change. Choose a relationship with the same gender.",
           required: "Choose a relationship.",
           invalid: "Choose a relationship from the list.",
           second_father: "Only one father can be recorded. Edit the saved father, or choose another relationship for this relative.",
@@ -419,6 +441,19 @@ export const messages: Record<Locale, Messages> = {
           fifth_wife: "At most four wives can be recorded. Edit or remove one of the saved wives, or choose another relationship for this relative.",
           husband_of_male: "The deceased is recorded as male, and a male has no husband. Choose wife if you meant the spouse, or correct the gender of the deceased.",
           wife_of_female: "The deceased is recorded as female, and a female has no wife. Choose husband if you meant the spouse, or correct the gender of the deceased.",
+        },
+        same_as: {
+          gender_mismatch: "The selected person has a different gender. Choose a person with the same gender, or correct the relationship.",
+          not_alive: "The selected person was not alive at this death. Choose someone who was alive then.",
+          already_linked: "This person is already included among these heirs. Edit the existing entry, or choose another person.",
+        },
+        death: {
+          order_required: "The order of these deaths is needed. Choose which person died first.",
+          simultaneous: "Simultaneous deaths are not supported. Check the death order; continue only if it is known.",
+          unknown: "An unknown death order is not supported. Check which person died first before continuing.",
+          order_conflict: "The chosen death order conflicts with the recorded heirs. Check the order and the heirs of each person who died.",
+          limit: "This case already has two later deaths, the supported limit. Remove a recorded death before adding another.",
+          already_deceased: "This person is already recorded as deceased. Edit the existing death instead.",
         },
         name: {
           invalid: "The name contains characters that are not allowed.",
@@ -460,6 +495,7 @@ export const messages: Record<Locale, Messages> = {
       previewUnallocated: "Remainder not allocated to any heir",
       previewUnavailable: "A preview is not available for this case. You can keep adding heirs.",
       previewReasons: {
+        manasikhat_unsupported: "A preview for successive deaths is not supported for this case. Check the details and seek a qualified inheritance review.",
         school_not_supported: "The Jafari school is not supported yet, so no shares are shown.",
         malikiyya_disputed: "Scholars of the Maliki school disagree about this family (the Malikiyya case), so no shares are shown.",
         invalid_family: "This family is not possible (for example two fathers, or a husband for a male deceased), so no shares are shown. Please check the heirs.",
@@ -580,6 +616,8 @@ export const messages: Record<Locale, Messages> = {
           decimals: "Utilisez au plus 2 décimales.",
         },
         relationship: {
+          // Native-language review pending.
+          gender_locked: "Cette personne est liée à une autre entrée ou son décès est enregistré ; son sexe ne peut pas changer. Choisissez un lien de parenté du même sexe.",
           required: "Choisissez un lien de parenté.",
           invalid: "Choisissez un lien dans la liste.",
           second_father: "Un seul père peut être enregistré. Modifiez le père enregistré, ou choisissez un autre lien pour ce parent.",
@@ -591,6 +629,20 @@ export const messages: Record<Locale, Messages> = {
           fifth_wife: "Au plus quatre épouses peuvent être enregistrées. Modifiez ou retirez l'une des épouses enregistrées, ou choisissez un autre lien pour ce parent.",
           husband_of_male: "Le défunt est enregistré comme un homme, et un homme n'a pas de mari. Choisissez épouse si vous parliez du conjoint, ou corrigez le sexe du défunt.",
           wife_of_female: "Le défunt est enregistré comme une femme, et une femme n'a pas d'épouse. Choisissez mari si vous parliez du conjoint, ou corrigez le sexe du défunt.",
+        },
+        // Native-language review pending.
+        same_as: {
+          gender_mismatch: "Le sexe de la personne choisie est différent. Choisissez une personne du même sexe ou corrigez le lien de parenté.",
+          not_alive: "La personne choisie ne vivait plus lors de ce décès. Choisissez une personne encore en vie à ce moment-là.",
+          already_linked: "Cette personne figure déjà parmi ces héritiers. Modifiez l'entrée existante ou choisissez une autre personne.",
+        },
+        death: {
+          order_required: "L'ordre de ces décès est nécessaire. Indiquez quelle personne est décédée en premier.",
+          simultaneous: "Les décès simultanés ne sont pas pris en charge. Vérifiez leur ordre et continuez uniquement si cet ordre est connu.",
+          unknown: "Un ordre de décès inconnu n'est pas pris en charge. Vérifiez quelle personne est décédée en premier avant de continuer.",
+          order_conflict: "L'ordre choisi contredit les héritiers enregistrés. Vérifiez cet ordre et les héritiers de chaque personne décédée.",
+          limit: "Ce dossier comporte déjà deux décès ultérieurs, la limite prise en charge. Retirez un décès enregistré avant d'en ajouter un autre.",
+          already_deceased: "Le décès de cette personne est déjà enregistré. Modifiez le décès existant.",
         },
         name: {
           invalid: "Le nom contient des caractères non autorisés.",
@@ -632,6 +684,8 @@ export const messages: Record<Locale, Messages> = {
       previewUnallocated: "Reste non attribué à un héritier",
       previewUnavailable: "Aucun aperçu n'est disponible pour ce cas. Vous pouvez continuer à ajouter des héritiers.",
       previewReasons: {
+        // Native-language review pending.
+        manasikhat_unsupported: "L'aperçu des décès successifs n'est pas pris en charge pour ce cas. Vérifiez les informations et demandez un examen par une personne qualifiée en successions.",
         school_not_supported: "L'école jafarite n'est pas encore prise en charge, aucune part n'est donc affichée.",
         malikiyya_disputed: "Les savants de l'école malikite divergent sur cette famille (le cas de la Malikiyya), aucune part n'est donc affichée.",
         invalid_family: "Cette famille n'est pas possible (par exemple deux pères, ou un mari pour un défunt de sexe masculin), aucune part n'est donc affichée. Vérifiez les héritiers.",

@@ -442,6 +442,7 @@ export const PREVIEW_REASONS = [
   "school_not_supported",
   "malikiyya_disputed",
   "invalid_family",
+  "manasikhat_unsupported",
 ] as const;
 
 export type PreviewReason = (typeof PREVIEW_REASONS)[number];
@@ -466,6 +467,11 @@ export type PreviewBasis = {
   gender: Gender;
   estate: string | null;
   heirs: { id: string; relationship: RelationshipId }[];
+  deaths?: {
+    heir_id: string;
+    order: number;
+    heirs: { id: string; relationship: RelationshipId; same_as?: string }[];
+  }[];
 };
 
 /** A label for each code of a heir's proof, in the language of the request; null where there is no code. */
@@ -524,7 +530,8 @@ export type Preview =
       shares: PreviewShare[];
       /** The part of the estate no heir takes, for a spouse alone; otherwise null. */
       unallocated: FractionBody | null;
-      proof: PreviewProof;
+      /** Layered previews have no v1 proof. */
+      proof: PreviewProof | null;
     };
 
 export type PreviewResult =
@@ -564,7 +571,29 @@ function parseBasis(value: unknown): PreviewBasis | null {
     if (typeof id !== "string" || !isRelationshipId(relationship)) return null;
     list.push({ id, relationship });
   }
-  return { madhab, gender, estate, heirs: list };
+  const result: PreviewBasis = { madhab, gender, estate, heirs: list };
+  if (Object.hasOwn(value, "deaths")) {
+    const deaths = (value as Record<string, unknown>).deaths;
+    if (!Array.isArray(deaths) || deaths.length === 0 || deaths.length > 2) return null;
+    const parsed: NonNullable<PreviewBasis["deaths"]> = [];
+    for (const item of deaths as unknown[]) {
+      if (typeof item !== "object" || item === null || !hasExactKeys(item, ["heir_id", "order", "heirs"])) return null;
+      const { heir_id, order, heirs } = item as Record<string, unknown>;
+      if (!isCode(heir_id) || order !== parsed.length + 2 || !Array.isArray(heirs)) return null;
+      const rows: NonNullable<PreviewBasis["deaths"]>[number]["heirs"] = [];
+      for (const row of heirs as unknown[]) {
+        if (typeof row !== "object" || row === null) return null;
+        const linked = Object.hasOwn(row, "same_as");
+        if (!hasExactKeys(row, linked ? ["id", "relationship", "same_as"] : ["id", "relationship"])) return null;
+        const { id, relationship, same_as } = row as Record<string, unknown>;
+        if (!isCode(id) || !isRelationshipId(relationship) || (linked && !isCode(same_as))) return null;
+        rows.push(linked ? { id, relationship, same_as: same_as as string } : { id, relationship });
+      }
+      parsed.push({ heir_id, order: order as number, heirs: rows });
+    }
+    result.deaths = parsed;
+  }
+  return result;
 }
 
 function isCode(value: unknown): value is string {
@@ -703,6 +732,9 @@ export function parsePreview(body: unknown): Preview | null {
       : null;
   }
   if (value.status !== "available" || !Array.isArray(value.shares)) return null;
+  if (basis.deaths && value.proof !== null) return null;
+  const rowIds = new Set([...basis.heirs, ...(basis.deaths ?? []).flatMap((death) => death.heirs)].map((row) => row.id));
+  const seen = new Set<string>();
   const shares: PreviewShare[] = [];
   for (const item of value.shares as unknown[]) {
     const fraction = parseFraction(item);
@@ -710,6 +742,8 @@ export function parsePreview(body: unknown): Preview | null {
     const { heir_id, blocked, amount } = item as Record<string, unknown>;
     if (typeof heir_id !== "string" || typeof blocked !== "boolean") return null;
     if (amount !== null && !(typeof amount === "string" && PREVIEW_AMOUNT.test(amount))) return null;
+    if (!rowIds.has(heir_id) || seen.has(heir_id)) return null;
+    seen.add(heir_id);
     shares.push({ ...fraction, heir_id, blocked, amount });
   }
   let unallocated: FractionBody | null = null;
@@ -717,8 +751,10 @@ export function parsePreview(body: unknown): Preview | null {
     unallocated = parseFraction(value.unallocated);
     if (!unallocated) return null;
   }
-  const proof = parseProof(value.proof, value.madhab, shares);
-  if (!proof) return null;
+  const proof = value.proof === null && basis.deaths
+    ? null
+    : parseProof(value.proof, value.madhab, shares);
+  if (proof === null && !(value.proof === null && basis.deaths)) return null;
   return { status: "available", madhab: value.madhab, basis, shares, unallocated, proof };
 }
 

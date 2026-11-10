@@ -254,7 +254,7 @@ const FULL_CASE = {
 };
 
 test("parseCase reads deceased and heirs, and tolerates the older shape", async () => {
-  stubFetch(async () => Response.json({ case: FULL_CASE }));
+  stubFetch(async () => Response.json({ case: { ...FULL_CASE, deaths: [{ unknown: true }] } }));
   assert.deepEqual(await fetchCase(signal()), FULL_CASE);
   stubFetch(async () => Response.json({ case: { id: "a", started_at: "t" } }));
   assert.deepEqual(await fetchCase(signal()), {
@@ -556,4 +556,41 @@ test("each read of missing options is a fresh object", async () => {
   first.blocked.push("brother");
   const second = (await fetchCase(signal()))!.heir_options;
   assert.deepEqual(second, { blocked: [], invalid: {} });
+});
+
+
+test("layered previews preserve strict death records and require an explicit proof", () => {
+  const deaths = [{ heir_id: "a1", order: 2, heirs: [
+    { id: "b1", relationship: "son", same_as: "a2" },
+    { id: "b2", relationship: "mother" },
+  ] }];
+  const body = { ...AVAILABLE, proof: null, basis: { ...BASIS, deaths } };
+  assert.deepEqual(parsePreview(body), body);
+  const malformed: unknown[] = [
+    null, {}, [], [null], [deaths[0], deaths[0], deaths[0]],
+    [{ ...deaths[0], heir_id: 1 }],
+    [{ ...deaths[0], order: "2" }],
+    [{ ...deaths[0], order: 3 }],
+    [{ ...deaths[0], extra: true }],
+    [{ ...deaths[0], heirs: null }],
+    [{ ...deaths[0], heirs: [null] }],
+    [{ ...deaths[0], heirs: [{ id: "b", relationship: "cousin" }] }],
+    [{ ...deaths[0], heirs: [{ id: 1, relationship: "son" }] }],
+    ...[null, 1, ""].map((same_as) => [{ ...deaths[0], heirs: [{ id: "b", relationship: "son", same_as }] }]),
+    [{ ...deaths[0], heirs: [{ id: "b", relationship: "son", extra: true }] }],
+  ];
+  for (const deaths of malformed) {
+    assert.equal(parsePreview({ ...body, basis: { ...BASIS, deaths } }), null, JSON.stringify(deaths));
+  }
+  const { proof: omitted, ...missing } = body;
+  assert.equal(omitted, null);
+  assert.equal(parsePreview(missing), null);
+  assert.equal(parsePreview({ ...AVAILABLE, proof: null }), null);
+  assert.equal(parsePreview({ ...body, proof: { version: 2 } }), null);
+  assert.equal(parsePreview({ ...body, proof: AVAILABLE.proof }), null);
+  assert.equal(parsePreview({ ...body, shares: [body.shares[0], body.shares[0]] }), null);
+  assert.equal(parsePreview({ ...body, shares: [{ ...body.shares[0], heir_id: "missing" }] }), null);
+  assert.deepEqual(parsePreview({ ...body, status: "unavailable", reason: "manasikhat_unsupported" }), {
+    status: "unavailable", madhab: body.madhab, basis: body.basis, reason: "manasikhat_unsupported",
+  });
 });

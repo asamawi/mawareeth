@@ -3063,6 +3063,1838 @@
         "status": "not_ready"
       },
       "display": null
+    },
+    {
+      "title": "Layered two under hanafi",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "hanafi",
+        "deceased": {
+          "gender": "male",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanafi",
+        "basis": {
+          "madhab": "hanafi",
+          "gender": "male",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "wife"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "mother",
+                  "same_as": "w"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "w",
+            "numerator": 13,
+            "denominator": 48,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "s2",
+            "numerator": 35,
+            "denominator": 48,
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "w",
+            "fraction": "13/48",
+            "percent": "27.1",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "s2",
+            "fraction": "35/48",
+            "percent": "72.9",
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Layered three under hanafi",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "hanafi",
+        "deceased": {
+          "gender": "male",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          },
+          {
+            "heir_id": "w",
+            "order": 3,
+            "gender": "female",
+            "heirs": [
+              {
+                "id": "r3",
+                "relationship": "son",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              },
+              {
+                "id": "m",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanafi",
+        "basis": {
+          "madhab": "hanafi",
+          "gender": "male",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "wife"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "mother",
+                  "same_as": "w"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            },
+            {
+              "heir_id": "w",
+              "order": 3,
+              "heirs": [
+                {
+                  "id": "r3",
+                  "relationship": "son",
+                  "same_as": "s2"
+                },
+                {
+                  "id": "m",
+                  "relationship": "mother"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "s2",
+            "numerator": 275,
+            "denominator": 288,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "m",
+            "numerator": 13,
+            "denominator": 288,
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "s2",
+            "fraction": "275/288",
+            "percent": "95.5",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "m",
+            "fraction": "13/288",
+            "percent": "4.5",
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Layered school under hanafi",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "hanafi",
+        "deceased": {
+          "gender": "female",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "husband",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "father",
+                "gender": "male",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "pgm",
+                "relationship": "paternal_grandmother",
+                "gender": "female",
+                "name": null
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanafi",
+        "basis": {
+          "madhab": "hanafi",
+          "gender": "female",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "husband"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "father",
+                  "same_as": "w"
+                },
+                {
+                  "id": "pgm",
+                  "relationship": "paternal_grandmother"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "w",
+            "numerator": 5,
+            "denominator": 8,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "s2",
+            "numerator": 3,
+            "denominator": 8,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "pgm",
+            "numerator": 0,
+            "denominator": 1,
+            "blocked": true,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "w",
+            "fraction": "5/8",
+            "percent": "62.5",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "s2",
+            "fraction": "3/8",
+            "percent": "37.5",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "pgm",
+            "fraction": null,
+            "percent": null,
+            "blocked": true,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Layered two under maliki",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "maliki",
+        "deceased": {
+          "gender": "male",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "maliki",
+        "basis": {
+          "madhab": "maliki",
+          "gender": "male",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "wife"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "mother",
+                  "same_as": "w"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "w",
+            "numerator": 13,
+            "denominator": 48,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "s2",
+            "numerator": 35,
+            "denominator": 48,
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "w",
+            "fraction": "13/48",
+            "percent": "27.1",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "s2",
+            "fraction": "35/48",
+            "percent": "72.9",
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Layered three under maliki",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "maliki",
+        "deceased": {
+          "gender": "male",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          },
+          {
+            "heir_id": "w",
+            "order": 3,
+            "gender": "female",
+            "heirs": [
+              {
+                "id": "r3",
+                "relationship": "son",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              },
+              {
+                "id": "m",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "maliki",
+        "basis": {
+          "madhab": "maliki",
+          "gender": "male",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "wife"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "mother",
+                  "same_as": "w"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            },
+            {
+              "heir_id": "w",
+              "order": 3,
+              "heirs": [
+                {
+                  "id": "r3",
+                  "relationship": "son",
+                  "same_as": "s2"
+                },
+                {
+                  "id": "m",
+                  "relationship": "mother"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "s2",
+            "numerator": 275,
+            "denominator": 288,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "m",
+            "numerator": 13,
+            "denominator": 288,
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "s2",
+            "fraction": "275/288",
+            "percent": "95.5",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "m",
+            "fraction": "13/288",
+            "percent": "4.5",
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Layered school under maliki",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "maliki",
+        "deceased": {
+          "gender": "female",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "husband",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "father",
+                "gender": "male",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "pgm",
+                "relationship": "paternal_grandmother",
+                "gender": "female",
+                "name": null
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "maliki",
+        "basis": {
+          "madhab": "maliki",
+          "gender": "female",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "husband"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "father",
+                  "same_as": "w"
+                },
+                {
+                  "id": "pgm",
+                  "relationship": "paternal_grandmother"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "w",
+            "numerator": 5,
+            "denominator": 8,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "s2",
+            "numerator": 3,
+            "denominator": 8,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "pgm",
+            "numerator": 0,
+            "denominator": 1,
+            "blocked": true,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "w",
+            "fraction": "5/8",
+            "percent": "62.5",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "s2",
+            "fraction": "3/8",
+            "percent": "37.5",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "pgm",
+            "fraction": null,
+            "percent": null,
+            "blocked": true,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Layered two under shafii",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "shafii",
+        "deceased": {
+          "gender": "male",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "shafii",
+        "basis": {
+          "madhab": "shafii",
+          "gender": "male",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "wife"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "mother",
+                  "same_as": "w"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "w",
+            "numerator": 13,
+            "denominator": 48,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "s2",
+            "numerator": 35,
+            "denominator": 48,
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "w",
+            "fraction": "13/48",
+            "percent": "27.1",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "s2",
+            "fraction": "35/48",
+            "percent": "72.9",
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Layered three under shafii",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "shafii",
+        "deceased": {
+          "gender": "male",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          },
+          {
+            "heir_id": "w",
+            "order": 3,
+            "gender": "female",
+            "heirs": [
+              {
+                "id": "r3",
+                "relationship": "son",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              },
+              {
+                "id": "m",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "shafii",
+        "basis": {
+          "madhab": "shafii",
+          "gender": "male",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "wife"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "mother",
+                  "same_as": "w"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            },
+            {
+              "heir_id": "w",
+              "order": 3,
+              "heirs": [
+                {
+                  "id": "r3",
+                  "relationship": "son",
+                  "same_as": "s2"
+                },
+                {
+                  "id": "m",
+                  "relationship": "mother"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "s2",
+            "numerator": 275,
+            "denominator": 288,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "m",
+            "numerator": 13,
+            "denominator": 288,
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "s2",
+            "fraction": "275/288",
+            "percent": "95.5",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "m",
+            "fraction": "13/288",
+            "percent": "4.5",
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Layered school under shafii",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "shafii",
+        "deceased": {
+          "gender": "female",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "husband",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "father",
+                "gender": "male",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "pgm",
+                "relationship": "paternal_grandmother",
+                "gender": "female",
+                "name": null
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "shafii",
+        "basis": {
+          "madhab": "shafii",
+          "gender": "female",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "husband"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "father",
+                  "same_as": "w"
+                },
+                {
+                  "id": "pgm",
+                  "relationship": "paternal_grandmother"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "w",
+            "numerator": 5,
+            "denominator": 8,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "s2",
+            "numerator": 3,
+            "denominator": 8,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "pgm",
+            "numerator": 0,
+            "denominator": 1,
+            "blocked": true,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "w",
+            "fraction": "5/8",
+            "percent": "62.5",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "s2",
+            "fraction": "3/8",
+            "percent": "37.5",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "pgm",
+            "fraction": null,
+            "percent": null,
+            "blocked": true,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Layered two under hanbali",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "male",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanbali",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "male",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "wife"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "mother",
+                  "same_as": "w"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "w",
+            "numerator": 13,
+            "denominator": 48,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "s2",
+            "numerator": 35,
+            "denominator": 48,
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "w",
+            "fraction": "13/48",
+            "percent": "27.1",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "s2",
+            "fraction": "35/48",
+            "percent": "72.9",
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Layered three under hanbali",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "male",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "wife",
+            "gender": "female",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          },
+          {
+            "heir_id": "w",
+            "order": 3,
+            "gender": "female",
+            "heirs": [
+              {
+                "id": "r3",
+                "relationship": "son",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              },
+              {
+                "id": "m",
+                "relationship": "mother",
+                "gender": "female",
+                "name": null
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanbali",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "male",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "wife"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "mother",
+                  "same_as": "w"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            },
+            {
+              "heir_id": "w",
+              "order": 3,
+              "heirs": [
+                {
+                  "id": "r3",
+                  "relationship": "son",
+                  "same_as": "s2"
+                },
+                {
+                  "id": "m",
+                  "relationship": "mother"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "s2",
+            "numerator": 275,
+            "denominator": 288,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "m",
+            "numerator": 13,
+            "denominator": 288,
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "s2",
+            "fraction": "275/288",
+            "percent": "95.5",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "m",
+            "fraction": "13/288",
+            "percent": "4.5",
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
+    },
+    {
+      "title": "Layered school under hanbali",
+      "case": {
+        "id": "layered",
+        "started_at": "2026-11-10T00:00:00Z",
+        "madhab": "hanbali",
+        "deceased": {
+          "gender": "female",
+          "estate": null
+        },
+        "heirs": [
+          {
+            "id": "w",
+            "relationship": "husband",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s1",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          },
+          {
+            "id": "s2",
+            "relationship": "son",
+            "gender": "male",
+            "name": null
+          }
+        ],
+        "deaths": [
+          {
+            "heir_id": "s1",
+            "order": 2,
+            "gender": "male",
+            "heirs": [
+              {
+                "id": "r1",
+                "relationship": "father",
+                "gender": "male",
+                "name": null,
+                "same_as": "w"
+              },
+              {
+                "id": "pgm",
+                "relationship": "paternal_grandmother",
+                "gender": "female",
+                "name": null
+              },
+              {
+                "id": "r2",
+                "relationship": "brother",
+                "gender": "male",
+                "name": null,
+                "same_as": "s2"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": "available",
+        "madhab": "hanbali",
+        "basis": {
+          "madhab": "hanbali",
+          "gender": "female",
+          "estate": null,
+          "heirs": [
+            {
+              "id": "w",
+              "relationship": "husband"
+            },
+            {
+              "id": "s1",
+              "relationship": "son"
+            },
+            {
+              "id": "s2",
+              "relationship": "son"
+            }
+          ],
+          "deaths": [
+            {
+              "heir_id": "s1",
+              "order": 2,
+              "heirs": [
+                {
+                  "id": "r1",
+                  "relationship": "father",
+                  "same_as": "w"
+                },
+                {
+                  "id": "pgm",
+                  "relationship": "paternal_grandmother"
+                },
+                {
+                  "id": "r2",
+                  "relationship": "brother",
+                  "same_as": "s2"
+                }
+              ]
+            }
+          ]
+        },
+        "shares": [
+          {
+            "heir_id": "w",
+            "numerator": 9,
+            "denominator": 16,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "s2",
+            "numerator": 3,
+            "denominator": 8,
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heir_id": "pgm",
+            "numerator": 1,
+            "denominator": 16,
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null,
+        "proof": null
+      },
+      "display": {
+        "rows": [
+          {
+            "heirId": "w",
+            "fraction": "9/16",
+            "percent": "56.3",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "s2",
+            "fraction": "3/8",
+            "percent": "37.5",
+            "blocked": false,
+            "amount": null
+          },
+          {
+            "heirId": "pgm",
+            "fraction": "1/16",
+            "percent": "6.3",
+            "blocked": false,
+            "amount": null
+          }
+        ],
+        "unallocated": null
+      }
     }
   ]
 }

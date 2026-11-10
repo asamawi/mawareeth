@@ -189,3 +189,15 @@ class PreviewView(ApiView):
                 ''.join(traceback.format_tb(error.__traceback__)))
             return Response({'detail': 'The preview is unavailable.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response(body)
+
+
+class DeathsView(CaseWriteView):
+    def post(self, request):
+        return self.write(request, lambda data, case_id: anonymous_case.mark_deceased(
+            request, data.get('heir_id'), data.get('first'), case_id), success=status.HTTP_201_CREATED)
+
+
+class DeathView(CaseWriteView):
+    def delete(self, request, heir_id):
+        return self.write(request, lambda data, case_id: anonymous_case.unmark_deceased(
+            request, heir_id, case_id), data={'case_id': request.query_params.get('case_id')})
