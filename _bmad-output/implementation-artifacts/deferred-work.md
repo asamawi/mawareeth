@@ -282,10 +282,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Show the proof on the results and preview screens (Epic 3).
   evidence: The preview API now returns `proof` with labels in the request language, but nothing in the web app displays it.
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-4-full-recursive-manasikhat-calculation.md`
-  summary: Legacy detail and results pages raise an uncaught UnsupportedCase (500) when opened on a layered case or one of its layers.
-  evidence: `calc/views.py:803` and `:840` catch only `Calculation.DoesNotExist`; unreachable until layered cases can be created through the API story.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-full-recursive-manasikhat-calculation.md`
   summary: Define the lifecycle of layered cases when an earlier-layer heir is deleted (Deceased.heir and Heir.same_person cascade, orphaning the child Calculation).
   evidence: Review found the cascade deletes the later Deceased but leaves its Calculation; only deleting the root case is tested.
 

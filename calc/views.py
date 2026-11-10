@@ -15,6 +15,7 @@ from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.utils.translation import gettext as _
 from django.views.generic.base import TemplateView
 from .models import *
+from .schools import UnsupportedCase
 from waffle.mixins import WaffleFlagMixin, WaffleSwitchMixin
 
 import waffle
@@ -803,6 +804,9 @@ class NewResultsView(OwnedCalculationMixin, WaffleFlagMixin, LoginRequired, gene
 			self.calc.compute()
 		except Calculation.DoesNotExist as exc:
 			raise Http404 from exc
+		except UnsupportedCase as exc:
+			messages.error(request, exc.message)
+			return render(request, 'calc/error.html')
 		return super().get(request, *args, **kwargs)
 
 class ResultsView(OwnedCalculationMixin, LoginRequired, generic.DetailView):
@@ -840,6 +844,9 @@ class ResultsView(OwnedCalculationMixin, LoginRequired, generic.DetailView):
 			self.calc.compute()
 		except Calculation.DoesNotExist as exc:
 			raise Http404 from exc
+		except UnsupportedCase as exc:
+			messages.error(request, exc.message)
+			return render(request, 'calc/error.html')
 		return super().get(request, *args, **kwargs)
 
 class CalculationUpdate(OwnedCalculationMixin, UpdateView):

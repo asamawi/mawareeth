@@ -3027,6 +3027,49 @@ class CalculationWriteViewTests(TestCase):
                 self.assertEqual(response.status_code, 404)
                 lock.assert_not_called()
 
+class LayeredResultsViewTests(TestCase):
+    def setUp(self):
+        self.root, root_heirs = build_case('M', [Wife, Son, Son])
+        self.layer, layer_heirs = build_layer(
+            self.root, root_heirs[1], 'M', [Mother, Brother],
+            [(0, root_heirs[0]), (1, root_heirs[2])])
+        self.heirs = root_heirs + layer_heirs
+        self.client.force_login(self.root.user)
+
+    def test_owner_results_refuse_root_and_layer_without_changing_heirs(self):
+        before = [stored(heir) for heir in self.heirs]
+        for route in ('results', 'new_results'):
+            for calc in (self.root, self.layer):
+                with self.subTest(route=route, case=calc.pk), override_flag('new_results', active=True):
+                    with translation.override('en'):
+                        response = self.client.get(reverse('calc:' + route, args=[calc.pk]), secure=True)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertTemplateUsed(response, 'calc/error.html')
+                    self.assertContains(response, 'This successive inheritance case is not supported')
+                    for original in before:
+                        after = stored(original)
+                        for field in original._meta.concrete_fields:
+                            self.assertEqual(getattr(original, field.attname), getattr(after, field.attname))
+
+    def test_non_owner_layered_results_return_404_without_compute(self):
+        self.client.force_login(User.objects.create(username='other-owner'))
+        for route in ('results', 'new_results'):
+            with self.subTest(route=route), override_flag('new_results', active=True):
+                with mock.patch.object(Calculation, 'compute') as compute:
+                    response = self.client.get(reverse('calc:' + route, args=[self.root.pk]), secure=True)
+                self.assertEqual(response.status_code, 404)
+                compute.assert_not_called()
+
+    def test_results_show_other_engine_refusals(self):
+        refusal = schools.UnsupportedCase(schools.SCHOOL_NOT_SUPPORTED)
+        for route in ('results', 'new_results'):
+            with self.subTest(route=route), override_flag('new_results', active=True):
+                with translation.override('en'), mock.patch.object(Calculation, 'compute', side_effect=refusal):
+                    response = self.client.get(reverse('calc:' + route, args=[self.root.pk]), secure=True)
+                    self.assertContains(response, refusal.message)
+                self.assertTemplateUsed(response, 'calc/error.html')
+
+
 # Successive inheritance fixtures keep person identity explicit across layers.
 def build_layer(parent, earlier, sex, heir_types, links=(), order=2):
     calc, heirs = build_case(sex, heir_types, estate=999999)
