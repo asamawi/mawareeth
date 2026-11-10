@@ -2699,3 +2699,7 @@ msgstr "École hanbalite : la grand-mère paternelle hérite même si son fils, 
 
 #~ msgid "Son of paternal brother"
 #~ msgstr "Fils de frère paternel"
+
+#: calc/schools.py
+msgid "This successive inheritance case is not supported"
+msgstr "Ce cas de successions successives n'est pas pris en charge"

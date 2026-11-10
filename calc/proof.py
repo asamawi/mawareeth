@@ -212,3 +212,19 @@ def build(madhab, heirs, steps):
         'heirs': entries,
         'steps': listed,
     }
+
+
+def build_layered(madhab, layers, final, identities):
+    """Combine unchanged per-death proofs with fractions of the first estate."""
+    from math import lcm
+    return {
+        'version': 2,
+        'people': [{'row': row, 'person': person}
+                   for row, person in sorted(identities.items()) if row != person],
+        'madhab': madhab,
+        'layers': [dict(layer, estate=fraction_body(layer['estate']))
+                   for layer in sorted(layers, key=lambda layer: layer['order'])],
+        'final': [{'heir': pk, 'fraction': fraction_body(share)}
+                  for pk, share in sorted(final.items())],
+        'base': lcm(*(share.denominator for share in final.values())),
+    }

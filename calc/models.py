@@ -255,6 +255,7 @@ class Marriage(models.Model):
 
 class Calculation(models.Model):
     """Calculation for bequest class"""
+    parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.CASCADE, related_name="layers")
     # The school of the run in progress. It is an input to compute() and is never stored.
     madhab = schools.DEFAULT
     # The proof of the last compute(); like the school it is transient and never stored.
@@ -902,13 +903,18 @@ class Calculation(models.Model):
         write the run made. The in-memory instance and its heirs are not restored
         after such a failure, so do not save them. Inside a caller's transaction the
         run is a savepoint and the lock is held until that outer transaction ends.
-        A deleted case raises Calculation.DoesNotExist and writes nothing. Results
-        pages never pass a school, so they never raise UnsupportedCase."""
+        A deleted case raises Calculation.DoesNotExist and writes nothing. Cases
+        with later deaths are refused here; compute_manasikhat() is their entry
+        point. Legacy results pages do not run layered cases."""
         self.proof = None
         self._proof_steps = None
         schools.check_school(madhab)
         with transaction.atomic():
             self.refresh_from_db(from_queryset=Calculation.objects.select_for_update())
+            if not getattr(self, "_manasikhat_run", False) and (
+                    self.parent_id is not None or self.layers.exists()
+                    or Deceased.objects.filter(heir__calc=self).exists()):
+                raise UnsupportedCase(schools.MANASIKHAT_UNSUPPORTED)
             self.madhab = madhab
             self.clear()
             heirs = self.get_quotes()
@@ -936,12 +942,17 @@ class Calculation(models.Model):
         return reverse('calc:detail', args=[self.id])
 class Deceased(Person):
     """Deceased class"""
+    heir = models.ForeignKey("Heir", null=True, blank=True, on_delete=NON_POLYMORPHIC_CASCADE, related_name="later_deaths")
+    death_order = models.IntegerField(default=1)
     estate = models.IntegerField()
     calc = models.ForeignKey(Calculation, on_delete=NON_POLYMORPHIC_CASCADE,null=True)
     def get_absolute_url(self):
         return reverse('calc:detail', args=[self.calc.id])
 class Heir(Person):
     """Heir class"""
+    # Free the inherited Person.heir name for Deceased.heir.
+    person_ptr = models.OneToOneField(Person, on_delete=models.CASCADE, parent_link=True, primary_key=True, related_name="heir_row")
+    same_person = models.ForeignKey("self", null=True, blank=True, on_delete=NON_POLYMORPHIC_CASCADE, related_name="person_rows")
     quote = models.DecimalField(max_digits=11, decimal_places=10, default=0)  #prescribed share
     shared_quote = models.BooleanField(default=False)    #prescribed share is shared with other heir like 2 daughters
     share = models.IntegerField(default=0)

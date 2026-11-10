@@ -2629,3 +2629,7 @@ msgstr "Hanbali school: the paternal grandmother inherits although her son, the 
 
 #~ msgid "Son of paternal brother"
 #~ msgstr "Son of paternal brother"
+
+#: calc/schools.py
+msgid "This successive inheritance case is not supported"
+msgstr "This successive inheritance case is not supported"

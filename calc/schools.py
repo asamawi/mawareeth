@@ -18,6 +18,8 @@ KNOWN = SUNNI + (JAFARI,)
 DEFAULT = HANBALI
 
 SCHOOL_NOT_SUPPORTED = 'school_not_supported'
+MANASIKHAT_UNSUPPORTED = 'manasikhat_unsupported'
+
 MALIKIYYA_DISPUTED = 'malikiyya_disputed'
 
 # The school rules a proof can name where the schools diverge. Stable codes, never translated here.
@@ -38,8 +40,13 @@ REASONS = {
 }
 
 
+LAYERED_REASONS = {
+    MANASIKHAT_UNSUPPORTED: _("This successive inheritance case is not supported"),
+}
+
+
 class UnsupportedCase(Exception):
-    """The engine refuses to give a number. `reason` is a stable code from REASONS."""
+    """The engine refuses to give a number. `reason` is a stable code from REASONS or LAYERED_REASONS."""
 
     def __init__(self, reason):
         self.reason = reason
@@ -47,7 +54,7 @@ class UnsupportedCase(Exception):
 
     @property
     def message(self):
-        return str(REASONS[self.reason])
+        return str({**REASONS, **LAYERED_REASONS}[self.reason])
 
 
 def is_known(madhab):

@@ -2609,3 +2609,7 @@ msgstr "المذهب الحنبلي: الجدة لأب ترث مع وجود اب
 
 #~ msgid "View this page in:"
 #~ msgstr "تصفح هذه الصفحة باللغات التالية:"
+
+#: calc/schools.py
+msgid "This successive inheritance case is not supported"
+msgstr "حالة المناسخات هذه غير مدعومة"

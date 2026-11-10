@@ -3026,3 +3026,206 @@ class CalculationWriteViewTests(TestCase):
                 response = self.client.post(reverse('calc:' + route, args=[pk]), {}, secure=True)
                 self.assertEqual(response.status_code, 404)
                 lock.assert_not_called()
+
+# Successive inheritance fixtures keep person identity explicit across layers.
+def build_layer(parent, earlier, sex, heir_types, links=(), order=2):
+    calc, heirs = build_case(sex, heir_types, estate=999999)
+    calc.parent = parent
+    calc.save()
+    death = calc.deceased_set.get()
+    death.heir = earlier
+    death.death_order = order
+    death.save()
+    for index, person in links:
+        heirs[index].same_person = person
+        heirs[index].save()
+    return calc, heirs
+
+
+class ManasikhatTests(TestCase):
+    def run_layered(self, calc, school):
+        from .manasikhat import compute_manasikhat
+        return compute_manasikhat(calc, school)
+
+    def fixture(self, third=False, reverse=False):
+        root, heirs = build_case('M', [Son, Son, Wife] if reverse else [Wife, Son, Son], estate=101)
+        w, s1, s2 = (heirs[2], heirs[0], heirs[1]) if reverse else heirs
+        second, later = build_layer(root, s1, 'M', [Mother, Brother], [(0, w), (1, s2)])
+        if third:
+            last, newest = build_layer(second, w, 'F', [Son, Mother], [(0, later[1])], order=3)
+            return root, (w, s1, s2, newest[1]), (second, last)
+        return root, (w, s1, s2), (second,)
+
+    def test_matrix_and_determinism(self):
+        import time
+        for school in schools.SUNNI:
+            for third in (False, True):
+                with self.subTest(school=school, third=third):
+                    root, people, layers = self.fixture(third)
+                    start = time.perf_counter()
+                    final, evidence = self.run_layered(root, school)
+                    if third:
+                        self.assertLess(time.perf_counter() - start, 1)
+                        expected = {people[2].pk: F(275, 288), people[3].pk: F(13, 288)}
+                    else:
+                        expected = {people[0].pk: F(13, 48), people[2].pk: F(35, 48)}
+                    self.assertEqual([layer['heir'] for layer in evidence['layers']],
+                                     [None, people[1].pk] + ([people[0].pk] if third else []))
+                    expected_people = []
+                    for row in Heir.objects.filter(calc__in=layers).order_by('pk'):
+                        if row.same_person_id is not None:
+                            person = row.same_person
+                            while person.same_person_id is not None:
+                                person = person.same_person
+                            expected_people.append({'row': row.pk, 'person': person.pk})
+                    self.assertEqual(evidence['people'], expected_people)
+                    self.assertEqual(final, expected)
+                    self.assertEqual(sum(final.values()), 1)
+                    self.assertEqual(evidence['base'], 288 if third else 48)
+                    self.assertTrue(all((v * evidence['base']).denominator == 1 for v in final.values()))
+                    self.assertEqual((final, evidence), self.run_layered(root, school))
+                    self.assertEqual(evidence['layers'][1]['estate'], {'numerator': 7, 'denominator': 16})
+
+    def test_sibling_layers(self):
+        for school in schools.SUNNI:
+            with self.subTest(school=school):
+                root, (w, s1, s2) = build_case('M', [Wife, Son, Son])
+                build_layer(root, s1, 'M', [Mother, Brother], [(0, w), (1, s2)])
+                _, (_, uncle) = build_layer(root, s2, 'M', [Mother, Uncle], [(0, w)], order=3)
+                final, evidence = self.run_layered(root, school)
+                self.assertEqual(final, {w.pk: F(37, 72), uncle.pk: F(35, 72)})
+                self.assertEqual(evidence['base'], 72)
+
+    def test_school_difference(self):
+        for school in schools.SUNNI:
+            root, (h, s1, s2) = build_case('F', [Husband, Son, Son])
+            second, (_, pgm, _) = build_layer(root, s1, 'M', [Father, GrandMother, Brother], [(0, h), (2, s2)])
+            final, evidence = self.run_layered(root, school)
+            hanbali = school == schools.HANBALI
+            self.assertEqual(final, {h.pk: F(9,16) if hanbali else F(5,8),
+                                     pgm.pk: F(1,16) if hanbali else F(0), s2.pk: F(3,8)})
+            self.assertIn(schools.GRANDMOTHER_INHERITS_WITH_HER_SON if hanbali else schools.FATHER_BLOCKS_HIS_MOTHER,
+                          evidence['layers'][1]['proof']['school_rules'])
+
+    def test_plain_compute_and_jafari(self):
+        root, _, (second, third) = self.fixture(True)
+        for call, reason in [(lambda: root.compute(), schools.MANASIKHAT_UNSUPPORTED),
+                             (lambda: second.compute(), schools.MANASIKHAT_UNSUPPORTED),
+                             (lambda: third.compute(), schools.MANASIKHAT_UNSUPPORTED),
+                             (lambda: self.run_layered(root, schools.JAFARI), schools.SCHOOL_NOT_SUPPORTED)]:
+            with self.assertRaises(schools.UnsupportedCase) as error:
+                call()
+            self.assertEqual(error.exception.reason, reason)
+
+    def test_refusal_rolls_back_earlier_layer(self):
+        root, (w, daughter) = build_case('M', [Wife, Daughter])
+        build_layer(root, daughter, 'F', [Husband, Mother, GrandFather, MaternalBrother, MaternalBrother, PaternalBrother])
+        before = list(Heir.objects.non_polymorphic().values())
+        before_calcs = list(Calculation.objects.values())
+        with self.assertRaises(schools.UnsupportedCase) as error:
+            self.run_layered(root, schools.MALIKI)
+        self.assertEqual(error.exception.reason, schools.MALIKIYYA_DISPUTED)
+        self.assertEqual(before, list(Heir.objects.non_polymorphic().values()))
+        self.assertEqual(before_calcs, list(Calculation.objects.values()))
+
+    def test_invalid_topology(self):
+        for invalid in ('four', 'duplicate_order', 'dead_heir', 'cycle', 'external', 'duplicate_person', 'bad_order', 'bad_death', 'parent_cycle', 'gap_order', 'death_sex', 'person_sex', 'external_heir'):
+            with self.subTest(invalid=invalid):
+                root, (w, s1, s2, m), (second, third) = self.fixture(True)
+                if invalid == 'gap_order':
+                    third.delete()
+                    second.deceased_set.update(death_order=3)
+                elif invalid == 'death_sex':
+                    second.deceased_set.update(sex='F')
+                elif invalid == 'person_sex':
+                    Heir.objects.filter(calc=second, same_person=w).update(sex='M')
+                elif invalid == 'external_heir':
+                    other, (outsider,) = build_case('M', [Son])
+                    outsider.same_person = s2
+                    outsider.save()
+                elif invalid == 'four':
+                    build_layer(third, m, 'F', [Son], order=4)
+                elif invalid in ('duplicate_order', 'bad_order'):
+                    third.deceased_set.update(death_order=2 if invalid == 'duplicate_order' else 0)
+                elif invalid == 'dead_heir':
+                    heir = third.heir_set.first(); heir.same_person = s1; heir.save()
+                elif invalid == 'cycle':
+                    w.same_person = second.heir_set.get(same_person=w); w.save()
+                elif invalid == 'external':
+                    other, (outsider,) = build_case('M', [Son]); w.same_person = outsider; w.save()
+                elif invalid == 'duplicate_person':
+                    second.heir_set.update(same_person=w)
+                elif invalid == 'bad_death':
+                    second.deceased_set.update(heir=m)
+                else:
+                    root.parent = third; root.save()
+                before = list(Heir.objects.non_polymorphic().values())
+                with self.assertRaises(schools.UnsupportedCase) as error:
+                    self.run_layered(root, schools.HANBALI)
+                self.assertEqual(error.exception.reason, schools.MANASIKHAT_UNSUPPORTED)
+                self.assertEqual(before, list(Heir.objects.non_polymorphic().values()))
+
+    def test_cascade(self):
+        root, people, layers = self.fixture(True)
+        ids = [root.pk] + [c.pk for c in layers]
+        heir_ids = list(Heir.objects.filter(calc_id__in=ids).values_list('pk', flat=True))
+        root.delete()
+        self.assertFalse(Calculation.objects.filter(pk__in=ids).exists())
+        self.assertFalse(Heir.objects.filter(pk__in=heir_ids).exists())
+        self.assertFalse(Deceased.objects.filter(calc_id__in=ids).exists())
+
+    def test_unallocated_conservation(self):
+        root, (w, s) = build_case('M', [Wife, Son])
+        build_layer(root, s, 'M', [Wife])
+        final, evidence = self.run_layered(root, schools.HANBALI)
+        remainder = F(0)
+        for layer in evidence['layers']:
+            for step in layer['proof']['steps']:
+                if step['step'] == 'unallocated':
+                    amount = step['value']; estate = layer['estate']
+                    remainder += F(amount['numerator'], amount['denominator']) * F(estate['numerator'], estate['denominator'])
+        self.assertEqual(sum(final.values()) + remainder, 1)
+
+    def test_creation_order(self):
+        # References necessarily differ across new cases; compare after remapping
+        # their database identities to the fixture's semantic person names.
+        def normalized(reverse):
+            root, people, layers = self.fixture(True, reverse)
+            result, evidence = self.run_layered(root, schools.HANBALI)
+            mapping = {p.pk: name for p, name in zip(people, ('W', 'S1', 'S2', 'M'))}
+            mapping.update({h.pk: ('W' if isinstance(h, Mother) else 'S2') for h in layers[0].heir_set.all()})
+            mapping.update({h.pk: ('M' if isinstance(h, Mother) else 'S2') for h in layers[1].heir_set.all()})
+            for layer in evidence['layers']:
+                layer['heir'] = mapping[layer['heir']] if layer['heir'] is not None else None
+                layer['deceased'] = layer['order']
+                for h in layer['proof']['heirs']:
+                    h['heir'] = mapping[h['heir']]
+                layer['proof']['heirs'].sort(key=lambda h: h['heir'])
+            for entry in evidence['people']:
+                entry['row'] = mapping[entry['row']]
+                entry['person'] = mapping[entry['person']]
+            evidence['people'].sort(key=lambda e: (e['row'], e['person']))
+            for entry in evidence['final']:
+                entry['heir'] = mapping[entry['heir']]
+            evidence['final'].sort(key=lambda e: e['heir'])
+            return {mapping[pk]: value for pk, value in result.items()}, evidence
+        self.assertEqual(normalized(False), normalized(True))
+
+    def test_layered_reason_is_separate_and_translated(self):
+        self.assertNotIn(schools.MANASIKHAT_UNSUPPORTED, schools.REASONS)
+        texts = []
+        for language in ('ar', 'en', 'fr'):
+            with translation.override(language):
+                texts.append(schools.UnsupportedCase(schools.MANASIKHAT_UNSUPPORTED).message)
+        self.assertEqual(len(set(texts)), 3)
+        self.assertTrue(all('?' not in text for text in texts))
+
+    def test_explicit_school_and_zero_inherited_estate(self):
+        from .manasikhat import compute_manasikhat
+        root, (father, brother) = build_case('M', [Father, Brother])
+        second, (son,) = build_layer(root, brother, 'M', [Son])
+        with self.assertRaises(TypeError):
+            compute_manasikhat(root)
+        final, evidence = compute_manasikhat(root, schools.HANBALI)
+        self.assertEqual(final, {father.pk: F(1), son.pk: F(0)})
+        self.assertEqual(evidence['layers'][1]['estate'], {'numerator': 0, 'denominator': 1})
