@@ -171,6 +171,52 @@ So that I only add heirs who are eligible under fiqh.
 **When** I submit
 **Then** I see all relevant errors without losing my entered data
 
+## Story 1.7: Successive Deaths (Manasikhat) in the Interview
+
+**Implements:** FR-02, FR-05, FR-07
+
+As a visitor,
+I want to say that an heir has also died and add that heir's own heirs in the same interview,
+So that a case with successive deaths is captured and previewed without starting over.
+
+**Acceptance Criteria:**
+
+**Given** I have added an heir who can have heirs of their own
+**When** I mark that heir as also deceased
+**Then** the interview asks for that person's heirs as a new layer
+**And** people already in the case who are also that person's relatives (for example the mother or a brother) are linked as the same person, not entered twice
+**And** the tree shows the new layer with a generation indicator, and a breadcrumb shows which death I am editing
+
+**Given** two heirs are marked as deceased
+**When** I add the second one
+**Then** I am asked which of them died first
+**And** a simultaneous or unknown order of death is refused with a clear message
+
+**Given** a layered case within the engine's bounds (the first death and up to two later deaths)
+**When** the preview runs
+**Then** it shows each living person's combined final share of the first estate, computed by the layered engine
+**And** the heirs who died later are not listed as receiving a share
+
+**Given** a layered case the engine refuses (more than two later deaths, the Jafari school, or a refused layer)
+**When** the preview runs or I try to add another death
+**Then** the UI states the engine's reason and shows no provisional numbers
+**And** I can continue the interview
+
+**Given** an heir who has a later death
+**When** I remove that heir, or unmark them as deceased, and confirm
+**Then** their layer and its heirs are removed with them, and no orphaned layer remains
+
+**Given** overlapping edits and preview requests on one layered case
+**When** they run at the same time
+**Then** the whole case is locked so a preview never reads a half-written layer, and no request fails with a server error
+
+**Given** layered input and preview output
+**When** automated tests run
+**Then** contract tests check the layered request and preview payloads against the engine
+**And** the Story 2.4 matrix fixtures match the displayed final shares
+
+**Out of scope:** the dedicated lawyer Manasikhat mode, showing the per-layer proof (Epic 3), the legacy Django pages, a later deceased's own separate property, and simultaneous deaths (gharqa).
+
 ## Epic 2: Multi-School Deterministic Inheritance Engine
 Users receive deterministic inheritance calculations for all 4 Sunni Madhabs and the Jafari school, with measurable rule coverage, proof output, and no manual overrides.
 **FRs covered:** FR-01, FR-02, FR-03, FR-16

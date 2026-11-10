@@ -17,6 +17,7 @@
     - [Story 1.4: Family Tree Visualization (Basic Render + Updates)](./epic-list.md#story-14-family-tree-visualization-basic-render-updates)
     - [Story 1.5: Real-Time Share Preview from Supported Engine Cases](./epic-list.md#story-15-real-time-share-preview-from-supported-engine-cases)
     - [Story 1.6: Fiqh-Aware Validation + Hajb (Blocking Heirs)](./epic-list.md#story-16-fiqh-aware-validation-hajb-blocking-heirs)
+    - [Story 1.7: Successive Deaths (Manasikhat) in the Interview](./epic-list.md#story-17-successive-deaths-manasikhat-in-the-interview)
     - [Epic 2: Multi-School Deterministic Inheritance Engine](./epic-list.md#epic-2-multi-school-deterministic-inheritance-engine)
     - [Story 2.1: Standard Share Calculation Across All Required Schools](./epic-list.md#story-21-standard-share-calculation-across-all-required-schools)
     - [Story 2.2: Deterministic Proof Output for Multi-School Results](./epic-list.md#story-22-deterministic-proof-output-for-multi-school-results)

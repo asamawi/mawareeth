@@ -261,10 +261,6 @@ Completed and obsolete items are removed; their history is in git.
   evidence: All new Arabic and French text is unreviewed, and the label states a fiqh result (hajb) to the visitor.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-4-full-recursive-manasikhat-calculation.md`
-  summary: Add manasikhat input to the API, contracts and web interview, including layered result persistence.
-  evidence: Story 2.4 covers the engine only; preview and legacy results pages do not run layered calculations.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-full-recursive-manasikhat-calculation.md`
   summary: Have qualified reviewers check the manasikhat matrix and the Arabic and French refusal text.
   evidence: Automated tests cover the matrix; qualified fiqh and native-language review remains outstanding.
 
@@ -281,11 +277,4 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-2-deterministic-proof-output-for-multi-school-results.md`
   summary: Show the proof on the results and preview screens (Epic 3).
   evidence: The preview API now returns `proof` with labels in the request language, but nothing in the web app displays it.
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-full-recursive-manasikhat-calculation.md`
-  summary: Define the lifecycle of layered cases when an earlier-layer heir is deleted (Deceased.heir and Heir.same_person cascade, orphaning the child Calculation).
-  evidence: Review found the cascade deletes the later Deceased but leaves its Calculation; only deleting the root case is tested.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-full-recursive-manasikhat-calculation.md`
-  summary: Lock the whole layered topology against concurrent heir inserts, reparenting and new links during compute_manasikhat.
-  evidence: Rows are locked with select_for_update, but heirs inserted after validation would surface as a KeyError rather than a refusal; matters once the API writes layered cases.
 

@@ -60,7 +60,7 @@ NFR-10: Marketplace reviews and ratings must be restricted to verified completed
 ## FR Coverage Map
 
 FR-01: Epic 2 - Multi-School Deterministic Inheritance Engine
-FR-02: Epic 2 - Multi-School Deterministic Inheritance Engine
+FR-02: Epic 2 - Multi-School Deterministic Inheritance Engine (engine); Epic 1 - Guided Interview & Family Tree Capture (interview capture and preview, Story 1.7)
 FR-03: Epic 2 - Multi-School Deterministic Inheritance Engine
 FR-04: Epic 1 - Guided Interview & Family Tree Capture
 FR-05: Epic 1 - Guided Interview & Family Tree Capture
