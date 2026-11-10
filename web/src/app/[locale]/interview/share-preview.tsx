@@ -48,12 +48,12 @@ export function SharePreview({
   useEffect(() => {
     if (!ready) return;
     const own = new AbortController();
-    void fetchPreview(own.signal, caseId).then((outcome) => {
+    void fetchPreview(own.signal, caseId, { locale }).then((outcome) => {
       if (!own.signal.aborted) setSettled({ key, attempt, outcome: reconcile(key, caseId, outcome) });
     });
     // A change or leaving drops the request in flight.
     return () => own.abort();
-  }, [key, attempt, ready, caseId]);
+  }, [key, attempt, ready, caseId, locale]);
 
   const outcome = ready ? shown({ key, attempt }, settled) : null;
   const preview = outcome?.kind === "preview" ? outcome.preview : null;
@@ -171,7 +171,12 @@ export function SharePreview({
   }
 
   return (
-    <section aria-labelledby="preview-heading" aria-busy={ready && outcome === null} className="flex flex-col gap-3">
+    <section
+      data-wide
+      aria-labelledby="preview-heading"
+      aria-busy={ready && outcome === null}
+      className="flex w-full flex-col gap-3"
+    >
       <h3 id="preview-heading" className="text-lg font-semibold">
         {messages.previewHeading}
       </h3>

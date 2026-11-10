@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useReducer } from "react";
+import { useEffect, useId, useLayoutEffect, useReducer, useRef, useState } from "react";
 
 import type { PreviewProofHeir } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
@@ -108,6 +108,24 @@ export function InheritanceTable({
   const withAmount = view.rows.some((row) => row.amount !== null);
   const withPercent = view.rows.some((row) => row.percent !== null);
 
+  const frame = useRef<HTMLDivElement>(null);
+  const rowsRef = useRef(new Map<string, HTMLTableRowElement>());
+  const [top, setTop] = useState(0);
+
+  // the note sits just under the open heir's row
+  useLayoutEffect(() => {
+    if (open === null) return;
+    const place = () => {
+      const row = rowsRef.current.get(open);
+      if (row && frame.current) {
+        setTop(row.getBoundingClientRect().bottom - frame.current.getBoundingClientRect().top);
+      }
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
+
   useEffect(() => {
     if (open === null) return;
     const close = (event: KeyboardEvent) => {
@@ -136,6 +154,10 @@ export function InheritanceTable({
     return (
       <tr
         key={id}
+        ref={(element) => {
+          if (element) rowsRef.current.set(id, element);
+          else rowsRef.current.delete(id);
+        }}
         data-active={active ? "" : undefined}
         className={active ? "bg-current/10" : undefined}
         onMouseEnter={() => dispatch({ type: "hover", id })}
@@ -192,12 +214,13 @@ export function InheritanceTable({
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm">{t.noteHint}</p>
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:gap-0">
+      {/* The note floats under its row and takes no room of its own; the table keeps the full width. */}
+      <div ref={frame} className="relative">
         <div
           role="region"
           aria-label={t.caption}
           tabIndex={0}
-          className="min-w-0 overflow-x-auto md:flex-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
+          className="min-w-0 overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
         >
           <table className="w-full min-w-max border-collapse text-sm">
             <caption className="sr-only">{t.caption}</caption>
@@ -228,9 +251,11 @@ export function InheritanceTable({
         <aside
           id={noteId}
           aria-live="polite"
+          hidden={open === null}
           onMouseEnter={() => dispatch({ type: "panelEnter" })}
           onMouseLeave={() => dispatch({ type: "panelLeave" })}
-          className={`${open === null ? "hidden md:block" : "block"} min-h-16 rounded-md border border-current/60 p-3 md:w-72 md:shrink-0`}
+          style={{ top }}
+          className="absolute end-0 z-20 w-80 max-w-full rounded-md border border-current/60 bg-[var(--background)] p-3 shadow-lg"
         >
           {open !== null && note(open)}
         </aside>

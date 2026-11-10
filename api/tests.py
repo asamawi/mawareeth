@@ -1372,6 +1372,29 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                        if f['response']['status'] == 'available' and f['case'].get('deaths'))
         self.assertIsNone(layered['response']['table'])
 
+    def test_the_asked_language_wins_over_a_language_cookie(self):
+        from django.conf import settings
+        fixture = next(f for f in PREVIEW_FIXTURES if f['title'] == 'Husband and two sisters need awl')
+        case = fixture['case']
+        live = self.build(case['madhab'], case['deceased']['gender'], case['deceased']['estate'],
+                          [heir['relationship'] for heir in case['heirs']])
+        # a cookie left by the legacy pages must not override the web page's own language
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'
+        body = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='ar').json()
+        self.assertEqual([c['label'] for c in body['table']['columns']], ['السهام', 'العول'])
+        self.assertTrue(all(any('؀' <= ch <= 'ۿ' for ch in e['labels']['rule']) for e in body['proof']['heirs']))
+        # an unsupported language falls back to the one the middleware chose
+        body = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='de').json()
+        self.assertEqual([c['label'] for c in body['table']['columns']], ['Shares', 'Excess'])
+
+    def test_the_remainder_column_is_not_called_radd(self):
+        live = self.build('hanbali', 'male', None, ['father', 'daughter'])
+        columns = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='ar').json()['table']['columns']
+        self.assertEqual([c['code'] for c in columns], ['base', 'remainder'])
+        self.assertEqual(columns[1]['label'], 'الباقي تعصيبًا')
+        english = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()['table']['columns']
+        self.assertEqual(english[1]['label'], 'Remainder')
+
     def test_every_available_fixture_carries_a_version_one_proof(self):
         for fixture in PREVIEW_FIXTURES:
             response = fixture['response']

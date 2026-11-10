@@ -2,6 +2,7 @@ import logging
 import traceback
 
 from django.contrib.auth.decorators import login_not_required
+from django.utils import translation
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -159,6 +160,20 @@ class NotFoundView(ApiView):
         raise NotFound()
 
 
+def _asked_language(request):
+    """The language the client asks for in Accept-Language, ahead of a language cookie.
+
+    The web app sends its page's locale here, and a cookie left by the legacy pages must not
+    override it. Falls back to the language the middleware chose."""
+    for code, _quality in translation.trans_real.parse_accept_lang_header(
+            request.headers.get('Accept-Language', '')):
+        try:
+            return translation.get_supported_language_variant(code)
+        except LookupError:
+            continue
+    return translation.get_language()
+
+
 @method_decorator(never_cache, name='dispatch')
 class PreviewView(ApiView):
     """The shares of the visitor's case under its school, from the engine. Writes nothing.
@@ -181,7 +196,8 @@ class PreviewView(ApiView):
                 {'detail': 'That case is no longer the current one.', 'case': case},
                 status=status.HTTP_409_CONFLICT)
         try:
-            body = preview.preview(case)
+            with translation.override(_asked_language(request)):
+                body = preview.preview(case)
         except Exception as error:
             # The kind of error and where it came from, never its message or locals: the case
             # holds names and amounts.

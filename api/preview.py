@@ -103,7 +103,7 @@ def _labelled(proof, ids):
 def _column_labels():
     """The legacy captions of the table's engine columns, in the active language."""
     return {
-        'base': _('Shares'), 'awl': _('Excess'), 'radd': _('Shortage'), 'remainder': _('Shortage'),
+        'base': _('Shares'), 'awl': _('Excess'), 'radd': _('Shortage'), 'remainder': _('Remainder'),
         'radd_calc': _('Shortage calc'), 'radd_union': _('Calc Union'), 'correction': _('Correction'),
     }
 

@@ -49,7 +49,7 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
         let outcome: PreviewResult | null = null;
         if (kase !== null && previewReady(kase)) {
           const key = previewKey(kase);
-          outcome = reconcile(key, kase.id, await fetchPreview(own.signal, kase.id));
+          outcome = reconcile(key, kase.id, await fetchPreview(own.signal, kase.id, { locale }));
         }
         value = { kind: "case", kase, outcome };
       } catch {
@@ -58,7 +58,7 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
       if (!own.signal.aborted) setLoaded({ attempt, value });
     })();
     return () => own.abort();
-  }, [attempt]);
+  }, [attempt, locale]);
 
   const current = loaded && loaded.attempt === attempt ? loaded.value : null;
   const interview = messages.interview;
@@ -160,7 +160,7 @@ function Available({
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex w-full flex-col gap-6">
       <p>{text.school.split("{school}").join(school)}</p>
 
       <section aria-labelledby="results-shares" className="flex flex-col gap-3">

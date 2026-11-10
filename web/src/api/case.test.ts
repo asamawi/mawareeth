@@ -425,6 +425,13 @@ test("fetchPreview makes one read with the case id and returns the typed preview
   assert.equal(calls[0].url, "/api/v1/case/preview/?case_id=a%20b");
   assert.equal(calls[0].init?.method, undefined);
   assert.equal(header(calls[0], "X-CSRFToken"), undefined);
+  assert.equal(header(calls[0], "Accept-Language"), undefined);
+});
+
+test("fetchPreview asks for the page's language, so labels follow the page and not the browser", async () => {
+  const calls = stubFetch(async () => Response.json(AVAILABLE));
+  await fetchPreview(signal(), "abc", { locale: "ar" });
+  assert.equal(header(calls[0], "Accept-Language"), "ar");
 });
 
 test("fetchPreview reads each status", async () => {

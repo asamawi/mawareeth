@@ -1044,16 +1044,19 @@ export function parsePreview(body: unknown): Preview | null {
 export async function fetchPreview(
   signal: AbortSignal,
   caseId: string,
-  options: { timeoutMs?: number } = {},
+  options: { timeoutMs?: number; locale?: string } = {},
 ): Promise<PreviewResult> {
   const controller = new AbortController();
+  // the server labels the proof and the table in the language it is asked for: the page's, not the browser's
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (options.locale) headers["Accept-Language"] = options.locale;
   const abort = () => controller.abort();
   const timeout = setTimeout(abort, options.timeoutMs ?? PREVIEW_TIMEOUT_MS);
   signal.addEventListener("abort", abort, { once: true });
   try {
     const response = await fetch(`${PREVIEW_URL}?case_id=${encodeURIComponent(caseId)}`, {
       credentials: "same-origin",
-      headers: { Accept: "application/json" },
+      headers,
       signal: controller.signal,
     });
     if (response.status === 429) return { kind: "throttled" };

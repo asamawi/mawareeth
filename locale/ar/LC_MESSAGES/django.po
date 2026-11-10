@@ -2613,3 +2613,7 @@ msgstr "المذهب الحنبلي: الجدة لأب ترث مع وجود اب
 #: calc/schools.py
 msgid "This successive inheritance case is not supported"
 msgstr "حالة المناسخات هذه غير مدعومة"
+
+#: api/preview.py
+msgid "Remainder"
+msgstr "الباقي تعصيبًا"
