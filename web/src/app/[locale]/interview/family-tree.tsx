@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import type { Deceased, Heir } from "@/api/case";
+import type { Gender, Heir } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import { heirLabels } from "@/interview/answers";
 import { layoutTree, treeDescription } from "@/interview/tree";
@@ -17,12 +17,17 @@ const FALLBACK_WIDTH = 288;
  */
 export function FamilyTree({
   messages,
-  deceased,
+  gender,
+  rootText,
   heirs,
   editingId,
 }: {
   messages: Messages["interview"];
-  deceased: Deceased;
+  /** The gender of the layer's deceased. */
+  gender: Gender;
+  /** A later layer's root text, such as "Son (2nd death)"; the first deceased uses the plain text. */
+  rootText?: string;
+  /** The heirs of the layer shown: the tree draws only one layer. */
   heirs: Heir[];
   /** The heir whose form is open, marked by an outline. */
   editingId: string | null;
@@ -43,7 +48,7 @@ export function FamilyTree({
 
   const layout = useMemo(() => layoutTree(heirs, width), [heirs, width]);
   const labels = heirLabels(heirs, messages.relationships, messages.heirNumbered);
-  const description = treeDescription(messages, deceased, heirs);
+  const description = treeDescription(messages, { gender }, heirs, rootText);
   const nodeById = new Map(heirs.map((heir) => [heir.id, heir]));
   const move = "absolute transition-[inset-inline-start,top] duration-300 motion-reduce:transition-none";
 
@@ -86,7 +91,13 @@ export function FamilyTree({
             }}
           >
             <span className="line-clamp-2 [overflow-wrap:anywhere]">
-              {deceased.gender === "male" ? messages.treeDeceasedMale : messages.treeDeceasedFemale}
+              {rootText !== undefined ? (
+                <bdi>{rootText}</bdi>
+              ) : gender === "male" ? (
+                messages.treeDeceasedMale
+              ) : (
+                messages.treeDeceasedFemale
+              )}
             </span>
           </div>
           {layout.nodes.map((node) => {

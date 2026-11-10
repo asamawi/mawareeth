@@ -12,21 +12,48 @@ export function previewKey(kase: Case): string {
     gender: kase.deceased?.gender ?? null,
     estate: kase.deceased?.estate ?? null,
     heirs: kase.heirs,
+    // A shared fixture's case may leave `deaths` out: that reads as none.
+    deaths: (kase.deaths ?? []).map((death) => ({
+      heir_id: death.heir_id,
+      order: death.order,
+      heirs: death.heirs,
+    })),
   });
 }
 
 /** The key of a case id and what its numbers depend on; the server's `basis` has the same shape. */
 function keyOf(
   caseId: string,
-  basis: { madhab: string | null; gender: string | null; estate: string | null; heirs: readonly { id: string; relationship: string }[] },
+  basis: {
+    madhab: string | null;
+    gender: string | null;
+    estate: string | null;
+    heirs: readonly { id: string; relationship: string }[];
+    deaths?: readonly {
+      heir_id: string;
+      order: number;
+      heirs: readonly { id: string; relationship: string; same_as?: string }[];
+    }[];
+  },
 ): string {
-  return JSON.stringify([
+  const key: unknown[] = [
     caseId,
     basis.madhab,
     basis.gender,
     basis.estate,
     basis.heirs.map((heir) => [heir.id, heir.relationship]),
-  ]);
+  ];
+  // A case without deaths keeps exactly the key it always had.
+  if (basis.deaths && basis.deaths.length > 0) {
+    key.push(
+      basis.deaths.map((death) => [
+        death.heir_id,
+        death.order,
+        death.heirs.map((heir) => [heir.id, heir.relationship, heir.same_as ?? null]),
+      ]),
+    );
+  }
+  return JSON.stringify(key);
 }
 
 /** The key of the family the server worked out, for the case this tab asked about. */
@@ -46,9 +73,17 @@ export function reconcile(key: string, caseId: string, outcome: PreviewResult): 
   return basisKey(caseId, outcome.preview.basis) === key ? outcome : { kind: "replaced" };
 }
 
-/** Whether the case has what the engine needs: a school, a deceased and at least one heir. */
+/**
+ * Whether the case has what the engine needs: a school, a deceased and at least one heir, and
+ * every person who died has heirs of their own.
+ */
 export function previewReady(kase: Case): boolean {
-  return kase.madhab !== null && kase.deceased !== null && kase.heirs.length > 0;
+  return (
+    kase.madhab !== null &&
+    kase.deceased !== null &&
+    kase.heirs.length > 0 &&
+    (kase.deaths ?? []).every((death) => death.heirs.length > 0)
+  );
 }
 
 export type PreviewRow = {

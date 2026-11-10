@@ -186,24 +186,23 @@ export function layoutTree(heirs: readonly Pick<Heir, "id" | "relationship">[], 
 /** The one text description of the tree: structure by relationship and count, never names. */
 export function treeDescription(
   messages: Messages["interview"],
-  deceased: Deceased,
+  deceased: Pick<Deceased, "gender"> & Partial<Deceased>,
   heirs: readonly Pick<Heir, "relationship">[],
+  /** A later layer's root, such as "Son (2nd death)", instead of the first deceased's text. */
+  rootText?: string,
 ): string {
-  const who = deceased.gender === "male" ? messages.treeDeceasedMale : messages.treeDeceasedFemale;
+  const who =
+    rootText ?? (deceased.gender === "male" ? messages.treeDeceasedMale : messages.treeDeceasedFemale);
   const counts = treeSummary(heirs)
     .map((item) =>
-      messages.treeCount
-        .split("{relationship}")
-        .join(messages.relationships[item.relationship])
-        .split("{n}")
-        .join(String(item.count)),
+      messages.treeCount.replace(/\{relationship\}|\{n\}/g, (token) =>
+        token === "{relationship}" ? messages.relationships[item.relationship] : String(item.count),
+      ),
     )
     .join(" ");
-  return messages.treeSummary
-    .split("{deceased}")
-    .join(who)
-    .split("{heirs}")
-    .join(counts ? ` ${counts}` : "");
+  return messages.treeSummary.replace(/\{deceased\}|\{heirs\}/g, (token) =>
+    token === "{deceased}" ? who : counts ? ` ${counts}` : "",
+  );
 }
 
 /**

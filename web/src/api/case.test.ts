@@ -6,6 +6,8 @@ import {
   addHeir,
   fetchCase,
   fetchPreview,
+  markDeceased,
+  unmarkDeceased,
   parsePreview,
   MADHAB_IDS,
   readCsrfToken,
@@ -34,7 +36,7 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-const CASE = { id: "abc123", started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} } };
+const CASE = { id: "abc123", started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} }, deaths: [] };
 const signal = () => new AbortController().signal;
 const withToken = { cookie: () => "other=1; csrftoken=tok%3D1" };
 const header = (call: Call, name: string) => (call.init?.headers as Record<string, string>)[name];
@@ -264,6 +266,7 @@ test("parseCase reads deceased and heirs, and tolerates the older shape", async 
     deceased: null,
     heirs: [],
     heir_options: { blocked: [], invalid: {} },
+    deaths: [],
   });
   stubFetch(async () =>
     Response.json({
@@ -593,4 +596,126 @@ test("layered previews preserve strict death records and require an explicit pro
   assert.deepEqual(parsePreview({ ...body, status: "unavailable", reason: "manasikhat_unsupported" }), {
     status: "unavailable", madhab: body.madhab, basis: body.basis, reason: "manasikhat_unsupported",
   });
+});
+
+// Story 1.7b: successive deaths
+
+const LAYERED = {
+  ...FULL_CASE,
+  heirs: [
+    { id: "w", relationship: "wife", gender: "female", name: "Amal" },
+    { id: "s1", relationship: "son", gender: "male", name: null },
+    { id: "s2", relationship: "son", gender: "male", name: null },
+  ],
+  deaths: [
+    {
+      heir_id: "s1",
+      order: 2,
+      gender: "male",
+      heir_options: { blocked: [], invalid: {} },
+      heirs: [
+        { id: "r1", relationship: "mother", gender: "female", name: "Amal", same_as: "w" },
+        { id: "r2", relationship: "brother", gender: "male", name: null, same_as: "s2" },
+        { id: "r3", relationship: "wife", gender: "female", name: null },
+      ],
+    },
+    {
+      heir_id: "w",
+      order: 3,
+      gender: "female",
+      heir_options: { blocked: [], invalid: {} },
+      heirs: [{ id: "r4", relationship: "son", gender: "male", name: null, same_as: "s2" }],
+    },
+  ],
+};
+
+async function parsed(value: unknown) {
+  stubFetch(async () => Response.json({ case: value }));
+  return fetchCase(signal());
+}
+
+test("parseCase reads later deaths with their heirs, links and options", async () => {
+  const kase = await parsed(LAYERED);
+  assert.equal(kase?.deaths.length, 2);
+  assert.deepEqual(kase?.deaths[0].heirs[0], { id: "r1", relationship: "mother", gender: "female", name: "Amal", same_as: "w" });
+  assert.deepEqual(kase?.deaths[0].heirs[2], { id: "r3", relationship: "wife", gender: "female", name: null });
+  assert.equal(kase?.deaths[1].heir_id, "w");
+  assert.deepEqual(kase?.deaths[1].heirs.map((row) => row.same_as), ["s2"]);
+});
+
+test("parseCase drops a malformed death or row and parses the rest, never throwing", async () => {
+  const death = LAYERED.deaths[0];
+  const dropped = [
+    { ...death, extra: 1 },
+    { ...death, order: 3 },
+    { ...death, order: "2" },
+    { ...death, heir_id: "nobody" },
+    { ...death, heir_id: 5 },
+    { ...death, gender: "x" },
+    { ...death, heirs: "none" },
+    "text",
+    null,
+  ];
+  for (const bad of dropped) {
+    const kase = await parsed({ ...LAYERED, deaths: [bad] });
+    assert.deepEqual(kase?.deaths, [], JSON.stringify(bad));
+    assert.equal(kase?.heirs.length, 3);
+  }
+  // A row with unknown keys, a bad relationship, a duplicate id, or a link to an unknown row is
+  // dropped from its layer; the others stay.
+  const rows = [
+    { id: "r1", relationship: "mother", gender: "female", name: null, same_as: "w" },
+    { id: "x1", relationship: "mother", gender: "female", name: null, extra: 1 },
+    { id: "x2", relationship: "cousin", gender: "female", name: null },
+    { id: "r1", relationship: "sister", gender: "female", name: null },
+    { id: "x3", relationship: "brother", gender: "male", name: null, same_as: "ghost" },
+    { id: "x4", relationship: "brother", gender: "male", name: null, same_as: "s1" },
+    { id: "x5", relationship: "brother", gender: "male", name: null, same_as: "s2" },
+    { id: "x6", relationship: "brother", gender: "male", name: null, same_as: "s2" },
+    { id: "s1", relationship: "uncle", gender: "male", name: null },
+  ];
+  const kase = await parsed({ ...LAYERED, deaths: [{ ...death, heirs: rows }] });
+  assert.deepEqual(kase?.deaths[0].heirs.map((row) => row.id), ["r1", "x5"]);
+});
+
+test("parseCase refuses a link to a later layer, a third later death and a repeated death", async () => {
+  const [first, second] = LAYERED.deaths;
+  const forward = { ...first, heirs: [{ id: "r9", relationship: "brother", gender: "male", name: null, same_as: "r3" }] };
+  assert.deepEqual((await parsed({ ...LAYERED, deaths: [forward] }))?.deaths[0].heirs, []);
+  const third = { ...second, order: 4, heir_id: "r2" };
+  assert.equal((await parsed({ ...LAYERED, deaths: [first, second, third] }))?.deaths.length, 2);
+  const repeated = { ...second, heir_id: "s1", heirs: [] };
+  assert.deepEqual((await parsed({ ...LAYERED, deaths: [first, repeated] }))?.deaths.map((d) => d.heir_id), ["s1"]);
+});
+
+test("markDeceased posts the row and the answer to the order question; unmarkDeceased deletes", async () => {
+  const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
+  assert.deepEqual(await markDeceased(signal(), "abc123", "s1", undefined, withToken), { kind: "saved", case: FULL_CASE });
+  assert.equal(calls[0].url, "/api/v1/case/deaths/");
+  assert.equal(calls[0].init?.method, "POST");
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { heir_id: "s1", case_id: "abc123" });
+  await markDeceased(signal(), "abc123", "s2", "s1", withToken);
+  assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { heir_id: "s2", first: "s1", case_id: "abc123" });
+  await unmarkDeceased(signal(), "abc123", "s 1", withToken);
+  assert.equal(calls[2].url, "/api/v1/case/deaths/s%201/?case_id=abc123");
+  assert.equal(calls[2].init?.method, "DELETE");
+  assert.equal(calls[2].init?.body, undefined);
+});
+
+test("a refused death comes back as its codes", async () => {
+  stubFetch(async () => Response.json({ errors: { death: "order_required" } }, { status: 400 }));
+  assert.deepEqual(await markDeceased(signal(), "abc123", "s2", undefined, withToken), {
+    kind: "invalid",
+    errors: { death: "order_required" },
+  });
+});
+
+
+test("a third-death row cannot link to the second deceased", async () => {
+  const [first, second] = LAYERED.deaths;
+  const kase = await parsed({ ...LAYERED, deaths: [first, { ...second, heirs: [
+    ...second.heirs,
+    { id: "dead-link", relationship: "son", gender: "male", name: null, same_as: "s1" },
+  ] }] });
+  assert.deepEqual(kase?.deaths[1].heirs.map((row) => row.id), ["r4"]);
 });

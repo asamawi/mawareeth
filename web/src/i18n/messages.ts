@@ -82,7 +82,35 @@ export type Messages = {
     heirAdded: string;
     heirUpdated: string;
     heirRemoved: string;
+    deathMarked: string;
+    deathUnmarked: string;
     heirGone: string;
+    /** Successive deaths (Story 1.7b). Arabic and French await native review. */
+    deathsNavLabel: string;
+    deathsFirst: string;
+    deathSecond: string;
+    deathThird: string;
+    deathLayerLabel: string;
+    heirsOfHeading: string;
+    heirAlsoDied: string;
+    heirOpenLayer: string;
+    heirDidNotDie: string;
+    heirDidNotDieConfirm: string;
+    heirDidNotDieYes: string;
+    heirRemoveConfirmDeceased: string;
+    deathOrderQuestion: string;
+    deathOrderSimultaneous: string;
+    deathOrderUnknown: string;
+    deathOrderCancel: string;
+    heirLinkLegend: string;
+    heirLinkNew: string;
+    heirLinkExisting: string;
+    heirLinkPickLabel: string;
+    heirLinkPickPlaceholder: string;
+    heirLinkRequired: string;
+    heirLinkedHint: string;
+    previewOf: string;
+    previewLayerPrompt: string;
     formSaving: string;
     startOverConfirm: string;
     startOverYes: string;
@@ -198,6 +226,34 @@ export const messages: Record<Locale, Messages> = {
       heirUpdated: "تم تعديل {heir}.",
       heirRemoved: "تم حذف {heir}.",
       heirGone: "هذا الوارث لم يعد موجودًا. تم تحديث القائمة.",
+      // Native-language review pending.
+      deathMarked: "تم تسجيل وفاة {heir}؛ أضف ورثته.",
+      deathUnmarked: "أُلغي تسجيل وفاة {heir}؛ وحُذف ورثته.",
+      deathsNavLabel: "الوفيات في هذه الحالة",
+      deathsFirst: "المتوفى الأول",
+      deathSecond: "الوفاة الثانية",
+      deathThird: "الوفاة الثالثة",
+      deathLayerLabel: "{label} – {order}",
+      heirsOfHeading: "ورثة {heir}",
+      heirAlsoDied: "توفي أيضًا: {heir}",
+      heirOpenLayer: "فتح ورثته: {heir}",
+      heirDidNotDie: "لم يتوفَّ: {heir}",
+      heirDidNotDieConfirm: "هل {heir} لم يتوفَّ؟ سيُحذف ورثته أيضًا.",
+      heirDidNotDieYes: "نعم، لم يتوفَّ",
+      heirRemoveConfirmDeceased: "هل تريد حذف {heir}؟ ستُحذف وفاته وورثته أيضًا.",
+      deathOrderQuestion: "من توفي أولًا؟",
+      deathOrderSimultaneous: "في الوقت نفسه",
+      deathOrderUnknown: "غير معروف",
+      deathOrderCancel: "إلغاء",
+      heirLinkLegend: "من هو هذا القريب؟",
+      heirLinkNew: "شخص جديد",
+      heirLinkExisting: "شخص موجود في هذه الحالة",
+      heirLinkPickLabel: "الشخص الموجود في هذه الحالة",
+      heirLinkPickPlaceholder: "اختر شخصًا",
+      heirLinkRequired: "اختر شخصًا من القائمة، أو أدخل شخصًا جديدًا.",
+      heirLinkedHint: "هذا هو الشخص نفسه المسجّل في إدخال سابق. لا يمكن تغيير اسمه إلا هناك.",
+      previewOf: "{heir} لدى {deceased}",
+      previewLayerPrompt: "أضف ورثة لكل شخص متوفى لتظهر الأنصبة هنا.",
       formSaving: "جارٍ الحفظ…",
       startOverConfirm: "سيؤدي البدء من جديد إلى حذف المتوفى والورثة المدخلين في هذه الحالة. هل تريد المتابعة؟",
       startOverYes: "نعم، ابدأ من جديد",
@@ -385,6 +441,34 @@ export const messages: Record<Locale, Messages> = {
       heirUpdated: "{heir} updated.",
       heirRemoved: "{heir} removed.",
       heirGone: "That heir no longer exists. The list has been refreshed.",
+      // Successive deaths (Story 1.7b).
+      deathsNavLabel: "The deaths in this case",
+      deathsFirst: "First deceased",
+      deathSecond: "2nd death",
+      deathThird: "3rd death",
+      deathLayerLabel: "{label} ({order})",
+      deathMarked: "{heir} is marked as having died; add their heirs.",
+      deathUnmarked: "{heir} is no longer marked as having died; their heirs were removed.",
+      heirsOfHeading: "Heirs of {heir}",
+      heirAlsoDied: "Also died: {heir}",
+      heirOpenLayer: "Open their heirs: {heir}",
+      heirDidNotDie: "Did not die: {heir}",
+      heirDidNotDieConfirm: "{heir} did not die? Their heirs will be removed too.",
+      heirDidNotDieYes: "Yes, did not die",
+      heirRemoveConfirmDeceased: "Remove {heir}? Their death and their heirs will be removed too.",
+      deathOrderQuestion: "Who died first?",
+      deathOrderSimultaneous: "At the same time",
+      deathOrderUnknown: "Not known",
+      deathOrderCancel: "Cancel",
+      heirLinkLegend: "Who is this relative?",
+      heirLinkNew: "A new person",
+      heirLinkExisting: "Someone already in this case",
+      heirLinkPickLabel: "Person already in this case",
+      heirLinkPickPlaceholder: "Choose a person",
+      heirLinkRequired: "Choose a person from the list, or enter a new person.",
+      heirLinkedHint: "This is the same person as in an earlier entry. Their name can only be changed there.",
+      previewOf: "{heir} of {deceased}",
+      previewLayerPrompt: "Add heirs for each person who died to see the shares here.",
       formSaving: "Saving…",
       startOverConfirm: "Starting over deletes the deceased and the heirs entered in this case. Do you want to continue?",
       startOverYes: "Yes, start over",
@@ -572,6 +656,34 @@ export const messages: Record<Locale, Messages> = {
       heirUpdated: "Héritier modifié : {heir}",
       heirRemoved: "Héritier supprimé : {heir}",
       heirGone: "Cet héritier n'existe plus. La liste a été actualisée.",
+      // Native-language review pending.
+      deathsNavLabel: "Les décès de ce dossier",
+      deathsFirst: "Premier défunt",
+      deathSecond: "2e décès",
+      deathThird: "3e décès",
+      deathLayerLabel: "{label} ({order})",
+      deathMarked: "Le décès de {heir} est enregistré ; ajoutez ses héritiers.",
+      deathUnmarked: "Le décès de {heir} n’est plus enregistré ; ses héritiers ont été supprimés.",
+      heirsOfHeading: "Héritiers de {heir}",
+      heirAlsoDied: "Également décédé : {heir}",
+      heirOpenLayer: "Ouvrir ses héritiers : {heir}",
+      heirDidNotDie: "N'est pas décédé : {heir}",
+      heirDidNotDieConfirm: "{heir} n'est pas décédé ? Ses héritiers seront supprimés aussi.",
+      heirDidNotDieYes: "Oui, n'est pas décédé",
+      heirRemoveConfirmDeceased: "Supprimer {heir} ? Son décès et ses héritiers seront supprimés aussi.",
+      deathOrderQuestion: "Qui est décédé en premier ?",
+      deathOrderSimultaneous: "En même temps",
+      deathOrderUnknown: "On ne sait pas",
+      deathOrderCancel: "Annuler",
+      heirLinkLegend: "Qui est ce parent ?",
+      heirLinkNew: "Une nouvelle personne",
+      heirLinkExisting: "Quelqu'un déjà présent dans ce dossier",
+      heirLinkPickLabel: "Personne déjà présente dans ce dossier",
+      heirLinkPickPlaceholder: "Choisissez une personne",
+      heirLinkRequired: "Choisissez une personne dans la liste, ou saisissez une nouvelle personne.",
+      heirLinkedHint: "C'est la même personne que dans une saisie précédente. Son nom ne peut être modifié que là.",
+      previewOf: "{heir} de {deceased}",
+      previewLayerPrompt: "Ajoutez des héritiers pour chaque personne décédée afin de voir les parts ici.",
       formSaving: "Enregistrement…",
       startOverConfirm: "Recommencer supprime le défunt et les héritiers saisis dans ce dossier. Voulez-vous continuer ?",
       startOverYes: "Oui, recommencer",

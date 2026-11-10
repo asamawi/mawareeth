@@ -254,3 +254,9 @@ test("the summary counts by relationship in table order", () => {
   ]);
   assert.deepEqual(treeSummary([]), []);
 });
+
+
+test("tree descriptions preserve placeholders and dollar patterns inside a later deceased's name", () => {
+  const text = { ...messages.en.interview, treeSummary: "{deceased}: {heirs}" };
+  assert.equal(treeDescription(text, { gender: "male" }, [], "{heirs} $&"), "{heirs} $&: ");
+});

@@ -5,10 +5,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addHeir,
   fetchCase,
+  markDeceased,
   removeHeir,
   saveDeceased,
   setMadhab,
   startCase,
+  unmarkDeceased,
   updateHeir,
   type MadhabId,
 } from "@/api/case";
@@ -29,9 +31,11 @@ import {
   cancelChange,
   cancelEditDeceased,
   cancelEditHeir,
+  cancelOrder,
   cancelStartOver,
   heirFormKey,
   openChange,
+  openLayer,
   revealOf,
   pick,
   pendingView,
@@ -48,15 +52,26 @@ import {
   type StartedView,
   type View,
 } from "@/interview/flow";
+import {
+  breadcrumb,
+  hasDeaths,
+  layerAt,
+  linkCandidates,
+  personOf,
+  rowLabels,
+  rowsOf,
+} from "@/interview/layers";
 import { initialPick, selectionStore } from "@/interview/madhabs";
 import { scrollTopFor } from "@/interview/tree";
 
+import { DeathBreadcrumb, crumbTextOf } from "./death-breadcrumb";
 import { DeceasedForm } from "./deceased-form";
 import { FamilyTree } from "./family-tree";
-import { buttonClass } from "./form-bits";
+import { buttonClass, errorText } from "./form-bits";
 import { DeceasedSummary, HeirList } from "./heir-list";
 import { HeirForm } from "./heir-form";
 import { MadhabSelector } from "./madhab-selector";
+import { OrderQuestion } from "./order-question";
 import { SharePreview } from "./share-preview";
 
 const SEEN_KEY = "mawareeth.case-seen";
@@ -71,6 +86,8 @@ const deps: Deps = {
   addHeir: (signal, caseId, fields) => addHeir(signal, caseId, fields),
   updateHeir: (signal, caseId, heirId, fields) => updateHeir(signal, caseId, heirId, fields),
   removeHeir: (signal, caseId, heirId) => removeHeir(signal, caseId, heirId),
+  markDeceased: (signal, caseId, heirId, first) => markDeceased(signal, caseId, heirId, first),
+  unmarkDeceased: (signal, caseId, heirId) => unmarkDeceased(signal, caseId, heirId),
   selection: selectionStore(),
   forms: formStore(),
   seen: {
@@ -218,15 +235,59 @@ export function StartCase({
 
   const resumable = view.name === "throttled" || view.name === "failed" ? view.resumable : null;
 
-  const editingHeir = started?.case.heirs.find((heir) => heir.id === started.editingHeir);
+  // Every part of the heirs screen works on the active layer.
+  const layer = started ? layerAt(started.case, started.layer) : null;
+  const editingHeir = layer?.heirs.find((heir) => heir.id === started?.editingHeir);
+  const layered = started ? hasDeaths(started.case) : false;
+  const crumbs = started && layered ? breadcrumb(started.case, messages.relationships, messages.heirNumbered) : [];
+  const activeCrumb = crumbs.find((crumb) => crumb.id === (layer?.id ?? null));
+  const layerText = activeCrumb && activeCrumb.id !== null ? crumbTextOf(messages, activeCrumb) : undefined;
+  const deceasedIds = new Set(started?.case.deaths.map((death) => death.heir_id) ?? []);
+  const candidates =
+    started && layer && layer.id !== null
+      ? (() => {
+          const names = rowLabels(started.case, messages.relationships, messages.heirNumbered, messages.previewOf);
+          return linkCandidates(started.case, layer.id).map((row) => ({ id: row.id, label: names[row.id] ?? row.id }));
+        })()
+      : [];
+  const linkedRow = editingHeir?.same_as !== undefined;
+  const orderQuestion = (() => {
+    if (!started || !layer || started.ordering === null) return null;
+    const row = rowsOf(started.case).get(started.ordering)?.row;
+    if (!row) return null;
+    const names = rowLabels(started.case, messages.relationships, messages.heirNumbered, messages.previewOf);
+    const ids = [...started.case.deaths.map((death) => death.heir_id), personOf(row)];
+    return {
+      rowId: row.id,
+      node: (
+        <OrderQuestion
+          messages={messages}
+          choices={ids.map((id) => ({ id, label: names[id] ?? id }))}
+          saving={started.saving}
+          error={started.errors?.death ? errorText(messages, "death", started.errors) : null}
+          onChoose={(first) =>
+            submit((from) => ({ kind: "markDeath", from, rowId: row.id, first }))
+          }
+          onCancel={() => edit((current) => cancelOrder(current))}
+        />
+      ),
+    };
+  })();
+  const deathError =
+    started?.errors?.death && started.ordering === null ? errorText(messages, "death", started.errors) : null;
+
   const announced = started?.announcement ?? null;
+  const announcementTemplates = {
+    added: "heirAdded",
+    updated: "heirUpdated",
+    removed: "heirRemoved",
+    deathMarked: "deathMarked",
+    deathUnmarked: "deathUnmarked",
+  } as const;
   const announcement = announced
     ? {
         seq: announced.seq,
-        template:
-          messages[
-            announced.kind === "added" ? "heirAdded" : announced.kind === "updated" ? "heirUpdated" : "heirRemoved"
-          ],
+        template: messages[announcementTemplates[announced.kind]],
         heir: heirLabel(announced.heir, messages.relationships, messages.heirNumbered, announced.ordinal),
       }
     : null;
@@ -377,10 +438,20 @@ export function StartCase({
             disabled={started.saving}
             onEdit={() => edit((current) => startEditDeceased(current, deps))}
           />
+          {layered && (
+            <DeathBreadcrumb
+              messages={messages}
+              crumbs={crumbs}
+              active={layer?.id ?? null}
+              disabled={started.saving}
+              onOpen={(id) => edit((current) => openLayer(current, id, deps))}
+            />
+          )}
           <FamilyTree
             messages={messages}
-            deceased={started.case.deceased}
-            heirs={started.case.heirs}
+            gender={layer?.gender ?? started.case.deceased.gender}
+            rootText={layerText}
+            heirs={layer?.heirs ?? started.case.heirs}
             editingId={started.editingHeir}
           />
           {started.notice === "heirGone" && <p role="alert">{messages.heirGone}</p>}
@@ -398,7 +469,9 @@ export function StartCase({
             notice={started.notice}
             saving={started.saving}
             editing={started.editingHeir !== null}
-            options={started.case.heir_options}
+            options={layer?.options ?? started.case.heir_options}
+            candidates={candidates}
+            linked={linkedRow}
             onChange={(values, field) =>
               track((current) => remember(current, "heir", values, field, deps.forms))
             }
@@ -414,13 +487,28 @@ export function StartCase({
           />
           <SharePreview messages={messages} locale={locale} kase={started.case} />
           <HeirList
+            key={layer?.id ?? "first"}
             messages={messages}
-            heirs={started.case.heirs}
+            kase={started.case}
+            heirs={layer?.heirs ?? started.case.heirs}
             editingId={started.editingHeir}
             saving={started.saving}
             announcement={announcement}
+            heading={
+              activeCrumb && activeCrumb.label !== null
+                ? messages.heirsOfHeading.split("{heir}").join(activeCrumb.label)
+                : undefined
+            }
+            deceasedIds={deceasedIds}
+            deathError={deathError}
+            asking={orderQuestion}
             onEdit={(heirId) => edit((current) => startEditHeir(current, heirId, deps))}
             onRemove={(heirId) => submit((from) => ({ kind: "removeHeir", from, heirId }))}
+            onAlsoDied={(rowId) => submit((from) => ({ kind: "markDeath", from, rowId }))}
+            onOpenLayer={(personId) => edit((current) => openLayer(current, personId, deps))}
+            onDidNotDie={(personId, rowId) =>
+              submit((from) => ({ kind: "unmarkDeath", from, heirId: personId, rowId }))
+            }
           />
         </>
       )}

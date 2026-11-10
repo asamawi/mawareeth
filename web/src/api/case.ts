@@ -63,6 +63,22 @@ export type Heir = {
   /** Derived from the relationship by the server. */
   gender: Gender;
   name: string | null;
+  /** In a later layer: the id of the person's earliest row. The server resolves `name` from it. */
+  same_as?: string;
+};
+
+/** The first death plus up to two later ones; the server enforces it too. */
+export const MAX_LATER_DEATHS = 2;
+
+/** One later death: its own layer of heirs. The first deceased is `Case.deceased` and `Case.heirs`. */
+export type Death = {
+  /** The id of the person's earliest row. */
+  heir_id: string;
+  /** 2 or 3: the place in the order of death, the first deceased being 1. */
+  order: 2 | 3;
+  gender: Gender;
+  heir_options: HeirOptions;
+  heirs: Heir[];
 };
 
 /**
@@ -101,6 +117,8 @@ export type Case = {
   heirs: Heir[];
   /** Nothing labelled and nothing invalid when the server sent none or sent it malformed. */
   heir_options: HeirOptions;
+  /** The later deaths in order; empty for a case without any. */
+  deaths: Death[];
 };
 
 /** A field name to the code of its broken rule. */
@@ -146,6 +164,7 @@ type CaseBody = {
   deceased?: unknown;
   heirs?: unknown;
   heir_options?: unknown;
+  deaths?: unknown;
 };
 
 function isCaseBody(value: unknown): value is CaseBody {
@@ -180,6 +199,62 @@ function parseHeirs(value: unknown): Heir[] {
   return heirs;
 }
 
+const DEATH_KEYS = ["heir_id", "order", "gender", "heir_options", "heirs"];
+const ROW_KEYS = ["id", "relationship", "gender", "name", "same_as"];
+
+function onlyKeys(value: object, allowed: readonly string[]): boolean {
+  return Object.keys(value).every((key) => allowed.includes(key));
+}
+
+/**
+ * Strict: a death, or a row inside it, that is malformed, has unknown keys or points at a row
+ * that does not come earlier is dropped, and the rest still parses. Never throws.
+ */
+function parseDeaths(value: unknown, first: readonly Heir[]): Death[] {
+  if (!Array.isArray(value)) return [];
+  const deaths: Death[] = [];
+  const ids = new Set<string>(first.map((heir) => heir.id));
+  // Earliest rows only: the people a death or a link may point at.
+  const people = new Set<string>(first.map((heir) => heir.id));
+  for (const item of value as unknown[]) {
+    if (deaths.length >= MAX_LATER_DEATHS) break;
+    if (typeof item !== "object" || item === null || Array.isArray(item)) continue;
+    if (!onlyKeys(item, DEATH_KEYS) || !DEATH_KEYS.every((key) => Object.hasOwn(item, key))) continue;
+    const { heir_id, order, gender, heir_options, heirs } = item as Record<string, unknown>;
+    if (order !== deaths.length + 2 || typeof heir_id !== "string" || !people.has(heir_id)) continue;
+    if (deaths.some((death) => death.heir_id === heir_id) || !isGender(gender) || !Array.isArray(heirs)) continue;
+    const rows: Heir[] = [];
+    const linked = new Set<string>();
+    const earliest: string[] = [];
+    for (const raw of heirs as unknown[]) {
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw) || !onlyKeys(raw, ROW_KEYS)) continue;
+      const { id, relationship, gender: rowGender, name, same_as } = raw as Record<string, unknown>;
+      if (typeof id !== "string" || ids.has(id) || !isRelationshipId(relationship) || !isGender(rowGender)) continue;
+      if (name !== undefined && name !== null && typeof name !== "string") continue;
+      const row: Heir = { id, relationship, gender: rowGender, name: typeof name === "string" ? name : null };
+      if (same_as !== undefined) {
+        if (typeof same_as !== "string" || !people.has(same_as) || same_as === heir_id || linked.has(same_as)) continue;
+        if (deaths.some((death) => death.heir_id === same_as)) continue;
+        linked.add(same_as);
+        row.same_as = same_as;
+      } else {
+        earliest.push(id);
+      }
+      ids.add(id);
+      rows.push(row);
+    }
+    for (const id of earliest) people.add(id);
+    deaths.push({
+      heir_id,
+      order: order as 2 | 3,
+      gender,
+      heir_options: parseHeirOptions(heir_options),
+      heirs: rows,
+    });
+  }
+  return deaths;
+}
+
 /** Strict: anything malformed or unknown reads as no options, so nothing is ever flagged by a guess. */
 export function parseHeirOptions(value: unknown): HeirOptions {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return noHeirOptions();
@@ -202,13 +277,15 @@ function parseCase(body: unknown): Case | null {
   if (value === null) return null;
   if (!isCaseBody(value)) throw new Error("Case endpoint returned an unexpected body");
   // A missing or unknown madhab, deceased or heirs (an older shape) reads as none.
+  const heirs = parseHeirs(value.heirs);
   return {
     id: value.id,
     started_at: value.started_at,
     madhab: isMadhabId(value.madhab) ? value.madhab : null,
     deceased: parseDeceased(value.deceased),
-    heirs: parseHeirs(value.heirs),
+    heirs,
     heir_options: parseHeirOptions(value.heir_options),
+    deaths: parseDeaths(value.deaths, heirs),
   };
 }
 
@@ -392,10 +469,18 @@ async function answer(
 }
 
 export type DeceasedFields = { gender: Gender; estate: string | null };
-export type HeirFields = { relationship: RelationshipId; name: string | null };
+export type HeirFields = {
+  relationship: RelationshipId;
+  name: string | null;
+  /** The death (a person's heir id) whose heirs this row joins; left out for the first deceased. */
+  layer?: string;
+  /** Joins an earlier person instead of entering a new one. */
+  same_as?: string;
+};
 
 const DECEASED_URL = "/api/v1/case/deceased/";
 const HEIRS_URL = "/api/v1/case/heirs/";
+const DEATHS_URL = "/api/v1/case/deaths/";
 
 /** Stores the deceased, replacing the earlier one. One attempt; never throws. */
 export function saveDeceased(
@@ -434,6 +519,38 @@ export function removeHeir(
 ): Promise<AnswerResult> {
   // Intermediaries may drop a DELETE body, so the case id is in the query string.
   const url = `${HEIRS_URL}${encodeURIComponent(heirId)}/?case_id=${encodeURIComponent(caseId)}`;
+  return answer(signal, options, "DELETE", url, caseId, null);
+}
+
+/**
+ * Marks a person as also deceased. `first` answers the order question: the heir id of the
+ * person who died first, or `simultaneous` / `unknown`, which the server refuses.
+ */
+export function markDeceased(
+  signal: AbortSignal,
+  caseId: string,
+  heirId: string,
+  first?: string,
+  options: WriteOptions = {},
+): Promise<AnswerResult> {
+  return answer(
+    signal,
+    options,
+    "POST",
+    DEATHS_URL,
+    caseId,
+    first === undefined ? { heir_id: heirId } : { heir_id: heirId, first },
+  );
+}
+
+/** Removes a death with its layer of heirs. */
+export function unmarkDeceased(
+  signal: AbortSignal,
+  caseId: string,
+  heirId: string,
+  options: WriteOptions = {},
+): Promise<AnswerResult> {
+  const url = `${DEATHS_URL}${encodeURIComponent(heirId)}/?case_id=${encodeURIComponent(caseId)}`;
   return answer(signal, options, "DELETE", url, caseId, null);
 }
 

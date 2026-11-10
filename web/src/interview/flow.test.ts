@@ -18,6 +18,8 @@ import {
   FOCUS_TARGETS,
   heirFormKey,
   openChange,
+  openLayer,
+  cancelOrder,
   revealOf,
   pick,
   pendingView,
@@ -35,7 +37,7 @@ import {
 } from "./flow.ts";
 import type { Selection } from "./madhabs.ts";
 
-const CASE: Case = { id: "abc12345", started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} } };
+const CASE: Case = { id: "abc12345", started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} }, deaths: [] };
 const NEW_CASE: Case = {
   id: "def67890",
   started_at: "2026-11-06T11:00:00Z",
@@ -43,6 +45,7 @@ const NEW_CASE: Case = {
   deceased: null,
   heirs: [],
   heir_options: { blocked: [], invalid: {} },
+  deaths: [],
 };
 const signal = new AbortController().signal;
 
@@ -54,6 +57,8 @@ function startedOf(kase: Case, resumed: boolean, extra: Partial<StartedView> = {
     changing: false,
     editingDeceased: false,
     editingHeir: null,
+    layer: null,
+    ordering: null,
     formEpoch: 0,
     notice: null,
     errors: null,
@@ -108,6 +113,9 @@ function deps(options: {
     updateHeir: async (_signal, caseId, heirId, fields) =>
       answerWith("updateHeir", caseId, { heirId, fields }),
     removeHeir: async (_signal, caseId, heirId) => answerWith("removeHeir", caseId, { heirId }),
+    markDeceased: async (_signal, caseId, heirId, first) =>
+      answerWith("markDeceased", caseId, { heirId, ...(first === undefined ? {} : { fields: { first } }) }),
+    unmarkDeceased: async (_signal, caseId, heirId) => answerWith("unmarkDeceased", caseId, { heirId }),
     seen: { get: () => log.seen, set: (next) => (log.seen = next) },
     selection: { get: () => log.selection, set: (next) => (log.selection = next) },
     forms: { get: () => log.form, set: (next) => (log.form = next) },
@@ -445,7 +453,7 @@ const WITH_TWO: Case = { ...WITH_DECEASED, heirs: [SON, AMAL] };
 const HEIRS = startedOf(WITH_DECEASED, true);
 const BLANK_RECORD = (caseId: string, heirId: string | null = null): FormRecord => ({
   caseId,
-  form: "heir",
+  form: "heir", layer: null,
   heirId,
   values: { relationship: "", name: "" },
 });
@@ -579,7 +587,7 @@ test("Edit heir: filled in, saving announces and returns focus to the row", asyn
   assert.equal(editing.editingHeir, "h2");
   assert.deepEqual(log.form, {
     caseId: WITH_TWO.id,
-    form: "heir",
+    form: "heir", layer: null,
     heirId: "h2",
     values: { relationship: "daughter", name: "Amal" },
   });
@@ -620,7 +628,7 @@ test("Edit deceased: opens the form filled in; cancel returns to the heirs and w
   assert.equal(screenOf(editing), "deceased");
   assert.deepEqual(log.form, {
     caseId: CHOSEN.id,
-    form: "deceased",
+    form: "deceased", layer: null,
     heirId: null,
     values: { gender: "male", estate: "1000" },
   });
@@ -686,7 +694,7 @@ test("Throttled or failed writes keep the screen, the input record and show the 
   for (const kind of ["throttled", "failed"] as const) {
     const record: FormRecord = {
       caseId: WITH_DECEASED.id,
-      form: "heir",
+      form: "heir", layer: null,
       heirId: null,
       values: { relationship: "son", name: "Secret" },
     };
@@ -725,7 +733,7 @@ test("No live case: the expired view, and the form record is cleared", async () 
 test("Stale tab: the existing-case view with the live case, and the record is cleared", async () => {
   const { value, log } = deps({
     answer: () => ({ kind: "replaced", case: NEW_CASE }),
-    form: { caseId: CHOSEN.id, form: "deceased", heirId: null, values: {} },
+    form: { caseId: CHOSEN.id, form: "deceased", layer: null, heirId: null, values: {} },
   });
   const view = await runAction("saveDeceased", signal, value, CHOSEN, undefined, {
     kind: "saveDeceased",
@@ -760,7 +768,7 @@ test("Typing records the form and clears only the changed field error", () => {
   const next = remember(view, "heir", { relationship: "son", name: "x" }, "relationship", value.forms);
   assert.deepEqual(log.form, {
     caseId: WITH_DECEASED.id,
-    form: "heir",
+    form: "heir", layer: null,
     heirId: null,
     values: { relationship: "son", name: "x" },
   });
@@ -807,7 +815,7 @@ test("Change Madhab keeps the answers and returns to the same screen", async () 
 test("A form in progress in this tab continues without the resume prompt", async () => {
   const record: FormRecord = {
     caseId: WITH_TWO.id,
-    form: "heir",
+    form: "heir", layer: null,
     heirId: null,
     values: { relationship: "son", name: "half" },
   };
@@ -822,7 +830,7 @@ test("A form in progress in this tab continues without the resume prompt", async
 test("A form in progress restores which heir or the deceased is being edited", async () => {
   const editHeir: FormRecord = {
     caseId: WITH_TWO.id,
-    form: "heir",
+    form: "heir", layer: null,
     heirId: "h2",
     values: { relationship: "sister", name: "A" },
   };
@@ -835,7 +843,7 @@ test("A form in progress restores which heir or the deceased is being edited", a
   assert.deepEqual(log.form, BLANK_RECORD(WITH_TWO.id));
   const editDeceased: FormRecord = {
     caseId: WITH_TWO.id,
-    form: "deceased",
+    form: "deceased", layer: null,
     heirId: null,
     values: { gender: "female", estate: "" },
   };
@@ -846,7 +854,7 @@ test("A form in progress restores which heir or the deceased is being edited", a
 });
 
 test("A form record for another case does not skip the resume prompt, and resume settles a form", async () => {
-  const other: FormRecord = { caseId: "other", form: "heir", heirId: null, values: {} };
+  const other: FormRecord = { caseId: "other", form: "heir", layer: null, heirId: null, values: {} };
   const { value, log } = deps({ read: async () => WITH_TWO, form: other });
   assert.equal((await runAction("load", signal, value)).name, "existing");
   const view = await runAction("resume", signal, value, WITH_TWO);
@@ -855,7 +863,7 @@ test("A form record for another case does not skip the resume prompt, and resume
 });
 
 test("Start over and a vanished case clear the form record", async () => {
-  const record: FormRecord = { caseId: CASE.id, form: "heir", heirId: null, values: { name: "x" } };
+  const record: FormRecord = { caseId: CASE.id, form: "heir", layer: null, heirId: null, values: { name: "x" } };
   let { value, log } = deps({ start: () => ({ kind: "started", case: NEW_CASE }), form: record });
   await runAction("startOver", signal, value, CASE);
   assert.equal(log.form, null, "the new case opens on the selector, with no form");
@@ -866,7 +874,7 @@ test("Start over and a vanished case clear the form record", async () => {
 
 test("A failed or throttled start over keeps the form record of the live case", async () => {
   for (const kind of ["failed", "throttled"] as const) {
-    const record: FormRecord = { caseId: CASE.id, form: "heir", heirId: null, values: { name: "x" } };
+    const record: FormRecord = { caseId: CASE.id, form: "heir", layer: null, heirId: null, values: { name: "x" } };
     const { value, log } = deps({ start: () => ({ kind }) as StartResult, form: record });
     await runAction("startOver", signal, value, CASE);
     assert.deepEqual(log.form, record, kind);
@@ -1019,12 +1027,12 @@ test("Editing an heir with 50 stored is not refused by the client", async () => 
 
 test("A half-typed new heir is parked when an heir edit starts, and comes back on cancel", () => {
   const { value, log } = deps({
-    form: { caseId: WITH_TWO.id, form: "heir", heirId: null, values: { relationship: "wife", name: "Draft" } },
+    form: { caseId: WITH_TWO.id, form: "heir", layer: null, heirId: null, values: { relationship: "wife", name: "Draft" } },
   });
   const editing = startEditHeir(startedOf(WITH_TWO, true), "h1", value);
   assert.deepEqual(log.form, {
     caseId: WITH_TWO.id,
-    form: "heir",
+    form: "heir", layer: null,
     heirId: "h1",
     values: { relationship: "son", name: "" },
     parked: { relationship: "wife", name: "Draft" },
@@ -1038,7 +1046,7 @@ test("A half-typed new heir is parked when an heir edit starts, and comes back o
   const cancelled = cancelEditHeir(other, value);
   assert.deepEqual(log.form, {
     caseId: WITH_TWO.id,
-    form: "heir",
+    form: "heir", layer: null,
     heirId: null,
     values: { relationship: "wife", name: "Draft" },
   });
@@ -1048,7 +1056,7 @@ test("A half-typed new heir is parked when an heir edit starts, and comes back o
 test("The parked draft comes back when the heir edit is saved", async () => {
   const { value, log } = deps({
     answer: () => ({ kind: "saved", case: WITH_TWO }),
-    form: { caseId: WITH_TWO.id, form: "heir", heirId: null, values: { relationship: "wife", name: "Draft" } },
+    form: { caseId: WITH_TWO.id, form: "heir", layer: null, heirId: null, values: { relationship: "wife", name: "Draft" } },
   });
   const editing = startEditHeir(startedOf(WITH_TWO, true), "h1", value);
   await runAction("saveHeir", signal, value, WITH_TWO, undefined, {
@@ -1063,7 +1071,7 @@ test("The parked draft comes back when the heir edit is saved", async () => {
 
 test("The draft survives a deceased edit, saved or cancelled, and view and record agree", async () => {
   const draft = { relationship: "wife", name: "Draft" };
-  const record: FormRecord = { caseId: WITH_TWO.id, form: "heir", heirId: null, values: draft };
+  const record: FormRecord = { caseId: WITH_TWO.id, form: "heir", layer: null, heirId: null, values: draft };
   let { value, log } = deps({ form: record });
   const editing = startEditDeceased(startedOf(WITH_TWO, true, { editingHeir: null }), value);
   assert.equal(log.form?.form, "deceased");
@@ -1104,7 +1112,7 @@ test("The heir form is rebuilt only when it must be cleared", async () => {
 });
 
 test("Removing the heir being edited ends the edit; removing another keeps it and its typed record", async () => {
-  const typed: FormRecord = { caseId: WITH_TWO.id, form: "heir", heirId: "h1", values: { relationship: "son", name: "typed" } };
+  const typed: FormRecord = { caseId: WITH_TWO.id, form: "heir", layer: null, heirId: "h1", values: { relationship: "son", name: "typed" } };
   // Saved path, another heir removed.
   let { value, log } = deps({ answer: () => ({ kind: "saved", case: { ...WITH_TWO, heirs: [SON] } }), form: typed });
   const editingH1 = startedOf(WITH_TWO, true, { editingHeir: "h1" });
@@ -1146,7 +1154,7 @@ test("Removing the heir being edited ends the edit; removing another keeps it an
 
 test("every focus target flow.ts can emit is a data-focus value in the components", () => {
   const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "app", "[locale]", "interview");
-  const source = ["deceased-form.tsx", "heir-form.tsx", "heir-list.tsx", "form-bits.tsx"]
+  const source = ["deceased-form.tsx", "heir-form.tsx", "heir-list.tsx", "form-bits.tsx", "order-question.tsx", "death-breadcrumb.tsx"]
     .map((file) => readFileSync(join(dir, file), "utf8"))
     .join("\n");
   for (const target of FOCUS_TARGETS) {
@@ -1342,5 +1350,391 @@ test("a failed or aborted read after a refusal still shows the refusal and throw
     assert.deepEqual(result.errors, { relationship: "second_father" });
     assert.equal(result.editingHeir, "h9");
     assert.deepEqual(result.case, WITH_FATHER_OPTIONS);
+  }
+});
+
+// Story 1.7b: successive deaths
+
+const W = { id: "w", relationship: "wife", gender: "female", name: "Amal" } as const;
+const S1 = { id: "s1", relationship: "son", gender: "male", name: null } as const;
+const S2 = { id: "s2", relationship: "son", gender: "male", name: null } as const;
+const FAMILY: Case = { ...WITH_DECEASED, heirs: [W, S1, S2] };
+const S1_DEATH = {
+  heir_id: "s1",
+  order: 2 as const,
+  gender: "male" as const,
+  heir_options: { blocked: ["brother" as const], invalid: { husband: "husband_of_male" } },
+  heirs: [{ id: "r1", relationship: "mother" as const, gender: "female" as const, name: "Amal", same_as: "w" }],
+};
+const TWO_LAYERS: Case = { ...FAMILY, deaths: [S1_DEATH] };
+
+test("marking a death opens the layer of the person, focuses the form and ends any edit", async () => {
+  const from = startedOf(FAMILY, true, { editingHeir: "w" });
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: TWO_LAYERS }), form: BLANK_RECORD(FAMILY.id, "w") });
+  const view = (await runAction("markDeath", signal, value, FAMILY, undefined, {
+    kind: "markDeath",
+    from,
+    rowId: "s1",
+  })) as StartedView;
+  assert.deepEqual(log.answers, [{ call: "markDeceased", caseId: FAMILY.id, heirId: "s1" }]);
+  assert.equal(view.layer, "s1");
+  assert.equal(view.editingHeir, null);
+  assert.equal(view.ordering, null);
+  assert.equal(view.focus?.target, "relationship");
+  assert.equal(view.formEpoch, from.formEpoch + 1);
+});
+
+test("marking a linked row opens the layer of the person, not of the row", async () => {
+  const withW: Case = {
+    ...TWO_LAYERS,
+    deaths: [S1_DEATH, { ...S1_DEATH, heir_id: "w", order: 3, heirs: [] }],
+  };
+  const from = startedOf(TWO_LAYERS, true, { layer: "s1" });
+  const { value } = deps({ answer: () => ({ kind: "saved", case: withW }) });
+  const view = (await runAction("markDeath", signal, value, TWO_LAYERS, undefined, {
+    kind: "markDeath",
+    from,
+    rowId: "r1",
+  })) as StartedView;
+  assert.equal(view.layer, "w");
+});
+
+test("an order refusal keeps the question open on its row with focus on it, case unchanged", async () => {
+  for (const code of ["order_required", "simultaneous", "unknown", "order_conflict"]) {
+    const from = startedOf(TWO_LAYERS, true);
+    const { value, log } = deps({ answer: () => ({ kind: "invalid", errors: { death: code } }) });
+    const view = (await runAction("markDeath", signal, value, TWO_LAYERS, undefined, {
+      kind: "markDeath",
+      from,
+      rowId: "s2",
+    })) as StartedView;
+    assert.equal(view.ordering, "s2", code);
+    assert.deepEqual(view.errors, { death: code });
+    assert.equal(view.focus?.target, "death-order");
+    assert.deepEqual(view.case, TWO_LAYERS);
+    assert.equal(log.reads, 0, "a death refusal reads nothing again");
+  }
+});
+
+test("the answer to the order question is resent as first", async () => {
+  const from = startedOf(TWO_LAYERS, true, { ordering: "s2" });
+  const three: Case = { ...TWO_LAYERS, deaths: [S1_DEATH, { ...S1_DEATH, heir_id: "s2", order: 3, heirs: [] }] };
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: three }) });
+  const view = (await runAction("markDeath", signal, value, TWO_LAYERS, undefined, {
+    kind: "markDeath",
+    from,
+    rowId: "s2",
+    first: "s1",
+  })) as StartedView;
+  assert.deepEqual(log.answers, [{ call: "markDeceased", caseId: FAMILY.id, heirId: "s2", fields: { first: "s1" } }]);
+  assert.equal(view.ordering, null);
+  assert.equal(view.layer, "s2");
+});
+
+test("a limit or already-deceased refusal closes the question and focuses the button of the row", async () => {
+  for (const code of ["limit", "already_deceased"]) {
+    const from = startedOf(TWO_LAYERS, true, { ordering: "s2" });
+    const { value } = deps({ answer: () => ({ kind: "invalid", errors: { death: code } }) });
+    const view = (await runAction("markDeath", signal, value, TWO_LAYERS, undefined, {
+      kind: "markDeath",
+      from,
+      rowId: "s2",
+    })) as StartedView;
+    assert.equal(view.ordering, null);
+    assert.deepEqual(view.errors, { death: code });
+    assert.equal(view.focus?.target, "alsoDied:s2");
+    assert.equal(view.layer, null);
+  }
+});
+
+test("taking back a death falls back to the first layer when the active one is gone", async () => {
+  const from = startedOf(TWO_LAYERS, true, { layer: "s1" });
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: FAMILY }) });
+  const view = (await runAction("unmarkDeath", signal, value, TWO_LAYERS, undefined, {
+    kind: "unmarkDeath",
+    from,
+    heirId: "s1",
+    rowId: "s1",
+  })) as StartedView;
+  assert.deepEqual(log.answers, [{ call: "unmarkDeceased", caseId: FAMILY.id, heirId: "s1" }]);
+  assert.equal(view.layer, null);
+  assert.equal(view.focus?.target, "alsoDied:s1");
+});
+
+test("taking back a deeper death keeps the active layer while it exists", async () => {
+  const three: Case = { ...TWO_LAYERS, deaths: [S1_DEATH, { ...S1_DEATH, heir_id: "w", order: 3, heirs: [] }] };
+  const from = startedOf(three, true, { layer: "s1" });
+  const { value } = deps({ answer: () => ({ kind: "saved", case: TWO_LAYERS }) });
+  const view = (await runAction("unmarkDeath", signal, value, three, undefined, {
+    kind: "unmarkDeath",
+    from,
+    heirId: "w",
+    rowId: "r1",
+  })) as StartedView;
+  assert.equal(view.layer, "s1");
+});
+
+test("removing the person who owns the active layer falls back after the write", async () => {
+  const from = startedOf(TWO_LAYERS, true, { layer: "s1" });
+  const { value } = deps({ answer: () => ({ kind: "saved", case: { ...FAMILY, heirs: [W, S2] } }) });
+  const view = (await runAction("removeHeir", signal, value, TWO_LAYERS, undefined, {
+    kind: "removeHeir",
+    from,
+    heirId: "s1",
+  })) as StartedView;
+  assert.equal(view.layer, null);
+});
+
+test("adding in a later layer sends the layer, and a link sends same_as with no name", async () => {
+  const from = startedOf(TWO_LAYERS, true, { layer: "s1" });
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: TWO_LAYERS }) });
+  await runAction("addHeir", signal, value, TWO_LAYERS, undefined, {
+    kind: "addHeir",
+    from,
+    values: { relationship: "brother", name: "ignored", same_as: "s2" },
+  });
+  assert.deepEqual(log.answers[0].fields, { relationship: "brother", name: null, same_as: "s2", layer: "s1" });
+  await runAction("addHeir", signal, value, TWO_LAYERS, undefined, {
+    kind: "addHeir",
+    from,
+    values: { relationship: "wife", name: "Huda" },
+  });
+  assert.deepEqual(log.answers[1].fields, { relationship: "wife", name: "Huda", layer: "s1" });
+  // The first layer sends no layer at all.
+  await runAction("addHeir", signal, value, TWO_LAYERS, undefined, {
+    kind: "addHeir",
+    from: startedOf(TWO_LAYERS, true),
+    values: { relationship: "wife", name: "" },
+  });
+  assert.deepEqual(log.answers[2].fields, { relationship: "wife", name: null });
+});
+
+test("a link with nobody picked is refused before anything is sent, focusing the picker", () => {
+  const blocked = precheck({
+    kind: "addHeir",
+    from: startedOf(TWO_LAYERS, true, { layer: "s1" }),
+    values: { relationship: "brother", name: "", same_as: "pending" },
+  });
+  assert.deepEqual(blocked?.errors, { same_as: "required" });
+  assert.equal(blocked?.focus?.target, "same_as");
+});
+
+test("a refused link is shown on the picker with its code, and nothing entered is lost", async () => {
+  const from = startedOf(TWO_LAYERS, true, { layer: "s1" });
+  const { value } = deps({ answer: () => ({ kind: "invalid", errors: { same_as: "gender_mismatch", heirs: "limit" } }) });
+  const view = (await runAction("addHeir", signal, value, TWO_LAYERS, undefined, {
+    kind: "addHeir",
+    from,
+    values: { relationship: "brother", name: "", same_as: "w" },
+  })) as StartedView;
+  assert.deepEqual(view.errors, { same_as: "gender_mismatch", heirs: "limit" });
+  assert.equal(view.focus?.target, "same_as");
+  assert.equal(view.layer, "s1");
+});
+
+test("openLayer moves the screen, ends an edit, keeps the draft and refuses a death that is gone", () => {
+  const { value, log } = deps({
+    form: { caseId: FAMILY.id, form: "heir", layer: null, heirId: "w", values: { relationship: "wife" }, parked: { name: "draft" } },
+  });
+  const editing = startedOf(TWO_LAYERS, true, { editingHeir: "w", ordering: "s2", errors: { death: "unknown" } });
+  const opened = openLayer(editing, "s1", value);
+  assert.equal(opened.layer, "s1");
+  assert.equal(opened.editingHeir, null);
+  assert.equal(opened.ordering, null);
+  assert.equal(opened.errors, null);
+  assert.equal(opened.focus?.target, "relationship");
+  assert.deepEqual(log.form?.values, { ...BLANK_RECORD(FAMILY.id).values, name: "draft", same_as: "" });
+  // Not mid-save, and not a layer that does not exist.
+  const saving = startedOf(TWO_LAYERS, true, { saving: true });
+  assert.equal(openLayer(saving, "s1", value), saving);
+  assert.equal(openLayer(startedOf(TWO_LAYERS, true, { layer: "s1" }), "nobody", value).layer, null);
+  assert.equal(openLayer(startedOf(TWO_LAYERS, true, { layer: "s1" }), null, value).layer, null);
+});
+
+test("cancelOrder closes the question and returns focus to the button of the row", () => {
+  const view = cancelOrder(startedOf(TWO_LAYERS, true, { ordering: "s2", errors: { death: "unknown" } }));
+  assert.equal(view.ordering, null);
+  assert.equal(view.errors, null);
+  assert.equal(view.focus?.target, "alsoDied:s2");
+  const none = startedOf(TWO_LAYERS, true);
+  assert.equal(cancelOrder(none), none);
+});
+
+test("the relationship hint on blur and pick reads the options of the active layer", () => {
+  const { value } = deps({});
+  const first = startedOf(TWO_LAYERS, true);
+  assert.equal(blurField(first, "heir", "relationship", { relationship: "husband", name: "" }).errors, null);
+  const later = startedOf(TWO_LAYERS, true, { layer: "s1" });
+  assert.deepEqual(blurField(later, "heir", "relationship", { relationship: "husband", name: "" }).errors, {
+    relationship: "husband_of_male",
+  });
+  assert.deepEqual(remember(later, "heir", { relationship: "husband", name: "" }, "relationship", value.forms).errors, {
+    relationship: "husband_of_male",
+  });
+});
+
+test("the heir limit counts the layer being added to", () => {
+  const rows = Array.from({ length: 50 }, (_, index) => ({ ...S2, id: `x${index}` }));
+  const full: Case = { ...TWO_LAYERS, deaths: [{ ...S1_DEATH, heirs: rows }] };
+  assert.deepEqual(
+    precheck({ kind: "addHeir", from: startedOf(full, true, { layer: "s1" }), values: { relationship: "son", name: "" } })?.errors,
+    { heirs: "limit" },
+  );
+  assert.equal(
+    precheck({ kind: "addHeir", from: startedOf(full, true), values: { relationship: "son", name: "" } }),
+    null,
+  );
+});
+
+test("a failed mark keeps the order question and the layer", async () => {
+  const from = startedOf(TWO_LAYERS, true, { layer: "s1", ordering: "r1" });
+  const { value } = deps({ answer: () => ({ kind: "throttled" }) });
+  const view = (await runAction("markDeath", signal, value, TWO_LAYERS, undefined, {
+    kind: "markDeath",
+    from,
+    rowId: "r1",
+    first: "unknown",
+  })) as StartedView;
+  assert.equal(view.notice, "throttled");
+  assert.equal(view.ordering, "r1");
+  assert.equal(view.layer, "s1");
+});
+
+test("editing a row of a later layer finds it there, and a reveal is for the active layer only", () => {
+  const { value } = deps({});
+  const later = startedOf(TWO_LAYERS, true, { layer: "s1" });
+  assert.equal(startEditHeir(later, "r1", value).editingHeir, "r1");
+  // r1 is not in the first layer, so editing it from there finds nothing.
+  assert.equal(startEditHeir(startedOf(TWO_LAYERS, true), "r1", value).editingHeir, null);
+  const note = { kind: "added" as const, id: "r1", heir: { name: null, relationship: "mother" as const }, ordinal: null, seq: 1 };
+  assert.equal(revealOf(startedOf(TWO_LAYERS, true, { layer: "s1", announcement: note })), "r1");
+  assert.equal(revealOf(startedOf(TWO_LAYERS, true, { announcement: note })), null);
+});
+
+test("a case with no deaths keeps its first layer when written to", async () => {
+  const from = startedOf(FAMILY, true);
+  const { value } = deps({ answer: () => ({ kind: "saved", case: FAMILY }) });
+  const view = (await runAction("addHeir", signal, value, FAMILY, undefined, {
+    kind: "addHeir",
+    from,
+    values: { relationship: "daughter", name: "" },
+  })) as StartedView;
+  assert.equal(view.layer, null);
+  assert.equal(view.ordering, null);
+});
+
+
+test("reload restores later-layer drafts and edits and drops drafts whose death is gone", async () => {
+  for (const heirId of [null, "r1"]) {
+    const from = startedOf(TWO_LAYERS, true, { layer: "s1", editingHeir: heirId });
+    const { value, log } = deps({ read: async () => TWO_LAYERS });
+    remember(from, "heir", { relationship: "mother", name: "Keep" }, "name", value.forms);
+    assert.equal(log.form?.layer, "s1");
+    const resumed = await runAction("resume", signal, value) as StartedView;
+    assert.equal(resumed.layer, "s1");
+    assert.equal(resumed.editingHeir, heirId);
+    assert.equal(log.form?.values.name, "Keep");
+    value.fetchCase = async () => FAMILY;
+    const gone = await runAction("resume", signal, value) as StartedView;
+    assert.equal(gone.layer, null);
+    assert.equal(gone.editingHeir, null);
+    assert.equal(log.form?.values.name, "");
+  }
+});
+
+test("changing layers clears the layer-specific link but keeps the draft's relationship and name", () => {
+  const from = startedOf(TWO_LAYERS, true, { layer: "s1" });
+  const { value, log } = deps({});
+  remember(from, "heir", { relationship: "mother", name: "Keep", same_as: "w" }, "name", value.forms);
+  openLayer(from, null, value);
+  assert.deepEqual(log.form?.values, { relationship: "mother", name: "Keep", same_as: "" });
+  assert.equal(log.form?.layer, null);
+});
+
+test("already deceased refreshes the case and failed reads keep it", async () => {
+  for (const [read, expected] of [[async () => TWO_LAYERS, TWO_LAYERS], [async () => { throw new Error("offline"); }, FAMILY]] as const) {
+    const from = startedOf(FAMILY, true);
+    const { value, log } = deps({ read, answer: () => ({ kind: "invalid", errors: { death: "already_deceased" } }) });
+    const view = await runAction("markDeath", signal, value, FAMILY, undefined, { kind: "markDeath", from, rowId: "s1" }) as StartedView;
+    assert.equal(log.reads, 1);
+    assert.equal(view.case, expected);
+    assert.equal(view.errors?.death, "already_deceased");
+    assert.equal(view.layer, null);
+  }
+});
+
+test("every refreshed save drops stale ordering and resets a deleted layer's draft and focus", async () => {
+  const results: AnswerResult[] = [
+    { kind: "invalid", errors: { relationship: "invalid" } },
+    { kind: "missing", case: FAMILY },
+    { kind: "failed" },
+    { kind: "invalid", errors: { death: "already_deceased" } },
+  ];
+  for (const result of results) {
+    const from = startedOf(TWO_LAYERS, true, { layer: "s1", ordering: "r1", formEpoch: 7 });
+    const { value, log } = deps({ read: async () => FAMILY, answer: () => result });
+    remember(from, "heir", { relationship: "mother", name: "Do not retry" }, "name", value.forms);
+    const answer: Answer = result.kind === "invalid" && result.errors.death
+      ? { kind: "markDeath", from, rowId: "r1" }
+      : { kind: "addHeir", from, values: { relationship: "mother", name: "Do not retry" } };
+    const view = await runAction(answer.kind, signal, value, TWO_LAYERS, undefined, answer) as StartedView;
+    assert.equal(view.case, FAMILY);
+    assert.equal(view.layer, null);
+    assert.equal(view.ordering, null);
+    assert.equal(view.formEpoch, 8);
+    assert.equal(view.focus?.target, "relationship");
+    assert.equal(log.form?.values.name, "");
+  }
+});
+
+test("marking and unmarking deaths produce dedicated announcements with localized text", async () => {
+  const { messages, locales } = await import("../i18n/messages.ts");
+  const { fill, heirLabel } = await import("./answers.ts");
+  for (const kind of ["markDeath", "unmarkDeath"] as const) {
+    const from = startedOf(kind === "markDeath" ? FAMILY : TWO_LAYERS, true);
+    const { value } = deps({ answer: () => ({ kind: "saved", case: kind === "markDeath" ? TWO_LAYERS : FAMILY }) });
+    const answer: Answer = kind === "markDeath" ? { kind, from, rowId: "s1" } : { kind, from, rowId: "s1", heirId: "s1" };
+    const view = await runAction(kind, signal, value, from.case, undefined, answer) as StartedView;
+    const note = view.announcement!;
+    assert.equal(note.kind, kind === "markDeath" ? "deathMarked" : "deathUnmarked");
+    for (const locale of locales) {
+      const text = messages[locale].interview;
+      const template: string = text[note.kind === "deathMarked" ? "deathMarked" : "deathUnmarked"];
+      const label = heirLabel(note.heir, text.relationships, text.heirNumbered, note.ordinal);
+      assert.ok(fill(template, label).includes(label));
+      assert.ok(!fill(template, label).includes("{heir}"));
+    }
+    const text = messages.en.interview;
+    assert.equal(fill(text[note.kind === "deathMarked" ? "deathMarked" : "deathUnmarked"], "Son"), kind === "markDeath"
+      ? "Son is marked as having died; add their heirs."
+      : "Son is no longer marked as having died; their heirs were removed.");
+  }
+});
+
+
+test("refresh clears a missing order row while retaining a surviving layer and draft", async () => {
+  const from = startedOf(TWO_LAYERS, true, { layer: "s1", ordering: "r1", formEpoch: 3 });
+  const fresh = { ...TWO_LAYERS, deaths: [{ ...S1_DEATH, heirs: [] }] };
+  const { value, log } = deps({ read: async () => fresh, answer: () => ({ kind: "failed" }) });
+  remember(from, "heir", { relationship: "mother", name: "Keep" }, "name", value.forms);
+  const view = await runAction("addHeir", signal, value, TWO_LAYERS, undefined, {
+    kind: "addHeir", from, values: { relationship: "mother", name: "Keep" },
+  }) as StartedView;
+  assert.equal(view.ordering, null);
+  assert.equal(view.layer, "s1");
+  assert.equal(view.formEpoch, 3);
+  assert.equal(log.form?.values.name, "Keep");
+});
+
+
+test("resume never restores an edit from a different layer, and legacy records use the first", async () => {
+  for (const layer of [undefined, "s1"]) {
+    const { value } = deps({ read: async () => TWO_LAYERS, form: {
+      caseId: TWO_LAYERS.id, form: "heir", heirId: "w", values: { relationship: "wife", name: "Keep" },
+      ...(layer === undefined ? {} : { layer }),
+    } });
+    const view = await runAction("resume", signal, value) as StartedView;
+    assert.equal(view.layer, layer ?? null);
+    assert.equal(view.editingHeir, layer === undefined ? "w" : null);
   }
 });

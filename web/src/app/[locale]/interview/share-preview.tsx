@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { fetchPreview, type Case, type PreviewResult } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
-import { formatEstate, heirLabels } from "@/interview/answers";
+import { formatEstate } from "@/interview/answers";
+import { rowLabels } from "@/interview/layers";
 import {
   previewKey,
   previewReady,
@@ -67,15 +68,16 @@ export function SharePreview({
   const outcome = ready ? shown({ key, attempt }, settled) : null;
   const preview = outcome?.kind === "preview" ? outcome.preview : null;
   const school = kase.madhab ? messages.madhabs[kase.madhab].name : "";
+  // Every layer's rows are labelled, so a share never reads as a raw id.
   const labels = useMemo(
-    () => heirLabels(kase.heirs, messages.relationships, messages.heirNumbered),
-    [kase.heirs, messages.relationships, messages.heirNumbered],
+    () => rowLabels(kase, messages.relationships, messages.heirNumbered, messages.previewOf),
+    [kase, messages.relationships, messages.heirNumbered, messages.previewOf],
   );
 
   let status = "";
   let body: React.ReactNode = null;
   if (!ready) {
-    body = <p>{messages.previewPrompt}</p>;
+    body = <p>{kase.deaths.length > 0 && kase.heirs.length > 0 ? messages.previewLayerPrompt : messages.previewPrompt}</p>;
   } else if (outcome === null) {
     body = <p>{messages.previewWaiting}</p>;
   } else if (outcome.kind === "preview" && preview?.status === "available") {

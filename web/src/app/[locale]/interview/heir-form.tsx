@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 
 import type { HeirOptions } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
-import { heirOptionLabels, type Errors, type HeirValues } from "@/interview/answers";
+import { heirOptionLabels, linkChoice, LINK_PENDING, type Errors, type HeirValues } from "@/interview/answers";
 import type { Notice } from "@/interview/flow";
 
 import { buttonClass, errorText, FieldError, FormError, inputClass, SaveNotice } from "./form-bits";
@@ -24,6 +24,13 @@ type Props = {
    * edit leaves that heir out, so the edit form shows plain labels and relies on the server.
    */
   options: HeirOptions;
+  /**
+   * The people an added row in this layer could be, for "someone already in this case". Empty in
+   * the first layer, and when there is nobody to choose, which hides the choice.
+   */
+  candidates?: { id: string; label: string }[];
+  /** The heir being edited stands for a person from an earlier layer: their name is read-only here. */
+  linked?: boolean;
   onChange: (values: HeirValues, field: string) => void;
   onBlur: (field: string, values: HeirValues) => void;
   onSubmit: (values: HeirValues) => void;
@@ -39,6 +46,8 @@ export function HeirForm({
   saving,
   editing,
   options,
+  candidates = [],
+  linked = false,
   onChange,
   onBlur,
   onSubmit,
@@ -47,6 +56,12 @@ export function HeirForm({
   const [values, setValues] = useState(initial);
   const relationshipError = errorText(messages, "relationship", errors);
   const nameError = errorText(messages, "name", errors);
+  // The link choice is for adding to a later layer only; an edit never changes who a row is.
+  const canLink = linkChoice(editing, candidates, values).visible;
+  const linking = canLink && (values.same_as ?? "") !== "";
+  const picked = candidates.some((candidate) => candidate.id === values.same_as) ? (values.same_as ?? "") : "";
+  const linkError =
+    errors?.same_as === "required" ? messages.heirLinkRequired : errorText(messages, "same_as", errors);
   // Every relative stays offered: a blocked one can still change the others' shares.
   const offered = heirOptionLabels(options, !editing, messages.relationships, messages.heirRelationshipBlocked);
 
@@ -60,7 +75,9 @@ export function HeirForm({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!saving) onSubmit(values);
+    if (saving) return;
+    // A person who is no longer a candidate (the list changed) reads as not chosen.
+    onSubmit(linkChoice(editing, candidates, values).values);
   }
 
   return (
@@ -93,6 +110,60 @@ export function HeirForm({
         <FieldError id="heir-relationship-error" text={relationshipError} />
       </div>
 
+      {canLink && (
+        <fieldset className="flex flex-col gap-2" data-focus="link">
+          <legend className="font-medium">{messages.heirLinkLegend}</legend>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="heir-link"
+              checked={!linking}
+              data-focus="linkNew"
+              onChange={() => change("same_as", "")}
+            />
+            {messages.heirLinkNew}
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="heir-link"
+              checked={linking}
+              data-focus="linkExisting"
+              onChange={() => change("same_as", LINK_PENDING)}
+            />
+            {messages.heirLinkExisting}
+          </label>
+        </fieldset>
+      )}
+
+      {linking && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor="heir-same-as" className="font-medium">
+            {messages.heirLinkPickLabel}
+          </label>
+          <select
+            id="heir-same-as"
+            name="same_as"
+            value={picked}
+            data-focus="same_as"
+            aria-required="true"
+            aria-invalid={linkError !== null}
+            aria-describedby="heir-same-as-error"
+            onChange={(event) => change("same_as", event.target.value === "" ? LINK_PENDING : event.target.value)}
+            className={inputClass}
+          >
+            <option value="">{messages.heirLinkPickPlaceholder}</option>
+            {candidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.label}
+              </option>
+            ))}
+          </select>
+          <FieldError id="heir-same-as-error" text={linkError} />
+        </div>
+      )}
+
+      {!linking && (
       <div className="flex flex-col gap-1">
         <label htmlFor="heir-name" className="font-medium">
           {messages.heirNameLabel}
@@ -104,7 +175,7 @@ export function HeirForm({
           autoComplete="off"
           dir="auto"
           value={values.name}
-          readOnly={saving}
+          readOnly={saving || linked}
           data-focus="name"
           aria-invalid={nameError !== null}
           aria-describedby="heir-name-hint heir-name-error"
@@ -113,12 +184,13 @@ export function HeirForm({
           className={inputClass}
         />
         <p id="heir-name-hint" className="text-sm">
-          {messages.heirNameHint}
+          {linked ? messages.heirLinkedHint : messages.heirNameHint}
         </p>
         <FieldError id="heir-name-error" text={nameError} />
       </div>
+      )}
 
-      <FormError messages={messages} errors={errors} fields={["relationship", "name"]} />
+      <FormError messages={messages} errors={errors} fields={["relationship", "same_as", "name", "death"]} />
       <SaveNotice messages={messages} notice={notice} saving={saving} />
 
       <div className="flex flex-wrap gap-3">

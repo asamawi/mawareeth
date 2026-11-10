@@ -40,6 +40,7 @@ const BASE: Case = {
     { id: "h2", relationship: "son", gender: "male", name: null },
   ],
   heir_options: { blocked: [], invalid: {} },
+  deaths: [],
 };
 
 test("every fixture response parses strictly and displays as the fixture says", () => {

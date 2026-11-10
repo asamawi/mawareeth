@@ -29,6 +29,7 @@ import {
   validateDeceased,
   validateField,
   validateHeir,
+  LINK_PENDING,
   valuesFor,
   type FormRecord,
 } from "./answers.ts";
@@ -208,7 +209,7 @@ test("every error code the client or server can report has text in every locale"
 test("the form store round-trips a record and removes it", () => {
   const storage = memory();
   const store = formStore(() => storage);
-  const record: FormRecord = { caseId: "c1", form: "heir", heirId: null, values: { relationship: "son", name: "A" } };
+  const record: FormRecord = { caseId: "c1", form: "heir", layer: null, heirId: null, values: { relationship: "son", name: "A" } };
   assert.equal(store.get(), null);
   store.set(record);
   assert.deepEqual(store.get(), record);
@@ -246,7 +247,7 @@ test("blocked storage never throws", () => {
   };
   const store = formStore(() => broken);
   assert.equal(store.get(), null);
-  store.set({ caseId: "c", form: "deceased", heirId: null, values: {} });
+  store.set({ caseId: "c", form: "deceased", layer: null, heirId: null, values: {} });
   store.set(null);
   const throwing = formStore(() => {
     throw new Error("no storage");
@@ -270,7 +271,7 @@ test("the default store is sessionStorage, so the record ends with the tab", () 
   });
   try {
     const store = formStore();
-    store.set({ caseId: "c", form: "deceased", heirId: null, values: { estate: "5" } });
+    store.set({ caseId: "c", form: "deceased", layer: null, heirId: null, values: { estate: "5" } });
     assert.ok(session.getItem("mawareeth.form-record"));
     assert.equal(store.get()?.values.estate, "5");
   } finally {
@@ -282,7 +283,7 @@ test("the default store is sessionStorage, so the record ends with the tab", () 
 });
 
 test("a record belongs to one case and one form", () => {
-  const record: FormRecord = { caseId: "c1", form: "heir", heirId: "h1", values: { relationship: "son" } };
+  const record: FormRecord = { caseId: "c1", form: "heir", layer: null, heirId: "h1", values: { relationship: "son" } };
   assert.equal(formFor(record, "c1"), record);
   assert.equal(formFor(record, "c2"), null);
   assert.equal(formFor(null, "c1"), null);
@@ -381,7 +382,7 @@ test("the form store keeps the record in memory when storage is blocked", () => 
     },
   };
   const store = formStore(() => blocked);
-  const record: FormRecord = { caseId: "c", form: "heir", heirId: null, values: { name: "typed" } };
+  const record: FormRecord = { caseId: "c", form: "heir", layer: null, heirId: null, values: { name: "typed" } };
   store.set(record);
   assert.deepEqual(store.get(), record, "a rebuilt form still gets what was typed");
   store.set(null);
@@ -393,7 +394,7 @@ test("the form store keeps a parked draft and rejects a malformed one", () => {
   const store = formStore(() => storage);
   const record: FormRecord = {
     caseId: "c",
-    form: "heir",
+    form: "heir", layer: null,
     heirId: "h1",
     values: { relationship: "son" },
     parked: { relationship: "wife", name: "draft" },
@@ -496,4 +497,48 @@ test("the shared fixtures are read as they are, and the kinship codes match the 
       assert.ok(!options.blocked.includes(relationship as never), family.name);
     }
   }
+});
+
+test("a linked heir sends the person and no name; an unchosen link is required; no link adds nothing", () => {
+  assert.deepEqual(validateHeir({ relationship: "brother", name: "ignored", same_as: "s2" }), {
+    errors: {},
+    fields: { relationship: "brother", name: null, same_as: "s2" },
+  });
+  assert.deepEqual(validateHeir({ relationship: "brother", name: "", same_as: LINK_PENDING }).errors, { same_as: "required" });
+  assert.deepEqual(validateHeir({ relationship: "brother", name: "B", same_as: "" }).fields, { relationship: "brother", name: "B" });
+  // A name that breaks a rule does not matter once the person is linked.
+  assert.deepEqual(validateHeir({ relationship: "brother", name: "x".repeat(101), same_as: "s2" }).errors, {});
+});
+
+test("focus goes to the first invalid control in screen order, the picker between relationship and name", () => {
+  assert.equal(firstInvalid("heir", { name: "invalid", same_as: "required" }), "same_as");
+  assert.equal(firstInvalid("heir", { same_as: "not_alive", relationship: "required" }), "relationship");
+  assert.equal(firstInvalid("heir", { heirs: "limit" }), null);
+});
+
+
+test("link choice stays visible without candidates and stale ids require a new choice", async () => {
+  const { linkChoice } = await import("./answers.ts");
+  for (const same_as of ["gone", LINK_PENDING]) {
+    const choice = linkChoice(false, [], { relationship: "mother", name: "Keep", same_as });
+    assert.equal(choice.visible, true);
+    assert.equal(choice.values.same_as, LINK_PENDING);
+  }
+  assert.equal(linkChoice(false, [], { relationship: "mother", name: "" }).visible, false);
+  assert.equal(linkChoice(true, [{ id: "w" }], { relationship: "mother", name: "", same_as: "w" }).visible, false);
+  assert.equal(linkChoice(false, [{ id: "w" }], { relationship: "mother", name: "", same_as: "w" }).values.same_as, "w");
+});
+
+test("form records persist layers and old records default to the first layer", () => {
+  const record: FormRecord = { caseId: "c1", form: "heir", layer: null, heirId: null, values: { name: "Keep" } };
+  const storage = memory(JSON.stringify({ caseId: record.caseId, form: record.form, heirId: record.heirId, values: record.values }));
+  assert.equal(formStore(() => storage).get()?.layer, null);
+  const store = formStore(() => storage);
+  store.set({ ...record, layer: "s1" });
+  assert.equal(formStore(() => storage).get()?.layer, "s1");
+});
+
+
+test("numbered labels substitute both placeholders on the original template", () => {
+  assert.equal(heirLabel({ name: null, relationship: "son" }, { son: "{n} $&" }, "{heir} {n}", 2), "{n} $& 2");
 });
