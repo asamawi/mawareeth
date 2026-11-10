@@ -1,5 +1,7 @@
 import type {
   AnswerResult,
+  RelativeQuestion,
+  RelativeAnswers,
   Case,
   DeceasedFields,
   Heir,
@@ -70,8 +72,11 @@ export const FOCUS_TARGETS = [
   "list",
   "same_as",
   "death-order",
+  "relatives",
+  "relativeMother",
+  "relativesSubmit",
 ] as const;
-export const FOCUS_PREFIXES = ["editHeir", "remove", "alsoDied"] as const;
+export const FOCUS_PREFIXES = ["editHeir", "remove", "alsoDied", "relative"] as const;
 export type FocusTarget =
   | (typeof FOCUS_TARGETS)[number]
   | `${(typeof FOCUS_PREFIXES)[number]}:${string}`;
@@ -94,8 +99,12 @@ export type StartedView = {
    * `heir_id` of a later death. It falls back to null whenever that death no longer exists.
    */
   layer: string | null;
-  /** The row whose "Also died" the server asked the order of death for; null when none is open. */
+  /** The row whose death has open order or relatives questions; null when none is open. */
   ordering: string | null;
+  relativeQuestions?: RelativeQuestion[];
+  deathAnswers?: RelativeAnswers;
+  deathFirst?: string;
+  deathOrderNeeded?: boolean;
   /** Counts the times the heir form had to be cleared, so only those rebuild it. */
   formEpoch: number;
   notice: Notice | null;
@@ -135,7 +144,7 @@ export type Deps = {
     fields: HeirFields,
   ) => Promise<AnswerResult>;
   removeHeir: (signal: AbortSignal, caseId: string, heirId: string) => Promise<AnswerResult>;
-  markDeceased: (signal: AbortSignal, caseId: string, heirId: string, first?: string) => Promise<AnswerResult>;
+  markDeceased: (signal: AbortSignal, caseId: string, heirId: string, first?: string, answers?: RelativeAnswers) => Promise<AnswerResult>;
   unmarkDeceased: (signal: AbortSignal, caseId: string, heirId: string) => Promise<AnswerResult>;
   /** Whether this browser has seen a case before; the only way to tell expired from new. */
   seen: { get: () => boolean; set: (value: boolean) => void };
@@ -340,6 +349,10 @@ export function openLayer(view: StartedView, id: string | null, deps: Deps): Sta
     ...view,
     layer: target,
     ordering: null,
+    relativeQuestions: undefined,
+    deathAnswers: undefined,
+    deathFirst: undefined,
+    deathOrderNeeded: undefined,
     editingHeir: null,
     formEpoch: view.formEpoch + 1,
     notice: null,
@@ -352,7 +365,7 @@ export function openLayer(view: StartedView, id: string | null, deps: Deps): Sta
 export function cancelOrder(view: StartedView): StartedView {
   if (view.saving || view.ordering === null) return view;
   const row = view.ordering;
-  return { ...view, ordering: null, errors: null, notice: null, focus: nextFocus(view, `alsoDied:${row}`) };
+  return { ...view, ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, errors: null, notice: null, focus: nextFocus(view, `alsoDied:${row}`) };
 }
 
 /** Fills the heir form with the heir's details. */
@@ -506,7 +519,7 @@ export type Answer =
   | { kind: "saveHeir"; from: StartedView; heirId: string; values: HeirValues }
   | { kind: "removeHeir"; from: StartedView; heirId: string }
   /** `rowId` is the row whose person died; `first` answers the order question. */
-  | { kind: "markDeath"; from: StartedView; rowId: string; first?: string }
+  | { kind: "markDeath"; from: StartedView; rowId: string; first?: string; answers?: RelativeAnswers }
   | { kind: "unmarkDeath"; from: StartedView; heirId: string; rowId: string };
 
 function formOf(answer: Answer): FormName {
@@ -675,11 +688,30 @@ function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerRe
       return deps.updateHeir(signal, caseId, answer.heirId, validateHeir(answer.values).fields as HeirFields);
     case "removeHeir":
       return deps.removeHeir(signal, caseId, answer.heirId);
-    case "markDeath":
-      return deps.markDeceased(signal, caseId, answer.rowId, answer.first);
+    case "markDeath": {
+      const pending = answer.from.ordering === answer.rowId;
+      return deps.markDeceased(signal, caseId, answer.rowId,
+        answer.first ?? (pending ? answer.from.deathFirst : undefined),
+        { ...(pending ? openAnswers(answer.from) : {}), ...answer.answers });
+    }
     case "unmarkDeath":
       return deps.unmarkDeceased(signal, caseId, answer.heirId);
   }
+}
+
+/** The stored relatives answers that still belong to a question the server has open. */
+function openAnswers(from: StartedView): RelativeAnswers {
+  const stored = from.deathAnswers ?? {};
+  const open = from.relativeQuestions ?? [];
+  const ids = new Set(open.filter((q) => q.kind === "relative").map((q) => q.id));
+  const result: RelativeAnswers = {};
+  if (stored.relatives) {
+    result.relatives = Object.fromEntries(Object.entries(stored.relatives).filter(([key]) => ids.has(key)));
+  }
+  if (stored.shared_father !== undefined && open.some((q) => q.kind === "shared_father")) {
+    result.shared_father = stored.shared_father;
+  }
+  return result;
 }
 
 /** The heir to bring into view after a successful add or edit; nothing for anything else. */
@@ -809,15 +841,19 @@ const ORDER_CODES = ["order_required", "simultaneous", "unknown", "order_conflic
  * The server refused a death. Nothing was stored and the case is as it was. An order refusal keeps
  * the question open with focus on it; any other refusal shows its code and focuses the row's button.
  */
-function deathRefused(answer: Extract<Answer, { kind: "markDeath" }>, errors: Errors): StartedView {
+function deathRefused(answer: Extract<Answer, { kind: "markDeath" }>, errors: Errors, questions?: RelativeQuestion[]): StartedView {
   const asks = ORDER_CODES.includes(errors.death ?? "");
   return {
     ...answer.from,
-    ordering: asks ? answer.rowId : null,
+    ordering: asks || questions?.length ? answer.rowId : null,
+    relativeQuestions: questions,
+    deathOrderNeeded: asks,
+    deathAnswers: { ...(answer.from.ordering === answer.rowId ? answer.from.deathAnswers : {}), ...answer.answers },
+    deathFirst: answer.first ?? (answer.from.ordering === answer.rowId ? answer.from.deathFirst : undefined),
     notice: null,
     saving: false,
     errors,
-    focus: nextFocus(answer.from, asks ? "death-order" : `alsoDied:${answer.rowId}`),
+    focus: nextFocus(answer.from, asks ? "death-order" : questions?.length ? "relatives" : `alsoDied:${answer.rowId}`),
   };
 }
 
@@ -844,9 +880,9 @@ async function save(answer: Answer, signal: AbortSignal, deps: Deps): Promise<Vi
       return saved(answer, result.case, deps);
     case "invalid": {
       if (answer.kind === "markDeath") {
-        if (result.errors.death !== "already_deceased") return deathRefused(answer, result.errors);
+        if (result.errors.death !== "already_deceased") return deathRefused(answer, result.errors, result.questions);
         const fresh = await refreshed(from, signal, deps);
-        return reconcileFresh(deathRefused(answer, result.errors), from, fresh, deps);
+        return reconcileFresh(deathRefused(answer, result.errors, result.questions), from, fresh, deps);
       }
       // A refused relationship or gender may mean this tab's list is stale (a spouse it never
       // saw, or an heir removed elsewhere), so read the case again. A failed read changes nothing.

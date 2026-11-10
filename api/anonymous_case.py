@@ -13,6 +13,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from api import heir_rules
+from api.kinship import derive
 
 SESSION_KEY = 'anonymous_case'
 MADHABS = ('hanafi', 'maliki', 'shafii', 'hanbali', 'jafari')
@@ -66,9 +67,10 @@ class StaleCase(Exception):
 class FieldErrors(Exception):
     """Input broke a rule. `errors` maps a field to a code the client turns into text."""
 
-    def __init__(self, errors):
+    def __init__(self, errors, questions=None):
         super().__init__('Invalid input.')
         self.errors = errors
+        self.questions = questions
 
 
 class HeirNotFound(Exception):
@@ -434,7 +436,7 @@ def _order(case, first=None):
                 raise FieldErrors({'death': 'order_conflict'})
 
 
-def mark_deceased(request, heir_id, first=None, case_id=None):
+def mark_deceased(request, heir_id, first=None, case_id=None, relatives=None, shared_father=None):
     """Add a person's death layer. Raises StaleCase, HeirNotFound or FieldErrors."""
     case = _live(request, case_id)
     if case is None:
@@ -449,7 +451,48 @@ def mark_deceased(request, heir_id, first=None, case_id=None):
         raise FieldErrors({'death': 'limit'})
     case['deaths'].append({'heir_id': person, 'order': len(case['deaths']) + 2,
                            'gender': rows[person]['gender'], 'heirs': []})
-    _order(case, first)
+    if (relatives is not None and not (isinstance(relatives, dict) and all(
+            isinstance(k, str) and isinstance(v, str) for k, v in relatives.items()))
+            or shared_father not in (None, 'yes', 'no')):
+        raise FieldErrors({'relatives': 'invalid'})
+    answers = relatives or {}
+    errors = {}
+    try:
+        _order(case, first)
+    except FieldErrors as error:
+        errors.update(error.errors)
+    proposed, questions = derive(case, rows[person], shared_father,
+                                 unordered='death' in errors)
+    offered = {q['id']: q for q in questions if q['kind'] == 'relative'}
+    # A question returned while order was open may concern someone now known to
+    # have died earlier. Validate that answer against the offered lineage choices,
+    # then omit the person; resolving order must not require a second resend.
+    valid_answers = offered
+    if first is not None and len(case['deaths']) == 2:
+        _, unordered_questions = derive(case, rows[person], shared_father, unordered=True)
+        valid_answers = {q['id']: q for q in unordered_questions if q['kind'] == 'relative'}
+    if any(key not in valid_answers or value not in valid_answers[key]['options']
+           for key, value in answers.items()):
+        errors['relatives'] = 'invalid'
+    missing = [q for q in questions if (q['kind'] == 'shared_father' and shared_father is None)
+               or (q['kind'] == 'relative' and q['id'] not in answers)]
+    if missing:
+        errors.setdefault('relatives', 'required')
+    if errors:
+        raise FieldErrors(errors, questions)
+    for fields in proposed:
+        try:
+            _add_heir(case, fields, person, fields['same_as'])
+        except FieldErrors:
+            # An impossible derived relative must never refuse the death.
+            continue
+    for key, value in answers.items():
+        if key in offered and value != 'none':
+            try:
+                _add_heir(case, {'relationship': value, 'same_as': key, 'name': None}, person, key)
+            except FieldErrors:
+                # The visitor's own answer is impossible (e.g. two mothers): refuse, store nothing.
+                raise FieldErrors({'relatives': 'invalid'}, questions)
     return _store_case(request, case)
 
 
@@ -507,6 +550,12 @@ def add_heir(request, data, case_id, layer=None, same_as=None):
     case = _live(request, case_id)
     if case is None:
         return None
+    _add_heir(case, data, layer, same_as)
+    return _store_case(request, case)
+
+
+def _add_heir(case, data, layer=None, same_as=None):
+    """Validate and insert one row in memory, for both manual and derived additions."""
     layer = data.get('layer', layer)
     link = data.get('same_as', same_as)
     selected = next((entry for entry in _layers(case) if entry[0] == layer), None)
@@ -549,7 +598,7 @@ def add_heir(request, data, case_id, layer=None, same_as=None):
     if link is not None:
         row['same_as'] = link
     heirs.append(row)
-    return _store_case(request, case)
+    return row
 
 
 def update_heir(request, heir_id, data, case_id):

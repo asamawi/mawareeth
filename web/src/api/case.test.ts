@@ -9,6 +9,7 @@ import {
   markDeceased,
   unmarkDeceased,
   parsePreview,
+  parseQuestions,
   MADHAB_IDS,
   readCsrfToken,
   removeHeir,
@@ -718,4 +719,33 @@ test("a third-death row cannot link to the second deceased", async () => {
     { id: "dead-link", relationship: "son", gender: "male", name: null, same_as: "s1" },
   ] }] });
   assert.deepEqual(kase?.deaths[1].heirs.map((row) => row.id), ["r4"]);
+});
+
+
+test("relative questions reject malformed or unoffered choices", () => {
+  const question = { id: "w", person: "w", kind: "relative", options: ["mother", "none"], suggested: "mother" };
+  assert.deepEqual(parseQuestions([question]), [question]);
+  for (const bad of [null, {}, [null], [{ ...question, kind: "unknown" }],
+    [{ ...question, options: ["invented", "none"] }], [{ ...question, suggested: "father" }],
+    [question, question], [{ ...question, options: ["mother", "mother"] }]]) {
+    assert.equal(parseQuestions(bad), null);
+  }
+});
+
+test("malformed questions or a non-object 400 body never hide the error codes", async () => {
+  for (const body of [{ errors: { relatives: "invalid" }, questions: "oops" }, { errors: { relatives: "invalid" }, questions: [1] }]) {
+    stubFetch(async () => new Response(JSON.stringify(body), { status: 400 }));
+    const result = await markDeceased(signal(), CASE.id, "s", undefined, { cookie: () => "csrftoken=token" });
+    assert.deepEqual(result, { kind: "invalid", errors: { relatives: "invalid" } });
+  }
+  stubFetch(async () => new Response("null", { status: 400 }));
+  assert.deepEqual(await markDeceased(signal(), CASE.id, "s", undefined, { cookie: () => "csrftoken=token" }), { kind: "failed" });
+});
+
+test("death writes carry relative answers and parse questions alongside order errors", async () => {
+  const questions = [{ id: "w", person: "w", kind: "relative", options: ["mother", "none"], suggested: "mother" }];
+  const calls = stubFetch(async () => new Response(JSON.stringify({ errors: { death: "order_required", relatives: "required" }, questions }), { status: 400 }));
+  const result = await markDeceased(signal(), CASE.id, "s", "x", { cookie: () => "csrftoken=token" }, { relatives: { w: "mother" }, shared_father: "no" });
+  assert.deepEqual(result, { kind: "invalid", errors: { death: "order_required", relatives: "required" }, questions });
+  assert.deepEqual(JSON.parse(calls[0].init?.body as string), { case_id: CASE.id, heir_id: "s", first: "x", relatives: { w: "mother" }, shared_father: "no" });
 });

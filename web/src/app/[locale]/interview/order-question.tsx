@@ -14,6 +14,7 @@ export function OrderQuestion({
   choices,
   saving,
   error,
+  selected,
   onChoose,
   onCancel,
 }: {
@@ -23,6 +24,7 @@ export function OrderQuestion({
   saving: boolean;
   error: string | null;
   /** A person's id, `simultaneous` or `unknown`. */
+  selected?: string;
   onChoose: (first: string) => void;
   onCancel: () => void;
 }) {
@@ -46,21 +48,22 @@ export function OrderQuestion({
           <button
             key={choice.id}
             type="button"
-            className={buttonClass}
+            className={`${buttonClass} aria-pressed:border-4`}
             data-focus={`orderFirst:${choice.id}`}
+            aria-pressed={selected === choice.id}
             aria-disabled={saving}
             onClick={() => choose(choice.id)}
           >
             <bdi>{choice.label}</bdi>
           </button>
         ))}
-        <button type="button" className={buttonClass} data-focus="orderSimultaneous" aria-disabled={saving} onClick={() => choose("simultaneous")}>
+        <button type="button" className={`${buttonClass} aria-pressed:border-4`} data-focus="orderSimultaneous" aria-pressed={selected === "simultaneous"} aria-disabled={saving} onClick={() => choose("simultaneous")}>
           {messages.deathOrderSimultaneous}
         </button>
-        <button type="button" className={buttonClass} data-focus="orderUnknown" aria-disabled={saving} onClick={() => choose("unknown")}>
+        <button type="button" className={`${buttonClass} aria-pressed:border-4`} data-focus="orderUnknown" aria-pressed={selected === "unknown"} aria-disabled={saving} onClick={() => choose("unknown")}>
           {messages.deathOrderUnknown}
         </button>
-        <button type="button" className={buttonClass} data-focus="orderCancel" aria-disabled={saving} onClick={() => !saving && onCancel()}>
+        <button type="button" className={`${buttonClass} aria-pressed:border-4`} data-focus="orderCancel" aria-disabled={saving} onClick={() => !saving && onCancel()}>
           {messages.deathOrderCancel}
         </button>
       </div>

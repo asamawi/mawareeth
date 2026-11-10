@@ -1154,7 +1154,7 @@ test("Removing the heir being edited ends the edit; removing another keeps it an
 
 test("every focus target flow.ts can emit is a data-focus value in the components", () => {
   const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "app", "[locale]", "interview");
-  const source = ["deceased-form.tsx", "heir-form.tsx", "heir-list.tsx", "form-bits.tsx", "order-question.tsx", "death-breadcrumb.tsx"]
+  const source = ["deceased-form.tsx", "heir-form.tsx", "heir-list.tsx", "form-bits.tsx", "order-question.tsx", "relatives-question.tsx", "death-breadcrumb.tsx"]
     .map((file) => readFileSync(join(dir, file), "utf8"))
     .join("\n");
   for (const target of FOCUS_TARGETS) {
@@ -1737,4 +1737,87 @@ test("resume never restores an edit from a different layer, and legacy records u
     assert.equal(view.layer, layer ?? null);
     assert.equal(view.editingHeir, layer === undefined ? "w" : null);
   }
+});
+
+
+test("relative and order questions stay together and a single resend carries both answers", async () => {
+  const questions = [{ id: "w", person: "w", kind: "relative" as const, options: ["mother", "none"], suggested: "mother" }];
+  const { value } = deps({ answer: () => ({ kind: "invalid", errors: { death: "order_required", relatives: "required" }, questions }) });
+  const from = startedOf(TWO_LAYERS, true);
+  const refused = await runAction("markDeath", signal, value, TWO_LAYERS, undefined, { kind: "markDeath", from, rowId: "s2" }) as StartedView;
+  assert.equal(refused.ordering, "s2");
+  assert.deepEqual(refused.relativeQuestions, questions);
+  assert.equal(refused.deathOrderNeeded, true);
+  assert.deepEqual(refused.case, from.case);
+  assert.equal(refused.focus?.target, "death-order");
+  let sent: unknown;
+  value.markDeceased = async (_signal, _caseId, _heirId, first, answers) => {
+    sent = { first, answers };
+    return { kind: "saved", case: TWO_LAYERS };
+  };
+  const answers = { relatives: { w: "mother" } };
+  const saved = await runAction("markDeath", signal, value, TWO_LAYERS, undefined, {
+    kind: "markDeath", from: { ...refused, deathFirst: "s1" }, rowId: "s2", answers,
+  }) as StartedView;
+  assert.deepEqual(sent, { first: "s1", answers });
+  assert.equal(saved.relativeQuestions, undefined);
+  assert.equal(saved.ordering, null);
+});
+
+test("a relatives-only refusal focuses the questions, retaining choices on failure", async () => {
+  const questions = [{ id: "w", person: "w", kind: "relative" as const, options: ["mother", "none"], suggested: "mother" }];
+  const { value } = deps({ answer: () => ({ kind: "invalid", errors: { relatives: "required" }, questions }) });
+  const from = startedOf(FAMILY, true);
+  const refused = await runAction("markDeath", signal, value, FAMILY, undefined, { kind: "markDeath", from, rowId: "s1" }) as StartedView;
+  assert.equal(refused.focus?.target, "relatives");
+  assert.equal(refused.ordering, "s1");
+  assert.equal(cancelOrder(refused).relativeQuestions, undefined);
+});
+
+
+test("the per-row female answers retain the shared-father answer from the earlier question", async () => {
+  const { value } = deps({});
+  let sent: unknown;
+  value.markDeceased = async (_signal, _caseId, _heirId, _first, answers) => {
+    sent = answers;
+    return { kind: "saved", case: TWO_LAYERS };
+  };
+  const open = [
+    { id: "shared_father", person: "s1", kind: "shared_father" as const, options: ["yes", "no"], suggested: "yes" },
+    { id: "w", person: "w", kind: "relative" as const, options: ["father", "none"], suggested: "father" },
+  ];
+  const from = startedOf(FAMILY, true, { ordering: "s1", relativeQuestions: open, deathAnswers: { shared_father: "no" } });
+  await runAction("markDeath", signal, value, FAMILY, undefined, {
+    kind: "markDeath", from, rowId: "s1", answers: { relatives: { w: "none", s2: "maternal_brother" } },
+  });
+  assert.deepEqual(sent, { shared_father: "no", relatives: { w: "none", s2: "maternal_brother" } });
+});
+
+
+test("a resend drops stored answers for questions that are no longer open", async () => {
+  const { value } = deps({});
+  let sent: unknown;
+  value.markDeceased = async (_signal, _caseId, _heirId, _first, answers) => {
+    sent = answers;
+    return { kind: "saved", case: TWO_LAYERS };
+  };
+  const open = [{ id: "w", person: "w", kind: "relative" as const, options: ["mother", "none"], suggested: "mother" }];
+  const from = startedOf(FAMILY, true, {
+    ordering: "s1", relativeQuestions: open,
+    deathAnswers: { relatives: { w: "mother", gone: "brother" }, shared_father: "yes" },
+  });
+  await runAction("markDeath", signal, value, FAMILY, undefined, { kind: "markDeath", from, rowId: "s1" });
+  assert.deepEqual(sent, { relatives: { w: "mother" } });
+});
+
+test("questions for one death never supply answers to a different person's death", async () => {
+  const { value } = deps({});
+  let sent: unknown;
+  value.markDeceased = async (_signal, _caseId, heirId, first, answers) => {
+    sent = { heirId, first, answers };
+    return { kind: "saved", case: TWO_LAYERS };
+  };
+  const from = startedOf(FAMILY, true, { ordering: "s2", deathFirst: "s2", deathAnswers: { relatives: { w: "none" } } });
+  await runAction("markDeath", signal, value, FAMILY, undefined, { kind: "markDeath", from, rowId: "s1" });
+  assert.deepEqual(sent, { heirId: "s1", first: undefined, answers: {} });
 });

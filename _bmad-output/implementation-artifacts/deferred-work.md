@@ -1,5 +1,9 @@
 # Deferred Work
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-7c-relatives-linked-into-a-later-death.md`
+  summary: Qualified review of the automatic relatives derivation table and ambiguity questions.
+  evidence: Review all 23 lineage paths, full and half siblings, unnamed parents, multiple wives and female deceased cases in `api/kinship.py` before production reliance; Arabic and French wording also needs native review.
+
 This backlog records work that remains open, grouped by area.
 Entries use `- source_spec: <path in backticks> | none`, followed by one-line `summary:` and `evidence:` fields and an optional `resolved_by:` field.
 Completed and obsolete items are removed; their history is in git.

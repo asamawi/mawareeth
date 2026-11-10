@@ -124,10 +124,37 @@ export type Case = {
 /** A field name to the code of its broken rule. */
 export type FieldErrorCodes = Record<string, string>;
 
+export type RelativeQuestion = {
+  id: string;
+  kind: "relative" | "shared_father";
+  person: string;
+  options: string[];
+  suggested: string;
+};
+export type RelativeAnswers = { relatives?: Record<string, string>; shared_father?: string };
+
+export function parseQuestions(value: unknown): RelativeQuestion[] | null {
+  if (!Array.isArray(value)) return null;
+  const result: RelativeQuestion[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== "object" || item === null || !hasExactKeys(item, ["id", "kind", "person", "options", "suggested"])) return null;
+    const { id, kind, person, options, suggested } = item as Record<string, unknown>;
+    if (!isCode(id) || seen.has(id) || !isCode(person) ||
+        (kind !== "relative" && kind !== "shared_father") || !Array.isArray(options) ||
+        options.length < 2 || (kind === "relative" && !options.includes("none")) || !options.every((v) => kind === "shared_father"
+          ? v === "yes" || v === "no" : v === "none" || isRelationshipId(v)) ||
+        new Set(options).size !== options.length || typeof suggested !== "string" || !options.includes(suggested)) return null;
+    seen.add(id);
+    result.push({ id, kind, person, options, suggested });
+  }
+  return result;
+}
+
 export type AnswerResult =
   | { kind: "saved"; case: Case }
   /** The server refused the input; nothing was stored. */
-  | { kind: "invalid"; errors: FieldErrorCodes }
+  | { kind: "invalid"; errors: FieldErrorCodes; questions?: RelativeQuestion[] }
   /** There is no live case any more. */
   | { kind: "gone" }
   /** The case this tab meant was replaced; `case` is the live one. */
@@ -449,8 +476,15 @@ async function answer(
     async (response) => {
       if (response.status === 429) return { kind: "throttled" };
       if (response.status === 400) {
-        const errors = parseErrors(await response.json());
-        return errors ? { kind: "invalid", errors } : null;
+        const body = await response.json();
+        const errors = parseErrors(body);
+        const raw =
+          typeof body === "object" && body !== null && !Array.isArray(body)
+            ? (body as { questions?: unknown }).questions
+            : undefined;
+        // Malformed questions must not hide the error codes: they are just left out.
+        const questions = raw === undefined ? undefined : parseQuestions(raw);
+        return errors ? { kind: "invalid", errors, ...(questions ? { questions } : {}) } : null;
       }
       if (response.status === 404) {
         const live = parseCase(await response.json());
@@ -532,6 +566,7 @@ export function markDeceased(
   heirId: string,
   first?: string,
   options: WriteOptions = {},
+  answers: RelativeAnswers = {},
 ): Promise<AnswerResult> {
   return answer(
     signal,
@@ -539,7 +574,7 @@ export function markDeceased(
     "POST",
     DEATHS_URL,
     caseId,
-    first === undefined ? { heir_id: heirId } : { heir_id: heirId, first },
+    { heir_id: heirId, ...(first === undefined ? {} : { first }), ...answers },
   );
 }
 

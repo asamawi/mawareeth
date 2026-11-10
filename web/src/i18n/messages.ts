@@ -98,6 +98,13 @@ export type Messages = {
     heirDidNotDieConfirm: string;
     heirDidNotDieYes: string;
     heirRemoveConfirmDeceased: string;
+    relativesQuestion: string;
+    relativesMotherQuestion: string;
+    sharedFatherQuestion: string;
+    relativesNone: string;
+    relativesYes: string;
+    relativesNo: string;
+    relativesSubmit: string;
     deathOrderQuestion: string;
     deathOrderSimultaneous: string;
     deathOrderUnknown: string;
@@ -241,6 +248,13 @@ export const messages: Record<Locale, Messages> = {
       heirDidNotDieConfirm: "هل {heir} لم يتوفَّ؟ سيُحذف ورثته أيضًا.",
       heirDidNotDieYes: "نعم، لم يتوفَّ",
       heirRemoveConfirmDeceased: "هل تريد حذف {heir}؟ ستُحذف وفاته وورثته أيضًا.",
+      relativesQuestion: "ما صلة هذا الشخص بالمتوفى اللاحق؟",
+      relativesMotherQuestion: "من هي والدته؟",
+      sharedFatherQuestion: "هل الزوج والد جميع الأبناء؟",
+      relativesNone: "لا شيء مما سبق",
+      relativesYes: "نعم",
+      relativesNo: "لا",
+      relativesSubmit: "متابعة",
       deathOrderQuestion: "من توفي أولًا؟",
       deathOrderSimultaneous: "في الوقت نفسه",
       deathOrderUnknown: "غير معروف",
@@ -313,6 +327,7 @@ export const messages: Record<Locale, Messages> = {
           wife_of_female: "المتوفى مسجّل أنثى، ولا تكون للأنثى زوجة. اختر «زوج» إن كنت تقصد القرين، أو صحّح جنس المتوفى.",
         },
         // Native-language review pending.
+        relatives: { required: "يرجى الإجابة عن أسئلة القرابة.", invalid: "اختر إجابة من الخيارات المعروضة." },
         same_as: {
           gender_mismatch: "جنس الشخص المختار مختلف. يرجى اختيار شخص من الجنس نفسه أو تصحيح صلة القرابة.",
           not_alive: "لم يكن الشخص المختار على قيد الحياة عند هذه الوفاة. يرجى اختيار شخص كان حيًا آنذاك.",
@@ -456,6 +471,13 @@ export const messages: Record<Locale, Messages> = {
       heirDidNotDieConfirm: "{heir} did not die? Their heirs will be removed too.",
       heirDidNotDieYes: "Yes, did not die",
       heirRemoveConfirmDeceased: "Remove {heir}? Their death and their heirs will be removed too.",
+      relativesQuestion: "How is this person related to the later deceased?",
+      relativesMotherQuestion: "Who is their mother?",
+      sharedFatherQuestion: "Is the husband the father of all the children?",
+      relativesNone: "None of these",
+      relativesYes: "Yes",
+      relativesNo: "No",
+      relativesSubmit: "Continue",
       deathOrderQuestion: "Who died first?",
       deathOrderSimultaneous: "At the same time",
       deathOrderUnknown: "Not known",
@@ -526,6 +548,7 @@ export const messages: Record<Locale, Messages> = {
           husband_of_male: "The deceased is recorded as male, and a male has no husband. Choose wife if you meant the spouse, or correct the gender of the deceased.",
           wife_of_female: "The deceased is recorded as female, and a female has no wife. Choose husband if you meant the spouse, or correct the gender of the deceased.",
         },
+        relatives: { required: "Please answer the relationship questions.", invalid: "Choose one of the offered answers." },
         same_as: {
           gender_mismatch: "The selected person has a different gender. Choose a person with the same gender, or correct the relationship.",
           not_alive: "The selected person was not alive at this death. Choose someone who was alive then.",
@@ -671,6 +694,13 @@ export const messages: Record<Locale, Messages> = {
       heirDidNotDieConfirm: "{heir} n'est pas décédé ? Ses héritiers seront supprimés aussi.",
       heirDidNotDieYes: "Oui, n'est pas décédé",
       heirRemoveConfirmDeceased: "Supprimer {heir} ? Son décès et ses héritiers seront supprimés aussi.",
+      relativesQuestion: "Quel est le lien avec le défunt suivant ?",
+      relativesMotherQuestion: "Qui est sa mère ?",
+      sharedFatherQuestion: "Le mari est-il le père de tous les enfants ?",
+      relativesNone: "Aucun de ces liens",
+      relativesYes: "Oui",
+      relativesNo: "Non",
+      relativesSubmit: "Continuer",
       deathOrderQuestion: "Qui est décédé en premier ?",
       deathOrderSimultaneous: "En même temps",
       deathOrderUnknown: "On ne sait pas",
@@ -743,6 +773,7 @@ export const messages: Record<Locale, Messages> = {
           wife_of_female: "Le défunt est enregistré comme une femme, et une femme n'a pas d'épouse. Choisissez mari si vous parliez du conjoint, ou corrigez le sexe du défunt.",
         },
         // Native-language review pending.
+        relatives: { required: "Veuillez répondre aux questions de parenté.", invalid: "Choisissez une des réponses proposées." },
         same_as: {
           gender_mismatch: "Le sexe de la personne choisie est différent. Choisissez une personne du même sexe ou corrigez le lien de parenté.",
           not_alive: "La personne choisie ne vivait plus lors de ce décès. Choisissez une personne encore en vie à ce moment-là.",

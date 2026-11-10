@@ -104,7 +104,8 @@ class CaseWriteView(ApiView):
             case = action(data, case_id)
         except anonymous_case.FieldErrors as invalid:
             return Response(
-                {'detail': 'Invalid input.', 'errors': invalid.errors}, status=status.HTTP_400_BAD_REQUEST)
+                {'detail': 'Invalid input.', 'errors': invalid.errors,
+                 **({'questions': invalid.questions} if invalid.questions is not None else {})}, status=status.HTTP_400_BAD_REQUEST)
         except anonymous_case.StaleCase as stale:
             return Response(
                 {'detail': 'That case is no longer the current one.', 'case': stale.case},
@@ -194,7 +195,8 @@ class PreviewView(ApiView):
 class DeathsView(CaseWriteView):
     def post(self, request):
         return self.write(request, lambda data, case_id: anonymous_case.mark_deceased(
-            request, data.get('heir_id'), data.get('first'), case_id), success=status.HTTP_201_CREATED)
+            request, data.get('heir_id'), data.get('first'), case_id,
+            relatives=data.get('relatives'), shared_father=data.get('shared_father')), success=status.HTTP_201_CREATED)
 
 
 class DeathView(CaseWriteView):

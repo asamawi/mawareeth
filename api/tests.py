@@ -2411,7 +2411,8 @@ class CaseWriteLockTests(TransactionTestCase):
 DEATHS_URL = '/api/v1/case/deaths/'
 
 
-class InterviewDeathsTests(InterviewHelpers, TransactionTestCase):
+class InterviewDeathsHelpers:
+    """Shared interview-death helpers; holds no tests so subclasses do not re-run them."""
     build = PreviewTests.build
     put_heirs = PreviewTests.put_heirs
     preview = PreviewTests.preview
@@ -2433,9 +2434,8 @@ class InterviewDeathsTests(InterviewHelpers, TransactionTestCase):
     def two(self):
         self.setup_family()
         self.assertEqual(self.mark(self.s1).status_code, 201)
-        self.assertEqual(self.preview(self.case_id).json(), {'status': 'not_ready'})
-        self.assertEqual(self.add_layer(self.s1, 'mother', same_as=self.w).status_code, 201)
-        self.assertEqual(self.add_layer(self.s1, 'brother', same_as=self.s2).status_code, 201)
+        self.assertEqual([(r['relationship'], r['same_as']) for r in self.live()['deaths'][0]['heirs']],
+                         [('mother', self.w), ('brother', self.s2)])
 
     def refused(self, response, errors, before):
         self.assertEqual(response.status_code, 400)
@@ -2444,6 +2444,9 @@ class InterviewDeathsTests(InterviewHelpers, TransactionTestCase):
         for field, code in errors.items():
             self.assertIn(code, CONTRACT['errorCodes'][field])
 
+
+
+class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, TransactionTestCase):
     def test_write_matrix_and_rollback(self):
         self.two()
         counts = self.rows()
@@ -2451,7 +2454,7 @@ class InterviewDeathsTests(InterviewHelpers, TransactionTestCase):
         self.assertEqual([(r['numerator'], r['denominator']) for r in body['shares']], [(13, 48), (35, 48)])
         self.assertEqual(self.rows(), counts)
         self.assertEqual(self.mark(self.w).status_code, 201)
-        self.assertEqual(self.add_layer(self.w, 'son', same_as=self.s2).status_code, 201)
+        self.assertTrue(any(r.get('same_as') == self.s2 for r in self.live()['deaths'][1]['heirs']))
         self.assertEqual(self.add_layer(self.w, 'mother', name='M').status_code, 201)
         body = self.preview(self.case_id).json()
         self.assertEqual([(r['numerator'], r['denominator']) for r in body['shares']], [(275, 288), (13, 288)])
@@ -2466,6 +2469,8 @@ class InterviewDeathsTests(InterviewHelpers, TransactionTestCase):
                              ('simultaneous', 'simultaneous'), ('missing', 'order_conflict')):
             self.setup_family()
             self.mark(self.s1)
+            sibling = self.live()['deaths'][0]['heirs'][1]['id']
+            self.send('delete', HEIRS_URL + sibling + '/', {'case_id': self.case_id})
             before = self.stored()
             extra = {} if answer is None else {'first': answer}
             self.refused(self.mark(self.s2, **extra), {'death': code}, before)
@@ -2479,10 +2484,10 @@ class InterviewDeathsTests(InterviewHelpers, TransactionTestCase):
         self.setup_family()
         self.mark(self.s1)
         before = self.stored()
-        self.refused(self.add_layer(self.s1, 'father', same_as=self.w), {'same_as': 'gender_mismatch'}, before)
+        self.refused(self.add_layer(self.s1, 'father', same_as=self.w), {'same_as': 'already_linked'}, before)
         self.refused(self.add_layer(self.s1, 'brother', same_as=self.s1), {'same_as': 'not_alive'}, before)
         self.refused(self.add_layer(self.s1, 'mother', same_as='missing', name=12),
-                     {'same_as': 'not_alive', 'name': 'invalid'}, before)
+                     {'relationship': 'second_mother', 'same_as': 'not_alive', 'name': 'invalid'}, before)
         self.add_layer(self.s1, 'mother', same_as=self.w)
         before = self.stored()
         self.refused(self.add_layer(self.s1, 'sister', same_as=self.w), {'same_as': 'already_linked'}, before)
@@ -2492,9 +2497,9 @@ class InterviewDeathsTests(InterviewHelpers, TransactionTestCase):
                      {'case_id': self.case_id, 'relationship': 'son'}), {'relationship': 'gender_locked'}, before)
         self.refused(self.send('put', HEIRS_URL + self.s1 + '/',
                      {'case_id': self.case_id, 'relationship': 'daughter'}), {'relationship': 'gender_locked'}, before)
-        self.mark(self.s2, first=self.s2)
+        self.mark(self.s2)
         before = self.stored()
-        self.refused(self.add_layer(self.s1, 'brother', same_as=self.s2), {'same_as': 'not_alive'}, before)
+        self.refused(self.add_layer(self.s2, 'brother', same_as=self.s1), {'same_as': 'not_alive'}, before)
 
     def test_promote_remove_and_unmark(self):
         self.two()
@@ -2585,7 +2590,7 @@ class InterviewDeathsTests(InterviewHelpers, TransactionTestCase):
     def test_links_normalize_and_follow_a_promoted_row(self):
         self.two()
         self.assertEqual(self.mark(self.s2).status_code, 201)
-        self.assertEqual(self.add_layer(self.s2, 'mother', same_as=self.w).status_code, 201)
+        self.assertEqual(self.live()['deaths'][1]['heirs'][0]['same_as'], self.w)
         case = self.live()
         mother = case['deaths'][0]['heirs'][0]['id']
         self.send('delete', HEIRS_URL + self.w + '/', {'case_id': self.case_id})
@@ -2596,6 +2601,8 @@ class InterviewDeathsTests(InterviewHelpers, TransactionTestCase):
         self.two()
         self.mark(self.w)
         linked_son = self.live()['deaths'][0]['heirs'][1]['id']
+        automatic_son = self.live()['deaths'][1]['heirs'][0]['id']
+        self.send('delete', HEIRS_URL + automatic_son + '/', {'case_id': self.case_id})
         self.assertEqual(self.add_layer(self.w, 'son', same_as=linked_son).status_code, 201)
         self.assertEqual(self.live()['deaths'][1]['heirs'][0]['same_as'], self.s2)
 
@@ -2630,11 +2637,11 @@ class InterviewDeathsTests(InterviewHelpers, TransactionTestCase):
         wife = self.live()['deaths'][0]['heirs'][-1]['id']
         self.mark(self.s2)
         self.add_layer(self.s2, 'wife', same_as=wife)
-        kept = self.live()['deaths'][1]['heirs'][0]['id']
+        kept = self.live()['deaths'][1]['heirs'][-1]['id']
         response = self.send('delete', DEATHS_URL + self.s1 + '/', {'case_id': self.case_id})
         self.assertEqual(response.status_code, 200)
         case = self.live()
-        row = case['deaths'][0]['heirs'][0]
+        row = case['deaths'][0]['heirs'][-1]
         self.assertEqual(row['id'], kept)
         self.assertEqual(row['name'], 'Surviving name')
         self.assertNotIn('same_as', row)
@@ -2677,3 +2684,258 @@ class InterviewDeathsTests(InterviewHelpers, TransactionTestCase):
             identity = [r for r in rows if r['id'] == self.w or r.get('same_as') == self.w]
             self.assertEqual(len(identity), 3)
             self.assertEqual([r['name'] for r in identity], ['Renamed'] * 3)
+
+
+class AutomaticRelativesTests(InterviewDeathsHelpers, InterviewHelpers, TransactionTestCase):
+    """The 1.7c matrix exercises the public atomic write, not engine substitutes."""
+
+    def family(self, gender, relationships):
+        case = self.build('hanbali', gender, None, relationships)
+        self.case_id = case['id']
+        return [row['id'] for row in case['heirs']]
+
+    def linked(self):
+        return {row['same_as']: row['relationship'] for row in self.live()['deaths'][-1]['heirs']}
+
+    def test_child_one_wife_and_parent_matrix(self):
+        w, daughter, x, sibling, father = self.family('male', ['wife', 'daughter', 'son', 'son', 'father'])
+        self.assertEqual(self.mark(x).status_code, 201)
+        self.assertEqual(self.linked(), {w: 'mother', daughter: 'sister', sibling: 'brother', father: 'grandfather'})
+        f, m, b, son = self.family('male', ['father', 'mother', 'brother', 'son'])
+        self.assertEqual(self.mark(f).status_code, 201)
+        self.assertEqual(self.linked(), {m: 'wife', b: 'son', son: 'son_of_son'})
+
+    def test_dead_before_x_is_excluded_in_both_marking_orders(self):
+        for first_index in (2, 1):
+            with self.subTest(first=first_index):
+                w, s1, s2 = self.family('male', ['wife', 'son', 'son'])
+                first, later = (s2, s1) if first_index == 2 else (s1, s2)
+                self.assertEqual(self.mark(first).status_code, 201)
+                self.assertEqual(self.live()['deaths'][0]['order'], 2)
+                self.assertEqual(self.linked(), {w: 'mother', later: 'brother'})
+                self.assertEqual(self.mark(later, first=first).status_code, 201)
+                layers = {death['heir_id']: death for death in self.live()['deaths']}
+                self.assertEqual({row['same_as']: row['relationship'] for row in layers[later]['heirs']},
+                                 {w: 'mother'})
+                self.assertEqual({row['same_as']: row['relationship'] for row in layers[first]['heirs']},
+                                 {w: 'mother', later: 'brother'})
+
+    def test_automatic_child_links_preview_matches_two_layer_shares(self):
+        case = self.start()
+        self.case_id = case['id']
+        self.assertEqual(self.send('patch', CASE_URL, {'case_id': self.case_id, 'madhab': 'hanafi'}).status_code, 200)
+        self.assertEqual(self.deceased(case, 'male').status_code, 200)
+        for relationship, name in (('wife', 'W'), ('son', 'S1'), ('son', 'S2')):
+            self.assertEqual(self.heir(case, relationship, name=name).status_code, 201)
+        w, s1, s2 = [row['id'] for row in self.live()['heirs']]
+        self.assertEqual(self.mark(s1).status_code, 201)
+        self.assertEqual(self.linked(), {w: 'mother', s2: 'brother'})
+        response = self.preview(self.case_id)
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['status'], 'available')
+        shares = {row['heir_id']: (row['numerator'], row['denominator']) for row in body['shares']}
+        self.assertEqual(shares, {w: (13, 48), s2: (35, 48)})
+        self.assertNotIn(s1, shares)
+
+    def test_many_wives_questions_and_invalid_answer_are_atomic(self):
+        w1, w2, x, sibling, daughter = self.family('male', ['wife', 'wife', 'son', 'son', 'daughter'])
+        before = self.stored()
+        response = self.mark(x)
+        self.refused(response, {'relatives': 'required'}, before)
+        questions = {q['id']: q for q in response.json()['questions']}
+        self.assertEqual(set(questions), {w1, w2, sibling, daughter})
+        self.assertEqual(set(questions[sibling]['options']), {'brother', 'paternal_brother', 'none'})
+        self.refused(self.mark(x, relatives={w1: 'father'}), {'relatives': 'invalid'}, before)
+        response = self.mark(x, relatives={w1: 'mother', w2: 'none', sibling: 'brother', daughter: 'paternal_sister'})
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.linked(), {w1: 'mother', sibling: 'brother', daughter: 'paternal_sister'})
+
+    def test_female_yes_and_no(self):
+        for shared in ('yes', 'no'):
+            husband, x, sibling = self.family('female', ['husband', 'son', 'son'])
+            before = self.stored()
+            response = self.mark(x)
+            self.refused(response, {'relatives': 'required'}, before)
+            self.assertEqual([q['kind'] for q in response.json()['questions']], ['shared_father'])
+            if shared == 'yes':
+                self.assertEqual(self.mark(x, shared_father='yes').status_code, 201)
+                self.assertEqual(self.linked(), {husband: 'father', sibling: 'brother'})
+            else:
+                response = self.mark(x, shared_father='no')
+                self.refused(response, {'relatives': 'required'}, before)
+                self.assertEqual(self.mark(x, shared_father='no', relatives={husband: 'none', sibling: 'maternal_brother'}).status_code, 201)
+                self.assertEqual(self.linked(), {sibling: 'maternal_brother'})
+
+    def test_grandchildren_and_nephews_ask_about_unnamed_parent(self):
+        for relationship in ('son_of_son', 'son_of_brother', 'son_of_uncle'):
+            x, other = self.family('male', [relationship, relationship])
+            before = self.stored()
+            response = self.mark(x)
+            self.refused(response, {'relatives': 'required'}, before)
+            q = response.json()['questions'][0]
+            self.assertEqual(q['person'], other)
+            self.assertIn('brother', q['options'])
+            self.assertEqual(self.mark(x, relatives={other: 'brother'}).status_code, 201)
+            self.assertEqual(self.linked(), {other: 'brother'})
+
+    def test_order_and_relatives_return_together(self):
+        w1, w2, x, y = self.family('male', ['wife', 'wife', 'son', 'son'])
+        self.assertEqual(self.mark(x, relatives={w1: 'mother', w2: 'none', y: 'none'}).status_code, 201)
+        before = self.stored()
+        response = self.mark(y)
+        self.refused(response, {'death': 'order_required', 'relatives': 'required'}, before)
+        self.assertEqual({q['person'] for q in response.json()['questions']}, {w1, w2, x})
+        self.assertEqual(self.mark(y, first=x, relatives={w1: 'none', w2: 'mother', x: 'brother'}).status_code, 201)
+        self.assertEqual(self.linked(), {w2: 'mother'})
+
+    def test_impossible_derived_rows_are_skipped_and_rows_remain_editable(self):
+        w1, w2, x = self.family('male', ['wife', 'wife', 'son'])
+        self.assertEqual(self.mark(x, relatives={w1: 'mother', w2: 'none'}).status_code, 201)
+        self.assertEqual(len(self.linked()), 1)
+        row = self.live()['deaths'][0]['heirs'][0]
+        response = self.send('put', HEIRS_URL + row['id'] + '/', {'case_id': self.case_id, 'relationship': 'sister'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.send('delete', HEIRS_URL + row['id'] + '/', {'case_id': self.case_id}).status_code, 200)
+        self.assertEqual(self.live()['deaths'][0]['heirs'], [])
+
+    def test_all_relationship_pairs_are_total_and_pure(self):
+        from copy import deepcopy
+        from api.kinship import PATHS, derive
+        self.assertEqual(set(PATHS), set(anonymous_case.RELATIONSHIPS))
+        for gender in ('male', 'female'):
+            for xr in PATHS:
+                for rr in PATHS:
+                    x = {'id': 'x', 'relationship': xr, 'gender': anonymous_case.RELATIONSHIPS[xr], 'name': None}
+                    r = {'id': 'r', 'relationship': rr, 'gender': anonymous_case.RELATIONSHIPS[rr], 'name': None}
+                    case = {'deceased': {'gender': gender}, 'heirs': [x, r],
+                            'deaths': [{'heir_id': 'x', 'order': 2, 'gender': x['gender'], 'heirs': []}]}
+                    before = deepcopy(case)
+                    rows, questions = derive(case, x)
+                    self.assertEqual(case, before)
+                    self.assertTrue(all(row['relationship'] in PATHS for row in rows))
+                    self.assertTrue(all(anonymous_case.RELATIONSHIPS[row['relationship']] == r['gender'] for row in rows))
+                    for q in questions:
+                        self.assertIn(q['suggested'], q['options'])
+                        self.assertTrue(set(q['options']) <= (set(PATHS) | {'none', 'yes', 'no'}))
+                        if q['kind'] == 'relative':
+                            self.assertTrue(all(value == 'none' or anonymous_case.RELATIONSHIPS[value] == r['gender'] for value in q['options']))
+
+
+    def test_explicit_half_branch_cannot_be_an_unnamed_full_parent(self):
+        from api.kinship import _pair
+        self.assertEqual(_pair('paternal_brother', 'son_of_brother', 'male'), {'son_of_paternal_brother'})
+        self.assertEqual(_pair('son_of_brother', 'paternal_brother', 'male'), {'paternal_uncle'})
+
+    def test_automatic_links_include_later_deceased_but_exclude_earlier(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        # Leave the second death unordered so it can be placed before S1.
+        brother = self.live()['deaths'][0]['heirs'][1]['id']
+        self.send('delete', HEIRS_URL + brother + '/', {'case_id': self.case_id})
+        self.assertEqual(self.mark(self.s2, first=self.s2).status_code, 201)
+        earlier = self.live()['deaths'][0]
+        self.assertTrue(any(row.get('same_as') == self.s1 for row in earlier['heirs']))
+        self.assertFalse(any(row.get('same_as') == self.s2 for row in self.live()['deaths'][1]['heirs']))
+
+
+    def test_order_can_put_the_new_death_first_with_one_combined_resend(self):
+        w1, w2, x, y = self.family('male', ['wife', 'wife', 'son', 'son'])
+        self.mark(x, relatives={w1: 'mother', w2: 'none', y: 'none'})
+        before = self.stored()
+        response = self.mark(y)
+        self.refused(response, {'death': 'order_required', 'relatives': 'required'}, before)
+        self.assertIn(x, {q['id'] for q in response.json()['questions']})
+        response = self.mark(y, first=y, relatives={w1: 'mother', w2: 'none', x: 'brother'})
+        self.assertEqual(response.status_code, 201)
+        earlier = self.live()['deaths'][0]
+        self.assertEqual(earlier['heir_id'], y)
+        self.assertEqual({r['same_as']: r['relationship'] for r in earlier['heirs']}, {w1: 'mother', x: 'brother'})
+
+
+    def test_two_mothers_answered_is_refused_and_nothing_is_stored(self):
+        w1, w2, x = self.family('male', ['wife', 'wife', 'son'])
+        before = self.stored()
+        self.refused(self.mark(x, relatives={w1: 'mother', w2: 'mother'}), {'relatives': 'invalid'}, before)
+
+    def test_malformed_relatives_and_shared_father_are_refused_without_storing(self):
+        w1, w2, x = self.family('male', ['wife', 'wife', 'son'])
+        before = self.stored()
+        for extra in ({'relatives': [w1]}, {'relatives': {w1: ['mother']}}, {'relatives': {w1: 1}},
+                      {'shared_father': True}, {'shared_father': 'maybe'}, {'shared_father': 1}):
+            with self.subTest(extra=extra):
+                self.refused(self.mark(x, **extra), {'relatives': 'invalid'}, before)
+
+    def test_daughter_suggests_sister(self):
+        from api.kinship import derive
+        rows = [{'id': i, 'relationship': r, 'gender': anonymous_case.RELATIONSHIPS[r], 'name': None}
+                for i, r in (('w1', 'wife'), ('w2', 'wife'), ('x', 'son'), ('d', 'daughter'))]
+        case = {'deceased': {'gender': 'male'}, 'heirs': rows,
+                'deaths': [{'heir_id': 'x', 'order': 2, 'gender': 'male', 'heirs': []}]}
+        _, questions = derive(case, rows[2])
+        suggested = {q['id']: q['suggested'] for q in questions}
+        self.assertEqual(suggested, {'w1': 'mother', 'w2': 'mother', 'd': 'sister'})
+
+    def test_layer_without_heirs_is_not_ready(self):
+        s1, = self.family('male', ['son'])
+        self.assertEqual(self.mark(s1).status_code, 201)
+        self.assertEqual(self.live()['deaths'][0]['heirs'], [])
+        response = self.preview(self.case_id)
+        self.assertEqual(response.json(), {'status': 'not_ready'})
+
+    def test_same_as_gender_mismatch_in_a_later_layer(self):
+        s1, s2 = self.family('male', ['son', 'son'])
+        self.assertEqual(self.mark(s1).status_code, 201)
+        row = self.live()['deaths'][0]['heirs'][0]
+        self.assertEqual(self.send('delete', HEIRS_URL + row['id'] + '/', {'case_id': self.case_id}).status_code, 200)
+        before = self.stored()
+        self.refused(self.add_layer(s1, 'sister', same_as=s2), {'same_as': 'gender_mismatch'}, before)
+
+    def test_derive_expected_value_table(self):
+        from api.kinship import derive
+
+        def run(gender, people, x, shared_father=None):
+            rows = [{'id': name, 'relationship': rel, 'gender': anonymous_case.RELATIONSHIPS[rel], 'name': None}
+                    for name, rel in people]
+            xrow = next(r for r in rows if r['id'] == x)
+            case = {'deceased': {'gender': gender}, 'heirs': rows,
+                    'deaths': [{'heir_id': x, 'order': 2, 'gender': xrow['gender'], 'heirs': []}]}
+            found, questions = derive(case, xrow, shared_father)
+            return ({(r['relationship'], r['same_as']) for r in found},
+                    {q['id']: set(q['options']) for q in questions})
+
+        cases = [
+            ('male', [('W', 'wife'), ('Da', 'daughter'), ('S1', 'son'), ('S2', 'son'), ('F', 'father')], 'S1', None,
+             {('mother', 'W'), ('sister', 'Da'), ('brother', 'S2'), ('grandfather', 'F')}, {}),
+            ('male', [('F', 'father'), ('M', 'mother'), ('B', 'brother'), ('S', 'son')], 'F', None,
+             {('wife', 'M'), ('son', 'B'), ('son_of_son', 'S')}, {}),
+            ('male', [('B1', 'brother'), ('B2', 'brother'), ('PB', 'paternal_brother'), ('MB', 'maternal_brother'),
+                      ('M', 'mother'), ('F', 'father'), ('Si', 'sister'), ('N', 'son_of_brother'), ('U', 'uncle')],
+             'B1', None,
+             {('brother', 'B2'), ('paternal_brother', 'PB'), ('maternal_brother', 'MB'), ('mother', 'M'),
+              ('father', 'F'), ('sister', 'Si'), ('uncle', 'U')}, {'N': {'son', 'son_of_brother', 'none'}}),
+            ('male', [('M', 'mother'), ('F', 'father'), ('B', 'brother'), ('MB', 'maternal_brother'),
+                      ('PB', 'paternal_brother'), ('S', 'son'), ('MM', 'maternal_grandmother')], 'M', None,
+             {('husband', 'F'), ('son', 'B'), ('son', 'MB'), ('son_of_son', 'S'), ('mother', 'MM')}, {}),
+            ('male', [('W', 'wife'), ('S', 'son'), ('Da', 'daughter'), ('F', 'father')], 'W', None,
+             {('son', 'S'), ('daughter', 'Da')}, {}),
+            ('male', [('U1', 'uncle'), ('U2', 'uncle'), ('C', 'son_of_uncle'), ('F', 'father'),
+                      ('GF', 'grandfather')], 'U1', None,
+             {('brother', 'U2'), ('brother', 'F'), ('father', 'GF')}, {'C': {'son', 'son_of_brother', 'none'}}),
+            ('male', [('G1', 'son_of_son'), ('G2', 'son_of_son')], 'G1', None,
+             set(), {'G2': {'brother', 'son_of_uncle', 'none'}}),
+        ]
+        for gender, people, x, shared, rows, questions in cases:
+            with self.subTest(x=x, people=people):
+                self.assertEqual(run(gender, people, x, shared), (rows, questions))
+        female = [('H', 'husband'), ('S1', 'son'), ('S2', 'son')]
+        frows = [{'id': n, 'relationship': r, 'gender': anonymous_case.RELATIONSHIPS[r], 'name': None}
+                 for n, r in female]
+        _, questions = derive({'deceased': {'gender': 'female'}, 'heirs': frows,
+                               'deaths': [{'heir_id': 'S1', 'order': 2, 'gender': 'male', 'heirs': []}]}, frows[1])
+        self.assertEqual([q['kind'] for q in questions], ['shared_father'])
+        with self.subTest('female yes'):
+            self.assertEqual(run('female', female, 'S1', 'yes'), ({('father', 'H'), ('brother', 'S2')}, {}))
+        with self.subTest('female no'):
+            self.assertEqual(run('female', female, 'S1', 'no'),
+                             (set(), {'H': {'father', 'none'}, 'S2': {'brother', 'maternal_brother', 'none'}}))

@@ -71,6 +71,7 @@ import { buttonClass, errorText } from "./form-bits";
 import { DeceasedSummary, HeirList } from "./heir-list";
 import { HeirForm } from "./heir-form";
 import { MadhabSelector } from "./madhab-selector";
+import { RelativesQuestion } from "./relatives-question";
 import { OrderQuestion } from "./order-question";
 import { SharePreview } from "./share-preview";
 
@@ -86,7 +87,7 @@ const deps: Deps = {
   addHeir: (signal, caseId, fields) => addHeir(signal, caseId, fields),
   updateHeir: (signal, caseId, heirId, fields) => updateHeir(signal, caseId, heirId, fields),
   removeHeir: (signal, caseId, heirId) => removeHeir(signal, caseId, heirId),
-  markDeceased: (signal, caseId, heirId, first) => markDeceased(signal, caseId, heirId, first),
+  markDeceased: (signal, caseId, heirId, first, answers) => markDeceased(signal, caseId, heirId, first, {}, answers),
   unmarkDeceased: (signal, caseId, heirId) => unmarkDeceased(signal, caseId, heirId),
   selection: selectionStore(),
   forms: formStore(),
@@ -260,21 +261,34 @@ export function StartCase({
     return {
       rowId: row.id,
       node: (
-        <OrderQuestion
+        <>
+        {(started.deathOrderNeeded ?? !started.relativeQuestions?.length) && <OrderQuestion
           messages={messages}
+          selected={started.deathFirst}
           choices={ids.map((id) => ({ id, label: names[id] ?? id }))}
           saving={started.saving}
           error={started.errors?.death ? errorText(messages, "death", started.errors) : null}
-          onChoose={(first) =>
-            submit((from) => ({ kind: "markDeath", from, rowId: row.id, first }))
-          }
+          onChoose={(first) => {
+            if (started.relativeQuestions?.length) edit((current) => ({ ...current, deathFirst: first }));
+            else submit((from) => ({ kind: "markDeath", from, rowId: row.id, first }));
+          }}
           onCancel={() => edit((current) => cancelOrder(current))}
-        />
+        />}
+        {!!started.relativeQuestions?.length && <>
+          {started.errors?.relatives && <p role="alert">{errorText(messages, "relatives", started.errors)}</p>}
+          <RelativesQuestion key={JSON.stringify(started.relativeQuestions)} questions={started.relativeQuestions}
+            messages={messages} labels={names} saving={started.saving} initial={started.deathAnswers}
+            onSubmit={(answers) => submit((from) => ({ kind: "markDeath", from, rowId: row.id, answers }))} />
+          <button type="button" className={buttonClass} data-focus="relativesCancel" disabled={started.saving}
+            onClick={() => edit((current) => cancelOrder(current))}>{messages.deathOrderCancel}</button>
+        </>}
+        </>
       ),
     };
   })();
-  const deathError =
-    started?.errors?.death && started.ordering === null ? errorText(messages, "death", started.errors) : null;
+  const deathError = started?.ordering === null
+    ? [errorText(messages, "death", started.errors), errorText(messages, "relatives", started.errors)].filter(Boolean).join(" ") || null
+    : null;
 
   const announced = started?.announcement ?? null;
   const announcementTemplates = {
