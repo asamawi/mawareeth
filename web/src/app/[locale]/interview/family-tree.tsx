@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { Gender, Heir } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
@@ -32,6 +32,7 @@ export function FamilyTree({
   /** The heir whose form is open, marked by an outline. */
   editingId: string | null;
 }) {
+  const headingId = useId();
   const area = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(FALLBACK_WIDTH);
 
@@ -53,8 +54,8 @@ export function FamilyTree({
   const move = "absolute transition-[inset-inline-start,top] duration-300 motion-reduce:transition-none";
 
   return (
-    <section data-tree aria-labelledby="tree-heading" data-wide className="flex w-full flex-col gap-2">
-      <h3 id="tree-heading" className="text-lg font-semibold">
+    <section data-tree aria-labelledby={headingId} data-wide className="flex w-full flex-col gap-2">
+      <h3 id={headingId} className="text-lg font-semibold">
         {messages.treeHeading}
       </h3>
       <div

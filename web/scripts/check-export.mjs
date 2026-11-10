@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const out = join(dirname(fileURLToPath(import.meta.url)), "..", "out");
 const expected = { ar: "rtl", en: "ltr", fr: "ltr" };
 // Every page under a locale that Django links to; each must exist in every locale.
-const pages = ["", "interview"];
+const pages = ["", "interview", "results"];
 const problems = [];
 
 // A root index.html would be served at /app/ and shadow Django's language redirect.

@@ -94,6 +94,8 @@ export type PreviewRow = {
   fraction: string | null;
   /** The percentage to one decimal, half up, such as "12.5". */
   percent: string | null;
+  /** The share in 24ths with 2 decimals, half up, such as "3.00"; null for a blocked heir. */
+  kirat: string | null;
   /** The amount with 2 decimals from the server, or null when the case has no estate. */
   amount: string | null;
 };
@@ -111,17 +113,26 @@ export function percentOf(numerator: number, denominator: number): string {
   return `${tenths / BigInt(10)}.${tenths % BigInt(10)}`;
 }
 
+/** A share in kirat (24ths of the estate) with 2 decimals, rounded half up, with no float. */
+export function kiratOf(numerator: number, denominator: number): string {
+  const top = BigInt(numerator);
+  const bottom = BigInt(denominator);
+  const hundredths = (top * BigInt(4800) + bottom) / (BigInt(2) * bottom);
+  return `${hundredths / BigInt(100)}.${(hundredths % BigInt(100)).toString().padStart(2, "0")}`;
+}
+
 /** What to show for an available preview, in the order the server gave the heirs. */
 export function previewRows(preview: Extract<Preview, { status: "available" }>): PreviewRows {
   return {
     rows: preview.shares.map((share) =>
       share.blocked
-        ? { heirId: share.heir_id, blocked: true, fraction: null, percent: null, amount: null }
+        ? { heirId: share.heir_id, blocked: true, fraction: null, percent: null, kirat: null, amount: null }
         : {
             heirId: share.heir_id,
             blocked: false,
             fraction: `${share.numerator}/${share.denominator}`,
             percent: percentOf(share.numerator, share.denominator),
+            kirat: kiratOf(share.numerator, share.denominator),
             amount: share.amount,
           },
     ),

@@ -164,6 +164,39 @@ export type Messages = {
     /** There is no live case any more: no retry, the page needs reloading. */
     previewExpired: string;
     previewRetry: string;
+    /** The link from an available preview to the results page. */
+    previewResultsLink: string;
+  };
+  results: {
+    heading: string;
+    loading: string;
+    loadFailed: string;
+    loadRetry: string;
+    emptyCase: string;
+    incompleteCase: string;
+    startInterview: string;
+    backToInterview: string;
+    school: string;
+    sharesHeading: string;
+    share: string;
+    percent: string;
+    kirat: string;
+    amount: string;
+    noShare: string;
+    /** Accessible name of a heir's disclosure button; `{heir}` is the heir's label. */
+    proofToggleFor: string;
+    proofToggle: string;
+    proofRule: string;
+    proofCondition: string;
+    proofBlockedBy: string;
+    proofSchoolRule: string;
+    proofOption: string;
+    proofFraction: string;
+    proofVerse: string;
+    stepsHeading: string;
+    schoolRulesHeading: string;
+    layeredNote: string;
+    familyHeading: string;
   };
   cta: string;
 };
@@ -389,6 +422,37 @@ export const messages: Record<Locale, Messages> = {
       previewGone: "لا معاينة لهذه الحالة لأنها تغيّرت في نافذة أخرى.",
       previewExpired: "هذه الحالة لم تعد متاحة. أعد تحميل الصفحة للمتابعة.",
       previewRetry: "إعادة تحميل المعاينة",
+      previewResultsLink: "عرض النتائج الكاملة",
+    },
+    results: {
+      heading: "النتائج",
+      loading: "جارٍ تحميل النتائج…",
+      loadFailed: "تعذّر تحميل الحالة. حاول مرة أخرى.",
+      loadRetry: "إعادة المحاولة",
+      emptyCase: "لا توجد حالة لعرض نتائجها.",
+      incompleteCase: "الحالة غير مكتملة: أضف المذهب والمتوفى والورثة في المقابلة لتظهر النتائج.",
+      startInterview: "ابدأ المقابلة",
+      backToInterview: "العودة إلى المقابلة",
+      school: "محسوبة وفق المذهب {school}.",
+      sharesHeading: "الأنصبة",
+      share: "النصيب",
+      percent: "النسبة",
+      kirat: "القراريط (من 24)",
+      amount: "المبلغ",
+      noShare: "لا نصيب له في هذه الحالة.",
+      proofToggleFor: "كيف حُسب نصيب {heir}",
+      proofToggle: "كيف حُسب هذا النصيب",
+      proofRule: "القاعدة",
+      proofCondition: "الشرط",
+      proofBlockedBy: "الحجب",
+      proofSchoolRule: "قاعدة المذهب",
+      proofOption: "الخيار",
+      proofFraction: "الفرض المقدّر",
+      proofVerse: "الآية",
+      stepsHeading: "خطوات الحساب",
+      schoolRulesHeading: "قواعد المذهب المطبّقة",
+      layeredNote: "شرح الأنصبة في حالات الوفيات المتعاقبة غير متاح بعد.",
+      familyHeading: "الأسرة",
     },
     cta: "ابدأ حالة بدون حساب",
   },
@@ -612,6 +676,37 @@ export const messages: Record<Locale, Messages> = {
       previewGone: "There is no preview for this case because it changed in another tab.",
       previewExpired: "This case is no longer available. Reload the page to continue.",
       previewRetry: "Reload the preview",
+      previewResultsLink: "See full results",
+    },
+    results: {
+      heading: "Results",
+      loading: "Loading the results…",
+      loadFailed: "The case could not be loaded. Please try again.",
+      loadRetry: "Try again",
+      emptyCase: "There is no case to show results for.",
+      incompleteCase: "The case is incomplete: add the school, the deceased and the heirs in the interview to see results.",
+      startInterview: "Start the interview",
+      backToInterview: "Back to the interview",
+      school: "Calculated under the {school} school.",
+      sharesHeading: "Shares",
+      share: "Share",
+      percent: "Percentage",
+      kirat: "Kirat (of 24)",
+      amount: "Amount",
+      noShare: "Receives no share in this case.",
+      proofToggleFor: "How the share of {heir} was derived",
+      proofToggle: "How this share was derived",
+      proofRule: "Rule",
+      proofCondition: "Condition",
+      proofBlockedBy: "Blocked by",
+      proofSchoolRule: "School rule",
+      proofOption: "Option",
+      proofFraction: "Prescribed fraction",
+      proofVerse: "Verse",
+      stepsHeading: "Calculation steps",
+      schoolRulesHeading: "School rules applied",
+      layeredNote: "The explanation of shares for successive deaths is not available yet.",
+      familyHeading: "The family",
     },
     cta: "Start a case without an account",
   },
@@ -838,6 +933,37 @@ export const messages: Record<Locale, Messages> = {
       previewGone: "Il n'y a pas d'aperçu pour ce cas, car il a changé dans un autre onglet.",
       previewExpired: "Ce cas n'est plus disponible. Rechargez la page pour continuer.",
       previewRetry: "Recharger l'aperçu",
+      previewResultsLink: "Voir les résultats complets",
+    },
+    results: {
+      heading: "Résultats",
+      loading: "Chargement des résultats…",
+      loadFailed: "Le dossier n'a pas pu être chargé. Veuillez réessayer.",
+      loadRetry: "Réessayer",
+      emptyCase: "Il n'y a aucun dossier dont afficher les résultats.",
+      incompleteCase: "Le dossier est incomplet : ajoutez l'école, le défunt et les héritiers dans l'entretien pour voir les résultats.",
+      startInterview: "Commencer l'entretien",
+      backToInterview: "Retour à l'entretien",
+      school: "Calculé selon l'école {school}.",
+      sharesHeading: "Parts",
+      share: "Part",
+      percent: "Pourcentage",
+      kirat: "Kirat (sur 24)",
+      amount: "Montant",
+      noShare: "Ne reçoit aucune part dans ce cas.",
+      proofToggleFor: "Comment la part de {heir} a été établie",
+      proofToggle: "Comment cette part a été établie",
+      proofRule: "Règle",
+      proofCondition: "Condition",
+      proofBlockedBy: "Exclusion",
+      proofSchoolRule: "Règle de l'école",
+      proofOption: "Option",
+      proofFraction: "Fraction prescrite",
+      proofVerse: "Verset",
+      stepsHeading: "Étapes du calcul",
+      schoolRulesHeading: "Règles de l'école appliquées",
+      layeredNote: "L'explication des parts pour les décès successifs n'est pas encore disponible.",
+      familyHeading: "La famille",
     },
     cta: "Commencer un dossier sans compte",
   },

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { parsePreview, PREVIEW_REASONS, type Case, type Preview } from "../api/case.ts";
 import { locales, messages } from "../i18n/messages.ts";
-import { basisKey, percentOf, previewKey, previewReady, previewRows, reconcile, shown } from "./preview.ts";
+import { basisKey, kiratOf, percentOf, previewKey, previewReady, previewRows, reconcile, shown } from "./preview.ts";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const read = (name: string) => JSON.parse(readFileSync(join(dir, "..", "..", "..", "api", "contracts", name), "utf8"));
@@ -15,7 +15,11 @@ type Fixture = {
   title: string;
   case: Case;
   response: unknown;
-  display: ReturnType<typeof previewRows> | null;
+  /** The shared display has no kirat: that is this client's own formatting. */
+  display: {
+    rows: Omit<ReturnType<typeof previewRows>["rows"][number], "kirat">[];
+    unallocated: ReturnType<typeof previewRows>["unallocated"];
+  } | null;
 };
 const fixtures = (read("preview-fixtures.json") as { fixtures: Fixture[] }).fixtures;
 // This refusal is in the contract but has no shared fixture yet.
@@ -50,7 +54,12 @@ test("every fixture response parses strictly and displays as the fixture says", 
     assert.ok(preview, fixture.title);
     assert.deepEqual(preview, fixture.response, fixture.title);
     if (preview.status === "available") {
-      assert.deepEqual(previewRows(preview), fixture.display, fixture.title);
+      const result = previewRows(preview);
+      const rows = result.rows.map(({ kirat, ...row }) => {
+        assert.equal(kirat === null, row.blocked, fixture.title);
+        return row;
+      });
+      assert.deepEqual({ ...result, rows }, fixture.display, fixture.title);
     } else {
       assert.equal(fixture.display, null, fixture.title);
     }
@@ -185,6 +194,21 @@ test("percentages round half up to one decimal without floats", () => {
   assert.equal(percentOf(0, 1), "0.0");
   assert.equal(percentOf(1, 2000), "0.1");
   assert.equal(percentOf(1, 4000), "0.0");
+});
+
+test("kirat are the share times 24, 2 decimals, half up, with no floats", () => {
+  assert.equal(kiratOf(1, 8), "3.00");
+  assert.equal(kiratOf(1, 7), "3.43");
+  assert.equal(kiratOf(2, 3), "16.00");
+  assert.equal(kiratOf(1, 1), "24.00");
+  assert.equal(kiratOf(0, 1), "0.00");
+  assert.equal(kiratOf(1, 6), "4.00");
+  assert.equal(kiratOf(1, 1600), "0.02");
+  assert.equal(kiratOf(1, 4800), "0.01");
+  assert.equal(kiratOf(1, 9600), "0.00");
+  assert.equal(kiratOf(1, 9601), "0.00");
+  assert.equal(kiratOf(1, 12), "2.00");
+  assert.equal(kiratOf(5, 7), "17.14");
 });
 
 test("the key follows what changes a share and ignores names", () => {

@@ -294,3 +294,7 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-7-successive-deaths-manasikhat-in-the-interview.md`
   summary: Story 1.7b, the web interview for successive deaths: strict parsing of `deaths`, the new writes and `proof: null`; the active layer, the mark/unmark and order-of-death question, and the "someone already in this case" link choice in the flow; a breadcrumb of deaths, the tree drawing one layer at a time with its deceased labelled by death order, the list actions "also died" / "open their heirs" / "did not die", people named by their earliest row in the preview; all text in ar/en/fr; and the TypeScript side of the layered preview fixtures.
   evidence: Split from Story 1.7 on 2026-11-10 to keep the spec within size; 1.7a delivers the session layers, writes, preview and contracts that this builds on.
+
+- source_spec: none
+  summary: Story 3.1b, the layered (successive-death) proof on the results page: carry the engine's v2 layered proof through the preview API with session ids and labels, add it to the contract, fixtures and the web parser, and show each layer's explanation on the results page.
+  evidence: Split from Story 3.1 on 2026-11-10 at the project owner's choice; 3.1 delivers the results page with the single-death proof, kirat and citations and states that layered explanations are not available yet.

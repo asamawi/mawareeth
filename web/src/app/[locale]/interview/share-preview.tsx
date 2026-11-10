@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchPreview, type Case, type PreviewResult } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import { formatEstate } from "@/interview/answers";
+import { localFraction, localPercent } from "@/interview/format";
 import { rowLabels } from "@/interview/layers";
 import {
   previewKey,
@@ -16,23 +18,6 @@ import {
 } from "@/interview/preview";
 
 import { buttonClass } from "./form-bits";
-
-/** "1/8" in the language's digits. The caller puts it in a left-to-right `bdi`. */
-function localFraction(fraction: string, locale: string): string {
-  const format = new Intl.NumberFormat(locale, { useGrouping: false });
-  return fraction
-    .split("/")
-    .map((part) => format.format(Number(part)))
-    .join("/");
-}
-
-function localPercent(percent: string, locale: string): string {
-  return new Intl.NumberFormat(locale, {
-    style: "percent",
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  }).format(Number(percent) / 100);
-}
 
 /**
  * The shares of the saved case under its school, as the engine gives them. It asks once after
@@ -119,6 +104,11 @@ export function SharePreview({
           </p>
         )}
         <p className="text-sm">{messages.previewSchool.split("{school}").join(school)}</p>
+        <p>
+          <Link href={`/${locale}/results/`} prefetch={false} className="underline underline-offset-4">
+            {messages.previewResultsLink}
+          </Link>
+        </p>
       </>
     );
   } else if (outcome.kind === "preview" && preview?.status === "unavailable") {
