@@ -774,8 +774,11 @@ class NewResultsView(OwnedCalculationMixin, WaffleFlagMixin, LoginRequired, gene
 		before going any further.
 		"""
 		self.calc = get_owned_calculation(request, kwargs['pk'])
-		self.calc.compute()
 		return super().dispatch(request, *args, **kwargs)
+
+	def get(self, request, *args, **kwargs):
+		self.calc.compute()
+		return super().get(request, *args, **kwargs)
 
 class ResultsView(OwnedCalculationMixin, LoginRequired, generic.DetailView):
 	model = Calculation
@@ -805,8 +808,11 @@ class ResultsView(OwnedCalculationMixin, LoginRequired, generic.DetailView):
 		before going any further.
 		"""
 		self.calc = get_owned_calculation(request, kwargs['pk'])
-		self.calc.compute()
 		return super().dispatch(request, *args, **kwargs)
+
+	def get(self, request, *args, **kwargs):
+		self.calc.compute()
+		return super().get(request, *args, **kwargs)
 
 class CalculationUpdate(OwnedCalculationMixin, UpdateView):
 	model = Calculation
@@ -816,7 +822,7 @@ def new(request):
 	# A login redirect replays this URL as a GET, with no form data to read.
 	if request.method != "POST":
 		return HttpResponseRedirect(reverse('calc:index'))
-	name = request.POST["name"]
+	name = request.POST.get("name", "")
 	if name == "":
 		messages.error(request,_("Must enter a name for your calcualtion") )
 		return HttpResponseRedirect(reverse('calc:error'))
