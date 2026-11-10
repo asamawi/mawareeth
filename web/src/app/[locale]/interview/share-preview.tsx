@@ -8,6 +8,7 @@ import type { Messages } from "@/i18n/messages";
 import { formatEstate } from "@/interview/answers";
 import { localFraction, localPercent } from "@/interview/format";
 import { rowLabels } from "@/interview/layers";
+import { hasTable, tableView } from "@/interview/table";
 import {
   previewKey,
   previewReady,
@@ -17,6 +18,7 @@ import {
   type Settled,
 } from "@/interview/preview";
 
+import { InheritanceTable } from "../results/inheritance-table";
 import { buttonClass } from "./form-bits";
 
 /**
@@ -26,10 +28,13 @@ import { buttonClass } from "./form-bits";
  */
 export function SharePreview({
   messages,
+  results,
   locale,
   kase,
 }: {
   messages: Messages["interview"];
+  /** The results dictionary: the table's captions and the side note's. */
+  results: Messages["results"];
   locale: string;
   /** The saved case: it changes only when a save succeeds, so a save in flight changes nothing. */
   kase: Case;
@@ -68,8 +73,9 @@ export function SharePreview({
   } else if (outcome.kind === "preview" && preview?.status === "available") {
     status = messages.previewUpdated;
     const { rows, unallocated } = previewRows(preview);
-    body = (
-      <>
+    const proofs = Object.fromEntries((preview.proof?.heirs ?? []).map((entry) => [entry.heir, entry]));
+    const relations = Object.fromEntries((preview.proof?.heirs ?? []).map((entry) => [entry.heir, entry.relationship]));
+    const list = (
         <ul aria-label={messages.previewHeading} className="flex flex-col gap-2">
           {rows.map((row) => (
             <li
@@ -97,6 +103,22 @@ export function SharePreview({
             </li>
           ))}
         </ul>
+    );
+    body = (
+      <>
+        {hasTable(preview) ? (
+          <InheritanceTable
+            text={results}
+            relationships={messages.relationships}
+            locale={locale}
+            view={tableView(preview.table, preview)}
+            labels={labels}
+            relations={relations}
+            proofs={proofs}
+          />
+        ) : (
+          list
+        )}
         {unallocated && (
           <p>
             {messages.previewUnallocated}: <bdi dir="ltr">{localFraction(unallocated.fraction, locale)}</bdi>{" "}

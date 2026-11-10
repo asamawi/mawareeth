@@ -746,11 +746,15 @@ class Calculation(models.Model):
         columns = {h.pk: {'share': 0, 'shorted_share': 0, 'shortage_calc_share': 0, 'shortage_union_share': 0,
                           'correction': False} for h in heirs}
 
+        merged = {}
+
         def put(group, column, values, fell_back):
             for heir, value in zip(group.members, values):
                 columns[heir.pk][column] = value
                 if fell_back:
                     columns[heir.pk]['correction'] = True
+            if fell_back:
+                merged.setdefault(column, set()).add(id(group))
 
         for group in groups:
             put(group, 'share', *group.column(base, group.stage))
@@ -840,6 +844,29 @@ class Calculation(models.Model):
         self.save()
         self._tag_school_rules(heirs, live, [h for g in radd_groups for h in g.members] if radd else [])
         left = one - sum(final.values(), zero)
+        totals = {'share': base, 'shorted_share': shares_shorted, 'shortage_calc_share': shortage_calc_shares,
+                  'shortage_union_share': shortage_union_shares, 'corrected_share': shares_corrected}
+        spec = [('base', 'share', base, 'share')]
+        if excess:
+            spec.append(('awl', 'share', shares_excess, 'share'))
+        if shortage:
+            spec.append(('radd' if radd else 'remainder', 'shorted_share', shares_shorted, 'shorted_share'))
+        if shortage_calc:
+            spec.append(('radd_calc', 'shortage_calc_share', shortage_calc_shares, 'shortage_calc_share'))
+            spec.append(('radd_union', 'shortage_union_share', shortage_union_shares, 'shortage_union_share'))
+        if correction:
+            spec.append(('correction', 'corrected_share', shares_corrected, None))
+        self.table = None
+        if groups and base > 0:
+            self.table = proof.build_table(
+                [{'code': code, 'total': total,
+                  'values': {h.pk: getattr(h, attr) for h in heirs},
+                  'merged': {i for i, g in enumerate(groups) if mkey and id(g) in merged.get(mkey, ())}}
+                 for code, attr, total, mkey in spec],
+                [[h.pk for h in g.members] for g in groups],
+                [h.pk for h in heirs],
+                {h.pk: h.basis['fraction'] for h in heirs},
+                {h.pk for h in heirs if h.blocked})
         self._proof_steps = {
             'base': base,
             'awl': shares_excess if excess else None,
@@ -907,6 +934,7 @@ class Calculation(models.Model):
         with later deaths are refused here; compute_manasikhat() is their entry
         point. Legacy results pages do not run layered cases."""
         self.proof = None
+        self.table = None
         self._proof_steps = None
         schools.check_school(madhab)
         with transaction.atomic():

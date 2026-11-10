@@ -410,6 +410,12 @@ const AVAILABLE = {
     ],
     steps: [{ step: "base", value: 8, label: "The common base of the fixed shares" }],
   },
+  table: {
+    columns: [{ code: "base", total: 8, label: "Shares" }],
+    rows: [
+      { heir: "a1", blocked: false, prescribed: { numerator: 1, denominator: 8 }, cells: [{ value: 1, span: 1 }] },
+    ],
+  },
 };
 
 test("fetchPreview makes one read with the case id and returns the typed preview", async () => {
@@ -563,13 +569,160 @@ test("each read of missing options is a fresh object", async () => {
 });
 
 
+test("parsePreview rejects a bad table, never repairs it", () => {
+  const two = {
+    ...AVAILABLE,
+    shares: [
+      AVAILABLE.shares[0],
+      { heir_id: "a2", numerator: 7, denominator: 8, blocked: false, amount: "7000.00" },
+    ],
+    basis: { ...BASIS, heirs: [...BASIS.heirs, { id: "a2", relationship: "son" }] },
+    proof: { ...AVAILABLE.proof, heirs: [...AVAILABLE.proof.heirs, { ...AVAILABLE.proof.heirs[0], heir: "a2", share: { numerator: 7, denominator: 8 } }] },
+  };
+  const row = (heir: string, cells: unknown[], extra: object = {}) => ({
+    heir, blocked: false, prescribed: null, cells, ...extra,
+  });
+  const base = { code: "base", total: 8, label: "Shares" };
+  const good = {
+    columns: [base, { code: "correction", total: 24, label: "Correction" }],
+    rows: [
+      row("a1", [{ value: 7, span: 2 }, { value: 3, span: 1 }]),
+      row("a2", [{ value: 7, span: 0 }, { value: 21, span: 1 }]),
+    ],
+  };
+  assert.equal(parsePreview({ ...two, table: good })?.status, "available");
+  const only = (patch: object) => ({ ...two, table: { ...good, ...patch } });
+  const bad: [string, unknown][] = [
+    ["missing", Object.fromEntries(Object.entries(two).filter(([key]) => key !== "table"))],
+    ["null on a single death", { ...two, table: null }],
+    ["extra key", only({ extra: 1 })],
+    ["unknown column", only({ columns: [base, { code: "bogus", total: 5, label: "x" }] })],
+    ["first not base", only({ columns: [{ code: "awl", total: 8, label: "x" }], rows: [] })],
+    ["out of order", only({ columns: [{ code: "correction", total: 24, label: "C" }, base] })],
+    ["both shortage columns", only({ columns: [base, { code: "radd", total: 8, label: "R" }, { code: "remainder", total: 8, label: "S" }] })],
+    ["duplicate column", only({ columns: [base, base] })],
+    ["total zero", only({ columns: [{ ...base, total: 0 }, good.columns[1]] })],
+    ["total fractional", only({ columns: [{ ...base, total: 2.5 }, good.columns[1]] })],
+    ["total string", only({ columns: [{ ...base, total: "8" }, good.columns[1]] })],
+    ["empty label", only({ columns: [{ ...base, label: "" }, good.columns[1]] })],
+    ["no columns", only({ columns: [], rows: [] })],
+    ["fewer rows than shares", only({ rows: [good.rows[0]] })],
+    ["unknown heir", only({ rows: [good.rows[0], row("zz", [{ value: 7, span: 0 }, { value: 1, span: 1 }])] })],
+    ["duplicate heir", only({ rows: [good.rows[0], { ...good.rows[0] }] })],
+    ["wrong cell count", only({ rows: [row("a1", [{ value: 7, span: 2 }]), good.rows[1]] })],
+    ["bad prescribed", only({ rows: [{ ...good.rows[0], prescribed: { numerator: 2, denominator: 1 } }, good.rows[1]] })],
+    ["negative value", only({ rows: [row("a1", [{ value: -1, span: 2 }, { value: 3, span: 1 }]), good.rows[1]] })],
+    ["null value on a live heir", only({ rows: [row("a1", [{ value: null, span: 2 }, { value: 3, span: 1 }]), good.rows[1]] })],
+    ["value on a blocked heir", only({ rows: [good.rows[0], { ...good.rows[1], blocked: true }] })],
+    ["extra row key", only({ rows: [{ ...good.rows[0], x: 1 }, good.rows[1]] })],
+    ["extra cell key", only({ rows: [row("a1", [{ value: 7, span: 2, x: 1 }, { value: 3, span: 1 }]), good.rows[1]] })],
+    ["span longer than the rows", only({ rows: [row("a1", [{ value: 7, span: 3 }, { value: 3, span: 1 }]), good.rows[1]] })],
+    ["covered row with its own span", only({ rows: [good.rows[0], row("a2", [{ value: 7, span: 1 }, { value: 21, span: 1 }])] })],
+    ["covered row with another value", only({ rows: [good.rows[0], row("a2", [{ value: 6, span: 0 }, { value: 21, span: 1 }])] })],
+    ["first row covered", only({ rows: [row("a1", [{ value: 7, span: 0 }, { value: 3, span: 1 }]), good.rows[1]] })],
+    ["negative span", only({ rows: [row("a1", [{ value: 7, span: -1 }, { value: 3, span: 1 }]), good.rows[1]] })],
+  ];
+  for (const [name, body] of bad) assert.equal(parsePreview(body), null, name);
+});
+
+test("parsePreview checks a table against the shares and the columns the engine can give", () => {
+  const two = {
+    ...AVAILABLE,
+    shares: [
+      AVAILABLE.shares[0],
+      { heir_id: "a2", numerator: 7, denominator: 8, blocked: false, amount: "7000.00" },
+    ],
+    basis: { ...BASIS, heirs: [...BASIS.heirs, { id: "a2", relationship: "son" }] },
+    proof: { ...AVAILABLE.proof, heirs: [...AVAILABLE.proof.heirs, { ...AVAILABLE.proof.heirs[0], heir: "a2", share: { numerator: 7, denominator: 8 } }] },
+  };
+  // every column totals 8, so each cell is the share in eighths
+  const table = (codes: string[], values: [number, number] = [1, 7]) => ({
+    columns: codes.map((code) => ({ code, total: 8, label: code })),
+    rows: [
+      { heir: "a1", blocked: false, prescribed: null, cells: codes.map(() => ({ value: values[0], span: 1 })) },
+      { heir: "a2", blocked: false, prescribed: null, cells: codes.map(() => ({ value: values[1], span: 1 })) },
+    ],
+  });
+  const ok: string[][] = [
+    ["base"], ["base", "awl"], ["base", "radd"], ["base", "remainder"], ["base", "correction"],
+    ["base", "radd", "radd_calc", "radd_union", "correction"],
+  ];
+  for (const codes of ok) assert.equal(parsePreview({ ...two, table: table(codes) })?.status, "available", codes.join());
+  const impossible: string[][] = [
+    ["base", "awl", "radd"],
+    ["base", "awl", "remainder"],
+    ["base", "radd", "remainder"],
+    ["base", "radd_calc", "radd_union"],
+    ["base", "remainder", "radd_calc", "radd_union"],
+    ["base", "radd", "radd_calc"],
+    ["base", "radd", "radd_union"],
+  ];
+  for (const codes of impossible) assert.equal(parsePreview({ ...two, table: table(codes) }), null, codes.join());
+
+  // a row is blocked only when the proof says so, and then its share is blocked too
+  const nothing = { numerator: 0, denominator: 1 };
+  const second = (rule: string, blocked: boolean) => ({
+    ...two,
+    shares: [two.shares[0], { ...two.shares[1], ...nothing, blocked, amount: "0.00" }],
+    proof: {
+      ...two.proof,
+      heirs: [two.proof.heirs[0], { ...two.proof.heirs[1], rule, share: nothing }],
+    },
+  });
+  const empty = { value: null as never, span: 1 };
+  const blockedRow = table(["base"]);
+  blockedRow.rows[1] = { ...blockedRow.rows[1], blocked: true, cells: [empty] };
+  assert.equal(parsePreview({ ...second("blocked", true), table: blockedRow })?.status, "available");
+  // blocked in the table but not in the proof, or the other way round
+  assert.equal(parsePreview({ ...second("fixed", true), table: blockedRow }), null);
+  assert.equal(parsePreview({ ...second("blocked", true), table: table(["base"], [1, 0]) }), null);
+  // a blocked row whose share is not blocked
+  assert.equal(parsePreview({ ...second("blocked", false), table: blockedRow }), null);
+  // a residuary left nothing: not blocked, share 0, every cell 0
+  assert.equal(parsePreview({ ...second("residuary", true), table: table(["base"], [1, 0]) })?.status, "available");
+  assert.equal(parsePreview({ ...second("residuary", true), table: table(["base", "correction"], [1, 0]) })?.status, "available");
+  assert.equal(parsePreview({ ...second("residuary", true), table: blockedRow }), null);
+  const bad = table(["base"], [1, 1]);
+  assert.equal(parsePreview({ ...second("residuary", true), table: bad }), null);
+  // a share of more than nothing cannot be flagged blocked on a live row
+  const flaggedShare = { ...two, shares: [two.shares[0], { ...two.shares[1], blocked: true }] };
+  assert.equal(parsePreview({ ...flaggedShare, table: table(["base"]) }), null);
+
+  // the last column is the share, in the column's own total
+  assert.equal(parsePreview({ ...two, table: table(["base"], [2, 6]) }), null);
+  assert.equal(parsePreview({ ...two, table: table(["base", "correction"], [1, 6]) }), null);
+  // a merged final cell is the sum of the rows it covers
+  const merged = (value: number) => ({
+    columns: [{ code: "base", total: 8, label: "Shares" }],
+    rows: [
+      { heir: "a1", blocked: false, prescribed: null, cells: [{ value, span: 2 }] },
+      { heir: "a2", blocked: false, prescribed: null, cells: [{ value, span: 0 }] },
+    ],
+  });
+  assert.equal(parsePreview({ ...two, table: merged(8) })?.status, "available");
+  assert.equal(parsePreview({ ...two, table: merged(7) }), null);
+  // a spouse alone leaves an unallocated part: 1/4 of the estate is 1 of 4 parts
+  const alone = {
+    ...AVAILABLE,
+    shares: [{ ...AVAILABLE.shares[0], numerator: 1, denominator: 4 }],
+    unallocated: { numerator: 3, denominator: 4 },
+    proof: { ...AVAILABLE.proof, heirs: [{ ...AVAILABLE.proof.heirs[0], share: { numerator: 1, denominator: 4 } }] },
+    table: {
+      columns: [{ code: "base", total: 4, label: "Shares" }],
+      rows: [{ heir: "a1", blocked: false, prescribed: { numerator: 1, denominator: 4 }, cells: [{ value: 1, span: 1 }] }],
+    },
+  };
+  assert.equal(parsePreview(alone)?.status, "available");
+});
+
 test("layered previews preserve strict death records and require an explicit proof", () => {
   const deaths = [{ heir_id: "a1", order: 2, heirs: [
     { id: "b1", relationship: "son", same_as: "a2" },
     { id: "b2", relationship: "mother" },
   ] }];
-  const body = { ...AVAILABLE, proof: null, basis: { ...BASIS, deaths } };
+  const body = { ...AVAILABLE, proof: null, table: null, basis: { ...BASIS, deaths } };
   assert.deepEqual(parsePreview(body), body);
+  assert.equal(parsePreview({ ...body, table: AVAILABLE.table }), null);
   const malformed: unknown[] = [
     null, {}, [], [null], [deaths[0], deaths[0], deaths[0]],
     [{ ...deaths[0], heir_id: 1 }],

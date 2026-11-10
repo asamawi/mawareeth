@@ -10,6 +10,7 @@ from decimal import Decimal
 from fractions import Fraction
 
 from django.db import transaction
+from django.utils.translation import gettext as _
 
 from api import anonymous_case, heir_rules
 from calc import proof as proof_codes, schools
@@ -99,6 +100,25 @@ def _labelled(proof, ids):
     }
 
 
+def _column_labels():
+    """The legacy captions of the table's engine columns, in the active language."""
+    return {
+        'base': _('Shares'), 'awl': _('Excess'), 'radd': _('Shortage'), 'remainder': _('Shortage'),
+        'radd_calc': _('Shortage calc'), 'radd_union': _('Calc Union'), 'correction': _('Correction'),
+    }
+
+
+def _table(table, ids):
+    """The engine's table for the client: heirs named by session id, a label on each column."""
+    if table is None:
+        return None
+    labels = _column_labels()
+    return {
+        'columns': [{**column, 'label': labels[column['code']]} for column in table['columns']],
+        'rows': [{**row, 'heir': ids[row['heir']]} for row in table['rows']],
+    }
+
+
 def _compute(case):
     """The engine's fractions, blocked flags and proof by session heir id. Leaves rows; roll back."""
     calc = Calculation.objects.create(name='')
@@ -113,7 +133,7 @@ def _compute(case):
         by_pk[pk]: (Fraction(fraction), bool(blocked.get(pk)))
         for pk, fraction in final.items() if pk in by_pk
     }
-    return outcome, _labelled(calc.proof, by_pk)
+    return outcome, _labelled(calc.proof, by_pk), _table(calc.table, by_pk)
 
 
 def _compute_layered(case):
@@ -134,7 +154,7 @@ def _compute_layered(case):
             by_id[heir['id']] = row
             by_pk[row.pk] = heir['id']
     final, _ = compute_manasikhat(root, case['madhab'])
-    return {by_pk[pk]: (Fraction(value), value == 0) for pk, value in final.items()}, None
+    return {by_pk[pk]: (Fraction(value), value == 0) for pk, value in final.items()}, None, None
 
 
 def preview(case):
@@ -154,7 +174,7 @@ def preview(case):
     try:
         with transaction.atomic():
             try:
-                outcome, proof = _compute_layered(case) if case.get('deaths') else _compute(case)
+                outcome, proof, table = _compute_layered(case) if case.get('deaths') else _compute(case)
             finally:
                 transaction.set_rollback(True)
     except schools.UnsupportedCase as refused:
@@ -182,4 +202,5 @@ def preview(case):
         'shares': shares,
         'unallocated': _fraction(left) if left > 0 else None,
         'proof': proof,
+        'table': table,
     }

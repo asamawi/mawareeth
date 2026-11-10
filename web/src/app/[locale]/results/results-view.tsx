@@ -9,6 +9,7 @@ import { formatEstate } from "@/interview/answers";
 import { localFraction, localKirat, localPercent } from "@/interview/format";
 import { breadcrumb, layersOf, rowLabels } from "@/interview/layers";
 import { previewKey, previewReady, reconcile } from "@/interview/preview";
+import { hasTable, tableView } from "@/interview/table";
 import {
   isLayeredPreview,
   presentationOf,
@@ -21,6 +22,7 @@ import {
 import { FamilyTree } from "../interview/family-tree";
 import { crumbTextOf } from "../interview/death-breadcrumb";
 import { buttonClass } from "../interview/form-bits";
+import { InheritanceTable, ProofList } from "./inheritance-table";
 
 type Loaded =
   | { kind: "case"; kase: Case | null; outcome: PreviewResult | null }
@@ -150,6 +152,12 @@ function Available({
   const layers = layersOf(kase);
   const school = interview.madhabs[preview.madhab].name;
   const proof = preview.proof;
+  const table = hasTable(preview) ? tableView(preview.table, preview) : null;
+  const proofs = useMemo(() => Object.fromEntries((preview.proof?.heirs ?? []).map((entry) => [entry.heir, entry])), [preview]);
+  const relations = useMemo(
+    () => Object.fromEntries((preview.proof?.heirs ?? []).map((entry) => [entry.heir, entry.relationship])),
+    [preview],
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -160,17 +168,29 @@ function Available({
           {text.sharesHeading}
         </h2>
         {layered && <p>{text.layeredNote}</p>}
-        <ul className="flex flex-col gap-3">
-          {entries.map((entry) => (
-            <HeirCard
-              key={entry.row.heirId}
-              messages={messages}
-              locale={locale}
-              entry={entry}
-              label={labels[entry.row.heirId] ?? entry.row.heirId}
-            />
-          ))}
-        </ul>
+        {table ? (
+          <InheritanceTable
+            text={text}
+            relationships={interview.relationships}
+            locale={locale}
+            view={table}
+            labels={labels}
+            relations={relations}
+            proofs={proofs}
+          />
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {entries.map((entry) => (
+              <HeirCard
+                key={entry.row.heirId}
+                messages={messages}
+                locale={locale}
+                entry={entry}
+                label={labels[entry.row.heirId] ?? entry.row.heirId}
+              />
+            ))}
+          </ul>
+        )}
         {unallocated && (
           <p>
             {interview.previewUnallocated}: <bdi dir="ltr">{localFraction(unallocated.fraction, locale)}</bdi>{" "}
@@ -302,50 +322,7 @@ function HeirCard({
             </button>
           </div>
           <div id={panelId} hidden={!open}>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-              <dt>{text.proofRule}</dt>
-              <dd>{proof.labels.rule}</dd>
-              {proof.labels.condition && (
-                <>
-                  <dt>{text.proofCondition}</dt>
-                  <dd>{proof.labels.condition}</dd>
-                </>
-              )}
-              {proof.labels.blocked_by && (
-                <>
-                  <dt>{text.proofBlockedBy}</dt>
-                  <dd>{proof.labels.blocked_by}</dd>
-                </>
-              )}
-              {proof.fraction && (
-                <>
-                  <dt>{text.proofFraction}</dt>
-                  <dd>
-                    <bdi dir="ltr">
-                      {localFraction(`${proof.fraction.numerator}/${proof.fraction.denominator}`, locale)}
-                    </bdi>
-                  </dd>
-                </>
-              )}
-              {proof.labels.school_rule && (
-                <>
-                  <dt>{text.proofSchoolRule}</dt>
-                  <dd>{proof.labels.school_rule}</dd>
-                </>
-              )}
-              {proof.labels.option && (
-                <>
-                  <dt>{text.proofOption}</dt>
-                  <dd>{proof.labels.option}</dd>
-                </>
-              )}
-              {proof.labels.verse && (
-                <>
-                  <dt>{text.proofVerse}</dt>
-                  <dd>{proof.labels.verse}</dd>
-                </>
-              )}
-            </dl>
+            <ProofList text={text} proof={proof} locale={locale} />
           </div>
         </>
       )}

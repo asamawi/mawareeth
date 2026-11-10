@@ -671,6 +671,34 @@ export type PreviewProof = {
   steps: PreviewProofStep[];
 };
 
+export const TABLE_COLUMNS = ["base", "awl", "radd", "remainder", "radd_calc", "radd_union", "correction"] as const;
+export type TableColumnCode = (typeof TABLE_COLUMNS)[number];
+
+export type PreviewTableColumn = {
+  code: TableColumnCode;
+  /** The column's total, a positive whole number: the engine's own. */
+  total: number;
+  /** The caption in the request's language. */
+  label: string;
+};
+
+/** One cell: `value` is the engine's whole number (null for a blocked heir). `span` is the rows a
+ * merged group cell covers, 0 for a row that an earlier cell in the column covers. */
+export type PreviewTableCell = { value: number | null; span: number };
+
+export type PreviewTableRow = {
+  /** The session id of the heir. */
+  heir: string;
+  blocked: boolean;
+  /** The fixed fraction; null for a residuary or a blocked heir. */
+  prescribed: FractionBody | null;
+  /** One cell per column, in column order. */
+  cells: PreviewTableCell[];
+};
+
+/** The scholars' table of a single-death case: the legacy columns with totals. The first column is `base`. */
+export type PreviewTable = { columns: PreviewTableColumn[]; rows: PreviewTableRow[] };
+
 export type Preview =
   | { status: "not_ready" }
   /** `reason` is any code the server sends; one with no sentence shows the generic text only. */
@@ -684,6 +712,8 @@ export type Preview =
       unallocated: FractionBody | null;
       /** Layered previews have no v1 proof. */
       proof: PreviewProof | null;
+      /** Layered previews have no table. */
+      table: PreviewTable | null;
     };
 
 export type PreviewResult =
@@ -870,6 +900,101 @@ function parseProof(value: unknown, madhab: MadhabId, shares: readonly PreviewSh
   };
 }
 
+const TABLE_KEYS = ["columns", "rows"];
+const TABLE_COLUMN_KEYS = ["code", "total", "label"];
+const TABLE_ROW_KEYS = ["heir", "blocked", "prescribed", "cells"];
+const TABLE_CELL_KEYS = ["value", "span"];
+
+function isWhole(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function parseTable(value: unknown, shares: readonly PreviewShare[], proof: PreviewProof | null): PreviewTable | null {
+  if (typeof value !== "object" || value === null || !hasExactKeys(value, TABLE_KEYS)) return null;
+  const { columns, rows } = value as Record<string, unknown>;
+  if (!Array.isArray(columns) || !Array.isArray(rows) || columns.length === 0) return null;
+  const parsedColumns: PreviewTableColumn[] = [];
+  for (const item of columns as unknown[]) {
+    if (typeof item !== "object" || item === null || !hasExactKeys(item, TABLE_COLUMN_KEYS)) return null;
+    const { code, total, label } = item as Record<string, unknown>;
+    if (!(TABLE_COLUMNS as readonly unknown[]).includes(code) || !isCode(label)) return null;
+    if (!isWhole(total) || total < 1) return null;
+    if (parsedColumns.some((done) => done.code === code)) return null;
+    parsedColumns.push({ code: code as TableColumnCode, total, label });
+  }
+  if (parsedColumns[0].code !== "base") return null;
+  // legacy order, and at most one of the two shortage columns
+  const order = parsedColumns.map((column) => TABLE_COLUMNS.indexOf(column.code));
+  if (!order.every((index, position) => position === 0 || order[position - 1] < index)) return null;
+  // the combinations the engine can give: awl excludes the shortage columns; the radd calculation
+  // and its union come together, and only with radd
+  const has = (code: TableColumnCode) => parsedColumns.some((column) => column.code === code);
+  if (has("awl") && (has("radd") || has("remainder"))) return null;
+  if (has("radd") && has("remainder")) return null;
+  if (has("radd_calc") !== has("radd_union") || (has("radd_calc") && !has("radd"))) return null;
+  if (rows.length !== shares.length) return null;
+  const parsedRows: PreviewTableRow[] = [];
+  const seen = new Set<string>();
+  for (const item of rows as unknown[]) {
+    if (typeof item !== "object" || item === null || !hasExactKeys(item, TABLE_ROW_KEYS)) return null;
+    const { heir, blocked, prescribed, cells } = item as Record<string, unknown>;
+    if (!isCode(heir) || typeof blocked !== "boolean" || seen.has(heir)) return null;
+    const share = shares.find((candidate) => candidate.heir_id === heir);
+    if (!share || !proof) return null;
+    // blocked means the proof says so; a blocked heir has no share. A heir who is not blocked may still
+    // have nothing (a residuary left no remainder): then the share is 0 and every cell is 0.
+    if (blocked !== (proof.heirs.find((entry) => entry.heir === heir)?.rule === "blocked")) return null;
+    if (blocked && !share.blocked) return null;
+    seen.add(heir);
+    let fraction: FractionBody | null = null;
+    if (prescribed !== null) {
+      fraction = parseFraction(prescribed);
+      if (!fraction) return null;
+    }
+    if (!Array.isArray(cells) || cells.length !== parsedColumns.length) return null;
+    const parsedCells: PreviewTableCell[] = [];
+    for (const cell of cells as unknown[]) {
+      if (typeof cell !== "object" || cell === null || !hasExactKeys(cell, TABLE_CELL_KEYS)) return null;
+      const { value: amount, span } = cell as Record<string, unknown>;
+      if (!isWhole(span) || (amount !== null && !isWhole(amount))) return null;
+      // a blocked heir's cells are empty, and nobody else's are
+      if ((amount === null) !== blocked) return null;
+      parsedCells.push({ value: amount as number | null, span });
+    }
+    if (!blocked && share.blocked && (share.numerator !== 0 || parsedCells.some((cell) => cell.value !== 0))) return null;
+    parsedRows.push({ heir, blocked, prescribed: fraction, cells: parsedCells });
+  }
+  // a merged cell covers exactly the next `span - 1` rows, which are not cells of their own
+  for (let column = 0; column < parsedColumns.length; column++) {
+    for (let row = 0; row < parsedRows.length; row++) {
+      const span = parsedRows[row].cells[column].span;
+      if (span === 0) return null;
+      for (let covered = 1; covered < span; covered++) {
+        const next = parsedRows[row + covered]?.cells[column];
+        if (!next || next.span !== 0 || next.value !== parsedRows[row].cells[column].value) return null;
+      }
+      row += span - 1;
+    }
+  }
+  // the last column, read as a fraction of its total, is the share: a merged cell is the sum of its rows
+  const last = parsedColumns.length - 1;
+  const total = BigInt(parsedColumns[last].total);
+  for (let row = 0; row < parsedRows.length; row++) {
+    const cell = parsedRows[row].cells[last];
+    if (cell.value === null || cell.span === 0) continue;
+    let top = BigInt(0);
+    let bottom = BigInt(1);
+    for (const covered of parsedRows.slice(row, row + cell.span)) {
+      const share = shares.find((candidate) => candidate.heir_id === covered.heir);
+      if (!share) return null;
+      top = top * BigInt(share.denominator) + BigInt(share.numerator) * bottom;
+      bottom *= BigInt(share.denominator);
+    }
+    if (BigInt(cell.value) * bottom !== top * total) return null;
+  }
+  return { columns: parsedColumns, rows: parsedRows };
+}
+
 /** Strict: anything that is not exactly the documented shape is rejected, never repaired. */
 export function parsePreview(body: unknown): Preview | null {
   if (typeof body !== "object" || body === null) return null;
@@ -884,7 +1009,7 @@ export function parsePreview(body: unknown): Preview | null {
       : null;
   }
   if (value.status !== "available" || !Array.isArray(value.shares)) return null;
-  if (basis.deaths && value.proof !== null) return null;
+  if (basis.deaths && (value.proof !== null || value.table !== null)) return null;
   const rowIds = new Set([...basis.heirs, ...(basis.deaths ?? []).flatMap((death) => death.heirs)].map((row) => row.id));
   const seen = new Set<string>();
   const shares: PreviewShare[] = [];
@@ -907,7 +1032,9 @@ export function parsePreview(body: unknown): Preview | null {
     ? null
     : parseProof(value.proof, value.madhab, shares);
   if (proof === null && !(value.proof === null && basis.deaths)) return null;
-  return { status: "available", madhab: value.madhab, basis, shares, unallocated, proof };
+  const table = basis.deaths ? null : parseTable(value.table, shares, proof);
+  if (table === null && !basis.deaths) return null;
+  return { status: "available", madhab: value.madhab, basis, shares, unallocated, proof, table };
 }
 
 /**

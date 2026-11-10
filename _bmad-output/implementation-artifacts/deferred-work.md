@@ -298,3 +298,7 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: none
   summary: Story 3.1b, the layered (successive-death) proof on the results page: carry the engine's v2 layered proof through the preview API with session ids and labels, add it to the contract, fixtures and the web parser, and show each layer's explanation on the results page.
   evidence: Split from Story 3.1 on 2026-11-10 at the project owner's choice; 3.1 delivers the results page with the single-death proof, kirat and citations and states that layered explanations are not available yet.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-1b-scholars-inheritance-table.md`
+  summary: Story 3.1c, successive deaths in the scholars' table: carry the engine's v2 layered proof through the preview API (session ids, labels, no engine pks; layer `heir` from the session death by order) with contract, fixtures and strict parser, and show the classic side-by-side manasikhat table (each later death's problem beside the earlier ones with the deceased's shares, the multiplier and the running jami'a, checked on the server against the engine's final fractions) on the results page and the interview preview, with each layer's explanation as row side notes.
+  evidence: Split from Story 3.1b on 2026-11-10 at the project owner's choice; 3.1b delivers the scholars' table for single-death cases, which 3.1c extends.

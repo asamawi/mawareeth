@@ -110,9 +110,11 @@ const deps: Deps = {
 
 export function StartCase({
   messages,
+  results,
   locale,
 }: {
   messages: Messages["interview"];
+  results: Messages["results"];
   locale: string;
 }) {
   const [view, setView] = useState<View>({ name: "loading" });
@@ -499,7 +501,7 @@ export function StartCase({
             }
             onCancel={() => edit((current) => cancelEditHeir(current, deps))}
           />
-          <SharePreview messages={messages} locale={locale} kase={started.case} />
+          <SharePreview messages={messages} results={results} locale={locale} kase={started.case} />
           <HeirList
             key={layer?.id ?? "first"}
             messages={messages}

@@ -197,6 +197,27 @@ export type Messages = {
     schoolRulesHeading: string;
     layeredNote: string;
     familyHeading: string;
+    /** The scholars' table of a single-death case. */
+    table: {
+      /** The accessible name of the scrollable table. */
+      caption: string;
+      name: string;
+      relation: string;
+      prescribed: string;
+      /** The word in the prescribed-share cell of a residuary heir, and of a blocked one. */
+      residuary: string;
+      blocked: string;
+      /** The caption over the totals row, for screen readers. */
+      total: string;
+      percent: string;
+      kirat: string;
+      amount: string;
+      /** Accessible name of a heir's side-note button; `{heir}` is the heir's label. */
+      noteFor: string;
+      /** The title of the side note; `{heir}` is the heir's label. */
+      noteTitle: string;
+      noteHint: string;
+    };
   };
   cta: string;
 };
@@ -453,6 +474,21 @@ export const messages: Record<Locale, Messages> = {
       schoolRulesHeading: "قواعد المذهب المطبّقة",
       layeredNote: "شرح الأنصبة في حالات الوفيات المتعاقبة غير متاح بعد.",
       familyHeading: "الأسرة",
+      table: {
+        caption: "جدول المسألة",
+        name: "الاسم",
+        relation: "القرابة",
+        prescribed: "الفرض",
+        residuary: "عصبة",
+        blocked: "محجوب",
+        total: "المجموع",
+        percent: "النسبة",
+        kirat: "القراريط (من 24)",
+        amount: "المبلغ",
+        noteFor: "كيف حُسب نصيب {heir}",
+        noteTitle: "تفسير نصيب {heir}",
+        noteHint: "مرّر المؤشر أو ركّز أو انقر على وريث لعرض تفسير نصيبه. اضغط Esc للإغلاق.",
+      },
     },
     cta: "ابدأ حالة بدون حساب",
   },
@@ -707,6 +743,21 @@ export const messages: Record<Locale, Messages> = {
       schoolRulesHeading: "School rules applied",
       layeredNote: "The explanation of shares for successive deaths is not available yet.",
       familyHeading: "The family",
+      table: {
+        caption: "Inheritance table",
+        name: "Name",
+        relation: "Relation",
+        prescribed: "Prescribed share",
+        residuary: "Residuary",
+        blocked: "Blocked",
+        total: "Total",
+        percent: "Percentage",
+        kirat: "Kirat (of 24)",
+        amount: "Amount",
+        noteFor: "How the share of {heir} was reached",
+        noteTitle: "Explanation of the share of {heir}",
+        noteHint: "Hover, focus or click a heir to see how their share was reached. Press Escape to close.",
+      },
     },
     cta: "Start a case without an account",
   },
@@ -964,6 +1015,21 @@ export const messages: Record<Locale, Messages> = {
       schoolRulesHeading: "Règles de l'école appliquées",
       layeredNote: "L'explication des parts pour les décès successifs n'est pas encore disponible.",
       familyHeading: "La famille",
+      table: {
+        caption: "Tableau de la succession",
+        name: "Nom",
+        relation: "Relation",
+        prescribed: "Part prescrite",
+        residuary: "Résiduaire",
+        blocked: "Exclu",
+        total: "Total",
+        percent: "Pourcentage",
+        kirat: "Kirat (sur 24)",
+        amount: "Montant",
+        noteFor: "Comment la part de {heir} a été établie",
+        noteTitle: "Explication de la part de {heir}",
+        noteHint: "Survolez, mettez le focus ou cliquez sur un héritier pour voir comment sa part a été établie. Échap pour fermer.",
+      },
     },
     cta: "Commencer un dossier sans compte",
   },

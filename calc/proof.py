@@ -214,6 +214,46 @@ def build(madhab, heirs, steps):
     }
 
 
+def build_table(columns, groups, heir_pks, prescribed, blocked):
+    """The scholars' table of a single-death calculation, with no language in it.
+
+    `columns` lists, in legacy order, dicts of code, total, values (heir pk to the engine's
+    whole number) and merged (indexes of the groups whose cell is one merged group total).
+    `groups` lists each group's member pks in row order; heirs of `heir_pks` in no group, and
+    blocked heirs, follow. `prescribed` maps a pk to its fixed fraction or None for a residuary.
+    Every cell is {'value', 'span'}: span is the rows a merged cell covers, 0 for a row
+    it covers; blocked heirs have empty cells (value None); a heir with a zero share keeps the engine's 0."""
+    order = []
+    for index, members in enumerate(groups):
+        for position, pk in enumerate(members):
+            if pk not in blocked:
+                order.append((pk, index, position, len(members)))
+    seen = {pk for pk, *_rest in order}
+    rest = [pk for pk in heir_pks if pk not in seen and pk not in blocked]
+    rows = []
+    for pk, index, position, size in order:
+        cells = []
+        for column in columns:
+            merge = index in column['merged'] and size > 1
+            cells.append({'value': column['values'][pk],
+                          'span': (size if position == 0 else 0) if merge else 1})
+        rows.append((pk, cells))
+    for pk in rest:
+        rows.append((pk, [{'value': column['values'][pk], 'span': 1} for column in columns]))
+    for pk in heir_pks:
+        if pk in blocked:
+            rows.append((pk, [{'value': None, 'span': 1} for _column in columns]))
+    return {
+        'columns': [{'code': column['code'], 'total': column['total']} for column in columns],
+        'rows': [{
+            'heir': pk,
+            'blocked': pk in blocked,
+            'prescribed': None if prescribed.get(pk) is None else fraction_body(prescribed[pk]),
+            'cells': cells,
+        } for pk, cells in rows],
+    }
+
+
 def build_layered(madhab, layers, final, identities):
     """Combine unchanged per-death proofs with fractions of the first estate."""
     from math import lcm

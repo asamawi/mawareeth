@@ -2682,6 +2682,100 @@ class ProofGrandfatherRuleTests(TransactionTestCase):
                         self.assertFalse(rules & both)
 
 
+class ScholarsTableTests(TransactionTestCase):
+    """calc.table: the legacy columns, totals and merged cells, all the engine's own numbers."""
+
+    FIELDS = {'base': 'share', 'awl': 'share', 'radd': 'shorted_share', 'remainder': 'shorted_share',
+              'radd_calc': 'shortage_calc_share', 'radd_union': 'shortage_union_share',
+              'correction': 'corrected_share'}
+    TOTALS = {'base': 'shares', 'awl': 'shares_excess', 'radd': 'shares_shorted',
+              'remainder': 'shares_shorted', 'radd_calc': 'shortage_calc_shares',
+              'radd_union': 'shortage_union_shares', 'correction': 'shares_corrected'}
+
+    def table(self, sex, types, madhab='hanbali'):
+        calc, heirs = build_case(sex, types)
+        calc.compute(madhab=madhab)
+        return calc.table, Calculation.objects.get(pk=calc.pk), heirs
+
+    def codes(self, table):
+        return [c['code'] for c in table['columns']]
+
+    def test_plain_has_the_base_only(self):
+        table, _calc, heirs = self.table('M', [Wife, Son])
+        self.assertEqual(self.codes(table), ['base'])
+        by = {r['heir']: r for r in table['rows']}
+        self.assertEqual(by[heirs[0].pk]['prescribed'], {'numerator': 1, 'denominator': 8})
+        self.assertIsNone(by[heirs[1].pk]['prescribed'])
+
+    def test_awl(self):
+        table, _calc, _heirs = self.table('F', [Husband, Sister, Sister])
+        self.assertEqual(self.codes(table), ['base', 'awl'])
+        self.assertEqual([c['total'] for c in table['columns']], [6, 7])
+
+    def test_radd_and_remainder_code(self):
+        table, _calc, _heirs = self.table('F', [Mother, Daughter], 'hanafi')
+        self.assertEqual(self.codes(table), ['base', 'radd'])
+        table, _calc, _heirs = self.table('F', [Father, Daughter])
+        self.assertEqual(self.codes(table), ['base', 'remainder'])
+
+    def test_radd_with_a_spouse_and_several_groups(self):
+        table, _calc, _heirs = self.table('M', [Wife, Mother, Daughter], 'hanafi')
+        self.assertEqual(self.codes(table)[:4], ['base', 'radd', 'radd_calc', 'radd_union'])
+
+    def test_correction_merges_the_group_cell(self):
+        table, calc, heirs = self.table('M', [Wife, Son, Son, Son])
+        self.assertEqual(self.codes(table), ['base', 'correction'])
+        sons = [r for r in table['rows'] if r['heir'] in {h.pk for h in heirs[1:]}]
+        self.assertEqual([r['cells'][0]['span'] for r in sons], [3, 0, 0])
+        self.assertEqual([r['cells'][1]['span'] for r in sons], [1, 1, 1])
+        self.assertEqual(table['rows'][0]['cells'][0]['span'], 1)
+
+    def test_blocked_heirs_come_last_with_empty_cells(self):
+        table, _calc, heirs = self.table('M', [Father, Son, Brother])
+        last = table['rows'][-1]
+        self.assertEqual(last['heir'], heirs[2].pk)
+        self.assertTrue(last['blocked'])
+        self.assertTrue(all(c == {'value': None, 'span': 1} for c in last['cells']))
+
+    def test_values_equal_the_saved_fields(self):
+        for sex, types in families()[::3]:
+            for madhab in SUNNI_SCHOOLS:
+                with self.subTest(label(madhab, sex, types)):
+                    result, calc, _heirs = run(sex, types, madhab)
+                    if isinstance(result, str):
+                        continue
+                    table = calc.table
+                    # the last column, read as a fraction of its total, is each heir's share of the estate;
+                    # a merged cell is the sum of the rows it covers
+                    codes = set(self.codes(table))
+                    self.assertFalse('awl' in codes and codes & {'radd', 'remainder'})
+                    self.assertFalse('radd' in codes and 'remainder' in codes)
+                    self.assertEqual('radd_calc' in codes, 'radd_union' in codes)
+                    if 'radd_calc' in codes:
+                        self.assertIn('radd', codes)
+                    last = len(table['columns']) - 1
+                    rows = table['rows']
+                    for index, row in enumerate(rows):
+                        cell = row['cells'][last]
+                        if row['blocked'] or cell['span'] == 0:
+                            continue
+                        covered = rows[index:index + cell['span']]
+                        self.assertEqual(F(cell['value'], table['columns'][last]['total']),
+                                         sum(result[r['heir']] for r in covered))
+                    self.assertEqual(table['columns'][0]['code'], 'base')
+                    self.assertEqual({r['heir'] for r in table['rows']}, {h.pk for h in calc.heir_set.all()})
+                    saved = {h.pk: h for h in calc.heir_set.all()}
+                    for index, column in enumerate(table['columns']):
+                        self.assertEqual(column['total'], getattr(calc, self.TOTALS[column['code']]))
+                        self.assertGreater(column['total'], 0)
+                        for row in table['rows']:
+                            cell = row['cells'][index]
+                            if row['blocked']:
+                                self.assertIsNone(cell['value'])
+                            else:
+                                self.assertEqual(cell['value'], getattr(saved[row['heir']], self.FIELDS[column['code']]))
+
+
 class ProofLabelTests(TestCase):
     def test_every_code_has_a_label_in_every_language(self):
         import gettext

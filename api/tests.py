@@ -1321,6 +1321,8 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                     item['id'] = real_ids[item['id']]
                 for item in expected.get('proof', {}).get('heirs', []):
                     item['heir'] = real_ids[item['heir']]
+                for item in (expected.get('table') or {}).get('rows', []):
+                    item['heir'] = real_ids[item['heir']]
                 self.assertEqual(response.json(), expected)
                 # And the numbers are the engine's own, run directly on a persisted case.
                 if expected['status'] == 'available':
@@ -1334,6 +1336,14 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                     self.assertEqual(
                         [{k: v for k, v in step.items() if k != 'label'} for step in expected['proof']['steps']],
                         calc.proof['steps'])
+                    table = expected['table']
+                    self.assertEqual(
+                        [{k: v for k, v in c.items() if k != 'label'} for c in table['columns']],
+                        calc.table['columns'])
+                    self.assertEqual(
+                        [{k: v for k, v in r.items() if k != 'heir'} for r in table['rows']],
+                        [{k: v for k, v in r.items() if k != 'heir'} for r in calc.table['rows']])
+                    self.assertEqual({r['heir'] for r in table['rows']}, {s['heir_id'] for s in expected['shares']})
                     amount = case['deceased']['estate']
                     for share, heir in zip(expected['shares'], heirs):
                         fraction = final[heir.pk]
@@ -1350,6 +1360,17 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         for fixture in PREVIEW_FIXTURES:
             with self.subTest(fixture['title']), translation.override('en'):
                 self.assertEqual(preview.preview(fixture['case']), fixture['response'])
+
+    def test_table_labels_follow_the_language_and_layered_cases_have_none(self):
+        from django.utils import translation
+        from api import preview
+        fixture = next(f for f in PREVIEW_FIXTURES if f['title'] == 'Husband and two sisters need awl')
+        with translation.override('fr'):
+            labels = [c['label'] for c in preview.preview(fixture['case'])['table']['columns']]
+        self.assertEqual(labels, ['Parts', 'Excès'])
+        layered = next(f for f in PREVIEW_FIXTURES
+                       if f['response']['status'] == 'available' and f['case'].get('deaths'))
+        self.assertIsNone(layered['response']['table'])
 
     def test_every_available_fixture_carries_a_version_one_proof(self):
         for fixture in PREVIEW_FIXTURES:
