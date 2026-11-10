@@ -14,9 +14,11 @@ from django.db import connection, connections
 from django.db.models.signals import post_delete
 from django.test import TestCase, TransactionTestCase, Client, override_settings, tag
 from django.utils import translation
+from django.utils.translation import gettext as _
 from calc.models import *
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
+from django.contrib.messages import ERROR, get_messages
 from django.http.request import HttpRequest
 from django.urls import resolve, reverse
 from waffle.testutils import override_flag
@@ -935,6 +937,49 @@ TAMPER = {'name': 'HACKED', 'first_name': 'HACKED', 'last_name': 'HACKED', 'sex'
 
 
 class CalculationAccessControlTests(TestCase):
+
+    def test_new_missing_or_empty_name_redirects_without_creating(self):
+        for data in ({}, {'name': ''}):
+            with self.subTest(data=data):
+                client = Client()
+                client.force_login(self.owner)
+                response = client.post(reverse('calc:new'), data, secure=True)
+                self.assertRedirects(response, reverse('calc:error'), fetch_redirect_response=False)
+                queued = list(get_messages(response.wsgi_request))
+                self.assertEqual(len(queued), 1)
+                self.assertEqual(queued[0].level, ERROR)
+                self.assertEqual(str(queued[0]), str(_("Must enter a name for your calcualtion")))
+                self.assertEqual(Calculation.objects.count(), 0)
+
+    @override_settings(WAFFLE_FLAG_DEFAULT=True)
+    def test_results_post_does_not_compute(self):
+        calc, _, _ = self.make_case()
+        self.client.force_login(self.owner)
+        for route in ('results', 'new_results'):
+            with self.subTest(route=route), mock.patch.object(Calculation, 'compute') as compute:
+                response = self.client.post(reverse(f'calc:{route}', args=[calc.pk]), secure=True)
+                self.assertEqual(response.status_code, 405)
+                compute.assert_not_called()
+
+    @override_settings(WAFFLE_FLAG_DEFAULT=False)
+    def test_new_results_flag_off_does_not_compute(self):
+        calc, _, _ = self.make_case()
+        self.client.force_login(self.owner)
+        with mock.patch.object(Calculation, 'compute') as compute:
+            response = self.client.get(reverse('calc:new_results', args=[calc.pk]), secure=True)
+        self.assertEqual(response.status_code, 404)
+        compute.assert_not_called()
+
+    @override_settings(WAFFLE_FLAG_DEFAULT=True)
+    def test_results_get_computes_once(self):
+        calc, _, _ = self.make_case()
+        self.client.force_login(self.owner)
+        for route in ('results', 'new_results'):
+            with self.subTest(route=route), mock.patch.object(Calculation, 'compute') as compute:
+                response = self.client.get(reverse(f'calc:{route}', args=[calc.pk]), secure=True)
+                self.assertEqual(response.status_code, 200)
+                self.assertTemplateUsed(response, f'calc/{route}.html')
+                compute.assert_called_once_with()
 
     def setUp(self):
         cache.clear()  # waffle caches flag state across tests

@@ -129,24 +129,12 @@ Completed and obsolete items are removed; their history is in git.
   evidence: An operational investigation of possible past exposure, not a code change, and the outcome may require notifying users.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
-  summary: Make `calc:new` answer a POST with no `name` field with the existing error message instead of a 500.
-  evidence: `request.POST["name"]` raises `MultiValueDictKeyError`; this predates that spec, which only handled the GET replay.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
-  summary: Stop the results views running `compute()` before the waffle flag and HTTP method checks, so a flag-off 404 or a POST 405 writes nothing.
-  evidence: Both views call `compute()` first in `dispatch`, so an owner's rejected request still writes to the database; this predates that spec.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
   summary: Count production `Calculation` rows with `user=None` and decide what happens to them, since the app now answers 404 for them and only Django admin reaches them.
   evidence: The count was not checked before the change, so the number of affected cases is unknown.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
   summary: Fix the language switcher, which stores the chosen language in the cookie but sends the visitor back to the old language's URL, such as `/en/` after choosing French.
   evidence: Reproduced on production on 2026-11-05 and locally on the code before and after that spec, with the same `302 /en/`; the URL prefix then keeps the page in the old language.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
-  summary: Make `social:complete` handle a request with no OAuth state instead of returning 500.
-  evidence: Reproduced on production on 2026-11-05 and locally on the code before and after that spec; a real login round trip was not tested.
 
 - source_spec: none
   summary: Add an "are you sure?" confirmation before deleting a whole case from the case list, as part of product development, using the confirmation dialog the UX spec defines for destructive actions.

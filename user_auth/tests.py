@@ -1,6 +1,7 @@
 from unittest import mock
 from urllib.parse import parse_qs, urlparse
 
+from django.contrib import messages
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from social_core.backends.linkedin import LinkedinOpenIdConnect
@@ -22,6 +23,18 @@ class SocialLoginTestCase(TestCase):
         "facebook": "https://www.facebook.com/",
         "linkedin-openidconnect": "https://www.linkedin.com/",
     }
+
+    @override_settings(DEBUG=False)
+    def test_complete_without_state_redirects_to_login(self, _oidc_config):
+        response = self.client.get(
+            reverse('social:complete', args=['linkedin-openidconnect']), secure=True
+        )
+        self.assertRedirects(response, reverse('login'), fetch_redirect_response=False)
+        login = self.client.get(response['Location'], secure=True)
+        queued = list(login.context['messages'])
+        self.assertEqual(len(queued), 1)
+        self.assertEqual(queued[0].level, messages.ERROR)
+        self.assertContains(login, str(queued[0]))
 
     def test_login_and_signup_pages_post_to_begin_view(self, _oidc_config):
         for page in (reverse("login"), reverse("calc:signup")):
