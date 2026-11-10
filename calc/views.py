@@ -25,6 +25,28 @@ def get_owned_calculation(request, pk):
 	return get_object_or_404(Calculation, pk=pk, user=request.user)
 
 
+def lock_calculation(pk):
+	"""Eagerly lock the case before loading or writing its people.
+
+	A case deleted while the caller waited for the lock gives 404."""
+	if not list(Calculation.objects.select_for_update().filter(pk=pk).values_list('pk', flat=True)):
+		raise Http404
+
+
+class CalculationLockMixin:
+	"""Serialize person POSTs with compute and case deletion."""
+	def locked_calc_id(self):
+		if isinstance(self, CreateView):
+			return self.calc.pk
+		return get_object_or_404(
+			self.get_queryset().values('calc_id'), pk=self.kwargs['pk'])['calc_id']
+
+	def post(self, request, *args, **kwargs):
+		with transaction.atomic():
+			lock_calculation(self.locked_calc_id())
+			return super().post(request, *args, **kwargs)
+
+
 class OwnedCalculationMixin:
 	"""Limit a Calculation view to the logged-in user's own calculations."""
 	def get_queryset(self):
@@ -57,7 +79,7 @@ class Privacy(TemplateView):
 @method_decorator(login_not_required, name='dispatch')
 class About(TemplateView):
 	template_name="calc/about.html"
-class DeceasedCreate(CreateView):
+class DeceasedCreate(CalculationLockMixin, CreateView):
 	model = Deceased
 	fields = ['first_name','last_name','sex', 'estate']
 
@@ -78,11 +100,11 @@ class DeceasedCreate(CreateView):
 		form.instance.calc = self.calc
 		return super().form_valid(form)
 
-class DeceasedUpdate(OwnedByCalculationMixin, UpdateView):
+class DeceasedUpdate(CalculationLockMixin, OwnedByCalculationMixin, UpdateView):
 	model = Deceased
 	fields = ['first_name','last_name', 'estate']
 
-class DeceasedDelete(OwnedByCalculationMixin, DeleteView):
+class DeceasedDelete(CalculationLockMixin, OwnedByCalculationMixin, DeleteView):
 	model = Deceased
 	http_method_names = ['get', 'head', 'post', 'options']
 
@@ -98,7 +120,7 @@ class DeceasedDelete(OwnedByCalculationMixin, DeleteView):
 			'calc:detail',
 			 kwargs={'pk': calc.id}
 		)
-class MotherCreate(CreateView):
+class MotherCreate(CalculationLockMixin, CreateView):
 	model = Mother
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -125,7 +147,7 @@ class MotherCreate(CreateView):
 		form.instance.calc.add_mother(self.object)
 		return super().form_valid(form)
 
-class FatherCreate(CreateView):
+class FatherCreate(CalculationLockMixin, CreateView):
 	model = Father
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -152,7 +174,7 @@ class FatherCreate(CreateView):
 		form.instance.calc.add_father(self.object)
 		return super().form_valid(form)
 
-class HusbandCreate(CreateView):
+class HusbandCreate(CalculationLockMixin, CreateView):
 	model = Husband
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -179,7 +201,7 @@ class HusbandCreate(CreateView):
 		form.instance.calc.add_husband(self.object)
 		return super().form_valid(form)
 
-class WifeCreate(CreateView):
+class WifeCreate(CalculationLockMixin, CreateView):
 	model = Wife
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -228,7 +250,7 @@ def child_parents(calc, request):
 	return get_object_or_404(Wife, pk=chosen, calc=calc), deceased
 
 
-class DaughterCreate(CreateView):
+class DaughterCreate(CalculationLockMixin, CreateView):
 	model = Daughter
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -254,7 +276,7 @@ class DaughterCreate(CreateView):
 		form.instance.calc.add_daughter(self.object, mother=mother, father=father)
 		return super().form_valid(form)
 
-class SonCreate(CreateView):
+class SonCreate(CalculationLockMixin, CreateView):
 	model = Son
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -280,7 +302,7 @@ class SonCreate(CreateView):
 		form.instance.calc.add_son(self.object, mother=mother, father=father)
 		return super().form_valid(form)
 
-class BrotherCreate(WaffleFlagMixin, CreateView):
+class BrotherCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = Brother
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -305,7 +327,7 @@ class BrotherCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_brother(self.object)
 		return super().form_valid(form)
 
-class SisterCreate(WaffleFlagMixin, CreateView):
+class SisterCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = Sister
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -330,7 +352,7 @@ class SisterCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_sister(self.object)
 		return super().form_valid(form)
 
-class GrandFatherCreate(WaffleFlagMixin, CreateView):
+class GrandFatherCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = GrandFather
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -358,7 +380,7 @@ class GrandFatherCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_grandFather(self.object)
 		return super().form_valid(form)
 
-class GrandMotherCreate(WaffleFlagMixin, CreateView):
+class GrandMotherCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = GrandMother
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -383,7 +405,7 @@ class GrandMotherCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_grandMother(self.object)
 		return super().form_valid(form)
 
-class SonOfSonCreate(WaffleFlagMixin, CreateView):
+class SonOfSonCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = SonOfSon
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -408,7 +430,7 @@ class SonOfSonCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_sonOfSon(self.object)
 		return super().form_valid(form)
 
-class DaughterOfSonCreate(WaffleFlagMixin, CreateView):
+class DaughterOfSonCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = DaughterOfSon
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -433,7 +455,7 @@ class DaughterOfSonCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_daughterOfSon(self.object)
 		return super().form_valid(form)
 
-class PaternalSisterCreate(WaffleFlagMixin, CreateView):
+class PaternalSisterCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = PaternalSister
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -458,7 +480,7 @@ class PaternalSisterCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_paternalSister(self.object)
 		return super().form_valid(form)
 
-class PaternalBrotherCreate(WaffleFlagMixin, CreateView):
+class PaternalBrotherCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = PaternalBrother
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -483,7 +505,7 @@ class PaternalBrotherCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_paternalBrother(self.object)
 		return super().form_valid(form)
 
-class MaternalSisterCreate(WaffleFlagMixin, CreateView):
+class MaternalSisterCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = MaternalSister
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -508,7 +530,7 @@ class MaternalSisterCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_maternalSister(self.object)
 		return super().form_valid(form)
 
-class MaternalBrotherCreate(WaffleFlagMixin, CreateView):
+class MaternalBrotherCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = MaternalBrother
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -533,7 +555,7 @@ class MaternalBrotherCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_maternalBrother(self.object)
 		return super().form_valid(form)
 
-class SonOfBrotherCreate(WaffleFlagMixin, CreateView):
+class SonOfBrotherCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = SonOfBrother
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -558,7 +580,7 @@ class SonOfBrotherCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_sonOfBrother(self.object)
 		return super().form_valid(form)
 
-class SonOfPaternalBrotherCreate(WaffleFlagMixin, CreateView):
+class SonOfPaternalBrotherCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = SonOfPaternalBrother
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -583,7 +605,7 @@ class SonOfPaternalBrotherCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_sonOfPaternalBrother(self.object)
 		return super().form_valid(form)
 
-class UncleCreate(WaffleFlagMixin, CreateView):
+class UncleCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = Uncle
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -608,7 +630,7 @@ class UncleCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_uncle(self.object)
 		return super().form_valid(form)
 
-class PaternalUncleCreate(WaffleFlagMixin, CreateView):
+class PaternalUncleCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = PaternalUncle
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -633,7 +655,7 @@ class PaternalUncleCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_paternalUncle(self.object)
 		return super().form_valid(form)
 
-class SonOfUncleCreate(WaffleFlagMixin, CreateView):
+class SonOfUncleCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = SonOfUncle
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -658,7 +680,7 @@ class SonOfUncleCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_sonOfUncle(self.object)
 		return super().form_valid(form)
 
-class SonOfPaternalUncleCreate(WaffleFlagMixin, CreateView):
+class SonOfPaternalUncleCreate(CalculationLockMixin, WaffleFlagMixin, CreateView):
 	model = SonOfPaternalUncle
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
@@ -683,12 +705,12 @@ class SonOfPaternalUncleCreate(WaffleFlagMixin, CreateView):
 		form.instance.calc.add_sonOfPaternalUncle(self.object)
 		return super().form_valid(form)
 
-class HeirUpdate(OwnedByCalculationMixin, UpdateView):
+class HeirUpdate(CalculationLockMixin, OwnedByCalculationMixin, UpdateView):
 	model = Heir
 	fields = ['first_name','last_name']
 	template_name = 'calc/heir_form.html'
 
-class HeirDelete(OwnedByCalculationMixin, DeleteView):
+class HeirDelete(CalculationLockMixin, OwnedByCalculationMixin, DeleteView):
 	model = Heir
 	template_name = 'calc/heir_confirm_delete.html'
 	http_method_names = ['get', 'head', 'post', 'options']
@@ -774,7 +796,10 @@ class NewResultsView(OwnedCalculationMixin, WaffleFlagMixin, LoginRequired, gene
 		before going any further.
 		"""
 		self.calc = get_owned_calculation(request, kwargs['pk'])
-		self.calc.compute()
+		try:
+			self.calc.compute()
+		except Calculation.DoesNotExist as exc:
+			raise Http404 from exc
 		return super().dispatch(request, *args, **kwargs)
 
 class ResultsView(OwnedCalculationMixin, LoginRequired, generic.DetailView):
@@ -805,7 +830,10 @@ class ResultsView(OwnedCalculationMixin, LoginRequired, generic.DetailView):
 		before going any further.
 		"""
 		self.calc = get_owned_calculation(request, kwargs['pk'])
-		self.calc.compute()
+		try:
+			self.calc.compute()
+		except Calculation.DoesNotExist as exc:
+			raise Http404 from exc
 		return super().dispatch(request, *args, **kwargs)
 
 class CalculationUpdate(OwnedCalculationMixin, UpdateView):
@@ -843,7 +871,7 @@ def delete(request, pk):
 	if request.method == "POST":
 		with transaction.atomic():
 			# Match the lock order in compute().
-			list(Calculation.objects.select_for_update().filter(pk=calc.pk).values_list('pk', flat=True))
+			lock_calculation(calc.pk)
 			calc.delete()
 	return HttpResponseRedirect(reverse('calc:index'))
 

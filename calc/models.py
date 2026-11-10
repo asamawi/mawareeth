@@ -894,7 +894,8 @@ class Calculation(models.Model):
         ValueError. A case the engine refuses raises UnsupportedCase with a stable
         `reason` code, and no result is given for it.
 
-        The run is one transaction that first locks this calculation's row, so on
+        The run first reloads this calculation under its row lock, preserving committed
+        name and owner changes. It is one transaction, so on
         PostgreSQL simultaneous runs on one case go one after another (a run waits,
         with no time limit, while another holds the lock), other readers only see
         complete results, and any exception, a refusal included, rolls back every
@@ -907,7 +908,7 @@ class Calculation(models.Model):
         self._proof_steps = None
         schools.check_school(madhab)
         with transaction.atomic():
-            Calculation.objects.select_for_update().get(pk=self.pk)
+            self.refresh_from_db(from_queryset=Calculation.objects.select_for_update())
             self.madhab = madhab
             self.clear()
             heirs = self.get_quotes()

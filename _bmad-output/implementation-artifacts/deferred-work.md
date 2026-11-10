@@ -157,16 +157,8 @@ Completed and obsolete items are removed; their history is in git.
   evidence: `CaseWriteLockMiddleware` waits with no timeout, so one visitor firing many parallel writes, or a hung request inside the lock, ties up workers and DB connections until gunicorn's timeout; the spec put any lock timeout under Ask First, and review flagged the lack of visibility.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-compute-transaction.md`
-  summary: Reload the `Calculation` instance (`refresh_from_db()`) after `compute()` takes its row lock, or save only result columns, so a run that waited for the lock does not write back a stale `name` or `user`.
-  evidence: Review found that `clear()` saves every field of an instance loaded before the lock; a rename committed while the run waited would be undone. Writing stale fields predates this change, but the lock wait widens the window, and the spec chose not to refresh.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-compute-transaction.md`
   summary: Decide whether to bound the `compute()` row-lock wait (for example `SET LOCAL lock_timeout`) on the results pages, which run it on every GET.
   evidence: Overlapping results-page views of one case now wait on `select_for_update()` with no limit, so a slow or stuck run ties up web workers; the spec put any lock timeout under Ask First.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-compute-transaction.md`
-  summary: Make editing or deleting heirs take the `Calculation` row lock first, and have the results views answer 404 when `compute()` raises `Calculation.DoesNotExist`.
-  evidence: An heir deleted mid-run can still be re-inserted by that run's `heir.save()`; a case deleted between the view's lookup and `compute()` gives a 500 instead of a 404. Changing those views was Ask First in the spec. Partly shipped in `42181ce`: case deletion locks Calculation before cascading (`calc/views.py:844-847`); heir locking and results-view 404 handling remain open. `ComputeConcurrencyTests.test_delete_waits_for_compute` forces the heir-first cascade order and fails with `deadlock detected` without the lock. Django's collector currently deletes the nullable-FK case row first anyway, so the lock guarantees the order rather than fixing a deadlock users could hit today.
 
 ## Calculation engine & proof
 

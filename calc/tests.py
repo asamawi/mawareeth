@@ -2689,6 +2689,15 @@ class ComputeTransactionTests(TransactionTestCase):
             calc.compute(madhab=MALIKI)
         self.assertEqual(fingerprint(calc, heirs, exact), before)
 
+    def test_stale_instance_preserves_committed_name_and_owner(self):
+        calc, heirs = build_case('M', [Son])
+        owner = User.objects.create(username='new-owner')
+        Calculation.objects.filter(pk=calc.pk).update(name='renamed', user=owner)
+        calc.compute()
+        calc.refresh_from_db()
+        self.assertEqual(calc.name, 'renamed')
+        self.assertEqual(calc.user_id, owner.pk)
+
     def test_deleted_case_is_not_recreated(self):
         calc, heirs = build_case('M', [Son])
         Calculation.objects.filter(pk=calc.pk).delete()
@@ -2795,6 +2804,55 @@ class ComputeConcurrencyTests(TransactionTestCase):
             self.finish()
         self.assertEqual(during, self.before)
 
+    def test_heir_delete_waits_for_compute(self):
+        pk = self.heirs[0].pk
+        client = Client()
+        client.force_login(self.calc.user)
+        done = threading.Event()
+        person_loaded = threading.Event()
+        real_get_object = views.HeirDelete.get_object
+
+        def get_object(view, *args, **kwargs):
+            person_loaded.set()
+            return real_get_object(view, *args, **kwargs)
+
+        def delete_heir():
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute('SELECT pg_backend_pid()')
+                    self.pids['second'] = cursor.fetchone()[0]
+                self.results['delete'] = client.post(
+                    reverse('calc:heir_delete', args=[pk]), secure=True)
+            except BaseException:
+                self.failures.append(traceback.format_exc())
+            finally:
+                done.set()
+                connections.close_all()
+
+        with self.patched_clear(), mock.patch.object(views.HeirDelete, 'get_object', get_object):
+            self.spawn('first')
+            try:
+                self.assertTrue(self.held.wait(self.WAIT))
+                thread = threading.Thread(name='second', target=delete_heir, daemon=True)
+                self.threads.append(thread)
+                thread.start()
+                pause = threading.Event()
+                for _ in range(self.WAIT * 100):
+                    if done.is_set() or self.second_waits_on_a_lock():
+                        break
+                    pause.wait(0.01)
+                waiting = self.second_waits_on_a_lock()
+                completed = done.is_set()
+                loaded = person_loaded.is_set()
+            finally:
+                self.release.set()
+                self.finish()
+        self.assertTrue(waiting, 'The heir delete did not wait on the case lock.')
+        self.assertFalse(completed)
+        self.assertFalse(loaded, 'The person was loaded for deletion before the case lock.')
+        self.assertEqual(self.results['delete'].status_code, 302)
+        self.assertFalse(Heir.objects.filter(pk=pk).exists())
+
     def test_delete_waits_for_compute(self):
         pk = self.calc.pk
         heirs_gone = threading.Event()
@@ -2864,3 +2922,62 @@ class ComputeConcurrencyTests(TransactionTestCase):
         self.assertEqual(self.results['delete'].status_code, 302)
         self.assertFalse(Calculation.objects.filter(pk=pk).exists())
         self.assertIsInstance(self.results.get('compute'), Calculation.DoesNotExist)
+
+
+class CalculationWriteViewTests(TestCase):
+    def setUp(self):
+        self.calc, self.heirs = build_case('M', [Son])
+        self.client.force_login(self.calc.user)
+
+    def test_heir_create_and_update_keep_existing_behavior(self):
+        with mock.patch('calc.views.lock_calculation', wraps=views.lock_calculation) as lock:
+            response = self.client.post(reverse('calc:mother', args=[self.calc.pk]),
+                                        {'first_name': 'Mother', 'last_name': 'Family'}, secure=True)
+            self.assertEqual(response.status_code, 302)
+            lock.assert_called_once_with(self.calc.pk)
+        self.assertTrue(Mother.objects.filter(calc=self.calc, first_name='Mother').exists())
+        self.calc.compute()
+        before = stored(self.heirs[0])
+        with mock.patch('calc.views.lock_calculation', wraps=views.lock_calculation) as lock:
+            response = self.client.post(reverse('calc:heir_update', args=[before.pk]),
+                                        {'first_name': 'Renamed', 'last_name': 'Family'}, secure=True)
+            self.assertEqual(response.status_code, 302)
+            lock.assert_called_once_with(self.calc.pk)
+        after = stored(before)
+        self.assertEqual(after.first_name, 'Renamed')
+        for field in before._meta.concrete_fields:
+            if field.name not in {'first_name', 'last_name'}:
+                self.assertEqual(getattr(before, field.attname), getattr(after, field.attname))
+
+    def test_results_return_404_if_case_vanished_at_compute(self):
+        for route in ('results', 'new_results'):
+            with self.subTest(route=route), override_flag('new_results', active=True):
+                with mock.patch.object(Calculation, 'compute', side_effect=Calculation.DoesNotExist):
+                    response = self.client.get(reverse('calc:' + route, args=[self.calc.pk]), secure=True)
+                self.assertEqual(response.status_code, 404)
+
+    def test_every_person_write_view_posts_under_the_case_lock(self):
+        writers = [view for view in vars(views).values()
+                   if isinstance(view, type) and issubclass(view, (views.CreateView, views.UpdateView, views.DeleteView))
+                   and isinstance(view.model, type) and issubclass(view.model, (Heir, Deceased))]
+        self.assertEqual(len(writers), 27)  # 22 heir creates, HeirUpdate, HeirDelete, 3 deceased views
+        for view in writers:
+            with self.subTest(view=view.__name__):
+                self.assertIs(view.post, views.CalculationLockMixin.post)
+
+    def test_lock_on_a_deleted_case_gives_404(self):
+        pk = self.calc.pk
+        Calculation.objects.filter(pk=pk).delete()
+        with self.assertRaises(views.Http404), transaction.atomic():
+            views.lock_calculation(pk)
+
+    def test_non_owner_person_posts_never_lock(self):
+        self.client.force_login(User.objects.create(username='other-owner'))
+        deceased = self.calc.deceased_set.get()
+        for route, pk in [('heir_update', self.heirs[0].pk), ('heir_delete', self.heirs[0].pk),
+                          ('mother', self.calc.pk), ('deceased', self.calc.pk),
+                          ('deceased_update', deceased.pk), ('deceased_delete', deceased.pk)]:
+            with self.subTest(route=route), mock.patch('calc.views.lock_calculation') as lock:
+                response = self.client.post(reverse('calc:' + route, args=[pk]), {}, secure=True)
+                self.assertEqual(response.status_code, 404)
+                lock.assert_not_called()
