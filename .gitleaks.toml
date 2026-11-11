@@ -20,8 +20,10 @@ regexes = [
   'stub-key-material-NEVER-PRINT',
   # Rehearsal, backup, runtime and release test password.
   'LongUrlSafePassword_123456',
-  # Django keys used only to build, smoke-test and validate images in CI.
-  '(?:ci-build|ci-smoke|build-only)-validation-key-with-sufficient-length-0123456789',
+  # Django keys used only to build, smoke-test and validate images in CI and tests.
+  '[a-z-]+-validation-key-with-sufficient-length-0123456789',
+  # Django keys in the deploy shell test suites.
+  'django-key-that-is-never-printed-[0-9]+',
   # Local development and CI PostgreSQL URLs with default credentials.
   'postgres:postgres@',
   # Historical inventory documentation/test URL examples.
