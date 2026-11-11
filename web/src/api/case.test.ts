@@ -413,7 +413,7 @@ const AVAILABLE = {
   table: {
     columns: [{ code: "base", total: 8, label: "Shares" }],
     rows: [
-      { heir: "a1", blocked: false, prescribed: { numerator: 1, denominator: 8 }, cells: [{ value: 1, span: 1 }] },
+      { heir: "a1", blocked: false, group_span: 1, prescribed: { numerator: 1, denominator: 8 }, cells: [{ value: 1, span: 1 }] },
     ],
   },
 };
@@ -587,7 +587,7 @@ test("parsePreview rejects a bad table, never repairs it", () => {
     proof: { ...AVAILABLE.proof, heirs: [...AVAILABLE.proof.heirs, { ...AVAILABLE.proof.heirs[0], heir: "a2", share: { numerator: 7, denominator: 8 } }] },
   };
   const row = (heir: string, cells: unknown[], extra: object = {}) => ({
-    heir, blocked: false, prescribed: null, cells, ...extra,
+    heir, blocked: false, group_span: heir === "a1" ? 2 : 0, prescribed: null, cells, ...extra,
   });
   const base = { code: "base", total: 8, label: "Shares" };
   const good = {
@@ -600,6 +600,16 @@ test("parsePreview rejects a bad table, never repairs it", () => {
   assert.equal(parsePreview({ ...two, table: good })?.status, "available");
   const only = (patch: object) => ({ ...two, table: { ...good, ...patch } });
   const bad: [string, unknown][] = [
+    ["missing group span", only({ rows: [Object.fromEntries(Object.entries(good.rows[0]).filter(([key]) => key !== "group_span")), good.rows[1]] })],
+    ["fractional group span", only({ rows: [{ ...good.rows[0], group_span: 1.5 }, good.rows[1]] })],
+    ["negative group span", only({ rows: [{ ...good.rows[0], group_span: -1 }, good.rows[1]] })],
+    ["string group span", only({ rows: [{ ...good.rows[0], group_span: "2" }, good.rows[1]] })],
+    ["first group row covered", only({ rows: [{ ...good.rows[0], group_span: 0 }, good.rows[1]] })],
+    ["group exceeds rows", only({ rows: [{ ...good.rows[0], group_span: 3 }, good.rows[1]] })],
+    ["group interrupted", only({ rows: [good.rows[0], { ...good.rows[1], group_span: 1 }] })],
+    ["extra covered group row", only({ rows: [{ ...good.rows[0], group_span: 1 }, good.rows[1]] })],
+    ["different prescribed fractions", only({ rows: [{ ...good.rows[0], prescribed: { numerator: 1, denominator: 8 } }, { ...good.rows[1], prescribed: { numerator: 1, denominator: 4 } }] })],
+    ["fraction and residuary in one group", only({ rows: [{ ...good.rows[0], prescribed: { numerator: 1, denominator: 8 } }, good.rows[1]] })],
     ["missing", Object.fromEntries(Object.entries(two).filter(([key]) => key !== "table"))],
     ["null on a single death", { ...two, table: null }],
     ["extra key", only({ extra: 1 })],
@@ -630,6 +640,14 @@ test("parsePreview rejects a bad table, never repairs it", () => {
     ["negative span", only({ rows: [row("a1", [{ value: 7, span: -1 }, { value: 3, span: 1 }]), good.rows[1]] })],
   ];
   for (const [name, body] of bad) assert.equal(parsePreview(body), null, name);
+  // akdariyya: two heirs keep their own prescribed shares while their share cell is pooled
+  const pooled = only({
+    rows: [
+      { ...good.rows[0], group_span: 1, prescribed: { numerator: 1, denominator: 6 } },
+      { ...good.rows[1], group_span: 1, prescribed: { numerator: 1, denominator: 2 } },
+    ],
+  });
+  assert.equal(parsePreview(pooled)?.status, "available");
 });
 
 test("parsePreview checks a table against the shares and the columns the engine can give", () => {
@@ -646,8 +664,8 @@ test("parsePreview checks a table against the shares and the columns the engine 
   const table = (codes: string[], values: [number, number] = [1, 7]) => ({
     columns: codes.map((code) => ({ code, total: 8, label: code })),
     rows: [
-      { heir: "a1", blocked: false, prescribed: null, cells: codes.map(() => ({ value: values[0], span: 1 })) },
-      { heir: "a2", blocked: false, prescribed: null, cells: codes.map(() => ({ value: values[1], span: 1 })) },
+      { heir: "a1", blocked: false, group_span: 1, prescribed: null, cells: codes.map(() => ({ value: values[0], span: 1 })) },
+      { heir: "a2", blocked: false, group_span: 1, prescribed: null, cells: codes.map(() => ({ value: values[1], span: 1 })) },
     ],
   });
   const ok: string[][] = [
@@ -680,6 +698,15 @@ test("parsePreview checks a table against the shares and the columns the engine 
   const blockedRow = table(["base"]);
   blockedRow.rows[1] = { ...blockedRow.rows[1], blocked: true, cells: [empty] };
   assert.equal(parsePreview({ ...second("blocked", true), table: blockedRow })?.status, "available");
+  for (const group_span of [0, 2]) {
+    const rows = [blockedRow.rows[0], { ...blockedRow.rows[1], group_span }];
+    assert.equal(parsePreview({ ...second("blocked", true), table: { ...blockedRow, rows } }), null);
+  }
+  const blockedInGroup = {
+    ...blockedRow,
+    rows: [{ ...blockedRow.rows[0], group_span: 2 }, { ...blockedRow.rows[1], group_span: 0 }],
+  };
+  assert.equal(parsePreview({ ...second("blocked", true), table: blockedInGroup }), null);
   // blocked in the table but not in the proof, or the other way round
   assert.equal(parsePreview({ ...second("fixed", true), table: blockedRow }), null);
   assert.equal(parsePreview({ ...second("blocked", true), table: table(["base"], [1, 0]) }), null);
@@ -702,8 +729,8 @@ test("parsePreview checks a table against the shares and the columns the engine 
   const merged = (value: number) => ({
     columns: [{ code: "base", total: 8, label: "Shares" }],
     rows: [
-      { heir: "a1", blocked: false, prescribed: null, cells: [{ value, span: 2 }] },
-      { heir: "a2", blocked: false, prescribed: null, cells: [{ value, span: 0 }] },
+      { heir: "a1", blocked: false, group_span: 2, prescribed: null, cells: [{ value, span: 2 }] },
+      { heir: "a2", blocked: false, group_span: 0, prescribed: null, cells: [{ value, span: 0 }] },
     ],
   });
   assert.equal(parsePreview({ ...two, table: merged(8) })?.status, "available");
@@ -716,7 +743,7 @@ test("parsePreview checks a table against the shares and the columns the engine 
     proof: { ...AVAILABLE.proof, heirs: [{ ...AVAILABLE.proof.heirs[0], share: { numerator: 1, denominator: 4 } }] },
     table: {
       columns: [{ code: "base", total: 4, label: "Shares" }],
-      rows: [{ heir: "a1", blocked: false, prescribed: { numerator: 1, denominator: 4 }, cells: [{ value: 1, span: 1 }] }],
+      rows: [{ heir: "a1", blocked: false, group_span: 1, prescribed: { numerator: 1, denominator: 4 }, cells: [{ value: 1, span: 1 }] }],
     },
   };
   assert.equal(parsePreview(alone)?.status, "available");

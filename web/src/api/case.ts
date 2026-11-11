@@ -692,6 +692,8 @@ export type PreviewTableRow = {
   blocked: boolean;
   /** The fixed fraction; null for a residuary or a blocked heir. */
   prescribed: FractionBody | null;
+  /** The prescribed cell span; 0 means covered by the group's first row. */
+  group_span: number;
   /** One cell per column, in column order. */
   cells: PreviewTableCell[];
 };
@@ -902,7 +904,7 @@ function parseProof(value: unknown, madhab: MadhabId, shares: readonly PreviewSh
 
 const TABLE_KEYS = ["columns", "rows"];
 const TABLE_COLUMN_KEYS = ["code", "total", "label"];
-const TABLE_ROW_KEYS = ["heir", "blocked", "prescribed", "cells"];
+const TABLE_ROW_KEYS = ["heir", "blocked", "prescribed", "group_span", "cells"];
 const TABLE_CELL_KEYS = ["value", "span"];
 
 function isWhole(value: unknown): value is number {
@@ -937,8 +939,9 @@ function parseTable(value: unknown, shares: readonly PreviewShare[], proof: Prev
   const seen = new Set<string>();
   for (const item of rows as unknown[]) {
     if (typeof item !== "object" || item === null || !hasExactKeys(item, TABLE_ROW_KEYS)) return null;
-    const { heir, blocked, prescribed, cells } = item as Record<string, unknown>;
+    const { heir, blocked, prescribed, group_span, cells } = item as Record<string, unknown>;
     if (!isCode(heir) || typeof blocked !== "boolean" || seen.has(heir)) return null;
+    if (!isWhole(group_span) || (blocked && group_span !== 1)) return null;
     const share = shares.find((candidate) => candidate.heir_id === heir);
     if (!share || !proof) return null;
     // blocked means the proof says so; a blocked heir has no share. A heir who is not blocked may still
@@ -962,7 +965,21 @@ function parseTable(value: unknown, shares: readonly PreviewShare[], proof: Prev
       parsedCells.push({ value: amount as number | null, span });
     }
     if (!blocked && share.blocked && (share.numerator !== 0 || parsedCells.some((cell) => cell.value !== 0))) return null;
-    parsedRows.push({ heir, blocked, prescribed: fraction, cells: parsedCells });
+    parsedRows.push({ heir, blocked, prescribed: fraction, group_span, cells: parsedCells });
+  }
+  // A shared prescribed cell starts with its row count, followed by rows it covers, which share it.
+  // Share cells may merge wider than it: akdariyya pools two heirs whose own shares differ.
+  for (let start = 0; start < parsedRows.length;) {
+    const first = parsedRows[start];
+    const span = first.group_span;
+    if (span === 0 || span > parsedRows.length - start) return null;
+    for (let offset = 1; offset < span; offset++) {
+      const row = parsedRows[start + offset];
+      if (row.group_span !== 0 || row.blocked) return null;
+      if (row.prescribed?.numerator !== first.prescribed?.numerator ||
+          row.prescribed?.denominator !== first.prescribed?.denominator) return null;
+    }
+    start += span;
   }
   // a merged cell covers exactly the next `span - 1` rows, which are not cells of their own
   for (let column = 0; column < parsedColumns.length; column++) {

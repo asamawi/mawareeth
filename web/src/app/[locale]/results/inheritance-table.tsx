@@ -182,15 +182,17 @@ export function InheritanceTable({
             )}
           </th>
           <td className={cellClass}>{relationships[relations[id] ?? ""] ?? ""}</td>
-          <td className={cellClass}>
-            {row.prescribed.kind === "fraction" ? (
-              <bdi dir="ltr">{localFraction(row.prescribed.fraction, locale)}</bdi>
-            ) : row.prescribed.kind === "residuary" ? (
-              t.residuary
-            ) : (
-              t.blocked
-            )}
-          </td>
+          {row.prescribedSpan > 0 && (
+            <td className={cellClass} rowSpan={row.prescribedSpan}>
+              {row.prescribed.kind === "fraction" ? (
+                <bdi dir="ltr">{localFraction(row.prescribed.fraction, locale)}</bdi>
+              ) : row.prescribed.kind === "residuary" ? (
+                t.residuary
+              ) : (
+                t.blocked
+              )}
+            </td>
+          )}
           {bodyCells(row, view.columns).map((cell) => (
             <td key={cell.code} rowSpan={cell.rowSpan} className={cellClass}>
               {cell.value === null ? null : <bdi dir="ltr">{localWhole(cell.value, locale)}</bdi>}

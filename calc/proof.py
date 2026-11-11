@@ -221,10 +221,16 @@ def build_table(columns, groups, heir_pks, prescribed, blocked):
     whole number) and merged (indexes of the groups whose cell is one merged group total).
     `groups` lists each group's member pks in row order; heirs of `heir_pks` in no group, and
     blocked heirs, follow. `prescribed` maps a pk to its fixed fraction or None for a residuary.
+    `group_span` covers the group's prescribed cell: its row count first, then 0. It is merged
+    only when every member has the same prescribed share (wives, daughters, residuaries,
+    mushtaraka); akdariyya members keep their own shares, one cell each.
     Every cell is {'value', 'span'}: span is the rows a merged cell covers, 0 for a row
     it covers; blocked heirs have empty cells (value None); a heir with a zero share keeps the engine's 0."""
     order = []
+    shared = set()
     for index, members in enumerate(groups):
+        if len({prescribed.get(pk) for pk in members}) == 1:
+            shared.add(index)
         for position, pk in enumerate(members):
             if pk not in blocked:
                 order.append((pk, index, position, len(members)))
@@ -237,20 +243,22 @@ def build_table(columns, groups, heir_pks, prescribed, blocked):
             merge = index in column['merged'] and size > 1
             cells.append({'value': column['values'][pk],
                           'span': (size if position == 0 else 0) if merge else 1})
-        rows.append((pk, cells))
+        group_span = (size if position == 0 else 0) if index in shared else 1
+        rows.append((pk, group_span, cells))
     for pk in rest:
-        rows.append((pk, [{'value': column['values'][pk], 'span': 1} for column in columns]))
+        rows.append((pk, 1, [{'value': column['values'][pk], 'span': 1} for column in columns]))
     for pk in heir_pks:
         if pk in blocked:
-            rows.append((pk, [{'value': None, 'span': 1} for _column in columns]))
+            rows.append((pk, 1, [{'value': None, 'span': 1} for _column in columns]))
     return {
         'columns': [{'code': column['code'], 'total': column['total']} for column in columns],
         'rows': [{
             'heir': pk,
             'blocked': pk in blocked,
+            'group_span': group_span,
             'prescribed': None if prescribed.get(pk) is None else fraction_body(prescribed[pk]),
             'cells': cells,
-        } for pk, cells in rows],
+        } for pk, group_span, cells in rows],
     }
 
 

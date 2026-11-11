@@ -2707,6 +2707,28 @@ class ScholarsTableTests(TransactionTestCase):
         self.assertEqual(by[heirs[0].pk]['prescribed'], {'numerator': 1, 'denominator': 8})
         self.assertIsNone(by[heirs[1].pk]['prescribed'])
 
+    def test_prescribed_group_spans(self):
+        table, _calc, heirs = self.table('M', [Wife, Wife, Son])
+        wives = [r for r in table['rows'] if r['heir'] in {h.pk for h in heirs[:2]}]
+        self.assertEqual([r['group_span'] for r in wives], [2, 0])
+        table, _calc, _heirs = self.table('M', [Son])
+        self.assertEqual(table['rows'][0]['group_span'], 1)
+
+    def test_mushtaraka_shows_the_shared_third_once(self):
+        table, _calc, heirs = self.table('F', [Husband, Mother, MaternalBrother, MaternalSister, Brother], 'maliki')
+        pool = {h.pk for h in heirs[2:]}
+        rows = [r for r in table['rows'] if r['heir'] in pool]
+        self.assertEqual([r['prescribed'] for r in rows], [{'numerator': 1, 'denominator': 3}] * 3)
+        self.assertEqual([r['group_span'] for r in rows], [3, 0, 0])
+
+    def test_akdariyya_keeps_each_ones_own_share(self):
+        table, _calc, heirs = self.table('F', [Husband, Mother, GrandFather, Sister])
+        by = {r['heir']: r for r in table['rows']}
+        grandfather, sister = by[heirs[2].pk], by[heirs[3].pk]
+        self.assertEqual(grandfather['prescribed'], {'numerator': 1, 'denominator': 6})
+        self.assertEqual(sister['prescribed'], {'numerator': 1, 'denominator': 2})
+        self.assertEqual((grandfather['group_span'], sister['group_span']), (1, 1))
+
     def test_awl(self):
         table, _calc, _heirs = self.table('F', [Husband, Sister, Sister])
         self.assertEqual(self.codes(table), ['base', 'awl'])
@@ -2735,6 +2757,7 @@ class ScholarsTableTests(TransactionTestCase):
         last = table['rows'][-1]
         self.assertEqual(last['heir'], heirs[2].pk)
         self.assertTrue(last['blocked'])
+        self.assertEqual(last['group_span'], 1)
         self.assertTrue(all(c == {'value': None, 'span': 1} for c in last['cells']))
 
     def test_values_equal_the_saved_fields(self):
@@ -2763,6 +2786,12 @@ class ScholarsTableTests(TransactionTestCase):
                         self.assertEqual(F(cell['value'], table['columns'][last]['total']),
                                          sum(result[r['heir']] for r in covered))
                     self.assertEqual(table['columns'][0]['code'], 'base')
+                    # a shared prescribed cell covers rows with the very same prescribed share
+                    for index, row in enumerate(rows):
+                        if row['group_span'] > 0:
+                            covered = rows[index:index + row['group_span']]
+                            self.assertEqual([r['group_span'] for r in covered[1:]], [0] * (len(covered) - 1))
+                            self.assertEqual({str(r['prescribed']) for r in covered}, {str(row['prescribed'])})
                     self.assertEqual({r['heir'] for r in table['rows']}, {h.pk for h in calc.heir_set.all()})
                     saved = {h.pk: h for h in calc.heir_set.all()}
                     for index, column in enumerate(table['columns']):

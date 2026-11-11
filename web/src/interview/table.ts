@@ -15,6 +15,7 @@ export type ViewCell = { value: number | null; rowSpan: number };
 export type ViewRow = {
   heirId: string;
   prescribed: Prescribed;
+  prescribedSpan: number;
   /** One cell per engine column, in column order. */
   cells: ViewCell[];
   /** The percentage, kirat and amount of the share; all null for a heir with no share. */
@@ -40,6 +41,7 @@ export function tableView(table: PreviewTable, preview: AvailablePreview): Table
       const share: PreviewRow | undefined = shares.get(row.heir);
       return {
         heirId: row.heir,
+        prescribedSpan: row.group_span,
         prescribed: row.blocked
           ? { kind: "blocked" }
           : row.prescribed === null

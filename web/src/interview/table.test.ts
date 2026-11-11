@@ -150,3 +150,20 @@ test("a residuary left nothing is residuary with 0, not blocked", () => {
   assert.deepEqual(row.prescribed, { kind: "residuary" });
   assert.deepEqual(row.cells, [{ value: 0, rowSpan: 1 }]);
 });
+
+test("two wives share one prescribed cell", () => {
+  const preview = available("Hanbali wife and son with an estate");
+  assert.ok(hasTable(preview));
+  const wife = preview.table.rows[0];
+  const table = {
+    ...preview.table,
+    rows: [
+      { ...wife, group_span: 2 },
+      { ...wife, heir: "second-wife", group_span: 0 },
+      preview.table.rows[1],
+    ],
+  };
+  const view = tableView(table, preview);
+  assert.deepEqual(view.rows.map((row) => row.prescribedSpan), [2, 0, 1]);
+  assert.deepEqual(view.rows[0].prescribed, { kind: "fraction", fraction: "1/8" });
+});

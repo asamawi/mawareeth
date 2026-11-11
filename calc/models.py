@@ -24,6 +24,8 @@ class _Group:
         self.stage = self.final = self.amount
         self.members = []
         self.weights = []
+        # a pooled group's prescribed share of each member, for the scholars' table
+        self.prescribed = {}
 
     def add(self, heir, weight=1):
         self.members.append(heir)
@@ -617,6 +619,8 @@ class Calculation(models.Model):
             group = _Group('mushtaraka', Fraction(1, 3), kind='mushtaraka')
             for heir in mushtaraka:
                 group.add(heir, 1)
+                # all of them share the maternal siblings' third, which the table shows once
+                group.prescribed[heir.pk] = Fraction(1, 3)
                 heir.asaba = False
                 reasons_pending.append(heir)
             groups.append(group)
@@ -645,6 +649,8 @@ class Calculation(models.Model):
                 group = _Group('akdariyya', grandfather_amount + Fraction(1, 2), kind='akdariyya')
                 group.add(grandfather, 2)
                 group.add(sibs[0], 1)
+                # the scholars' table shows each one's own share before they are pooled
+                group.prescribed = {grandfather.pk: grandfather_amount, sibs[0].pk: Fraction(1, 2)}
                 groups.append(group)
                 for heir in (grandfather, sibs[0]):
                     reasons[heir.pk] = _("Akdariyya: the grandfather and the sister pool their shares and split them two to one")
@@ -865,7 +871,8 @@ class Calculation(models.Model):
                  for code, attr, total, mkey in spec],
                 [[h.pk for h in g.members] for g in groups],
                 [h.pk for h in heirs],
-                {h.pk: h.basis['fraction'] for h in heirs},
+                {**{h.pk: h.basis['fraction'] for h in heirs},
+                 **{pk: share for g in groups for pk, share in g.prescribed.items()}},
                 {h.pk for h in heirs if h.blocked})
         self._proof_steps = {
             'base': base,
