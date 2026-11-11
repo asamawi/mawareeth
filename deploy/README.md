@@ -697,6 +697,12 @@ The `deploy-shell` job in the `Django CI` workflow (`.github/workflows/django.ym
 
 Two more `Django CI` jobs check deploy artifacts before merge. `image-build` builds the full release image from the `Dockerfile` with Buildx (`push: false`, no load, no registry login), so the builder stage's `collectstatic` and `check --deploy --fail-level WARNING` gates fail the pull request rather than the post-merge publish. `caddy-config` reads the digest-pinned `CADDY_IMAGE` from `deploy/runtime-images.lock` (a missing or non-digest line fails the job before any pull), pulls it, and runs `caddy adapt --validate` offline (`--network none`, `DOMAIN=ci.example.com`) on `deploy/Caddyfile` with the route directory mounted at the `deploy/compose.yaml` paths, once with the blue route from `deploy/caddy/active-slot.caddy` and once with the green route. The adapted config must contain that slot's `app-<slot>:8000` upstream, because an import glob that matches no file is not a Caddy error. It then validates a copy of the Caddyfile with an unknown directive and fails if that copy is accepted, so the check cannot silently pass everything. A failure in either job also blocks `Publish Release Image`.
 
+### Secret scanning
+
+The `secrets` job in `Django CI` scans the full git history with pinned, checksum-verified gitleaks and redacted output. A finding blocks image publication.
+Enable the optional local pre-commit hook with `uv tool install pre-commit && pre-commit install`.
+For a real secret, rotate it first, then rewrite the history or ignore the exact finding fingerprint in `.gitleaksignore`; never just allowlist a real secret.
+
 ### Better Stack uptime probe
 
 Create one Better Stack Uptime monitor:

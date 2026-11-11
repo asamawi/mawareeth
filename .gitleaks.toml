@@ -1,0 +1,21 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Known non-secret test fixtures and local development URL examples"
+# Match the surrounding URL/key fixture when a rule extracts only its password.
+regexTarget = "match"
+regexes = [
+  # Fake OpenSSH key body in deploy/tests/test_backup.sh.
+  'stub-key-material-NEVER-PRINT',
+  # Rehearsal, backup, runtime and release test password.
+  'LongUrlSafePassword_123456',
+  # Django CI build validation key, never used in production.
+  'ci-build-validation-key-with-sufficient-length-0123456789',
+  # Local development and CI PostgreSQL URLs with default credentials.
+  'postgres:postgres@',
+  # Historical inventory documentation/test URL examples.
+  'user:pw@host',
+  # Historical inventory redaction test URL example.
+  'user:super-secret-value@host',
+]
