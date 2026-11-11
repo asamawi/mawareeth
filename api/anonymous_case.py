@@ -16,6 +16,7 @@ from api import heir_rules
 from api.kinship import derive
 
 SESSION_KEY = 'anonymous_case'
+SAVED_LINK_KEY = 'saved_case_link'
 MADHABS = ('hanafi', 'maliki', 'shafii', 'hanbali', 'jafari')
 GENDERS = ('male', 'female')
 # Relationship id to the heir's gender, which is derived and never asked. The same for every madhab.
@@ -260,6 +261,7 @@ def get(request):
 
 def start(request):
     """Create a case, replacing any existing one, and return it."""
+    clear_saved_link(request)
     case = {'id': uuid.uuid4().hex, 'started_at': timezone.now().isoformat()}
     request.session[SESSION_KEY] = case
     touch(request)
@@ -648,3 +650,36 @@ def remove_heir(request, heir_id, case_id):
         raise HeirNotFound(case)
     _remove_rows(case, {heir_id})
     return _store_case(request, case)
+
+
+def export_snapshot(case):
+    """Only input fields cross the persistence boundary, including linked identities."""
+    def row(value):
+        return {key: value[key] for key in ('id', 'relationship', 'gender', 'name', 'same_as') if key in value}
+    return {
+        'madhab': case['madhab'],
+        'deceased': {key: case['deceased'][key] for key in ('gender', 'estate')} if case['deceased'] else None,
+        'heirs': [row(value) for value in case['heirs']],
+        'deaths': [{'heir_id': death['heir_id'], 'order': death['order'], 'gender': death['gender'],
+                    'heirs': [row(value) for value in death['heirs']]} for death in case['deaths']],
+    }
+
+
+def clear_saved_link(request):
+    request.session.pop(SAVED_LINK_KEY, None)
+
+
+def get_saved_link(request, case_id):
+    link = request.session.get(SAVED_LINK_KEY)
+    if isinstance(link, dict) and link.get('case_id') == case_id and type(link.get('saved_id')) is int:
+        return link['saved_id']
+    return None
+
+
+def set_saved_link(request, case_id, saved_id):
+    request.session[SAVED_LINK_KEY] = {'case_id': case_id, 'saved_id': saved_id}
+
+
+def load_snapshot(request, snapshot):
+    start(request)
+    return _save(request, **snapshot)

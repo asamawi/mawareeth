@@ -1,6 +1,7 @@
 from django.urls import path, re_path
 
-from api.views import CaseView, DeathsView, DeathView, DeceasedView, HeirsView, HeirView, NotFoundView, PreviewView, SessionView
+from api.views import (CaseView, DeathsView, DeathView, DeceasedView, HeirsView, HeirView, NotFoundView,
+                       OpenSavedCaseView, PreviewView, SavedCasesView, SessionView)
 
 from reports.views import DraftReportView
 
@@ -16,6 +17,8 @@ urlpatterns = [
     path('case/heirs/', HeirsView.as_view(), name='case-heirs'),
     path('case/heirs/<str:heir_id>/', HeirView.as_view(), name='case-heir'),
     path('reports/draft/', DraftReportView.as_view(), name='report-draft'),
+    path('saved-cases/', SavedCasesView.as_view(), name='saved-cases'),
+    path('saved-cases/<int:id>/open/', OpenSavedCaseView.as_view(), name='saved-case-open'),
     # Must stay last: it matches everything the routes above did not.
     re_path(r'^.*$', NotFoundView.as_view(), name='not-found'),
 ]

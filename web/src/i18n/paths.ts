@@ -30,3 +30,5 @@ export function signupHref(locale: string, pathname: string): string {
 export function resultsResumePath(locale: string, action: "save" | "share"): string {
   return `/${locale}/results/?resume=${action}`;
 }
+
+export function casesPath(locale: string): string { return `/${locale}/cases/`; }

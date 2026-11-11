@@ -163,7 +163,7 @@ function Available({
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
       <p>{text.school.split("{school}").join(school)}</p>
-      <AuthGate locale={locale} text={text} />
+      <AuthGate key={kase.id} caseId={kase.id} locale={locale} text={text} />
       <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} />
 
       <section aria-labelledby="results-shares" className="flex flex-col gap-3">

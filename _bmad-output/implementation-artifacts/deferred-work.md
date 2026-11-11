@@ -313,3 +313,9 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-1-account-creation-gate-for-save-and-sharing.md`
   summary: Four calc tests fail locally on the base commit `c407bbe`: `ErrorPageTests` (`test_500_uses_standalone_page`, `test_logged_in_404_links_to_calculations`, `test_logged_out_404_uses_site_page`) and `TemplateTagTests.test_login_no_access_message_is_translated` (en). The rendered pages are missing the expected English text (`Something went wrong`, `Page not found`, `Go to my calculations`, `Your account doesn't have access to this page.`).
   evidence: The 2026-11-11 Story 4.1 full run gave 392 tests, 5 failures. These four also fail in a clean worktree at `c407bbe`, so they predate 4.1. The fifth is the known `test_write_matrix_and_rollback` entry.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-2-save-draft-report-to-registered-account.md`
+  summary: FR-19 anonymization is not implemented; names and estate are stored as entered.
+  evidence: SavedCase stores the explicit input snapshot. Anonymization remains deferred by Story 4.2.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-2-save-draft-report-to-registered-account.md`
+  summary: The signed-in save wiring in `AuthGate` (resume after sign-in, dialog close) and the open-then-navigate flow in `CasesView` have no automated test; only the pure `authorizedAction` helper and the API client are tested.
+  evidence: Story 4.2 review (verification-gap) found that removing `runSave()` from the resume/onClose paths or `router.push` from `CasesView.open` leaves every test green. Same root cause as the 4.1 entry: `web/` has no DOM or component harness.

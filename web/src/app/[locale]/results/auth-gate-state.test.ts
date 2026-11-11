@@ -10,3 +10,14 @@ test("resume accepts save/share, strips unknown values, and keeps other paramete
   assert.deepEqual(parseResume("?resume=unknown&keep=1"), { action: null, search: "?keep=1" });
   assert.deepEqual(parseResume(""), { action: null, search: "" });
 });
+
+
+test("only authenticated save performs persistence; share stays a notice", async () => {
+  const { authorizedAction } = await import("./auth-gate-state.ts");
+  assert.equal(authorizedAction("authenticated", "save"), "save");
+  assert.equal(authorizedAction("authenticated", "share"), "notice");
+  for (const state of ["loading", "anonymous", "error"] as const) {
+    assert.equal(authorizedAction(state, "save"), "dialog");
+    assert.equal(authorizedAction(state, "share"), "dialog");
+  }
+});

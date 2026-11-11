@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { locales, type Locale, type Messages } from "@/i18n/messages";
-import { authLinks, pathForLocale } from "@/i18n/paths";
+import { authLinks, pathForLocale, casesPath } from "@/i18n/paths";
 
 import { useAuthState } from "./use-session";
 
@@ -36,6 +36,7 @@ export function SiteNav({ locale, nav }: { locale: Locale; nav: Messages["nav"] 
         </Link>
       </div>
       <div className="flex flex-wrap items-center gap-4">
+        {authenticated && <Link href={casesPath(locale)} prefetch={false} className={linkClass}>{nav.cases}</Link>}
         {authLinks(authenticated, locale, pathname).map((link) => (
           // Django pages, outside this app and its basePath.
           <a key={link.kind} href={link.href} className={linkClass}>

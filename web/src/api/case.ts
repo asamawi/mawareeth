@@ -298,7 +298,7 @@ export function parseHeirOptions(value: unknown): HeirOptions {
   return { blocked: [...new Set(blocked)], invalid: codes };
 }
 
-function parseCase(body: unknown): Case | null {
+export function parseCase(body: unknown): Case | null {
   const value =
     typeof body === "object" && body !== null ? (body as { case?: unknown }).case : undefined;
   if (value === null) return null;
@@ -349,14 +349,14 @@ export async function fetchCase(
   }
 }
 
-type WriteOptions = { timeoutMs?: number; cookie?: () => string };
+export type WriteOptions = { timeoutMs?: number; cookie?: () => string };
 
 /**
  * Makes exactly one write attempt and never throws; `null` means it failed. The session
  * probe issues the CSRF cookie, so it runs first when the browser has none. `handle`
  * turns the response into a result, and may throw to report a failure.
  */
-async function write<T>(
+export async function write<T>(
   signal: AbortSignal,
   options: WriteOptions,
   init: { method: string; body?: string; url?: string },
@@ -366,6 +366,7 @@ async function write<T>(
   const abort = () => controller.abort();
   const timeout = setTimeout(abort, options.timeoutMs ?? CASE_TIMEOUT_MS);
   signal.addEventListener("abort", abort, { once: true });
+  if (signal.aborted) controller.abort();
   const cookie = options.cookie ?? (() => document.cookie);
   try {
     let token = readCsrfToken(cookie());

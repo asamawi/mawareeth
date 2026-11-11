@@ -14,6 +14,7 @@ export function directionOf(locale: Locale): "rtl" | "ltr" {
 
 export type Messages = {
   title: string;
+  cases: { heading: string; empty: string; error: string; signIn: string; open: string; updated: string; heirs: string; draft: string };
   checking: string;
   connected: string;
   unavailable: string;
@@ -23,6 +24,7 @@ export type Messages = {
     interview: string;
     login: string;
     signup: string;
+    cases: string;
     language: string;
   };
   interview: {
@@ -170,7 +172,9 @@ export type Messages = {
   results: {
     save: string;
     shareAction: string;
-    saveSoon: string;
+    saving: string;
+    saved: string;
+    saveError: string;
     shareSoon: string;
     authTitle: string;
     signIn: string;
@@ -254,7 +258,9 @@ export const messages: Record<Locale, Messages> = {
     checking: "جارٍ التحقق من الاتصال بالخدمة…",
     connected: "متصل بالخدمة.",
     unavailable: "الخدمة غير متاحة حاليًا. يرجى المحاولة لاحقًا.",
+    cases: { heading: "حالاتي المحفوظة", empty: "لا توجد حالات محفوظة.", error: "تعذر تحميل أو فتح الحالة. حاول مرة أخرى.", signIn: "سجّل الدخول لعرض حالاتك المحفوظة.", open: "فتح", updated: "آخر تحديث", heirs: "عدد الورثة", draft: "مسودة" },
     nav: {
+      cases: "حالاتي المحفوظة",
       label: "التنقل الرئيسي",
       home: "مواريث",
       interview: "ابدأ حالة",
@@ -474,7 +480,9 @@ export const messages: Record<Locale, Messages> = {
     results: {
       save: "حفظ",
       shareAction: "مشاركة",
-      saveSoon: "حفظ النتائج قريبًا.",
+      saving: "جارٍ الحفظ…",
+      saved: "تم الحفظ.",
+      saveError: "تعذر الحفظ. حاول مرة أخرى.",
       shareSoon: "مشاركة النتائج قريبًا.",
       authTitle: "سجّل الدخول أو أنشئ حسابًا للمتابعة",
       signIn: "تسجيل الدخول",
@@ -547,7 +555,9 @@ export const messages: Record<Locale, Messages> = {
     checking: "Checking the connection to the service…",
     connected: "Connected to the service.",
     unavailable: "The service is unavailable right now. Please try again later.",
+    cases: {"heading": "My saved cases", "empty": "No saved cases yet.", "error": "Could not load or open the case. Please try again.", "signIn": "Sign in to see your saved cases.", "open": "Open", "updated": "Updated", "heirs": "Heirs", "draft": "Draft"},
     nav: {
+      cases: "My saved cases",
       label: "Main navigation",
       home: "Mawareeth",
       interview: "Start a case",
@@ -767,7 +777,9 @@ export const messages: Record<Locale, Messages> = {
     results: {
       save: "Save",
       shareAction: "Share",
-      saveSoon: "Saving results is coming soon.",
+      saving: "Saving…",
+      saved: "Saved.",
+      saveError: "Could not save. Please try again.",
       shareSoon: "Sharing results is coming soon.",
       authTitle: "Sign in or create an account to continue",
       signIn: "Sign in",
@@ -840,7 +852,9 @@ export const messages: Record<Locale, Messages> = {
     checking: "Vérification de la connexion au service…",
     connected: "Connecté au service.",
     unavailable: "Le service est indisponible pour le moment. Veuillez réessayer plus tard.",
+    cases: { heading: "Mes cas enregistrés", empty: "Aucun cas enregistré.", error: "Impossible de charger ou ouvrir le cas. Réessayez.", signIn: "Connectez-vous pour voir vos cas enregistrés.", open: "Ouvrir", updated: "Mis à jour", heirs: "Héritiers", draft: "Brouillon" },
     nav: {
+      cases: "Mes cas enregistrés",
       label: "Navigation principale",
       home: "Mawareeth",
       interview: "Commencer un dossier",
@@ -1063,7 +1077,9 @@ export const messages: Record<Locale, Messages> = {
     results: {
       save: "Enregistrer",
       shareAction: "Partager",
-      saveSoon: "L’enregistrement des résultats sera bientôt disponible.",
+      saving: "Enregistrement…",
+      saved: "Enregistré.",
+      saveError: "Échec de l’enregistrement. Réessayez.",
       shareSoon: "Le partage des résultats sera bientôt disponible.",
       authTitle: "Connectez-vous ou créez un compte pour continuer",
       signIn: "Se connecter",

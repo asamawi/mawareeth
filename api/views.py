@@ -2,6 +2,7 @@ import logging
 import traceback
 
 from django.contrib.auth.decorators import login_not_required
+from django.shortcuts import get_object_or_404
 from django.utils import translation
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
@@ -13,8 +14,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api import anonymous_case, preview
+from api.models import SavedCase
 from api.permissions import CsrfProtectedWrites
 from api.throttling import CasePreviewThrottle, CaseWriteThrottle
+from reports.status import report_status
 
 logger = logging.getLogger(__name__)
 
@@ -219,3 +222,44 @@ class DeathView(CaseWriteView):
     def delete(self, request, heir_id):
         return self.write(request, lambda data, case_id: anonymous_case.unmark_deceased(
             request, heir_id, case_id), data={'case_id': request.query_params.get('case_id')})
+
+
+@method_decorator(never_cache, name='dispatch')
+class SavedCasesView(ApiView):
+    def get(self, request):
+        # Only rows this version can open are listed, so one malformed row cannot break the list.
+        rows = SavedCase.objects.filter(owner=request.user, schema_version=1).order_by('-updated_at', '-pk')
+        return Response({'cases': [
+            {'id': row.pk, 'updated_at': row.updated_at, 'madhab': row.snapshot.get('madhab'),
+             'heir_count': len(row.snapshot.get('heirs') or []), 'status': report_status(row.snapshot)}
+            for row in rows if isinstance(row.snapshot, dict)]})
+
+    def post(self, request):
+        data = request.data
+        if not isinstance(data, dict) or not isinstance(data.get('case_id'), str) or not data['case_id']:
+            return Response({'detail': 'case_id is required.'}, status=400)
+        case = anonymous_case.get(request)
+        if case is not None and case['id'] != data['case_id']:
+            return Response({'detail': 'That case is no longer the current one.'}, status=409)
+        if case is None or not case['madhab'] or not case['deceased'] or not case['heirs']:
+            return Response({'detail': 'Complete the case before saving.'}, status=400)
+        row = SavedCase.objects.filter(owner=request.user, pk=anonymous_case.get_saved_link(request, case['id'])).first()
+        created = row is None
+        if created:
+            row = SavedCase(owner=request.user)
+        row.snapshot = anonymous_case.export_snapshot(case)
+        row.schema_version = 1
+        row.save()
+        anonymous_case.set_saved_link(request, case['id'], row.pk)
+        return Response({'id': row.pk, 'updated_at': row.updated_at}, status=201 if created else 200)
+
+
+@method_decorator(never_cache, name='dispatch')
+class OpenSavedCaseView(ApiView):
+    def post(self, request, id):
+        row = get_object_or_404(SavedCase, owner=request.user, pk=id)
+        if row.schema_version != 1:
+            return Response({'detail': 'This saved case version is unsupported.'}, status=400)
+        case = anonymous_case.load_snapshot(request, row.snapshot)
+        anonymous_case.set_saved_link(request, case['id'], row.pk)
+        return Response({'case': case})

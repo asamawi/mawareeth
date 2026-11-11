@@ -45,15 +45,16 @@ UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
 def case_api_prefix():
-    """The case API's URL prefix, resolved on first use because URLs are not loaded at import.
+    """The URL prefixes of session-case writes (the case API and saved cases), resolved on
+    first use because URLs are not loaded at import.
 
     None when the active URLconf has no case API (a test URLconf), and then nothing is
-    cached, so the real prefix is found once the normal URLconf is back.
+    cached, so the real prefixes are found once the normal URLconf is back.
     """
     global _case_prefix
     if _case_prefix is None:
         try:
-            _case_prefix = reverse("api:case")
+            _case_prefix = (reverse("api:case"), reverse("api:saved-cases"))
         except NoReverseMatch:
             return None
     return _case_prefix

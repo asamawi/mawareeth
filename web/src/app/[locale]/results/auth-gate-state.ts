@@ -10,3 +10,7 @@ export function parseResume(search: string): { action: Action | null; search: st
   const rest = params.toString();
   return { action: value === "save" || value === "share" ? value : null, search: rest ? `?${rest}` : "" };
 }
+
+export function authorizedAction(auth: AuthState, action: Action): "dialog" | "save" | "notice" {
+  return auth === "authenticated" ? action === "save" ? "save" : "notice" : "dialog";
+}

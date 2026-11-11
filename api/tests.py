@@ -28,6 +28,7 @@ from rest_framework.views import APIView
 
 from api import urls as api_urls
 from api import anonymous_case, heir_rules
+from api.models import SavedCase
 from api.throttling import CaseWriteThrottle
 from api.views import ApiView, SessionView
 from calc import schools
@@ -3029,3 +3030,148 @@ class LayeredPreviewTableTests(TestCase):
         self.assertIsNone(response['table'])
         self.assertEqual(response['proof']['version'], 2)
         self.assertEqual(response['shares'], fixture['response']['shares'])
+
+
+class SavedCaseTests(InterviewBase):
+    url = '/api/v1/saved-cases/'
+
+    def setUp(self):
+        super().setUp()
+        self.owner = get_user_model().objects.create_user(username='saved-owner', password='test')
+        self.other = get_user_model().objects.create_user(username='saved-other', password='test')
+
+    def complete(self):
+        case = self.ready()
+        self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'})
+        self.heir(case, name='Family name')
+        return self.live()
+
+    def save(self, case):
+        return self.send('post', self.url, {'case_id': case['id']})
+
+    def test_auth_incomplete_and_stale(self):
+        case = self.start()
+        self.assertEqual(self.save(case).status_code, 403)
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 403)
+        self.client.force_login(self.owner)
+        self.assertEqual(self.save(case).status_code, 400)
+        self.assertEqual(self.send('post', self.url, {'case_id': 'stale'}).status_code, 409)
+        self.assertEqual(self.send('post', self.url, {}).status_code, 400)
+        self.assertFalse(SavedCase.objects.exists())
+
+    def test_save_updates_and_open_roundtrip_on_another_device(self):
+        self.client.force_login(self.owner)
+        case = self.complete()
+        self.deceased(case, estate='1234.50')
+        case = self.live()
+        # A later death with a linked surviving identity, using the existing session format.
+        father = {'id': 'father-row', 'relationship': 'father', 'gender': 'male', 'name': 'Father'}
+        case['heirs'].append(father)
+        death = {'heir_id': case['heirs'][0]['id'], 'order': 2, 'gender': 'male',
+                 'heirs': [{'id': 'later-father', 'relationship': 'grandfather', 'gender': 'male',
+                            'name': 'Father', 'same_as': father['id']}], 'heir_options': {'blocked': [], 'invalid': {}}}
+        self.plant(heirs=case['heirs'], deaths=[death], shares=[1], amounts=['999'], pdf='bytes')
+        case = self.live()
+        response = self.save(case)
+        self.assertEqual(response.status_code, 201)
+        saved_id = response.json()['id']
+        row = SavedCase.objects.get(pk=saved_id)
+        self.assertEqual(set(row.snapshot), {'madhab', 'deceased', 'heirs', 'deaths'})
+        self.assertNotIn('heir_options', json.dumps(row.snapshot))
+        self.assertEqual(row.snapshot['deceased']['estate'], '1234.50')
+        before = row.updated_at
+        self.deceased(case, estate='5678.90')
+        self.assertEqual(self.save(case).status_code, 200)
+        row.refresh_from_db()
+        self.assertGreater(row.updated_at, before)
+        self.assertEqual(row.snapshot['deceased']['estate'], '5678.90')
+        self.assertEqual(SavedCase.objects.count(), 1)
+        device = APIClient(enforce_csrf_checks=True)
+        device.force_login(self.owner)
+        opened = self.send('post', f'{self.url}{saved_id}/open/', {}, device)
+        self.assertEqual(opened.status_code, 200)
+        loaded = opened.json()['case']
+        self.assertNotEqual(loaded['id'], case['id'])
+        self.assertEqual(anonymous_case.export_snapshot(loaded), row.snapshot)
+        regenerated = device.get(
+            f'/api/v1/case/preview/?case_id={loaded["id"]}', secure=True)
+        self.assertEqual(regenerated.status_code, 200)
+        self.assertEqual(regenerated.json()['status'], 'available')
+        row.refresh_from_db()
+        self.assertEqual(anonymous_case.export_snapshot(loaded), row.snapshot)
+        self.assertEqual(self.send('post', self.url, {'case_id': loaded['id']}, device).status_code, 200)
+        self.assertEqual(SavedCase.objects.count(), 1)
+
+    def test_owner_isolation_order_and_untrusted_links(self):
+        self.client.force_login(self.owner)
+        case = self.complete()
+        first = self.save(case).json()['id']
+        foreign = SavedCase.objects.create(owner=self.other, snapshot=SavedCase.objects.get(pk=first).snapshot)
+        self.assertEqual(self.send('post', f'{self.url}{foreign.pk}/open/', {}).status_code, 404)
+        self.assertEqual(self.send('post', f'{self.url}999999/open/', {}).status_code, 404)
+        for linked_id in (foreign.pk, 999999):
+            session = self.client.session
+            session[anonymous_case.SAVED_LINK_KEY] = {'case_id': case['id'], 'saved_id': linked_id}
+            session.save()
+            self.assertEqual(self.save(case).status_code, 201)
+        rows = self.client.get(self.url, secure=True).json()['cases']
+        self.assertEqual(len(rows), 3)
+        self.assertNotIn(foreign.pk, [row['id'] for row in rows])
+        self.assertEqual([row['updated_at'] for row in rows], sorted([row['updated_at'] for row in rows], reverse=True))
+        self.assertTrue(all(row['status'] == 'draft' and row['heir_count'] == 1 for row in rows))
+        self.send('post', CASE_URL, {'replace': True, 'case_id': case['id']})
+        self.assertNotIn(anonymous_case.SAVED_LINK_KEY, self.client.session)
+        self.client.force_login(self.other)
+        self.assertEqual(len(self.client.get(self.url, secure=True).json()['cases']), 1)
+
+    def test_empty_list_and_csrf(self):
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.get(self.url, secure=True).json(), {'cases': []})
+        self.assertEqual(self.client.post(self.url, {}, format='json', secure=True).status_code, 403)
+
+    def test_saved_case_writes_take_the_session_lock(self):
+        from django.http import HttpResponse
+        middleware = CaseWriteLockMiddleware(lambda request: HttpResponse())
+        for path in (self.url, f'{self.url}42/open/'):
+            request = RequestFactory().post(path)
+            request.COOKIES[settings.SESSION_COOKIE_NAME] = 'session-to-lock'
+            with mock.patch.object(middleware, 'lock') as lock:
+                self.assertEqual(middleware(request).status_code, 200)
+                lock.assert_called_once_with('session-to-lock')
+
+    def test_unsupported_schema_version_is_not_listed_or_opened(self):
+        self.client.force_login(self.owner)
+        case = self.complete()
+        row = SavedCase.objects.get(pk=self.save(case).json()['id'])
+        row.schema_version = 2
+        row.save()
+        self.assertEqual(self.client.get(self.url, secure=True).json(), {'cases': []})
+        self.assertEqual(self.send('post', f'{self.url}{row.pk}/open/', {}).status_code, 400)
+        self.assertEqual(self.live()['id'], case['id'])
+
+    def test_each_required_input_and_case_bound_link(self):
+        self.client.force_login(self.owner)
+        case = self.complete()
+        original = anonymous_case.export_snapshot(case)
+        for field, empty in [('madhab', None), ('deceased', None), ('heirs', [])]:
+            self.plant(**{**original, field: empty})
+            self.assertEqual(self.save(case).status_code, 400)
+            self.assertFalse(SavedCase.objects.exists())
+        self.plant(**original)
+        first = self.save(case).json()['id']
+        session = self.client.session
+        session[anonymous_case.SAVED_LINK_KEY] = {'case_id': 'another-case', 'saved_id': first}
+        session.save()
+        self.assertEqual(self.save(case).status_code, 201)
+        self.assertEqual(SavedCase.objects.count(), 2)
+
+    @override_settings(REPORT_STATUS_PROVIDER='api.tests.saved_case_test_status')
+    def test_list_uses_report_status_extension(self):
+        self.client.force_login(self.owner)
+        case = self.complete()
+        self.save(case)
+        self.assertEqual(self.client.get(self.url, secure=True).json()['cases'][0]['status'], 'extension-status')
+
+
+def saved_case_test_status(case):
+    return 'extension-status'
