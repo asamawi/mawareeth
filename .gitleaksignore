@@ -1,0 +1,14 @@
+# Real Django keys in old history, ignored by exact fingerprint (never by allowlist).
+# Production DJANGO_KEY was rotated on 2026-11-11 (it was not the 2019 key below),
+# so both are dead whatever they were once used for. Any new finding still fails CI.
+
+# SECRET_KEY hard-coded in settings.py from 2019-12-21 until 43b6da7 (2020-01-11).
+4611b8c43ee4f9b105531cf06d5ca664bbe324cd:mawareeth/settings.py:django-secret-key:23
+
+# Old CI-only test key in the Travis config and the early Django CI workflow.
+7078a7f08c5a8506818d10bf0bc215350cef4540:.travis.yml:django-secret-key:8
+d7f3f62e1f35fd0d37a6b583848d9196816e03ef:.travis.yml:django-secret-key:8
+cb922ad64c3f6ad7b585d2cbf6ecac2f97f78127:.github/workflows/django.yml:django-secret-key:13
+90ab8e1b4b88a28213b1e85a7b076f41da7d79d7:.github/workflows/django.yml:django-secret-key:13
+2f091024522fc13f9ad8da5ee80f196a184f1e8c:.github/workflows/django.yml:django-secret-key:13
+6d45dc7a111bf8678701bbf016c7342fd4b84733:.github/workflows/django.yml:django-secret-key:53
