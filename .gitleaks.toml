@@ -1,0 +1,42 @@
+[extend]
+useDefault = true
+
+# The default generic-api-key rule skips values containing punctuation such as
+# ! ) # % ^ $, which Django's generated keys are full of. This rule catches a
+# literal Django key in settings, workflows, Dockerfiles and env files.
+[[rules]]
+id = "django-secret-key"
+description = "Django SECRET_KEY or DJANGO_KEY assigned a literal value"
+regex = '''(?i)(?:SECRET_KEY|DJANGO_KEY)["']?\s*[=:]\s*["']?([^"'\s]{40,})'''
+secretGroup = 1
+keywords = ["secret_key", "django_key"]
+
+[[allowlists]]
+description = "Known non-secret test fixtures and local development URL examples"
+# Match the surrounding URL/key fixture when a rule extracts only its password.
+regexTarget = "match"
+regexes = [
+  # Fake OpenSSH key body in deploy/tests/test_backup.sh.
+  'stub-key-material-NEVER-PRINT',
+  # Rehearsal, backup, runtime and release test password.
+  'LongUrlSafePassword_123456',
+  # Django keys used only to build, smoke-test and validate images in CI and tests.
+  '[a-z-]+-validation-key-with-sufficient-length-0123456789',
+  # Django keys in the deploy shell test suites.
+  'django-key-that-is-never-printed-[0-9]+',
+  # Local development and CI PostgreSQL URLs with default credentials.
+  'postgres:postgres@',
+  # Historical inventory documentation/test URL examples.
+  'user:pw@host',
+  # Historical inventory redaction test URL example.
+  'user:super-secret-value@host',
+]
+
+[[allowlists]]
+description = "Generated or vendored files whose hashes and examples look like keys"
+paths = [
+  # BMad install manifest: one SHA-256 per file, beside names such as api-request.md.
+  '''^_bmad/_config/files-manifest\.csv$''',
+  # Vendored BMad test-architecture guide with an example expired JWT.
+  '''(?:^|/)knowledge/api-testing-patterns\.md$''',
+]
