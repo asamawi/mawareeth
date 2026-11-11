@@ -1,6 +1,6 @@
 # Real Django keys in old history, ignored by exact fingerprint (never by allowlist).
-# Neither was the production key when checked on 2026-11-11, and production
-# DJANGO_KEY was rotated that day, so both are dead. Any new finding still fails CI.
+# Production DJANGO_KEY was rotated on 2026-11-11 (it was not the 2019 key below),
+# so both are dead whatever they were once used for. Any new finding still fails CI.
 
 # SECRET_KEY hard-coded in settings.py from 2019-12-21 until 43b6da7 (2020-01-11).
 4611b8c43ee4f9b105531cf06d5ca664bbe324cd:mawareeth/settings.py:django-secret-key:23
