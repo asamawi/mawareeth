@@ -5,7 +5,7 @@ import { parsePreview, type Preview } from "../api/case.ts";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { bodyCells, hasTable, NO_NOTE, noteReducer, pruneNote, tableView, visibleNote, type NoteAction } from "./table.ts";
+import { bodyCells, hasTable, NO_NOTE, noteReducer, pruneNote, tableView, visibleNote, type NoteAction, type TableView } from "./table.ts";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const fixtureFile = JSON.parse(
@@ -44,15 +44,15 @@ test("awl and radd add their columns with the engine's totals", () => {
   assert.deepEqual(tableView(radd.table, radd).columns.map((c) => c.code), ["base", "radd"]);
 });
 
-test("every single-death fixture has a table and layered ones have none", () => {
+test("every available fixture has a table", () => {
   for (const fixture of fixtureFile.fixtures) {
     const preview = parsePreview(fixture.response);
     assert.ok(preview, fixture.title);
     if (preview.status !== "available") continue;
-    assert.equal(hasTable(preview), !preview.basis.deaths, fixture.title);
+    assert.equal(hasTable(preview), true, fixture.title);
     if (!hasTable(preview)) continue;
     const view = tableView(preview.table, preview);
-    assert.equal(view.rows.length, preview.shares.length, fixture.title);
+    assert.equal(view.rows.length, preview.basis.deaths ? preview.table.rows.length + ("layers" in preview.table && preview.table.unallocated ? 1 : 0) : preview.shares.length, fixture.title);
     for (const row of view.rows) {
       if (row.prescribed.kind === "blocked") assert.ok(row.cells.every((cell) => cell.value === null), fixture.title);
     }
@@ -154,6 +154,7 @@ test("a residuary left nothing is residuary with 0, not blocked", () => {
 test("two wives share one prescribed cell", () => {
   const preview = available("Hanbali wife and son with an estate");
   assert.ok(hasTable(preview));
+  assert.ok(!("layers" in preview.table));
   const wife = preview.table.rows[0];
   const table = {
     ...preview.table,
@@ -166,4 +167,75 @@ test("two wives share one prescribed cell", () => {
   const view = tableView(table, preview);
   assert.deepEqual(view.rows.map((row) => row.prescribedSpan), [2, 0, 1]);
   assert.deepEqual(view.rows[0].prescribed, { kind: "fraction", fraction: "1/8" });
+});
+
+
+test("layered tables group columns and notes by death and preserve final server parts", () => {
+  let hasRepeatedPerson = false;
+  for (const fixture of fixtureFile.fixtures) {
+    const preview = parsePreview(fixture.response);
+    if (preview?.status !== "available" || preview.proof?.version !== 2) continue;
+    assert.ok(preview.table && "layers" in preview.table);
+    const table = preview.table;
+    const view = tableView(table, preview);
+    assert.equal(view.groups?.length, preview.proof.layers.length);
+    assert.equal(new Set(view.columns.map((c) => c.code)).size, view.columns.length);
+    assert.deepEqual(view.rows.filter((r) => r.kind !== "unallocated").map((r) => r.heirId), table.rows.map((r) => r.heir));
+    const last = table.layers.at(-1)!;
+    assert.equal(view.columns.at(-1)?.total, last.jamia);
+    for (const row of view.rows) {
+      const expected = row.kind === "unallocated" ? last.unallocated : last.parts.find((p) => p.heir === row.heirId)!.value;
+      assert.equal(row.cells.at(-1)?.value, expected);
+      const notes = view.notes?.[row.heirId] ?? [];
+      if (row.kind === "unallocated") continue;
+      const aliases = new Map(preview.proof.people.map((p) => [p.row, p.person]));
+      const expectedNotes: NonNullable<TableView["notes"]>[string] = preview.proof.layers.flatMap((layer) => layer.proof.heirs
+        .filter((entry) => (aliases.get(entry.heir) ?? entry.heir) === row.heirId)
+        .map((entry) => ({ order: layer.order, proof: entry })));
+      assert.deepEqual(notes, expectedNotes, `${fixture.title}: ${row.heirId}`);
+      if (new Set(expectedNotes.map((note) => note.order)).size >= 2) hasRepeatedPerson = true;
+    }
+  }
+  assert.ok(hasRepeatedPerson, "fixtures include notes for one person from two deaths");
+});
+
+test("layered vocabulary is translated in every locale", async () => {
+  const { messages } = await import("../i18n/messages.ts");
+  for (const text of Object.values(messages)) {
+    for (const key of ["death", "deceasedShare", "multiplier", "jamia", "noShare", "unallocated", "tamathul", "tawafuq", "tabayun"] as const) {
+      assert.ok(text.results.table[key]);
+      assert.ok(!text.results.table[key].includes("?"));
+    }
+  }
+});
+
+
+test("layered rows distinguish unallocated people and annotate separated prescribed groups", () => {
+  const preview = fixtureFile.fixtures.map((f) => parsePreview(f.response))
+    .find((p) => p?.status === "available" && p.proof?.version === 2);
+  assert.ok(preview?.status === "available" && preview.table && "layers" in preview.table && preview.proof?.version === 2);
+  const table = structuredClone(preview.table);
+  const layer = table.layers[0];
+  const source = layer.table.rows[0];
+  table.rows = [{ heir: "unallocated" }, { heir: "constructor" }, { heir: "__proto__" }];
+  table.unallocated = true;
+  layer.table.rows = [
+    { ...source, heir: "unallocated", blocked: false, prescribed: { numerator: 2, denominator: 3 }, group_span: 2, cells: source.cells.map((c) => ({ ...c, span: 2 })) },
+    { ...source, heir: "__proto__", blocked: false, prescribed: { numerator: 2, denominator: 3 }, group_span: 0, cells: source.cells.map((c) => ({ ...c, span: 0 })) },
+    { ...source, heir: "constructor", group_span: 1, cells: source.cells.map((c) => ({ ...c, span: 1 })) },
+  ];
+  const proof = structuredClone(preview.proof);
+  proof.people = [];
+  const entry = proof.layers[0].proof.heirs[0];
+  proof.layers = [{ ...proof.layers[0], proof: { ...proof.layers[0].proof, heirs: table.rows.map((r) => ({ ...entry, heir: r.heir })) } }];
+  const view = tableView(table, { ...preview, proof });
+  assert.equal(Object.getPrototypeOf(view.notes), null);
+  for (const row of table.rows) assert.deepEqual(view.notes?.[row.heir], [{ order: proof.layers[0].order, proof: proof.layers[0].proof.heirs.find((e) => e.heir === row.heir)! }]);
+  assert.equal(view.rows[0].heirId, "unallocated");
+  assert.equal(view.rows[0].kind, undefined);
+  assert.equal(view.rows.at(-1)?.kind, "unallocated");
+  assert.equal(view.rows.at(-1)?.percent, null);
+  assert.deepEqual(view.rows[0].cells[0].members, ["unallocated", "__proto__"]);
+  assert.deepEqual(view.rows[2].cells[0].members, ["unallocated", "__proto__"]);
+  assert.equal(view.rows[2].cells[0].covered, true);
 });

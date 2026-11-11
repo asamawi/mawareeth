@@ -151,11 +151,11 @@ function Available({
   );
   const layers = layersOf(kase);
   const school = interview.madhabs[preview.madhab].name;
-  const proof = preview.proof;
+  const proof = preview.proof?.version === 1 ? preview.proof : null;
   const table = hasTable(preview) ? tableView(preview.table, preview) : null;
-  const proofs = useMemo(() => Object.fromEntries((preview.proof?.heirs ?? []).map((entry) => [entry.heir, entry])), [preview]);
+  const proofs = useMemo(() => Object.fromEntries((preview.proof?.version === 1 ? preview.proof.heirs : []).map((entry) => [entry.heir, entry])), [preview]);
   const relations = useMemo(
-    () => Object.fromEntries((preview.proof?.heirs ?? []).map((entry) => [entry.heir, entry.relationship])),
+    () => Object.fromEntries((preview.proof?.version === 1 ? preview.proof.heirs : []).map((entry) => [entry.heir, entry.relationship])),
     [preview],
   );
 

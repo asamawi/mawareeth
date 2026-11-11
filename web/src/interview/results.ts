@@ -42,13 +42,13 @@ export function resultEntries(preview: AvailablePreview): {
   unallocated: PreviewRows["unallocated"];
 } {
   const { rows, unallocated } = previewRows(preview);
-  const proofs = new Map((preview.proof?.heirs ?? []).map((heir) => [heir.heir, heir]));
+  const proofs = new Map((preview.proof?.version === 1 ? preview.proof.heirs : []).map((heir) => [heir.heir, heir]));
   return { entries: rows.map((row) => ({ row, proof: proofs.get(row.heirId) ?? null })), unallocated };
 }
 
-/** A successive-death case has shares and trees but no v1 proof yet. */
+/** Identify successive deaths from the calculation basis, including fallback results. */
 export function isLayeredPreview(preview: AvailablePreview): boolean {
-  return preview.proof === null;
+  return Boolean(preview.basis.deaths);
 }
 
 /** Where a text comes from: the results dictionary, the interview's, or its refusal sentences by reason code. */

@@ -153,8 +153,27 @@ def _compute_layered(case):
                 same_person=by_id.get(heir.get('same_as')))
             by_id[heir['id']] = row
             by_pk[row.pk] = heir['id']
-    final, _ = compute_manasikhat(root, case['madhab'])
-    return {by_pk[pk]: (Fraction(value), value == 0) for pk, value in final.items()}, None, None
+    final, evidence = compute_manasikhat(root, case['madhab'])
+    deaths = {d['order']: d['heir_id'] for d in case['deaths']}
+    labelled = {
+        **evidence,
+        'people': [{'row': by_pk[p['row']], 'person': by_pk[p['person']]} for p in evidence['people']],
+        'final': [{**entry, 'heir': by_pk[entry['heir']]} for entry in evidence['final']],
+        'layers': [{**layer, 'deceased': None if layer['order'] == 1 else deaths[layer['order']],
+                    'heir': deaths.get(layer['order']), 'proof': _labelled(layer['proof'], by_pk)}
+                   for layer in evidence['layers']],
+    }
+    table = root.table
+    if table is not None:
+        table = {
+            **table,
+            'rows': [{'heir': by_pk[row['heir']]} for row in table['rows']],
+            'layers': [{**layer, 'heir': deaths.get(layer['order']),
+                        'table': _table(layer['table'], by_pk),
+                        'parts': [{**part, 'heir': by_pk[part['heir']]} for part in layer['parts']]}
+                       for layer in table['layers']],
+        }
+    return {by_pk[pk]: (Fraction(value), value == 0) for pk, value in final.items()}, labelled, table
 
 
 def preview(case):

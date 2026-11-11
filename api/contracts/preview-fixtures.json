@@ -4060,8 +4060,393 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            }
+          ],
+          "madhab": "hanafi",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanafi",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "wife",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 8,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 16,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 7,
+                "denominator": 16
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanafi",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "no_descendant_or_siblings",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is no descendant and fewer than two siblings",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 2,
+                      "denominator": 3
+                    },
+                    "verse": "4:176",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:176 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 3,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "w",
+              "fraction": {
+                "numerator": 13,
+                "denominator": 48
+              }
+            },
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 35,
+                "denominator": 48
+              }
+            }
+          ],
+          "base": 48
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 8,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 16,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 2
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 0
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 16,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 16,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 7
+                },
+                {
+                  "heir": "s2",
+                  "value": 7
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 3,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 7,
+              "base": 3,
+              "gcd": 1,
+              "old_multiplier": 3,
+              "new_multiplier": 7,
+              "relation": "tabayun",
+              "jamia": 48,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 13
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 35
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [
@@ -4229,8 +4614,552 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            },
+            {
+              "row": "r3",
+              "person": "s2"
+            }
+          ],
+          "madhab": "hanafi",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanafi",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "wife",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 8,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 16,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 7,
+                "denominator": 16
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanafi",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "no_descendant_or_siblings",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is no descendant and fewer than two siblings",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 2,
+                      "denominator": 3
+                    },
+                    "verse": "4:176",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:176 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 3,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 3,
+              "deceased": "w",
+              "heir": "w",
+              "estate": {
+                "numerator": 13,
+                "denominator": 48
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanafi",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r3",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 5,
+                      "denominator": 6
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "m",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 6,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 275,
+                "denominator": 288
+              }
+            },
+            {
+              "heir": "m",
+              "fraction": {
+                "numerator": 13,
+                "denominator": 288
+              }
+            }
+          ],
+          "base": 288
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 8,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 16,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 2
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 0
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 16,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 16,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 7
+                },
+                {
+                  "heir": "s2",
+                  "value": 7
+                },
+                {
+                  "heir": "m",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 3,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 7,
+              "base": 3,
+              "gcd": 1,
+              "old_multiplier": 3,
+              "new_multiplier": 7,
+              "relation": "tabayun",
+              "jamia": 48,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 13
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 35
+                },
+                {
+                  "heir": "m",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            },
+            {
+              "order": 3,
+              "heir": "w",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 6,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "m",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r3",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 5,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 13,
+              "base": 6,
+              "gcd": 1,
+              "old_multiplier": 6,
+              "new_multiplier": 13,
+              "relation": "tabayun",
+              "jamia": 288,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 0
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 275
+                },
+                {
+                  "heir": "m",
+                  "value": 13
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            },
+            {
+              "heir": "m"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [
@@ -4380,8 +5309,444 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            }
+          ],
+          "madhab": "hanafi",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanafi",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 3,
+                      "denominator": 8
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 3,
+                      "denominator": 8
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "husband",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 4,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 8,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 3,
+                "denominator": 8
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanafi",
+                "school_rules": [
+                  "father_blocks_his_mother"
+                ],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "father",
+                    "rule": "residuary",
+                    "condition": "no_descendant",
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 1
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": "There is no descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "pgm",
+                    "relationship": "paternal_grandmother",
+                    "rule": "blocked",
+                    "condition": null,
+                    "blocked_by": "father",
+                    "fraction": null,
+                    "share": {
+                      "numerator": 0,
+                      "denominator": 1
+                    },
+                    "verse": null,
+                    "school_rule": "father_blocks_his_mother",
+                    "option": null,
+                    "labels": {
+                      "rule": "Blocked from inheriting",
+                      "condition": null,
+                      "blocked_by": "Blocked by the father",
+                      "verse": null,
+                      "school_rule": "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother",
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "blocked",
+                    "condition": null,
+                    "blocked_by": "father",
+                    "fraction": null,
+                    "share": {
+                      "numerator": 0,
+                      "denominator": 1
+                    },
+                    "verse": null,
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Blocked from inheriting",
+                      "condition": null,
+                      "blocked_by": "Blocked by the father",
+                      "verse": null,
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 1,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": [
+                  "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
+                ]
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "w",
+              "fraction": {
+                "numerator": 5,
+                "denominator": 8
+              }
+            },
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 3,
+                "denominator": 8
+              }
+            },
+            {
+              "heir": "pgm",
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              }
+            }
+          ],
+          "base": 8
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 4,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 8,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 3,
+                        "span": 2
+                      },
+                      {
+                        "value": 3,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 3,
+                        "span": 0
+                      },
+                      {
+                        "value": 3,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 8,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 8,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 3
+                },
+                {
+                  "heir": "s2",
+                  "value": 3
+                },
+                {
+                  "heir": "pgm",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 1,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "pgm",
+                    "blocked": true,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": null,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": true,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": null,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 3,
+              "base": 1,
+              "gcd": 1,
+              "old_multiplier": 1,
+              "new_multiplier": 3,
+              "relation": "tamathul",
+              "jamia": 8,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 5
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 3
+                },
+                {
+                  "heir": "pgm",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            },
+            {
+              "heir": "pgm"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [
@@ -4521,8 +5886,393 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            }
+          ],
+          "madhab": "maliki",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "maliki",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "wife",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 8,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 16,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 7,
+                "denominator": 16
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "maliki",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "no_descendant_or_siblings",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is no descendant and fewer than two siblings",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 2,
+                      "denominator": 3
+                    },
+                    "verse": "4:176",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:176 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 3,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "w",
+              "fraction": {
+                "numerator": 13,
+                "denominator": 48
+              }
+            },
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 35,
+                "denominator": 48
+              }
+            }
+          ],
+          "base": 48
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 8,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 16,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 2
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 0
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 16,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 16,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 7
+                },
+                {
+                  "heir": "s2",
+                  "value": 7
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 3,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 7,
+              "base": 3,
+              "gcd": 1,
+              "old_multiplier": 3,
+              "new_multiplier": 7,
+              "relation": "tabayun",
+              "jamia": 48,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 13
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 35
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [
@@ -4690,8 +6440,552 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            },
+            {
+              "row": "r3",
+              "person": "s2"
+            }
+          ],
+          "madhab": "maliki",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "maliki",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "wife",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 8,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 16,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 7,
+                "denominator": 16
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "maliki",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "no_descendant_or_siblings",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is no descendant and fewer than two siblings",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 2,
+                      "denominator": 3
+                    },
+                    "verse": "4:176",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:176 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 3,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 3,
+              "deceased": "w",
+              "heir": "w",
+              "estate": {
+                "numerator": 13,
+                "denominator": 48
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "maliki",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r3",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 5,
+                      "denominator": 6
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "m",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 6,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 275,
+                "denominator": 288
+              }
+            },
+            {
+              "heir": "m",
+              "fraction": {
+                "numerator": 13,
+                "denominator": 288
+              }
+            }
+          ],
+          "base": 288
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 8,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 16,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 2
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 0
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 16,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 16,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 7
+                },
+                {
+                  "heir": "s2",
+                  "value": 7
+                },
+                {
+                  "heir": "m",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 3,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 7,
+              "base": 3,
+              "gcd": 1,
+              "old_multiplier": 3,
+              "new_multiplier": 7,
+              "relation": "tabayun",
+              "jamia": 48,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 13
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 35
+                },
+                {
+                  "heir": "m",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            },
+            {
+              "order": 3,
+              "heir": "w",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 6,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "m",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r3",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 5,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 13,
+              "base": 6,
+              "gcd": 1,
+              "old_multiplier": 6,
+              "new_multiplier": 13,
+              "relation": "tabayun",
+              "jamia": 288,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 0
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 275
+                },
+                {
+                  "heir": "m",
+                  "value": 13
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            },
+            {
+              "heir": "m"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [
@@ -4841,8 +7135,444 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            }
+          ],
+          "madhab": "maliki",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "maliki",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 3,
+                      "denominator": 8
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 3,
+                      "denominator": 8
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "husband",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 4,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 8,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 3,
+                "denominator": 8
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "maliki",
+                "school_rules": [
+                  "father_blocks_his_mother"
+                ],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "father",
+                    "rule": "residuary",
+                    "condition": "no_descendant",
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 1
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": "There is no descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "pgm",
+                    "relationship": "paternal_grandmother",
+                    "rule": "blocked",
+                    "condition": null,
+                    "blocked_by": "father",
+                    "fraction": null,
+                    "share": {
+                      "numerator": 0,
+                      "denominator": 1
+                    },
+                    "verse": null,
+                    "school_rule": "father_blocks_his_mother",
+                    "option": null,
+                    "labels": {
+                      "rule": "Blocked from inheriting",
+                      "condition": null,
+                      "blocked_by": "Blocked by the father",
+                      "verse": null,
+                      "school_rule": "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother",
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "blocked",
+                    "condition": null,
+                    "blocked_by": "father",
+                    "fraction": null,
+                    "share": {
+                      "numerator": 0,
+                      "denominator": 1
+                    },
+                    "verse": null,
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Blocked from inheriting",
+                      "condition": null,
+                      "blocked_by": "Blocked by the father",
+                      "verse": null,
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 1,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": [
+                  "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
+                ]
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "w",
+              "fraction": {
+                "numerator": 5,
+                "denominator": 8
+              }
+            },
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 3,
+                "denominator": 8
+              }
+            },
+            {
+              "heir": "pgm",
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              }
+            }
+          ],
+          "base": 8
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 4,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 8,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 3,
+                        "span": 2
+                      },
+                      {
+                        "value": 3,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 3,
+                        "span": 0
+                      },
+                      {
+                        "value": 3,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 8,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 8,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 3
+                },
+                {
+                  "heir": "s2",
+                  "value": 3
+                },
+                {
+                  "heir": "pgm",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 1,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "pgm",
+                    "blocked": true,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": null,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": true,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": null,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 3,
+              "base": 1,
+              "gcd": 1,
+              "old_multiplier": 1,
+              "new_multiplier": 3,
+              "relation": "tamathul",
+              "jamia": 8,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 5
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 3
+                },
+                {
+                  "heir": "pgm",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            },
+            {
+              "heir": "pgm"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [
@@ -4982,8 +7712,393 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            }
+          ],
+          "madhab": "shafii",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "shafii",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "wife",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 8,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 16,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 7,
+                "denominator": 16
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "shafii",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "no_descendant_or_siblings",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is no descendant and fewer than two siblings",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 2,
+                      "denominator": 3
+                    },
+                    "verse": "4:176",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:176 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 3,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "w",
+              "fraction": {
+                "numerator": 13,
+                "denominator": 48
+              }
+            },
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 35,
+                "denominator": 48
+              }
+            }
+          ],
+          "base": 48
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 8,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 16,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 2
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 0
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 16,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 16,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 7
+                },
+                {
+                  "heir": "s2",
+                  "value": 7
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 3,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 7,
+              "base": 3,
+              "gcd": 1,
+              "old_multiplier": 3,
+              "new_multiplier": 7,
+              "relation": "tabayun",
+              "jamia": 48,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 13
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 35
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [
@@ -5151,8 +8266,552 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            },
+            {
+              "row": "r3",
+              "person": "s2"
+            }
+          ],
+          "madhab": "shafii",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "shafii",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "wife",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 8,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 16,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 7,
+                "denominator": 16
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "shafii",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "no_descendant_or_siblings",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is no descendant and fewer than two siblings",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 2,
+                      "denominator": 3
+                    },
+                    "verse": "4:176",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:176 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 3,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 3,
+              "deceased": "w",
+              "heir": "w",
+              "estate": {
+                "numerator": 13,
+                "denominator": 48
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "shafii",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r3",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 5,
+                      "denominator": 6
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "m",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 6,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 275,
+                "denominator": 288
+              }
+            },
+            {
+              "heir": "m",
+              "fraction": {
+                "numerator": 13,
+                "denominator": 288
+              }
+            }
+          ],
+          "base": 288
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 8,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 16,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 2
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 0
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 16,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 16,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 7
+                },
+                {
+                  "heir": "s2",
+                  "value": 7
+                },
+                {
+                  "heir": "m",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 3,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 7,
+              "base": 3,
+              "gcd": 1,
+              "old_multiplier": 3,
+              "new_multiplier": 7,
+              "relation": "tabayun",
+              "jamia": 48,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 13
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 35
+                },
+                {
+                  "heir": "m",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            },
+            {
+              "order": 3,
+              "heir": "w",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 6,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "m",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r3",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 5,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 13,
+              "base": 6,
+              "gcd": 1,
+              "old_multiplier": 6,
+              "new_multiplier": 13,
+              "relation": "tabayun",
+              "jamia": 288,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 0
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 275
+                },
+                {
+                  "heir": "m",
+                  "value": 13
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            },
+            {
+              "heir": "m"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [
@@ -5302,8 +8961,444 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            }
+          ],
+          "madhab": "shafii",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "shafii",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 3,
+                      "denominator": 8
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 3,
+                      "denominator": 8
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "husband",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 4,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 8,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 3,
+                "denominator": 8
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "shafii",
+                "school_rules": [
+                  "father_blocks_his_mother"
+                ],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "father",
+                    "rule": "residuary",
+                    "condition": "no_descendant",
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 1
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": "There is no descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "pgm",
+                    "relationship": "paternal_grandmother",
+                    "rule": "blocked",
+                    "condition": null,
+                    "blocked_by": "father",
+                    "fraction": null,
+                    "share": {
+                      "numerator": 0,
+                      "denominator": 1
+                    },
+                    "verse": null,
+                    "school_rule": "father_blocks_his_mother",
+                    "option": null,
+                    "labels": {
+                      "rule": "Blocked from inheriting",
+                      "condition": null,
+                      "blocked_by": "Blocked by the father",
+                      "verse": null,
+                      "school_rule": "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother",
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "blocked",
+                    "condition": null,
+                    "blocked_by": "father",
+                    "fraction": null,
+                    "share": {
+                      "numerator": 0,
+                      "denominator": 1
+                    },
+                    "verse": null,
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Blocked from inheriting",
+                      "condition": null,
+                      "blocked_by": "Blocked by the father",
+                      "verse": null,
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 1,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": [
+                  "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
+                ]
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "w",
+              "fraction": {
+                "numerator": 5,
+                "denominator": 8
+              }
+            },
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 3,
+                "denominator": 8
+              }
+            },
+            {
+              "heir": "pgm",
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              }
+            }
+          ],
+          "base": 8
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 4,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 8,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 3,
+                        "span": 2
+                      },
+                      {
+                        "value": 3,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 3,
+                        "span": 0
+                      },
+                      {
+                        "value": 3,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 8,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 8,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 3
+                },
+                {
+                  "heir": "s2",
+                  "value": 3
+                },
+                {
+                  "heir": "pgm",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 1,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "pgm",
+                    "blocked": true,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": null,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": true,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": null,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 3,
+              "base": 1,
+              "gcd": 1,
+              "old_multiplier": 1,
+              "new_multiplier": 3,
+              "relation": "tamathul",
+              "jamia": 8,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 5
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 3
+                },
+                {
+                  "heir": "pgm",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            },
+            {
+              "heir": "pgm"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [
@@ -5443,8 +9538,393 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            }
+          ],
+          "madhab": "hanbali",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanbali",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "wife",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 8,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 16,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 7,
+                "denominator": 16
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanbali",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "no_descendant_or_siblings",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is no descendant and fewer than two siblings",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 2,
+                      "denominator": 3
+                    },
+                    "verse": "4:176",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:176 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 3,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "w",
+              "fraction": {
+                "numerator": 13,
+                "denominator": 48
+              }
+            },
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 35,
+                "denominator": 48
+              }
+            }
+          ],
+          "base": 48
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 8,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 16,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 2
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 0
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 16,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 16,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 7
+                },
+                {
+                  "heir": "s2",
+                  "value": 7
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 3,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 7,
+              "base": 3,
+              "gcd": 1,
+              "old_multiplier": 3,
+              "new_multiplier": 7,
+              "relation": "tabayun",
+              "jamia": 48,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 13
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 35
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [
@@ -5612,8 +10092,552 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            },
+            {
+              "row": "r3",
+              "person": "s2"
+            }
+          ],
+          "madhab": "hanbali",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanbali",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 7,
+                      "denominator": 16
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "wife",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 8,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 16,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 7,
+                "denominator": 16
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanbali",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "no_descendant_or_siblings",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is no descendant and fewer than two siblings",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 2,
+                      "denominator": 3
+                    },
+                    "verse": "4:176",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:176 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 3,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 3,
+              "deceased": "w",
+              "heir": "w",
+              "estate": {
+                "numerator": 13,
+                "denominator": 48
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanbali",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "r3",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 5,
+                      "denominator": 6
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "m",
+                    "relationship": "mother",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 6,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 275,
+                "denominator": 288
+              }
+            },
+            {
+              "heir": "m",
+              "fraction": {
+                "numerator": 13,
+                "denominator": 288
+              }
+            }
+          ],
+          "base": 288
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 8,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 16,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 8
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 2
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 7,
+                        "span": 0
+                      },
+                      {
+                        "value": 7,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 16,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 16,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 7
+                },
+                {
+                  "heir": "s2",
+                  "value": 7
+                },
+                {
+                  "heir": "m",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 3,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 3
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 7,
+              "base": 3,
+              "gcd": 1,
+              "old_multiplier": 3,
+              "new_multiplier": 7,
+              "relation": "tabayun",
+              "jamia": 48,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 13
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 35
+                },
+                {
+                  "heir": "m",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            },
+            {
+              "order": 3,
+              "heir": "w",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 6,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "m",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r3",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 5,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 13,
+              "base": 6,
+              "gcd": 1,
+              "old_multiplier": 6,
+              "new_multiplier": 13,
+              "relation": "tabayun",
+              "jamia": 288,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 0
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 275
+                },
+                {
+                  "heir": "m",
+                  "value": 13
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            },
+            {
+              "heir": "m"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [
@@ -5763,8 +10787,450 @@
           }
         ],
         "unallocated": null,
-        "proof": null,
-        "table": null
+        "proof": {
+          "version": 2,
+          "people": [
+            {
+              "row": "r1",
+              "person": "w"
+            },
+            {
+              "row": "r2",
+              "person": "s2"
+            }
+          ],
+          "madhab": "hanbali",
+          "layers": [
+            {
+              "order": 1,
+              "deceased": null,
+              "heir": null,
+              "estate": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanbali",
+                "school_rules": [],
+                "heirs": [
+                  {
+                    "heir": "s1",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 3,
+                      "denominator": 8
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "s2",
+                    "relationship": "son",
+                    "rule": "residuary",
+                    "condition": null,
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 3,
+                      "denominator": 8
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": null,
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "w",
+                    "relationship": "husband",
+                    "rule": "fixed",
+                    "condition": "descendant",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "verse": "4:12",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is a descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:12 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 4,
+                    "label": "The common base of the fixed shares"
+                  },
+                  {
+                    "step": "correction",
+                    "value": 8,
+                    "label": "Correction: the base is multiplied so that every heir gets whole parts"
+                  }
+                ],
+                "school_rule_labels": []
+              }
+            },
+            {
+              "order": 2,
+              "deceased": "s1",
+              "heir": "s1",
+              "estate": {
+                "numerator": 3,
+                "denominator": 8
+              },
+              "proof": {
+                "version": 1,
+                "madhab": "hanbali",
+                "school_rules": [
+                  "grandmother_inherits_with_her_son"
+                ],
+                "heirs": [
+                  {
+                    "heir": "r1",
+                    "relationship": "father",
+                    "rule": "residuary",
+                    "condition": "no_descendant",
+                    "blocked_by": null,
+                    "fraction": null,
+                    "share": {
+                      "numerator": 5,
+                      "denominator": 6
+                    },
+                    "verse": "4:11",
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Residuary heir, who takes what is left",
+                      "condition": "There is no descendant",
+                      "blocked_by": null,
+                      "verse": "Quran 4:11 (An-Nisa)",
+                      "school_rule": null,
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "pgm",
+                    "relationship": "paternal_grandmother",
+                    "rule": "fixed",
+                    "condition": "no_mother",
+                    "blocked_by": null,
+                    "fraction": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "share": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "verse": null,
+                    "school_rule": "grandmother_inherits_with_her_son",
+                    "option": null,
+                    "labels": {
+                      "rule": "Fixed share",
+                      "condition": "There is no mother",
+                      "blocked_by": null,
+                      "verse": null,
+                      "school_rule": "Hanbali school: the paternal grandmother inherits although her son, the father, is alive",
+                      "option": null
+                    }
+                  },
+                  {
+                    "heir": "r2",
+                    "relationship": "brother",
+                    "rule": "blocked",
+                    "condition": null,
+                    "blocked_by": "father",
+                    "fraction": null,
+                    "share": {
+                      "numerator": 0,
+                      "denominator": 1
+                    },
+                    "verse": null,
+                    "school_rule": null,
+                    "option": null,
+                    "labels": {
+                      "rule": "Blocked from inheriting",
+                      "condition": null,
+                      "blocked_by": "Blocked by the father",
+                      "verse": null,
+                      "school_rule": null,
+                      "option": null
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "step": "base",
+                    "value": 6,
+                    "label": "The common base of the fixed shares"
+                  }
+                ],
+                "school_rule_labels": [
+                  "Hanbali school: the paternal grandmother inherits although her son, the father, is alive"
+                ]
+              }
+            }
+          ],
+          "final": [
+            {
+              "heir": "w",
+              "fraction": {
+                "numerator": 9,
+                "denominator": 16
+              }
+            },
+            {
+              "heir": "s2",
+              "fraction": {
+                "numerator": 3,
+                "denominator": 8
+              }
+            },
+            {
+              "heir": "pgm",
+              "fraction": {
+                "numerator": 1,
+                "denominator": 16
+              }
+            }
+          ],
+          "base": 16
+        },
+        "table": {
+          "layers": [
+            {
+              "order": 1,
+              "heir": null,
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 4,
+                    "label": "Shares"
+                  },
+                  {
+                    "code": "correction",
+                    "total": 8,
+                    "label": "Correction"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "w",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 4
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      },
+                      {
+                        "value": 2,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s1",
+                    "blocked": false,
+                    "group_span": 2,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 3,
+                        "span": 2
+                      },
+                      {
+                        "value": 3,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "s2",
+                    "blocked": false,
+                    "group_span": 0,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 3,
+                        "span": 0
+                      },
+                      {
+                        "value": 3,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": null,
+              "base": 8,
+              "gcd": null,
+              "old_multiplier": 1,
+              "new_multiplier": 1,
+              "relation": null,
+              "jamia": 8,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 2
+                },
+                {
+                  "heir": "s1",
+                  "value": 3
+                },
+                {
+                  "heir": "s2",
+                  "value": 3
+                },
+                {
+                  "heir": "pgm",
+                  "value": 0
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0,
+                0
+              ]
+            },
+            {
+              "order": 2,
+              "heir": "s1",
+              "table": {
+                "columns": [
+                  {
+                    "code": "base",
+                    "total": 6,
+                    "label": "Shares"
+                  }
+                ],
+                "rows": [
+                  {
+                    "heir": "pgm",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": {
+                      "numerator": 1,
+                      "denominator": 6
+                    },
+                    "cells": [
+                      {
+                        "value": 1,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r1",
+                    "blocked": false,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": 5,
+                        "span": 1
+                      }
+                    ]
+                  },
+                  {
+                    "heir": "r2",
+                    "blocked": true,
+                    "group_span": 1,
+                    "prescribed": null,
+                    "cells": [
+                      {
+                        "value": null,
+                        "span": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              "p": 3,
+              "base": 6,
+              "gcd": 3,
+              "old_multiplier": 2,
+              "new_multiplier": 1,
+              "relation": "tawafuq",
+              "jamia": 16,
+              "parts": [
+                {
+                  "heir": "w",
+                  "value": 9
+                },
+                {
+                  "heir": "s1",
+                  "value": 0
+                },
+                {
+                  "heir": "s2",
+                  "value": 6
+                },
+                {
+                  "heir": "pgm",
+                  "value": 1
+                }
+              ],
+              "unallocated": 0,
+              "unallocated_cells": [
+                0
+              ]
+            }
+          ],
+          "rows": [
+            {
+              "heir": "w"
+            },
+            {
+              "heir": "s1"
+            },
+            {
+              "heir": "s2"
+            },
+            {
+              "heir": "pgm"
+            }
+          ],
+          "unallocated": false
+        }
       },
       "display": {
         "rows": [

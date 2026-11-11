@@ -1,4 +1,4 @@
-import type { Preview, PreviewTable, TableColumnCode } from "../api/case.ts";
+import type { Preview, PreviewTable, LayeredTable, PreviewProofHeir } from "../api/case.ts";
 import { previewRows, type PreviewRow } from "./preview.ts";
 
 type AvailablePreview = Extract<Preview, { status: "available" }>;
@@ -7,15 +7,18 @@ type AvailablePreview = Extract<Preview, { status: "available" }>;
 export type Prescribed =
   | { kind: "fraction"; fraction: string }
   | { kind: "residuary" }
-  | { kind: "blocked" };
+  | { kind: "blocked" }
+  | { kind: "empty" };
 
 /** One cell of an engine column. `rowSpan` 0 means an earlier merged cell covers this row: render nothing. */
-export type ViewCell = { value: number | null; rowSpan: number };
+export type ViewCell = { value: number | null; rowSpan: number; members?: string[]; covered?: boolean };
 
 export type ViewRow = {
+  kind?: "unallocated";
   heirId: string;
   prescribed: Prescribed;
   prescribedSpan: number;
+  prescribedByLayer?: Prescribed[];
   /** One cell per engine column, in column order. */
   cells: ViewCell[];
   /** The percentage, kirat and amount of the share; all null for a heir with no share. */
@@ -24,16 +27,20 @@ export type ViewRow = {
   amount: string | null;
 };
 
-export type ViewColumn = { code: TableColumnCode; label: string; total: number };
+export type ViewColumn = { code: string; label: string; total: number };
 
 /** Header captions and totals, then the body rows in the engine's order. */
-export type TableView = { columns: ViewColumn[]; rows: ViewRow[] };
+export type TableView = { columns: ViewColumn[]; rows: ViewRow[];
+  groups?: { order: number; heir: string | null; count: number; p: number | null; old: number; next: number; relation: string | null }[];
+  notes?: Record<string, { order: number; proof: PreviewProofHeir }[]>;
+};
 
 /**
  * The view model of the scholars' table. Columns, totals and cells are the engine's own numbers;
  * only the percentage, kirat and amount come from the share, by the existing formatting.
  */
-export function tableView(table: PreviewTable, preview: AvailablePreview): TableView {
+export function tableView(table: PreviewTable | LayeredTable, preview: AvailablePreview): TableView {
+  if ("layers" in table) return layeredTableView(table, preview);
   const shares = new Map(previewRows(preview).rows.map((row) => [row.heirId, row] as const));
   return {
     columns: table.columns.map(({ code, label, total }) => ({ code, label, total })),
@@ -56,8 +63,64 @@ export function tableView(table: PreviewTable, preview: AvailablePreview): Table
   };
 }
 
-/** Whether a preview has the table to show; layered (successive-death) previews keep the old display. */
-export function hasTable(preview: AvailablePreview): preview is AvailablePreview & { table: PreviewTable } {
+/** Project server numbers into columns; no parts or bases are calculated in the browser. */
+function layeredTableView(table: LayeredTable, preview: AvailablePreview): TableView {
+  const shares = new Map(previewRows(preview).rows.map((r) => [r.heirId, r]));
+  const proof = preview.proof?.version === 2 ? preview.proof : null;
+  const people = new Map(proof?.people.map((p) => [p.row, p.person]));
+  const person = (id: string) => people.get(id) ?? id;
+  const columns: ViewColumn[] = [];
+  const groups: NonNullable<TableView["groups"]> = [];
+  const notes: NonNullable<TableView["notes"]> = Object.create(null);
+  for (const layer of table.layers) {
+    columns.push({ code: `${layer.order}:prescribed`, label: "prescribed", total: 0 });
+    columns.push(...layer.table.columns.map((c) => ({ ...c, code: `${layer.order}:${c.code}` })));
+    if (layer.order > 1) columns.push({ code: `${layer.order}:jamia`, label: "jamia", total: layer.jamia });
+    groups.push({ order: layer.order, heir: layer.heir, count: layer.table.columns.length + 1 + (layer.order > 1 ? 1 : 0), p: layer.p, old: layer.old_multiplier, next: layer.new_multiplier, relation: layer.relation });
+  }
+  for (const layer of proof?.layers ?? []) {
+    for (const entry of layer.proof.heirs) (notes[person(entry.heir)] ??= []).push({ order: layer.order, proof: entry });
+  }
+  const rows = [...table.rows.map((r) => ({ id: r.heir, kind: undefined })), ...(table.unallocated ? [{ id: "", kind: "unallocated" as const }] : [])].map(({ id, kind }): ViewRow => {
+    const cells: ViewCell[] = [];
+    const prescribedByLayer: Prescribed[] = [];
+    for (const layer of table.layers) {
+      const row = kind === "unallocated" ? undefined : layer.table.rows.find((r) => person(r.heir) === id);
+      prescribedByLayer.push(row ? row.blocked ? { kind: "blocked" } : row.prescribed ? { kind: "fraction", fraction: `${row.prescribed.numerator}/${row.prescribed.denominator}` } : { kind: "residuary" } : { kind: "empty" });
+      const prescribedPosition = row ? layer.table.rows.indexOf(row) : -1;
+      let prescribedOwner = prescribedPosition;
+      while (prescribedOwner > 0 && layer.table.rows[prescribedOwner].group_span === 0) prescribedOwner--;
+      const prescribedSpan = prescribedOwner < 0 ? 1 : layer.table.rows[prescribedOwner].group_span;
+      const prescribedMembers = layer.table.rows.slice(prescribedOwner, prescribedOwner + prescribedSpan).map((r) => person(r.heir));
+      const prescribedPositions = prescribedMembers.map((member) => table.rows.findIndex((r) => r.heir === member));
+      const prescribedContiguous = prescribedPositions.every((p, i) => i === 0 || p === prescribedPositions[i - 1] + 1);
+      cells.push({ value: null, rowSpan: prescribedContiguous ? prescribedOwner === prescribedPosition ? prescribedSpan : 0 : 1,
+        members: !prescribedContiguous && prescribedSpan > 1 ? prescribedMembers : undefined, covered: !prescribedContiguous && prescribedOwner !== prescribedPosition });
+      // A group may cease to be consecutive across deaths. Keep its total intact and name
+      // its members in that case; otherwise use the original merged cell.
+      for (let c = 0; c < layer.table.columns.length; c++) {
+        if (!row) { cells.push({ value: kind === "unallocated" ? layer.unallocated_cells[c] : null, rowSpan: 1 }); continue; }
+        const position = layer.table.rows.indexOf(row);
+        let owner = position;
+        while (owner > 0 && layer.table.rows[owner].cells[c].span === 0) owner--;
+        const cell = layer.table.rows[owner].cells[c];
+        const members = layer.table.rows.slice(owner, owner + cell.span).map((r) => person(r.heir));
+        const positions = members.map((member) => table.rows.findIndex((r) => r.heir === member));
+        const contiguous = positions.every((p, i) => i === 0 || p === positions[i - 1] + 1);
+        cells.push(contiguous
+          ? { value: cell.value, rowSpan: owner === position ? cell.span : 0 }
+          : { value: cell.value, rowSpan: 1, members: cell.span > 1 ? members : undefined, covered: owner !== position });
+      }
+      if (layer.order > 1) cells.push({ value: kind === "unallocated" ? layer.unallocated : layer.parts.find((p) => p.heir === id)?.value ?? 0, rowSpan: 1 });
+    }
+    const share = kind === "unallocated" ? undefined : shares.get(id);
+    return { kind, heirId: id, prescribed: { kind: "empty" }, prescribedSpan: 0, prescribedByLayer, cells, percent: share?.percent ?? null, kirat: share?.kirat ?? null, amount: share?.amount ?? null };
+  });
+  return { columns, rows, groups, notes };
+}
+
+/** Whether the server produced a consistent table to show. */
+export function hasTable(preview: AvailablePreview): preview is AvailablePreview & { table: PreviewTable | LayeredTable } {
   return preview.table !== null;
 }
 
@@ -65,9 +128,9 @@ export function hasTable(preview: AvailablePreview): preview is AvailablePreview
 export function bodyCells(
   row: ViewRow,
   columns: readonly ViewColumn[],
-): { code: TableColumnCode; value: number | null; rowSpan: number }[] {
+): (ViewCell & { code: string })[] {
   return row.cells.flatMap((cell, index) =>
-    cell.rowSpan === 0 ? [] : [{ code: columns[index].code, value: cell.value, rowSpan: cell.rowSpan }],
+    cell.rowSpan === 0 ? [] : [{ ...cell, code: columns[index].code }],
   );
 }
 

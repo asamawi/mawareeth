@@ -1304,7 +1304,8 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                 if case.get('deaths'):
                     live = self.start()
                     self.plant(**{k: v for k, v in case.items() if k not in ('id', 'started_at')})
-                    self.assertEqual(self.preview(live['id']).json(), fixture['response'])
+                    self.assertEqual(self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json(),
+                                     fixture['response'])
                     continue
                 live = self.build(
                     case['madhab'], case['deceased']['gender'], case['deceased']['estate'],
@@ -1361,7 +1362,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
             with self.subTest(fixture['title']), translation.override('en'):
                 self.assertEqual(preview.preview(fixture['case']), fixture['response'])
 
-    def test_table_labels_follow_the_language_and_layered_cases_have_none(self):
+    def test_table_labels_follow_the_language_and_layered_cases_have_tables(self):
         from django.utils import translation
         from api import preview
         fixture = next(f for f in PREVIEW_FIXTURES if f['title'] == 'Husband and two sisters need awl')
@@ -1370,7 +1371,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         self.assertEqual(labels, ['Parts', 'Excès'])
         layered = next(f for f in PREVIEW_FIXTURES
                        if f['response']['status'] == 'available' and f['case'].get('deaths'))
-        self.assertIsNone(layered['response']['table'])
+        self.assertIsNotNone(layered['response']['table'])
 
     def test_the_asked_language_wins_over_a_language_cookie(self):
         from django.conf import settings
@@ -1395,7 +1396,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         english = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()['table']['columns']
         self.assertEqual(english[1]['label'], 'Remainder')
 
-    def test_every_available_fixture_carries_a_version_one_proof(self):
+    def test_every_available_fixture_carries_its_versioned_proof(self):
         for fixture in PREVIEW_FIXTURES:
             response = fixture['response']
             with self.subTest(fixture['title']):
@@ -1404,7 +1405,9 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                     continue
                 proof = response['proof']
                 if fixture['case'].get('deaths'):
-                    self.assertIsNone(proof)
+                    self.assertEqual(proof['version'], 2)
+                    self.assertEqual([l['heir'] for l in proof['layers']],
+                                     [None] + [d['heir_id'] for d in fixture['case']['deaths']])
                     continue
                 self.assertEqual(proof['version'], 1)
                 self.assertEqual(proof['madhab'], response['madhab'])
@@ -2983,3 +2986,46 @@ class AutomaticRelativesTests(InterviewDeathsHelpers, InterviewHelpers, Transact
         with self.subTest('female no'):
             self.assertEqual(run('female', female, 'S1', 'no'),
                              (set(), {'H': {'father', 'none'}, 'S2': {'brother', 'maternal_brother', 'none'}}))
+
+
+class LayeredPreviewTableTests(TestCase):
+    def test_all_layered_fixtures_have_exact_parts_and_session_ids(self):
+        from fractions import Fraction
+        from django.utils import translation
+        from api.preview import preview
+        for fixture in PREVIEW_FIXTURES:
+            if not fixture['case'].get('deaths'):
+                continue
+            with self.subTest(fixture=fixture['title']), translation.override('en'):
+                response = preview(fixture['case'])
+                if response['status'] != 'available':
+                    continue
+                self.assertEqual(response['proof']['version'], 2)
+                table = response['table']
+                self.assertIsNotNone(table)
+                last = table['layers'][-1]
+                final = {r['heir_id']: Fraction(r['numerator'], r['denominator']) for r in response['shares']}
+                for part in last['parts']:
+                    self.assertIsInstance(part['heir'], str)
+                    self.assertEqual(Fraction(part['value'], last['jamia']), final.get(part['heir'], 0))
+                self.assertEqual(Fraction(last['unallocated'], last['jamia']), 1 - sum(final.values()))
+                for layer in response['proof']['layers']:
+                    self.assertEqual(layer['heir'], None if layer['order'] == 1 else next(d['heir_id'] for d in fixture['case']['deaths'] if d['order'] == layer['order']))
+                    self.assertEqual(layer['deceased'], layer['heir'])
+                    self.assertTrue(all(isinstance(e['heir'], str) for e in layer['proof']['heirs']))
+
+    def test_layer_labels_follow_request_language_and_mismatch_keeps_cards(self):
+        from unittest.mock import patch
+        from django.utils import translation
+        from api.preview import preview
+        fixture = next(f for f in PREVIEW_FIXTURES if f['title'] == 'Layered two under hanafi')
+        for language, caption in [('ar', '\u0627\u0644\u0633\u0647\u0627\u0645'), ('en', 'Shares'), ('fr', 'Parts')]:
+            with translation.override(language):
+                response = preview(fixture['case'])
+                self.assertEqual(response['table']['layers'][0]['table']['columns'][0]['label'], caption)
+                self.assertTrue(all(e['labels']['rule'] for l in response['proof']['layers'] for e in l['proof']['heirs']))
+        with patch('calc.proof.build_layered_table', return_value=None):
+            response = preview(fixture['case'])
+        self.assertIsNone(response['table'])
+        self.assertEqual(response['proof']['version'], 2)
+        self.assertEqual(response['shares'], fixture['response']['shares'])

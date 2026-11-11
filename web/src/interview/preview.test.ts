@@ -66,14 +66,14 @@ test("every fixture response parses strictly and displays as the fixture says", 
   }
 });
 
-test("every available single-layer fixture carries a version 1 proof; layered proofs are null", () => {
+test("every available fixture carries the proof version for its death count", () => {
   const available = fixtures.filter((fixture) => (fixture.response as Preview).status === "available");
   assert.ok(available.length >= 10);
   for (const fixture of available) {
     const preview = parsePreview(fixture.response) as Extract<Preview, { status: "available" }>;
     assert.ok(preview, fixture.title);
     if (preview.basis.deaths) {
-      assert.equal(preview.proof, null, fixture.title);
+      assert.equal(preview.proof?.version, 2, fixture.title);
       continue;
     }
     assert.ok(preview.proof, fixture.title);
@@ -87,7 +87,7 @@ test("every available single-layer fixture carries a version 1 proof; layered pr
   assert.equal(available.filter((fixture) => (fixture.response as Exclude<Preview, { status: "not_ready" }>).basis.deaths).length, 12);
   const hanafi = fixtures.find((fixture) => fixture.title === "Grandfather and brother under Hanafi");
   const proof = (parsePreview(hanafi?.response) as Extract<Preview, { status: "available" }>).proof;
-  assert.ok(proof);
+  assert.ok(proof?.version === 1);
   assert.deepEqual(proof.school_rules, ["grandfather_blocks_siblings"]);
   assert.equal(proof.heirs.find((heir) => heir.rule === "blocked")?.blocked_by, "grandfather");
 });

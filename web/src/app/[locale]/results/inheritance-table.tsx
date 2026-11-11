@@ -71,8 +71,13 @@ function localWhole(value: number, locale: string): string {
   return new Intl.NumberFormat(locale, { useGrouping: false }).format(value);
 }
 
+function DeathTitle({ text, order, locale }: { text: string; order: number; locale: string }) {
+  const [before, after] = text.split("{n}");
+  return <>{before}<bdi dir="ltr">{localWhole(order, locale)}</bdi>{after}</>;
+}
+
 /**
- * The scholars' table of a single-death case, the same on the results page and in the interview
+ * The scholars' table of single or successive deaths, shared by results and the interview
  * preview. Every number in it is the engine's own; a merged cell is the group's total. A heir's
  * explanation is a side note: hover or keyboard focus previews it, click or Enter pins it, and
  * Escape closes it. The side note sits beside the table from `md` up and below it on narrow
@@ -101,7 +106,7 @@ export function InheritanceTable({
   const t = text.table;
   const [raw, dispatch] = useReducer(noteReducer, NO_NOTE);
   const noteId = useId();
-  const ids = new Set(view.rows.map((row) => row.heirId));
+  const ids = new Set(view.rows.filter((row) => row.kind !== "unallocated").map((row) => row.heirId));
   // a heir that is no longer in the table is forgotten
   const state = pruneNote(raw, ids);
   const open = visibleNote(state);
@@ -141,27 +146,33 @@ export function InheritanceTable({
     return (
       <div className="flex flex-col gap-2">
         <strong>{t.noteTitle.split("{heir}").join(label)}</strong>
-        {proof ? <ProofList text={text} proof={proof} locale={locale} /> : null}
+        {view.notes ? (view.notes[id] ?? []).map((entry) => (
+          <section key={entry.order} className="flex flex-col gap-2">
+            <h3><DeathTitle text={t.death} order={entry.order} locale={locale} /></h3>
+            <ProofList text={text} proof={entry.proof} locale={locale} />
+          </section>
+        )) : proof ? <ProofList text={text} proof={proof} locale={locale} /> : null}
       </div>
     );
   };
 
   const renderRow = (row: ViewRow) => {
     const id = row.heirId;
-    const label = labels[id] ?? id;
-    const active = open === id;
-    const proof = proofs[id];
+    const label = row.kind === "unallocated" ? t.unallocated : labels[id] ?? id;
+    const active = row.kind !== "unallocated" && open === id;
+    const proof = row.kind === "unallocated" ? undefined : proofs[id] ?? view.notes?.[id]?.[0]?.proof;
     return (
       <tr
-        key={id}
+        key={JSON.stringify([row.kind ?? "person", id])}
         ref={(element) => {
+          if (row.kind === "unallocated") return;
           if (element) rowsRef.current.set(id, element);
           else rowsRef.current.delete(id);
         }}
         data-active={active ? "" : undefined}
         className={active ? "bg-current/10" : undefined}
-        onMouseEnter={() => dispatch({ type: "hover", id })}
-        onMouseLeave={() => dispatch({ type: "unhover", id })}
+        onMouseEnter={row.kind === "unallocated" ? undefined : () => dispatch({ type: "hover", id })}
+        onMouseLeave={row.kind === "unallocated" ? undefined : () => dispatch({ type: "unhover", id })}
       >
           <th scope="row" className={cellClass}>
             {proof ? (
@@ -181,8 +192,8 @@ export function InheritanceTable({
               <bdi>{label}</bdi>
             )}
           </th>
-          <td className={cellClass}>{relationships[relations[id] ?? ""] ?? ""}</td>
-          {row.prescribedSpan > 0 && (
+          <td className={cellClass}>{relationships[relations[id] ?? view.notes?.[id]?.[0]?.proof.relationship ?? ""] ?? ""}</td>
+          {!view.groups && row.prescribedSpan > 0 && (
             <td className={cellClass} rowSpan={row.prescribedSpan}>
               {row.prescribed.kind === "fraction" ? (
                 <bdi dir="ltr">{localFraction(row.prescribed.fraction, locale)}</bdi>
@@ -195,7 +206,13 @@ export function InheritanceTable({
           )}
           {bodyCells(row, view.columns).map((cell) => (
             <td key={cell.code} rowSpan={cell.rowSpan} className={cellClass}>
-              {cell.value === null ? null : <bdi dir="ltr">{localWhole(cell.value, locale)}</bdi>}
+              {cell.covered ? <span className="sr-only">{cell.members?.map((id) => labels[id] ?? id).join(", ")}</span> : cell.code.endsWith(":prescribed") ? (() => {
+                const prescribed = row.prescribedByLayer?.[view.groups!.findIndex((g) => cell.code.startsWith(`${g.order}:`))];
+                return <>{prescribed?.kind === "fraction" ? <bdi dir="ltr">{localFraction(prescribed.fraction, locale)}</bdi> : prescribed?.kind === "blocked" ? t.blocked : prescribed?.kind === "residuary" ? t.residuary : null}{cell.members && <small className="block">{cell.members.map((id) => labels[id] ?? id).join(", ")}</small>}</>;
+              })() : cell.value === null ? null : <>
+                <bdi dir="ltr">{localWhole(cell.value, locale)}</bdi>
+                {cell.members && <small className="block">{cell.members.map((id) => labels[id] ?? id).join(", ")}</small>}
+              </>}
             </td>
           ))}
           {withPercent && (
@@ -227,12 +244,23 @@ export function InheritanceTable({
           <table className="w-full min-w-max border-collapse text-sm">
             <caption className="sr-only">{t.caption}</caption>
             <thead>
+              {view.groups && <tr>
+                <th colSpan={2} className={headClass}>{t.caption}</th>
+                {view.groups.map((group) => <th key={group.order} colSpan={group.count} scope="colgroup" className={headClass}>
+                  <span><DeathTitle text={t.death} order={group.order} locale={locale} /></span>
+                  {group.heir && <bdi> {"\u00b7"} {labels[group.heir] ?? group.heir}</bdi>}
+                  {group.p !== null && <div className="font-normal">
+                    {t.deceasedShare}: <bdi dir="ltr">{localWhole(group.p, locale)}</bdi> {"\u00b7"} {t.multiplier}: <bdi dir="ltr">{"\u00d7"}{localWhole(group.old, locale)} / {"\u00d7"}{localWhole(group.next, locale)}</bdi> {"\u00b7"} {group.relation === "no_share" ? t.noShare : t[group.relation as "tamathul" | "tawafuq" | "tabayun"]}
+                  </div>}
+                </th>)}
+                <th colSpan={(withPercent ? 1 : 0) + 1 + (withAmount ? 1 : 0)} className={headClass} />
+              </tr>}
               <tr>
                 <th scope="col" rowSpan={2} className={headClass}>{t.name}</th>
                 <th scope="col" rowSpan={2} className={headClass}>{t.relation}</th>
-                <th scope="col" rowSpan={2} className={headClass}>{t.prescribed}</th>
+                {!view.groups && <th scope="col" rowSpan={2} className={headClass}>{t.prescribed}</th>}
                 {view.columns.map((column) => (
-                  <th key={column.code} scope="col" className={headClass}>{column.label}</th>
+                  <th key={column.code} scope="col" className={headClass}>{column.label === "prescribed" ? t.prescribed : column.label === "jamia" ? t.jamia : column.label}</th>
                 ))}
                 {withPercent && <th scope="col" rowSpan={2} className={headClass}>{t.percent}</th>}
                 <th scope="col" rowSpan={2} className={headClass}>{t.kirat}</th>
@@ -242,7 +270,7 @@ export function InheritanceTable({
                 {view.columns.map((column) => (
                   <td key={column.code} className={headClass}>
                     <span className="sr-only">{t.total}: </span>
-                    <bdi dir="ltr">{localWhole(column.total, locale)}</bdi>
+                    <bdi dir="ltr">{column.total > 0 ? localWhole(column.total, locale) : ""}</bdi>
                   </td>
                 ))}
               </tr>

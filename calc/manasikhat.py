@@ -40,7 +40,7 @@ def compute_manasikhat(calc, madhab):
                 or by_calc[root.pk].death_order != 1):
             refuse()
         layers.sort(key=lambda layer: by_calc[layer.pk].death_order)
-        rows = list(Heir.objects.non_polymorphic().select_for_update().filter(calc_id__in=seen))
+        rows = list(Heir.objects.non_polymorphic().select_for_update().filter(calc_id__in=seen).order_by('pk'))
         by_pk = {row.pk: row for row in rows}
         identities = {}
 
@@ -92,6 +92,7 @@ def compute_manasikhat(calc, madhab):
             refuse()
         totals = {}
         entries = []
+        tables = []
         for layer in layers:
             death = by_calc[layer.pk]
             estate = Fraction(1) if death.death_order == 1 else totals.pop(identity(by_pk[death.heir_id]), Fraction(0))
@@ -103,8 +104,10 @@ def compute_manasikhat(calc, madhab):
             for pk, share in shares.items():
                 person = identities[pk]
                 totals[person] = totals.get(person, Fraction(0)) + estate * share
+            tables.append(layer.table)
             entries.append({'order': death.death_order, 'deceased': death.pk,
                             'heir': None if death.death_order == 1 else identity(by_pk[death.heir_id]),
                             'estate': estate, 'proof': layer.proof})
         final = dict(sorted(totals.items()))
+        calc.table = proof.build_layered_table(entries, tables, final, identities)
         return final, proof.build_layered(madhab, entries, final, identities)

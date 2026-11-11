@@ -671,6 +671,22 @@ export type PreviewProof = {
   steps: PreviewProofStep[];
 };
 
+export type LayeredProof = {
+  version: 2; madhab: MadhabId;
+  people: { row: string; person: string }[];
+  layers: { order: number; deceased: string | null; heir: string | null; estate: FractionBody; proof: PreviewProof }[];
+  final: { heir: string; fraction: FractionBody }[];
+  base: number;
+};
+export type LayeredTable = {
+  layers: { order: number; heir: string | null; table: PreviewTable; p: number | null; base: number;
+    gcd: number | null; old_multiplier: number; new_multiplier: number;
+    relation: "tamathul" | "tawafuq" | "tabayun" | "no_share" | null;
+    jamia: number; unallocated_cells: number[]; parts: { heir: string; value: number }[]; unallocated: number }[];
+  rows: { heir: string }[];
+  unallocated: boolean;
+};
+
 export const TABLE_COLUMNS = ["base", "awl", "radd", "remainder", "radd_calc", "radd_union", "correction"] as const;
 export type TableColumnCode = (typeof TABLE_COLUMNS)[number];
 
@@ -712,10 +728,10 @@ export type Preview =
       shares: PreviewShare[];
       /** The part of the estate no heir takes, for a spouse alone; otherwise null. */
       unallocated: FractionBody | null;
-      /** Layered previews have no v1 proof. */
-      proof: PreviewProof | null;
-      /** Layered previews have no table. */
-      table: PreviewTable | null;
+      /** The labelled v1 proof for one death or v2 proof for successive deaths. */
+      proof: PreviewProof | LayeredProof | null;
+      /** A server table; null only when a successive-death table failed its consistency check. */
+      table: PreviewTable | LayeredTable | null;
     };
 
 export type PreviewResult =
@@ -1012,6 +1028,167 @@ function parseTable(value: unknown, shares: readonly PreviewShare[], proof: Prev
   return { columns: parsedColumns, rows: parsedRows };
 }
 
+function exact(value: unknown, keys: string[]): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && hasExactKeys(value, keys);
+}
+function sameFraction(a: FractionBody, b: FractionBody): boolean {
+  return BigInt(a.numerator) * BigInt(b.denominator) === BigInt(b.numerator) * BigInt(a.denominator);
+}
+
+function gcd(a: bigint, b: bigint): bigint {
+  return b === BigInt(0) ? a : gcd(b, a % b);
+}
+
+export function parseLayeredProof(value: unknown, basis: PreviewBasis, shares: PreviewShare[]): LayeredProof | null {
+  if (!exact(value, ["version", "madhab", "people", "layers", "final", "base"]) || value.version !== 2 || value.madhab !== basis.madhab) return null;
+  if (!Array.isArray(value.people) || !Array.isArray(value.layers) || !Array.isArray(value.final) || !isWhole(value.base) || value.base < 1) return null;
+  const deaths = basis.deaths;
+  if (!deaths || value.layers.length !== deaths.length + 1) return null;
+  const identity = new Map<string, string>();
+  const expected: { row: string; person: string }[] = [];
+  for (const rows of [basis.heirs, ...deaths.map((d) => d.heirs)]) {
+    for (const row of rows) {
+      if (identity.has(row.id)) return null;
+      const link = "same_as" in row && typeof row.same_as === "string" ? row.same_as : undefined;
+      const person = link ? identity.get(link) : row.id;
+      if (!person) return null;
+      identity.set(row.id, person);
+      if (person !== row.id) expected.push({ row: row.id, person });
+    }
+  }
+  if (value.people.length !== expected.length || !value.people.every((p) => exact(p, ["row", "person"]) && expected.some((e) => e.row === p.row && e.person === p.person)) || new Set(value.people.map((p) => p.row)).size !== expected.length) return null;
+  const layers: LayeredProof["layers"] = [];
+  for (const [index, layer] of value.layers.entries()) {
+    if (!exact(layer, ["order", "deceased", "heir", "estate", "proof"]) || layer.order !== index + 1) return null;
+    const heir = index === 0 ? null : deaths[index - 1].heir_id;
+    if (layer.heir !== heir || layer.deceased !== heir) return null;
+    const estate = parseFraction(layer.estate);
+    if (!estate || !exact(layer.estate, ["numerator", "denominator"])) return null;
+    const rows = index === 0 ? basis.heirs : deaths[index - 1].heirs;
+    if (!exact(layer.proof, PROOF_KEYS) || !Array.isArray(layer.proof.heirs)) return null;
+    const entries = layer.proof.heirs.map(parseProofHeir);
+    if (entries.some((e) => !e) || entries.length !== rows.length) return null;
+    const localShares: PreviewShare[] = [];
+    for (const row of rows) {
+      const entry = entries.find((e) => e?.heir === row.id);
+      if (!entry || entry.relationship !== row.relationship) return null;
+      localShares.push({ heir_id: row.id, ...entry.share, blocked: entry.share.numerator === 0, amount: null });
+    }
+    const proof = parseProof(layer.proof, basis.madhab, localShares);
+    if (!proof) return null;
+    if (new Set(rows.map((r) => identity.get(r.id))).size !== rows.length) return null;
+    for (const entry of layer.proof.heirs) {
+      if (!exact(entry.share, ["numerator", "denominator"]) || (entry.fraction !== null && !exact(entry.fraction, ["numerator", "denominator"]))) return null;
+    }
+    for (const step of proof.steps) {
+      if (typeof step.value === "object" && !exact(step.value, ["numerator", "denominator"])) return null;
+    }
+    layers.push({ order: index + 1, deceased: heir, heir, estate, proof });
+  }
+  // Verify the v2 proof even when a table was deliberately suppressed by the server.
+  type Ratio = { top: bigint; bottom: bigint };
+  const running = new Map<string, Ratio>();
+  const dead = new Set<string>();
+  for (const layer of layers) {
+    const person = layer.heir === null ? null : identity.get(layer.heir);
+    if (person === undefined || (person !== null && dead.has(person))) return null;
+    const estate = person === null ? { top: BigInt(1), bottom: BigInt(1) } : running.get(person) ?? { top: BigInt(0), bottom: BigInt(1) };
+    if (estate.top * BigInt(layer.estate.denominator) !== BigInt(layer.estate.numerator) * estate.bottom) return null;
+    if (person !== null) { running.delete(person); dead.add(person); }
+    for (const entry of layer.proof.heirs) {
+      const id = identity.get(entry.heir)!;
+      if (dead.has(id)) return null;
+      const previous = running.get(id) ?? { top: BigInt(0), bottom: BigInt(1) };
+      const top = estate.top * BigInt(entry.share.numerator);
+      const bottom = estate.bottom * BigInt(entry.share.denominator);
+      running.set(id, { top: previous.top * bottom + top * previous.bottom, bottom: previous.bottom * bottom });
+    }
+  }
+  if (value.final.length !== shares.length || running.size !== shares.length) return null;
+  for (const share of shares) {
+    const computed = running.get(share.heir_id);
+    if (!computed || computed.top * BigInt(share.denominator) !== BigInt(share.numerator) * computed.bottom) return null;
+  }
+  const final: LayeredProof["final"] = [];
+  for (const entry of value.final) {
+    if (!exact(entry, ["heir", "fraction"]) || !isCode(entry.heir) || identity.get(entry.heir) !== entry.heir || final.some((e) => e.heir === entry.heir)) return null;
+    const fraction = parseFraction(entry.fraction);
+    const share = shares.find((s) => s.heir_id === entry.heir);
+    if (!fraction || !exact(entry.fraction, ["numerator", "denominator"]) || !share || !sameFraction(fraction, share) || BigInt(fraction.numerator) * BigInt(value.base) % BigInt(fraction.denominator) !== BigInt(0)) return null;
+    final.push({ heir: entry.heir, fraction });
+  }
+  let base = BigInt(1);
+  for (const entry of final) {
+    const denominator = BigInt(entry.fraction.denominator) / gcd(BigInt(entry.fraction.numerator), BigInt(entry.fraction.denominator));
+    base = base / gcd(base, denominator) * denominator;
+  }
+  if (base !== BigInt(value.base)) return null;
+  return { version: 2, madhab: basis.madhab, people: expected, layers, final, base: value.base };
+}
+
+export function parseLayeredTable(value: unknown, proof: LayeredProof, shares: PreviewShare[], remainder: FractionBody | null, basis: PreviewBasis): LayeredTable | null {
+  if (!exact(value, ["layers", "rows", "unallocated"]) || !Array.isArray(value.layers) || !Array.isArray(value.rows) || typeof value.unallocated !== "boolean" || value.layers.length !== proof.layers.length) return null;
+  const identities = new Map(proof.people.map((p) => [p.row, p.person]));
+  const people = [...new Set([...basis.heirs, ...(basis.deaths ?? []).flatMap((d) => d.heirs)].map((r) => identities.get(r.id) ?? r.id))];
+  if (value.rows.length !== people.length || !value.rows.every((r, i) => exact(r, ["heir"]) && r.heir === people[i]) || new Set(value.rows.map((r) => r.heir)).size !== people.length) return null;
+  const layers: LayeredTable["layers"] = [];
+  for (const [index, layer] of value.layers.entries()) {
+    if (!exact(layer, ["order", "heir", "table", "p", "base", "gcd", "old_multiplier", "new_multiplier", "relation", "jamia", "parts", "unallocated", "unallocated_cells"])) return null;
+    const source = proof.layers[index];
+    if (layer.order !== source.order || layer.heir !== source.heir || !Array.isArray(layer.parts)) return null;
+    if (![layer.base, layer.old_multiplier, layer.new_multiplier, layer.jamia, layer.unallocated].every(isWhole) || !layer.base || !layer.jamia) return null;
+    const table = parseTable(layer.table, source.proof.heirs.map((h) => ({ heir_id: h.heir, ...h.share, blocked: h.share.numerator === 0, amount: null })), source.proof);
+    if (!table || layer.base !== table.columns.at(-1)?.total) return null;
+    for (const column of table.columns) {
+      if (["base", "awl", "correction"].includes(column.code) && source.proof.steps.find((step) => step.step === column.code)?.value !== column.total) return null;
+    }
+    if (!Array.isArray(layer.unallocated_cells) || layer.unallocated_cells.length !== table.columns.length || !layer.unallocated_cells.every(isWhole)) return null;
+    for (const [c, column] of table.columns.entries()) {
+      const allocated = table.rows.reduce((sum, row) => row.cells[c].span > 0 ? sum + BigInt(row.cells[c].value ?? 0) : sum, BigInt(0));
+      const left = BigInt(column.total) - allocated;
+      if (BigInt(layer.unallocated_cells[c]) !== (left > BigInt(0) ? left : BigInt(0))) return null;
+    }
+    if (index === 0) {
+      if (layer.p !== null || layer.gcd !== null || layer.relation !== null || layer.jamia !== layer.base || layer.old_multiplier !== 1 || layer.new_multiplier !== 1) return null;
+    } else {
+      if (!isWhole(layer.p) || !isWhole(layer.gcd) || layer.gcd < 1 || !["tamathul", "tawafuq", "tabayun", "no_share"].includes(layer.relation as string)) return null;
+      const previous = layers[index - 1];
+      const person = identities.get(source.heir!) ?? source.heir;
+      if (layer.p !== previous.parts.find((p) => p.heir === person)?.value || !sameFraction(source.estate, { numerator: layer.p, denominator: previous.jamia })) return null;
+      const g = gcd(BigInt(layer.p), BigInt(layer.base as number));
+      if (BigInt(layer.gcd) !== g) return null;
+      const relation = layer.p === 0 ? "no_share" : layer.p % (layer.base as number) === 0 ? "tamathul" : g > BigInt(1) ? "tawafuq" : "tabayun";
+      if (layer.relation !== relation || BigInt(layer.old_multiplier as number) !== (layer.p === 0 ? BigInt(1) : BigInt(layer.base as number) / g) || BigInt(layer.new_multiplier as number) !== BigInt(layer.p) / g || BigInt(layer.jamia as number) !== BigInt(previous.jamia) * BigInt(layer.old_multiplier as number)) return null;
+    }
+    if (layer.parts.length !== people.length) return null;
+    const parts: { heir: string; value: number }[] = [];
+    for (const part of layer.parts) {
+      if (!exact(part, ["heir", "value"]) || !isCode(part.heir) || !people.includes(part.heir) || !isWhole(part.value) || parts.some((p) => p.heir === part.heir)) return null;
+      parts.push({ heir: part.heir, value: part.value });
+    }
+    const previous = layers[index - 1];
+    const deceased = source.heir === null ? null : identities.get(source.heir) ?? source.heir;
+    for (const part of parts) {
+      const old = index === 0 || part.heir === deceased ? 0 : previous.parts.find((p) => p.heir === part.heir)!.value;
+      const entries = source.proof.heirs.filter((h) => (identities.get(h.heir) ?? h.heir) === part.heir);
+      const local = entries[0]?.share ?? { numerator: 0, denominator: 1 };
+      const numerator = BigInt(local.numerator) * BigInt(layer.base as number);
+      if (numerator % BigInt(local.denominator) !== BigInt(0) || BigInt(part.value) !== BigInt(old) * BigInt(layer.old_multiplier as number) + numerator / BigInt(local.denominator) * BigInt(layer.new_multiplier as number)) return null;
+    }
+    const localLeft = layer.unallocated_cells.at(-1)!;
+    if (BigInt(layer.unallocated as number) !== BigInt(previous?.unallocated ?? 0) * BigInt(layer.old_multiplier as number) + BigInt(localLeft) * BigInt(layer.new_multiplier as number)) return null;
+    if (parts.reduce((sum, p) => sum + BigInt(p.value), BigInt(layer.unallocated as number)) !== BigInt(layer.jamia as number)) return null;
+    layers.push({ ...layer, table, parts } as LayeredTable["layers"][number]);
+  }
+  const last = layers.at(-1)!;
+  for (const person of people) {
+    const share = shares.find((s) => s.heir_id === person) ?? { numerator: 0, denominator: 1 };
+    if (!sameFraction({ numerator: last.parts.find((p) => p.heir === person)!.value, denominator: last.jamia }, share)) return null;
+  }
+  if (!sameFraction({ numerator: last.unallocated, denominator: last.jamia }, remainder ?? { numerator: 0, denominator: 1 }) || value.unallocated !== layers.some((l) => l.unallocated > 0)) return null;
+  return { layers, rows: value.rows as { heir: string }[], unallocated: value.unallocated };
+}
+
 /** Strict: anything that is not exactly the documented shape is rejected, never repaired. */
 export function parsePreview(body: unknown): Preview | null {
   if (typeof body !== "object" || body === null) return null;
@@ -1019,14 +1196,13 @@ export function parsePreview(body: unknown): Preview | null {
   if (value.status === "not_ready") return { status: "not_ready" };
   if (!isMadhabId(value.madhab)) return null;
   const basis = parseBasis(value.basis);
-  if (!basis) return null;
+  if (!basis || (basis.deaths && basis.madhab !== value.madhab)) return null;
   if (value.status === "unavailable") {
     return typeof value.reason === "string" && value.reason !== ""
       ? { status: "unavailable", madhab: value.madhab, reason: value.reason, basis }
       : null;
   }
   if (value.status !== "available" || !Array.isArray(value.shares)) return null;
-  if (basis.deaths && (value.proof !== null || value.table !== null)) return null;
   const rowIds = new Set([...basis.heirs, ...(basis.deaths ?? []).flatMap((death) => death.heirs)].map((row) => row.id));
   const seen = new Set<string>();
   const shares: PreviewShare[] = [];
@@ -1045,12 +1221,20 @@ export function parsePreview(body: unknown): Preview | null {
     unallocated = parseFraction(value.unallocated);
     if (!unallocated) return null;
   }
-  const proof = value.proof === null && basis.deaths
-    ? null
-    : parseProof(value.proof, value.madhab, shares);
-  if (proof === null && !(value.proof === null && basis.deaths)) return null;
-  const table = basis.deaths ? null : parseTable(value.table, shares, proof);
-  if (table === null && !basis.deaths) return null;
+  const proof = basis.deaths ? parseLayeredProof(value.proof, basis, shares) : parseProof(value.proof, value.madhab, shares);
+  if (!proof) return null;
+  const table = proof.version === 2
+    ? value.table === null ? null : parseLayeredTable(value.table, proof, shares, unallocated, basis)
+    : parseTable(value.table, shares, proof);
+  if (table === null && !(basis.deaths && value.table === null)) return null;
+  if (basis.deaths) {
+    let top = BigInt(0), bottom = BigInt(1);
+    for (const fraction of [...shares, unallocated ?? { numerator: 0, denominator: 1 }]) {
+      top = top * BigInt(fraction.denominator) + BigInt(fraction.numerator) * bottom;
+      bottom *= BigInt(fraction.denominator);
+    }
+    if (top !== bottom) return null;
+  }
   return { status: "available", madhab: value.madhab, basis, shares, unallocated, proof, table };
 }
 

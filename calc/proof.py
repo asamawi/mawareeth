@@ -276,3 +276,86 @@ def build_layered(madhab, layers, final, identities):
                   for pk, share in sorted(final.items())],
         'base': lcm(*(share.denominator for share in final.values())),
     }
+
+
+def build_layered_table(layers, tables, final, identities):
+    """Combine layer parts without reducing the jami'a; fail closed on any disagreement."""
+    import logging
+    from math import gcd
+
+    try:
+        if len(layers) != len(tables) or any(table is None for table in tables):
+            raise ValueError('Missing layer table')
+        people = list(dict.fromkeys(identities[row] for row in identities))
+        running, unallocated, jamia = {}, 0, 1
+        combined = []
+        for index, (layer, table) in enumerate(zip(layers, tables)):
+            columns, rows = table['columns'], table['rows']
+            if not columns or any(len(row['cells']) != len(columns) for row in rows):
+                raise ValueError('Invalid layer table dimensions')
+            for c in range(len(columns)):
+                owner = 0
+                while owner < len(rows):
+                    span = rows[owner]['cells'][c]['span']
+                    if not isinstance(span, int) or span < 1 or owner + span > len(rows):
+                        raise ValueError('Invalid layer cell span')
+                    if any(rows[r]['cells'][c]['span'] != 0 for r in range(owner + 1, owner + span)):
+                        raise ValueError('Invalid covered layer cell')
+                    owner += span
+            base = columns[-1]['total']
+            parts = {}
+            rows = table['rows']
+            for start, row in enumerate(rows):
+                cell = row['cells'][-1]
+                if cell['span'] == 0:
+                    continue
+                span = cell['span']
+                value = cell['value'] or 0
+                if value % span:
+                    raise ValueError('Nonintegral layer parts')
+                for member in rows[start:start + span]:
+                    person = identities[member['heir']]
+                    parts[person] = parts.get(person, 0) + value // span
+            expected = {}
+            for entry in layer['proof']['heirs']:
+                person = identities[entry['heir']]
+                share = entry['share']
+                expected[person] = expected.get(person, 0) + Fraction(share['numerator'], share['denominator'])
+            if any(Fraction(parts.get(person, 0), base) != expected.get(person, 0)
+                   for person in set(parts) | set(expected)):
+                raise ValueError('Layer parts disagree with proof shares')
+            remainder = base - sum(parts.values())
+            if remainder < 0:
+                raise ValueError('Negative layer remainder')
+            p = None if index == 0 else running.pop(layer['heir'], 0)
+            g = None if index == 0 else gcd(p, base)
+            old = 1 if index == 0 or p == 0 else base // g
+            new = 1 if index == 0 else p // g
+            relation = None if index == 0 else ('no_share' if p == 0 else
+                       'tamathul' if p % base == 0 else 'tawafuq' if g > 1 else 'tabayun')
+            jamia = base if index == 0 else jamia * old
+            running = {person: value * old for person, value in running.items()}
+            for person, value in parts.items():
+                running[person] = running.get(person, 0) + value * new
+            unallocated = unallocated * old + remainder * new
+            combined.append({
+                'order': layer['order'], 'heir': layer['heir'], 'table': table,
+                'p': p, 'base': base, 'gcd': g, 'old_multiplier': old,
+                'new_multiplier': new, 'relation': relation, 'jamia': jamia,
+                'parts': [{'heir': person, 'value': running.get(person, 0)} for person in people],
+                'unallocated': unallocated,
+                'unallocated_cells': [max(0, column['total'] - sum(
+                    row['cells'][c]['value'] or 0 for row in rows if row['cells'][c]['span'] > 0))
+                    for c, column in enumerate(table['columns'])],
+            })
+        if any(value and person not in people for person, value in final.items()):
+            raise ValueError('Final person missing from table')
+        if any(Fraction(running.get(person, 0), jamia) != final.get(person, 0) for person in people):
+            raise ValueError('Final parts disagree with final fractions')
+        if Fraction(unallocated, jamia) != 1 - sum(final.values()):
+            raise ValueError('Unallocated parts disagree with final remainder')
+        return {'layers': combined, 'rows': [{'heir': person} for person in people],
+                'unallocated': any(layer['unallocated'] for layer in combined)}
+    except (ValueError, KeyError, TypeError, IndexError, ZeroDivisionError):
+        logging.getLogger(__name__).exception('Cannot build successive-death table')
+        return None

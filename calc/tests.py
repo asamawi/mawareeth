@@ -3211,7 +3211,13 @@ def build_layer(parent, earlier, sex, heir_types, links=(), order=2):
 class ManasikhatTests(TestCase):
     def run_layered(self, calc, school):
         from .manasikhat import compute_manasikhat
-        return compute_manasikhat(calc, school)
+        final, evidence = compute_manasikhat(calc, school)
+        self.assertIsNotNone(calc.table)
+        last = calc.table['layers'][-1]
+        for row in last['parts']:
+            self.assertEqual(F(row['value'], last['jamia']), final.get(row['heir'], 0))
+        self.assertEqual(F(last['unallocated'], last['jamia']), 1 - sum(final.values()))
+        return final, evidence
 
     def fixture(self, third=False, reverse=False):
         root, heirs = build_case('M', [Son, Son, Wife] if reverse else [Wife, Son, Son], estate=101)
@@ -3395,3 +3401,99 @@ class ManasikhatTests(TestCase):
         final, evidence = compute_manasikhat(root, schools.HANBALI)
         self.assertEqual(final, {father.pk: F(1), son.pk: F(0)})
         self.assertEqual(evidence['layers'][1]['estate'], {'numerator': 0, 'denominator': 1})
+        self.assertEqual(root.table['layers'][1]['relation'], 'no_share')
+        self.assertEqual(root.table['layers'][0]['jamia'], root.table['layers'][1]['jamia'])
+
+
+class LayeredTableTests(TestCase):
+    @staticmethod
+    def layer(order, heir, shares):
+        return {'order': order, 'heir': heir, 'proof': {'heirs': [
+            {'heir': pk, 'share': {'numerator': share.numerator, 'denominator': share.denominator}}
+            for pk, share in shares.items()]}}
+
+    def test_malformed_layers_fail_closed(self):
+        from copy import deepcopy
+        from .proof import build_layered_table
+        table = {'columns': [{'code': 'base', 'total': 1}],
+                 'rows': [{'heir': 1, 'cells': [{'value': 1, 'span': 1}]}]}
+        for defect in ('empty_columns', 'missing_cell', 'past_end', 'orphan', 'proof_share', 'covered_owner', 'unknown_final'):
+            with self.subTest(defect=defect):
+                broken = deepcopy(table)
+                entry = self.layer(1, None, {1: F(1)})
+                final = {1: F(1)}
+                if defect == 'empty_columns':
+                    broken['columns'] = []
+                elif defect == 'missing_cell':
+                    broken['rows'][0]['cells'] = []
+                elif defect == 'past_end':
+                    broken['rows'][0]['cells'][0]['span'] = 2
+                elif defect == 'orphan':
+                    broken['rows'][0]['cells'][0]['span'] = 0
+                elif defect == 'proof_share':
+                    entry['proof']['heirs'][0]['share']['numerator'] = 0
+                elif defect == 'covered_owner':
+                    broken['rows'].append(deepcopy(broken['rows'][0]))
+                    broken['rows'][0]['cells'][0]['span'] = 2
+                else:
+                    final[2] = F(1, 2)
+                with self.assertLogs('calc.proof', level='ERROR'):
+                    self.assertIsNone(build_layered_table([entry], [broken], final, {1: 1}))
+
+    def test_relations_merged_parts_and_fail_closed(self):
+        from .proof import build_layered_table
+
+        def table(base, values, spans=None):
+            spans = spans or [1] * len(values)
+            return {'columns': [{'code': 'base', 'total': base}],
+                    'rows': [{'heir': pk, 'cells': [{'value': value, 'span': span}]} for pk, value, span in zip(range(1, len(values) + 1), values, spans)]}
+
+        for p, base, relation in [(2, 2, 'tamathul'), (2, 4, 'tawafuq'), (1, 2, 'tabayun'), (0, 2, 'no_share')]:
+            first = table(4, [p, 4 - p])
+            second = {'columns': [{'code': 'base', 'total': base}],
+                      'rows': [{'heir': 3, 'cells': [{'value': base, 'span': 1}]}]}
+            layers = [self.layer(1, None, {1: F(p, 4), 2: F(4 - p, 4)}), self.layer(2, 1, {3: F(1)})]
+            final = {2: F(4 - p, 4), 3: F(p, 4)}
+            result = build_layered_table(layers, [first, second], final, {1: 1, 2: 2, 3: 3})
+            self.assertIsNotNone(result)
+            self.assertEqual(result['layers'][1]['relation'], relation)
+            self.assertEqual(result['layers'][1]['jamia'], 4 if p in (0, 2) and base == 2 else 8)
+            with self.assertLogs('calc.proof', level='ERROR'):
+                self.assertIsNone(build_layered_table(layers, [first, second], {2: F(1, 7)}, {1: 1, 2: 2, 3: 3}))
+            with self.assertLogs('calc.proof', level='ERROR'):
+                self.assertIsNone(build_layered_table(layers, [first, None], final, {1: 1, 2: 2, 3: 3}))
+        merged = build_layered_table([self.layer(1, None, {1: F(1, 2), 2: F(1, 2)})], [table(2, [2, 2], [2, 0])],
+                                     {1: F(1, 2), 2: F(1, 2)}, {1: 1, 2: 2})
+        self.assertEqual(merged['layers'][0]['parts'], [{'heir': 1, 'value': 1}, {'heir': 2, 'value': 1}])
+
+    def test_unallocated_parts_carry_through_each_combination(self):
+        from .proof import build_layered_table
+        # Death 1: base 4, heir 1 (who dies next) holds 2, heir 2 holds 1, 1 part unallocated.
+        first = {'columns': [{'code': 'base', 'total': 4}],
+                 'rows': [{'heir': 1, 'cells': [{'value': 2, 'span': 1}]},
+                          {'heir': 2, 'cells': [{'value': 1, 'span': 1}]}]}
+        # Death 2: base 3, heir 3 holds 2, 1 part unallocated. p = 2, g = 1, tabayun: J = 12.
+        second = {'columns': [{'code': 'base', 'total': 3}],
+                  'rows': [{'heir': 3, 'cells': [{'value': 2, 'span': 1}]}]}
+        layers = [self.layer(1, None, {1: F(2, 4), 2: F(1, 4)}), self.layer(2, 1, {3: F(2, 3)})]
+        final = {1: F(0), 2: F(3, 12), 3: F(4, 12)}
+        result = build_layered_table(layers, [first, second], final, {1: 1, 2: 2, 3: 3})
+        self.assertIsNotNone(result)
+        self.assertTrue(result['unallocated'])
+        self.assertEqual([l['unallocated'] for l in result['layers']], [1, 5])
+        self.assertEqual(result['layers'][1]['jamia'], 12)
+        self.assertEqual(result['layers'][1]['relation'], 'tabayun')
+        with self.assertLogs('calc.proof', level='ERROR'):
+            self.assertIsNone(build_layered_table(layers, [first, second], {**final, 2: F(4, 12)},
+                                                  {1: 1, 2: 2, 3: 3}))
+
+    def test_blocked_in_first_death_inherits_in_second(self):
+        from .manasikhat import compute_manasikhat
+        for school in schools.SUNNI:
+            root, (father, brother) = build_case('M', [Father, Brother])
+            build_layer(root, father, 'M', [Son], [(0, brother)])
+            final, _ = compute_manasikhat(root, school)
+            self.assertEqual(final, {brother.pk: F(1)})
+            self.assertIsNotNone(root.table)
+            self.assertTrue(next(r for r in root.table['layers'][0]['table']['rows'] if r['heir'] == brother.pk)['blocked'])
+            self.assertEqual(root.table['layers'][-1]['parts'][-1], {'heir': brother.pk, 'value': root.table['layers'][-1]['jamia']})

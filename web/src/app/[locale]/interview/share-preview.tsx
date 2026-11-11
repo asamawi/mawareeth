@@ -73,8 +73,9 @@ export function SharePreview({
   } else if (outcome.kind === "preview" && preview?.status === "available") {
     status = messages.previewUpdated;
     const { rows, unallocated } = previewRows(preview);
-    const proofs = Object.fromEntries((preview.proof?.heirs ?? []).map((entry) => [entry.heir, entry]));
-    const relations = Object.fromEntries((preview.proof?.heirs ?? []).map((entry) => [entry.heir, entry.relationship]));
+    const proof = preview.proof?.version === 1 ? preview.proof : null;
+    const proofs = Object.fromEntries((proof?.heirs ?? []).map((entry) => [entry.heir, entry]));
+    const relations = Object.fromEntries((proof?.heirs ?? []).map((entry) => [entry.heir, entry.relationship]));
     const list = (
         <ul aria-label={messages.previewHeading} className="flex flex-col gap-2">
           {rows.map((row) => (

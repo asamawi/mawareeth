@@ -755,7 +755,7 @@ test("layered previews preserve strict death records and require an explicit pro
     { id: "b2", relationship: "mother" },
   ] }];
   const body = { ...AVAILABLE, proof: null, table: null, basis: { ...BASIS, deaths } };
-  assert.deepEqual(parsePreview(body), body);
+  assert.equal(parsePreview(body), null);
   assert.equal(parsePreview({ ...body, table: AVAILABLE.table }), null);
   const malformed: unknown[] = [
     null, {}, [], [null], [deaths[0], deaths[0], deaths[0]],
@@ -935,4 +935,54 @@ test("death writes carry relative answers and parse questions alongside order er
   const result = await markDeceased(signal(), CASE.id, "s", "x", { cookie: () => "csrftoken=token" }, { relatives: { w: "mother" }, shared_father: "no" });
   assert.deepEqual(result, { kind: "invalid", errors: { death: "order_required", relatives: "required" }, questions });
   assert.deepEqual(JSON.parse(calls[0].init?.body as string), { case_id: CASE.id, heir_id: "s", first: "x", relatives: { w: "mother" }, shared_father: "no" });
+});
+
+
+test("layered proofs and tables reject malformed data as a whole", async () => {
+  const { readFileSync } = await import("node:fs");
+  const fixtures = JSON.parse(readFileSync(new URL("../../../api/contracts/preview-fixtures.json", import.meta.url), "utf8")).fixtures;
+  const original = fixtures.find((f: { title: string }) => f.title === "Layered three under hanafi").response;
+  assert.ok(parsePreview(original));
+  const id = original.basis.heirs[0].id;
+  const digitId = "12345678901234567890123456789012";
+  const numericSession = JSON.parse(JSON.stringify(original, (_key, value) => value === id ? digitId : value));
+  assert.ok(parsePreview(numericSession), "all-digit session ids remain valid basis references");
+  assert.ok(parsePreview({ ...original, table: null }));
+  // Each mutation is independent and must reject the whole response, never silently drop a layer.
+  const mutations: [string, (body: typeof original) => void][] = [
+    ["unknown proof key", (b) => { b.proof.extra = true; }],
+    ["unknown table key", (b) => { b.table.extra = true; }],
+    ["unknown layer key", (b) => { b.table.layers[1].extra = true; }],
+    ["unknown v2 layer key", (b) => { b.proof.layers[1].extra = true; }],
+    ["order gap", (b) => { b.proof.layers[1].order = 4; }],
+    ["table order gap", (b) => { b.table.layers[1].order = 4; }],
+    ["wrong death heir", (b) => { b.proof.layers[1].heir = "missing"; }],
+    ["pk deceased", (b) => { b.proof.layers[1].deceased = 123; }],
+    ["unknown final person", (b) => { b.proof.final[0].heir = "missing"; }],
+    ["unknown table person", (b) => { b.table.rows[0].heir = "missing"; }],
+    ["unknown part person", (b) => { b.table.layers[1].parts[0].heir = "missing"; }],
+    ["numeric person", (b) => { b.proof.people[0].person = 123; }],
+    ["wrong identity", (b) => { b.proof.people[0].person = "missing"; }],
+    ["duplicate person", (b) => { b.table.rows[1] = b.table.rows[0]; }],
+    ["duplicate part", (b) => { b.table.layers[1].parts[1] = b.table.layers[1].parts[0]; }],
+    ["wrong total", (b) => { b.table.layers[1].jamia++; }],
+    ["wrong proof base", (b) => { b.proof.base++; }],
+    ["wrong layer proof base", (b) => { b.proof.layers[0].proof.steps[0].value++; }],
+    ["wrong final", (b) => { b.proof.final[0].fraction.numerator++; }],
+    ["wrong estate", (b) => { b.proof.layers[1].estate.numerator++; }],
+    ["wrong p", (b) => { b.table.layers[1].p++; }],
+    ["wrong gcd", (b) => { b.table.layers[1].gcd++; }],
+    ["wrong multiplier", (b) => { b.table.layers[1].old_multiplier++; }],
+    ["wrong relation", (b) => { b.table.layers[1].relation = "unknown"; }],
+    ["wrong intermediate parts", (b) => { b.table.layers[1].parts[0].value++; b.table.layers[1].parts[1].value--; }],
+    ["wrong remainder", (b) => { b.table.layers[1].unallocated++; }],
+    ["unknown nested column", (b) => { b.table.layers[0].table.columns[0].code = "unknown"; }],
+    ["missing layer", (b) => { b.table.layers.pop(); }],
+    ["unknown fraction key", (b) => { b.proof.layers[0].estate.pk = 1; }],
+  ];
+  for (const [title, mutate] of mutations) {
+    const body = structuredClone(original);
+    mutate(body);
+    assert.equal(parsePreview(body), null, title);
+  }
 });

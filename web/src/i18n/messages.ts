@@ -201,6 +201,16 @@ export type Messages = {
     table: {
       /** The accessible name of the scrollable table. */
       caption: string;
+      death: string;
+      deceasedShare: string;
+      multiplier: string;
+      jamia: string;
+      noShare: string;
+      unallocated: string;
+      tamathul: string;
+      tawafuq: string;
+      tabayun: string;
+
       name: string;
       relation: string;
       prescribed: string;
@@ -476,6 +486,15 @@ export const messages: Record<Locale, Messages> = {
       familyHeading: "الأسرة",
       table: {
         caption: "جدول المسألة",
+        death: "الوفاة {n}",
+        deceasedShare: "سهام المتوفى",
+        multiplier: "المضاعف",
+        jamia: "الجامعة",
+        noShare: "لا نصيب",
+        unallocated: "غير موزع",
+        tamathul: "تماثل",
+        tawafuq: "توافق",
+        tabayun: "تباين",
         name: "الاسم",
         relation: "القرابة",
         prescribed: "الفرض",
@@ -745,6 +764,15 @@ export const messages: Record<Locale, Messages> = {
       familyHeading: "The family",
       table: {
         caption: "Inheritance table",
+        death: "Death {n}",
+        deceasedShare: "Deceased’s parts",
+        multiplier: "Multiplier",
+        jamia: "Jami’a",
+        noShare: "No share",
+        unallocated: "Unallocated",
+        tamathul: "Tamathul",
+        tawafuq: "Tawafuq",
+        tabayun: "Tabayun",
         name: "Name",
         relation: "Relation",
         prescribed: "Prescribed share",
@@ -1017,6 +1045,15 @@ export const messages: Record<Locale, Messages> = {
       familyHeading: "La famille",
       table: {
         caption: "Tableau de la succession",
+        death: "Décès {n}",
+        deceasedShare: "Parts du défunt",
+        multiplier: "Multiplicateur",
+        jamia: "Jamia",
+        noShare: "Aucune part",
+        unallocated: "Non attribué",
+        tamathul: "Tamathul",
+        tawafuq: "Tawafuq",
+        tabayun: "Tabayun",
         name: "Nom",
         relation: "Relation",
         prescribed: "Part prescrite",
