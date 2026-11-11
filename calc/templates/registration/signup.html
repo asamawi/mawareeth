@@ -37,6 +37,7 @@
           <h2 class="card-title text-center">{% trans "Sign up" %}</h2>
           <form method="post" class="form-signin">
             {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
             <div class="form-label-group">
               <input type="text" name="username" maxlength="150" autocapitalize="none" autocomplete="username"
                 autofocus="" required id="id_username" class="form-control"
@@ -82,7 +83,7 @@
               </button>
             </div>
           </form>
-          <a href="{% url 'login' %}">{% trans 'Already registered' %}</a>
+          <a href="{% url 'login' %}{% if next %}?next={{ next|urlencode }}{% endif %}">{% trans 'Already registered' %}</a>
 
         </div>
       </div>

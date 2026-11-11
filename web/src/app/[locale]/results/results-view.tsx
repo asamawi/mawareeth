@@ -22,6 +22,7 @@ import {
 import { FamilyTree } from "../interview/family-tree";
 import { crumbTextOf } from "../interview/death-breadcrumb";
 import { buttonClass } from "../interview/form-bits";
+import { AuthGate } from "./auth-gate";
 import { InheritanceTable, ProofList } from "./inheritance-table";
 
 type Loaded =
@@ -162,6 +163,7 @@ function Available({
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
       <p>{text.school.split("{school}").join(school)}</p>
+      <AuthGate locale={locale} text={text} />
       <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} />
 
       <section aria-labelledby="results-shares" className="flex flex-col gap-3">

@@ -306,3 +306,10 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-2-draft-pdf-report.md`
   summary: `api/tests.py:2508` (`InterviewDeathsTests.test_write_matrix_and_rollback`) still asserts a layered preview has `proof: None`, which story 3.1c deliberately changed to the v2 proof.
   evidence: The test fails at HEAD 955728f with "{'version': 2, ...} is not None"; story 3.2 does not touch `api/tests.py`. Replace the assertion with a v2-proof check.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-account-creation-gate-for-save-and-sharing.md`
+  summary: Add component or browser tests for the results `AuthGate`. Cover: each button opens the right dialog or notice, the dialog links carry the chosen action, a `?resume=save|share` return waits for the session check and resumes that action, and focus goes back to the button when the dialog closes.
+  evidence: Story 4.1 review (verification-gap) found that only the pure helpers `decide`/`parseResume` and the URL builders are tested. Removing `showModal()` or the resume `setPending` would leave every test passing. `web/` only has `node --test` with no DOM or component harness.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-account-creation-gate-for-save-and-sharing.md`
+  summary: Four calc tests fail locally on the base commit `c407bbe`: `ErrorPageTests` (`test_500_uses_standalone_page`, `test_logged_in_404_links_to_calculations`, `test_logged_out_404_uses_site_page`) and `TemplateTagTests.test_login_no_access_message_is_translated` (en). The rendered pages are missing the expected English text (`Something went wrong`, `Page not found`, `Go to my calculations`, `Your account doesn't have access to this page.`).
+  evidence: The 2026-11-11 Story 4.1 full run gave 392 tests, 5 failures. These four also fail in a clean worktree at `c407bbe`, so they predate 4.1. The fifth is the known `test_write_matrix_and_rollback` entry.

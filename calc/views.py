@@ -1,15 +1,16 @@
 from django.http import Http404, HttpResponse, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render
+from django.conf import settings
+from django.shortcuts import get_object_or_404, render, resolve_url
 from django.urls import reverse
 from django.views import generic
-from django.contrib.auth.views import LoginView
+from django.contrib.auth import login
+from django.contrib.auth.views import LoginView, RedirectURLMixin
 from django.contrib.auth.decorators import login_not_required, login_required
 from django.utils.decorators import method_decorator
 from django.views.generic import View
 from django.contrib import messages
 from django.db import transaction
 from user_auth.forms import UserCreationForm
-from django.urls import reverse_lazy
 from calc.forms import HeirForm, DeceasedForm
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.utils.translation import gettext as _
@@ -897,7 +898,24 @@ def error(request):
 	return render(request, 'calc/error.html')
 
 @method_decorator(login_not_required, name='dispatch')
-class SignUp(generic.CreateView):
+class SignUp(RedirectURLMixin, generic.CreateView):
 	form_class = UserCreationForm
-	success_url = reverse_lazy('login')
 	template_name = 'registration/signup.html'
+
+	def dispatch(self, request, *args, **kwargs):
+		if request.user.is_authenticated:
+			return HttpResponseRedirect(self.get_success_url())
+		return super().dispatch(request, *args, **kwargs)
+
+	def get_default_redirect_url(self):
+		return resolve_url(settings.LOGIN_REDIRECT_URL)
+
+	def get_context_data(self, **kwargs):
+		context = super().get_context_data(**kwargs)
+		context['next'] = self.get_redirect_url()
+		return context
+
+	def form_valid(self, form):
+		self.object = form.save()
+		login(self.request, self.object, backend="django.contrib.auth.backends.ModelBackend")
+		return HttpResponseRedirect(self.get_success_url())

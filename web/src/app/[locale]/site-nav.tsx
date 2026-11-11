@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-
-import { fetchSession } from "@/api/session";
 import { locales, type Locale, type Messages } from "@/i18n/messages";
 import { authLinks, pathForLocale } from "@/i18n/paths";
+
+import { useAuthState } from "./use-session";
 
 const languageNames: Record<Locale, string> = {
   ar: "العربية",
@@ -19,17 +18,7 @@ const linkClass =
 
 export function SiteNav({ locale, nav }: { locale: Locale; nav: Messages["nav"] }) {
   const pathname = usePathname() ?? `/${locale}/`;
-  const [authenticated, setAuthenticated] = useState(false);
-
-  // Signup and login stay visible unless the probe says this browser is logged in.
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchSession(controller.signal).then(
-      (session) => setAuthenticated(session.authenticated),
-      () => {},
-    );
-    return () => controller.abort();
-  }, []);
+  const authenticated = useAuthState() === "authenticated";
 
   return (
     <nav

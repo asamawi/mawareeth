@@ -83,7 +83,7 @@
               </div>
               <br />
             </form>
-            <a href="{% url 'calc:signup' %}">{% trans 'Sign Up' %}</a>
+            <a href="{% url 'calc:signup' %}{% if next %}?next={{ next|urlencode }}{% endif %}">{% trans 'Sign Up' %}</a>
             {# Assumes you setup the password_reset view in your URLconf #}
             <a href="{% url 'password_reset' %}">{% trans 'Lost password?' %}</a>
           </div>

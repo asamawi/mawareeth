@@ -70,13 +70,13 @@ development_status:
   2-4-full-recursive-manasikhat-calculation: done
   epic-2-retrospective: optional
 
-  epic-3: in-progress
-  3-1-results-view-for-eligible-heirs: review
-  3-2-draft-pdf-report-generation-with-certification-disclaimer: review
+  epic-3: done
+  3-1-results-view-for-eligible-heirs: done
+  3-2-draft-pdf-report-generation-with-certification-disclaimer: done
   epic-3-retrospective: optional
 
-  epic-4: backlog
-  4-1-account-creation-gate-for-save-and-sharing: backlog
+  epic-4: in-progress
+  4-1-account-creation-gate-for-save-and-sharing: review
   4-2-save-draft-report-to-registered-account: backlog
   4-3-private-link-sharing-with-explicit-public-consent: backlog
   4-4-share-report-with-registered-users-or-email-invitees: backlog

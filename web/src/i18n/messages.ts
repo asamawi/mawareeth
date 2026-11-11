@@ -168,6 +168,15 @@ export type Messages = {
     previewResultsLink: string;
   };
   results: {
+    save: string;
+    shareAction: string;
+    saveSoon: string;
+    shareSoon: string;
+    authTitle: string;
+    signIn: string;
+    createAccount: string;
+    close: string;
+
     pdfDownload: string;
     pdfBusy: string;
     pdfRetry: string;
@@ -463,6 +472,14 @@ export const messages: Record<Locale, Messages> = {
       previewResultsLink: "عرض النتائج الكاملة",
     },
     results: {
+      save: "حفظ",
+      shareAction: "مشاركة",
+      saveSoon: "حفظ النتائج قريبًا.",
+      shareSoon: "مشاركة النتائج قريبًا.",
+      authTitle: "سجّل الدخول أو أنشئ حسابًا للمتابعة",
+      signIn: "تسجيل الدخول",
+      createAccount: "إنشاء حساب",
+      close: "إغلاق",
       pdfDownload: "تنزيل PDF (مسودة)",
       pdfBusy: "جارٍ إنشاء المسودة…",
       pdfRetry: "إعادة محاولة التنزيل",
@@ -748,6 +765,14 @@ export const messages: Record<Locale, Messages> = {
       previewResultsLink: "See full results",
     },
     results: {
+      save: "Save",
+      shareAction: "Share",
+      saveSoon: "Saving results is coming soon.",
+      shareSoon: "Sharing results is coming soon.",
+      authTitle: "Sign in or create an account to continue",
+      signIn: "Sign in",
+      createAccount: "Create account",
+      close: "Close",
       pdfDownload: "Download PDF (draft)",
       pdfBusy: "Generating draft…",
       pdfRetry: "Retry download",
@@ -1036,6 +1061,14 @@ export const messages: Record<Locale, Messages> = {
       previewResultsLink: "Voir les résultats complets",
     },
     results: {
+      save: "Enregistrer",
+      shareAction: "Partager",
+      saveSoon: "L’enregistrement des résultats sera bientôt disponible.",
+      shareSoon: "Le partage des résultats sera bientôt disponible.",
+      authTitle: "Connectez-vous ou créez un compte pour continuer",
+      signIn: "Se connecter",
+      createAccount: "Créer un compte",
+      close: "Fermer",
       pdfDownload: "Télécharger le PDF (brouillon)",
       pdfBusy: "Génération du brouillon…",
       pdfRetry: "Réessayer le téléchargement",

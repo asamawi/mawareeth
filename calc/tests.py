@@ -20,6 +20,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.contrib.messages import ERROR, get_messages
 from django.http.request import HttpRequest
+from django.shortcuts import resolve_url
 from django.urls import resolve, reverse
 from waffle.testutils import override_flag
 
@@ -3497,3 +3498,72 @@ class LayeredTableTests(TestCase):
             self.assertIsNotNone(root.table)
             self.assertTrue(next(r for r in root.table['layers'][0]['table']['rows'] if r['heir'] == brother.pk)['blocked'])
             self.assertEqual(root.table['layers'][-1]['parts'][-1], {'heir': brother.pk, 'value': root.table['layers'][-1]['jamia']})
+
+class SignupContinuationTests(TestCase):
+    next_url = '/app/en/results/?resume=save'
+
+    def signup(self, **extra):
+        data = {'username': 'new-gate-user', 'email': 'gate@example.com',
+                'password1': 'Strong-gate-password-937!', 'password2': 'Strong-gate-password-937!',
+                'next': self.next_url}
+        data.update(extra)
+        return self.client.post('/en/signup/', data, secure=True)
+
+    def test_signup_logs_in_redirects_and_keeps_case(self):
+        session = self.client.session
+        session['anonymous_case'] = {'id': 'same-case', 'answers': {}}
+        session.save()
+        response = self.signup()
+        self.assertRedirects(response, self.next_url, fetch_redirect_response=False)
+        self.assertEqual(int(self.client.session['_auth_user_id']), User.objects.get(username='new-gate-user').pk)
+        self.assertEqual(self.client.session['anonymous_case'], {'id': 'same-case', 'answers': {}})
+
+    def test_bad_next_falls_back_after_login(self):
+        for target in ['https://evil.example/', '//evil.example/', 'http://testserver/app/en/results/']:
+            with self.subTest(target=target):
+                self.client.logout()
+                User.objects.filter(username='new-gate-user').delete()
+                response = self.signup(next=target)
+                self.assertRedirects(response, resolve_url(settings.LOGIN_REDIRECT_URL), fetch_redirect_response=False)
+                self.assertIn('_auth_user_id', self.client.session)
+
+    def test_authenticated_signup_redirects_without_changing_user_or_case(self):
+        user = User.objects.create_user(username='existing-gate-user')
+        self.client.force_login(user)
+        case = {'id': 'same-case', 'answers': {}}
+        session = self.client.session
+        session['anonymous_case'] = case
+        session.save()
+        user_count = User.objects.count()
+        for method in ['get', 'post']:
+            with self.subTest(method=method):
+                data = ({'username': 'new-gate-user', 'password1': 'Strong-gate-password-937!',
+                         'password2': 'Strong-gate-password-937!'} if method == 'post' else None)
+                response = getattr(self.client, method)(
+                    '/en/signup/?next=/app/en/results/', data, secure=True)
+                self.assertRedirects(response, '/app/en/results/', fetch_redirect_response=False)
+                self.assertEqual(User.objects.count(), user_count)
+                self.assertEqual(int(self.client.session['_auth_user_id']), user.pk)
+                self.assertEqual(self.client.session['anonymous_case'], case)
+
+    def test_form_error_keeps_next(self):
+        response = self.signup(password2='different')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['next'], self.next_url)
+        self.assertContains(response, 'name="next" value="' + self.next_url + '"')
+
+    def test_auth_switch_links_keep_encoded_next(self):
+        from urllib.parse import quote
+        encoded = quote(self.next_url, safe='/')
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'
+        for path, destination in [('/en/signup/', '/accounts/login/'), ('/accounts/login/', '/en/signup/')]:
+            response = self.client.get(path, {'next': self.next_url}, secure=True)
+            self.assertContains(response, destination + '?next=' + encoded)
+
+    def test_post_next_precedes_get_and_current_host_is_allowed(self):
+        response = self.client.post('/en/signup/?next=https://evil.example/', {
+            'username': 'new-gate-user', 'email': 'gate@example.com',
+            'password1': 'Strong-gate-password-937!', 'password2': 'Strong-gate-password-937!',
+            'next': 'https://testserver' + self.next_url,
+        }, secure=True)
+        self.assertRedirects(response, 'https://testserver' + self.next_url, fetch_redirect_response=False)
