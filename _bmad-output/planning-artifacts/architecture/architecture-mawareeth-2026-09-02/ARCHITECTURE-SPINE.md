@@ -7,8 +7,8 @@ paradigm: single-node containerized modular monolith with blue-green edge switch
 scope: Heroku exit, production hosting, delivery, runtime routing, database placement, and initial operations
 status: final
 created: '2026-09-02'
-updated: '2026-09-02'
-binds: [AD-1, AD-2, AD-3, AD-4, AD-5, AD-6, AD-7, AD-8, AD-9, AD-10, AD-11, AD-12, AD-13]
+updated: '2026-11-11'
+binds: [AD-1, AD-2, AD-3, AD-4, AD-5, AD-6, AD-7, AD-8, AD-9, AD-10, AD-11, AD-12, AD-13, AD-14]
 sources:
   - Procfile
   - Dockerfile
@@ -124,6 +124,12 @@ flowchart LR
 - **Binds:** Region, operating system, administrative access, firewall, Docker, patching, and secrets
 - **Prevents:** Pet-server drift and one-host compromise bypassing every container boundary
 - **Rule:** Phase 1 provisions Hetzner `nbg1` (Nuremberg) with Ubuntu 24.04 LTS through an idempotent bootstrap script or version-controlled checklist. Use a default-deny firewall with only 80/443 public and restricted key-only SSH, install Docker Engine from Docker's official stable repository, apply security patches on a documented maintenance cadence, and keep runtime secrets in a root-owned non-repository file with restrictive permissions and redaction from CI/logs.
+
+### AD-14 — Open-core repository boundary [ADOPTED]
+
+- **Binds:** Repository ownership, dependency direction, and release-image visibility
+- **Prevents:** Marketplace, pricing, certification or signing-key code landing in the public AGPL repository by default, and the public engine coming to depend on private code
+- **Rule:** The public repository (`asamawi/mawareeth`, AGPL-3.0) owns the engine, interview, draft results, draft report and known-answer corpus. A private repository owns Epics 5–7: lawyer accounts and approval, membership, pricing, sponsorship, marketplace ranking, certification purchase and action, certification audit, and the certification registry and its signing keys. Dependencies point one way: private code may import public code; public code never imports private code and builds, tests and runs without it. Certified status reaches public screens and the report only through a narrow extension point that defaults to "draft". AD-1 still holds: the private package is installed into the one release image at build time, so any image that contains private code is published only to a private registry. Story 5.0 chooses the mechanism; nothing is extracted before Epic 5.
 
 ## Consistency Conventions
 

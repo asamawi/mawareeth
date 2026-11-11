@@ -33,6 +33,7 @@
     - [Story 4.4: Share Report with Registered Users or Email Invitees](./epic-list.md#story-44-share-report-with-registered-users-or-email-invitees)
     - [Story 4.5: WhatsApp Share for Registered Users](./epic-list.md#story-45-whatsapp-share-for-registered-users)
     - [Epic 5: Lawyer Registration and Approval](./epic-list.md#epic-5-lawyer-registration-and-approval)
+    - [Story 5.0: Marketplace Validation Gate and Private Package Bootstrap](./epic-list.md#story-50-marketplace-validation-gate-and-private-package-bootstrap)
     - [Story 5.1: Public Lawyer Application](./epic-list.md#story-51-public-lawyer-application)
     - [Story 5.2: Internal Lawyer Approval Workflow](./epic-list.md#story-52-internal-lawyer-approval-workflow)
     - [Story 5.3: Certification Access Control by Lawyer Status](./epic-list.md#story-53-certification-access-control-by-lawyer-status)
@@ -49,3 +50,4 @@
     - [Story 7.4: Certification Purchase and Lawyer Selection](./epic-list.md#story-74-certification-purchase-and-lawyer-selection)
     - [Story 7.5: Certify Draft Report as Approved Lawyer](./epic-list.md#story-75-certify-draft-report-as-approved-lawyer)
     - [Story 7.6: Audit Trail for Certification Actions](./epic-list.md#story-76-audit-trail-for-certification-actions)
+    - [Story 7.7: Certification Registry and QR Verification](./epic-list.md#story-77-certification-registry-and-qr-verification)

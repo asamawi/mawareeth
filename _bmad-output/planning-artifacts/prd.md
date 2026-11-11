@@ -102,7 +102,7 @@ The current sprint is the Heroku-to-Hetzner migration of the existing Django app
 
 #### Phase 3: Universal Expansion (Growth)
 *   **Multi-Faith:** Continuous rollout of Christian (Maronite/Orthodox), Druze, and Civil Law modules.
-*   **Ecosystem:** Public OpenAPI/SDKs for banking and legal tech integration.
+*   **Ecosystem:** Public OpenAPI/SDKs for banking, legal tech, court and government integration, built on the public engine. Integrators can either call the hosted API or self-host the public engine (data residency); a versioned rule set and the known-answer corpus serve as the conformance suite. Certification and registry verification stay a hosted Mawareeth service.
 *   **Localization:** Professional Arabic, English, and French UI.
 *   **Marketplace Growth:** Membership tiers, sponsored placements, earned reviews, and expanded lawyer marketplace optimization.
 
@@ -111,6 +111,12 @@ The current sprint is the Heroku-to-Hetzner migration of the existing Django app
 *   **Blockchain:** Immutable recording of verified distributions for permanent integrity.
 
 ## Domain & Innovation Requirements
+
+### Product Model: Open Core
+*   **Public engine (AGPL-3.0):** The inheritance engine (school rules, proof, Manasikhat), the interview, the draft results and draft report, and the known-answer test corpus stay public in `asamawi/mawareeth`. Anyone can read and re-run the logic; this is the product's credibility for heirs, lawyers, courts and future integrators.
+*   **Private marketplace:** Lawyer registration and approval, membership, pricing, sponsorship, marketplace ranking, certification purchase, certification, its audit trail, and the certification registry with its signing keys are built in a private repository from the first story of Epic 5. Nothing is extracted before then.
+*   **The moat is the network, not the code:** a certified report is valid only if it verifies against the Mawareeth certification registry (NFR-06); approved lawyers, reviews and the registry cannot be forked.
+*   **Contributions:** Outside contributions to the public engine are accepted only under a Contributor License Agreement, so the owner keeps the right to relicense or sell a commercial license of the engine.
 
 ### Compliance & Regulatory
 *   **Legal Authentication:** Dual-state architecture: "Preliminary" (Unverified) and "Certified" (Lawyer-Reviewed).

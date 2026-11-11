@@ -84,6 +84,7 @@ development_status:
   epic-4-retrospective: optional
 
   epic-5: backlog
+  5-0-marketplace-validation-gate-and-private-package-bootstrap: backlog
   5-1-public-lawyer-application: backlog
   5-2-internal-lawyer-approval-workflow: backlog
   5-3-certification-access-control-by-lawyer-status: backlog
@@ -104,5 +105,6 @@ development_status:
   7-4-certification-purchase-and-lawyer-selection: backlog
   7-5-certify-draft-report-as-approved-lawyer: backlog
   7-6-audit-trail-for-certification-actions: backlog
+  7-7-certification-registry-and-qr-verification: backlog
   epic-7-retrospective: optional
-last_updated: 2026-11-10
+last_updated: 2026-11-11
