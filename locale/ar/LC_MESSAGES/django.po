@@ -2617,3 +2617,231 @@ msgstr "حالة المناسخات هذه غير مدعومة"
 #: api/preview.py
 msgid "Remainder"
 msgstr "الباقي تعصيبًا"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Draft inheritance report"
+msgstr "تقرير ميراث أولي"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Draft / not certified"
+msgstr "مسودة / غير معتمدة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Generation date"
+msgstr "تاريخ الإنشاء"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "School"
+msgstr "المذهب"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Deceased and estate"
+msgstr "المتوفى والتركة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Estate"
+msgstr "التركة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Heirs and shares"
+msgstr "الورثة والأنصبة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Relationship"
+msgstr "صلة القرابة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Fraction"
+msgstr "الكسر"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Percentage"
+msgstr "النسبة المئوية"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Kirat"
+msgstr "قيراط"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Blocked"
+msgstr "محجوب"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Scholars' table"
+msgstr "جدول المواريث"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Death"
+msgstr "الوفاة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Unallocated remainder"
+msgstr "الباقي غير الموزع"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Deceased's parts"
+msgstr "سهام المتوفى"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Multipliers"
+msgstr "المضاعفات"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Combined base"
+msgstr "الجامعة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Combined parts"
+msgstr "السهام الجامعة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Proof summary"
+msgstr "ملخص الأدلة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: father"
+msgstr "أب"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: mother"
+msgstr "أم"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: husband"
+msgstr "زوج"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: wife"
+msgstr "زوجة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son"
+msgstr "ابن"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: daughter"
+msgstr "بنت"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_son"
+msgstr "ابن الابن"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: daughter_of_son"
+msgstr "بنت الابن"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: grandfather"
+msgstr "جد"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_grandmother"
+msgstr "جدة لأب"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: maternal_grandmother"
+msgstr "جدة لأم"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: brother"
+msgstr "أخ شقيق"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: sister"
+msgstr "أخت شقيقة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_brother"
+msgstr "أخ لأب"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_sister"
+msgstr "أخت لأب"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: maternal_brother"
+msgstr "أخ لأم"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: maternal_sister"
+msgstr "أخت لأم"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_brother"
+msgstr "ابن الأخ الشقيق"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_paternal_brother"
+msgstr "ابن الأخ لأب"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: uncle"
+msgstr "عم شقيق"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_uncle"
+msgstr "عم لأب"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_uncle"
+msgstr "ابن العم الشقيق"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_paternal_uncle"
+msgstr "ابن العم لأب"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: hanafi"
+msgstr "الحنفي"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: maliki"
+msgstr "المالكي"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: shafii"
+msgstr "الشافعي"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: hanbali"
+msgstr "الحنبلي"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: jafari"
+msgstr "الجعفري"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Equality"
+msgstr "تماثل"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Common factor"
+msgstr "توافق"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Coprime"
+msgstr "تباين"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "No share"
+msgstr "لا نصيب"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "GCD"
+msgstr "القاسم المشترك الأكبر"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Old jami'a multiplier"
+msgstr "مضاعف الجامعة السابقة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "New problem multiplier"
+msgstr "مضاعف المسألة الجديدة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "New jami'a"
+msgstr "الجامعة الجديدة"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Starting jami'a"
+msgstr "الجامعة الابتدائية"

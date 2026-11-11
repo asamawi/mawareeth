@@ -198,6 +198,7 @@ INSTALLED_APPS = [
     'waffle',
     'rest_framework',
     'api.apps.ApiConfig',
+    'reports.apps.ReportsConfig',
 ]
 
 # Default primary key field type for models
@@ -320,12 +321,14 @@ if WEB_DIST_DIR.is_dir():
 WHITENOISE_INDEX_FILE = True
 WHITENOISE_ADD_HEADERS_FUNCTION = add_web_headers
 
+REPORT_STATUS_PROVIDER = None
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.SessionAuthentication'],
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
     'DEFAULT_PARSER_CLASSES': ['rest_framework.parsers.JSONParser'],
-    'DEFAULT_THROTTLE_RATES': {'case_write': '120/hour', 'case_preview': '300/hour'},
+    'DEFAULT_THROTTLE_RATES': {'case_write': '120/hour', 'case_preview': '300/hour', 'report_draft': '30/hour'},
     # Caddy leaves X-Forwarded-For as "client, cloudflare" behind Cloudflare and replaces it
     # with the single client address otherwise, so the client is the 2nd entry from the end
     # (or the only one). Without this DRF keys on the whole header, which a client can vary.
@@ -451,6 +454,8 @@ LOGGING = {
         },
     },
     "loggers": {
+        "weasyprint": {"level": "WARNING"},
+        "fontTools": {"level": "WARNING"},
         "django.request": {
             "handlers": ["console"],
             "level": "ERROR",

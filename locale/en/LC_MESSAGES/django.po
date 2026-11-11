@@ -2637,3 +2637,231 @@ msgstr "This successive inheritance case is not supported"
 #: api/preview.py
 msgid "Remainder"
 msgstr "Remainder"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Draft inheritance report"
+msgstr "Draft inheritance report"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Draft / not certified"
+msgstr "Draft / not certified"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Generation date"
+msgstr "Generation date"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "School"
+msgstr "School"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Deceased and estate"
+msgstr "Deceased and estate"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Estate"
+msgstr "Estate"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Heirs and shares"
+msgstr "Heirs and shares"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Relationship"
+msgstr "Relationship"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Fraction"
+msgstr "Fraction"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Percentage"
+msgstr "Percentage"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Kirat"
+msgstr "Kirat"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Blocked"
+msgstr "Blocked"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Scholars' table"
+msgstr "Scholars' table"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Death"
+msgstr "Death"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Unallocated remainder"
+msgstr "Unallocated remainder"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Deceased's parts"
+msgstr "Deceased's parts"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Multipliers"
+msgstr "Multipliers"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Combined base"
+msgstr "Combined base"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Combined parts"
+msgstr "Combined parts"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Proof summary"
+msgstr "Proof summary"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: father"
+msgstr "Father"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: mother"
+msgstr "Mother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: husband"
+msgstr "Husband"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: wife"
+msgstr "Wife"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son"
+msgstr "Son"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: daughter"
+msgstr "Daughter"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_son"
+msgstr "Son's son"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: daughter_of_son"
+msgstr "Son's daughter"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: grandfather"
+msgstr "Grandfather"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_grandmother"
+msgstr "Paternal grandmother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: maternal_grandmother"
+msgstr "Maternal grandmother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: brother"
+msgstr "Full brother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: sister"
+msgstr "Full sister"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_brother"
+msgstr "Half-brother (same father)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_sister"
+msgstr "Half-sister (same father)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: maternal_brother"
+msgstr "Half-brother (same mother)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: maternal_sister"
+msgstr "Half-sister (same mother)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_brother"
+msgstr "Full brother's son"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_paternal_brother"
+msgstr "Half-brother's son (same father)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: uncle"
+msgstr "Paternal uncle (father's full brother)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_uncle"
+msgstr "Paternal uncle (father's half-brother)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_uncle"
+msgstr "Son of father's full brother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_paternal_uncle"
+msgstr "Son of father's half-brother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: hanafi"
+msgstr "Hanafi"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: maliki"
+msgstr "Maliki"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: shafii"
+msgstr "Shafii"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: hanbali"
+msgstr "Hanbali"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: jafari"
+msgstr "Jafari"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Equality"
+msgstr "Equality"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Common factor"
+msgstr "Common factor"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Coprime"
+msgstr "Coprime"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "No share"
+msgstr "No share"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "GCD"
+msgstr "GCD"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Old jami'a multiplier"
+msgstr "Old jami'a multiplier"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "New problem multiplier"
+msgstr "New problem multiplier"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "New jami'a"
+msgstr "New jami'a"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Starting jami'a"
+msgstr "Starting jami'a"

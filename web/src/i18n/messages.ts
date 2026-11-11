@@ -168,6 +168,13 @@ export type Messages = {
     previewResultsLink: string;
   };
   results: {
+    pdfDownload: string;
+    pdfBusy: string;
+    pdfRetry: string;
+    pdfFailed: string;
+    pdfUnavailable: string;
+    pdfThrottled: string;
+    pdfTimeout: string;
     heading: string;
     loading: string;
     loadFailed: string;
@@ -456,6 +463,13 @@ export const messages: Record<Locale, Messages> = {
       previewResultsLink: "عرض النتائج الكاملة",
     },
     results: {
+      pdfDownload: "تنزيل PDF (مسودة)",
+      pdfBusy: "جارٍ إنشاء المسودة…",
+      pdfRetry: "إعادة محاولة التنزيل",
+      pdfFailed: "تعذر تنزيل المسودة. حاول مجددًا.",
+      pdfUnavailable: "ارجع إلى المقابلة وتحقق من الحالة قبل التنزيل.",
+      pdfThrottled: "طلبات كثيرة. انتظر ثم حاول مجددًا.",
+      pdfTimeout: "انتهت مهلة التنزيل. حاول مجددًا.",
       heading: "النتائج",
       loading: "جارٍ تحميل النتائج…",
       loadFailed: "تعذّر تحميل الحالة. حاول مرة أخرى.",
@@ -734,6 +748,13 @@ export const messages: Record<Locale, Messages> = {
       previewResultsLink: "See full results",
     },
     results: {
+      pdfDownload: "Download PDF (draft)",
+      pdfBusy: "Generating draft…",
+      pdfRetry: "Retry download",
+      pdfFailed: "The draft could not be downloaded. Try again.",
+      pdfUnavailable: "Return to the interview and check the case before downloading.",
+      pdfThrottled: "Too many requests. Wait and try again.",
+      pdfTimeout: "The download timed out. Try again.",
       heading: "Results",
       loading: "Loading the results…",
       loadFailed: "The case could not be loaded. Please try again.",
@@ -1015,6 +1036,13 @@ export const messages: Record<Locale, Messages> = {
       previewResultsLink: "Voir les résultats complets",
     },
     results: {
+      pdfDownload: "Télécharger le PDF (brouillon)",
+      pdfBusy: "Génération du brouillon…",
+      pdfRetry: "Réessayer le téléchargement",
+      pdfFailed: "Le téléchargement a échoué. Réessayez.",
+      pdfUnavailable: "Revenez à l’entretien et vérifiez le dossier avant de télécharger.",
+      pdfThrottled: "Trop de demandes. Patientez puis réessayez.",
+      pdfTimeout: "Le délai de téléchargement a expiré. Réessayez.",
       heading: "Résultats",
       loading: "Chargement des résultats…",
       loadFailed: "Le dossier n'a pas pu être chargé. Veuillez réessayer.",

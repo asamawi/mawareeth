@@ -32,6 +32,10 @@ class CaseWriteThrottle(ClientThrottle):
         return super().allow_request(request, view)
 
 
+class ReportDraftThrottle(ClientThrottle):
+    scope = 'report_draft'
+
+
 class CasePreviewThrottle(ClientThrottle):
     """Limit share previews per client IP, apart from the writes, which never count them."""
 

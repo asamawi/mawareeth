@@ -1273,3 +1273,45 @@ export async function fetchPreview(
     signal.removeEventListener("abort", abort);
   }
 }
+
+export type DraftReportResult =
+  | { kind: "download"; blob: Blob }
+  | { kind: "gone" | "replaced" | "unavailable" | "throttled" | "failed" | "timeout" };
+
+/** One bounded, ephemeral server PDF request. Failure leaves the preview untouched. */
+export async function downloadDraftReport(
+  caseId: string,
+  locale: string,
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<DraftReportResult> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  options.signal?.addEventListener("abort", abort, { once: true });
+  if (options.signal?.aborted) controller.abort();
+  let timedOut = false;
+  const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, options.timeoutMs ?? 30_000);
+  try {
+    if (controller.signal.aborted) return { kind: "failed" };
+    const response = await fetch(`/api/v1/reports/draft/?case_id=${encodeURIComponent(caseId)}`, {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { Accept: "application/pdf", "Accept-Language": locale },
+      signal: controller.signal,
+    });
+    if (response.status === 404) return { kind: "gone" };
+    if (response.status === 429) return { kind: "throttled" };
+    if (response.status === 503) return { kind: "failed" };
+    if (response.status === 409) {
+      const body: unknown = await response.json();
+      return { kind: typeof body === "object" && body !== null && "status" in body && (body.status === "not_ready" || body.status === "unavailable") ? "unavailable" : "replaced" };
+    }
+    if (!response.ok || response.headers.get("Content-Type")?.split(";")[0].trim() !== "application/pdf") return { kind: "failed" };
+    const blob = await response.blob();
+    return blob.size && !controller.signal.aborted ? { kind: "download", blob } : { kind: "failed" };
+  } catch {
+    return { kind: timedOut ? "timeout" : "failed" };
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", abort);
+  }
+}

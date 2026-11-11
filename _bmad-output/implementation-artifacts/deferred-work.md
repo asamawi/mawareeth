@@ -302,3 +302,7 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-1b-scholars-inheritance-table.md`
   summary: Story 3.1c, successive deaths in the scholars' table: carry the engine's v2 layered proof through the preview API (session ids, labels, no engine pks; layer `heir` from the session death by order) with contract, fixtures and strict parser, and show the classic side-by-side manasikhat table (each later death's problem beside the earlier ones with the deceased's shares, the multiplier and the running jami'a, checked on the server against the engine's final fractions) on the results page and the interview preview, with each layer's explanation as row side notes.
   evidence: Split from Story 3.1b on 2026-11-10 at the project owner's choice; 3.1b delivers the scholars' table for single-death cases, which 3.1c extends.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-draft-pdf-report.md`
+  summary: `api/tests.py:2508` (`InterviewDeathsTests.test_write_matrix_and_rollback`) still asserts a layered preview has `proof: None`, which story 3.1c deliberately changed to the v2 proof.
+  evidence: The test fails at HEAD 955728f with "{'version': 2, ...} is not None"; story 3.2 does not touch `api/tests.py`. Replace the assertion with a v2-proof check.

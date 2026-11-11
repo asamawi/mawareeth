@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { fetchCase, fetchPreview, type Case, type PreviewProofStep, type PreviewResult } from "@/api/case";
+import { downloadDraftReport, fetchCase, fetchPreview, type Case, type PreviewProofStep, type PreviewResult } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import { formatEstate } from "@/interview/answers";
 import { localFraction, localKirat, localPercent } from "@/interview/format";
@@ -162,6 +162,7 @@ function Available({
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
       <p>{text.school.split("{school}").join(school)}</p>
+      <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} />
 
       <section aria-labelledby="results-shares" className="flex flex-col gap-3">
         <h2 id="results-shares" className="text-xl font-semibold">
@@ -328,4 +329,57 @@ function HeirCard({
       )}
     </li>
   );
+}
+
+function DraftDownload({ caseId, locale, text }: { caseId: string; locale: string; text: Messages["results"] }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const active = useRef(false);
+  const mounted = useRef(false);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      request.current?.abort();
+    };
+  }, [caseId, locale]);
+  async function download() {
+    if (active.current || !mounted.current) return;
+    active.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const controller = new AbortController();
+      request.current = controller;
+      const result = await downloadDraftReport(caseId, locale, { signal: controller.signal });
+      if (!mounted.current || controller.signal.aborted) return;
+      if (result.kind !== "download") {
+        setError(result.kind === "throttled" ? text.pdfThrottled
+          : result.kind === "gone" || result.kind === "replaced" || result.kind === "unavailable" ? text.pdfUnavailable
+          : result.kind === "timeout" ? text.pdfTimeout : text.pdfFailed);
+        return;
+      }
+      const url = URL.createObjectURL(result.blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `mawareeth-draft-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      if (mounted.current) setError(text.pdfFailed);
+    } finally {
+      active.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
+  return <div className="flex flex-col gap-2" aria-busy={busy}>
+    <div><button type="button" disabled={busy} className={buttonClass} onClick={() => void download()}>
+      {busy ? text.pdfBusy : error ? text.pdfRetry : text.pdfDownload}
+    </button></div>
+    {busy && <p role="status">{text.pdfBusy}</p>}
+    {error && <p role="alert">{error}</p>}
+  </div>;
 }

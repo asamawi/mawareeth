@@ -87,6 +87,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-noto-core && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN addgroup --system app && \
     adduser --system --ingroup app --home /home/app app
 
