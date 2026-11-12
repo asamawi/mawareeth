@@ -264,6 +264,8 @@ def read_snapshot(snapshot, case_id, started_at):
         'heir_options': heir_options(madhab, deceased, heirs),
         'deaths': [],
     }
+    for i, heir in enumerate(heirs):
+        heir['edit_options'] = heir_options(madhab, deceased, heirs[:i] + heirs[i + 1:])
     _read_deaths(result, snapshot.get('deaths'))
     return result
 
@@ -291,8 +293,12 @@ def _save(request, **changes):
     stored = get(request)
     stored.update(changes)
     stored.pop('heir_options', None)
+    for heir in stored.get('heirs', []):
+        heir.pop('edit_options', None)
     for death in stored.get('deaths', []):
         death.pop('heir_options', None)
+        for heir in death.get('heirs', []):
+            heir.pop('edit_options', None)
     # Reassign: changing the nested dict would not mark the session modified.
     request.session[SESSION_KEY] = stored
     touch(request)
@@ -361,7 +367,8 @@ def _decorate(case):
     for death in case['deaths']:
         death['gender'] = rows[death['heir_id']]['gender']
         death['heir_options'] = heir_options(case['madhab'], death, death['heirs'])
-        for row in death['heirs']:
+        for i, row in enumerate(death['heirs']):
+            row['edit_options'] = heir_options(case['madhab'], death, death['heirs'][:i] + death['heirs'][i + 1:])
             if row.get('same_as'):
                 row['name'] = rows[row['same_as']]['name']
 

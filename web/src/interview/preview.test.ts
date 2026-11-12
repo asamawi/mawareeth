@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { parsePreview, PREVIEW_REASONS, type Case, type Preview } from "../api/case.ts";
+import { noHeirOptions, parsePreview, PREVIEW_REASONS, type Case, type Preview } from "../api/case.ts";
 import { locales, messages } from "../i18n/messages.ts";
 import { basisKey, kiratOf, percentOf, previewKey, previewReady, previewRows, reconcile, shown } from "./preview.ts";
 
@@ -40,8 +40,8 @@ const BASE: Case = {
   madhab: "hanbali",
   deceased: { gender: "male", estate: "8000" },
   heirs: [
-    { id: "h1", relationship: "wife", gender: "female", name: "Amal" },
-    { id: "h2", relationship: "son", gender: "male", name: null },
+    { id: "h1", relationship: "wife", gender: "female", name: "Amal", edit_options: noHeirOptions() },
+    { id: "h2", relationship: "son", gender: "male", name: null, edit_options: noHeirOptions() },
   ],
   heir_options: { blocked: [], invalid: {} },
   deaths: [],
@@ -253,7 +253,7 @@ test("an answer for another family is treated like a 409, and one for this famil
       { ...fixture.case, deceased: { gender: "female", estate: fixture.case.deceased?.estate ?? null } },
       { ...fixture.case, deceased: { gender: "male", estate: "1" } },
       { ...fixture.case, heirs: fixture.case.heirs.slice(1) },
-      { ...fixture.case, heirs: [...fixture.case.heirs, { id: "x", relationship: "son", gender: "male", name: null }] },
+      { ...fixture.case, heirs: [...fixture.case.heirs, { id: "x", relationship: "son", gender: "male", name: null, edit_options: noHeirOptions() }] },
       { ...fixture.case, heirs: fixture.case.heirs.map((heir, i) => (i === 0 ? { ...heir, relationship: "daughter" as const, gender: "female" as const } : heir)) },
     ];
     for (const other of others) {

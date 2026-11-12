@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import type { AnswerResult, Case, MadhabResult, StartResult } from "../api/case.ts";
+import { noHeirOptions } from "../api/case.ts";
 import type { FormRecord } from "./answers.ts";
 import {
   askStartOver,
@@ -446,8 +447,8 @@ test("Change opens the selector with a record; cancel closes it with nothing wri
 // Story 1.3: the deceased and the heirs
 
 const WITH_DECEASED: Case = { ...CHOSEN, deceased: { gender: "male", estate: "1000" } };
-const SON = { id: "h1", relationship: "son", gender: "male", name: null } as const;
-const AMAL = { id: "h2", relationship: "daughter", gender: "female", name: "Amal" } as const;
+const SON = { id: "h1", relationship: "son" as const, gender: "male" as const, name: null, edit_options: noHeirOptions() };
+const AMAL = { id: "h2", relationship: "daughter" as const, gender: "female" as const, name: "Amal", edit_options: noHeirOptions() };
 const WITH_SON: Case = { ...WITH_DECEASED, heirs: [SON] };
 const WITH_TWO: Case = { ...WITH_DECEASED, heirs: [SON, AMAL] };
 const HEIRS = startedOf(WITH_DECEASED, true);
@@ -1202,7 +1203,7 @@ test("revealOf: removal, failed or empty states and other views reveal nothing",
 
 const WITH_FATHER_OPTIONS: Case = {
   ...WITH_DECEASED,
-  heirs: [{ id: "h9", relationship: "father", gender: "male", name: null }],
+  heirs: [{ id: "h9", relationship: "father", gender: "male" as const, name: null, edit_options: noHeirOptions() }],
   heir_options: { blocked: ["brother", "sister"], invalid: { father: "second_father" } },
 };
 
@@ -1233,7 +1234,7 @@ test("picking a relationship flags a kinship rule at once, since a select may ne
     remember(picked, "heir", { relationship: "father", name: "x" }, "name", value.forms).errors,
     { relationship: "second_father" },
   );
-  // An edit is left to the server.
+  // Editing an heir that has empty edit_options flags nothing (edit_options.invalid is empty).
   const editing = startedOf(WITH_FATHER_OPTIONS, true, { editingHeir: "h9" });
   assert.equal(
     remember(editing, "heir", { relationship: "father", name: "" }, "relationship", value.forms).errors,
@@ -1255,11 +1256,30 @@ test("submit never refuses on the options: the server decides, and a stale tab i
   assert.equal(log.answers.length, 1, "sent for the server to decide");
 });
 
-test("an edit is left to the server and a case without options flags nothing", () => {
+test("editing an heir with empty edit_options flags nothing on blur, and a case without options flags nothing", () => {
+  // h9 has edit_options: noHeirOptions() (empty invalid), so blur finds no issue.
   const editing = startedOf(WITH_FATHER_OPTIONS, true, { editingHeir: "h9" });
   assert.equal(blurField(editing, "heir", "relationship", { relationship: "father", name: "" }).errors, null);
   const older = startedOf({ ...WITH_FATHER_OPTIONS, heir_options: { blocked: [], invalid: {} } }, true);
   assert.equal(blurField(older, "heir", "relationship", { relationship: "father", name: "" }).errors, null);
+});
+
+test("editing an heir uses its edit_options for the blur check, not the layer options", () => {
+  // h9's edit_options says father is invalid in this family (the heir being edited is excluded).
+  const editOptions = { blocked: [], invalid: { father: "second_father" as const } };
+  const h9WithEditOptions = { id: "h9", relationship: "father" as const, gender: "male" as const, name: null, edit_options: editOptions };
+  const caseWithEditOptions: Case = { ...WITH_FATHER_OPTIONS, heirs: [h9WithEditOptions] };
+  const editing = startedOf(caseWithEditOptions, true, { editingHeir: "h9" });
+  // Blurring with the same impossible relationship shows the error code from edit_options.
+  assert.deepEqual(
+    blurField(editing, "heir", "relationship", { relationship: "father", name: "" }).errors,
+    { relationship: "second_father" },
+  );
+  // Blurring with a valid relationship shows no error.
+  assert.equal(blurField(editing, "heir", "relationship", { relationship: "son", name: "" }).errors, null);
+  // A stale heir (editingHeir set but not found in heirs) falls back to noHeirOptions() — flags nothing.
+  const staleEditing = startedOf(caseWithEditOptions, true, { editingHeir: "gone" });
+  assert.equal(blurField(staleEditing, "heir", "relationship", { relationship: "father", name: "" }).errors, null);
 });
 
 test("the server's refusal of a relationship is shown with all errors, values kept, and the case is fetched again", async () => {
@@ -1296,7 +1316,7 @@ test("a refusal that is not about the relationship does not fetch the case again
 });
 
 test("a refused gender fetches the case again, so a spouse the tab never saw shows", async () => {
-  const live: Case = { ...WITH_DECEASED, heirs: [{ id: "h5", relationship: "husband", gender: "male", name: null }] };
+  const live: Case = { ...WITH_DECEASED, heirs: [{ id: "h5", relationship: "husband", gender: "male" as const, name: null, edit_options: noHeirOptions() }] };
   const { value, log } = deps({
     answer: () => ({ kind: "invalid", errors: { gender: "has_husband" } }),
     read: async () => live,
@@ -1355,16 +1375,16 @@ test("a failed or aborted read after a refusal still shows the refusal and throw
 
 // Story 1.7b: successive deaths
 
-const W = { id: "w", relationship: "wife", gender: "female", name: "Amal" } as const;
-const S1 = { id: "s1", relationship: "son", gender: "male", name: null } as const;
-const S2 = { id: "s2", relationship: "son", gender: "male", name: null } as const;
+const W = { id: "w", relationship: "wife" as const, gender: "female" as const, name: "Amal", edit_options: noHeirOptions() };
+const S1 = { id: "s1", relationship: "son" as const, gender: "male" as const, name: null, edit_options: noHeirOptions() };
+const S2 = { id: "s2", relationship: "son" as const, gender: "male" as const, name: null, edit_options: noHeirOptions() };
 const FAMILY: Case = { ...WITH_DECEASED, heirs: [W, S1, S2] };
 const S1_DEATH = {
   heir_id: "s1",
   order: 2 as const,
   gender: "male" as const,
   heir_options: { blocked: ["brother" as const], invalid: { husband: "husband_of_male" } },
-  heirs: [{ id: "r1", relationship: "mother" as const, gender: "female" as const, name: "Amal", same_as: "w" }],
+  heirs: [{ id: "r1", relationship: "mother" as const, gender: "female" as const, name: "Amal", same_as: "w", edit_options: noHeirOptions() }],
 };
 const TWO_LAYERS: Case = { ...FAMILY, deaths: [S1_DEATH] };
 

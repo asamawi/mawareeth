@@ -688,7 +688,7 @@ class InterviewAnswerTests(InterviewBase):
         self.assertEqual([h['gender'] for h in heirs], ['female', 'male'])
         self.assertEqual([h['name'] for h in heirs], ['Amal', None])
         self.assertEqual(len({h['id'] for h in heirs}), 2)
-        self.assertEqual(set(heirs[0]), {'id', 'relationship', 'gender', 'name'})
+        self.assertEqual(set(heirs[0]), {'id', 'relationship', 'gender', 'name', 'edit_options'})
         self.assertEqual(self.live()['heirs'], heirs)
 
     def test_every_relationship_is_accepted_with_the_gender_in_the_contract(self):
@@ -1927,6 +1927,20 @@ class HeirRulesApiTests(InterviewHelpers, TransactionTestCase):
         self.assertIn('sister', options['blocked'])
         self.assertNotIn('heir_options', self.stored())
         self.assertEqual(self.add('mother').json()['case']['heir_options'], self.live()['heir_options'])
+
+    def test_edit_options_on_each_heir_equal_heir_options_computed_without_that_heir(self):
+        for relationship in ('father', 'mother', 'son', 'daughter', 'brother'):
+            self.add(relationship)
+        case = self.live()
+        madhab = case['madhab']
+        deceased = case['deceased']
+        heirs = case['heirs']
+        for heir in heirs:
+            others = [h for h in heirs if h['id'] != heir['id']]
+            expected = anonymous_case.heir_options(madhab, deceased, others)
+            self.assertEqual(heir['edit_options'], expected, heir['relationship'])
+        # edit_options must not be stored in the session.
+        self.assertNotIn('edit_options', self.stored()['heirs'][0])
 
     def test_a_blocker_labels_and_the_labelled_relatives_still_save(self):
         self.add('father')

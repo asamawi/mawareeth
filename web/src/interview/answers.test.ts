@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { KINSHIP_CODES, parseHeirOptions, RELATIONSHIP_IDS } from "../api/case.ts";
+import { KINSHIP_CODES, noHeirOptions, parseHeirOptions, RELATIONSHIP_IDS } from "../api/case.ts";
 import { locales, messages } from "../i18n/messages.ts";
 import {
   BLANK_DECEASED,
@@ -338,11 +338,11 @@ test("fill and templateParts leave special replacement patterns in a name alone"
 
 test("unnamed heirs of the same relationship are numbered only when needed, in every locale", () => {
   const heirs = [
-    { id: "a", relationship: "son", gender: "male", name: null },
-    { id: "b", relationship: "son", gender: "male", name: "Omar" },
-    { id: "c", relationship: "son", gender: "male", name: null },
-    { id: "d", relationship: "wife", gender: "female", name: null },
-  ] as const;
+    { id: "a", relationship: "son" as const, gender: "male" as const, name: null, edit_options: noHeirOptions() },
+    { id: "b", relationship: "son" as const, gender: "male" as const, name: "Omar", edit_options: noHeirOptions() },
+    { id: "c", relationship: "son" as const, gender: "male" as const, name: null, edit_options: noHeirOptions() },
+    { id: "d", relationship: "wife" as const, gender: "female" as const, name: null, edit_options: noHeirOptions() },
+  ];
   assert.equal(unnamedOrdinal(heirs, "a"), 1);
   assert.equal(unnamedOrdinal(heirs, "c"), 2);
   assert.equal(unnamedOrdinal(heirs, "b"), null, "a named heir is never numbered");
@@ -436,17 +436,20 @@ test("the shared contract matches the relationship ids, their text and every err
   for (const [field, code] of produced) assert.ok(code && contract.errorCodes[field].includes(code), `${field} ${code}`);
 });
 
-test("relationshipIssue only reads what the server sent, and only for the add form", () => {
-  const kase = { heir_options: { blocked: ["brother" as const], invalid: { father: "second_father" } } };
-  assert.equal(relationshipIssue(kase, null, "father"), "second_father");
+test("relationshipIssue only reads what the server sent", () => {
+  const options = { blocked: ["brother" as const], invalid: { father: "second_father" } };
+  assert.equal(relationshipIssue(options, "father"), "second_father");
   // A relative who would inherit nothing is labelled, never flagged.
-  assert.equal(relationshipIssue(kase, null, "brother"), null);
-  assert.equal(relationshipIssue(kase, null, "son"), null);
-  assert.equal(relationshipIssue(kase, null, ""), null);
-  assert.equal(relationshipIssue(kase, null, "cousin"), null);
-  // An edit is left to the server.
-  assert.equal(relationshipIssue(kase, "h1", "father"), null);
-  assert.equal(relationshipIssue({ heir_options: { blocked: [], invalid: {} } }, null, "father"), null);
+  assert.equal(relationshipIssue(options, "brother"), null);
+  assert.equal(relationshipIssue(options, "son"), null);
+  assert.equal(relationshipIssue(options, ""), null);
+  assert.equal(relationshipIssue(options, "cousin"), null);
+  assert.equal(relationshipIssue({ blocked: [], invalid: {} }, "father"), null);
+  // Edit form: passing edit_options with father as invalid flags it.
+  const editOptions = { blocked: [], invalid: { father: "second_father" as const } };
+  assert.equal(relationshipIssue(editOptions, "father"), "second_father");
+  // Edit form: passing noHeirOptions (stale heir not found) flags nothing.
+  assert.equal(relationshipIssue({ blocked: [], invalid: {} }, "father"), null);
 });
 
 test("heirOptionLabels offers every relationship and labels only the blocked ones in the add form", () => {
@@ -493,7 +496,7 @@ test("the shared fixtures are read as they are, and the kinship codes match the 
     const options = parseHeirOptions(family.heir_options);
     assert.deepEqual(options, family.heir_options, family.name);
     for (const [relationship, code] of Object.entries(options.invalid)) {
-      assert.equal(relationshipIssue({ heir_options: options }, null, relationship), code, family.name);
+      assert.equal(relationshipIssue(options, relationship), code, family.name);
       assert.ok(!options.blocked.includes(relationship as never), family.name);
     }
   }

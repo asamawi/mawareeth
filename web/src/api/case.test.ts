@@ -8,6 +8,9 @@ import {
   fetchPreview,
   markDeceased,
   unmarkDeceased,
+  noHeirOptions,
+  parseCase,
+  parseHeirOptions,
   parsePreview,
   parseQuestions,
   MADHAB_IDS,
@@ -59,6 +62,27 @@ test("fetchCase rejects on a server error or a bad body", async () => {
   await assert.rejects(fetchCase(signal()));
   stubFetch(async () => Response.json({ nope: true }));
   await assert.rejects(fetchCase(signal()));
+});
+
+test("parseCase preserves edit_options on heirs and falls back to noHeirOptions() for malformed ones", () => {
+  const validEditOptions = { blocked: [], invalid: { father: "second_father" } };
+  const caseWithEditOptions = {
+    case: {
+      ...CASE,
+      heirs: [
+        { id: "h1", relationship: "son", gender: "male", name: null, edit_options: validEditOptions },
+        { id: "h2", relationship: "daughter", gender: "female", name: null, edit_options: { blocked: ["bad_value"], invalid: {} } },
+        { id: "h3", relationship: "mother", gender: "female", name: null },
+      ],
+    },
+  };
+  const parsed = parseCase(caseWithEditOptions);
+  assert.ok(parsed !== null);
+  assert.deepEqual(parsed!.heirs[0].edit_options, validEditOptions);
+  // Malformed edit_options (bad blocked value) reads as noHeirOptions().
+  assert.deepEqual(parsed!.heirs[1].edit_options, noHeirOptions());
+  // Missing edit_options reads as noHeirOptions().
+  assert.deepEqual(parsed!.heirs[2].edit_options, noHeirOptions());
 });
 
 test("a hung read rejects at the timeout", async () => {
@@ -260,7 +284,7 @@ const FULL_CASE = {
   ...CASE,
   madhab: "hanafi",
   deceased: { gender: "male", estate: "1250.5" },
-  heirs: [{ id: "h1", relationship: "son", gender: "male", name: null }],
+  heirs: [{ id: "h1", relationship: "son", gender: "male", name: null, edit_options: noHeirOptions() }],
 };
 
 test("parseCase reads deceased and heirs, and tolerates the older shape", async () => {
@@ -292,7 +316,7 @@ test("parseCase reads deceased and heirs, and tolerates the older shape", async 
   );
   const tolerated = await fetchCase(signal());
   assert.equal(tolerated?.deceased, null);
-  assert.deepEqual(tolerated?.heirs, [{ id: "h3", relationship: "wife", gender: "female", name: null }]);
+  assert.deepEqual(tolerated?.heirs, [{ id: "h3", relationship: "wife", gender: "female", name: null, edit_options: noHeirOptions() }]);
 });
 
 test("saveDeceased puts the fields and the case id to its own URL", async () => {
@@ -798,9 +822,9 @@ test("layered previews preserve strict death records and require an explicit pro
 const LAYERED = {
   ...FULL_CASE,
   heirs: [
-    { id: "w", relationship: "wife", gender: "female", name: "Amal" },
-    { id: "s1", relationship: "son", gender: "male", name: null },
-    { id: "s2", relationship: "son", gender: "male", name: null },
+    { id: "w", relationship: "wife", gender: "female", name: "Amal", edit_options: noHeirOptions() },
+    { id: "s1", relationship: "son", gender: "male", name: null, edit_options: noHeirOptions() },
+    { id: "s2", relationship: "son", gender: "male", name: null, edit_options: noHeirOptions() },
   ],
   deaths: [
     {
@@ -809,9 +833,9 @@ const LAYERED = {
       gender: "male",
       heir_options: { blocked: [], invalid: {} },
       heirs: [
-        { id: "r1", relationship: "mother", gender: "female", name: "Amal", same_as: "w" },
-        { id: "r2", relationship: "brother", gender: "male", name: null, same_as: "s2" },
-        { id: "r3", relationship: "wife", gender: "female", name: null },
+        { id: "r1", relationship: "mother", gender: "female", name: "Amal", same_as: "w", edit_options: noHeirOptions() },
+        { id: "r2", relationship: "brother", gender: "male", name: null, same_as: "s2", edit_options: noHeirOptions() },
+        { id: "r3", relationship: "wife", gender: "female", name: null, edit_options: noHeirOptions() },
       ],
     },
     {
@@ -819,7 +843,7 @@ const LAYERED = {
       order: 3,
       gender: "female",
       heir_options: { blocked: [], invalid: {} },
-      heirs: [{ id: "r4", relationship: "son", gender: "male", name: null, same_as: "s2" }],
+      heirs: [{ id: "r4", relationship: "son", gender: "male", name: null, same_as: "s2", edit_options: noHeirOptions() }],
     },
   ],
 };
@@ -832,8 +856,8 @@ async function parsed(value: unknown) {
 test("parseCase reads later deaths with their heirs, links and options", async () => {
   const kase = await parsed(LAYERED);
   assert.equal(kase?.deaths.length, 2);
-  assert.deepEqual(kase?.deaths[0].heirs[0], { id: "r1", relationship: "mother", gender: "female", name: "Amal", same_as: "w" });
-  assert.deepEqual(kase?.deaths[0].heirs[2], { id: "r3", relationship: "wife", gender: "female", name: null });
+  assert.deepEqual(kase?.deaths[0].heirs[0], { id: "r1", relationship: "mother", gender: "female", name: "Amal", same_as: "w", edit_options: noHeirOptions() });
+  assert.deepEqual(kase?.deaths[0].heirs[2], { id: "r3", relationship: "wife", gender: "female", name: null, edit_options: noHeirOptions() });
   assert.equal(kase?.deaths[1].heir_id, "w");
   assert.deepEqual(kase?.deaths[1].heirs.map((row) => row.same_as), ["s2"]);
 });

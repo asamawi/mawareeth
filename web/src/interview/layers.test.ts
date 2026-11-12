@@ -34,9 +34,9 @@ const CASE: Case = {
   madhab: "hanafi",
   deceased: { gender: "male", estate: null },
   heirs: [
-    { id: "w", relationship: "wife", gender: "female", name: "Amal" },
-    { id: "s1", relationship: "son", gender: "male", name: null },
-    { id: "s2", relationship: "son", gender: "male", name: null },
+    { id: "w", relationship: "wife", gender: "female", name: "Amal", edit_options: NONE },
+    { id: "s1", relationship: "son", gender: "male", name: null, edit_options: NONE },
+    { id: "s2", relationship: "son", gender: "male", name: null, edit_options: NONE },
   ],
   heir_options: NONE,
   deaths: [
@@ -46,9 +46,9 @@ const CASE: Case = {
       gender: "male",
       heir_options: NONE,
       heirs: [
-        { id: "r1", relationship: "mother", gender: "female", name: "Amal", same_as: "w" },
-        { id: "r2", relationship: "brother", gender: "male", name: null, same_as: "s2" },
-        { id: "r3", relationship: "wife", gender: "female", name: null },
+        { id: "r1", relationship: "mother", gender: "female", name: "Amal", same_as: "w", edit_options: NONE },
+        { id: "r2", relationship: "brother", gender: "male", name: null, same_as: "s2", edit_options: NONE },
+        { id: "r3", relationship: "wife", gender: "female", name: null, edit_options: NONE },
       ],
     },
     {
@@ -57,8 +57,8 @@ const CASE: Case = {
       gender: "female",
       heir_options: NONE,
       heirs: [
-        { id: "r4", relationship: "son", gender: "male", name: null, same_as: "s2" },
-        { id: "r5", relationship: "mother", gender: "female", name: null },
+        { id: "r4", relationship: "son", gender: "male", name: null, same_as: "s2", edit_options: NONE },
+        { id: "r5", relationship: "mother", gender: "female", name: null, edit_options: NONE },
       ],
     },
   ],
@@ -137,7 +137,7 @@ test("removing a linked person from the first layer leaves them, named, in the l
       {
         ...CASE.deaths[0],
         heirs: [
-          { id: "r1", relationship: "mother", gender: "female", name: "Amal" },
+          { id: "r1", relationship: "mother", gender: "female", name: "Amal", edit_options: NONE },
           ...CASE.deaths[0].heirs.slice(1),
         ],
       },

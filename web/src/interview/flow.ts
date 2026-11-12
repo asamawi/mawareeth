@@ -6,11 +6,13 @@ import type {
   DeceasedFields,
   Heir,
   HeirFields,
+  HeirOptions,
   MadhabId,
   MadhabResult,
   RelationshipId,
   StartResult,
 } from "../api/case.ts";
+import { noHeirOptions } from "../api/case.ts";
 import {
   BLANK_HEIR,
   unnamedOrdinal,
@@ -398,6 +400,17 @@ export function cancelEditHeir(view: StartedView, deps: Deps): StartedView {
 }
 
 /**
+ * The options to use for the relationship blur check in the current form context.
+ * For the add form (`editingHeir` null) this is the layer's own `options` — unchanged.
+ * For the edit form it is the edited heir's `edit_options` (counts without that heir),
+ * falling back to `noHeirOptions()` when the heir is not found (stale view: flag nothing).
+ */
+function editOptions(view: StartedView): HeirOptions {
+  if (view.editingHeir === null) return layerAt(view.case, view.layer).options;
+  return layerAt(view.case, view.layer).heirs.find((h) => h.id === view.editingHeir)?.edit_options ?? noHeirOptions();
+}
+
+/**
  * Records what the visitor has typed so a language switch or reload continues it. The
  * changed field's error goes away; the others stay until their field changes. A relationship
  * is a select, so a pick is final: a kinship rule it breaks (a husband for a male deceased)
@@ -421,11 +434,7 @@ export function remember(
   });
   const issue =
     form === "heir" && field === "relationship"
-      ? relationshipIssue(
-          { heir_options: layerAt(view.case, view.layer).options },
-          view.editingHeir,
-          values.relationship ?? "",
-        )
+      ? relationshipIssue(editOptions(view), values.relationship ?? "")
       : null;
   const clearsError = view.errors !== null && view.errors[field] !== undefined;
   if (!clearsError && issue === null && view.notice === null) return view;
@@ -448,11 +457,7 @@ export function blurField(
 ): StartedView {
   let code = validateField(form, field, values);
   if (code === null && form === "heir" && field === "relationship") {
-    code = relationshipIssue(
-      { heir_options: layerAt(view.case, view.layer).options },
-      view.editingHeir,
-      values.relationship ?? "",
-    );
+    code = relationshipIssue(editOptions(view), values.relationship ?? "");
   }
   if ((view.errors?.[field] ?? null) === code) return view;
   const errors = { ...(view.errors ?? {}) };

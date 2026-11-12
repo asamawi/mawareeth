@@ -254,10 +254,6 @@ Completed and obsolete items are removed; their history is in git.
   evidence: All Arabic and French preview text is unreviewed, and these sentences explain to visitors why no number is given.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
-  summary: Check the relationship on blur in the edit form too, not only on save.
-  evidence: `heir_options` describes adding to the whole family, and an edit leaves that heir out, so the edit form shows plain labels, runs no blur check, and only the server judges it on save.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
   summary: Add browser tests (Playwright with axe) for the add form's labels on blocked relatives, the hint, the second-father and spouse errors, a changed gender with a saved spouse, Arabic at 320px, and a keyboard-only run.
   evidence: The labels, hint and error display were covered by pure tests and a built export only; no browser runner exists yet.
 

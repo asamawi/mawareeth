@@ -4,7 +4,6 @@ import {
   MAX_HEIRS,
   RELATIONSHIP_IDS,
   type RelationshipId,
-  type Case,
   type DeceasedFields,
   type Heir,
   type HeirFields,
@@ -163,19 +162,14 @@ export function validateField(
 }
 
 /**
- * The server's code for a relationship the add form should flag on blur, or null: advice only,
+ * The server's code for a relationship that should be flagged on blur, or null: advice only,
  * because the server decides every save. A relative who would inherit nothing (hajb) is never
- * flagged, only labelled. It only reads `heir_options` from the case, so no rule is held here.
- * An edit is left to the server: the options describe adding to the whole family, and an edit
- * leaves that heir out.
+ * flagged, only labelled. The caller passes the right options for the context (layer options for
+ * the add form, the heir's `edit_options` for the edit form), so no fiqh rule is held here.
  */
-export function relationshipIssue(
-  kase: Pick<Case, "heir_options">,
-  editingHeir: string | null,
-  relationship: string,
-): string | null {
-  if (editingHeir !== null || !isRelationshipId(relationship)) return null;
-  return kase.heir_options.invalid[relationship] ?? null;
+export function relationshipIssue(options: HeirOptions, relationship: string): string | null {
+  if (!isRelationshipId(relationship)) return null;
+  return options.invalid[relationship] ?? null;
 }
 
 /**

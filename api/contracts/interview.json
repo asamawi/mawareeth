@@ -38,6 +38,14 @@
     "same_as": ["gender_mismatch", "not_alive", "already_linked"],
     "death": ["order_required", "simultaneous", "unknown", "order_conflict", "limit", "already_deceased"]
   },
+  "heir": {
+    "id": "row id",
+    "relationship": "one of relationships[].id",
+    "gender": "male | female (derived by server)",
+    "name": "string | null",
+    "same_as": "earliest row id (later layers only)",
+    "edit_options": "HeirOptions — computed without this heir; same shape as heir_options"
+  },
   "relativeQuestion": {
     "id": "question id (person id for relative questions)",
     "kind": ["relative", "shared_father"],
