@@ -1070,10 +1070,10 @@ for name in $all_rules; do
   [[ -n "$anchor" ]] || fail "$name has no runbook annotation"
   need "$root/deploy/README.md" "<a id=\"$anchor\"></a>"
 done
-[[ "$(grep -c '^ *- alert:' "$alerts")" == 19 ]] || fail 'expected exactly nineteen alert rules'
-[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 19 ]] || fail 'every rule needs a project: mawareeth label'
-[[ "$(grep -c '^ *severity: ' "$alerts")" == 19 ]] || fail 'every rule needs a severity label'
-[[ "$(grep -c '^ *runbook: ' "$alerts")" == 19 ]] || fail 'every rule needs a runbook annotation'
+[[ "$(grep -c '^ *- alert:' "$alerts")" == 21 ]] || fail 'expected exactly twenty-one alert rules'
+[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 21 ]] || fail 'every rule needs a project: mawareeth label'
+[[ "$(grep -c '^ *severity: ' "$alerts")" == 21 ]] || fail 'every rule needs a severity label'
+[[ "$(grep -c '^ *runbook: ' "$alerts")" == 21 ]] || fail 'every rule needs a runbook annotation'
 [[ "$(grep -c '^ *- alert: MawareethOriginCertificateExpiring$' "$alerts")" == 2 ]] || fail 'the certificate alert needs a warning and a critical rule'
 # shellcheck disable=SC2013 # anchors are single words without spaces.
 for anchor in $(grep -o 'README.md#runbook-[a-z]*' "$alerts" | sort -u | cut -d# -f2); do
@@ -1083,11 +1083,11 @@ for text in 'up{job="mawareeth-node"} == 0 or absent(up{job="mawareeth-node"})' 
   '(mawareeth_backup_last_ok_timestamp_seconds{job="mawareeth-node"} - time()) > 300' \
   '(mawareeth_restore_last_pass_timestamp_seconds{job="mawareeth-node"} - time()) > 300' \
   'node_textfile_scrape_error{job="mawareeth-node"} == 1' 'for: 2m' '> 26 * 3600' '> 35 * 86400' '> 75' '> 85' '> 20 * 60' \
-  'absent(mawareeth_monitor_collect_timestamp_seconds{job="mawareeth-node"})' \
+  'expr: absent(mawareeth_monitor_collect_timestamp_seconds{job="mawareeth-node"})' \
   'expr: mawareeth_drill_active_code{job="mawareeth-node"} > 0' '{{ $value | printf "%.0f" }}' \
   '(time() - mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"}) > 92 * 86400' \
   'or (mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"} - time()) > 300' \
-  'or absent(mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"})' \
+  'expr: absent(mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"})' \
   'severity: info' 'mawareeth_backup_last_archives_complete{job="mawareeth-node"} == 0' \
   'and mawareeth_backup_last_result_ok{job="mawareeth-node"} == 1' \
   'or (absent(mawareeth_backup_last_archives_complete{job="mawareeth-node"})' \
@@ -1112,13 +1112,27 @@ for text in 'up{job="mawareeth-node"} == 0 or absent(up{job="mawareeth-node"})' 
   'and (mawareeth_github_token_expiry_timestamp_seconds{job="mawareeth-node"} - time()) < 30 * 86400)' \
   'or absent(mawareeth_github_token_usable{job="mawareeth-node"})' \
   'expr: vector(1)' 'severity: heartbeat'; do need "$alerts" "$text"; done
-# for: delays: HostDown and read-only 2m; disk, inodes, failed units, and the
-# GitHub token 5m (its absent() must not fire on one failed scrape, before
-# HostDown can inhibit it); memory and clock 10m. Backup, restore, collector,
-# drill, certificates, OOM, and the Watchdog fire at once.
-[[ "$(grep -c '^ *for: ' "$alerts")" == 9 ]] || fail 'expected exactly nine for: delays'
+# for: delays: HostDown and read-only 2m; disk, inodes, failed units, the
+# GitHub token, and collector/drill absent-only branches 5m (missing metrics
+# must wait for HostDown to inhibit them); memory and clock 10m. Backup,
+# restore, collector/drill thresholds, certificates, OOM, and Watchdog fire at once.
+[[ "$(grep -c '^ *for: ' "$alerts")" == 11 ]] || fail 'expected exactly eleven for: delays'
 [[ "$(grep -c '^ *for: 2m$' "$alerts")" == 2 ]] || fail 'HostDown and the read-only alert need for: 2m'
-[[ "$(grep -c '^ *for: 5m$' "$alerts")" == 5 ]] || fail 'the disk, inode, failed-unit, and GitHub token alerts need for: 5m'
+[[ "$(grep -c '^ *for: 5m$' "$alerts")" == 7 ]] || fail 'expected seven for: 5m delays'
+for name in MawareethCollectorStale MawareethDrillOverdue; do
+  awk -v name="$name" '
+    /^ *- alert: / { selected = ($3 == name); absent = 0; delay = "" }
+    selected && /^ *expr: absent\(/ { absent = 1 }
+    selected && /^ *for: / { delay = $2 }
+    selected && /^ *labels:/ {
+      count++
+      if (absent) { missing++; if (delay != "5m") bad = 1 }
+      else { threshold++; if (delay != "") bad = 1 }
+      selected = 0
+    }
+    END { exit (bad || count != 2 || missing != 1 || threshold != 1) }
+  ' "$alerts" || fail "$name needs an immediate threshold rule and an absent-only rule with for: 5m"
+done
 sed -n '/alert: MawareethGithubTokenUnhealthy$/,/labels:/p' "$alerts" | grep -q 'for: 5m' || fail 'MawareethGithubTokenUnhealthy needs for: 5m'
 [[ "$(grep -c '^ *for: 10m$' "$alerts")" == 2 ]] || fail 'the memory and clock alerts need for: 10m'
 for name in MawareethOOMKill MawareethOriginCertificateExpiring MawareethWatchdog; do
@@ -1251,9 +1265,22 @@ elif command -v promtool >/dev/null 2>&1; then
     printf '      - {eval_time: 19m, alertname: MawareethCollectorStale, exp_alerts: []}\n'
     printf '      - eval_time: 21m\n        alertname: MawareethCollectorStale\n        exp_alerts:\n'; alert_labels warning MawareethCollectorStale
     printf '  - interval: 1m\n    input_series:\n'
-    printf "      - {series: 'up{%s}', values: '1x5'}\n" "$labels"
+    printf "      - {series: 'up{%s}', values: '1x10'}\n" "$labels"
     printf '    alert_rule_test:\n'
-    printf '      - eval_time: 1m\n        alertname: MawareethCollectorStale\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethCollectorStale, job: mawareeth-node}\n'
+    printf '      - {eval_time: 4m, alertname: MawareethCollectorStale, exp_alerts: []}\n'
+    printf '      - eval_time: 6m\n        alertname: MawareethCollectorStale\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethCollectorStale, job: mawareeth-node}\n'
+    # A short scrape outage (3 failed scrapes) marks both metrics stale; recovery
+    # before 5m resets the pending absent-only alerts.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'up{%s}', values: '1 1 1 1 0 0 0 1 1 1 1 1'}\n" "$labels"
+    printf "      - {series: 'mawareeth_monitor_collect_timestamp_seconds{%s}', values: '0+60x3 stale stale stale 360+60x5'}\n" "$labels"
+    printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '0x3 stale stale stale 0x5'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    for eval_time in 5m 7m 9m; do
+      for name in MawareethCollectorStale MawareethDrillOverdue; do
+        printf '      - {eval_time: %s, alertname: %s, exp_alerts: []}\n' "$eval_time" "$name"
+      done
+    done
     # The scrape job is missing on p1: up is absent, HostDown still fires.
     printf '  - interval: 1m\n    input_series:\n'
     printf "      - {series: 'mawareeth_monitor_collect_timestamp_seconds{%s}', values: '0+60x10'}\n" "$labels"
@@ -1313,11 +1340,12 @@ elif command -v promtool >/dev/null 2>&1; then
     printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '300x5'}\n" "$labels"
     printf '    alert_rule_test:\n'
     printf '      - {eval_time: 1m, alertname: MawareethDrillOverdue, exp_alerts: []}\n'
-    # The drill metric is missing while the host is scraped: Overdue fires.
+    # The drill metric is missing while the host is scraped: Overdue fires after 5m.
     printf '  - interval: 1m\n    input_series:\n'
-    printf "      - {series: 'up{%s}', values: '1x5'}\n" "$labels"
+    printf "      - {series: 'up{%s}', values: '1x10'}\n" "$labels"
     printf '    alert_rule_test:\n'
-    printf '      - eval_time: 1m\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethDrillOverdue, job: mawareeth-node}\n'
+    printf '      - {eval_time: 4m, alertname: MawareethDrillOverdue, exp_alerts: []}\n'
+    printf '      - eval_time: 6m\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethDrillOverdue, job: mawareeth-node}\n'
     # Certificates, 30-day boundary: 5 minutes short of it the warning is silent,
     # and it fires just past it, labelled with the file.
     cert_series='mawareeth_origin_certificate_expiry_timestamp_seconds'

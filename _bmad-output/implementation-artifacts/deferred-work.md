@@ -86,10 +86,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Decide whether a token record moving from a dated `expires_epoch` to `never` should be flagged, since a renamed or stripped GitHub expiry header would silently turn off the 30-day token alert.
   evidence: Review found that HTTP 200 without `github-authentication-token-expiration` overwrites a known expiry with `never`; the approved matrix treats a missing header as a never-expiring token, and treating the change as an error would also alert on a legitimate rotation to a non-expiring token.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-credential-expiry-alerts.md`
-  summary: Add a `for:` delay or split out the `absent()` branches of the existing `MawareethCollectorStale` and `MawareethDrillOverdue` rules, so one failed scrape cannot fire them before `MawareethHostDown` inhibits them.
-  evidence: Review of the new token rule found this false-alarm path and fixed it there with `for: 5m`; both existing rules use `absent()` with no `for:`, and changing existing rules was outside this spec.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
   summary: Re-run `deploy/monitor.sh install` on the production host when this work ships, confirm `clear-sessions` runs in the real image, and consider a last-success metric for it.
   evidence: The shell tests stub Docker, and a host that never re-runs `install` has no timer and raises no alert, so session rows would grow unnoticed. Release blocker.

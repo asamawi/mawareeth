@@ -683,9 +683,9 @@ The steps:
 | `MawareethRestoreUnhealthy` | Last restore check not `pass`, record unusable, last pass older than 35 days, or more than 5 minutes in the future | critical |
 | `MawareethDiskWarning` | An ext4/xfs/btrfs filesystem more than 75% used for 5 minutes | warning |
 | `MawareethDiskCritical` | More than 85% used for 5 minutes (inhibits the warning on the same mountpoint) | critical |
-| `MawareethCollectorStale` | `mawareeth.prom` older than 20 minutes, absent, or unparseable (`node_textfile_scrape_error == 1`) | warning |
+| `MawareethCollectorStale` | `mawareeth.prom` older than 20 minutes or unparseable (`node_textfile_scrape_error == 1`); collector timestamp metric absent for 5 minutes | warning |
 | `MawareethAlertDrill` | An alert-path drill is active (`mawareeth_drill_active_code > 0`); fires at once and carries the code in its summary | info |
-| `MawareethDrillOverdue` | The last passed drill is older than 92 days, none has passed (or the drill record is unusable), the metric is absent, or it is more than 5 minutes in the future | warning |
+| `MawareethDrillOverdue` | The last passed drill is older than 92 days, none has passed (or the drill record is unusable), it is more than 5 minutes in the future, or the metric is absent for 5 minutes | warning |
 | `MawareethInodesLow` | An ext4/xfs/btrfs filesystem with more than 85% of its inodes used for 5 minutes; a filesystem reporting no inode count (`node_filesystem_files == 0`, as btrfs does) never fires | critical |
 | `MawareethFilesystemReadOnly` | An ext4/xfs/btrfs filesystem read-only (`node_filesystem_readonly == 1`) for 2 minutes | critical |
 | `MawareethMemoryPressure` | `MemAvailable` below 10% of `MemTotal`, or more than 50% of swap used (only when `SwapTotal > 0`), for 10 minutes | warning |
@@ -802,6 +802,7 @@ This alert is expected right after the change that added `globals.sql` ships, un
 
 <a id="runbook-mawareethcollectorstale"></a>
 **MawareethCollectorStale.**
+A missing metric fires only after 5 minutes, so a single failed scrape does not trigger this alert.
 1. Run `systemctl list-timers mawareeth-monitor-collect.timer`, then `journalctl -u mawareeth-monitor-collect.service -n 50`, then `sudo deploy/monitor.sh status`.
 2. Exit 2 means a refusal (for example, the state or textfile directory is missing). Exit 3 means another monitor run holds the lock.
 3. Re-run `sudo deploy/monitor.sh install` if the units are missing or the checkout moved.
@@ -814,6 +815,7 @@ This alert is expected right after the change that added `globals.sql` ships, un
 
 <a id="runbook-mawareethdrilloverdue"></a>
 **MawareethDrillOverdue.**
+A missing metric fires only after 5 minutes, so a single failed scrape does not trigger this alert.
 1. Run `sudo deploy/monitor.sh status` and read the drill section.
 2. `(absent: no drill has run)` or `last_result=aborted` with no `last_pass_at` means the launch drill has not passed yet. Run the [alert-path drill](#alert-path-drill).
 3. `(unusable ...)` means the record is not `root:root` 0600 or is malformed. Inspect it with `sudo ls -l <state dir>/monitor/` and `sudo cat <state dir>/monitor/drill`, move it aside, and run the drill again.
