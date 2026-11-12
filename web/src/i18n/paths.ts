@@ -27,8 +27,13 @@ export function signupHref(locale: string, pathname: string): string {
   return `/${locale}/signup/?next=${encodeURIComponent(`/app${pathname}`)}`;
 }
 
-export function resultsResumePath(locale: string, action: "save" | "share"): string {
+export function resultsResumePath(locale: string, action: "save" | "share" | "whatsapp"): string {
   return `/${locale}/results/?resume=${action}`;
+}
+
+/** The wa.me link that opens WhatsApp with the message prefilled. */
+export function whatsappHref(message: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
 
 export function casesPath(locale: string): string { return `/${locale}/cases/`; }

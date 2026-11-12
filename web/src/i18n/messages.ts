@@ -16,7 +16,7 @@ export type Messages = {
   invites: { heading: string; email: string; send: string; sent: string; error: string; list: string; pending: string; accepted: string; expired: string; expires: string; revoke: string; received: string; owner: string; empty: string; open: string; accept: string };
   title: string;
   cases: { heading: string; empty: string; error: string; signIn: string; open: string; updated: string; heirs: string; draft: string };
-  share: { heading: string; preparing: string; created: string; urlLabel: string; copy: string; copied: string; copyFailed: string; createError: string; listHeading: string; none: string; privateBadge: string; publicBadge: string; expires: string; expired: string; makePublic: string; makePrivate: string; revoke: string; actionError: string; warningTitle: string; warningBody: string; warningConfirm: string; cancel: string };
+  share: { heading: string; preparing: string; created: string; urlLabel: string; copy: string; copied: string; copyFailed: string; createError: string; listHeading: string; none: string; privateBadge: string; publicBadge: string; expires: string; expired: string; makePublic: string; makePrivate: string; revoke: string; actionError: string; warningTitle: string; warningBody: string; warningConfirm: string; cancel: string; whatsappReady: string; whatsappOpen: string; whatsappUnavailable: string };
   shared: { heading: string; loading: string; signInTitle: string; signIn: string; createAccount: string; unavailable: string; error: string; retry: string; banner: string; throttled: string; privateBadge: string; publicBadge: string };
   checking: string;
   connected: string;
@@ -175,6 +175,7 @@ export type Messages = {
   results: {
     save: string;
     shareAction: string;
+    whatsappAction: string;
     saving: string;
     saved: string;
     saveError: string;
@@ -262,7 +263,7 @@ export const messages: Record<Locale, Messages> = {
     connected: "متصل بالخدمة.",
     unavailable: "الخدمة غير متاحة حاليًا. يرجى المحاولة لاحقًا.",
     cases: { heading: "حالاتي المحفوظة", empty: "لا توجد حالات محفوظة.", error: "تعذر تحميل أو فتح الحالة. حاول مرة أخرى.", signIn: "سجّل الدخول لعرض حالاتك المحفوظة.", open: "فتح", updated: "آخر تحديث", heirs: "عدد الورثة", draft: "مسودة" },
-    share: {"heading": "روابط المشاركة", "preparing": "جارٍ إنشاء الرابط…", "created": "تم إنشاء رابط خاص. انسخه الآن، فلن يظهر مرة أخرى.", "urlLabel": "رابط المشاركة", "copy": "نسخ الرابط", "copied": "تم النسخ.", "copyFailed": "تعذر النسخ. حدد الرابط وانسخه يدويًا.", "createError": "تعذر إنشاء الرابط. حاول مرة أخرى.", "listHeading": "الروابط الحالية", "none": "لا توجد روابط نشطة.", "privateBadge": "خاص", "publicBadge": "عام", "expires": "ينتهي في", "expired": "منتهي الصلاحية", "makePublic": "جعله عامًا", "makePrivate": "جعله خاصًا", "revoke": "إلغاء الرابط", "actionError": "تعذر تنفيذ الإجراء. حاول مرة أخرى.", "warningTitle": "تحذير: رابط عام", "warningBody": "أي شخص لديه هذا الرابط يمكنه الاطلاع على معلومات عائلية خاصة دون تسجيل الدخول. لا تجعله عامًا إلا إذا كنت تقبل ذلك.", "warningConfirm": "أفهم، اجعله عامًا", "cancel": "إلغاء"},
+    share: {"heading": "روابط المشاركة", "preparing": "جارٍ إنشاء الرابط…", "created": "تم إنشاء رابط خاص. انسخه الآن، فلن يظهر مرة أخرى.", "urlLabel": "رابط المشاركة", "copy": "نسخ الرابط", "copied": "تم النسخ.", "copyFailed": "تعذر النسخ. حدد الرابط وانسخه يدويًا.", "createError": "تعذر إنشاء الرابط. حاول مرة أخرى.", "listHeading": "الروابط الحالية", "none": "لا توجد روابط نشطة.", "privateBadge": "خاص", "publicBadge": "عام", "expires": "ينتهي في", "expired": "منتهي الصلاحية", "makePublic": "جعله عامًا", "makePrivate": "جعله خاصًا", "revoke": "إلغاء الرابط", "actionError": "تعذر تنفيذ الإجراء. حاول مرة أخرى.", "warningTitle": "تحذير: رابط عام", "warningBody": "أي شخص لديه هذا الرابط يمكنه الاطلاع على معلومات عائلية خاصة دون تسجيل الدخول. لا تجعله عامًا إلا إذا كنت تقبل ذلك.", "warningConfirm": "أفهم، اجعله عامًا", "cancel": "إلغاء", "whatsappReady": "الرابط الخاص جاهز للإرسال عبر واتساب.", "whatsappOpen": "فتح واتساب", "whatsappUnavailable": "تعذر فتح واتساب هنا. انسخ الرابط أعلاه وأرسله بطريقة أخرى."},
     shared: {"heading": "حالة مشاركة", "loading": "جارٍ تحميل الحالة المشاركة…", "signInTitle": "سجّل الدخول لعرض هذه الحالة المشاركة.", "signIn": "تسجيل الدخول", "createAccount": "إنشاء حساب", "unavailable": "هذا الرابط غير متاح.", "error": "تعذر تحميل الحالة المشاركة.", "retry": "إعادة المحاولة", "banner": "مسودة أولية غير معتمدة، للعرض فقط وليست فتوى ولا حكمًا.", "throttled": "طلبات كثيرة. حاول لاحقًا.", "privateBadge": "خاص", "publicBadge": "عام"},
     nav: {
       cases: "حالاتي المحفوظة",
@@ -485,6 +486,7 @@ export const messages: Record<Locale, Messages> = {
     results: {
       save: "حفظ",
       shareAction: "مشاركة",
+      whatsappAction: "واتساب",
       saving: "جارٍ الحفظ…",
       saved: "تم الحفظ.",
       saveError: "تعذر الحفظ. حاول مرة أخرى.",
@@ -561,7 +563,7 @@ export const messages: Record<Locale, Messages> = {
     connected: "Connected to the service.",
     unavailable: "The service is unavailable right now. Please try again later.",
     cases: {"heading": "My saved cases", "empty": "No saved cases yet.", "error": "Could not load or open the case. Please try again.", "signIn": "Sign in to see your saved cases.", "open": "Open", "updated": "Updated", "heirs": "Heirs", "draft": "Draft"},
-    share: {"heading": "Share links", "preparing": "Creating the link…", "created": "Private link created. Copy it now; it is shown only once.", "urlLabel": "Share link", "copy": "Copy link", "copied": "Copied.", "copyFailed": "Could not copy. Select the link and copy it by hand.", "createError": "Could not create the link. Please try again.", "listHeading": "Current links", "none": "No active links.", "privateBadge": "Private", "publicBadge": "Public", "expires": "Expires", "expired": "Expired", "makePublic": "Make public", "makePrivate": "Make private", "revoke": "Revoke", "actionError": "That did not work. Please try again.", "warningTitle": "Warning: public link", "warningBody": "Anyone with this link can see private family information without signing in. Make it public only if you accept that.", "warningConfirm": "I understand, make it public", "cancel": "Cancel"},
+    share: {"heading": "Share links", "preparing": "Creating the link…", "created": "Private link created. Copy it now; it is shown only once.", "urlLabel": "Share link", "copy": "Copy link", "copied": "Copied.", "copyFailed": "Could not copy. Select the link and copy it by hand.", "createError": "Could not create the link. Please try again.", "listHeading": "Current links", "none": "No active links.", "privateBadge": "Private", "publicBadge": "Public", "expires": "Expires", "expired": "Expired", "makePublic": "Make public", "makePrivate": "Make private", "revoke": "Revoke", "actionError": "That did not work. Please try again.", "warningTitle": "Warning: public link", "warningBody": "Anyone with this link can see private family information without signing in. Make it public only if you accept that.", "warningConfirm": "I understand, make it public", "cancel": "Cancel", "whatsappReady": "Your private link is ready to send on WhatsApp.", "whatsappOpen": "Open WhatsApp", "whatsappUnavailable": "WhatsApp could not be opened here. Copy the link above and send it another way."},
     shared: {"heading": "Shared case", "loading": "Loading the shared case…", "signInTitle": "Sign in to view this shared case.", "signIn": "Sign in", "createAccount": "Create account", "unavailable": "This link is unavailable.", "error": "Could not load the shared case.", "retry": "Try again", "banner": "Draft, not certified. Preliminary results for information only; not a fatwa or legal ruling.", "throttled": "Too many requests. Try again later.", "privateBadge": "Private", "publicBadge": "Public"},
     nav: {
       cases: "My saved cases",
@@ -784,6 +786,7 @@ export const messages: Record<Locale, Messages> = {
     results: {
       save: "Save",
       shareAction: "Share",
+      whatsappAction: "WhatsApp",
       saving: "Saving…",
       saved: "Saved.",
       saveError: "Could not save. Please try again.",
@@ -860,7 +863,7 @@ export const messages: Record<Locale, Messages> = {
     connected: "Connecté au service.",
     unavailable: "Le service est indisponible pour le moment. Veuillez réessayer plus tard.",
     cases: { heading: "Mes cas enregistrés", empty: "Aucun cas enregistré.", error: "Impossible de charger ou ouvrir le cas. Réessayez.", signIn: "Connectez-vous pour voir vos cas enregistrés.", open: "Ouvrir", updated: "Mis à jour", heirs: "Héritiers", draft: "Brouillon" },
-    share: {"heading": "Liens de partage", "preparing": "Création du lien…", "created": "Lien privé créé. Copiez-le maintenant : il ne s’affiche qu’une fois.", "urlLabel": "Lien de partage", "copy": "Copier le lien", "copied": "Copié.", "copyFailed": "Copie impossible. Sélectionnez le lien et copiez-le à la main.", "createError": "Impossible de créer le lien. Réessayez.", "listHeading": "Liens actuels", "none": "Aucun lien actif.", "privateBadge": "Privé", "publicBadge": "Public", "expires": "Expire le", "expired": "Expiré", "makePublic": "Rendre public", "makePrivate": "Rendre privé", "revoke": "Révoquer", "actionError": "L’action a échoué. Réessayez.", "warningTitle": "Attention : lien public", "warningBody": "Toute personne disposant de ce lien peut voir des informations familiales privées sans se connecter. Ne le rendez public que si vous l’acceptez.", "warningConfirm": "Je comprends, rendre public", "cancel": "Annuler"},
+    share: {"heading": "Liens de partage", "preparing": "Création du lien…", "created": "Lien privé créé. Copiez-le maintenant : il ne s’affiche qu’une fois.", "urlLabel": "Lien de partage", "copy": "Copier le lien", "copied": "Copié.", "copyFailed": "Copie impossible. Sélectionnez le lien et copiez-le à la main.", "createError": "Impossible de créer le lien. Réessayez.", "listHeading": "Liens actuels", "none": "Aucun lien actif.", "privateBadge": "Privé", "publicBadge": "Public", "expires": "Expire le", "expired": "Expiré", "makePublic": "Rendre public", "makePrivate": "Rendre privé", "revoke": "Révoquer", "actionError": "L’action a échoué. Réessayez.", "warningTitle": "Attention : lien public", "warningBody": "Toute personne disposant de ce lien peut voir des informations familiales privées sans se connecter. Ne le rendez public que si vous l’acceptez.", "warningConfirm": "Je comprends, rendre public", "cancel": "Annuler", "whatsappReady": "Votre lien privé est prêt à être envoyé sur WhatsApp.", "whatsappOpen": "Ouvrir WhatsApp", "whatsappUnavailable": "Impossible d’ouvrir WhatsApp ici. Copiez le lien ci-dessus et envoyez-le autrement."},
     shared: {"heading": "Cas partagé", "loading": "Chargement du cas partagé…", "signInTitle": "Connectez-vous pour voir ce cas partagé.", "signIn": "Se connecter", "createAccount": "Créer un compte", "unavailable": "Ce lien est indisponible.", "error": "Impossible de charger le cas partagé.", "retry": "Réessayer", "banner": "Brouillon non certifié. Résultats préliminaires, à titre informatif uniquement ; ne constitue ni une fatwa ni une décision juridique.", "throttled": "Trop de requêtes. Réessayez plus tard.", "privateBadge": "Privé", "publicBadge": "Public"},
     nav: {
       cases: "Mes cas enregistrés",
@@ -1086,6 +1089,7 @@ export const messages: Record<Locale, Messages> = {
     results: {
       save: "Enregistrer",
       shareAction: "Partager",
+      whatsappAction: "WhatsApp",
       saving: "Enregistrement…",
       saved: "Enregistré.",
       saveError: "Échec de l’enregistrement. Réessayez.",

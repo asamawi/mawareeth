@@ -1,5 +1,5 @@
 export type AuthState = "loading" | "anonymous" | "authenticated" | "error";
-export type Action = "save" | "share";
+export type Action = "save" | "share" | "whatsapp";
 export function decide(auth: AuthState): "dialog" | "notice" {
   return auth === "authenticated" ? "notice" : "dialog";
 }
@@ -8,9 +8,9 @@ export function parseResume(search: string): { action: Action | null; search: st
   const value = params.get("resume");
   params.delete("resume");
   const rest = params.toString();
-  return { action: value === "save" || value === "share" ? value : null, search: rest ? `?${rest}` : "" };
+  return { action: value === "save" || value === "share" || value === "whatsapp" ? value : null, search: rest ? `?${rest}` : "" };
 }
 
-export function authorizedAction(auth: AuthState, action: Action): "dialog" | "save" | "share" {
+export function authorizedAction(auth: AuthState, action: Action): "dialog" | Action {
   return auth === "authenticated" ? action : "dialog";
 }

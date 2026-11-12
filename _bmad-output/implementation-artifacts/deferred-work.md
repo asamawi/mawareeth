@@ -299,3 +299,7 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-4-share-report-with-registered-users-or-email-invitees.md`
   summary: Request native review of the new Arabic, English and French invitation UI and email text.
   evidence: Review invitation, sign-in and expiry wording, including Arabic RTL readability.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-5-whatsapp-share-for-registered-users.md`
+  summary: Request native review of the new Arabic, English and French WhatsApp share strings.
+  evidence: Review the WhatsApp button, ready status, "Open WhatsApp" label and unavailable-fallback wording, including Arabic RTL readability.
