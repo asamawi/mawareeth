@@ -10,7 +10,7 @@
     "build": "next build && node scripts/prune-export.mjs",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --test \"src/**/*.test.ts\""
+    "test": "node --import ./src/test/loader.mjs --test \"src/**/*.test.{ts,tsx}\""
   },
   "dependencies": {
     "next": "16.4.5",
@@ -24,6 +24,8 @@
     "@types/react-dom": "19.3.0",
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.5",
+    "happy-dom": "21.0.4",
+    "sucrase": "3.35.1",
     "tailwindcss": "4.3.4",
     "typescript": "5.9.3"
   }

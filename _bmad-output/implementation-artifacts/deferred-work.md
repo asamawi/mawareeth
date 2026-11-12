@@ -220,10 +220,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Handle failed or stale JavaScript chunks on `/app/` routes with an interview fallback, including tabs left open across a deploy, before they reach production.
   evidence: The project owner deferred failed or stale JavaScript chunk handling on 2026-11-06 as a release blocker. The image holds only its own release's hashed assets; an interview fallback for failed chunks remains open. Partly shipped in `27215dc` and `3a0ab0d`: noscript covers disabled JavaScript and `web/src/app/[locale]/site-nav.tsx:56-71` provides language switching. Sources: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`; `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-start-interview-madhab-selection.md`
-  summary: Make the locale test compare each pair of locales, so French copied from English fails.
-  evidence: `new Set(texts).size >= 2` in `web/src/api/case.test.ts` passes whenever Arabic alone differs, and this check predates Story 1.2.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-3-deceased-info-add-heirs-via-guided-interview-form.md`
   summary: Extend the heir relationship list with the remaining maternal and paternal grandparent lines, lower generations, and the relatives Jafari and Hanafi distant-kindred rules need.
   evidence: `api/anonymous_case.py` lists 23 relationship IDs, including paternal and maternal grandmothers; `grandfather` represents the paternal grandfather. Missing are the maternal grandfather, more remote grandparent lines and lower generations, and the additional relatives needed by Jafari and Hanafi distant-kindred rules.
@@ -303,16 +299,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Story 3.1c, successive deaths in the scholars' table: carry the engine's v2 layered proof through the preview API (session ids, labels, no engine pks; layer `heir` from the session death by order) with contract, fixtures and strict parser, and show the classic side-by-side manasikhat table (each later death's problem beside the earlier ones with the deceased's shares, the multiplier and the running jami'a, checked on the server against the engine's final fractions) on the results page and the interview preview, with each layer's explanation as row side notes.
   evidence: Split from Story 3.1b on 2026-11-10 at the project owner's choice; 3.1b delivers the scholars' table for single-death cases, which 3.1c extends.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-account-creation-gate-for-save-and-sharing.md`
-  summary: Add component or browser tests for the results `AuthGate`. Cover: each button opens the right dialog or notice, the dialog links carry the chosen action, a `?resume=save|share` return waits for the session check and resumes that action, and focus goes back to the button when the dialog closes.
-  evidence: Story 4.1 review (verification-gap) found that only the pure helpers `decide`/`parseResume` and the URL builders are tested. Removing `showModal()` or the resume `setPending` would leave every test passing. `web/` only has `node --test` with no DOM or component harness.
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-2-save-draft-report-to-registered-account.md`
   summary: FR-19 anonymization is not implemented; names and estate are stored as entered.
   evidence: SavedCase stores the explicit input snapshot. Anonymization remains deferred by Story 4.2.
-- source_spec: `_bmad-output/implementation-artifacts/spec-4-2-save-draft-report-to-registered-account.md`
-  summary: The signed-in save wiring in `AuthGate` (resume after sign-in, dialog close) and the open-then-navigate flow in `CasesView` have no automated test; only the pure `authorizedAction` helper and the API client are tested.
-  evidence: Story 4.2 review (verification-gap) found that removing `runSave()` from the resume/onClose paths or `router.push` from `CasesView.open` leaves every test green. Same root cause as the 4.1 entry: `web/` has no DOM or component harness.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-4-3-private-link-sharing-with-explicit-public-consent.md`
-  summary: The public-warning gate in `SharePanel` (Make public only calls `updateShare` after confirm) and the token move out of `location.hash` in `SharedView` have no automated test.
-  evidence: Story 4.3 verification-gap review: calling `updateShare(..., true)` directly from "Make public", or removing `replaceState`, leaves every test green. Same root cause as the 4.1/4.2 entries: `web/` has no DOM or component harness.

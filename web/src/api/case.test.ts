@@ -155,7 +155,14 @@ test("every locale has its own interview text", () => {
   for (const path of byLocale[0].keys()) {
     const texts = byLocale.map((map) => map.get(path));
     assert.ok(texts.every((text) => typeof text === "string" && text.length > 0), path);
-    assert.ok(new Set(texts).size >= 2, path);
+    // Strings that are only placeholders and punctuation, such as "{label} ({order})",
+    // have nothing to translate and may match across locales.
+    const translatable = /\p{L}/u.test(String(texts[0]).replace(/\{[^}]*\}/g, ""));
+    for (let i = 0; translatable && i < locales.length; i++) {
+      for (let j = i + 1; j < locales.length; j++) {
+        assert.notEqual(byLocale[i].get(path), byLocale[j].get(path), `${path} [${locales[i]} vs ${locales[j]}]`);
+      }
+    }
   }
   assert.ok(byLocale[0].has("interview.madhabs.hanbali.name"));
   for (const key of ["treeHeading", "treeDeceasedMale", "treeDeceasedFemale", "treePrompt", "treeSummary", "treeCount"]) {
