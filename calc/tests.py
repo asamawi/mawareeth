@@ -1319,6 +1319,28 @@ class TemplateTagTests(TestCase):
             empty = sorted(str(k) for k, v in catalog.items() if k and v == '')
             self.assertEqual(empty, [], f'{mo}: empty translations would render as blank text')
 
+    def test_compiled_catalogs_match_po_files(self):
+        import gettext
+        import polib
+        base = Path(settings.BASE_DIR, 'locale')
+        for po_path in sorted(base.glob('*/LC_MESSAGES/django.po')):
+            mo_path = po_path.with_suffix('.mo')
+            locale = po_path.parent.parent.name
+            if not mo_path.exists():
+                self.fail(f'{mo_path}: .mo is missing — run manage.py compile_catalog')
+            po = polib.pofile(str(po_path))
+            expected = {
+                e.msgid: e.msgstr
+                for e in po
+                if e.msgstr and 'fuzzy' not in e.flags and not e.obsolete
+            }
+            with open(mo_path, 'rb') as fh:
+                catalog = gettext.GNUTranslations(fh)._catalog
+            for msgid, msgstr in expected.items():
+                with self.subTest(locale=locale, msgid=msgid[:50]):
+                    self.assertEqual(catalog.get(msgid), msgstr,
+                        f'{mo_path.name}: .mo is stale for {msgid!r}')
+
     def test_no_template_tag_spans_lines(self):
         # Django only recognises a tag on one line; a split one is printed as
         # literal text on the page.

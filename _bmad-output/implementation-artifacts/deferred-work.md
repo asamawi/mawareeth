@@ -316,6 +316,3 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-3-private-link-sharing-with-explicit-public-consent.md`
   summary: The public-warning gate in `SharePanel` (Make public only calls `updateShare` after confirm) and the token move out of `location.hash` in `SharedView` have no automated test.
   evidence: Story 4.3 verification-gap review: calling `updateShare(..., true)` directly from "Make public", or removing `replaceState`, leaves every test green. Same root cause as the 4.1/4.2 entries: `web/` has no DOM or component harness.
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-empty-english-catalog-entries.md`
-  summary: Give the project one checked-in way to compile `locale/*/LC_MESSAGES/django.mo` (e.g. `compilemessages` in CI or a polib script that skips empty msgstrs) and a check that each `.mo` matches its `.po`.
-  evidence: With no `msgfmt` on the dev box, stories compiled catalogs with ad-hoc scripts; one copied seven empty English msgstrs into the `.mo`, blanking the 404, 500 and login-access text. The new catalog test catches empty entries but not a `.mo` that is stale against its `.po`.
