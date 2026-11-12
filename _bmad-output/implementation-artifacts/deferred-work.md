@@ -306,9 +306,6 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-1-account-creation-gate-for-save-and-sharing.md`
   summary: Add component or browser tests for the results `AuthGate`. Cover: each button opens the right dialog or notice, the dialog links carry the chosen action, a `?resume=save|share` return waits for the session check and resumes that action, and focus goes back to the button when the dialog closes.
   evidence: Story 4.1 review (verification-gap) found that only the pure helpers `decide`/`parseResume` and the URL builders are tested. Removing `showModal()` or the resume `setPending` would leave every test passing. `web/` only has `node --test` with no DOM or component harness.
-- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-account-creation-gate-for-save-and-sharing.md`
-  summary: Four calc tests fail locally on the base commit `c407bbe`: `ErrorPageTests` (`test_500_uses_standalone_page`, `test_logged_in_404_links_to_calculations`, `test_logged_out_404_uses_site_page`) and `TemplateTagTests.test_login_no_access_message_is_translated` (en). The rendered pages are missing the expected English text (`Something went wrong`, `Page not found`, `Go to my calculations`, `Your account doesn't have access to this page.`).
-  evidence: The 2026-11-11 Story 4.1 full run gave 392 tests, 5 failures. These four also fail in a clean worktree at `c407bbe`, so they predate 4.1. The fifth is the known `test_write_matrix_and_rollback` entry.
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-2-save-draft-report-to-registered-account.md`
   summary: FR-19 anonymization is not implemented; names and estate are stored as entered.
   evidence: SavedCase stores the explicit input snapshot. Anonymization remains deferred by Story 4.2.
@@ -319,6 +316,6 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-3-private-link-sharing-with-explicit-public-consent.md`
   summary: The public-warning gate in `SharePanel` (Make public only calls `updateShare` after confirm) and the token move out of `location.hash` in `SharedView` have no automated test.
   evidence: Story 4.3 verification-gap review: calling `updateShare(..., true)` directly from "Make public", or removing `replaceState`, leaves every test green. Same root cause as the 4.1/4.2 entries: `web/` has no DOM or component harness.
-- source_spec: `_bmad-output/implementation-artifacts/spec-4-3-private-link-sharing-with-explicit-public-consent.md`
-  summary: Four `calc` tests fail at baseline: `ErrorPageTests` (500 page, logged-in 404, logged-out 404) and `TemplateTagTests.test_login_no_access_message_is_translated` (en) cannot find their English strings.
-  evidence: Reproduced in a clean worktree of 4d052fd on 2026-11-12 with no story 4.3 changes; the assertions look for English text that the rendered pages do not contain.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-empty-english-catalog-entries.md`
+  summary: Give the project one checked-in way to compile `locale/*/LC_MESSAGES/django.mo` (e.g. `compilemessages` in CI or a polib script that skips empty msgstrs) and a check that each `.mo` matches its `.po`.
+  evidence: With no `msgfmt` on the dev box, stories compiled catalogs with ad-hoc scripts; one copied seven empty English msgstrs into the `.mo`, blanking the 404, 500 and login-access text. The new catalog test catches empty entries but not a `.mo` that is stale against its `.po`.

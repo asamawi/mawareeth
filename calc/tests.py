@@ -1307,6 +1307,18 @@ class ErrorPageTests(TestCase):
 
 class TemplateTagTests(TestCase):
 
+    def test_compiled_catalogs_have_no_empty_translations(self):
+        # msgfmt leaves untranslated entries out of the .mo, but the scripts used
+        # here to compile catalogs (no msgfmt on the dev box) have copied empty
+        # msgstrs in. gettext then returns "" and the page renders blank text
+        # instead of falling back to the msgid.
+        import gettext
+        for mo in sorted(Path(settings.BASE_DIR, 'locale').glob('*/LC_MESSAGES/django.mo')):
+            with open(mo, 'rb') as handle:
+                catalog = gettext.GNUTranslations(handle)._catalog
+            empty = sorted(str(k) for k, v in catalog.items() if k and v == '')
+            self.assertEqual(empty, [], f'{mo}: empty translations would render as blank text')
+
     def test_no_template_tag_spans_lines(self):
         # Django only recognises a tag on one line; a split one is printed as
         # literal text on the page.

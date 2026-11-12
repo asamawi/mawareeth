@@ -2275,25 +2275,25 @@ msgid "Your account has been updated!"
 msgstr "Your account has been updated!"
 
 msgid "Page not found"
-msgstr ""
+msgstr "Page not found"
 
 msgid "This page doesn't exist, or you don't have access to it."
-msgstr ""
+msgstr "This page doesn't exist, or you don't have access to it."
 
 msgid "Go to my calculations"
-msgstr ""
+msgstr "Go to my calculations"
 
 msgid "Go to the home page"
-msgstr ""
+msgstr "Go to the home page"
 
 msgid "Something went wrong"
-msgstr ""
+msgstr "Something went wrong"
 
 msgid "We couldn't complete your request. Please try again in a moment."
-msgstr ""
+msgstr "We couldn't complete your request. Please try again in a moment."
 
 msgid "Your account doesn't have access to this page. To proceed, please login with an account that has access."
-msgstr ""
+msgstr "Your account doesn't have access to this page. To proceed, please login with an account that has access."
 
 #: calc/templates/calc/home.html
 msgid "Start a case without an account"
