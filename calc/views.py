@@ -878,20 +878,18 @@ def father(request, pk):
 	return HttpResponseRedirect(reverse('calc:detail', args=(calc.id,)))
 
 
-def delete(request, pk):
-	calc = get_owned_calculation(request, pk)
-	# Only a POST deletes, so that CSRF protection applies and a link on
-	# another site cannot delete a case. An old link just lands on the list.
-	if request.method == "POST":
-		with transaction.atomic():
-			# Match the lock order in compute().
-			lock_calculation(calc.pk)
-			calc.delete()
-	return HttpResponseRedirect(reverse('calc:index'))
+class CalculationDelete(OwnedCalculationMixin, DeleteView):
+	model = Calculation
+	template_name = 'calc/calculation_confirm_delete.html'
+	http_method_names = ['get', 'head', 'post', 'options']
 
-# After login there is nothing useful to return to here: `next` would only
-# replay a GET, which never deletes. Send the user to their list instead.
-delete.redirect_field_name = None
+	def form_valid(self, form):
+		with transaction.atomic():
+			lock_calculation(self.object.pk)
+			return super().form_valid(form)
+
+	def get_success_url(self):
+		return reverse('calc:index')
 
 @login_not_required
 def error(request):

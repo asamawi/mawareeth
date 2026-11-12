@@ -1155,7 +1155,7 @@ class CalculationAccessControlTests(TestCase):
         for method in ('get', 'head'):
             with self.subTest(method=method):
                 response = getattr(self.client, method)(url, secure=True)
-                self.assertRedirects(response, reverse('calc:index'), fetch_redirect_response=False)
+                self.assertEqual(response.status_code, 200)
                 self.assertTrue(Calculation.objects.filter(pk=calc.pk).exists())
 
     def test_post_without_csrf_token_does_not_delete(self):
@@ -1175,9 +1175,12 @@ class CalculationAccessControlTests(TestCase):
         url = reverse('calc:delete', args=[calc.pk])
         page = client.get(reverse('calc:index'), secure=True)
         html = page.content.decode()
-        self.assertIn(f'<form action="{url}" method="post"', html)
-        self.assertNotIn(f'href="{url}"', html)
-        token = re.search(rf'<form action="{re.escape(url)}".*?name="csrfmiddlewaretoken" value="([^"]+)"', html, re.S)
+        self.assertNotIn(f'<form action="{url}" method="post"', html)
+        self.assertIn(f'href="{url}"', html)
+        confirm_page = client.get(url, secure=True)
+        self.assertEqual(confirm_page.status_code, 200)
+        confirm_html = confirm_page.content.decode()
+        token = re.search(r'name="csrfmiddlewaretoken" value="([^"]+)"', confirm_html)
         response = client.post(
             url, {'csrfmiddlewaretoken': token.group(1)}, secure=True, headers={'referer': 'https://testserver/'},
         )
@@ -1188,7 +1191,6 @@ class CalculationAccessControlTests(TestCase):
         calc, _, _ = self.make_case()
         response = self.client.get(reverse('calc:delete', args=[calc.pk]), secure=True)
         self.assert_redirects_to_login(response)
-        self.assertNotIn('next=', response['Location'])
         self.assertTrue(Calculation.objects.filter(pk=calc.pk).exists())
 
     def test_delete_verb_is_rejected_without_deleting(self):

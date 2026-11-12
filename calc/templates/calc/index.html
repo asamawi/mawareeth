@@ -47,12 +47,7 @@
     {% endflag %}
 
 
-    <form action="{% url 'calc:delete' calculation.id %}" method="post" class="float-right">
-      {% csrf_token %}
-      <button type="submit" class="btn btn-primary a-btn-slide-text" aria-label="{% trans 'Delete' %}">
-        <span>{% icon 'trash-o' %}</span>
-      </button>
-    </form>
+    <a href="{% url 'calc:delete' calculation.id %}" class="float-right btn btn-primary a-btn-slide-text" aria-label="{% trans 'Delete' %}"><span>{% icon 'trash-o' %}</span></a>
   <a href="{% url 'calc:detail' calculation.id %}"
   class="float-right btn btn-primary a-btn-slide-text">
   <span>{% icon 'edit' %}</span>

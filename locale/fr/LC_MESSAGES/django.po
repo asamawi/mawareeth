@@ -754,6 +754,10 @@ msgstr "Supprimer"
 msgid "Are you sure you want to delete"
 msgstr "Etes-vous sûr que vous voulez supprimer"
 
+#: .\calc\templates\calc\calculation_confirm_delete.html:21
+msgid "Cancel"
+msgstr ""
+
 #: .\calc\templates\calc\deceased_confirm_delete.html:19
 msgid "All heirs will be deleted"
 msgstr "Tous les héritiers seront supprimés"

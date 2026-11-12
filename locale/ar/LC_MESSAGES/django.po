@@ -729,6 +729,10 @@ msgstr "حذف"
 msgid "Are you sure you want to delete"
 msgstr "هل انت متأكد من الحذف"
 
+#: .\calc\templates\calc\calculation_confirm_delete.html:21
+msgid "Cancel"
+msgstr ""
+
 #: .\calc\templates\calc\deceased_confirm_delete.html:19
 msgid "All heirs will be deleted"
 msgstr "سيتم حذف جميع الورثة"

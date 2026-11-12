@@ -144,9 +144,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Fix the language switcher, which stores the chosen language in the cookie but sends the visitor back to the old language's URL, such as `/en/` after choosing French.
   evidence: Reproduced on production on 2026-11-05 and locally on the code before and after that spec, with the same `302 /en/`; the URL prefix then keeps the page in the old language.
 
-- source_spec: none
-  summary: Add an "are you sure?" confirmation before deleting a whole case from the case list, as part of product development, using the confirmation dialog the UX spec defines for destructive actions.
-  evidence: `calc:delete` deletes on one click of the trash button, while `heir_delete` and `deceased_delete` already show a confirmation page; `_bmad-output/planning-artifacts/ux-design-specification/ux-consistency-patterns.md:17` requires a confirmation dialog for removing a case. The owner chose on 2026-11-05 to leave this out of the security fix in PR #93 and handle it in product work.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-case-write-integrity.md`
   summary: Decide whether to bound the case write lock wait (for example `SET LOCAL lock_timeout` with a clear "another change is in progress" response) and add a metric or log for lock wait time, before the interview opens widely.
@@ -199,6 +196,10 @@ Completed and obsolete items are removed; their history is in git.
   evidence: The label states a fiqh position for two schools and was written without review; review of this change flagged the French "tardifs" as awkward and the plain radd label as silent on the spouse.
 
 ## Interview & web UI
+
+- source_spec: none
+  summary: Have a native Arabic and French speaker review the new "Cancel" label added to calc/templates/calc/calculation_confirm_delete.html — AR msgstr is empty.
+  evidence: Added as msgid "Cancel" with msgstr "" in locale/ar and locale/fr as part of the case-delete confirmation story; EN is self-translating.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
   summary: Add shadcn/ui, React Query, Zustand and drf-spectacular with the first story that uses each.
