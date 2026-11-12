@@ -303,10 +303,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Story 3.1c, successive deaths in the scholars' table: carry the engine's v2 layered proof through the preview API (session ids, labels, no engine pks; layer `heir` from the session death by order) with contract, fixtures and strict parser, and show the classic side-by-side manasikhat table (each later death's problem beside the earlier ones with the deceased's shares, the multiplier and the running jami'a, checked on the server against the engine's final fractions) on the results page and the interview preview, with each layer's explanation as row side notes.
   evidence: Split from Story 3.1b on 2026-11-10 at the project owner's choice; 3.1b delivers the scholars' table for single-death cases, which 3.1c extends.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-draft-pdf-report.md`
-  summary: `api/tests.py:2508` (`InterviewDeathsTests.test_write_matrix_and_rollback`) still asserts a layered preview has `proof: None`, which story 3.1c deliberately changed to the v2 proof.
-  evidence: The test fails at HEAD 955728f with "{'version': 2, ...} is not None"; story 3.2 does not touch `api/tests.py`. Replace the assertion with a v2-proof check.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-1-account-creation-gate-for-save-and-sharing.md`
   summary: Add component or browser tests for the results `AuthGate`. Cover: each button opens the right dialog or notice, the dialog links carry the chosen action, a `?resume=save|share` return waits for the session check and resumes that action, and focus goes back to the button when the dialog closes.
   evidence: Story 4.1 review (verification-gap) found that only the pure helpers `decide`/`parseResume` and the URL builders are tested. Removing `showModal()` or the resume `setPending` would leave every test passing. `web/` only has `node --test` with no DOM or component harness.
@@ -320,9 +316,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: The signed-in save wiring in `AuthGate` (resume after sign-in, dialog close) and the open-then-navigate flow in `CasesView` have no automated test; only the pure `authorizedAction` helper and the API client are tested.
   evidence: Story 4.2 review (verification-gap) found that removing `runSave()` from the resume/onClose paths or `router.push` from `CasesView.open` leaves every test green. Same root cause as the 4.1 entry: `web/` has no DOM or component harness.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-4-3-private-link-sharing-with-explicit-public-consent.md`
-  summary: `api.tests.InterviewDeathsTests.test_write_matrix_and_rollback` fails at baseline 4d052fd (asserts `body['proof']` is None on a layered preview).
-  evidence: Reproduced in a clean worktree of 4d052fd on 2026-11-12, before any story 4.3 change; likely stale after story 3.1c added proof to layered previews.
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-3-private-link-sharing-with-explicit-public-consent.md`
   summary: The public-warning gate in `SharePanel` (Make public only calls `updateShare` after confirm) and the token move out of `location.hash` in `SharedView` have no automated test.
   evidence: Story 4.3 verification-gap review: calling `updateShare(..., true)` directly from "Make public", or removing `replaceState`, leaves every test green. Same root cause as the 4.1/4.2 entries: `web/` has no DOM or component harness.

@@ -2507,7 +2507,9 @@ class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, Transaction
         self.assertEqual(self.add_layer(self.w, 'mother', name='M').status_code, 201)
         body = self.preview(self.case_id).json()
         self.assertEqual([(r['numerator'], r['denominator']) for r in body['shares']], [(275, 288), (13, 288)])
-        self.assertIsNone(body['proof'])
+        self.assertEqual(body['proof']['version'], 2)
+        self.assertEqual([layer['heir'] for layer in body['proof']['layers']],
+                         [None] + [d['heir_id'] for d in self.live()['deaths']])
         before = self.stored()
         self.refused(self.mark(self.s2), {'death': 'limit'}, before)
         self.refused(self.mark(self.w), {'death': 'already_deceased'}, before)
