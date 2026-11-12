@@ -517,15 +517,20 @@ class WorkflowContractTests(SimpleTestCase):
     def _production_deploy_workflow(self):
         return (PROJECT_ROOT / ".github" / "workflows" / "deploy-production.yml").read_text(encoding="utf-8")
 
-    def test_production_deploy_is_dispatch_only(self):
+    def test_production_deploy_runs_after_publish_or_by_dispatch_only(self):
         workflow = self._production_deploy_workflow()
         on_section = re.search(r"(?m)^on:\n((?:(?: +[^\n]*)?\n)*?)(?=^\S)", workflow)
         self.assertIsNotNone(on_section)
         triggers = re.findall(r"(?m)^  ([a-z_]+):", on_section.group(1))
-        self.assertEqual(triggers, ["workflow_dispatch"])
+        self.assertEqual(triggers, ["workflow_run", "workflow_dispatch"])
+        self.assertIn(
+            '  workflow_run:\n    workflows: ["Publish Release Image"]\n    types:\n      - completed\n'
+            "    branches: [master]\n",
+            on_section.group(1),
+        )
         inputs = re.findall(r"(?m)^      ([a-z_-]+):$", on_section.group(1))
         self.assertEqual(inputs, ["sha"])
-        for trigger in ("push:", "pull_request", "workflow_run", "schedule:", "repository_dispatch"):
+        for trigger in ("push:", "pull_request", "schedule:", "repository_dispatch"):
             with self.subTest(trigger=trigger):
                 self.assertNotIn(trigger, workflow)
 
@@ -536,23 +541,43 @@ class WorkflowContractTests(SimpleTestCase):
         self.assertNotIn("cancel-in-progress: true", workflow)
         self.assertRegex(workflow, r"(?m)^permissions:\n  contents: read$")
 
-    def test_production_deploy_validates_sha_before_anything_else(self):
+    def test_production_deploy_resolves_and_validates_sha_before_anything_else(self):
         workflow = self._production_deploy_workflow()
         jobs_section = workflow[workflow.index("\njobs:\n") :]
         first_job = re.search(r"(?m)^  ([a-z][a-z0-9-]*):\n", jobs_section)
         self.assertIsNotNone(first_job)
-        self.assertEqual(first_job.group(1), "validate-input")
-        validate = jobs_section[first_job.end() : jobs_section.index("\n  deploy:\n")]
-        self.assertIn("SHA: ${{ inputs.sha }}", validate)
-        self.assertIn('[[ "$SHA" =~ ^[0-9a-f]{40}$ ]]', validate)
-        self.assertNotIn("uses:", validate)
-        self.assertNotIn("environment:", validate)
-        self.assertIn("    needs: validate-input\n", workflow)
+        self.assertEqual(first_job.group(1), "resolve-sha")
+        resolve = jobs_section[first_job.end() : jobs_section.index("\n  deploy:\n")]
+        # An automatic run starts only from a successful master publish run of this repository.
+        for condition in (
+            "github.ref == 'refs/heads/master' &&",
+            "github.event_name == 'workflow_dispatch' ||",
+            "github.event.workflow_run.conclusion == 'success' &&",
+            "github.event.workflow_run.head_branch == 'master' &&",
+            "github.event.workflow_run.repository.full_name == github.repository",
+        ):
+            with self.subTest(condition=condition):
+                self.assertIn(condition, resolve)
+        self.assertRegex(resolve, r"(?m)^    permissions:\n      actions: read\n    outputs:\n")
+        self.assertIn("INPUT_SHA: ${{ inputs.sha }}", resolve)
+        self.assertIn("PUBLISH_RUN_ID: ${{ github.event.workflow_run.id }}", resolve)
+        # The SHA comes from the publish run's own manifest artifact, not the event's head_sha.
+        self.assertIn('capture("^release-manifest-(?<sha>[0-9a-f]{40})$")', resolve)
+        self.assertNotIn("head_sha", workflow)
+        self.assertIn('[[ "$sha" =~ ^[0-9a-f]{40}$ ]]', resolve)
+        self.assertNotIn("uses:", resolve)
+        self.assertNotIn("environment:", resolve)
+        self.assertIn("    needs: resolve-sha\n", workflow)
         # The SHA reaches scripts only through the environment, never inlined;
-        # the run name only displays it.
-        self.assertEqual(workflow.count("${{ inputs.sha }}"), workflow.count("SHA: ${{ inputs.sha }}") + 1)
-        self.assertEqual(workflow.count("\nrun-name: Deploy ${{ inputs.sha }}\n"), 1)
+        # the run name only displays the dispatch input.
+        self.assertEqual(workflow.count("inputs.sha"), 2)
+        self.assertIn("format('Deploy {0}', inputs.sha)", workflow)
+        self.assertEqual(
+            workflow.count("needs.resolve-sha.outputs.sha"),
+            workflow.count("SHA: ${{ needs.resolve-sha.outputs.sha }}"),
+        )
         deploy = jobs_section[jobs_section.index("\n  deploy:\n") :]
+        self.assertEqual(deploy.count("SHA: ${{ needs.resolve-sha.outputs.sha }}"), 2)
         self.assertLess(deploy.index('[[ "$SHA" =~ ^[0-9a-f]{40}$ ]]'), deploy.index("uses: tailscale/github-action@"))
 
     def test_production_deploy_reaches_the_host_only_over_tailscale_with_a_pinned_key(self):
@@ -593,7 +618,8 @@ class WorkflowContractTests(SimpleTestCase):
 
     def test_production_deploy_runs_from_master_with_no_token_and_reports(self):
         workflow = self._production_deploy_workflow()
-        self.assertEqual(workflow.count("\n    if: github.ref == 'refs/heads/master'\n"), 2)
+        self.assertEqual(workflow.count("\n    if: github.ref == 'refs/heads/master'\n"), 1)
+        self.assertIn("\n    if: >-\n      github.ref == 'refs/heads/master' &&\n", workflow)
         deploy = workflow[workflow.index("\n  deploy:\n") :]
         self.assertRegex(deploy, r"(?m)^    permissions: \{\}$")
         self.assertIn('>> "$GITHUB_STEP_SUMMARY"', deploy)
