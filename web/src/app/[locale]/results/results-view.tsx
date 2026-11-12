@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { downloadDraftReport, fetchCase, fetchPreview, type Case, type PreviewProofStep, type PreviewResult } from "@/api/case";
+import { downloadDraftReport, fetchCase, fetchPreview, type Case, type DraftReportResult, type PreviewProofStep, type PreviewResult } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import { formatEstate } from "@/interview/answers";
 import { localFraction, localKirat, localPercent } from "@/interview/format";
@@ -125,18 +125,23 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
   );
 }
 
-function Available({
+/** The results body. The shared page reuses it read-only: no save/share gate, and its own PDF download. */
+export function Available({
   messages,
   locale,
   kase,
   preview,
   back,
+  gate = true,
+  download,
 }: {
   messages: Messages;
   locale: string;
   kase: Case;
   preview: AvailablePreview;
   back: React.ReactNode;
+  gate?: boolean;
+  download?: (signal: AbortSignal) => Promise<DraftReportResult>;
 }) {
   const text = messages.results;
   const interview = messages.interview;
@@ -163,8 +168,8 @@ function Available({
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
       <p>{text.school.split("{school}").join(school)}</p>
-      <AuthGate key={kase.id} caseId={kase.id} locale={locale} text={text} />
-      <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} />
+      {gate && <AuthGate key={kase.id} caseId={kase.id} locale={locale} text={text} share={messages.share} />}
+      <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} download={download} />
 
       <section aria-labelledby="results-shares" className="flex flex-col gap-3">
         <h2 id="results-shares" className="text-xl font-semibold">
@@ -333,7 +338,7 @@ function HeirCard({
   );
 }
 
-function DraftDownload({ caseId, locale, text }: { caseId: string; locale: string; text: Messages["results"] }) {
+function DraftDownload({ caseId, locale, text, download: inject }: { caseId: string; locale: string; text: Messages["results"]; download?: (signal: AbortSignal) => Promise<DraftReportResult> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const active = useRef(false);
@@ -354,7 +359,7 @@ function DraftDownload({ caseId, locale, text }: { caseId: string; locale: strin
     try {
       const controller = new AbortController();
       request.current = controller;
-      const result = await downloadDraftReport(caseId, locale, { signal: controller.signal });
+      const result = inject ? await inject(controller.signal) : await downloadDraftReport(caseId, locale, { signal: controller.signal });
       if (!mounted.current || controller.signal.aborted) return;
       if (result.kind !== "download") {
         setError(result.kind === "throttled" ? text.pdfThrottled

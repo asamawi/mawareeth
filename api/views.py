@@ -3,7 +3,7 @@ import traceback
 
 from django.contrib.auth.decorators import login_not_required
 from django.shortcuts import get_object_or_404
-from django.utils import translation
+from django.utils import timezone, translation
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -13,10 +13,10 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api import anonymous_case, preview
-from api.models import SavedCase
+from api import anonymous_case, preview, sharing
+from api.models import SavedCase, ShareLink
 from api.permissions import CsrfProtectedWrites
-from api.throttling import CasePreviewThrottle, CaseWriteThrottle
+from api.throttling import CasePreviewThrottle, CaseWriteThrottle, ShareViewThrottle
 from reports.status import report_status
 
 logger = logging.getLogger(__name__)
@@ -263,3 +263,103 @@ class OpenSavedCaseView(ApiView):
         case = anonymous_case.load_snapshot(request, row.snapshot)
         anonymous_case.set_saved_link(request, case['id'], row.pk)
         return Response({'case': case})
+
+
+def _visibility(data, creating):
+    """The validated visibility from a share body, or a 400 Response. Public needs the warning accepted."""
+    if not isinstance(data, dict):
+        return None, Response({'detail': 'Expected a JSON object.'}, status=400)
+    visibility = data.get('visibility', ShareLink.PRIVATE if creating else None)
+    if visibility not in (ShareLink.PRIVATE, ShareLink.PUBLIC):
+        return None, Response({'detail': 'visibility must be private or public.'}, status=400)
+    if visibility == ShareLink.PUBLIC and data.get('accept_public_warning') is not True:
+        return None, Response({'detail': 'Accept the public link warning first.'}, status=400)
+    return visibility, None
+
+
+def _share_body(share):
+    return {'id': share.pk, 'visibility': share.visibility, 'created_at': share.created_at,
+            'expires_at': share.expires_at, 'expired': share.expires_at <= timezone.now()}
+
+
+@method_decorator(never_cache, name='dispatch')
+class SavedCaseSharesView(ApiView):
+    def get(self, request, id):
+        row = get_object_or_404(SavedCase, owner=request.user, pk=id)
+        shares = row.shares.filter(revoked_at__isnull=True).order_by('-created_at', '-pk')
+        return Response({'shares': [_share_body(share) for share in shares]})
+
+    def post(self, request, id):
+        row = get_object_or_404(SavedCase, owner=request.user, pk=id)
+        visibility, error = _visibility(request.data, creating=True)
+        if error:
+            return error
+        share, token = sharing.issue(row, visibility, request.user)
+        return Response({**_share_body(share), 'token': token}, status=status.HTTP_201_CREATED)
+
+
+@method_decorator(never_cache, name='dispatch')
+class ShareView(ApiView):
+    def _share(self, request, id):
+        return get_object_or_404(
+            ShareLink, pk=id, saved_case__owner=request.user, revoked_at__isnull=True,
+            expires_at__gt=timezone.now())
+
+    def patch(self, request, id):
+        share = self._share(request, id)
+        visibility, error = _visibility(request.data, creating=False)
+        if error:
+            return error
+        if share.visibility != visibility:
+            sharing.change_visibility(share, visibility, request.user)
+        return Response(_share_body(share))
+
+    def delete(self, request, id):
+        share = self._share(request, id)
+        sharing.revoke(share, request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SharedCaseMixin:
+    """Resolve a posted token to (share, case). Unknown, revoked and expired tokens share one 404."""
+
+    permission_classes = [CsrfProtectedWrites]
+
+    def unavailable(self):
+        return Response({'detail': 'This link is unavailable.'}, status=status.HTTP_404_NOT_FOUND)
+
+    def shared(self, request):
+        """Returns (share, case, None) or (None, None, error Response). Never touches the session."""
+        data = request.data
+        share = sharing.resolve(data.get('token') if isinstance(data, dict) else None)
+        if share is None:
+            return None, None, self.unavailable()
+        row = share.saved_case
+        if row.schema_version != 1 or not isinstance(row.snapshot, dict):
+            return None, None, self.unavailable()
+        if share.visibility == ShareLink.PRIVATE and not request.user.is_authenticated:
+            return None, None, Response(
+                {'detail': 'Sign in to view this link.', 'code': 'sign_in_required'}, status=status.HTTP_403_FORBIDDEN)
+        case = anonymous_case.read_snapshot(row.snapshot, f'share-{share.pk}', row.updated_at.isoformat())
+        return share, case, None
+
+
+@method_decorator(never_cache, name='dispatch')
+class SharedViewView(SharedCaseMixin, ApiView):
+    throttle_classes = [ShareViewThrottle]
+
+    def post(self, request):
+        share, case, error = self.shared(request)
+        if error:
+            return error
+        try:
+            with translation.override(_asked_language(request)):
+                body = preview.preview(case)
+        except Exception as failure:
+            logger.error(
+                'Shared preview failed: %s\n%s', type(failure).__name__,
+                ''.join(traceback.format_tb(failure.__traceback__)))
+            return Response({'detail': 'The preview is unavailable.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        sharing.audit(share, request.user, 'viewed')
+        return Response({'status': report_status(case), 'visibility': share.visibility,
+                         'case': case, 'preview': body})

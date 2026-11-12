@@ -40,3 +40,9 @@ class CasePreviewThrottle(ClientThrottle):
     """Limit share previews per client IP, apart from the writes, which never count them."""
 
     scope = 'case_preview'
+
+
+class ShareViewThrottle(ClientThrottle):
+    """Limit shared-link views and downloads per client IP."""
+
+    scope = 'share_view'

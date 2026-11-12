@@ -359,7 +359,7 @@ export type WriteOptions = { timeoutMs?: number; cookie?: () => string };
 export async function write<T>(
   signal: AbortSignal,
   options: WriteOptions,
-  init: { method: string; body?: string; url?: string },
+  init: { method: string; body?: string; url?: string; headers?: Record<string, string> },
   handle: (response: Response) => Promise<T | null>,
 ): Promise<T | null> {
   const controller = new AbortController();
@@ -383,6 +383,7 @@ export async function write<T>(
         Accept: "application/json",
         "Content-Type": "application/json",
         "X-CSRFToken": token,
+        ...init.headers,
       },
       body: init.body,
       signal: controller.signal,

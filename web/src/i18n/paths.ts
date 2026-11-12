@@ -32,3 +32,10 @@ export function resultsResumePath(locale: string, action: "save" | "share"): str
 }
 
 export function casesPath(locale: string): string { return `/${locale}/cases/`; }
+
+export function sharedPath(locale: string): string { return `/${locale}/shared/`; }
+
+/** The link an owner hands out. The token sits in the fragment, so it never reaches a server log or Referer. */
+export function shareUrl(origin: string, locale: string, token: string): string {
+  return `${origin}/app${sharedPath(locale)}#${token}`;
+}

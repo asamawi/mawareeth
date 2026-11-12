@@ -34,3 +34,9 @@ test("resume auth links encode their entire destination", () => {
   assert.equal(signupHref("en", path), "/en/signup/?next=%2Fapp%2Fen%2Fresults%2F%3Fresume%3Dsave");
   assert.equal(loginHref(resultsResumePath("ar", "share")), "/accounts/login/?next=%2Fapp%2Far%2Fresults%2F%3Fresume%3Dshare");
 });
+
+test("the share link carries its token in the fragment under /app", async () => {
+  const { shareUrl, sharedPath } = await import("./paths.ts");
+  assert.equal(sharedPath("ar"), "/ar/shared/");
+  assert.equal(shareUrl("https://x.test", "ar", "tok-1_a"), "https://x.test/app/ar/shared/#tok-1_a");
+});

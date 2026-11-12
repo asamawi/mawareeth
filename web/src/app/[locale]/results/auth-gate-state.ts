@@ -11,6 +11,6 @@ export function parseResume(search: string): { action: Action | null; search: st
   return { action: value === "save" || value === "share" ? value : null, search: rest ? `?${rest}` : "" };
 }
 
-export function authorizedAction(auth: AuthState, action: Action): "dialog" | "save" | "notice" {
-  return auth === "authenticated" ? action === "save" ? "save" : "notice" : "dialog";
+export function authorizedAction(auth: AuthState, action: Action): "dialog" | "save" | "share" {
+  return auth === "authenticated" ? action : "dialog";
 }

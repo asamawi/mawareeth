@@ -319,3 +319,13 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-2-save-draft-report-to-registered-account.md`
   summary: The signed-in save wiring in `AuthGate` (resume after sign-in, dialog close) and the open-then-navigate flow in `CasesView` have no automated test; only the pure `authorizedAction` helper and the API client are tested.
   evidence: Story 4.2 review (verification-gap) found that removing `runSave()` from the resume/onClose paths or `router.push` from `CasesView.open` leaves every test green. Same root cause as the 4.1 entry: `web/` has no DOM or component harness.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-3-private-link-sharing-with-explicit-public-consent.md`
+  summary: `api.tests.InterviewDeathsTests.test_write_matrix_and_rollback` fails at baseline 4d052fd (asserts `body['proof']` is None on a layered preview).
+  evidence: Reproduced in a clean worktree of 4d052fd on 2026-11-12, before any story 4.3 change; likely stale after story 3.1c added proof to layered previews.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-3-private-link-sharing-with-explicit-public-consent.md`
+  summary: The public-warning gate in `SharePanel` (Make public only calls `updateShare` after confirm) and the token move out of `location.hash` in `SharedView` have no automated test.
+  evidence: Story 4.3 verification-gap review: calling `updateShare(..., true)` directly from "Make public", or removing `replaceState`, leaves every test green. Same root cause as the 4.1/4.2 entries: `web/` has no DOM or component harness.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-3-private-link-sharing-with-explicit-public-consent.md`
+  summary: Four `calc` tests fail at baseline: `ErrorPageTests` (500 page, logged-in 404, logged-out 404) and `TemplateTagTests.test_login_no_access_message_is_translated` (en) cannot find their English strings.
+  evidence: Reproduced in a clean worktree of 4d052fd on 2026-11-12 with no story 4.3 changes; the assertions look for English text that the rendered pages do not contain.

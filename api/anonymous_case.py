@@ -242,20 +242,29 @@ def get(request):
     case = request.session.get(SESSION_KEY)
     if not isinstance(case, dict) or 'id' not in case or 'started_at' not in case:
         return None
-    madhab = case.get('madhab')
+    return read_snapshot(case, case['id'], case['started_at'])
+
+
+def read_snapshot(snapshot, case_id, started_at):
+    """Parse stored case data (a session case or a saved snapshot) into the case dict `get` returns.
+
+    Session-free: it reads nothing but its arguments. Invalid parts are dropped as in `get`.
+    """
+    madhab = snapshot.get('madhab') if isinstance(snapshot, dict) else None
     madhab = madhab if isinstance(madhab, str) and madhab in MADHABS else None
-    deceased = _read_deceased(case.get('deceased'))
-    heirs = _read_heirs(case.get('heirs'))
+    snapshot = snapshot if isinstance(snapshot, dict) else {}
+    deceased = _read_deceased(snapshot.get('deceased'))
+    heirs = _read_heirs(snapshot.get('heirs'))
     result = {
-        'id': case['id'],
-        'started_at': case['started_at'],
+        'id': case_id,
+        'started_at': started_at,
         'madhab': madhab,
         'deceased': deceased,
         'heirs': heirs,
         'heir_options': heir_options(madhab, deceased, heirs),
         'deaths': [],
     }
-    _read_deaths(result, case.get('deaths'))
+    _read_deaths(result, snapshot.get('deaths'))
     return result
 
 

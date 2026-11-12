@@ -1,3 +1,4 @@
+import hashlib
 import json
 import random
 import threading
@@ -28,7 +29,7 @@ from rest_framework.views import APIView
 
 from api import urls as api_urls
 from api import anonymous_case, heir_rules
-from api.models import SavedCase
+from api.models import AppendOnlyError, SavedCase, ShareAuditEvent, ShareLink
 from api.throttling import CaseWriteThrottle
 from api.views import ApiView, SessionView
 from calc import schools
@@ -3175,3 +3176,229 @@ class SavedCaseTests(InterviewBase):
 
 def saved_case_test_status(case):
     return 'extension-status'
+
+
+class ShareTests(InterviewBase):
+    saved_url = '/api/v1/saved-cases/'
+
+    def setUp(self):
+        super().setUp()
+        self.owner = get_user_model().objects.create_user(username='share-owner', password='test')
+        self.viewer = get_user_model().objects.create_user(username='share-viewer', password='test')
+        self.client.force_login(self.owner)
+        case = self.ready()
+        self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'})
+        self.heir(case, name='Family name')
+        self.case = self.live()
+        self.saved_id = self.send('post', self.saved_url, {'case_id': self.case['id']}).json()['id']
+        self.shares_url = f'{self.saved_url}{self.saved_id}/shares/'
+
+    def create(self, **body):
+        return self.send('post', self.shares_url, body)
+
+    def anonymous(self):
+        return APIClient(enforce_csrf_checks=True)
+
+    def view(self, token, client=None):
+        return self.send('post', '/api/v1/shares/view/', {'token': token}, client or self.anonymous())
+
+    def public(self):
+        return self.create(visibility='public', accept_public_warning=True).json()
+
+    def test_create_stores_only_the_hash_and_defaults_to_private(self):
+        response = self.create()
+        self.assertEqual(response.status_code, 201)
+        token = response.json()['token']
+        share = ShareLink.objects.get()
+        self.assertEqual(share.visibility, 'private')
+        self.assertEqual(share.token_hash, hashlib.sha256(token.encode()).hexdigest())
+        self.assertNotEqual(share.token_hash, token)
+        self.assertLess(abs(share.expires_at - share.created_at - timedelta(days=30)), timedelta(seconds=5))
+        self.assertEqual(ShareAuditEvent.objects.get().action, 'created')
+        listed = self.client.get(self.shares_url, secure=True)
+        self.assertEqual(listed.status_code, 200)
+        self.assertNotIn(token, listed.content.decode())
+        self.assertNotIn('token', listed.json()['shares'][0])
+
+    def test_public_needs_explicit_consent_at_create_and_change(self):
+        for body in ({'visibility': 'public'}, {'visibility': 'public', 'accept_public_warning': 'yes'},
+                     {'visibility': 'public', 'accept_public_warning': False}):
+            self.assertEqual(self.create(**body).status_code, 400)
+        self.assertFalse(ShareLink.objects.exists())
+        self.assertEqual(self.create(visibility='bogus').status_code, 400)
+        self.assertEqual(self.public()['visibility'], 'public')
+        private = self.create().json()
+        url = f'/api/v1/shares/{private["id"]}/'
+        self.assertEqual(self.send('patch', url, {'visibility': 'public'}).status_code, 400)
+        self.assertEqual(ShareLink.objects.get(pk=private['id']).visibility, 'private')
+        self.assertEqual(
+            self.send('patch', url, {'visibility': 'public', 'accept_public_warning': True}).status_code, 200)
+        self.assertEqual(ShareLink.objects.get(pk=private['id']).visibility, 'public')
+        self.assertEqual(self.send('patch', url, {'visibility': 'private'}).json()['visibility'], 'private')
+        actions = list(ShareAuditEvent.objects.filter(share_id=private['id']).order_by('pk')
+                       .values_list('action', flat=True))
+        self.assertEqual(actions, ['created', 'visibility_changed', 'visibility_changed'])
+        listed = self.client.get(self.shares_url, secure=True).json()['shares']
+        self.assertEqual({row['visibility'] for row in listed}, {'private', 'public'})
+
+    def test_private_needs_sign_in_and_public_does_not(self):
+        token = self.create().json()['token']
+        denied = self.view(token)
+        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(denied.json()['code'], 'sign_in_required')
+        self.assertFalse(ShareAuditEvent.objects.filter(action='viewed').exists())
+        client = self.anonymous()
+        client.force_login(self.viewer)
+        seen = self.view(token, client)
+        self.assertEqual(seen.status_code, 200)
+        body = seen.json()
+        self.assertEqual(body['status'], 'draft')
+        self.assertEqual(body['visibility'], 'private')
+        self.assertEqual(body['preview']['status'], 'available')
+        self.assertEqual(ShareAuditEvent.objects.get(action='viewed').actor_id, self.viewer.pk)
+        anon = self.view(self.public()['token'])
+        self.assertEqual(anon.status_code, 200)
+        self.assertEqual(anon.json()['status'], 'draft')
+        self.assertEqual(ShareAuditEvent.objects.filter(action='viewed').count(), 2)
+        self.assertIsNone(ShareAuditEvent.objects.filter(action='viewed').order_by('-pk').first().actor_id)
+
+    def test_unknown_revoked_and_expired_share_one_404(self):
+        live, revoked, expired = self.public(), self.public(), self.public()
+        self.assertEqual(self.send('delete', f'/api/v1/shares/{revoked["id"]}/', {}).status_code, 204)
+        self.assertEqual(ShareAuditEvent.objects.filter(action='revoked').count(), 1)
+        ShareLink.objects.filter(pk=expired['id']).update(expires_at=timezone.now() - timedelta(seconds=1))
+        bodies = set()
+        for token in ('unknown-token', revoked['token'], expired['token'], '', None):
+            response = self.view(token)
+            self.assertEqual(response.status_code, 404)
+            bodies.add(response.content)
+        self.assertEqual(len(bodies), 1)
+        self.assertEqual(self.view(live['token']).status_code, 200)
+        ShareLink.objects.filter(pk=live['id']).update(expires_at=timezone.now() + timedelta(seconds=30))
+        self.assertEqual(self.view(live['token']).status_code, 200)
+        ShareLink.objects.filter(pk=live['id']).update(expires_at=timezone.now())
+        self.assertEqual(self.view(live['token']).status_code, 404)
+        pdf = self.send('post', '/api/v1/shares/report/', {'token': revoked['token']}, self.anonymous())
+        self.assertEqual(pdf.status_code, 404)
+
+    def test_owner_scoping(self):
+        share = self.create().json()
+        other = self.anonymous()
+        other.force_login(self.viewer)
+        url = f'/api/v1/shares/{share["id"]}/'
+        self.assertEqual(self.send('patch', url, {'visibility': 'private'}, other).status_code, 404)
+        self.assertEqual(self.send('delete', url, {}, other).status_code, 404)
+        self.assertEqual(self.send('post', self.shares_url, {}, other).status_code, 404)
+        self.assertEqual(other.get(self.shares_url, secure=True).status_code, 404)
+        self.assertIsNone(ShareLink.objects.get().revoked_at)
+        self.assertEqual(self.anonymous().get(self.shares_url, secure=True).status_code, 403)
+
+    def test_live_content_and_viewer_session_untouched(self):
+        token = self.public()['token']
+        first = self.view(token).json()
+        self.deceased(self.case, estate='4321.00')
+        self.assertEqual(self.send('post', self.saved_url, {'case_id': self.case['id']}).status_code, 200)
+        second = self.view(token).json()
+        self.assertEqual(second['case']['deceased']['estate'], '4321.00')
+        self.assertNotEqual(first['case']['deceased'], second['case']['deceased'])
+        viewer = self.anonymous()
+        mine = self.send('post', CASE_URL, {}, viewer).json()['case']
+        before = viewer.get(CASE_URL, secure=True).json()
+        self.assertEqual(self.view(token, viewer).status_code, 200)
+        self.assertEqual(viewer.get(CASE_URL, secure=True).json(), before)
+        self.assertEqual(before['case']['id'], mine['id'])
+
+    def test_shared_pdf_is_a_draft_pdf(self):
+        token = self.public()['token']
+        url = '/api/v1/shares/report/'
+        with mock.patch('reports.views.render_pdf', return_value=b'%PDF-fake') as render:
+            response = self.send('post', url, {'token': token}, self.anonymous())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertEqual(response.content, b'%PDF-fake')
+        self.assertEqual(render.call_args[0][0]['id'], f'share-{ShareLink.objects.get().pk}')
+        self.assertTrue(ShareAuditEvent.objects.filter(action='report_downloaded').exists())
+        private = self.create().json()['token']
+        self.assertEqual(self.send('post', url, {'token': private}, self.anonymous()).status_code, 403)
+        with mock.patch('reports.views.render_pdf', side_effect=RuntimeError('boom')):
+            failed = self.send('post', url, {'token': token}, self.anonymous())
+        self.assertEqual(failed.status_code, 503)
+
+    def test_audit_rows_survive_deletes_and_are_append_only(self):
+        share = self.create().json()
+        SavedCase.objects.filter(pk=self.saved_id).delete()
+        self.owner.delete()
+        self.assertEqual(ShareAuditEvent.objects.filter(share_id=share['id']).count(), 1)
+        event = ShareAuditEvent.objects.get()
+        self.assertEqual(event.visibility, 'private')
+        with self.assertRaises(AppendOnlyError):
+            event.delete()
+        with self.assertRaises(AppendOnlyError):
+            ShareAuditEvent.objects.all().delete()
+        with self.assertRaises(AppendOnlyError):
+            ShareAuditEvent.objects.all().update(action='x')
+        self.assertEqual(ShareAuditEvent.objects.count(), 1)
+
+    def test_audit_records_visibility_after_each_action(self):
+        share = self.create().json()
+        url = f'/api/v1/shares/{share["id"]}/'
+        self.send('patch', url, {'visibility': 'public', 'accept_public_warning': True})
+        self.send('patch', url, {'visibility': 'private'})
+        rows = ShareAuditEvent.objects.filter(share_id=share['id']).order_by('pk')
+        self.assertEqual([(r.action, r.visibility) for r in rows],
+                         [('created', 'private'), ('visibility_changed', 'public'),
+                          ('visibility_changed', 'private')])
+
+    def test_expired_links_cannot_be_changed(self):
+        share = self.create().json()
+        ShareLink.objects.filter(pk=share['id']).update(expires_at=timezone.now() - timedelta(seconds=1))
+        url = f'/api/v1/shares/{share["id"]}/'
+        self.assertEqual(self.send('patch', url, {'visibility': 'private'}).status_code, 404)
+        self.assertEqual(self.send('delete', url, {}).status_code, 404)
+
+    def test_surrogate_token_is_the_same_404(self):
+        unknown = self.view('unknown-token')
+        for token in (chr(0xD800), 'a' + chr(0xDFFF) + 'b'):
+            response = self.client_view_raw(token)
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.content, unknown.content)
+
+    def client_view_raw(self, token):
+        # The JSON encoder would refuse a lone surrogate, so send it as an escaped JSON string.
+        client = self.anonymous()
+        body = '{"token": "' + ''.join('\\u%04x' % ord(c) for c in token) + '"}'
+        return client.post('/api/v1/shares/view/', body, content_type='application/json', secure=True,
+                           headers=self.csrf(client))
+
+    def test_unsupported_or_malformed_snapshots_are_the_same_404(self):
+        token = self.public()['token']
+        unknown = self.view('unknown-token')
+        report = '/api/v1/shares/report/'
+        unknown_report = self.send('post', report, {'token': 'unknown-token'}, self.anonymous())
+        for changes in ({'schema_version': 2}, {'schema_version': 1, 'snapshot': ['not', 'a', 'dict']}):
+            SavedCase.objects.filter(pk=self.saved_id).update(**changes)
+            for response, expected in ((self.view(token), unknown),
+                                       (self.send('post', report, {'token': token}, self.anonymous()), unknown_report)):
+                self.assertEqual(response.status_code, 404)
+                self.assertEqual(response.content, expected.content)
+
+    def test_share_view_throttle_applies_to_view_and_report(self):
+        self.assertEqual(api_settings.DEFAULT_THROTTLE_RATES['share_view'], '300/hour')
+        for _ in range(300):
+            self.assertEqual(self.view('unknown-token').status_code, 404)
+        limited = self.view('unknown-token')
+        self.assertEqual(limited.status_code, 429)
+        self.assertEqual(limited['Content-Type'], 'application/json')
+        cache.clear()
+        report = '/api/v1/shares/report/'
+        for _ in range(30):
+            self.assertEqual(self.send('post', report, {'token': 'unknown-token'}, self.anonymous()).status_code, 404)
+        limited = self.send('post', report, {'token': 'unknown-token'}, self.anonymous())
+        self.assertEqual(limited.status_code, 429)
+        self.assertEqual(limited['Content-Type'], 'application/json')
+
+    def test_view_needs_csrf(self):
+        token = self.create().json()['token']
+        response = self.anonymous().post('/api/v1/shares/view/', {'token': token}, format='json', secure=True)
+        self.assertEqual(response.status_code, 403)
+        self.assertNotEqual(response.json().get('code'), 'sign_in_required')
