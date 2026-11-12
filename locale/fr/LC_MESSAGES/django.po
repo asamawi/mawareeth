@@ -2939,3 +2939,7 @@ msgstr "Nouvelle jami’a"
 #: reports/templates/reports/draft.html reports/report.py
 msgid "Starting jami'a"
 msgstr "Jami’a initiale"
+
+#: calc/templates/calc/results.html calc/templates/calc/new_results.html
+msgid "These shares follow the Hanbali school of law"
+msgstr "Ces parts sont calculées selon l'école hanbalite"

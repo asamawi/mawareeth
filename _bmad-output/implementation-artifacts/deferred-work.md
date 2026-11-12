@@ -155,9 +155,9 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Calculation engine & proof
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-fix-engine-share-distribution.md`
-  summary: Say on the results pages that the shares follow the Hanbali school, whichever school the visitor follows.
-  evidence: The legacy calc results views (`ResultsView` and `NewResultsView`) call `compute()` without a school argument, so they use its Hanbali default regardless of the visitor's Madhab setting; neither view labels that school. The engine accepts a school argument (`calc/schools.py`).
+- source_spec: `_bmad-output/implementation-artifacts/spec-hanbali-label-on-legacy-results-pages.md`
+  summary: Native AR/FR review of the Hanbali-school note added to the legacy results pages.
+  evidence: The Arabic msgstr (`هذه الحصص محسوبة وفق المذهب الحنبلي`) and French msgstr (`Ces parts sont calculées selon l'école hanbalite`) were produced without native review; a qualified Arabic and French speaker should confirm both phrasings before production reliance.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
   summary: Add the Jafari school in its own story: its rules (no awl or radd as the Sunni schools have them, its own order of heirs and blocking), plus the relationships it needs that the engine does not model yet.

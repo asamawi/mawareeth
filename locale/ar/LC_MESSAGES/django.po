@@ -2849,3 +2849,7 @@ msgstr "الجامعة الجديدة"
 #: reports/templates/reports/draft.html reports/report.py
 msgid "Starting jami'a"
 msgstr "الجامعة الابتدائية"
+
+#: calc/templates/calc/results.html calc/templates/calc/new_results.html
+msgid "These shares follow the Hanbali school of law"
+msgstr "هذه الحصص محسوبة وفق المذهب الحنبلي"

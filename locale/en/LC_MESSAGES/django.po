@@ -2869,3 +2869,7 @@ msgstr "New jami'a"
 #: reports/templates/reports/draft.html reports/report.py
 msgid "Starting jami'a"
 msgstr "Starting jami'a"
+
+#: calc/templates/calc/results.html calc/templates/calc/new_results.html
+msgid "These shares follow the Hanbali school of law"
+msgstr "These shares follow the Hanbali school of law"
