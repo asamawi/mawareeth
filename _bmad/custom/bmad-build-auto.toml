@@ -1,0 +1,14 @@
+[workflow]
+
+persistent_facts = [
+  "Unattended run driven by scripts/auto-dev.ps1 on branch `development`. Never push, merge, rebase, reset or switch branches; commit locally only.",
+  "Django tests need Postgres on localhost:5432 (the driver starts it). Run tests serially with `uv run python manage.py test <targeted labels> --noinput`; never use --parallel and never start two test runs at once. Run targeted test modules for the story, not the full calc+api suite (the driver runs that once per batch).",
+]
+
+implementation_handoff = """
+Launch a subagent with no prior conversation context, using model `sonnet`, with this prompt:
+
+> Read {spec_file} fully and implement it — the spec is the sole source of truth. Load every file listed in its frontmatter `context:` before you start.
+>
+> When done, report what you changed, how you verified it, and anything left incomplete or risky.
+"""
