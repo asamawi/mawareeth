@@ -295,3 +295,7 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-2-save-draft-report-to-registered-account.md`
   summary: FR-19 anonymization is not implemented; names and estate are stored as entered.
   evidence: SavedCase stores the explicit input snapshot. Anonymization remains deferred by Story 4.2.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-4-share-report-with-registered-users-or-email-invitees.md`
+  summary: Request native review of the new Arabic, English and French invitation UI and email text.
+  evidence: Review invitation, sign-in and expiry wording, including Arabic RTL readability.

@@ -12,7 +12,7 @@ from rest_framework.response import Response
 
 from api import anonymous_case, preview, sharing
 from api.throttling import ReportDraftThrottle, ShareViewThrottle
-from api.views import ApiView, SharedCaseMixin, _asked_language
+from api.views import ApiView, ReceivedCaseMixin, SharedCaseMixin, _asked_language
 from reports.report import render_pdf
 from reports.status import report_status
 
@@ -83,4 +83,20 @@ class SharedReportView(SharedCaseMixin, ApiView):
         response = draft_pdf_response(request, case)
         if response.status_code == 200:
             sharing.audit(share, request.user, 'report_downloaded')
+        return response
+
+
+@method_decorator(never_cache, name='dispatch')
+class ReceivedReportView(ReceivedCaseMixin, ApiView):
+    renderer_classes = [JSONRenderer]
+    content_negotiation_class = DraftContentNegotiation
+    throttle_classes = [ShareViewThrottle, ReportDraftThrottle]
+
+    def post(self, request, id):
+        invite, case, error = self.received(request, id)
+        if error:
+            return error
+        response = draft_pdf_response(request, case)
+        if response.status_code == 200:
+            sharing.audit(invite, request.user, 'report_downloaded', subject='invite')
         return response

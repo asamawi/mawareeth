@@ -13,6 +13,7 @@ export function directionOf(locale: Locale): "rtl" | "ltr" {
 }
 
 export type Messages = {
+  invites: { heading: string; email: string; send: string; sent: string; error: string; list: string; pending: string; accepted: string; expired: string; expires: string; revoke: string; received: string; owner: string; empty: string; open: string; accept: string };
   title: string;
   cases: { heading: string; empty: string; error: string; signIn: string; open: string; updated: string; heirs: string; draft: string };
   share: { heading: string; preparing: string; created: string; urlLabel: string; copy: string; copied: string; copyFailed: string; createError: string; listHeading: string; none: string; privateBadge: string; publicBadge: string; expires: string; expired: string; makePublic: string; makePrivate: string; revoke: string; actionError: string; warningTitle: string; warningBody: string; warningConfirm: string; cancel: string };
@@ -255,6 +256,7 @@ export type Messages = {
 
 export const messages: Record<Locale, Messages> = {
   ar: {
+    invites: {"heading": "دعوة لعرض مسودة", "email": "البريد الإلكتروني", "send": "إرسال الدعوة", "sent": "تم إرسال الدعوة.", "error": "تعذّر تنفيذ ذلك. يُرجى المحاولة مرة أخرى.", "list": "الدعوات", "pending": "قيد الانتظار", "accepted": "مقبولة", "expired": "منتهية الصلاحية", "expires": "تنتهي في", "revoke": "إلغاء الدعوة", "received": "حالات مُشاركة معي", "owner": "صاحب الحالة", "empty": "لا توجد حالات مُشاركة.", "open": "عرض المسودة", "accept": "قبول الدعوة"},
     title: "مواريث",
     checking: "جارٍ التحقق من الاتصال بالخدمة…",
     connected: "متصل بالخدمة.",
@@ -553,6 +555,7 @@ export const messages: Record<Locale, Messages> = {
     cta: "ابدأ حالة بدون حساب",
   },
   en: {
+    invites: {"heading": "Invitation to view a draft", "email": "Email address", "send": "Send invitation", "sent": "Invitation sent.", "error": "That did not work. Please try again.", "list": "Invitations", "pending": "Pending", "accepted": "Accepted", "expired": "Expired", "expires": "Expires", "revoke": "Revoke invitation", "received": "Shared with me", "owner": "Case owner", "empty": "No shared cases.", "open": "View draft", "accept": "Accept invitation"},
     title: "Mawareeth",
     checking: "Checking the connection to the service…",
     connected: "Connected to the service.",
@@ -851,6 +854,7 @@ export const messages: Record<Locale, Messages> = {
     cta: "Start a case without an account",
   },
   fr: {
+    invites: {"heading": "Invitation à consulter un brouillon", "email": "Adresse e-mail", "send": "Envoyer l'invitation", "sent": "Invitation envoyée.", "error": "L'action a échoué. Réessayez.", "list": "Invitations", "pending": "En attente", "accepted": "Acceptée", "expired": "Expirée", "expires": "Expire le", "revoke": "Révoquer l'invitation", "received": "Partagés avec moi", "owner": "Propriétaire du cas", "empty": "Aucun cas partagé.", "open": "Voir le brouillon", "accept": "Accepter l'invitation"},
     title: "Mawareeth",
     checking: "Vérification de la connexion au service…",
     connected: "Connecté au service.",

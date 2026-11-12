@@ -44,6 +44,7 @@ class ShareAuditEvent(models.Model):
     `visibility` is the link's visibility after the action.
     """
 
+    subject = models.CharField(max_length=8, default='link')
     share_id = models.BigIntegerField()
     saved_case_id = models.BigIntegerField()
     actor_id = models.BigIntegerField(null=True)
@@ -61,3 +62,14 @@ class ShareAuditEvent(models.Model):
 
     def delete(self, *args, **kwargs):
         raise AppendOnlyError('Audit rows are append-only.')
+
+
+class ShareInvite(models.Model):
+    saved_case = models.ForeignKey(SavedCase, on_delete=models.CASCADE, related_name='invites')
+    email = models.CharField(max_length=254)
+    token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    accepted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)

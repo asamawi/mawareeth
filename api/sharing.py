@@ -15,11 +15,11 @@ def hash_token(token):
     return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
 
-def audit(share, actor, action):
+def audit(share, actor, action, subject='link'):
     user_id = actor.pk if actor is not None and getattr(actor, 'is_authenticated', False) else None
     ShareAuditEvent.objects.create(
         share_id=share.pk, saved_case_id=share.saved_case_id, actor_id=user_id, action=action,
-        visibility=share.visibility)
+        visibility='invite' if subject == 'invite' else share.visibility, subject=subject)
 
 
 def issue(saved_case, visibility, actor):

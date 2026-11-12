@@ -39,3 +39,6 @@ export function sharedPath(locale: string): string { return `/${locale}/shared/`
 export function shareUrl(origin: string, locale: string, token: string): string {
   return `${origin}/app${sharedPath(locale)}#${token}`;
 }
+
+export function invitePath(locale: string): string { return `/${locale}/invite/`; }
+export function receivedPath(locale: string, id: number): string { return `/${locale}/received/#${id}`; }

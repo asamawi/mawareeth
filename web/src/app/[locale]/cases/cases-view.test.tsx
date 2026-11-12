@@ -115,3 +115,18 @@ test("openSavedCase failure: router.push NOT called", async () => {
 
   assert.strictEqual(pushCalls.length, 0, "router.push should NOT be called when openSavedCase fails");
 });
+
+
+test("Shared with me links to the account-bound read-only view", async () => {
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("session/")) return Response.json({ authenticated: true });
+    if (url.includes("received/")) return Response.json({ received: [{ id: 9, owner: "Case Owner", updated_at: "2026-11-01", expires_at: "2026-12-01" }] });
+    return Response.json({ cases: [] });
+  };
+  await act(async () => root.render(<CasesView locale="en" text={text} />));
+  await settle(); await settle();
+  assert.ok(container.textContent?.includes("Shared with me"));
+  assert.ok(container.textContent?.includes("Case Owner"));
+  assert.equal(container.querySelector('a[href="/app/en/received/#9"]')?.textContent, "View draft");
+});

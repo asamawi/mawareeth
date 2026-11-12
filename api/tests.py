@@ -3418,3 +3418,150 @@ class ShareTests(InterviewBase):
         response = self.anonymous().post('/api/v1/shares/view/', {'token': token}, format='json', secure=True)
         self.assertEqual(response.status_code, 403)
         self.assertNotEqual(response.json().get('code'), 'sign_in_required')
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class InviteTests(InterviewBase):
+    def setUp(self):
+        super().setUp()
+        self.owner = get_user_model().objects.create_user(username='invite-owner')
+        self.recipient = get_user_model().objects.create_user(username='invite-recipient')
+        self.other = get_user_model().objects.create_user(username='invite-other', email='invited@example.com')
+        self.client.force_login(self.owner)
+        case = self.ready()
+        self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'})
+        self.heir(case, name='Private Family Name')
+        self.saved_id = self.send('post', '/api/v1/saved-cases/', {'case_id': case['id']}).json()['id']
+        self.url = f'/api/v1/saved-cases/{self.saved_id}/invites/'
+
+    def issue(self):
+        from django.core import mail
+        from api.models import ShareInvite
+        response = self.send('post', self.url, {'email': ' Invited@Example.com '})
+        self.assertEqual(response.status_code, 201)
+        token = mail.outbox[-1].body.rsplit('#', 1)[1].strip()
+        return ShareInvite.objects.get(pk=response.json()['id']), token, response
+
+    def accept(self, token, client=None):
+        return self.send('post', '/api/v1/invites/accept/', {'token': token}, client or self.client)
+
+    def view(self, id):
+        return self.send('post', f'/api/v1/received/{id}/view/', {})
+
+    def report(self, id):
+        return self.send('post', f'/api/v1/received/{id}/report/', {})
+
+    def test_hash_email_and_owner_scoping(self):
+        from django.core import mail
+        row, token, response = self.issue()
+        self.assertEqual(row.token_hash, hashlib.sha256(token.encode()).hexdigest())
+        self.assertEqual(row.email, 'invited@example.com')
+        self.assertNotIn(token, response.content.decode())
+        listed = self.client.get(self.url, secure=True)
+        self.assertNotIn(token, listed.content.decode())
+        self.assertEqual(listed.json()['invites'][0]['status'], 'pending')
+        self.assertEqual(mail.outbox[-1].to, ['invited@example.com'])
+        self.assertIn('/invite/#' + token, mail.outbox[-1].body)
+        self.assertNotIn('Private Family Name', mail.outbox[-1].body)
+        self.assertNotIn('Private Family Name', mail.outbox[-1].subject)
+        self.assertEqual(ShareAuditEvent.objects.filter(subject='invite', action='created').count(), 1)
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 404)
+        self.assertEqual(self.send('post', self.url, {'email': 'x@example.com'}).status_code, 404)
+        self.assertEqual(self.send('delete', f'/api/v1/invites/{row.pk}/', {}).status_code, 404)
+        self.assertEqual(self.client.get('/api/v1/received/', secure=True).json(), {'received': []})
+        self.assertEqual(self.view(row.pk).status_code, 404)
+        self.assertEqual(self.report(row.pk).status_code, 404)
+
+    def test_invalid_email_and_delivery_failure_leave_nothing(self):
+        from api.models import ShareInvite
+        for value in ('bad', '', None, 'x' * 255 + '@example.com'):
+            self.assertEqual(self.send('post', self.url, {'email': value}).status_code, 400)
+        with mock.patch('api.invites.send_mail', side_effect=RuntimeError('private transport error')):
+            self.assertEqual(self.send('post', self.url, {'email': 'x@example.com'}).status_code, 503)
+        with mock.patch('api.invites.send_mail', return_value=0):
+            self.assertEqual(self.send('post', self.url, {'email': 'x@example.com'}).status_code, 503)
+        self.assertFalse(ShareInvite.objects.exists())
+        self.assertFalse(ShareAuditEvent.objects.filter(subject='invite').exists())
+
+    def test_accept_is_account_bound_idempotent_and_preserves_session(self):
+        row, token, _ = self.issue()
+        anonymous = APIClient(enforce_csrf_checks=True)
+        self.assertEqual(self.accept(token, anonymous).json(), {'code': 'sign_in_required'})
+        self.client.force_login(self.recipient)
+        recipient_case = self.ready()
+        before = dict(self.client.session)
+        self.assertEqual(self.accept(token).json(), {'id': row.pk})
+        self.assertEqual(self.accept(token).json(), {'id': row.pk})
+        row.refresh_from_db()
+        self.assertEqual(row.accepted_by, self.recipient)
+        self.assertEqual(ShareAuditEvent.objects.filter(subject='invite', action='accepted').count(), 1)
+        viewed = self.view(row.pk)
+        self.assertEqual(viewed.status_code, 200)
+        self.assertEqual(viewed.json()['status'], 'draft')
+        self.assertEqual(viewed.json()['case']['id'], f'invite-{row.pk}')
+        self.assertEqual(viewed.json()['owner'], self.owner.username)
+        with mock.patch('reports.views.render_pdf', return_value=b'%PDF draft'):
+            self.assertEqual(self.report(row.pk).status_code, 200)
+        self.assertEqual(dict(self.client.session), before)
+        self.assertEqual(self.live()['id'], recipient_case['id'])
+        self.assertEqual(ShareAuditEvent.objects.filter(subject='invite', action='viewed').count(), 1)
+        self.assertEqual(ShareAuditEvent.objects.filter(subject='invite', action='report_downloaded').count(), 1)
+        self.assertEqual(self.client.get('/api/v1/received/', secure=True).json()['received'][0]['id'], row.pk)
+        self.client.force_login(self.other)
+        denied = self.accept(token)
+        unknown = self.accept('unknown')
+        self.assertEqual(denied.status_code, 404)
+        self.assertEqual(denied.json(), unknown.json())
+        self.assertEqual(self.view(row.pk).status_code, 404)
+        self.assertEqual(self.report(row.pk).status_code, 404)
+
+    def test_revoke_and_expiry_boundary(self):
+        from api.models import ShareInvite
+        row, token, _ = self.issue()
+        self.client.force_login(self.recipient)
+        self.accept(token)
+        self.client.force_login(self.owner)
+        self.assertEqual(self.send('delete', f'/api/v1/invites/{row.pk}/', {}).status_code, 204)
+        self.assertEqual(ShareAuditEvent.objects.filter(subject='invite', action='revoked').count(), 1)
+        self.assertEqual(self.client.get(self.url, secure=True).json()['invites'], [])
+        self.client.force_login(self.recipient)
+        unavailable = self.accept(token)
+        self.assertEqual(unavailable.status_code, 404)
+        self.assertEqual(self.view(row.pk).status_code, 404)
+        self.assertEqual(self.report(row.pk).status_code, 404)
+        self.assertEqual(self.client.get('/api/v1/received/', secure=True).json()['received'], [])
+        self.client.force_login(self.owner)
+        row, token, _ = self.issue()
+        boundary = timezone.now()
+        ShareInvite.objects.filter(pk=row.pk).update(expires_at=boundary)
+        with mock.patch('api.invites.timezone.now', return_value=boundary):
+            response = self.accept(token)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), unavailable.json())
+        self.assertEqual(self.client.get(self.url, secure=True).json()['invites'][0]['status'], 'expired')
+
+    def test_live_snapshot_preview_pdf_failures_and_throttles(self):
+        from api.models import SavedCase
+        row, token, _ = self.issue()
+        self.client.force_login(self.recipient)
+        self.accept(token)
+        saved = SavedCase.objects.get(pk=self.saved_id)
+        saved.snapshot['madhab'] = 'maliki'
+        saved.save()
+        self.assertEqual(self.view(row.pk).json()['case']['madhab'], 'maliki')
+        with mock.patch('api.views.preview.preview', side_effect=ValueError()):
+            self.assertEqual(self.view(row.pk).status_code, 503)
+        with mock.patch('reports.views.render_pdf', side_effect=ValueError()):
+            self.assertEqual(self.report(row.pk).status_code, 503)
+        with mock.patch('reports.views.preview.preview', return_value={'status': 'not_ready'}):
+            self.assertEqual(self.report(row.pk).status_code, 409)
+        with mock.patch('api.throttling.ShareViewThrottle.allow_request', return_value=False), \
+                mock.patch('api.throttling.ShareViewThrottle.wait', return_value=None):
+            self.assertEqual(self.accept(token).status_code, 429)
+            self.assertEqual(self.view(row.pk).status_code, 429)
+            self.assertEqual(self.report(row.pk).status_code, 429)
+        self.client.force_login(self.owner)
+        with mock.patch('api.throttling.ShareInviteThrottle.allow_request', return_value=False), \
+                mock.patch('api.throttling.ShareInviteThrottle.wait', return_value=None):
+            self.assertEqual(self.send('post', self.url, {'email': 'x@example.com'}).status_code, 429)

@@ -6,6 +6,9 @@ from api.views import (CaseView, DeathsView, DeathView, DeceasedView, HeirsView,
 
 from reports.views import DraftReportView, SharedReportView
 
+from api.views import SavedCaseInvitesView, InviteView, AcceptInviteView, ReceivedListView, ReceivedViewView
+from reports.views import ReceivedReportView
+
 app_name = 'api'
 
 urlpatterns = [
@@ -24,6 +27,12 @@ urlpatterns = [
     path('shares/view/', SharedViewView.as_view(), name='share-view'),
     path('shares/report/', SharedReportView.as_view(), name='share-report'),
     path('shares/<int:id>/', ShareView.as_view(), name='share'),
+    path('saved-cases/<int:id>/invites/', SavedCaseInvitesView.as_view(), name='saved-case-invites'),
+    path('invites/accept/', AcceptInviteView.as_view(), name='invite-accept'),
+    path('invites/<int:id>/', InviteView.as_view(), name='invite'),
+    path('received/', ReceivedListView.as_view(), name='received'),
+    path('received/<int:id>/view/', ReceivedViewView.as_view(), name='received-view'),
+    path('received/<int:id>/report/', ReceivedReportView.as_view(), name='received-report'),
     # Must stay last: it matches everything the routes above did not.
     re_path(r'^.*$', NotFoundView.as_view(), name='not-found'),
 ]

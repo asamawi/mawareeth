@@ -1,6 +1,6 @@
 import ipaddress
 
-from rest_framework.throttling import SimpleRateThrottle
+from rest_framework.throttling import SimpleRateThrottle, UserRateThrottle
 
 
 class ClientThrottle(SimpleRateThrottle):
@@ -46,3 +46,7 @@ class ShareViewThrottle(ClientThrottle):
     """Limit shared-link views and downloads per client IP."""
 
     scope = 'share_view'
+
+
+class ShareInviteThrottle(UserRateThrottle):
+    scope = 'share_invite'

@@ -8,17 +8,20 @@ import { loginHref, signupHref, resultsResumePath } from "@/i18n/paths";
 import { buttonClass } from "../interview/form-bits";
 import { useAuthState } from "../use-session";
 import { authorizedAction, decide, parseResume, type Action } from "./auth-gate-state";
+import { InvitePanel } from "./invite-panel";
 import { SharePanel } from "./share-panel";
 
 export function AuthGate({ locale, text, share: shareText, caseId }: { caseId: string; locale: string; text: Messages["results"]; share: Messages["share"] }) {
   const auth = useAuthState();
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [savedId, setSavedId] = useState<number | null>(null);
   const saving = useRef(false);
   const runSave = useCallback(async () => {
     if (saving.current) return;
     saving.current = true;
     setSaveState("saving");
     const result = await saveCase(new AbortController().signal, caseId);
+    if (result) setSavedId(result.id);
     setSaveState(result ? "saved" : "error");
     saving.current = false;
   }, [caseId]);
@@ -30,6 +33,7 @@ export function AuthGate({ locale, text, share: shareText, caseId }: { caseId: s
     setShareState({ status: "creating" });
     const signal = new AbortController().signal;
     const savedCase = await saveCase(signal, caseId);
+    if (savedCase) setSavedId(savedCase.id);
     const created = savedCase ? await createShare(signal, savedCase.id) : null;
     setShareState(savedCase && created ? { status: "ready", savedId: savedCase.id, created } : { status: "error" });
     sharing.current = false;
@@ -96,6 +100,7 @@ export function AuthGate({ locale, text, share: shareText, caseId }: { caseId: s
       {shareState?.status === "creating" && <p role="status">{shareText.preparing}</p>}
       {shareState?.status === "error" && <p role="alert">{shareText.createError}</p>}
       {shareState?.status === "ready" && <SharePanel key={shareState.created.id} savedId={shareState.savedId} created={shareState.created} locale={locale} text={shareText} />}
+      {savedId !== null && <InvitePanel key={savedId} savedId={savedId} locale={locale} />}
       <dialog ref={dialog} aria-labelledby={title} className="m-auto max-w-md rounded border bg-white p-6 text-black backdrop:bg-black/50" onClose={() => { if (action && decide(auth) === "notice") { if (action === "save") void runSave(); else void runShare(); } setAction(null); trigger.current?.focus(); }}>
         <div className="flex flex-col gap-4">
           <h2 id={title} className="text-xl font-semibold">{text.authTitle}</h2>

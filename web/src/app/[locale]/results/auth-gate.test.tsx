@@ -86,7 +86,7 @@ test("anonymous click Save opens dialog", async () => {
   assert.ok(dlg.open, "dialog should be open after anonymous Save click");
 });
 
-test("authenticated click Save sends POST to saved-cases", async () => {
+test("successful Save shows one invite form without creating a share link", async () => {
   const fetch = makeFetch(true, { "/api/v1/saved-cases/": { status: 200, body: { id: 42, updated_at: "2026-11-01T00:00:00Z" } } });
   (globalThis as Record<string, unknown>).fetch = fetch;
 
@@ -104,6 +104,9 @@ test("authenticated click Save sends POST to saved-cases", async () => {
 
   const postCall = fetch.calls.find((c) => c.url.includes("/api/v1/saved-cases/") && c.method === "POST");
   assert.ok(postCall, "POST to saved-cases should have been sent");
+  assert.equal(container.querySelectorAll("input[type=email]").length, 1);
+  assert.ok(fetch.calls.some((c) => c.url === "/api/v1/saved-cases/42/invites/" && c.method === "GET"));
+  assert.ok(!fetch.calls.some((c) => c.url.includes("/shares/") && c.method === "POST"));
 });
 
 test("?resume=save with anonymous opens dialog", async () => {

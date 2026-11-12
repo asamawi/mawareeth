@@ -1,6 +1,8 @@
 import logging
 import traceback
 
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.contrib.auth.decorators import login_not_required
 from django.shortcuts import get_object_or_404
 from django.utils import timezone, translation
@@ -13,10 +15,10 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api import anonymous_case, preview, sharing
-from api.models import SavedCase, ShareLink
+from api import anonymous_case, invites, preview, sharing
+from api.models import SavedCase, ShareInvite, ShareLink
 from api.permissions import CsrfProtectedWrites
-from api.throttling import CasePreviewThrottle, CaseWriteThrottle, ShareViewThrottle
+from api.throttling import CasePreviewThrottle, CaseWriteThrottle, ShareInviteThrottle, ShareViewThrottle
 from reports.status import report_status
 
 logger = logging.getLogger(__name__)
@@ -362,4 +364,104 @@ class SharedViewView(SharedCaseMixin, ApiView):
             return Response({'detail': 'The preview is unavailable.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         sharing.audit(share, request.user, 'viewed')
         return Response({'status': report_status(case), 'visibility': share.visibility,
+                         'case': case, 'preview': body})
+
+
+
+def _invite_body(invite):
+    state = 'expired' if invite.expires_at <= timezone.now() else ('accepted' if invite.accepted_at else 'pending')
+    return {'id': invite.pk, 'email': invite.email, 'status': state,
+            'accepted_by': invite.accepted_by.get_username() if invite.accepted_by else None,
+            'created_at': invite.created_at, 'expires_at': invite.expires_at}
+
+
+@method_decorator(never_cache, name='dispatch')
+class SavedCaseInvitesView(ApiView):
+    def get_throttles(self):
+        return [ShareInviteThrottle()] if self.request.method == 'POST' else []
+
+    def get(self, request, id):
+        row = get_object_or_404(SavedCase, owner=request.user, pk=id)
+        rows = row.invites.filter(revoked_at__isnull=True).select_related('accepted_by').order_by('-created_at', '-pk')
+        return Response({'invites': [_invite_body(invite) for invite in rows]})
+
+    def post(self, request, id):
+        row = get_object_or_404(SavedCase, owner=request.user, pk=id)
+        email = request.data.get('email') if isinstance(request.data, dict) else None
+        try:
+            if not isinstance(email, str) or len(email.strip()) > 254:
+                raise ValidationError('Invalid email')
+            validate_email(email.strip())
+        except ValidationError:
+            return Response({'detail': 'A valid email address is required.'}, status=400)
+        try:
+            invite = invites.issue(row, email, request.user, request, _asked_language(request))
+        except invites.DeliveryError:
+            return Response({'detail': 'The invitation could not be sent.'}, status=503)
+        return Response({'id': invite.pk, 'email': invite.email, 'status': 'pending',
+                         'expires_at': invite.expires_at}, status=201)
+
+
+@method_decorator(never_cache, name='dispatch')
+class InviteView(ApiView):
+    def delete(self, request, id):
+        invite = get_object_or_404(ShareInvite, pk=id, saved_case__owner=request.user, revoked_at__isnull=True)
+        invites.revoke(invite, request.user)
+        return Response(status=204)
+
+
+@method_decorator(never_cache, name='dispatch')
+class AcceptInviteView(SharedCaseMixin, ApiView):
+    throttle_classes = [ShareViewThrottle]
+
+    def post(self, request):
+        token = request.data.get('token') if isinstance(request.data, dict) else None
+        invite = invites.resolve(token)
+        if invite is None:
+            return self.unavailable()
+        if not request.user.is_authenticated:
+            return Response({'code': 'sign_in_required'}, status=403)
+        invite = invites.accept(token, request.user)
+        return Response({'id': invite.pk}) if invite else self.unavailable()
+
+
+@method_decorator(never_cache, name='dispatch')
+class ReceivedListView(ApiView):
+    def get(self, request):
+        rows = invites.live().filter(accepted_by=request.user).select_related('saved_case__owner').order_by('-created_at', '-pk')
+        return Response({'received': [{'id': row.pk, 'owner': row.saved_case.owner.get_username(),
+                         'updated_at': row.saved_case.updated_at, 'expires_at': row.expires_at} for row in rows]})
+
+
+class ReceivedCaseMixin:
+    permission_classes = [CsrfProtectedWrites]
+
+    def received(self, request, id):
+        if not request.user.is_authenticated:
+            return None, None, Response({'code': 'sign_in_required'}, status=403)
+        invite = invites.live().select_related('saved_case__owner').filter(pk=id, accepted_by=request.user).first()
+        if invite is None or invite.saved_case.schema_version != 1 or not isinstance(invite.saved_case.snapshot, dict):
+            return None, None, Response({'detail': 'This link is unavailable.'}, status=404)
+        row = invite.saved_case
+        case = anonymous_case.read_snapshot(row.snapshot, f'invite-{id}', row.updated_at.isoformat())
+        return invite, case, None
+
+
+@method_decorator(never_cache, name='dispatch')
+class ReceivedViewView(ReceivedCaseMixin, ApiView):
+    throttle_classes = [ShareViewThrottle]
+
+    def post(self, request, id):
+        invite, case, error = self.received(request, id)
+        if error:
+            return error
+        try:
+            with translation.override(_asked_language(request)):
+                body = preview.preview(case)
+        except Exception as failure:
+            logger.error('Received preview failed: %s\n%s', type(failure).__name__,
+                         ''.join(traceback.format_tb(failure.__traceback__)))
+            return Response({'detail': 'The preview is unavailable.'}, status=503)
+        sharing.audit(invite, request.user, 'viewed', subject='invite')
+        return Response({'status': report_status(case), 'owner': invite.saved_case.owner.get_username(),
                          'case': case, 'preview': body})

@@ -2943,3 +2943,12 @@ msgstr "Jami’a initiale"
 #: calc/templates/calc/results.html calc/templates/calc/new_results.html
 msgid "These shares follow the Hanbali school of law"
 msgstr "Ces parts sont calculées selon l'école hanbalite"
+
+
+msgid "You have been invited to view a draft case"
+msgstr "Invitation à consulter un brouillon de cas"
+
+
+#, python-format
+msgid "Sign in or register to accept this invitation. The invitation expires in 30 days.\n\n%(link)s"
+msgstr "Connectez-vous ou inscrivez-vous pour accepter cette invitation. Elle expire dans 30 jours.\n\n%(link)s"
