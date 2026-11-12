@@ -1138,6 +1138,30 @@ class CalculationAccessControlTests(TestCase):
         self.assertEqual(response['Location'], '/en/')
         self.assertEqual(response.cookies[settings.LANGUAGE_COOKIE_NAME].value, 'en')
 
+    def test_language_switch_redirects_to_translated_path(self):
+        # Regression: when next= carries a language-prefixed path, the redirect must land
+        # on the same path under the new language prefix (not the old-language URL).
+        # The app uses Arabic as the default prefix (/ar/), so switching from /ar/ to fr
+        # should produce /fr/.
+        response = self.client.post(
+            reverse('set_language'),
+            {'language': 'fr', 'next': '/ar/'},
+            secure=True,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/fr/')
+        self.assertEqual(response.cookies[settings.LANGUAGE_COOKIE_NAME].value, 'fr')
+
+    def test_language_switch_form_next_field_contains_current_path(self):
+        # Regression: base.html must use {{ request.get_full_path }} (not a stale
+        # context variable like {{ redirect_to }}) so that the hidden next field
+        # always reflects the page the user is actually on.
+        path = reverse('calc:about')  # resolves to /ar/about/ — public, renders base.html
+        self.client.force_login(self.owner)
+        response = self.client.get(path, secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'name="next" type="hidden" value="{path}"')
+
     def test_health_and_social_login_are_exempt_from_login(self):
         urls = [reverse(name) for name in ('ops-live', 'ops-ready', 'ops-release')]
         urls.append(reverse('social:begin', args=['linkedin-openidconnect']))
@@ -1283,7 +1307,12 @@ class ErrorPageTests(TestCase):
                 self.assertEqual(theirs.status_code, 404)
                 self.assertEqual(missing.status_code, 404)
                 self.assertTemplateUsed(theirs, '404.html')
-                self.assertEqual(self.strip_csrf(theirs), self.strip_csrf(missing))
+                # The language switcher echoes the requested path back, so the
+                # two pages may differ only in the requested id.
+                self.assertEqual(
+                    self.strip_csrf(theirs).replace(f'/{self.calc.pk}/', '/<pk>/'),
+                    self.strip_csrf(missing).replace(f'/{missing_pk}/', '/<pk>/'),
+                )
                 self.assertNotContains(theirs, 'secret case name', status_code=404)
 
     def test_404_is_translated(self):

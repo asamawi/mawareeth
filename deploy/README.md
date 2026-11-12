@@ -893,7 +893,7 @@ The workflow uploads `release-manifest-<commit>` containing `release-manifest.js
 
 The workflow validates the manifest inputs before pushing, so an unsupported contract never reaches GHCR. A registry push that succeeds before a later step fails can still leave a `:<commit>` tag without a manifest; never deploy by tag. Re-running the workflow rebuilds and re-pushes that tag with a new digest. Earlier manifests still name their own digests, so keep GHCR cleanup from deleting untagged versions that a retained manifest references. Manifest artifacts are kept for 90 days; archive any manifest you may need to roll back to after that.
 
-`deploy.yml` runs from the default branch (a `workflow_run` rule), but it checks out and executes `deploy/release_manifest.py` from the released commit. Keep the script's CLI backward compatible with the default branch's workflow, or merge workflow and CLI changes together. The manifest contains identities and contract versions only. Runtime credentials, environment values, secret material, host deployment logic, and mutable source references must never be added. Stories 0.5 and 0.6 consume and verify this contract. `deploy.yml` itself never contacts or deploys to the production host. Deploys from GitHub Actions run only through the separate `deploy-production.yml`, which is dispatched by hand, approved, and sends the host nothing but a commit SHA (see [Deploying from GitHub Actions](#deploying-from-github-actions)).
+`deploy.yml` runs from the default branch (a `workflow_run` rule), but it checks out and executes `deploy/release_manifest.py` from the released commit. Keep the script's CLI backward compatible with the default branch's workflow, or merge workflow and CLI changes together. The manifest contains identities and contract versions only. Runtime credentials, environment values, secret material, host deployment logic, and mutable source references must never be added. Stories 0.5 and 0.6 consume and verify this contract. `deploy.yml` itself never contacts or deploys to the production host. Deploys from GitHub Actions run only through the separate `deploy-production.yml`, which starts after a successful master publish (or by hand) and sends the host nothing but a commit SHA (see [Deploying from GitHub Actions](#deploying-from-github-actions)).
 
 ### Release version numbers
 
@@ -915,13 +915,13 @@ Numbering starts at the commit that adds `VERSION` and `deploy/version.sh`. The 
 
 `.github/workflows/deploy-production.yml` deploys one published release to production. This deliberately reverses the earlier rule that CI never contacts the production host, within tight limits:
 
-- The workflow runs only when dispatched by hand (`workflow_dispatch`) from `master`, with one input: the full 40-character lowercase commit SHA. A first job validates it before anything else runs. The run is named `Deploy <SHA>`, and the job summary records the SHA, the exit code and the wrapper's result line.
-- The deploy job uses the `production` environment, whose required reviewers approve every run. It has no GitHub token (`permissions: {}`).
-- `concurrency` never cancels a running deploy. GitHub keeps at most one *pending* run per group, though: a newer dispatch replaces a queued one, which is cancelled. A run that is still waiting for approval already holds the group. Approve or reject a waiting run before dispatching another.
+- The workflow starts on its own when a `master` run of `Publish Release Image` succeeds (`workflow_run`). It can also be dispatched by hand (`workflow_dispatch`) from `master` with one input, the full 40-character lowercase commit SHA, to roll back or retry. A first job resolves the SHA before anything else runs. For an automatic run, it takes the SHA from the triggering publish run's own `release-manifest-<SHA>` artifact, because a `workflow_run` event reports the default branch head at trigger time, which can already be a later merge. It refuses a run that does not have exactly one such artifact. A dispatched run uses its input. Either way the SHA must be 40 lowercase hex characters. A dispatched run is named `Deploy <SHA>`, and an automatic one `Deploy after Publish Release Image run <id>`. The job summary records the SHA, the exit code and the wrapper's result line.
+- The deploy job uses the `production` environment, which holds the deploy secrets and variables and limits deployments to `master`. It has no required reviewers, so every successful master publish deploys without a manual step. The deploy job has no GitHub token (`permissions: {}`). The resolving job has only `actions: read`, to list the publish run's artifacts.
+- `concurrency` never cancels a running deploy. GitHub keeps at most one *pending* run per group, though: a newer run replaces a queued one, which is cancelled. When merges land close together, the newest release is deployed and the skipped one never is.
 - The runner joins the tailnet as an ephemeral `tag:ci-deploy` node and connects over SSH to `mawareeth-deploy@DEPLOY_HOST`, with the host key pinned (`StrictHostKeyChecking=yes` against `DEPLOY_KNOWN_HOSTS`). It never uses public SSH.
 - The SHA is the only thing it sends. The account's single key is `from="100.64.0.0/10",restrict,command=…`: it works only from a tailnet address, whatever the tailnet ACL says, and the host ignores every other part of the request. The forced command reads `SSH_ORIGINAL_COMMAND`, accepts exactly one lowercase 40-hex SHA, and runs `sudo -n /usr/local/sbin/mawareeth-deploy-release SHA`. Sudoers lets that user run only that path, with one 40-hex argument.
 
-**Master is trusted code.** Each deploy runs code from the deployed commit as root: its `release_manifest.py`, `runtime.sh` and `release.sh`. Anyone who can merge to `master` can therefore run code as root on the next approved deploy. Protect `master` (required reviews, no direct pushes) accordingly, and review deploy-script changes as production-access changes. The entry and wrapper themselves are fixed, installed copies. Their logic changes only when an administrator re-runs `install`, never through a deploy.
+**Master is trusted code.** Each deploy runs code from the deployed commit as root: its `release_manifest.py`, `runtime.sh` and `release.sh`. Anyone who can merge to `master` can therefore run code as root on the next deploy, which now follows the merge automatically. Protect `master` (required reviews, no direct pushes) accordingly, and review deploy-script changes as production-access changes. The entry and wrapper themselves are fixed, installed copies. Their logic changes only when an administrator re-runs `install`, never through a deploy.
 
 The root wrapper (`deploy/ci-deploy.sh`, installed as a fixed copy) proves the release on the host before it deploys anything. It runs these steps in order, as root:
 
@@ -1013,7 +1013,7 @@ Each step changes production access, so each needs its own approval.
    The installed files are fixed copies: a deploy that checks out another commit never changes what runs as root. Re-run `install` (same key file) after any release that changes `deploy/ci-deploy.sh`; the deploy log warns when it is due.
 5. **Pinned host key.** Over the tailnet, from an administrator workstation, print the host key with `ssh-keyscan -t ed25519 mawareeth-prod`. Compare its fingerprint (`ssh-keygen -lf`) with `sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` read on the host over an existing session. Use the line only if the two match.
 6. **GitHub `production` environment** (Settings → Environments):
-   - Required reviewers: the operators. Enable "Prevent self-review", and limit deployment branches to `master`.
+   - No required reviewers: deploys follow each successful master publish. Limit deployment branches to `master`.
    - Secrets: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, and `DEPLOY_SSH_KEY` (the private key).
    - Variables: `DEPLOY_HOST`, the host's tailnet name (`mawareeth-prod`), and `DEPLOY_KNOWN_HOSTS`, the verified line from step 5. Its host name must match `DEPLOY_HOST`.
    - Keep these secrets out of repository-level settings.
@@ -1021,10 +1021,9 @@ Each step changes production access, so each needs its own approval.
 
 ### Running a deploy
 
-1. Wait for `Publish Release Image` to succeed for the merge commit. Its run uploads `release-manifest-<SHA>` (kept 90 days).
-2. Go to Actions → **Deploy Production** → Run workflow, on `master`, and enter the full SHA.
-3. A reviewer approves the `production` deployment.
-4. Follow the job log. It shows the log path, the wrapper's and `release.sh`'s messages, and the result line. The `release.sh` diagnostic logs stay on the host under `deploy/runtime/logs/`.
+1. Merge to `master`. `Django CI` runs, then `Publish Release Image` builds the image and uploads `release-manifest-<SHA>` (kept 90 days), then **Deploy Production** starts on its own.
+2. To deploy a SHA by hand instead (a rollback or a retry), go to Actions → **Deploy Production** → Run workflow, on `master`, and enter the full SHA.
+3. Follow the job log. It shows the log path, the wrapper's and `release.sh`'s messages, and the result line. The `release.sh` diagnostic logs stay on the host under `deploy/runtime/logs/`.
 
 A red job shows which stage failed. Act on the exit code as the table above and the `release.sh` table describe. Rolling back is a dispatch of the earlier release's SHA, within the expand-migrate-contract rules and while its artifact still exists.
 
