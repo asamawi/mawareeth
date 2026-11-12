@@ -21,6 +21,8 @@
 param(
     [int]$Max = 1,
     [string]$Story = '',
+    # Free-form work (e.g. a deferred-work item) instead of the next sprint story. Runs once.
+    [string]$Intent = '',
     [switch]$FullSuite,
     [switch]$DryRun,
     [string]$Branch = 'development',
@@ -119,6 +121,8 @@ function Write-RunSettings([string]$path) {
             allow = @(
                 'Read', 'Edit', 'Write', 'Glob', 'Grep', 'Agent', 'Task', 'Skill', 'TodoWrite',
                 'Bash(uv run:*)', 'Bash(uv sync:*)',
+                'Bash(npm install:*)', 'Bash(npm ci:*)', 'Bash(npm run:*)', 'Bash(npm test:*)',
+                'Bash(npx:*)', 'Bash(node:*)', 'Bash(cd web:*)',
                 'Bash(git status:*)', 'Bash(git diff:*)', 'Bash(git log:*)', 'Bash(git show:*)',
                 'Bash(git add:*)', 'Bash(git commit:*)', 'Bash(git rev-parse:*)', 'Bash(git ls-files:*)',
                 'Bash(git branch --show-current)', 'Bash(git stash list)',
@@ -144,6 +148,40 @@ if (-not $DryRun) { Assert-Clean; Ensure-Postgres }
 
 $originRef = "origin/$Branch"
 $originBefore = & git rev-parse --verify --quiet $originRef
+# A nested Claude Code session refuses to start while this marker is inherited.
+Remove-Item Env:CLAUDECODE -ErrorAction SilentlyContinue
+
+function Run-Claude([string]$prompt, [string]$tag) {
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $log = Join-Path $LogDir "$stamp-$tag.log"
+    $settingsPath = Join-Path $LogDir "$stamp-settings.json"
+    Write-RunSettings $settingsPath
+    $claudeArgs = @('-p', $prompt, '--settings', $settingsPath)
+    if ($Model) { $claudeArgs += @('--model', $Model) }
+    Say "running headless; log: $log"
+    # PS 5.1 turns native stderr lines into errors under -ErrorAction Stop; keep them as output.
+    $ErrorActionPreference = 'Continue'
+    & claude @claudeArgs 2>&1 | Tee-Object -FilePath $log | Out-Host
+    return @{ Exit = $LASTEXITCODE; Log = $log }
+}
+
+if ($Intent) {
+    if ($DryRun) { Say "would run: claude -p `"/bmad-build-auto $Intent`""; exit 0 }
+    $started = Get-Date
+    $headBefore = (Git-Out @('rev-parse', 'HEAD')) | Select-Object -First 1
+    $r = Run-Claude "/bmad-build-auto $Intent" 'intent'
+    $spec = Get-ChildItem $Artifacts -Filter 'spec-*.md' -File |
+        Where-Object { $_.LastWriteTime -ge $started } |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $status = if ($spec) { Get-SpecStatus $spec.FullName } else { '' }
+    if ($r.Exit -ne 0) { Fail "claude exited with $($r.Exit); log: $($r.Log)" }
+    if ($status -ne 'done') { Fail "ended with spec status '$status' ($(if ($spec) { $spec.FullName } else { 'no spec written' })); log: $($r.Log)" }
+    $headAfter = (Git-Out @('rev-parse', 'HEAD')) | Select-Object -First 1
+    if ($headAfter -eq $headBefore) { Fail "reports done but made no commit; log: $($r.Log)" }
+    Assert-Clean
+    Say "done: $($spec.Name) ($headBefore..$headAfter)" 'Green'
+    exit 0
+}
 
 $built = @()
 for ($n = 1; $n -le $Max; $n++) {
@@ -157,9 +195,6 @@ for ($n = 1; $n -le $Max; $n++) {
     # Resume an existing in-flight spec by path; otherwise start from the story key.
     $intent = if ($next.Spec) { $next.Spec.FullName } else { $next.Key }
     $prompt = "/bmad-build-auto $intent"
-    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-    $log = Join-Path $LogDir "$stamp-$(Get-StoryNum $next.Key).log"
-    $settingsPath = Join-Path $LogDir "$stamp-settings.json"
 
     Say "[$n/$Max] $($next.Key)  (spec: $(if ($next.Spec) { "$($next.Spec.Name) [$($next.SpecStatus)]" } else { 'none yet' }))"
     if ($DryRun) {
@@ -167,14 +202,9 @@ for ($n = 1; $n -le $Max; $n++) {
         break
     }
 
-    Write-RunSettings $settingsPath
     $headBefore = (Git-Out @('rev-parse', 'HEAD')) | Select-Object -First 1
-    $claudeArgs = @('-p', $prompt, '--settings', $settingsPath)
-    if ($Model) { $claudeArgs += @('--model', $Model) }
-
-    Say "running headless; log: $log"
-    & claude @claudeArgs 2>&1 | Tee-Object -FilePath $log
-    $exit = $LASTEXITCODE
+    $r = Run-Claude $prompt (Get-StoryNum $next.Key)
+    $exit = $r.Exit; $log = $r.Log
 
     $spec = Find-Spec $next.Key
     $status = if ($spec) { Get-SpecStatus $spec.FullName } else { '' }
@@ -199,6 +229,7 @@ if ($originBefore -ne $originAfter) { Say "WARNING: $originRef moved during the 
 
 if ($FullSuite -and $built.Count -gt 0) {
     Say 'Running the full calc+api suite serially (~45 min)'
+    $ErrorActionPreference = 'Continue'
     & uv run python manage.py test calc api --noinput 2>&1 | Tee-Object -FilePath (Join-Path $LogDir "$(Get-Date -Format 'yyyyMMdd-HHmmss')-full-suite.log")
     if ($LASTEXITCODE -ne 0) { Fail 'full suite failed' }
 }
