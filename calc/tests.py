@@ -1286,7 +1286,12 @@ class ErrorPageTests(TestCase):
                 self.assertEqual(theirs.status_code, 404)
                 self.assertEqual(missing.status_code, 404)
                 self.assertTemplateUsed(theirs, '404.html')
-                self.assertEqual(self.strip_csrf(theirs), self.strip_csrf(missing))
+                # The language switcher echoes the requested path back, so the
+                # two pages may differ only in the requested id.
+                self.assertEqual(
+                    self.strip_csrf(theirs).replace(f'/{self.calc.pk}/', '/<pk>/'),
+                    self.strip_csrf(missing).replace(f'/{missing_pk}/', '/<pk>/'),
+                )
                 self.assertNotContains(theirs, 'secret case name', status_code=404)
 
     def test_404_is_translated(self):
