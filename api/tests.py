@@ -3565,3 +3565,172 @@ class InviteTests(InterviewBase):
         with mock.patch('api.throttling.ShareInviteThrottle.allow_request', return_value=False), \
                 mock.patch('api.throttling.ShareInviteThrottle.wait', return_value=None):
             self.assertEqual(self.send('post', self.url, {'email': 'x@example.com'}).status_code, 429)
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class AuthApiTests(TestCase):
+    password = 'Strong-auth-password-937!'
+    destination = '/app/en/results/?resume=save'
+
+    def setUp(self):
+        cache.clear()
+        self.user = get_user_model().objects.create_user('auth-user', email='auth@example.com', password=self.password)
+        self.client = APIClient(enforce_csrf_checks=True, HTTP_ORIGIN='https://testserver')
+        self.client.get(SESSION_URL, secure=True)
+
+    def post(self, action, data=None, **extra):
+        return self.client.post('/api/v1/auth/' + action + '/', data if data is not None else {}, format='json', secure=True,
+                                HTTP_X_CSRFTOKEN=self.client.cookies['csrftoken'].value, **extra)
+
+    def test_signed_in_signup_does_not_create_account(self):
+        self.client.force_login(self.user)
+        count = get_user_model().objects.count()
+        for target, expected in ((self.destination, self.destination), ('https://evil.com/', None)):
+            from django.shortcuts import resolve_url
+            response = self.post('signup', {'username': 'ignored', 'next': target})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {'redirect': expected or resolve_url(settings.LOGIN_REDIRECT_URL)})
+        self.assertEqual(get_user_model().objects.count(), count)
+        self.assertEqual(self.client.session['_auth_user_id'], str(self.user.pk))
+
+    def test_non_object_auth_payloads_are_rejected(self):
+        for action in ('login', 'signup', 'password-reset', 'password-reset/confirm'):
+            for data in ([], 'scalar', 123):
+                with self.subTest(action=action, data=data):
+                    response = self.post(action, data)
+                    self.assertEqual(response.status_code, 400)
+                    self.assertEqual(response.json(), {'error': 'invalid_payload'})
+
+    def test_concurrent_duplicate_signup_is_localized(self):
+        from django.db import IntegrityError
+        from django.utils import translation
+        for language in ('en', 'ar', 'fr'):
+            with translation.override(language):
+                expected = get_user_model()().unique_error_message(get_user_model(), ('username',)).messages
+            with mock.patch('api.auth_views.UserCreationForm.save', side_effect=IntegrityError('duplicate username')):
+                response = self.post('signup', {'username': 'new-user', 'email': 'new@example.com',
+                                              'password1': self.password, 'password2': self.password},
+                                     HTTP_ACCEPT_LANGUAGE=language)
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.json(), {'errors': {'username': expected}})
+
+    def test_reset_from_delivered_email_to_login(self):
+        import re
+        from urllib.parse import parse_qs, urlsplit
+        from django.core import mail
+        self.assertEqual(self.post('password-reset', {'email': self.user.email}).status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        link = re.search(r'https://testserver/app/(?:ar|en|fr)/password-reset/confirm/\?[^\s]+', mail.outbox[0].body).group()
+        query = parse_qs(urlsplit(link).query)
+        data = {key: query[key][0] for key in ('uid', 'token')}
+        response = self.client.get('/api/v1/auth/password-reset/confirm/', data, secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'valid': True})
+        password = 'Email-reset-password-987!'
+        response = self.post('password-reset/confirm', {**data, 'new_password1': password, 'new_password2': password})
+        self.assertEqual(response.status_code, 200)
+        response = self.post('login', {'username': self.user.username, 'password': password})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.session['_auth_user_id'], str(self.user.pk))
+
+    def test_login_restores_case_and_returns_destination(self):
+        case = self.client.post('/api/v1/case/', {}, format='json', secure=True,
+                                HTTP_X_CSRFTOKEN=self.client.cookies['csrftoken'].value).json()['case']
+        response = self.post('login', {'username': self.user.username, 'password': self.password, 'next': self.destination})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'redirect': self.destination})
+        self.assertEqual(self.client.get('/api/v1/case/', secure=True).json()['case']['id'], case['id'])
+        self.assertIn('_auth_user_id', self.client.session)
+        self.assertGreater(self.client.session.get_expiry_age(), 10 * 24 * 3600)
+
+    def test_wrong_password_is_localized(self):
+        bodies = []
+        for language in ('en', 'ar', 'fr'):
+            response = self.post('login', {'username': self.user.username, 'password': 'bad'}, HTTP_ACCEPT_LANGUAGE=language)
+            self.assertEqual(response.status_code, 400)
+            bodies.append(response.json()['errors']['__all__'])
+        self.assertNotEqual(bodies[0], bodies[1])
+        self.assertNotEqual(bodies[0], bodies[2])
+
+    def test_next_is_relative_only(self):
+        for target in ('https://evil.com/', '//evil.com/', 'https://testserver/app/en/', '/\\evil.com/', 'javascript:alert(1)'):
+            response = self.post('login', {'username': self.user.username, 'password': self.password, 'next': target})
+            from django.shortcuts import resolve_url
+            self.assertEqual(response.json()['redirect'], resolve_url(settings.LOGIN_REDIRECT_URL))
+
+    def test_signup_errors_and_success_keep_case(self):
+        self.client.post('/api/v1/case/', {}, format='json', secure=True, HTTP_X_CSRFTOKEN=self.client.cookies['csrftoken'].value)
+        original = self.client.get('/api/v1/case/', secure=True).json()['case']
+        data = {'username': self.user.username, 'email': 'new@example.com', 'password1': self.password, 'password2': 'mismatch'}
+        response = self.post('signup', data)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('username', response.json()['errors'])
+        self.assertIn('password2', response.json()['errors'])
+        data.update(username='new-auth-user', password2=self.password, next=self.destination)
+        response = self.post('signup', data)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['redirect'], self.destination)
+        self.assertIn('_auth_user_id', self.client.session)
+        self.assertGreater(self.client.session.get_expiry_age(), 10 * 24 * 3600)
+        self.assertEqual(self.client.get('/api/v1/case/', secure=True).json()['case']['id'], original['id'])
+
+    def test_csrf_required_for_every_post(self):
+        for action in ('login', 'signup', 'logout', 'password-reset', 'password-reset/confirm'):
+            response = self.client.post('/api/v1/auth/' + action + '/', {}, format='json', secure=True)
+            self.assertEqual(response.status_code, 403)
+
+    def test_logout_ends_session(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.post('logout').status_code, 200)
+        self.assertNotIn('_auth_user_id', self.client.session)
+        self.assertFalse(self.client.get(SESSION_URL, secure=True).json()['authenticated'])
+
+    def test_reset_is_private_and_email_uses_export_url(self):
+        from django.core import mail
+        expected = self.post('password-reset', {'email': 'missing@example.com'}).json()
+        response = self.post('password-reset', {'email': self.user.email}, HTTP_ACCEPT_LANGUAGE='fr')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), expected)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('https://testserver/app/fr/password-reset/confirm/?uid=', mail.outbox[0].body)
+        with mock.patch('django.contrib.auth.forms.PasswordResetForm.save', side_effect=OSError('SMTP unavailable')):
+            with self.assertLogs('api.auth_views', level='ERROR'):
+                response = self.post('password-reset', {'email': self.user.email})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), expected)
+
+    def test_confirm_checks_token_validates_password_and_prevents_reuse(self):
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+        data = {'uid': urlsafe_base64_encode(force_bytes(self.user.pk)), 'token': default_token_generator.make_token(self.user)}
+        url = '/api/v1/auth/password-reset/confirm/'
+        self.assertEqual(self.client.get(url, data, secure=True).json(), {'valid': True})
+        response = self.post('password-reset/confirm', {**data, 'new_password1': self.password, 'new_password2': 'wrong'})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('new_password2', response.json()['errors'])
+        response = self.post('password-reset/confirm', {**data, 'new_password1': 'Another-strong-password-555!', 'new_password2': 'Another-strong-password-555!'})
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('Another-strong-password-555!'))
+        self.assertEqual(self.client.get(url, data, secure=True).json(), {'error': 'invalid_link'})
+        self.assertEqual(self.post('password-reset/confirm', data).json(), {'error': 'invalid_link'})
+        self.assertEqual(self.client.get(url, {'uid': 'bad', 'token': 'bad'}, secure=True).status_code, 400)
+
+    def test_auth_quota_is_shared_and_reads_are_free(self):
+        for index in range(20):
+            self.assertEqual(self.client.get('/api/v1/auth/password-reset/confirm/', secure=True).status_code, 400)
+            self.assertEqual(self.post('password-reset', {'email': 'missing@example.com'}).status_code, 200)
+        self.assertEqual(self.post('login', {}).status_code, 429)
+        self.assertEqual(self.post('signup', {}).status_code, 429)
+        self.client.force_login(self.user)
+        self.assertEqual(self.post('logout').status_code, 200)
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_ipv6_quota_groups_by_64(self):
+        from api.throttling import AuthThrottle
+        factory = RequestFactory()
+        throttle = AuthThrottle()
+        first = Request(factory.post('/', REMOTE_ADDR='2001:db8:1234:1::1'))
+        second = Request(factory.post('/', REMOTE_ADDR='2001:db8:1234:1::2'))
+        self.assertEqual(throttle.get_cache_key(first, None), throttle.get_cache_key(second, None))

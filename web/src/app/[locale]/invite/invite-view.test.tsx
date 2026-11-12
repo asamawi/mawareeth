@@ -119,7 +119,7 @@ test("accept success forgets the token and routes to received; sign-in keeps it"
         assert.equal(sessionStorage.getItem("mawareeth.invite-token"), null);
       } else {
         assert.equal(sessionStorage.getItem("mawareeth.invite-token"), "secret");
-        assert.ok(node.querySelector('a[href="/accounts/login/?next=%2Fapp%2Fen%2Finvite%2F"]'));
+        assert.ok(node.querySelector('a[href="/app/en/login/?next=%2Fapp%2Fen%2Finvite%2F"]'));
         assert.ok(node.textContent?.includes(text.shared.createAccount));
       }
     } finally { await act(async () => root.unmount()); await teardownDom(dom); }

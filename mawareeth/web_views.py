@@ -20,3 +20,18 @@ def app_root(request):
     response['X-Robots-Tag'] = 'noindex'
     patch_vary_headers(response, ('Cookie', 'Accept-Language'))
     return response
+
+
+@login_not_required
+@never_cache
+@require_safe
+def auth_redirect(request, page='login', uidb64=None, token=None, lang=None):
+    language = lang or get_language()
+    if language not in ('ar', 'en', 'fr'):
+        language = 'en'
+    query = request.GET.copy()
+    if uidb64 is not None:
+        query['uid'] = uidb64
+        query['token'] = token
+    encoded = query.urlencode()
+    return HttpResponseRedirect(f'/app/{language}/{page}/' + (f'?{encoded}' if encoded else ''))

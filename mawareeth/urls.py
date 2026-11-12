@@ -17,7 +17,7 @@ from django.conf.urls.i18n import i18n_patterns
 from django.contrib import admin
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import LogoutView
-from django.urls import include, path
+from django.urls import include, path, re_path
 from django.views.i18n import set_language
 from calc import views as calc_views
 from mawareeth import ops_views, web_views
@@ -31,7 +31,12 @@ urlpatterns = [
     path('health/release/', ops_views.release, name='ops-release'),
     path('i18n/setlang/', login_not_required(set_language), name='set_language'),
     path('accounts/logout/', login_not_required(LogoutView.as_view()), name='logout'),
-    path('accounts/', include('django.contrib.auth.urls')),
+    path('accounts/login/', web_views.auth_redirect, name='login'),
+    path('accounts/password_reset/', web_views.auth_redirect, {'page': 'password-reset'}, name='password_reset'),
+    path('accounts/password_reset/done/', web_views.auth_redirect, {'page': 'password-reset'}, name='password_reset_done'),
+    path('accounts/reset/done/', web_views.auth_redirect, {'page': 'login'}, name='password_reset_complete'),
+    path('accounts/reset/<uidb64>/<token>/', web_views.auth_redirect, {'page': 'password-reset/confirm'}, name='password_reset_confirm'),
+    re_path(r'^(?P<lang>[^/]+)/signup/$', web_views.auth_redirect, {'page': 'signup'}),
     path('social-auth/', include('social_django.urls', namespace="social")),
     path('api/v1/', include('api.urls')),
     # The export's pages are served by WhiteNoise; only this entry point is a view.
@@ -79,7 +84,7 @@ calc_patterns = ([
     path('<int:pk>/results/', calc_views.ResultsView.as_view(), name='results'),
     path('<int:pk>/new-results/', calc_views.NewResultsView.as_view(), name='new_results'),
     path('error/', calc_views.error, name='error'),
-    path('signup/', calc_views.SignUp.as_view(), name='signup'),
+    path('signup/', web_views.auth_redirect, {'page': 'signup'}, name='signup'),
 
 
 ], 'calc')

@@ -1,9 +1,9 @@
 import type { Locale } from "./messages.ts";
 
-/** The current path with its locale segment swapped, so switching language keeps the page. */
-/** Where Django's login page sends the visitor back to: this page, under the /app base path. */
+/** Return to the current page under /app after authentication. */
 export function loginHref(pathname: string): string {
-  return `/accounts/login/?next=${encodeURIComponent(`/app${pathname}`)}`;
+  const locale = pathname.split("/")[1];
+  return `/app/${["ar", "en", "fr"].includes(locale) ? locale : "en"}/login/?next=${encodeURIComponent(`/app${pathname}`)}`;
 }
 
 export type AuthLink = { kind: "login" | "signup"; href: string };
@@ -24,7 +24,7 @@ export function pathForLocale(pathname: string, target: Locale): string {
 }
 
 export function signupHref(locale: string, pathname: string): string {
-  return `/${locale}/signup/?next=${encodeURIComponent(`/app${pathname}`)}`;
+  return `/app/${locale}/signup/?next=${encodeURIComponent(`/app${pathname}`)}`;
 }
 
 export function resultsResumePath(locale: string, action: "save" | "share" | "whatsapp"): string {

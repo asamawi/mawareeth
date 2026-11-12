@@ -303,3 +303,31 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-5-whatsapp-share-for-registered-users.md`
   summary: Request native review of the new Arabic, English and French WhatsApp share strings.
   evidence: Review the WhatsApp button, ready status, "Open WhatsApp" label and unavailable-fallback wording, including Arabic RTL readability.
+
+- source_spec: none
+  summary: Show legacy saved calculations in My saved cases: a one-time data migration converts each user's legacy `calc.Calculation` tree (including successive-death layers) into an `api.SavedCase` for the same owner, reporting any calculation that cannot be converted instead of dropping it; open question for the owner — whether old calculation URLs redirect to the migrated saved case or simply to My saved cases.
+  evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 2 of 6); the owner reported old saved calculations do not appear in the new My saved cases.
+
+- source_spec: none
+  summary: Move the landing, about, terms and privacy pages to Next.js served at the site root, designed with ui-ux-pro-max, and set up SEO and GEO/AEO (metadata, canonical https://www.mawareeth.com, hreflang ar/en/fr, robots.txt, sitemap.xml, Organization/WebApplication/FAQPage structured data, llms.txt, answer-first content).
+  evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 3 of 6); the owner confirmed AEO means AI-search optimization and the canonical domain.
+
+- source_spec: none
+  summary: UI/UX review and improvement of the Next.js interview's add-heir flow: replace the heir-type dropdown with an intuitive picker that puts the common heirs (spouse, sons, daughters, father, mother) one tap away, with the rarer relatives behind a secondary control.
+  evidence: Split on 2026-11-13 at the project owner's request (order 4 of 6); the owner finds adding heirs from a dropdown unintuitive.
+
+- source_spec: none
+  summary: Make the estate amount optional in the interview, results and draft report so a case can be computed and saved as shares/fractions only, which makes anonymization (FR-19) more attainable.
+  evidence: Split on 2026-11-13 at the project owner's request (order 5 of 6); related to the existing FR-19 anonymization deferral from Story 4.2.
+
+- source_spec: none
+  summary: Retire the remaining legacy Django HTML pages (calc form, detail, results, delete confirmations, profile, error) by redirecting each to its Next.js equivalent and deleting the templates and views.
+  evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 6 of 6); must follow the legacy-calculation migration and the root landing move.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-auth-pages.md`
+  summary: Harden auth abuse controls beyond the per-IP `auth` quota: per-account login attempt limits, a per-recipient password-reset email cooldown, and sending reset email off the request path so response timing cannot reveal whether an account exists.
+  evidence: Review of the Next.js auth pages found that distributed clients can still target one account or one inbox, and the reset response time differs for existing accounts. The old Django views had the same exposure and no throttle at all.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-auth-pages.md`
+  summary: Add a Next.js password-change page for signed-in users; the unused Django `accounts/password_change/` routes were removed with `django.contrib.auth.urls`.
+  evidence: No page links to the old routes, but signed-in users now change their password only through the reset email.

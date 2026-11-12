@@ -1,3 +1,4 @@
+from api import auth_views
 from django.urls import path, re_path
 
 from api.views import (CaseView, DeathsView, DeathView, DeceasedView, HeirsView, HeirView, NotFoundView,
@@ -12,6 +13,11 @@ from reports.views import ReceivedReportView
 app_name = 'api'
 
 urlpatterns = [
+    path('auth/login/', auth_views.LoginView.as_view(), name='auth-login'),
+    path('auth/signup/', auth_views.SignupView.as_view(), name='auth-signup'),
+    path('auth/logout/', auth_views.LogoutView.as_view(), name='auth-logout'),
+    path('auth/password-reset/', auth_views.PasswordResetView.as_view(), name='auth-password-reset'),
+    path('auth/password-reset/confirm/', auth_views.PasswordResetConfirmView.as_view(), name='auth-password-reset-confirm'),
     path('session/', SessionView.as_view(), name='session'),
     path('case/', CaseView.as_view(), name='case'),
     path('case/preview/', PreviewView.as_view(), name='case-preview'),

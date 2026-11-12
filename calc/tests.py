@@ -1127,10 +1127,10 @@ class CalculationAccessControlTests(TestCase):
         for name in sorted(PUBLIC_ROUTES):
             with self.subTest(route=name):
                 response = self.client.get(reverse(f'calc:{name}'), secure=True)
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.status_code, 302 if name == 'signup' else 200)
         for url in (reverse('login'), reverse('password_reset'), reverse('admin:login')):
             with self.subTest(url=url):
-                self.assertEqual(self.client.get(url, secure=True).status_code, 200)
+                self.assertEqual(self.client.get(url, secure=True).status_code, 200 if url == reverse('admin:login') else 302)
 
     def test_language_switch_works_when_logged_out(self):
         response = self.client.post(reverse('set_language'), {'language': 'en', 'next': '/en/'}, secure=True)
@@ -1392,13 +1392,11 @@ class TemplateTagTests(TestCase):
             with self.subTest(template=str(path)):
                 self.assertIsNone(split_tag.search(path.read_text(encoding='utf-8')))
 
-    def test_signup_button_is_translated(self):
-        expected = {'en': 'Sign up', 'ar': 'تسجيل', 'fr': "S'inscrire"}
-        for language, text in expected.items():
+    def test_signup_redirect_uses_each_language(self):
+        for language in ('en', 'ar', 'fr'):
             with self.subTest(language=language), translation.override(language):
                 response = self.client.get(reverse('calc:signup'), secure=True)
-                self.assertContains(response, f'type="submit">{text}</button>')
-                self.assertNotContains(response, '{%')
+                self.assertRedirects(response, f'/app/{language}/signup/', fetch_redirect_response=False)
 
     def test_home_links_to_the_interview_in_each_language(self):
         expected = {
@@ -1413,20 +1411,13 @@ class TemplateTagTests(TestCase):
                 self.assertContains(response, text)
                 self.assertNotContains(response, '{%')
 
-    def test_login_no_access_message_is_translated(self):
+    def test_login_redirect_uses_cookie_language_for_signed_in_visitors(self):
         self.client.force_login(User.objects.create_user('someone', password='x'))
-        expected = {
-            'en': "Your account doesn't have access to this page.",
-            'ar': 'حسابك لا يملك إذنًا للوصول إلى هذه الصفحة.',
-            'fr': "Votre compte n'a pas accès à cette page.",
-        }
-        for language, text in expected.items():
+        for language in ('ar', 'en', 'fr'):
             with self.subTest(language=language):
-                # This URL has no language prefix, so the cookie sets the language.
                 self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = language
                 response = self.client.get(reverse('login') + '?next=/en/', secure=True)
-                self.assertContains(response, text)
-                self.assertNotContains(response, '{%')
+                self.assertRedirects(response, f'/app/{language}/login/?next=%2Fen%2F', fetch_redirect_response=False)
 
 
 # Engine-heavy tests are TransactionTestCase: inside TestCase's per-test transaction every
@@ -3575,70 +3566,26 @@ class LayeredTableTests(TestCase):
             self.assertEqual(root.table['layers'][-1]['parts'][-1], {'heir': brother.pk, 'value': root.table['layers'][-1]['jamia']})
 
 class SignupContinuationTests(TestCase):
-    next_url = '/app/en/results/?resume=save'
+    def test_old_auth_urls_keep_query(self):
+        for path, target in [('/en/signup/', '/app/en/signup/'),
+                             ('/fr/signup/', '/app/fr/signup/'),
+                             ('/unknown/signup/', '/app/en/signup/'),
+                             ('/accounts/login/', '/app/en/login/'),
+                             ('/accounts/password_reset/', '/app/en/password-reset/'),
+                             ('/accounts/password_reset/done/', '/app/en/password-reset/'),
+                             ('/accounts/reset/done/', '/app/en/login/')]:
+            self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'
+            response = self.client.get(path + '?next=%2Fapp%2Fen%2Fresults%2F&extra=1', secure=True)
+            self.assertRedirects(response, target + '?next=%2Fapp%2Fen%2Fresults%2F&extra=1', fetch_redirect_response=False)
 
-    def signup(self, **extra):
-        data = {'username': 'new-gate-user', 'email': 'gate@example.com',
-                'password1': 'Strong-gate-password-937!', 'password2': 'Strong-gate-password-937!',
-                'next': self.next_url}
-        data.update(extra)
-        return self.client.post('/en/signup/', data, secure=True)
+    def test_old_confirm_moves_path_parameters_to_query(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'fr'
+        response = self.client.get('/accounts/reset/abc/token/?next=x', secure=True)
+        self.assertRedirects(response, '/app/fr/password-reset/confirm/?next=x&uid=abc&token=token', fetch_redirect_response=False)
 
-    def test_signup_logs_in_redirects_and_keeps_case(self):
-        session = self.client.session
-        session['anonymous_case'] = {'id': 'same-case', 'answers': {}}
-        session.save()
-        response = self.signup()
-        self.assertRedirects(response, self.next_url, fetch_redirect_response=False)
-        self.assertEqual(int(self.client.session['_auth_user_id']), User.objects.get(username='new-gate-user').pk)
-        self.assertEqual(self.client.session['anonymous_case'], {'id': 'same-case', 'answers': {}})
-
-    def test_bad_next_falls_back_after_login(self):
-        for target in ['https://evil.example/', '//evil.example/', 'http://testserver/app/en/results/']:
-            with self.subTest(target=target):
-                self.client.logout()
-                User.objects.filter(username='new-gate-user').delete()
-                response = self.signup(next=target)
-                self.assertRedirects(response, resolve_url(settings.LOGIN_REDIRECT_URL), fetch_redirect_response=False)
-                self.assertIn('_auth_user_id', self.client.session)
-
-    def test_authenticated_signup_redirects_without_changing_user_or_case(self):
-        user = User.objects.create_user(username='existing-gate-user')
-        self.client.force_login(user)
-        case = {'id': 'same-case', 'answers': {}}
-        session = self.client.session
-        session['anonymous_case'] = case
-        session.save()
-        user_count = User.objects.count()
-        for method in ['get', 'post']:
-            with self.subTest(method=method):
-                data = ({'username': 'new-gate-user', 'password1': 'Strong-gate-password-937!',
-                         'password2': 'Strong-gate-password-937!'} if method == 'post' else None)
-                response = getattr(self.client, method)(
-                    '/en/signup/?next=/app/en/results/', data, secure=True)
-                self.assertRedirects(response, '/app/en/results/', fetch_redirect_response=False)
-                self.assertEqual(User.objects.count(), user_count)
-                self.assertEqual(int(self.client.session['_auth_user_id']), user.pk)
-                self.assertEqual(self.client.session['anonymous_case'], case)
-
-    def test_form_error_keeps_next(self):
-        response = self.signup(password2='different')
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['next'], self.next_url)
-        self.assertContains(response, 'name="next" value="' + self.next_url + '"')
-
-    def test_auth_switch_links_keep_encoded_next(self):
-        from urllib.parse import quote
-        encoded = quote(self.next_url, safe='/')
+    def test_legacy_login_required_lands_on_export(self):
         self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'
-        for path, destination in [('/en/signup/', '/accounts/login/'), ('/accounts/login/', '/en/signup/')]:
-            response = self.client.get(path, {'next': self.next_url}, secure=True)
-            self.assertContains(response, destination + '?next=' + encoded)
-
-    def test_post_next_precedes_get_and_current_host_is_allowed(self):
-        response = self.client.post('/en/signup/?next=https://evil.example/', {
-            'username': 'new-gate-user', 'email': 'gate@example.com',
-            'password1': 'Strong-gate-password-937!', 'password2': 'Strong-gate-password-937!',
-            'next': 'https://testserver' + self.next_url,
-        }, secure=True)
-        self.assertRedirects(response, 'https://testserver' + self.next_url, fetch_redirect_response=False)
+        response = self.client.get('/en/calc/', secure=True)
+        self.assertEqual(response.status_code, 302)
+        landing = self.client.get(response['Location'], secure=True)
+        self.assertTrue(landing['Location'].startswith('/app/en/login/?next='))

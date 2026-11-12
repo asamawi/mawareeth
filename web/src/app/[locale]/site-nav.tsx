@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { submitAuth } from "@/api/auth";
+import { messages } from "@/i18n/messages";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { locales, type Locale, type Messages } from "@/i18n/messages";
@@ -20,6 +23,15 @@ export function SiteNav({ locale, nav }: { locale: Locale; nav: Messages["nav"] 
   const pathname = usePathname() ?? `/${locale}/`;
   const authenticated = useAuthState() === "authenticated";
 
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  async function logout() {
+    setLoggingOut(true);
+    const result = await submitAuth("logout", locale, {});
+    if (result && result.status === 200) window.location.assign(`/app/${locale}/`);
+    else { setLoggingOut(false); setLogoutError(result?.status === 429 ? messages[locale].auth.throttled : messages[locale].auth.error); }
+  }
+
   return (
     <nav
       aria-label={nav.label}
@@ -37,8 +49,9 @@ export function SiteNav({ locale, nav }: { locale: Locale; nav: Messages["nav"] 
       </div>
       <div className="flex flex-wrap items-center gap-4">
         {authenticated && <Link href={casesPath(locale)} prefetch={false} className={linkClass}>{nav.cases}</Link>}
+        {authenticated && <button className={linkClass} disabled={loggingOut} onClick={logout}>{loggingOut ? messages[locale].auth.pending : messages[locale].auth.logout}</button>}
+        {logoutError && <p role="alert">{logoutError}</p>}
         {authLinks(authenticated, locale, pathname).map((link) => (
-          // Django pages, outside this app and its basePath.
           <a key={link.kind} href={link.href} className={linkClass}>
             {nav[link.kind]}
           </a>

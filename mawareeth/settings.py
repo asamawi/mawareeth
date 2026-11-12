@@ -328,7 +328,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
     'DEFAULT_PARSER_CLASSES': ['rest_framework.parsers.JSONParser'],
-    'DEFAULT_THROTTLE_RATES': {'case_write': '120/hour', 'case_preview': '300/hour', 'report_draft': '30/hour',
+    'DEFAULT_THROTTLE_RATES': {'auth': '20/hour', 'case_write': '120/hour', 'case_preview': '300/hour', 'report_draft': '30/hour',
                                 'share_invite': '30/hour',
                                 'share_view': '300/hour'},
     # Caddy leaves X-Forwarded-For as "client, cloudflare" behind Cloudflare and replaces it
@@ -395,7 +395,7 @@ AUTHENTICATION_BACKENDS = [
 
 LOGIN_URL = 'login'
 # Without this, social-auth middleware returns None on errors, causing 500s.
-SOCIAL_AUTH_LOGIN_ERROR_URL = 'login'
+SOCIAL_AUTH_LOGIN_ERROR_URL = '/accounts/login/?error=social'
 LOGIN_REDIRECT_URL = 'calc:index'
 LOGOUT_URL = 'logout'
 LOGOUT_REDIRECT_URL = 'login'

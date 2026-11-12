@@ -50,3 +50,7 @@ class ShareViewThrottle(ClientThrottle):
 
 class ShareInviteThrottle(UserRateThrottle):
     scope = 'share_invite'
+
+
+class AuthThrottle(CaseWriteThrottle):
+    scope = 'auth'
