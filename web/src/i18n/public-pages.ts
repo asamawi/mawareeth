@@ -62,7 +62,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         },
         {
           "title": "الوفيات المتتالية",
-          "body": "سجّل وارثًا توفي قبل قسمة التركة لتنتقل حصته إلى ورثته. شرح الخطوات لهذه الحالات غير متاح بعد."
+          "body": "سجّل وارثًا توفي قبل قسمة التركة لتنتقل حصته إلى ورثته."
         },
         {
           "title": "برهان خطوة بخطوة",
@@ -124,7 +124,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         },
         {
           "q": "هل تدعم الوفيات المتتالية؟",
-          "a": "نعم. إذا توفي أحد الورثة قبل قسمة التركة فسجّل وفاته وأضف ورثته، فتُحسب حصته وتنتقل إلى ورثته. شرح الخطوات لهذه الحالات غير متاح بعد."
+          "a": "نعم. إذا توفي أحد الورثة قبل قسمة التركة فسجّل وفاته وأضف ورثته، فتُحسب حصته وتنتقل إلى ورثته."
         },
         {
           "q": "كيف أتحقق من صحة النتيجة؟",
@@ -847,7 +847,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         },
         {
           "title": "Successive deaths",
-          "body": "Record an heir who died before the estate was divided, and their share passes to their own heirs. The step-by-step explanation for these cases is not available yet."
+          "body": "Record an heir who died before the estate was divided, and their share passes to their own heirs."
         },
         {
           "title": "Step-by-step proof",
@@ -909,7 +909,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         },
         {
           "q": "Does it handle successive deaths?",
-          "a": "Yes. If an heir dies before the estate is divided, record the death and add their heirs: their share is calculated and passes to their heirs. The step-by-step explanation for these cases is not available yet."
+          "a": "Yes. If an heir dies before the estate is divided, record the death and add their heirs: their share is calculated and passes to their heirs."
         },
         {
           "q": "How can I check that the result is right?",
@@ -1632,7 +1632,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         },
         {
           "title": "Décès successifs",
-          "body": "Enregistrez un héritier décédé avant le partage de la succession : sa part passe à ses propres héritiers. L’explication étape par étape de ces cas n’est pas encore disponible."
+          "body": "Enregistrez un héritier décédé avant le partage de la succession : sa part passe à ses propres héritiers."
         },
         {
           "title": "Preuve étape par étape",
@@ -1694,7 +1694,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         },
         {
           "q": "Les décès successifs sont-ils pris en charge ?",
-          "a": "Oui. Si un héritier meurt avant le partage, enregistrez son décès et ajoutez ses héritiers : sa part est calculée puis transmise à ses héritiers. L’explication étape par étape de ces cas n’est pas encore disponible."
+          "a": "Oui. Si un héritier meurt avant le partage, enregistrez son décès et ajoutez ses héritiers : sa part est calculée puis transmise à ses héritiers."
         },
         {
           "q": "Comment vérifier que le résultat est juste ?",

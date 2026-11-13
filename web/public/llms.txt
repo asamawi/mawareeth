@@ -5,7 +5,7 @@
 ## What Mawareeth does
 
 - Calculates each heir's share under the four Sunni schools: Hanafi, Maliki, Shafi'i and Hanbali.
-- Handles successive deaths, where an heir dies before the estate is divided. The step-by-step explanation for these cases is not available yet.
+- Handles successive deaths, where an heir dies before the estate is divided.
 - Shows a step-by-step proof for each share, with the rules cited.
 - Produces a draft PDF report of the case and its results.
 - Works without an account. With an account, cases can be saved and shared by link, email invitation or WhatsApp.
