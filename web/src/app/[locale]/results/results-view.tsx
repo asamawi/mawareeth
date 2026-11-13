@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { downloadDraftReport, fetchCase, fetchPreview, type Case, type DraftReportResult, type PreviewProofStep, type PreviewResult } from "@/api/case";
+import { downloadDraftReport, fetchCase, fetchPreview, setMadhab, type Case, type DraftReportResult, type PreviewProofStep, type PreviewResult, type SunniId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import { formatEstate } from "@/interview/answers";
 import { localFraction, localKirat, localPercent } from "@/interview/format";
@@ -16,12 +16,14 @@ import {
   resultEntries,
   resultsState,
   type AvailablePreview,
+  type ChoosePreview,
   type ResultEntry,
 } from "@/interview/results";
 
 import { FamilyTree } from "../interview/family-tree";
 import { crumbTextOf } from "../interview/death-breadcrumb";
 import { buttonClass } from "../interview/form-bits";
+import { SchoolChoice } from "../interview/school-choice";
 import { AuthGate } from "./auth-gate";
 import { InheritanceTable, ProofList } from "./inheritance-table";
 
@@ -63,6 +65,8 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
 
   const current = loaded && loaded.attempt === attempt ? loaded.value : null;
   const interview = messages.interview;
+  // Stable, so the gate's save and share callbacks are not rebuilt on every render.
+  const reload = useCallback(() => setAttempt((count) => count + 1), []);
   const back = (
     <p>
       <Link href={`/${locale}/interview/`} prefetch={false} className={linkClass}>
@@ -108,9 +112,32 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
   const state = resultsState(kase, outcome);
 
   if (state.kind === "available" && kase !== null) {
-    return <Available messages={messages} locale={locale} kase={kase} preview={state.preview} back={back} />;
+    return (
+      <Available
+        messages={messages}
+        locale={locale}
+        kase={kase}
+        preview={state.preview}
+        back={back}
+        onSchoolRequired={reload}
+      />
+    );
   }
   if (state.kind === "available") return null;
+  if (state.kind === "choose_school" && kase !== null) {
+    return (
+      <ChooseSchool
+        key={kase.id}
+        messages={messages}
+        locale={locale}
+        kase={kase}
+        preview={state.preview}
+        back={back}
+        onChosen={reload}
+      />
+    );
+  }
+  if (state.kind === "choose_school") return null;
   return render(
     state,
     state.kind === "empty" ? (
@@ -125,6 +152,66 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
   );
 }
 
+/** The schools differ for this family and none is chosen: the visitor chooses, and then sees the results. */
+function ChooseSchool({
+  messages,
+  locale,
+  kase,
+  preview,
+  back,
+  onChosen,
+}: {
+  messages: Messages;
+  locale: string;
+  kase: Case;
+  preview: ChoosePreview;
+  back: React.ReactNode;
+  onChosen: () => void;
+}) {
+  const interview = messages.interview;
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState<"failed" | "throttled" | null>(null);
+  const labels = useMemo(
+    () => rowLabels(kase, interview.relationships, interview.heirNumbered, interview.previewOf),
+    [kase, interview.relationships, interview.heirNumbered, interview.previewOf],
+  );
+  const request = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      request.current?.abort();
+    };
+  }, []);
+  async function choose(madhab: SunniId) {
+    if (saving) return;
+    const own = new AbortController();
+    request.current = own;
+    setSaving(true);
+    setFailed(null);
+    const result = await setMadhab(own.signal, madhab, kase.id);
+    if (!mounted.current || own.signal.aborted) return;
+    if (result.kind === "updated" || result.kind === "replaced" || result.kind === "gone") onChosen();
+    else setFailed(result.kind);
+    setSaving(false);
+  }
+  return (
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+      <SchoolChoice
+        messages={interview}
+        locale={locale}
+        preview={preview}
+        labels={labels}
+        disabled={saving}
+        failed={failed}
+        onChoose={(madhab) => void choose(madhab)}
+      />
+      {back}
+    </div>
+  );
+}
+
 /** The results body. The shared page reuses it read-only: no save/share gate, and its own PDF download. */
 export function Available({
   messages,
@@ -134,6 +221,7 @@ export function Available({
   back,
   gate = true,
   download,
+  onSchoolRequired,
 }: {
   messages: Messages;
   locale: string;
@@ -142,6 +230,8 @@ export function Available({
   back: React.ReactNode;
   gate?: boolean;
   download?: (signal: AbortSignal) => Promise<DraftReportResult>;
+  /** The server refused a save because no school is chosen and the schools differ: show the choice. */
+  onSchoolRequired?: () => void;
 }) {
   const text = messages.results;
   const interview = messages.interview;
@@ -156,7 +246,7 @@ export function Available({
     [kase, interview.relationships, interview.heirNumbered],
   );
   const layers = layersOf(kase);
-  const school = interview.madhabs[preview.madhab].name;
+  const school = preview.madhab ? interview.madhabs[preview.madhab].name : null;
   const proof = preview.proof?.version === 1 ? preview.proof : null;
   const table = hasTable(preview) ? tableView(preview.table, preview) : null;
   const proofs = useMemo(() => Object.fromEntries((preview.proof?.version === 1 ? preview.proof.heirs : []).map((entry) => [entry.heir, entry])), [preview]);
@@ -167,8 +257,8 @@ export function Available({
 
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
-      <p>{text.school.split("{school}").join(school)}</p>
-      {gate && <AuthGate key={kase.id} caseId={kase.id} locale={locale} text={text} share={messages.share} />}
+      <p>{school === null ? interview.schoolsAgree : text.school.split("{school}").join(school)}</p>
+      {gate && <AuthGate key={`${kase.id}:${kase.madhab ?? ""}`} caseId={kase.id} locale={locale} text={text} share={messages.share} onSchoolRequired={onSchoolRequired} />}
       <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} download={download} />
 
       <section aria-labelledby="results-shares" className="flex flex-col gap-3">

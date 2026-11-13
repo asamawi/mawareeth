@@ -169,12 +169,13 @@ export type Screen =
   | "failed";
 
 /**
- * Which screen a view shows: a case with no school, or one being changed, shows the selector;
+ * Which screen a view shows: a case whose school is being changed shows the selector; a case with
+ * no school goes straight on, because the school is asked only if the schools differ for the family;
  * then a case with no deceased, or one being edited, shows the deceased form; then the heirs.
  */
 export function screenOf(view: View): Screen {
   if (view.name !== "started") return view.name;
-  if (view.case.madhab === null || view.changing) return "selector";
+  if (view.changing) return "selector";
   if (view.case.deceased === null || view.editingDeceased) return "deceased";
   return "heirs";
 }

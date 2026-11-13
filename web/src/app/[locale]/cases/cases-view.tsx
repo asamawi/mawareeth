@@ -50,7 +50,7 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
         {rows?.map((row) => (
           <li key={row.id} className="flex flex-wrap items-center gap-4 rounded border p-4">
             <span id={`saved-${row.id}`}>{text.cases.updated}: {new Date(row.updated_at).toLocaleString(locale)}</span>
-            <span>{text.interview.madhabs[row.madhab].name}</span>
+            <span>{row.madhab ? text.interview.madhabs[row.madhab].name : text.interview.schoolsAgree}</span>
             <span>{text.cases.heirs}: {row.heir_count}</span>
             <span>{row.status === "draft" ? text.cases.draft : row.status}</span>
             {/* Every row has an Open button; the date tells screen-reader users which case it opens. */}

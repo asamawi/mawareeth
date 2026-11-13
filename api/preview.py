@@ -176,16 +176,15 @@ def _compute_layered(case):
     return {by_pk[pk]: (Fraction(value), value == 0) for pk, value in final.items()}, labelled, table
 
 
-def preview(case):
-    """The preview body for a session case: available, unavailable or not ready.
+def _ready(case):
+    """Whether the family is far enough along to compute. The school is not needed."""
+    if case['deceased'] is None or not case['heirs']:
+        return False
+    return all(d['heirs'] for d in case.get('deaths', []))
 
-    Never writes: the transaction is always rolled back. Raises only for an unexpected
-    engine error, which the caller turns into a 503.
-    """
-    if case['madhab'] is None or case['deceased'] is None or not case['heirs']:
-        return {'status': 'not_ready'}
-    if any(not d['heirs'] for d in case.get('deaths', [])):
-        return {'status': 'not_ready'}
+
+def _single(case):
+    """The preview of a ready case under the school it holds (or null, which the engine reads as Hanbali)."""
     madhab = case['madhab']
     if is_impossible(case) or any(heir_rules.is_impossible_family(
             d['gender'], heir_rules.counts(d['heirs'])) for d in case.get('deaths', [])):
@@ -223,3 +222,57 @@ def preview(case):
         'proof': proof,
         'table': table,
     }
+
+
+def _signature(body):
+    """What the schools must share to agree: every heir's blocked flag and fraction, and the rest unallocated."""
+    return (
+        sorted((s['heir_id'], s['blocked'], s['numerator'], s['denominator']) for s in body['shares']),
+        body['unallocated'],
+    )
+
+
+def _proofs(body):
+    proof = body['proof']
+    return [layer['proof'] for layer in proof['layers']] if proof['version'] == 2 else [proof]
+
+
+def compare(case):
+    """The four Sunni schools' previews of a case that has no school, as {school: body}."""
+    return {school: _single({**case, 'madhab': school}) for school in schools.SUNNI}
+
+
+def _differences(bodies):
+    """The school-rule and refusal labels behind a disagreement, in a stable order."""
+    available = [b for b in bodies.values() if b['status'] == 'available']
+    used = [{code for proof in _proofs(b) for code in proof['school_rules']} for b in available]
+    rules = [{'code': code, 'label': proof_codes.label('school_rule', code)}
+             for code in schools.SCHOOL_RULES
+             if any(code in u for u in used) and not all(code in u for u in used)]
+    for body in bodies.values():
+        reason = body.get('reason') if body['status'] == 'unavailable' else None
+        if reason and all(rule['code'] != reason for rule in rules):
+            rules.append({'code': reason, 'label': str(schools.REASONS[reason])})
+    return rules
+
+
+def preview(case):
+    """The preview body for a session case: available, unavailable, choose_school or not ready.
+
+    With a school it is that school's answer. Without one the four Sunni schools are compared:
+    when they agree the answer is one result with `agreement: "all"`, and when they differ the
+    visitor is asked to choose. Never writes: every engine run is rolled back. Raises only for
+    an unexpected engine error, which the caller turns into a 503.
+    """
+    if not _ready(case):
+        return {'status': 'not_ready'}
+    if case['madhab'] is not None:
+        return _single(case)
+    bodies = compare(case)
+    if all(b['status'] == 'available' for b in bodies.values()) and (
+            len({repr(_signature(b)) for b in bodies.values()}) == 1):
+        return {**bodies[schools.HANBALI], 'madhab': None, 'basis': basis(case), 'agreement': 'all'}
+    reasons = {b.get('reason') for b in bodies.values()}
+    if all(b['status'] == 'unavailable' for b in bodies.values()) and len(reasons) == 1:
+        return {**bodies[schools.HANBALI], 'madhab': None, 'basis': basis(case)}
+    return {'status': 'choose_school', 'basis': basis(case), 'schools': bodies, 'rules': _differences(bodies)}

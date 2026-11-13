@@ -53,5 +53,8 @@
     "options": "relationship ids plus none; yes/no for shared_father",
     "suggested": "one of options"
   },
+  "saveErrors": ["school_required"],
+  "previewStatuses": ["available", "unavailable", "not_ready", "choose_school"],
+  "previewAgreement": ["all"],
   "previewReasons": ["school_not_supported", "malikiyya_disputed", "invalid_family", "manasikhat_unsupported"]
 }

@@ -74,12 +74,11 @@ export function reconcile(key: string, caseId: string, outcome: PreviewResult): 
 }
 
 /**
- * Whether the case has what the engine needs: a school, a deceased and at least one heir, and
- * every person who died has heirs of their own.
+ * Whether the case has what the engine needs: a deceased and at least one heir, and every person
+ * who died has heirs of their own. A school is not needed: without one the server compares the four.
  */
 export function previewReady(kase: Case): boolean {
   return (
-    kase.madhab !== null &&
     kase.deceased !== null &&
     kase.heirs.length > 0 &&
     (kase.deaths ?? []).every((death) => death.heirs.length > 0)

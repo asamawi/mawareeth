@@ -2834,6 +2834,10 @@ msgstr "Hanbali"
 msgid "Report school: jafari"
 msgstr "Jafari"
 
+#: reports/report.py
+msgid "Same result in all four Sunni schools"
+msgstr "Same result in all four Sunni schools"
+
 #: reports/templates/reports/draft.html reports/report.py
 msgid "Equality"
 msgstr "Equality"

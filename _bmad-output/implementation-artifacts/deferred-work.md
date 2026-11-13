@@ -120,6 +120,10 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Django / API
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-school-only-when-it-matters.md`
+  summary: Fix the failing `api.tests.InterviewAnswerTests.test_edit_heir_keeps_id_and_place_and_derives_gender_again`, which expects an edited heir without the `edit_options` object the API now returns.
+  evidence: The test fails identically at 8168f72 in a clean worktree, so an earlier change on `development` (probably the add-heir picker) broke it. CI runs the `api` suite, so this blocks a green pipeline.
+
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-7-successive-deaths-manasikhat-in-the-interview.md`
   summary: Arrange qualified fiqh review of layered previews built from interview input.
   evidence: Story 1.7a adds linked identities, inferred death order and combined shares across layers; these interview-built previews need qualified review across the supported schools.
@@ -327,3 +331,11 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-stale-chunk-fallback.md`
   summary: Native Arabic and French review of the new `pageError` text (`title`, `body`, `reload`, `interview`) in `web/src/i18n/messages.ts`, shown by the error fallback when a page or script chunk fails to load.
   evidence: The Arabic and French wording was drafted without native review; the English is the source text ("This page did not load correctly", "Reload the page to continue. Your saved answers are kept.", "Reload page", "Back to the interview").
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-school-only-when-it-matters.md`
+  summary: Request native Arabic, English and French review, and fiqh review for the Arabic and French wording, of the new school-of-law text: `schoolsAgree`, `schoolsDiffer`, `schoolsDifferBecause`, `chooseSchool` (interview) and `saveNeedsSchool` (results) in `web/src/i18n/messages.ts`, and the new msgid "Same result in all four Sunni schools" in `locale/{ar,fr,en}/LC_MESSAGES/django.po` (draft PDF School line).
+  evidence: The strings were given by the owner in the spec, not drafted from reviewed sources. The Arabic reads "النتيجة نفسها في المذاهب السنية الأربعة" (with "السنية", matching en and fr; the spec text omitted it). Check "the same result in the four Sunni schools" is stated precisely enough in fiqh terms, and the compiled `.mo` files were regenerated with polib because `msgfmt` is not installed on the development host.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-school-only-when-it-matters.md`
+  summary: A case with no school costs four engine runs per preview request (and per save, shared view and draft PDF of such a case), because the preview compares the four Sunni schools. This extends the "move the preview off database writes" item above.
+  evidence: Each run builds and rolls back its own rows inside a transaction. A school-set case still costs one run. Moving the engine to an in-memory path, or caching the comparison by the case's basis, would remove the multiplier.

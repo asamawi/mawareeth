@@ -28,7 +28,8 @@ test("no case, an incomplete case and a pending preview have no numbers", () => 
   const { kase } = by("Hanbali wife and son with an estate");
   assert.deepEqual(resultsState(null, null), { kind: "empty" });
   assert.deepEqual(resultsState({ ...kase, heirs: [] }, null), { kind: "incomplete" });
-  assert.deepEqual(resultsState({ ...kase, madhab: null }, null), { kind: "incomplete" });
+  assert.deepEqual(resultsState({ ...kase, deceased: null }, null), { kind: "incomplete" });
+  assert.deepEqual(resultsState({ ...kase, madhab: null }, null), { kind: "loading" });
   assert.deepEqual(resultsState(kase, null), { kind: "loading" });
 });
 
@@ -83,7 +84,7 @@ test("every available fixture joins each heir to its proof by heir id, layered o
     }
   }
   assert.ok(single >= 10);
-  assert.equal(layered, 12);
+  assert.equal(layered, 13);
 });
 
 test("a layered fixture shows kirat for its shares", () => {
@@ -135,4 +136,17 @@ test("every state without numbers has a presentation, and only failed and replac
     assert.equal(presentationOf(state).retry, false, state.kind);
   }
   assert.equal(presentationOf({ kind: "load_failed" }).retry, true);
+});
+
+test("a case with no school and differing schools asks for a choice, and agreeing schools show the results", () => {
+  const differ = by("Differ: grandfather and full brother");
+  const state = resultsState(differ.kase, settle(differ.kase, differ.preview));
+  assert.equal(state.kind, "choose_school");
+  const agree = by("Agree: wife, son and daughter in every school");
+  assert.equal(agree.kase.madhab, null);
+  const shown = resultsState(agree.kase, settle(agree.kase, agree.preview));
+  assert.equal(shown.kind, "available");
+  // Another family's answer is still refused for a case with no school.
+  const other = { ...agree.kase, heirs: agree.kase.heirs.slice(1) };
+  assert.deepEqual(resultsState(other, settle(other, agree.preview)), { kind: "error", error: "replaced" });
 });

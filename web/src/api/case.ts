@@ -622,7 +622,8 @@ export type PreviewShare = FractionBody & {
 
 /** What a preview was made for, with no names; compared with the case on screen. */
 export type PreviewBasis = {
-  madhab: MadhabId;
+  /** Null while the case has no school: the preview then compares the four Sunni schools. */
+  madhab: MadhabId | null;
   gender: Gender;
   estate: string | null;
   heirs: { id: string; relationship: RelationshipId }[];
@@ -724,13 +725,29 @@ export type PreviewTableRow = {
 /** The scholars' table of a single-death case: the legacy columns with totals. The first column is `base`. */
 export type PreviewTable = { columns: PreviewTableColumn[]; rows: PreviewTableRow[] };
 
+/** The four schools a case with no school is compared under, in display order. */
+export const SUNNI_IDS = ["hanafi", "maliki", "shafii", "hanbali"] as const;
+export type SunniId = (typeof SUNNI_IDS)[number];
+
+/** One school's answer inside a `choose_school` body. */
+export type SchoolPreview = Extract<Preview, { status: "available" | "unavailable" }>;
+
 export type Preview =
   | { status: "not_ready" }
-  /** `reason` is any code the server sends; one with no sentence shows the generic text only. */
-  | { status: "unavailable"; madhab: MadhabId; reason: string; basis: PreviewBasis }
+  /** `reason` is any code the server sends; one with no sentence shows the generic text only. `madhab` is null when no school was chosen and every school refuses alike. */
+  | { status: "unavailable"; madhab: MadhabId | null; reason: string; basis: PreviewBasis }
+  /** No school was chosen and the schools differ: each school's answer, and the rules or refusals behind it. */
+  | {
+      status: "choose_school";
+      basis: PreviewBasis;
+      schools: Record<SunniId, SchoolPreview>;
+      rules: { code: string; label: string }[];
+    }
   | {
       status: "available";
-      madhab: MadhabId;
+      /** Null with `agreement: "all"`: the case has no school and all four Sunni schools agree. */
+      madhab: MadhabId | null;
+      agreement?: "all";
       basis: PreviewBasis;
       shares: PreviewShare[];
       /** The part of the estate no heir takes, for a spouse alone; otherwise null. */
@@ -769,7 +786,7 @@ function parseFraction(value: unknown): FractionBody | null {
 function parseBasis(value: unknown): PreviewBasis | null {
   if (typeof value !== "object" || value === null) return null;
   const { madhab, gender, estate, heirs } = value as Record<string, unknown>;
-  if (!isMadhabId(madhab) || !isGender(gender) || !Array.isArray(heirs)) return null;
+  if ((madhab !== null && !isMadhabId(madhab)) || !isGender(gender) || !Array.isArray(heirs)) return null;
   if (estate !== null && !(typeof estate === "string" && STORED_ESTATE.test(estate))) return null;
   const list: PreviewBasis["heirs"] = [];
   for (const item of heirs as unknown[]) {
@@ -778,7 +795,7 @@ function parseBasis(value: unknown): PreviewBasis | null {
     if (typeof id !== "string" || !isRelationshipId(relationship)) return null;
     list.push({ id, relationship });
   }
-  const result: PreviewBasis = { madhab, gender, estate, heirs: list };
+  const result: PreviewBasis = { madhab: madhab as MadhabId | null, gender, estate, heirs: list };
   if (Object.hasOwn(value, "deaths")) {
     const deaths = (value as Record<string, unknown>).deaths;
     if (!Array.isArray(deaths) || deaths.length === 0 || deaths.length > 2) return null;
@@ -1046,7 +1063,7 @@ function gcd(a: bigint, b: bigint): bigint {
   return b === BigInt(0) ? a : gcd(b, a % b);
 }
 
-export function parseLayeredProof(value: unknown, basis: PreviewBasis, shares: PreviewShare[]): LayeredProof | null {
+export function parseLayeredProof(value: unknown, basis: PreviewBasis & { madhab: MadhabId }, shares: PreviewShare[]): LayeredProof | null {
   if (!exact(value, ["version", "madhab", "people", "layers", "final", "base"]) || value.version !== 2 || value.madhab !== basis.madhab) return null;
   if (!Array.isArray(value.people) || !Array.isArray(value.layers) || !Array.isArray(value.final) || !isWhole(value.base) || value.base < 1) return null;
   const deaths = basis.deaths;
@@ -1201,15 +1218,21 @@ export function parsePreview(body: unknown): Preview | null {
   if (typeof body !== "object" || body === null) return null;
   const value = body as Record<string, unknown>;
   if (value.status === "not_ready") return { status: "not_ready" };
-  if (!isMadhabId(value.madhab)) return null;
+  if (value.status === "choose_school") return parseChoice(value);
+  const madhab = value.madhab === null ? null : isMadhabId(value.madhab) ? value.madhab : undefined;
+  if (madhab === undefined) return null;
   const basis = parseBasis(value.basis);
-  if (!basis || (basis.deaths && basis.madhab !== value.madhab)) return null;
+  if (!basis || ((basis.deaths || madhab === null) && basis.madhab !== madhab)) return null;
   if (value.status === "unavailable") {
     return typeof value.reason === "string" && value.reason !== ""
-      ? { status: "unavailable", madhab: value.madhab, reason: value.reason, basis }
+      ? { status: "unavailable", madhab, reason: value.reason, basis }
       : null;
   }
   if (value.status !== "available" || !Array.isArray(value.shares)) return null;
+  // Agreement is exactly the answer to a case with no school.
+  if ((madhab === null) !== (value.agreement === "all") || (value.agreement !== undefined && value.agreement !== "all")) return null;
+  // The agreeing body carries the Hanbali proof the server computed it from.
+  const proofMadhab: MadhabId = madhab ?? "hanbali";
   const rowIds = new Set([...basis.heirs, ...(basis.deaths ?? []).flatMap((death) => death.heirs)].map((row) => row.id));
   const seen = new Set<string>();
   const shares: PreviewShare[] = [];
@@ -1228,7 +1251,7 @@ export function parsePreview(body: unknown): Preview | null {
     unallocated = parseFraction(value.unallocated);
     if (!unallocated) return null;
   }
-  const proof = basis.deaths ? parseLayeredProof(value.proof, basis, shares) : parseProof(value.proof, value.madhab, shares);
+  const proof = basis.deaths ? parseLayeredProof(value.proof, { ...basis, madhab: proofMadhab }, shares) : parseProof(value.proof, proofMadhab, shares);
   if (!proof) return null;
   const table = proof.version === 2
     ? value.table === null ? null : parseLayeredTable(value.table, proof, shares, unallocated, basis)
@@ -1242,7 +1265,40 @@ export function parsePreview(body: unknown): Preview | null {
     }
     if (top !== bottom) return null;
   }
-  return { status: "available", madhab: value.madhab, basis, shares, unallocated, proof, table };
+  return madhab === null
+    ? { status: "available", madhab, agreement: "all", basis, shares, unallocated, proof, table }
+    : { status: "available", madhab, basis, shares, unallocated, proof, table };
+}
+
+/** The family a basis is for, whatever its school. */
+function familyKey(basis: PreviewBasis): string {
+  return JSON.stringify([basis.gender, basis.estate, basis.heirs, basis.deaths ?? null]);
+}
+
+/** A `choose_school` body: the four Sunni schools' own answers and the rules behind the difference. */
+function parseChoice(value: Record<string, unknown>): Preview | null {
+  if (!hasExactKeys(value, ["status", "basis", "schools", "rules"])) return null;
+  const basis = parseBasis(value.basis);
+  if (!basis || basis.madhab !== null) return null;
+  const { schools, rules } = value;
+  if (typeof schools !== "object" || schools === null || !hasExactKeys(schools, SUNNI_IDS)) return null;
+  // The list can be empty: the schools may differ in fractions alone, with the same rule tags.
+  if (!Array.isArray(rules)) return null;
+  const parsedRules: { code: string; label: string }[] = [];
+  for (const rule of rules as unknown[]) {
+    if (!exact(rule, ["code", "label"]) || !isCode(rule.code) || !isCode(rule.label)) return null;
+    parsedRules.push({ code: rule.code, label: rule.label });
+  }
+  const family = familyKey(basis);
+  const parsed: Partial<Record<SunniId, SchoolPreview>> = {};
+  for (const id of SUNNI_IDS) {
+    const body = parsePreview((schools as Record<string, unknown>)[id]);
+    if (!body || (body.status !== "available" && body.status !== "unavailable") || body.madhab !== id) return null;
+    // Every school answers for the family the case holds.
+    if (familyKey(body.basis) !== family) return null;
+    parsed[id] = body;
+  }
+  return { status: "choose_school", basis, schools: parsed as Record<SunniId, SchoolPreview>, rules: parsedRules };
 }
 
 /**

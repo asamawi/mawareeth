@@ -84,7 +84,7 @@ test("every available fixture carries the proof version for its death count", ()
       fixture.title,
     );
   }
-  assert.equal(available.filter((fixture) => (fixture.response as Exclude<Preview, { status: "not_ready" }>).basis.deaths).length, 12);
+  assert.equal(available.filter((fixture) => (fixture.response as Exclude<Preview, { status: "not_ready" }>).basis.deaths).length, 13);
   const hanafi = fixtures.find((fixture) => fixture.title === "Grandfather and brother under Hanafi");
   const proof = (parsePreview(hanafi?.response) as Extract<Preview, { status: "available" }>).proof;
   assert.ok(proof?.version === 1);
@@ -153,7 +153,7 @@ test("the fixtures cover every refusal reason and each kind of answer", () => {
   const seen = new Set(fixtures.map((fixture) => (fixture.response as Preview & { reason?: string }).reason).filter(Boolean));
   assert.deepEqual([...seen].sort(), [...PREVIEW_REASONS].sort());
   const statuses = new Set(fixtures.map((fixture) => (fixture.response as Preview).status));
-  assert.deepEqual([...statuses].sort(), ["available", "not_ready", "unavailable"]);
+  assert.deepEqual([...statuses].sort(), ["available", "choose_school", "not_ready", "unavailable"]);
 });
 
 test("every refusal reason has a sentence in every language", () => {
@@ -231,9 +231,9 @@ test("the key follows what changes a share and ignores names", () => {
   assert.equal(new Set(changes.map(previewKey)).size, changes.length);
 });
 
-test("a case is ready only with a school, a deceased and an heir", () => {
+test("a case is ready with a deceased and an heir, whether or not it has a school", () => {
   assert.equal(previewReady(BASE), true);
-  assert.equal(previewReady({ ...BASE, madhab: null }), false);
+  assert.equal(previewReady({ ...BASE, madhab: null }), true);
   assert.equal(previewReady({ ...BASE, deceased: null }), false);
   assert.equal(previewReady({ ...BASE, heirs: [] }), false);
 });
@@ -278,4 +278,64 @@ test("the estate hint asks for the amount after debts, funeral costs and bequest
   assert.match(messages.en.interview.estateHint, /debts, funeral costs and bequests/);
   assert.match(messages.fr.interview.estateHint, /dettes.*frais funéraires.*legs/);
   assert.match(messages.ar.interview.estateHint, /الديون.*الدفن.*الوصايا/);
+});
+
+test("a case with no school: the agreeing body and the choose_school body parse, and nothing looser does", () => {
+  type Body = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const source = (title: string) => fixtures.find((fixture) => fixture.title === title)!;
+  const agree = source("Agree: wife, son and daughter in every school");
+  const differ = source("Differ: grandfather and full brother");
+  const refusal = source("Refusal: Malikiyya makes the schools differ");
+  const parsed = parsePreview(agree.response);
+  assert.ok(parsed && parsed.status === "available");
+  assert.equal(parsed.madhab, null);
+  assert.equal(parsed.agreement, "all");
+  assert.equal(previewKey(agree.case), basisKey(agree.case.id, parsed.basis));
+  const choice = parsePreview(differ.response);
+  assert.ok(choice && choice.status === "choose_school");
+  assert.deepEqual(choice.rules.map((rule) => rule.code), ["grandfather_blocks_siblings", "grandfather_shares_with_siblings"]);
+  assert.equal(choice.schools.hanafi.status, "available");
+  assert.equal(previewKey(differ.case), basisKey(differ.case.id, choice.basis));
+  const refused = parsePreview(refusal.response);
+  assert.ok(refused && refused.status === "choose_school");
+  assert.equal(refused.schools.maliki.status, "unavailable");
+  assert.ok(refused.rules.some((rule) => rule.code === "malikiyya_disputed"));
+
+  const fresh = (fixture: Fixture) => JSON.parse(JSON.stringify(fixture.response)) as Body;
+  const breakers: [string, Fixture, (body: Body) => void][] = [
+    ["a null school without agreement", agree, (body) => delete body.agreement],
+    ["agreement with a school", agree, (body) => (body.madhab = "hanbali")],
+    ["an unknown agreement", agree, (body) => (body.agreement = "some")],
+    ["a basis with a school while the body has none", agree, (body) => (body.basis.madhab = "hanbali")],
+    ["a school body with an agreement", source("Hanbali wife and son with an estate"), (body) => (body.agreement = "all")],
+    ["a missing school", differ, (body) => delete body.schools.shafii],
+    ["an extra school", differ, (body) => (body.schools.jafari = body.schools.hanafi)],
+    ["a school answering as another school", differ, (body) => (body.schools.hanafi = body.schools.hanbali)],
+    ["rules that are not a list", differ, (body) => (body.rules = null)],
+    ["a rule with no label", differ, (body) => (body.rules[0] = { code: "x" })],
+    ["a basis with a school", differ, (body) => (body.basis.madhab = "hanafi")],
+    ["a school for another family", differ, (body) => body.schools.maliki.basis.heirs.pop()],
+    ["an extra key", differ, (body) => (body.shares = [])],
+    ["a nested choose_school", differ, (body) => (body.schools.hanafi = fresh(differ))],
+  ];
+  for (const [name, fixture, breaker] of breakers) {
+    const body = fresh(fixture);
+    breaker(body);
+    assert.equal(parsePreview(body), null, name);
+  }
+});
+
+test("a choose_school body may have no rules, when the schools differ in fractions alone", () => {
+  const body = JSON.parse(JSON.stringify(fixtures.find((fixture) => fixture.title === "Differ: grandfather and full brother")!.response));
+  body.rules = [];
+  const parsed = parsePreview(body);
+  assert.ok(parsed && parsed.status === "choose_school");
+  assert.deepEqual(parsed.rules, []);
+});
+
+test("a refusal every school shares has no school and no choice", () => {
+  const body = { status: "unavailable", madhab: null, reason: "invalid_family", basis: { ...BASE, madhab: null, heirs: BASE.heirs.map(({ id, relationship }) => ({ id, relationship })) } };
+  const preview = parsePreview({ ...body, basis: { madhab: null, gender: "male", estate: "8000", heirs: body.basis.heirs } });
+  assert.ok(preview && preview.status === "unavailable");
+  assert.equal(preview.madhab, null);
 });

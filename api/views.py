@@ -243,8 +243,19 @@ class SavedCasesView(ApiView):
         case = anonymous_case.get(request)
         if case is not None and case['id'] != data['case_id']:
             return Response({'detail': 'That case is no longer the current one.'}, status=409)
-        if case is None or not case['madhab'] or not case['deceased'] or not case['heirs']:
+        if case is None or not case['deceased'] or not case['heirs']:
             return Response({'detail': 'Complete the case before saving.'}, status=400)
+        if not case['madhab']:
+            # No school is saveable only while all four Sunni schools give the same result.
+            try:
+                needs_school = preview.preview(case)['status'] == 'choose_school'
+            except Exception as error:
+                logger.error('Save comparison failed: %s\n%s', type(error).__name__,
+                             ''.join(traceback.format_tb(error.__traceback__)))
+                return Response({'detail': 'The case cannot be saved right now.'}, status=503)
+            if needs_school:
+                return Response({'detail': 'Choose a school of law before saving.', 'code': 'school_required'},
+                                status=400)
         row = SavedCase.objects.filter(owner=request.user, pk=anonymous_case.get_saved_link(request, case['id'])).first()
         created = row is None
         if created:

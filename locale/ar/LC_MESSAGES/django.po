@@ -2814,6 +2814,10 @@ msgstr "الحنبلي"
 msgid "Report school: jafari"
 msgstr "الجعفري"
 
+#: reports/report.py
+msgid "Same result in all four Sunni schools"
+msgstr "النتيجة نفسها في المذاهب السنية الأربعة"
+
 #: reports/templates/reports/draft.html reports/report.py
 msgid "Equality"
 msgstr "تماثل"

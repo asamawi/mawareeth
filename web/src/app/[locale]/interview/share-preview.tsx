@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { fetchPreview, type Case, type PreviewResult } from "@/api/case";
+import { fetchPreview, type Case, type PreviewResult, type SunniId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import { formatEstate } from "@/interview/answers";
 import { localFraction, localPercent } from "@/interview/format";
@@ -20,6 +20,7 @@ import {
 
 import { InheritanceTable } from "../results/inheritance-table";
 import { buttonClass } from "./form-bits";
+import { SchoolChoice } from "./school-choice";
 
 /**
  * The shares of the saved case under its school, as the engine gives them. It asks once after
@@ -31,6 +32,9 @@ export function SharePreview({
   results,
   locale,
   kase,
+  saving = false,
+  failed = null,
+  onChooseSchool,
 }: {
   messages: Messages["interview"];
   /** The results dictionary: the table's captions and the side note's. */
@@ -38,6 +42,12 @@ export function SharePreview({
   locale: string;
   /** The saved case: it changes only when a save succeeds, so a save in flight changes nothing. */
   kase: Case;
+  /** A save is in flight, so choosing a school waits. */
+  saving?: boolean;
+  /** The last choice of a school could not be saved. */
+  failed?: "failed" | "throttled" | null;
+  /** Saves the school the visitor chose when the schools differ for this family. */
+  onChooseSchool?: (madhab: SunniId) => void;
 }) {
   const key = previewKey(kase);
   const ready = previewReady(kase);
@@ -57,7 +67,6 @@ export function SharePreview({
 
   const outcome = ready ? shown({ key, attempt }, settled) : null;
   const preview = outcome?.kind === "preview" ? outcome.preview : null;
-  const school = kase.madhab ? messages.madhabs[kase.madhab].name : "";
   // Every layer's rows are labelled, so a share never reads as a raw id.
   const labels = useMemo(
     () => rowLabels(kase, messages.relationships, messages.heirNumbered, messages.previewOf),
@@ -126,13 +135,30 @@ export function SharePreview({
             (<bdi dir="ltr">{localPercent(unallocated.percent, locale)}</bdi>)
           </p>
         )}
-        <p className="text-sm">{messages.previewSchool.split("{school}").join(school)}</p>
+        <p className="text-sm">
+          {preview.madhab === null
+            ? messages.schoolsAgree
+            : messages.previewSchool.split("{school}").join(messages.madhabs[preview.madhab].name)}
+        </p>
         <p>
           <Link href={`/${locale}/results/`} prefetch={false} className="underline underline-offset-4">
             {messages.previewResultsLink}
           </Link>
         </p>
       </>
+    );
+  } else if (outcome.kind === "preview" && preview?.status === "choose_school") {
+    status = messages.schoolsDiffer;
+    body = (
+      <SchoolChoice
+        messages={messages}
+        locale={locale}
+        preview={preview}
+        labels={labels}
+        disabled={saving}
+        failed={failed}
+        onChoose={(madhab) => onChooseSchool?.(madhab)}
+      />
     );
   } else if (outcome.kind === "preview" && preview?.status === "unavailable") {
     // A code with no sentence shows the generic text alone.

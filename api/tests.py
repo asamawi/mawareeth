@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import random
@@ -1318,21 +1319,28 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                 self.assertIn('no-store', response['Cache-Control'])
                 real_ids = {item['id']: heir['id'] for item, heir in zip(case['heirs'], live['heirs'])}
                 expected = json.loads(json.dumps(fixture['response']))
-                for share in expected.get('shares', []):
-                    share['heir_id'] = real_ids[share['heir_id']]
-                for item in expected.get('basis', {}).get('heirs', []):
-                    item['id'] = real_ids[item['id']]
-                for item in expected.get('proof', {}).get('heirs', []):
-                    item['heir'] = real_ids[item['heir']]
-                for item in (expected.get('table') or {}).get('rows', []):
-                    item['heir'] = real_ids[item['heir']]
+
+                def with_real_ids(node):
+                    # Heir ids appear under these keys at any depth (a choose_school body nests four previews).
+                    if isinstance(node, dict):
+                        for key, value in node.items():
+                            if key in ('heir_id', 'heir', 'id') and isinstance(value, str) and value in real_ids:
+                                node[key] = real_ids[value]
+                            else:
+                                with_real_ids(value)
+                    elif isinstance(node, list):
+                        for item in node:
+                            with_real_ids(item)
+                with_real_ids(expected)
                 self.assertEqual(response.json(), expected)
                 # And the numbers are the engine's own, run directly on a persisted case.
                 if expected['status'] == 'available':
+                    # A null school is the Hanbali body, which every school agreed with.
+                    madhab = case['madhab'] or 'hanbali'
                     types = [HEIR_CLASSES[heir['relationship']] for heir in case['heirs']]
                     sex = 'M' if case['deceased']['gender'] == 'male' else 'F'
                     calc, heirs = build_case(sex, types, estate=1)
-                    final = calc.compute(madhab=case['madhab'])
+                    final = calc.compute(madhab=madhab)
                     self.assertEqual(
                         [{k: v for k, v in e.items() if k not in ('heir', 'labels')} for e in expected['proof']['heirs']],
                         [{k: v for k, v in e.items() if k != 'heir'} for e in calc.proof['heirs']])
@@ -1406,13 +1414,15 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                     self.assertNotIn('proof', response)
                     continue
                 proof = response['proof']
+                if response['madhab'] is None:
+                    self.assertEqual(response['agreement'], 'all')
                 if fixture['case'].get('deaths'):
                     self.assertEqual(proof['version'], 2)
                     self.assertEqual([l['heir'] for l in proof['layers']],
                                      [None] + [d['heir_id'] for d in fixture['case']['deaths']])
                     continue
                 self.assertEqual(proof['version'], 1)
-                self.assertEqual(proof['madhab'], response['madhab'])
+                self.assertEqual(proof['madhab'], response['madhab'] or 'hanbali')
                 self.assertEqual({e['heir'] for e in proof['heirs']}, {s['heir_id'] for s in response['shares']})
                 shares = {s['heir_id']: (s['numerator'], s['denominator']) for s in response['shares']}
                 for entry in proof['heirs']:
@@ -1505,7 +1515,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         self.heir(live, 'son')
         self.assertNotEqual(self.preview(live['id']).json()['basis'], first)
 
-    def test_not_ready_until_the_case_has_a_school_a_deceased_and_an_heir(self):
+    def test_not_ready_until_the_case_has_a_deceased_and_an_heir(self):
         case = self.start()
         self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
         self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': 'hanbali'})
@@ -1514,6 +1524,104 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
         self.heir(case, 'son')
         self.assertEqual(self.preview(case['id']).json()['status'], 'available')
+
+    def test_a_case_with_no_school_is_ready_without_one(self):
+        case = self.start()
+        self.deceased(case)
+        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.heir(case, 'son')
+        body = self.preview(case['id']).json()
+        self.assertEqual((body['status'], body['madhab'], body['agreement']), ('available', None, 'all'))
+        self.assertIsNone(body['basis']['madhab'])
+
+    def test_agreement_needs_every_school_to_give_the_same_fractions_and_flags(self):
+        from api import preview
+        live = self.build(None, 'male', '9000', ['wife', 'son', 'daughter'])
+        bodies = preview.compare(self.live())
+        self.assertEqual({b['status'] for b in bodies.values()}, {'available'})
+        self.assertEqual(len({repr(preview._signature(b)) for b in bodies.values()}), 1)
+        # One school moving a single fraction breaks the agreement.
+        moved = {**bodies['hanafi'], 'shares': [{**bodies['hanafi']['shares'][0], 'denominator': 7}]
+                 + bodies['hanafi']['shares'][1:]}
+        self.assertNotEqual(preview._signature(moved), preview._signature(bodies['hanbali']))
+        flagged = {**bodies['hanafi'], 'shares': [{**bodies['hanafi']['shares'][0], 'blocked': True}]
+                   + bodies['hanafi']['shares'][1:]}
+        self.assertNotEqual(preview._signature(flagged), preview._signature(bodies['hanbali']))
+        self.assertEqual(live['madhab'], None)
+
+    def test_differing_schools_ask_for_a_choice_and_name_the_rules(self):
+        live = self.build(None, 'male', None, ['grandfather', 'brother'])
+        body = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()
+        self.assertEqual(body['status'], 'choose_school')
+        self.assertIsNone(body['basis']['madhab'])
+        self.assertEqual(list(body['schools']), ['hanafi', 'maliki', 'shafii', 'hanbali'])
+        self.assertEqual([r['code'] for r in body['rules']],
+                         ['grandfather_blocks_siblings', 'grandfather_shares_with_siblings'])
+        self.assertTrue(all(r['label'] for r in body['rules']))
+        self.assertEqual({k: v['madhab'] for k, v in body['schools'].items()},
+                         {k: k for k in body['schools']})
+        arabic = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='ar').json()
+        self.assertTrue(any('؀' <= ch <= 'ۿ' for ch in arabic['rules'][0]['label']))
+        self.assertNotIn('shares', body)
+
+    def test_choose_school_carries_a_list_of_rules_even_when_no_rule_differs(self):
+        from api import preview
+        live = self.build(None, 'male', None, ['wife', 'son'])
+        case = self.live()
+        real = preview._single({**case, 'madhab': 'hanbali'})
+
+        def body(school, numerator):
+            share = {**real['shares'][0], 'numerator': numerator, 'denominator': 8}
+            return {**real, 'madhab': school, 'shares': [share] + real['shares'][1:]}
+
+        bodies = {'hanafi': body('hanafi', 1), 'maliki': body('maliki', 2),
+                  'shafii': body('shafii', 1), 'hanbali': body('hanbali', 1)}
+        for entry in bodies.values():
+            entry['proof'] = {**entry['proof'], 'school_rules': []}
+        with mock.patch.object(preview, 'compare', return_value=bodies):
+            answer = preview.preview(case)
+        self.assertEqual(answer['status'], 'choose_school')
+        self.assertEqual(answer['rules'], [])
+        self.assertEqual(list(answer['schools']), ['hanafi', 'maliki', 'shafii', 'hanbali'])
+        self.assertIsNotNone(live)
+
+    def test_a_refusal_from_any_school_means_the_schools_differ(self):
+        fixture = next(f for f in PREVIEW_FIXTURES if f['title'] == 'Maliki Malikiyya is refused')
+        case = fixture['case']
+        live = self.build(None, case['deceased']['gender'], None, [h['relationship'] for h in case['heirs']])
+        body = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()
+        self.assertEqual(body['status'], 'choose_school')
+        self.assertEqual(body['schools']['maliki']['status'], 'unavailable')
+        self.assertEqual(body['schools']['maliki']['reason'], 'malikiyya_disputed')
+        self.assertEqual(body['schools']['hanafi']['status'], 'available')
+        self.assertIn('malikiyya_disputed', [r['code'] for r in body['rules']])
+
+    def test_a_refusal_every_school_shares_is_not_a_choice(self):
+        live = self.build(None, 'male', None, ['wife'] * 5)
+        body = self.preview(live['id']).json()
+        self.assertEqual((body['status'], body['madhab'], body['reason']), ('unavailable', None, 'invalid_family'))
+
+    def test_layered_cases_compare_the_final_shares_of_the_whole_chain(self):
+        from api import preview
+        agree = next(f for f in PREVIEW_FIXTURES if f['title'] == 'Agree layered: wife and two sons, a son dies')
+        self.assertEqual(agree['response']['agreement'], 'all')
+        self.assertIsNone(agree['response']['madhab'])
+        self.assertEqual(agree['response']['proof']['version'], 2)
+        differ = copy.deepcopy(agree['case'])
+        differ['deaths'][0]['heirs'] = [
+            {'id': 'r1', 'relationship': 'grandfather', 'gender': 'male', 'name': None},
+            {'id': 'r2', 'relationship': 'brother', 'gender': 'male', 'name': None}]
+        body = preview.preview(differ)
+        self.assertEqual(body['status'], 'choose_school')
+        self.assertIn('grandfather_blocks_siblings', [r['code'] for r in body['rules']])
+
+    def test_a_school_always_wins_over_the_comparison(self):
+        live = self.build('hanafi', 'male', None, ['grandfather', 'brother'])
+        body = self.preview(live['id']).json()
+        self.assertEqual((body['status'], body['madhab']), ('available', 'hanafi'))
+        self.assertNotIn('agreement', body)
+        live = self.build('hanbali', 'male', None, ['wife', 'son'])
+        self.assertNotIn('agreement', self.preview(live['id']).json())
 
     def test_an_impossible_family_is_refused_for_each_rule(self):
         cases = [
@@ -3076,6 +3184,49 @@ class SavedCaseTests(InterviewBase):
         self.assertEqual(self.send('post', self.url, {}).status_code, 400)
         self.assertFalse(SavedCase.objects.exists())
 
+    def test_a_case_with_no_school_saves_when_all_four_schools_agree(self):
+        self.client.force_login(self.owner)
+        case = self.ready()
+        self.heir(case, 'wife')
+        self.heir(case, 'son')
+        response = self.save(self.live())
+        self.assertEqual(response.status_code, 201)
+        row = SavedCase.objects.get()
+        self.assertIsNone(row.snapshot['madhab'])
+        self.assertIsNone(self.client.get(self.url, secure=True).json()['cases'][0]['madhab'])
+        opened = self.send('post', f'{self.url}{row.pk}/open/', {})
+        self.assertIsNone(opened.json()['case']['madhab'])
+
+    def test_a_case_with_no_school_is_refused_when_the_schools_differ(self):
+        self.client.force_login(self.owner)
+        case = self.ready()
+        self.heir(case, 'grandfather')
+        self.heir(case, 'brother')
+        response = self.save(self.live())
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['code'], 'school_required')
+        self.assertFalse(SavedCase.objects.exists())
+        # After the visitor chooses a school it saves as before.
+        self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'})
+        self.assertEqual(self.save(self.live()).status_code, 201)
+        self.assertEqual(SavedCase.objects.get().snapshot['madhab'], 'hanafi')
+
+    def test_a_failing_comparison_refuses_the_save_with_a_503_and_stores_nothing(self):
+        self.client.force_login(self.owner)
+        case = self.ready()
+        self.heir(case, 'wife')
+        with mock.patch('api.views.preview.preview', side_effect=RuntimeError('SECRET CASE CONTENT')),                 self.assertLogs('api.views', level='ERROR') as logs:
+            response = self.save(self.live())
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn('SECRET CASE CONTENT', ''.join(logs.output))
+        self.assertFalse(SavedCase.objects.exists())
+
+    def test_a_case_with_no_deceased_or_heirs_is_still_incomplete_without_a_school(self):
+        self.client.force_login(self.owner)
+        case = self.ready()
+        response = self.save(self.live())
+        self.assertEqual((response.status_code, response.json().get('code')), (400, None))
+
     def test_save_updates_and_open_roundtrip_on_another_device(self):
         self.client.force_login(self.owner)
         case = self.complete()
@@ -3170,7 +3321,8 @@ class SavedCaseTests(InterviewBase):
         self.client.force_login(self.owner)
         case = self.complete()
         original = anonymous_case.export_snapshot(case)
-        for field, empty in [('madhab', None), ('deceased', None), ('heirs', [])]:
+        # A missing school is no longer incomplete by itself: see the null-school save tests.
+        for field, empty in [('deceased', None), ('heirs', [])]:
             self.plant(**{**original, field: empty})
             self.assertEqual(self.save(case).status_code, 400)
             self.assertFalse(SavedCase.objects.exists())
@@ -3277,6 +3429,16 @@ class ShareTests(InterviewBase):
         self.assertEqual(anon.json()['status'], 'draft')
         self.assertEqual(ShareAuditEvent.objects.filter(action='viewed').count(), 2)
         self.assertIsNone(ShareAuditEvent.objects.filter(action='viewed').order_by('-pk').first().actor_id)
+
+    def test_a_shared_case_saved_with_no_school_shows_the_agreement(self):
+        row = SavedCase.objects.get(pk=self.saved_id)
+        row.snapshot = {**row.snapshot, 'madhab': None}
+        row.save()
+        body = self.view(self.public()['token']).json()
+        self.assertEqual(body['case']['madhab'], None)
+        self.assertEqual(body['preview']['status'], 'available')
+        self.assertIsNone(body['preview']['madhab'])
+        self.assertEqual(body['preview']['agreement'], 'all')
 
     def test_unknown_revoked_and_expired_share_one_404(self):
         live, revoked, expired = self.public(), self.public(), self.public()
@@ -3515,6 +3677,18 @@ class InviteTests(InterviewBase):
         self.assertEqual(denied.json(), unknown.json())
         self.assertEqual(self.view(row.pk).status_code, 404)
         self.assertEqual(self.report(row.pk).status_code, 404)
+
+    def test_a_received_case_saved_with_no_school_shows_the_agreement(self):
+        row, token, _ = self.issue()
+        saved = SavedCase.objects.get(pk=self.saved_id)
+        saved.snapshot = {**saved.snapshot, 'madhab': None}
+        saved.save()
+        self.client.force_login(self.recipient)
+        self.accept(token)
+        body = self.view(row.pk).json()
+        self.assertEqual(body['preview']['status'], 'available')
+        self.assertIsNone(body['preview']['madhab'])
+        self.assertEqual(body['preview']['agreement'], 'all')
 
     def test_revoke_and_expiry_boundary(self):
         from api.models import ShareInvite

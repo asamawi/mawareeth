@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { saveCase } from "@/api/saved-cases";
+import { SCHOOL_REQUIRED, saveCase } from "@/api/saved-cases";
 import { createShare, type CreatedShare } from "@/api/shares";
 import type { Messages } from "@/i18n/messages";
 import { loginHref, signupHref, resultsResumePath, shareUrl } from "@/i18n/paths";
@@ -12,9 +12,9 @@ import { InvitePanel } from "./invite-panel";
 import { WhatsappPanel } from "./whatsapp-panel";
 import { SharePanel } from "./share-panel";
 
-export function AuthGate({ locale, text, share: shareText, caseId }: { caseId: string; locale: string; text: Messages["results"]; share: Messages["share"] }) {
+export function AuthGate({ locale, text, share: shareText, caseId, onSchoolRequired }: { caseId: string; locale: string; text: Messages["results"]; share: Messages["share"]; onSchoolRequired?: () => void }) {
   const auth = useAuthState();
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error" | "school">("idle");
   const [savedId, setSavedId] = useState<number | null>(null);
   const saving = useRef(false);
   const runSave = useCallback(async () => {
@@ -22,10 +22,15 @@ export function AuthGate({ locale, text, share: shareText, caseId }: { caseId: s
     saving.current = true;
     setSaveState("saving");
     const result = await saveCase(new AbortController().signal, caseId);
-    if (result) setSavedId(result.id);
-    setSaveState(result ? "saved" : "error");
+    if (result === SCHOOL_REQUIRED) {
+      setSaveState("school");
+      onSchoolRequired?.();
+    } else {
+      if (result) setSavedId(result.id);
+      setSaveState(result ? "saved" : "error");
+    }
     saving.current = false;
-  }, [caseId]);
+  }, [caseId, onSchoolRequired]);
   const [shareState, setShareState] = useState<{ status: "creating" | "error" } | { status: "ready"; savedId: number; created: CreatedShare; via: "share" | "whatsapp" } | null>(null);
   const sharing = useRef(false);
   const runShare = useCallback(async (via: "share" | "whatsapp" = "share") => {
@@ -33,12 +38,20 @@ export function AuthGate({ locale, text, share: shareText, caseId }: { caseId: s
     sharing.current = true;
     setShareState({ status: "creating" });
     const signal = new AbortController().signal;
-    const savedCase = await saveCase(signal, caseId);
+    const saved = await saveCase(signal, caseId);
+    if (saved === SCHOOL_REQUIRED) {
+      setShareState(null);
+      setSaveState("school");
+      onSchoolRequired?.();
+      sharing.current = false;
+      return;
+    }
+    const savedCase = saved;
     if (savedCase) setSavedId(savedCase.id);
     const created = savedCase ? await createShare(signal, savedCase.id) : null;
     setShareState(savedCase && created ? { status: "ready", savedId: savedCase.id, created, via } : { status: "error" });
     sharing.current = false;
-  }, [caseId]);
+  }, [caseId, onSchoolRequired]);
   const [action, setAction] = useState<Action | null>(null);
   const [pending, setPending] = useState<Action | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -99,7 +112,7 @@ export function AuthGate({ locale, text, share: shareText, caseId }: { caseId: s
         <button ref={share} type="button" disabled={shareState?.status === "creating"} className={buttonClass} onClick={(event) => activate("share", event.currentTarget)}>{text.shareAction}</button>
         <button ref={whatsapp} type="button" disabled={shareState?.status === "creating"} className={buttonClass} onClick={(event) => activate("whatsapp", event.currentTarget)}>{text.whatsappAction}</button>
       </div>
-      <p role="status">{saveState === "error" ? text.saveError : saveState === "saved" ? text.saved : ""}</p>
+      <p role="status">{saveState === "error" ? text.saveError : saveState === "school" ? text.saveNeedsSchool : saveState === "saved" ? text.saved : ""}</p>
       {shareState?.status === "creating" && <p role="status">{shareText.preparing}</p>}
       {shareState?.status === "error" && <p role="alert">{shareText.createError}</p>}
       {shareState?.status === "ready" && <SharePanel key={shareState.created.id} savedId={shareState.savedId} created={shareState.created} locale={locale} text={shareText} />}

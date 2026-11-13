@@ -160,6 +160,11 @@ export type Messages = {
     previewWaiting: string;
     /** `{school}` is the school's name. */
     previewSchool: string;
+    /** Shown instead of a school name while the case has no school and all four Sunni schools agree. */
+    schoolsAgree: string;
+    schoolsDiffer: string;
+    schoolsDifferBecause: string;
+    chooseSchool: string;
     /** The one polite announcement when numbers appear. */
     previewUpdated: string;
     previewShare: string;
@@ -184,6 +189,7 @@ export type Messages = {
     saving: string;
     saved: string;
     saveError: string;
+    saveNeedsSchool: string;
     authTitle: string;
     signIn: string;
     createAccount: string;
@@ -473,6 +479,10 @@ export const messages: Record<Locale, Messages> = {
       previewPrompt: "أضف وارثًا لتظهر الأنصبة هنا.",
       previewWaiting: "جارٍ تحديث المعاينة…",
       previewSchool: "محسوبة وفق المذهب {school}. هذه معاينة وليست حكمًا نهائيًا.",
+      schoolsAgree: "النتيجة نفسها في المذاهب السنية الأربعة",
+      schoolsDiffer: "تختلف المذاهب في هذه الحالة",
+      schoolsDifferBecause: "بسبب:",
+      chooseSchool: "اختر المذهب الذي تتبعه",
       previewUpdated: "تم تحديث معاينة الأنصبة.",
       previewShare: "النصيب",
       previewAmount: "المبلغ",
@@ -500,6 +510,7 @@ export const messages: Record<Locale, Messages> = {
       saving: "جارٍ الحفظ…",
       saved: "تم الحفظ.",
       saveError: "تعذر الحفظ. حاول مرة أخرى.",
+      saveNeedsSchool: "اختر المذهب قبل الحفظ.",
       authTitle: "سجّل الدخول أو أنشئ حسابًا للمتابعة",
       signIn: "تسجيل الدخول",
       createAccount: "إنشاء حساب",
@@ -785,6 +796,10 @@ export const messages: Record<Locale, Messages> = {
       previewPrompt: "Add an heir to see the shares here.",
       previewWaiting: "Updating the preview…",
       previewSchool: "Calculated under the {school} school. This is a preview, not a final ruling.",
+      schoolsAgree: "Same result in all four Sunni schools",
+      schoolsDiffer: "The schools of law differ for this family",
+      schoolsDifferBecause: "Because of:",
+      chooseSchool: "Choose the school of law to follow",
       previewUpdated: "The share preview was updated.",
       previewShare: "Share",
       previewAmount: "Amount",
@@ -811,6 +826,7 @@ export const messages: Record<Locale, Messages> = {
       saving: "Saving…",
       saved: "Saved.",
       saveError: "Could not save. Please try again.",
+      saveNeedsSchool: "Choose a school of law before saving.",
       authTitle: "Sign in or create an account to continue",
       signIn: "Sign in",
       createAccount: "Create account",
@@ -1098,6 +1114,10 @@ export const messages: Record<Locale, Messages> = {
       previewPrompt: "Ajoutez un héritier pour voir les parts ici.",
       previewWaiting: "Mise à jour de l'aperçu…",
       previewSchool: "Calculé selon l'école {school}. Il s'agit d'un aperçu, pas d'une décision définitive.",
+      schoolsAgree: "Même résultat dans les quatre écoles sunnites",
+      schoolsDiffer: "Les écoles juridiques divergent pour cette famille",
+      schoolsDifferBecause: "En raison de :",
+      chooseSchool: "Choisissez l'école juridique à suivre",
       previewUpdated: "L'aperçu des parts a été mis à jour.",
       previewShare: "Part",
       previewAmount: "Montant",
@@ -1125,6 +1145,7 @@ export const messages: Record<Locale, Messages> = {
       saving: "Enregistrement…",
       saved: "Enregistré.",
       saveError: "Échec de l’enregistrement. Réessayez.",
+      saveNeedsSchool: "Choisissez une école juridique avant d'enregistrer.",
       authTitle: "Connectez-vous ou créez un compte pour continuer",
       signIn: "Se connecter",
       createAccount: "Créer un compte",

@@ -17,6 +17,8 @@ export type Stubs = {
   session?: Answer;
   getCase?: Answer;
   postCase?: Answer;
+  patchCase?: Answer;
+  getPreview?: Answer;
 };
 
 export const sessionAnonymous = json(200, { authenticated: false });
@@ -25,12 +27,21 @@ export const noCase = json(200, { case: null });
 export const liveCase = (id = CASE.id) => json(200, { case: { ...CASE, id } });
 export const startedCase = (id = CASE.id) => json(201, { case: { ...CASE, id } });
 
+/** A case as the API sends it, from a shared fixture's case; it keeps the fixture's ids and school. */
+export function fullCase(fixtureCase: Record<string, unknown>, changes: Record<string, unknown> = {}) {
+  const options = { blocked: [], invalid: {} };
+  const heirs = fixtureCase.heirs as Record<string, unknown>[];
+  return { ...fixtureCase, heir_options: options, heirs: heirs.map((heir) => ({ ...heir, edit_options: options })), deaths: [], ...changes };
+}
+
 export class Api {
   readonly stubs: Stubs = {};
   readonly unstubbed: string[] = [];
   sessionGets = 0;
   caseGets = 0;
   casePosts: { body: string; csrf: string | undefined }[] = [];
+  casePatches: { body: string; csrf: string | undefined }[] = [];
+  previewGets = 0;
 
   set(stubs: Stubs): void {
     Object.assign(this.stubs, stubs);
@@ -52,6 +63,14 @@ export class Api {
       if (pathname === "/api/v1/case/" && method === "POST") {
         this.casePosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
         return this.answer(route, this.stubs.postCase, "post case");
+      }
+      if (pathname === "/api/v1/case/" && method === "PATCH") {
+        this.casePatches.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.patchCase, "patch case");
+      }
+      if (pathname === "/api/v1/case/preview/" && method === "GET") {
+        this.previewGets += 1;
+        return this.answer(route, this.stubs.getPreview, "get preview");
       }
       this.unstubbed.push(`${method} ${pathname}`);
       await route.abort("failed");

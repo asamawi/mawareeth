@@ -199,6 +199,19 @@ class ReportContentTests(SimpleTestCase):
                             ['dt', 'New problem multiplier'], ['dd', str(layer['new_multiplier'])],
                             ['dt', "New jami'a"], ['dd', str(layer['jamia'])]])
 
+    def test_the_school_line_says_all_four_agree_when_the_case_has_no_school(self):
+        fixture = next(f for f in AVAILABLE if f['response'].get('agreement') == 'all')
+        self.assertIsNone(fixture['case']['madhab'])
+        for lang, line in [('en', 'Same result in all four Sunni schools'),
+                           ('fr', 'Même résultat dans les quatre écoles sunnites'),
+                           ('ar', 'النتيجة نفسها في المذاهب السنية الأربعة')]:
+            with translation.override(lang):
+                self.assertEqual(build_context(fixture['case'], fixture['response'])['school'], line)
+                self.assertIn(line, render_html(fixture['case'], fixture['response']))
+        with translation.override('en'):
+            hanafi = next(f for f in AVAILABLE if f['case']['madhab'] == 'hanafi')
+            self.assertEqual(build_context(hanafi['case'], hanafi['response'])['school'], 'Hanafi')
+
     def test_locales_rtl_and_escaping(self):
         f = copy.deepcopy(AVAILABLE[0])
         f['case']['heirs'][0]['name'] = '<script>secret</script>'
@@ -301,6 +314,31 @@ class DraftEndpointTests(TransactionTestCase):
             self.assertEqual(response.status_code, 409)
             self.assertEqual(response.json(), {'status': body['status'], 'reason': body.get('reason')})
             render.assert_not_called()
+
+    def plant_fixture(self, title):
+        case = copy.deepcopy(next(f for f in FIXTURES if f['title'] == title)['case'])
+        session = self.client.session
+        session[anonymous_case.SESSION_KEY] = case
+        session.save()
+        return case
+
+    def test_a_null_school_case_whose_schools_differ_never_renders(self):
+        case = self.plant_fixture('Differ: grandfather and full brother')
+        self.assertIsNone(case['madhab'])
+        with mock.patch('reports.views.render_pdf') as render:
+            response = self.get(case['id'], HTTP_ACCEPT='application/pdf')
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json(), {'status': 'choose_school', 'reason': None})
+        render.assert_not_called()
+
+    def test_a_null_school_case_all_schools_agree_on_renders_the_pdf(self):
+        case = self.plant_fixture('Agree: wife, son and daughter in every school')
+        with mock.patch('reports.views.render_pdf', return_value=b'%PDF-test') as render:
+            response = self.get(case['id'], HTTP_ACCEPT='application/pdf')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        body = render.call_args.args[1]
+        self.assertEqual((body['status'], body['madhab'], body['agreement']), ('available', None, 'all'))
 
     def test_non_draft_and_failures_fail_closed_with_private_safe_logs(self):
         patches = [mock.patch('reports.views.report_status', return_value='other'),

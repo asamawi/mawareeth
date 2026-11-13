@@ -5,6 +5,7 @@ import { previewReady, previewRows, type PreviewRow, type PreviewRows } from "./
 export type ResultEntry = { row: PreviewRow; proof: PreviewProofHeir | null };
 
 export type AvailablePreview = Extract<Preview, { status: "available" }>;
+export type ChoosePreview = Extract<Preview, { status: "choose_school" }>;
 
 /** Why a result has no numbers; the texts are the interview preview's. */
 export type ResultsError = "failed" | "throttled" | "gone" | "replaced";
@@ -12,11 +13,13 @@ export type ResultsError = "failed" | "throttled" | "gone" | "replaced";
 export type ResultsState =
   /** No live case. */
   | { kind: "empty" }
-  /** The case lacks a school, a deceased or heirs. */
+  /** The case lacks a deceased or heirs. */
   | { kind: "incomplete" }
   /** The case is complete and its preview is still on its way. */
   | { kind: "loading" }
   | { kind: "unavailable"; reason: string }
+  /** No school is chosen and the schools differ: the visitor must choose before the results. */
+  | { kind: "choose_school"; preview: ChoosePreview }
   | { kind: "error"; error: ResultsError }
   | { kind: "available"; preview: AvailablePreview };
 
@@ -32,6 +35,7 @@ export function resultsState(kase: Case | null, outcome: PreviewResult | null): 
   const { preview } = outcome;
   if (preview.status === "available") return { kind: "available", preview };
   if (preview.status === "unavailable") return { kind: "unavailable", reason: preview.reason };
+  if (preview.status === "choose_school") return { kind: "choose_school", preview };
   // A "not ready" answer for a case this tab holds ready means the family changed.
   return { kind: "error", error: "replaced" };
 }
@@ -62,7 +66,7 @@ export type Presentation = { texts: TextRef[]; alert: boolean; retry: boolean };
 
 /** The presentation of every state that has no numbers; `load_failed` is the case failing to load at all. */
 export function presentationOf(
-  state: Exclude<ResultsState, { kind: "available" }> | { kind: "load_failed" },
+  state: Exclude<ResultsState, { kind: "available" | "choose_school" }> | { kind: "load_failed" },
 ): Presentation {
   switch (state.kind) {
     case "load_failed":

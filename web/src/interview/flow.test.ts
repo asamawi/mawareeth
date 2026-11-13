@@ -246,15 +246,17 @@ test("pending views match the kind of action", () => {
 });
 
 const CHOSEN: Case = { ...CASE, madhab: "hanafi" };
-const SELECTOR = startedOf(CASE, false);
+// The selector now opens only for "Change"; a case with no school goes straight to the deceased form.
+const SELECTOR = startedOf(CASE, false, { changing: true });
 const QUESTION = startedOf(CHOSEN, true);
 
-test("screens: a case with no school or one being changed shows the selector", () => {
+test("screens: only a case whose school is being changed shows the selector", () => {
   const table: [View, string][] = [
     [{ name: "loading" }, "loading"],
     [{ name: "none", expired: false }, "none"],
     [{ name: "existing", case: CASE }, "existing"],
     [SELECTOR, "selector"],
+    [startedOf(CASE, false), "deceased"],
     [startedOf(CHOSEN, false), "deceased"],
     [startedOf(CHOSEN, false, { changing: true }), "selector"],
     [{ name: "throttled", resumable: null }, "throttled"],
@@ -264,8 +266,8 @@ test("screens: a case with no school or one being changed shows the selector", (
 });
 
 test("focus moves only when the screen changes, never for an in-place edit", () => {
-  const failed = startedOf(CASE, false, { notice: "failed" });
-  const saving = startedOf(CASE, false, { saving: true });
+  const failed = startedOf(CASE, false, { notice: "failed", changing: true });
+  const saving = startedOf(CASE, false, { saving: true, changing: true });
   const table: [View | null, View, boolean, string][] = [
     [null, SELECTOR, true, "first settled view"],
     [{ name: "loading" }, { name: "starting" }, false, "starting"],
@@ -275,7 +277,8 @@ test("focus moves only when the screen changes, never for an in-place edit", () 
     [SELECTOR, saving, false, "saving"],
     [saving, failed, false, "failed save keeps focus on the form"],
     [failed, SELECTOR, false, "a pick clears the notice in place"],
-    [SELECTOR, startedOf(CASE, false), false, "same screen, same state"],
+    [SELECTOR, startedOf(CASE, false, { changing: true }), false, "same screen, same state"],
+    [SELECTOR, startedOf(CASE, false), true, "a case with no school skips the selector"],
     [saving, startedOf(CHOSEN, false), true, "saved: selector to first question"],
     [QUESTION, startedOf(CHOSEN, true, { changing: true }), true, "change opens the selector"],
     [startedOf(CHOSEN, true, { changing: true }), QUESTION, true, "cancel closes it"],
@@ -289,7 +292,7 @@ test("focus moves only when the screen changes, never for an in-place edit", () 
 
 test("pick writes the record for the current case and clears a failure notice", () => {
   const { value, log } = deps({});
-  const failed = startedOf(CASE, false, { notice: "failed" });
+  const failed = startedOf(CASE, false, { notice: "failed", changing: true });
   assert.deepEqual(pick(failed, "maliki", value.selection), SELECTOR);
   assert.deepEqual(log.selection, { caseId: CASE.id, madhab: "maliki" });
   assert.equal(pick(SELECTOR, "jafari", value.selection), SELECTOR, "no notice: same view");
@@ -312,10 +315,11 @@ test("A failed or throttled start over keeps the unsaved selection of the live c
   }
 });
 
-test("a new case opens the selector and records it", async () => {
+test("a new case opens on the deceased form, with no selector record", async () => {
   const { value, log } = deps({ start: () => ({ kind: "started", case: CASE }) });
-  await runAction("start", signal, value);
-  assert.deepEqual(log.selection, { caseId: CASE.id, madhab: null });
+  const view = await runAction("start", signal, value);
+  assert.equal(screenOf(view), "deceased");
+  assert.equal(log.selection, null);
 });
 
 test("Choose: the school is stored, the first question shows, and resumed is kept", async () => {
@@ -393,11 +397,11 @@ test("Choose: pending keeps the selector on screen, saving", () => {
   assert.equal(pendingView("choose").name, "loading");
 });
 
-test("Resume with a school goes to the deceased form; without one, to the selector", async () => {
+test("Resume goes to the deceased form, with a school or without one", async () => {
   let { value } = deps({ read: async () => CHOSEN });
   assert.equal(screenOf(await runAction("resume", signal, value, CHOSEN)), "deceased");
   ({ value } = deps({ read: async () => CASE }));
-  assert.equal(screenOf(await runAction("resume", signal, value, CASE)), "selector");
+  assert.equal(screenOf(await runAction("resume", signal, value, CASE)), "deceased");
 });
 
 test("Selection in progress: a load skips the resume prompt, whether or not a school is stored", async () => {
@@ -427,7 +431,7 @@ test("Start over and a vanished case clear the old record", async () => {
     selection: { caseId: CASE.id, madhab: "jafari" },
   });
   await runAction("startOver", signal, value, CASE);
-  assert.deepEqual(log.selection, { caseId: NEW_CASE.id, madhab: null });
+  assert.equal(log.selection, null, "the new case opens on the deceased form, not the selector");
   ({ value, log } = deps({ seen: true, selection: { caseId: CASE.id, madhab: "jafari" } }));
   await runAction("load", signal, value);
   assert.equal(log.selection, null);
@@ -464,7 +468,8 @@ test("screens: deceased form, heir screen, and the selector first", () => {
   assert.equal(screenOf(startedOf(WITH_DECEASED, false)), "heirs");
   assert.equal(screenOf(startedOf(WITH_DECEASED, false, { editingDeceased: true })), "deceased");
   assert.equal(screenOf(startedOf(WITH_DECEASED, false, { changing: true })), "selector");
-  assert.equal(screenOf(startedOf(CASE, false, { editingDeceased: true })), "selector");
+  assert.equal(screenOf(startedOf(CASE, false, { editingDeceased: true })), "deceased");
+  assert.equal(screenOf(startedOf(CASE, false)), "deceased", "a case with no school is not asked for one");
   assert.equal(screenOf({ name: "confirmStartOver", case: CASE }), "confirmStartOver");
 });
 
@@ -867,7 +872,7 @@ test("Start over and a vanished case clear the form record", async () => {
   const record: FormRecord = { caseId: CASE.id, form: "heir", layer: null, heirId: null, values: { name: "x" } };
   let { value, log } = deps({ start: () => ({ kind: "started", case: NEW_CASE }), form: record });
   await runAction("startOver", signal, value, CASE);
-  assert.equal(log.form, null, "the new case opens on the selector, with no form");
+  assert.deepEqual([log.form?.caseId, log.form?.form], [NEW_CASE.id, "deceased"], "the new case opens on the deceased form");
   ({ value, log } = deps({ seen: true, form: record }));
   await runAction("load", signal, value);
   assert.equal(log.form, null);

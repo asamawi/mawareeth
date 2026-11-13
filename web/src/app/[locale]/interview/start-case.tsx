@@ -118,6 +118,7 @@ export function StartCase({
   locale: string;
 }) {
   const [view, setView] = useState<View>({ name: "loading" });
+  const [choiceFailed, setChoiceFailed] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const live = useRef(true);
   const latest = useRef<View>(view);
@@ -141,7 +142,11 @@ export function StartCase({
       const existing = caseOf(latest.current);
       setView(pendingView(action, latest.current));
       const next = await runAction(action, own.signal, deps, existing, choice, answer);
-      if (live.current && controller.current === own) setView(next);
+      if (live.current && controller.current === own) {
+        // A failure notice belongs to the school choice only when the choice made it.
+        setChoiceFailed(action === "choose");
+        setView(next);
+      }
     },
     [],
   );
@@ -502,7 +507,15 @@ export function StartCase({
             }
             onCancel={() => edit((current) => cancelEditHeir(current, deps))}
           />
-          <SharePreview messages={messages} results={results} locale={locale} kase={started.case} />
+          <SharePreview
+            messages={messages}
+            results={results}
+            locale={locale}
+            kase={started.case}
+            saving={started.saving}
+            failed={choiceFailed && (started.notice === "failed" || started.notice === "throttled") ? started.notice : null}
+            onChooseSchool={(madhab) => void perform("choose", { madhab, from: started })}
+          />
           <HeirList
             key={layer?.id ?? "first"}
             messages={messages}
