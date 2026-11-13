@@ -86,10 +86,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Decide whether a token record moving from a dated `expires_epoch` to `never` should be flagged, since a renamed or stripped GitHub expiry header would silently turn off the 30-day token alert.
   evidence: Review found that HTTP 200 without `github-authentication-token-expiration` overwrites a known expiry with `never`; the approved matrix treats a missing header as a never-expiring token, and treating the change as an error would also alert on a legitimate rotation to a non-expiring token.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
-  summary: Re-run `deploy/monitor.sh install` on the production host when this work ships, confirm `clear-sessions` runs in the real image, and consider a last-success metric for it.
-  evidence: The shell tests stub Docker, and a host that never re-runs `install` has no timer and raises no alert, so session rows would grow unnoticed. Release blocker.
-
 ## CI
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-origin-lock.md`
@@ -109,10 +105,6 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-authenticated-origin-pulls.md`
   summary: Give the operator a check of Cloudflare's side of per-hostname Authenticated Origin Pulls (both hostnames `enabled` and status `active` via the API, or a probe through Cloudflare), since release.sh's loopback probes present the client certificate themselves and pass even when Cloudflare does not.
   evidence: Review noted a deploy with `require` succeeds while Cloudflare lacks or has lost the hostname association, leaving visitors on 52x; only the manual enablement order protects against it.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
-  summary: Confirm the real `X-Forwarded-For` value reaching Django behind Cloudflare before relying on the case-write throttle's `NUM_PROXIES = 2`.
-  evidence: A local Caddy run on 2026-11-06 confirmed Caddy appends the peer from a trusted proxy and replaces the header otherwise, but Cloudflare's own contribution can only be observed on the deployed stack. Release blocker.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-content-security-policy.md`
   summary: Exercise Facebook and LinkedIn social login live on the deployed stack under the new CSP `form-action`.
@@ -289,8 +281,8 @@ Completed and obsolete items are removed; their history is in git.
   evidence: Review the WhatsApp button, ready status, "Open WhatsApp" label and unavailable-fallback wording, including Arabic RTL readability.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-legacy-calculations-in-saved-cases.md`
-  summary: When `api.0004_import_legacy_calculations` runs on production, save its output and follow up every calculation it reports as not converted (pk, owner, reason).
-  evidence: The migration prints the report to the `migrate` output only. Converted cases are school Hanbali and lose their calculation title, deceased name and later estates, which the snapshot cannot hold. Release blocker.
+  summary: Decide what to do with the 1,146 legacy calculations `api.0004` did not convert on production (841 with no deceased, 304 with no heirs, and calculation 2402 of owner 1829 with more than one deceased).
+  evidence: Release 02d3627 ran the import on 2026-11-13: converted=2053, reported=1146, ownerless=0, owners affected 965. The 1,145 incomplete ones are empty drafts with nothing to compute; only 2402 is a data anomaly. The originals stay in the `calc` tables, and the full report is in the host's root-only `deploy/runtime/logs/migrate-20261113T224032Z-3125246.log`.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-add-heir-picker.md`
   summary: Request native review of the two new add-heir picker strings in Arabic, English and French: "More relatives" (button) and "Other relationship" (select label).
