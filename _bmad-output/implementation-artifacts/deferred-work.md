@@ -300,9 +300,9 @@ Completed and obsolete items are removed; their history is in git.
   summary: When `api.0004_import_legacy_calculations` runs on production, save its output and follow up every calculation it reports as not converted (pk, owner, reason).
   evidence: The migration prints the report to the `migrate` output only. Converted cases are school Hanbali and lose their calculation title, deceased name and later estates, which the snapshot cannot hold. Release blocker.
 
-- source_spec: none
-  summary: UI/UX review and improvement of the Next.js interview's add-heir flow: replace the heir-type dropdown with an intuitive picker that puts the common heirs (spouse, sons, daughters, father, mother) one tap away, with the rarer relatives behind a secondary control.
-  evidence: Split on 2026-11-13 at the project owner's request (order 4 of 6); the owner finds adding heirs from a dropdown unintuitive.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-add-heir-picker.md`
+  summary: Request native review of the two new add-heir picker strings in Arabic, English and French: "More relatives" (button) and "Other relationship" (select label).
+  evidence: ar "أقارب آخرون" / "صلة قرابة أخرى"; en "More relatives" / "Other relationship"; fr "Autres proches" / "Autre lien de parenté". Check wording and the Arabic RTL layout of the picker.
 
 - source_spec: none
   summary: Make the estate amount optional in the interview, results and draft report so a case can be computed and saved as shares/fractions only, which makes anonymization (FR-19) more attainable.

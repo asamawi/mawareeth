@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import type { HeirOptions } from "@/api/case";
+import type { Gender, HeirOptions, RelationshipId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import { heirOptionLabels, linkChoice, LINK_PENDING, type Errors, type HeirValues } from "@/interview/answers";
 import type { Notice } from "@/interview/flow";
@@ -24,6 +24,8 @@ type Props = {
    * edit leaves that heir out, so the edit form shows plain labels and relies on the server.
    */
   options: HeirOptions;
+  /** The deceased of the layer being edited: decides which spouse is among the common heirs. */
+  deceasedGender: Gender;
   /**
    * The people an added row in this layer could be, for "someone already in this case". Empty in
    * the first layer, and when there is nobody to choose, which hides the choice.
@@ -37,7 +39,7 @@ type Props = {
   onCancel: () => void;
 };
 
-/** One form for adding and for editing; the relationship is a native select. */
+/** One form for adding and for editing; the relationship is a radio group of common heirs plus a native select of the rest. */
 export function HeirForm({
   messages,
   initial,
@@ -46,6 +48,7 @@ export function HeirForm({
   saving,
   editing,
   options,
+  deceasedGender,
   candidates = [],
   linked = false,
   onChange,
@@ -64,6 +67,25 @@ export function HeirForm({
     errors?.same_as === "required" ? messages.heirLinkRequired : errorText(messages, "same_as", errors);
   // Every relative stays offered: a blocked one can still change the others' shares.
   const offered = heirOptionLabels(options, !editing, messages.relationships, messages.heirRelationshipBlocked);
+
+  const spouse: RelationshipId = deceasedGender === "male" ? "wife" : "husband";
+  const commonIds: RelationshipId[] = [spouse, "son", "daughter", "father", "mother"];
+  const common = commonIds.map((id) => offered.find((option) => option.id === id)!);
+  const rare = offered.filter((option) => !commonIds.includes(option.id));
+  const rareValue = rare.some((option) => option.id === values.relationship) ? values.relationship : "";
+  // Starts open for a relationship outside the common group; revealing is one-way.
+  const [showMore, setShowMore] = useState(() => initial.relationship !== "" && !commonIds.includes(initial.relationship as RelationshipId));
+  const moreSelect = useRef<HTMLSelectElement>(null);
+  const focusMore = useRef(false);
+  useEffect(() => {
+    if (showMore && focusMore.current) {
+      focusMore.current = false;
+      moreSelect.current?.focus();
+    }
+  }, [showMore]);
+  // The control that answers a focus request: the checked radio, else the select, else the first radio.
+  const checkedRadio = common.findIndex((option) => option.id === values.relationship);
+  const focusRadio = checkedRadio >= 0 ? checkedRadio : showMore && rareValue !== "" ? -1 : 0;
 
   function change(field: keyof HeirValues, value: string) {
     // Read-only while saving: what is typed now would be wiped when the save finishes.
@@ -84,31 +106,81 @@ export function HeirForm({
     <form onSubmit={submit} noValidate className="mx-auto flex w-full max-w-xl flex-col gap-4">
       <h3 className="text-lg font-semibold">{editing ? messages.heirEditHeading : messages.heirAddHeading}</h3>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="heir-relationship" className="font-medium">
-          {messages.heirRelationshipLabel}
-        </label>
-        <select
-          id="heir-relationship"
-          name="relationship"
-          value={values.relationship}
-          data-focus="relationship"
+      <fieldset
+        className="flex min-w-0 flex-col gap-2"
+        aria-describedby="heir-relationship-error"
+        onBlur={(event) => {
+          // Moving between the radios, the button and the select is still inside the picker.
+          if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget as Element)) return;
+          onBlur("relationship", values);
+        }}
+      >
+        <legend id="heir-relationship-legend" className="font-medium">{messages.heirRelationshipLabel}</legend>
+        <div
+          role="radiogroup"
+          aria-labelledby="heir-relationship-legend"
           aria-required="true"
           aria-invalid={relationshipError !== null}
           aria-describedby="heir-relationship-error"
-          onChange={(event) => change("relationship", event.target.value)}
-          onBlur={() => onBlur("relationship", values)}
-          className={inputClass}
+          className="grid grid-cols-2 gap-2 sm:grid-cols-3"
         >
-          <option value="">{messages.heirRelationshipPlaceholder}</option>
-          {offered.map((option) => (
-            <option key={option.id} value={option.id}>
+          {common.map((option, index) => (
+            <label
+              key={option.id}
+              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border-2 border-current/60 px-3 py-2 has-[:checked]:border-current has-[:checked]:font-semibold has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-current"
+            >
+              <input
+                type="radio"
+                name="relationship"
+                value={option.id}
+                checked={values.relationship === option.id}
+                data-focus={focusRadio === index ? "relationship" : undefined}
+                onChange={() => change("relationship", option.id)}
+              />
               {option.label}
-            </option>
+            </label>
           ))}
-        </select>
+        </div>
+        {!showMore && (
+          <button
+            type="button"
+            className={`${buttonClass} min-h-11 self-start`}
+            aria-expanded={false}
+            aria-controls="heir-relationship-more"
+            onClick={() => {
+              focusMore.current = true;
+              setShowMore(true);
+            }}
+          >
+            {messages.heirMoreRelatives}
+          </button>
+        )}
+        {showMore && (
+          <div id="heir-relationship-more" className="flex flex-col gap-1">
+            <label htmlFor="heir-relationship-rare" className="font-medium">
+              {messages.heirMoreRelativesLabel}
+            </label>
+            <select
+              id="heir-relationship-rare"
+              ref={moreSelect}
+              value={rareValue}
+              data-focus={focusRadio === -1 ? "relationship" : undefined}
+              aria-invalid={relationshipError !== null}
+              aria-describedby="heir-relationship-error"
+              onChange={(event) => change("relationship", event.target.value)}
+              className={`${inputClass} min-h-11`}
+            >
+              <option value="">{messages.heirRelationshipPlaceholder}</option>
+              {rare.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <FieldError id="heir-relationship-error" text={relationshipError} />
-      </div>
+      </fieldset>
 
       {canLink && (
         <fieldset className="flex flex-col gap-2" data-focus="link">

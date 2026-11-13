@@ -486,6 +486,7 @@ export function StartCase({
             saving={started.saving}
             editing={started.editingHeir !== null}
             options={layer?.options ?? started.case.heir_options}
+            deceasedGender={layer?.gender ?? started.case.deceased.gender}
             candidates={candidates}
             linked={linkedRow}
             onChange={(values, field) =>
