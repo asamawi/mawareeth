@@ -304,9 +304,9 @@ Completed and obsolete items are removed; their history is in git.
   summary: Request native review of the new Arabic, English and French WhatsApp share strings.
   evidence: Review the WhatsApp button, ready status, "Open WhatsApp" label and unavailable-fallback wording, including Arabic RTL readability.
 
-- source_spec: none
-  summary: Show legacy saved calculations in My saved cases: a one-time data migration converts each user's legacy `calc.Calculation` tree (including successive-death layers) into an `api.SavedCase` for the same owner, reporting any calculation that cannot be converted instead of dropping it; open question for the owner — whether old calculation URLs redirect to the migrated saved case or simply to My saved cases.
-  evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 2 of 6); the owner reported old saved calculations do not appear in the new My saved cases.
+- source_spec: `_bmad-output/implementation-artifacts/spec-legacy-calculations-in-saved-cases.md`
+  summary: When `api.0004_import_legacy_calculations` runs on production, save its output and follow up every calculation it reports as not converted (pk, owner, reason).
+  evidence: The migration prints the report to the `migrate` output only. Converted cases are school Hanbali and lose their calculation title, deceased name and later estates, which the snapshot cannot hold. Release blocker.
 
 - source_spec: none
   summary: Move the landing, about, terms and privacy pages to Next.js served at the site root, designed with ui-ux-pro-max, and set up SEO and GEO/AEO (metadata, canonical https://www.mawareeth.com, hreflang ar/en/fr, robots.txt, sitemap.xml, Organization/WebApplication/FAQPage structured data, llms.txt, answer-first content).
@@ -322,7 +322,7 @@ Completed and obsolete items are removed; their history is in git.
 
 - source_spec: none
   summary: Retire the remaining legacy Django HTML pages (calc form, detail, results, delete confirmations, profile, error) by redirecting each to its Next.js equivalent and deleting the templates and views.
-  evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 6 of 6); must follow the legacy-calculation migration and the root landing move.
+  evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 6 of 6); must follow the legacy-calculation migration and the root landing move. Open question for the owner: whether old calculation URLs redirect to the migrated saved case (no legacy-to-SavedCase link is stored today) or simply to My saved cases.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-auth-pages.md`
   summary: Harden auth abuse controls beyond the per-IP `auth` quota: per-account login attempt limits, a per-recipient password-reset email cooldown, and sending reset email off the request path so response timing cannot reveal whether an account exists.
