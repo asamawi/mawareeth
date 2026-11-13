@@ -88,15 +88,16 @@ export const publicText: Record<Locale, PublicPageText> = {
       "history": [
         "تم إطلاق موقع المواريث لأول مرة في عام 2008 حيث كانت هناك حاجة واضحة لبرامج تقسيم المواريث و التركات التي تنتج تقارير حسابية وفقًا لقوانين الميراث المعمول بها في المحاكم الشرعية.",
         "أنشئ موقع المواريث لتسهيل تعلم المواريث ومساعدة الناس بتقسيم التركات بأنفسهم توفيرا للوقت والمال.",
-        "المواريث النسخة 2.0 هو احدث اصدار للموقع و تم البدء فيه في عام 2020."
+        "ويقدّم موقع المواريث اليوم مقابلة موجّهة خطوة بخطوة، ويقارن بين المذاهب السنية الأربعة، ويشرح كل نصيب."
       ],
       "todayHeading": "ما تقدمه مواريث اليوم",
       "todayItems": [
-        "تحسب الأنصبة وفق المذاهب الحنفي والمالكي والشافعي والحنبلي.",
+        "ترشدك خطوة بخطوة بالعربية أو الإنجليزية أو الفرنسية، دون حاجة إلى حساب.",
+        "تقارن بين المذاهب الحنفي والمالكي والشافعي والحنبلي: نتيجة واحدة عند اتفاقها، واختيار المذهب عند اختلافها.",
         "تدعم الوفيات المتتالية.",
-        "تعرض كل خطوة من خطوات الحساب مع مراجعها.",
-        "تُنتج تقريرًا بصيغة PDF (مسودة).",
-        "تتيح لك حفظ الحالات في حساب ومشاركتها."
+        "تعرض كل خطوة من خطوات الحساب مع مراجعها وجدول المسألة.",
+        "تُنتج تقريرًا بصيغة PDF (مسودة)، ومبلغ التركة اختياري.",
+        "تتيح لك حفظ الحالات في حساب ومشاركتها برابط أو بالبريد الإلكتروني أو عبر واتساب."
       ],
       "limitsHeading": "ما لا تقدمه مواريث",
       "limitsBody": "لا تُصدر مواريث فتاوى ولا استشارات قانونية. وإذا اختلفت المذاهب بيّنت مواضع الخلاف وطلبت منك الاختيار، وإذا كانت الأسرة خارج ما يستطيع المحرك الحسم فيه ذكرت ذلك ولم تخمّن.",
@@ -873,15 +874,16 @@ export const publicText: Record<Locale, PublicPageText> = {
       "history": [
         "Mawareeth.com was first launched in 2008, when there was a clear and strong need for inheritance distribution software that produces calculation reports in line with inheritance law and court requirements.",
         "Mawareeth.com was started to make inheritance learning easier and help people do their own calculations without the need of lawyers saving people time and money.",
-        "Mawareeth 2.0 is the latest release for our website and it was started in 2020."
+        "Today Mawareeth guides you through a case step by step, compares the four Sunni schools and explains every share."
       ],
       "todayHeading": "What Mawareeth does today",
       "todayItems": [
-        "Calculates shares under the Hanafi, Maliki, Shafi'i and Hanbali schools.",
+        "Guides you through the case in Arabic, English or French, with no account needed.",
+        "Compares the Hanafi, Maliki, Shafi'i and Hanbali schools: one result when they agree, a choice when they differ.",
         "Handles successive deaths.",
-        "Shows each step of the calculation with its citations.",
-        "Produces a draft PDF report.",
-        "Lets you save cases to an account and share them."
+        "Shows each step of the calculation with its citations and the scholars' inheritance table.",
+        "Produces a draft PDF report; the estate amount is optional.",
+        "Lets you save cases to an account and share them by link, email or WhatsApp."
       ],
       "limitsHeading": "What it does not do",
       "limitsBody": "Mawareeth does not issue fatwas or legal advice. When the schools disagree, it shows how and asks you to choose; when a family is outside what the engine can decide, it says so instead of guessing.",
@@ -1658,15 +1660,16 @@ export const publicText: Record<Locale, PublicPageText> = {
       "history": [
         "Mawareeth.com a été lancé pour la première fois en 2008, au cours de laquelle il y avait un besoin clair et fort de logiciel de distribution d'héritage qui produise des rapports de calcul conformément aux lois sur les successions et aux exigences des tribunaux.",
         "Mawareeth.com a été lancé pour faciliter l'apprentissage de l'héritage et aider les gens à faire leurs propres calculs, ce qui leur fait gagner du temps et de l'argent.",
-        "Mawareeth 2.0 est la dernière version de notre site Web et elle a été lancée en 2020."
+        "Aujourd’hui, Mawareeth vous guide pas à pas dans un dossier, compare les quatre écoles sunnites et explique chaque part."
       ],
       "todayHeading": "Ce que fait Mawareeth aujourd’hui",
       "todayItems": [
-        "Calcule les parts selon les écoles hanafite, malikite, chaféite et hanbalite.",
+        "Vous guide pas à pas en arabe, en anglais ou en français, sans compte.",
+        "Compare les écoles hanafite, malikite, chaféite et hanbalite : un seul résultat lorsqu’elles concordent, un choix lorsqu’elles divergent.",
         "Prend en charge les décès successifs.",
-        "Montre chaque étape du calcul avec ses références.",
-        "Produit un brouillon de rapport PDF.",
-        "Permet d’enregistrer des dossiers dans un compte et de les partager."
+        "Montre chaque étape du calcul avec ses références et le tableau de partage des savants.",
+        "Produit un brouillon de rapport PDF ; le montant de la succession est facultatif.",
+        "Permet d’enregistrer des dossiers dans un compte et de les partager par lien, e-mail ou WhatsApp."
       ],
       "limitsHeading": "Ce qu’il ne fait pas",
       "limitsBody": "Mawareeth n’émet ni fatwa ni conseil juridique. Lorsque les écoles divergent, il montre en quoi et vous demande de choisir ; lorsqu’une famille dépasse ce que le moteur peut trancher, il l’indique au lieu de deviner.",
