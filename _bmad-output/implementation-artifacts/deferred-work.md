@@ -205,10 +205,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Add shadcn/ui, React Query, Zustand and drf-spectacular with the first story that uses each.
   evidence: The foundation has one page and one read-only endpoint, so none of them has a user yet.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
-  summary: Handle failed or stale JavaScript chunks on the Next.js `/{lang}/…` routes with an interview fallback, including tabs left open across a deploy, before they reach production.
-  evidence: The project owner deferred failed or stale JavaScript chunk handling on 2026-11-06 as a release blocker. The image holds only its own release's hashed assets; an interview fallback for failed chunks remains open. Partly shipped in `27215dc` and `3a0ab0d`: noscript covers disabled JavaScript and `web/src/app/[locale]/site-nav.tsx:56-71` provides language switching. Sources: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`; `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-3-deceased-info-add-heirs-via-guided-interview-form.md`
   summary: Extend the heir relationship list with the remaining maternal and paternal grandparent lines, lower generations, and the relatives Jafari and Hanafi distant-kindred rules need.
   evidence: `api/anonymous_case.py` lists 23 relationship IDs, including paternal and maternal grandmothers; `grandfather` represents the paternal grandfather. Missing are the maternal grandfather, more remote grandparent lines and lower generations, and the additional relatives needed by Jafari and Hanafi distant-kindred rules.
@@ -327,3 +323,7 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-site-root-landing-seo.md`
   summary: Update the terms and privacy text for accounts, sharing and email delivery.
   evidence: The ported wording predates registration, saved cases, share links, email invitations and WhatsApp sharing, and still describes advertising partners; the owner kept the meaning unchanged for this move.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-stale-chunk-fallback.md`
+  summary: Native Arabic and French review of the new `pageError` text (`title`, `body`, `reload`, `interview`) in `web/src/i18n/messages.ts`, shown by the error fallback when a page or script chunk fails to load.
+  evidence: The Arabic and French wording was drafted without native review; the English is the source text ("This page did not load correctly", "Reload the page to continue. Your saved answers are kept.", "Reload page", "Back to the interview").

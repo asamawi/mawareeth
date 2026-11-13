@@ -259,6 +259,7 @@ export type Messages = {
   };
   footer: { label: string; about: string; terms: string; privacy: string; note: string };
   cta: string;
+  pageError: { title: string; body: string; reload: string; interview: string };
 };
 
 export const messages: Record<Locale, Messages> = {
@@ -564,6 +565,7 @@ export const messages: Record<Locale, Messages> = {
       },
     },
     cta: "ابدأ حالة بدون حساب",
+    pageError: { title: "لم يتم تحميل هذه الصفحة بشكل صحيح", body: "أعد تحميل الصفحة للمتابعة. إجاباتك المحفوظة باقية.", reload: "إعادة تحميل الصفحة", interview: "العودة إلى المقابلة" },
     footer: {
       "label": "معلومات الموقع",
       "about": "من نحن",
@@ -874,6 +876,7 @@ export const messages: Record<Locale, Messages> = {
       },
     },
     cta: "Start a case without an account",
+    pageError: { title: "This page did not load correctly", body: "Reload the page to continue. Your saved answers are kept.", reload: "Reload page", interview: "Back to the interview" },
     footer: {
       "label": "Site information",
       "about": "About",
@@ -1187,6 +1190,7 @@ export const messages: Record<Locale, Messages> = {
       },
     },
     cta: "Commencer un dossier sans compte",
+    pageError: { title: "Cette page ne s'est pas chargée correctement", body: "Rechargez la page pour continuer. Vos réponses enregistrées sont conservées.", reload: "Recharger la page", interview: "Retour à l'entretien" },
     footer: {
       "label": "Informations sur le site",
       "about": "À propos",
