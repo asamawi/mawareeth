@@ -136,10 +136,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Count production `Calculation` rows with `user=None` and decide what happens to them, since the app now answers 404 for them and only Django admin reaches them.
   evidence: The count was not checked before the change, so the number of affected cases is unknown.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-calc-access-control.md`
-  summary: Fix the language switcher, which stores the chosen language in the cookie but sends the visitor back to the old language's URL, such as `/en/` after choosing French.
-  evidence: Reproduced on production on 2026-11-05 and locally on the code before and after that spec, with the same `302 /en/`; the URL prefix then keeps the page in the old language.
-
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-case-write-integrity.md`
   summary: Decide whether to bound the case write lock wait (for example `SET LOCAL lock_timeout` with a clear "another change is in progress" response) and add a metric or log for lock wait time, before the interview opens widely.
@@ -325,9 +321,9 @@ Completed and obsolete items are removed; their history is in git.
   evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 6 of 6); must follow the legacy-calculation migration and the root landing move. Open question for the owner: whether old calculation URLs redirect to the migrated saved case (no legacy-to-SavedCase link is stored today) or simply to My saved cases.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-auth-pages.md`
-  summary: Harden auth abuse controls beyond the per-IP `auth` quota: per-account login attempt limits, a per-recipient password-reset email cooldown, and sending reset email off the request path so response timing cannot reveal whether an account exists.
+  summary: Harden auth abuse controls beyond the per-IP `auth` quota: per-account login attempt limits (and current-password attempts on `auth/password-change/`), a per-recipient password-reset email cooldown, and sending reset email off the request path so response timing cannot reveal whether an account exists.
   evidence: Review of the Next.js auth pages found that distributed clients can still target one account or one inbox, and the reset response time differs for existing accounts. The old Django views had the same exposure and no throttle at all.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-auth-pages.md`
-  summary: Add a Next.js password-change page for signed-in users; the unused Django `accounts/password_change/` routes were removed with `django.contrib.auth.urls`.
-  evidence: No page links to the old routes, but signed-in users now change their password only through the reset email.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-password-change-page.md`
+  summary: Request native Arabic, English and French review of the new password-change strings (`auth.change`, `auth.old_password`, `auth.noPassword` in `web/src/i18n/messages.ts`).
+  evidence: Review the change-password title, current-password label and social-only account explanation, including Arabic RTL readability.

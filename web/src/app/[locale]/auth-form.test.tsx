@@ -4,12 +4,13 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { installDom, teardownDom } from "@/test/dom";
 import { AuthForm } from "./auth-form";
+import { SiteNav } from "./site-nav";
 import { messages, type Locale } from "@/i18n/messages";
 import type { AuthAction } from "@/api/auth";
 
 const nativeFetch = globalThis.fetch;
 const nativeFormData = globalThis.FormData;
-async function mount(action: Exclude<AuthAction, "logout">, locale: Locale = "en", authenticated = false, query = "next=%2Fapp%2Fen%2Fresults%2F%3Fresume%3Dsave", valid = true, probe: "ok" | "slow" | "failed" = "ok", check: "ok" | "slow" | "failed" = "ok") {
+async function mount(action: Exclude<AuthAction, "logout">, locale: Locale = "en", authenticated = false, query = "next=%2Fapp%2Fen%2Fresults%2F%3Fresume%3Dsave", valid = true, probe: "ok" | "slow" | "failed" = "ok", check: "ok" | "slow" | "failed" = "ok", changeStatus = 200) {
   const dom = installDom(`https://localhost/app/${locale}/${action}/?${query}`);
   globalThis.FormData = dom.FormData as unknown as typeof FormData;
   document.cookie = "csrftoken=test-token";
@@ -33,6 +34,7 @@ async function mount(action: Exclude<AuthAction, "logout">, locale: Locale = "en
     if (url.includes("/auth/login/")) return new Response(JSON.stringify({ redirect: "/en/calc/" }));
     if (check === "slow") return new Promise<Response>((resolve) => { resolveCheck = resolve; });
     if (check === "failed") throw new Error("offline");
+    if (url.includes("/password-change/")) return new Response(JSON.stringify({ has_password: valid }), { status: changeStatus });
     return new Response(JSON.stringify(valid ? { valid: true } : { error: "invalid_link" }), { status: valid ? 200 : 400 });
   };
   const node = document.createElement("div"); document.body.append(node);
@@ -241,3 +243,90 @@ for (const locale of ["ar", "en", "fr"] as const) {
     });
   }
 }
+
+
+for (const locale of ["ar", "en", "fr"] as const) {
+  test(`${locale} password change fields, errors, throttle and success`, async () => {
+    const ui = await mount("password-change", locale, true);
+    try {
+      assert.equal(ui.node.querySelector("main")?.dir, locale === "ar" ? "rtl" : "ltr");
+      assert.equal(ui.node.querySelector("h1")?.textContent, messages[locale].auth.change);
+      assert.equal(ui.node.querySelector("#old_password")?.getAttribute("autocomplete"), "current-password");
+      assert.equal(ui.node.querySelector("#new_password1")?.getAttribute("autocomplete"), "new-password");
+      assert.equal(ui.node.querySelector("#new_password1")?.getAttribute("aria-describedby"), "password-requirements");
+      assert.equal(ui.node.querySelectorAll("a").length, 1);
+      assert.equal(ui.node.querySelectorAll("form").length, 1);
+      ui.respond({ errors: { old_password: ["Wrong password"] } }, 400); await ui.submit();
+      assert.equal(document.activeElement, ui.node.querySelector("#old_password"));
+      ui.respond({}, 429); await ui.submit();
+      assert.ok(ui.node.textContent?.includes(messages[locale].auth.throttled));
+      ui.respond({}, 403); await ui.submit();
+      assert.deepEqual(ui.redirects, [`/app/${locale}/login/?next=${encodeURIComponent(`/app/${locale}/password-change/`)}`]);
+      ui.respond({}, 500); await ui.submit();
+      assert.ok(ui.node.textContent?.includes(messages[locale].auth.error));
+      ui.respond({ complete: true }); await ui.submit();
+      assert.ok(ui.node.textContent?.includes(messages[locale].auth.complete));
+      assert.equal(ui.node.querySelector("form"), null);
+      const headers = ui.posts[0].init.headers as Record<string, string>;
+      assert.equal(headers["Accept-Language"], locale);
+      assert.equal(headers["X-CSRFToken"], "test-token");
+    } finally { await ui.close(); }
+  });
+}
+
+test("anonymous password change redirects with continuation", async () => {
+  const ui = await mount("password-change", "fr", false, "", true, "ok", "ok", 403);
+  try { assert.deepEqual(ui.redirects, ["/app/fr/login/?next=%2Fapp%2Ffr%2Fpassword-change%2F"]); }
+  finally { await ui.close(); }
+});
+
+test("social-only password change hides form on probe and POST", async () => {
+  const ui = await mount("password-change", "en", true, "", false);
+  try {
+    assert.equal(ui.node.querySelector("form"), null);
+    assert.ok(ui.node.textContent?.includes(messages.en.auth.noPassword));
+  } finally { await ui.close(); }
+  const changed = await mount("password-change", "en", true);
+  try {
+    changed.respond({ error: "no_password" }, 400); await changed.submit();
+    assert.equal(changed.node.querySelector("form"), null);
+    assert.ok(changed.node.textContent?.includes(messages.en.auth.noPassword));
+  } finally { await changed.close(); }
+});
+
+for (const check of ["slow", "failed"] as const) {
+  test(`password change blocks submission on ${check} probe`, async () => {
+    const ui = await mount("password-change", "en", true, "", true, "ok", check);
+    try {
+      assert.equal(ui.node.querySelector("button")!.disabled, true);
+      await ui.submit(); assert.equal(ui.posts.length, 0);
+      if (check === "failed") assert.ok(ui.node.textContent?.includes(messages.en.auth.error));
+    } finally { await ui.close(); }
+  });
+}
+
+
+for (const authenticated of [false, true]) {
+  test(`password change nav link authenticated=${authenticated}`, async () => {
+    const dom = installDom("https://localhost/app/en/");
+    globalThis.fetch = async () => new Response(JSON.stringify({ authenticated }));
+    const node = document.createElement("div"); document.body.append(node);
+    const root = createRoot(node);
+    try {
+      await act(async () => { root.render(<SiteNav locale="en" nav={messages.en.nav} />); });
+      const link = node.querySelector('a[href="/app/en/password-change/"]');
+      assert.equal(!!link, authenticated);
+      if (link) assert.equal(link.textContent, messages.en.auth.change);
+    } finally {
+      await act(async () => root.unmount()); await teardownDom(dom); globalThis.fetch = nativeFetch;
+    }
+  });
+}
+
+test("password change probe throttle keeps submission disabled", async () => {
+  const ui = await mount("password-change", "en", true, "", true, "ok", "ok", 429);
+  try {
+    assert.equal(ui.node.querySelector("button")!.disabled, true);
+    assert.ok(ui.node.textContent?.includes(messages.en.auth.throttled));
+  } finally { await ui.close(); }
+});

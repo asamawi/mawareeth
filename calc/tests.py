@@ -3572,6 +3572,8 @@ class SignupContinuationTests(TestCase):
                              ('/unknown/signup/', '/app/en/signup/'),
                              ('/accounts/login/', '/app/en/login/'),
                              ('/accounts/password_reset/', '/app/en/password-reset/'),
+                             ('/accounts/password_change/', '/app/en/password-change/'),
+                             ('/accounts/password_change/done/', '/app/en/password-change/'),
                              ('/accounts/password_reset/done/', '/app/en/password-reset/'),
                              ('/accounts/reset/done/', '/app/en/login/')]:
             self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'
@@ -3589,3 +3591,21 @@ class SignupContinuationTests(TestCase):
         self.assertEqual(response.status_code, 302)
         landing = self.client.get(response['Location'], secure=True)
         self.assertTrue(landing['Location'].startswith('/app/en/login/?next='))
+
+
+class PasswordChangeRedirectTests(TestCase):
+    def test_languages_query_and_unknown_fallback(self):
+        from django.test import RequestFactory
+        from mawareeth.web_views import auth_redirect
+        for language in ('ar', 'en', 'fr', 'unknown'):
+            request = RequestFactory().get('/accounts/password_change/?extra=1')
+            response = auth_redirect(request, page='password-change', lang=language)
+            expected = language if language in ('ar', 'en', 'fr') else 'en'
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(response['Location'], f'/app/{expected}/password-change/?extra=1')
+        for language in ('ar', 'en', 'fr'):
+            self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = language
+            for suffix in ('', 'done/'):
+                response = self.client.get('/accounts/password_change/' + suffix + '?extra=1', secure=True)
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(response['Location'], f'/app/{language}/password-change/?extra=1')

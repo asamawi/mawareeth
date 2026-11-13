@@ -49,6 +49,7 @@ export function SiteNav({ locale, nav }: { locale: Locale; nav: Messages["nav"] 
       </div>
       <div className="flex flex-wrap items-center gap-4">
         {authenticated && <Link href={casesPath(locale)} prefetch={false} className={linkClass}>{nav.cases}</Link>}
+        {authenticated && <a href={`/app/${locale}/password-change/`} className={linkClass}>{messages[locale].auth.change}</a>}
         {authenticated && <button className={linkClass} disabled={loggingOut} onClick={logout}>{loggingOut ? messages[locale].auth.pending : messages[locale].auth.logout}</button>}
         {logoutError && <p role="alert">{logoutError}</p>}
         {authLinks(authenticated, locale, pathname).map((link) => (

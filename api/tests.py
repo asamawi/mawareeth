@@ -3734,3 +3734,78 @@ class AuthApiTests(TestCase):
         first = Request(factory.post('/', REMOTE_ADDR='2001:db8:1234:1::1'))
         second = Request(factory.post('/', REMOTE_ADDR='2001:db8:1234:1::2'))
         self.assertEqual(throttle.get_cache_key(first, None), throttle.get_cache_key(second, None))
+
+
+class PasswordChangeApiTests(TestCase):
+    password = AuthApiTests.password
+    setUp = AuthApiTests.setUp
+    post = AuthApiTests.post
+    url = '/api/v1/auth/password-change/'
+    new_password = 'Changed-secure-password-864!'
+
+    def change(self, **overrides):
+        return self.post('password-change', {'old_password': self.password,
+                         'new_password1': self.new_password, 'new_password2': self.new_password, **overrides})
+
+    def test_anonymous_and_csrf(self):
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 403)
+        self.assertEqual(self.change().status_code, 403)
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post(self.url, {}, format='json', secure=True).status_code, 403)
+
+    def test_probe_change_session_and_credentials(self):
+        other = APIClient()
+        other.force_login(self.user)
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(self.url, secure=True).json(), {'has_password': True})
+        response = self.change()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'complete': True})
+        self.assertTrue(self.client.get(SESSION_URL, secure=True).json()['authenticated'])
+        self.assertFalse(other.get(SESSION_URL, secure=True).json()['authenticated'])
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.check_password(self.password))
+        self.assertTrue(self.user.check_password(self.new_password))
+        self.post('logout')
+        self.assertEqual(self.post('login', {'username': self.user.username, 'password': self.password}).status_code, 400)
+        self.assertEqual(self.post('login', {'username': self.user.username, 'password': self.new_password}).status_code, 200)
+
+    def test_social_only_cannot_set_password(self):
+        self.user.set_unusable_password()
+        self.user.save()
+        original = self.user.password
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(self.url, secure=True).json(), {'has_password': False})
+        response = self.change()
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {'error': 'no_password'})
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.password, original)
+
+    def test_localized_field_errors_and_validation(self):
+        from django.contrib.auth.forms import PasswordChangeForm
+        from django.utils import translation
+        self.client.force_login(self.user)
+        for language in ('ar', 'en', 'fr'):
+            with translation.override(language):
+                form = PasswordChangeForm(self.user, {'old_password': 'wrong', 'new_password1': self.new_password, 'new_password2': self.new_password})
+                form.is_valid()
+                expected = dict(form.errors)
+            response = self.post('password-change', form.data, HTTP_ACCEPT_LANGUAGE=language)
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.json(), {'errors': expected})
+        for overrides, field in [({'new_password2': 'mismatch'}, 'new_password2'),
+                                 ({'new_password1': '123', 'new_password2': '123'}, 'new_password2')]:
+            response = self.change(**overrides)
+            self.assertEqual(response.status_code, 400)
+            self.assertIn(field, response.json()['errors'])
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.password))
+
+    def test_change_quota_and_free_probe(self):
+        self.client.force_login(self.user)
+        for _ in range(20):
+            self.assertEqual(self.client.get(self.url, secure=True).status_code, 200)
+            self.assertEqual(self.change(old_password='wrong').status_code, 400)
+        self.assertEqual(self.change().status_code, 429)
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 200)

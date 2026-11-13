@@ -4,8 +4,8 @@ import logging
 from collections.abc import Mapping
 
 from django.conf import settings
-from django.contrib.auth import get_user_model, login, logout
-from django.contrib.auth.forms import AuthenticationForm, PasswordResetForm, SetPasswordForm
+from django.contrib.auth import get_user_model, login, logout, update_session_auth_hash
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, PasswordResetForm, SetPasswordForm
 from django.contrib.auth.tokens import default_token_generator
 from django.db import IntegrityError, transaction
 from django.shortcuts import resolve_url
@@ -15,6 +15,7 @@ from django.utils.http import url_has_allowed_host_and_scheme, urlsafe_base64_de
 from django.views.decorators.cache import never_cache
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 
 from api.permissions import CsrfProtectedWrites
 from api.throttling import AuthThrottle
@@ -123,4 +124,21 @@ class PasswordResetConfirmView(AuthView):
         if not form.is_valid():
             return Response({'errors': dict(form.errors)}, status=400)
         form.save()
+        return Response({'complete': True})
+
+
+class PasswordChangeView(AuthView):
+    permission_classes = [CsrfProtectedWrites, IsAuthenticated]
+
+    def get(self, request):
+        return Response({'has_password': request.user.has_usable_password()})
+
+    def post(self, request):
+        if not request.user.has_usable_password():
+            return Response({'error': 'no_password'}, status=400)
+        form = PasswordChangeForm(request.user, request.data)
+        if not form.is_valid():
+            return Response({'errors': dict(form.errors)}, status=400)
+        user = form.save()
+        update_session_auth_hash(request._request, user)
         return Response({'complete': True})
