@@ -35,7 +35,7 @@ context:
   - provisioning reconciles;
   - SSH works over Tailscale;
   - containers resolve DNS and reach the Storage Box and Heroku;
-  - the restic repository initialises on Storage Box sub-account `u569862-sub1` (host keys pinned against Hetzner's published fingerprints);
+  - the restic repository initialises on Storage Box sub-account `<storagebox-user>` (host keys pinned against Hetzner's published fingerprints);
   - `runtime.sh prepare` and `release.sh deploy` succeed.
 - **Mutation checks:**
   - #71: the short-name test fails without the fix.
