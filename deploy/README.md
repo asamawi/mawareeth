@@ -165,9 +165,9 @@ In `acme` mode Let's Encrypt validates from its own addresses, so certificate is
    - `sudo ufw status` allows 80,443/tcp only from the ranges, and still lists the SSH and `tailscale0` rules;
    - the public site loads through Cloudflare: `curl -sI https://www.mawareeth.com/health/ready/` answers 200, and `curl -sI https://mawareeth.com/` answers 301;
    - from a non-Cloudflare address (for example the workstation), each of these times out instead of connecting:
-     - direct IPv4: `curl -sv --max-time 10 --resolve www.mawareeth.com:443:2.28.64.83 https://www.mawareeth.com/`;
+     - direct IPv4: `curl -sv --max-time 10 --resolve www.mawareeth.com:443:<origin-ip> https://www.mawareeth.com/`;
      - direct IPv6, from a host with IPv6: `curl -6 -sv --max-time 10 --resolve 'www.mawareeth.com:443:[<host IPv6>]' https://www.mawareeth.com/`, with the address from `hcloud server ip -6 <server>`;
-     - direct port 80: `curl -sv --max-time 10 http://2.28.64.83/`.
+     - direct port 80: `curl -sv --max-time 10 http://<origin-ip>/`.
 
 **Rollback:** set `PUBLIC_WEB_SOURCES=any` (or remove it), rerun provisioning and `monitor.sh install` the same way. Each run leaves exactly that mode's rules.
 

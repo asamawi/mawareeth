@@ -40,7 +40,7 @@ This record holds the execution evidence, because no code changed.
 | `heroku maintenance:on`, `mark freeze-start` | 09:32:56 | — | — |
 | `import --freeze-marked --extensions-created`: 49 tables match on counts and checksums, sequences match | 09:33:09 | 13 s | — |
 | 2 pending migrations applied, `runtime.sh up`, edge validated, `mark validated` | 09:35:49 | 2 min 53 s | 20 min |
-| Cloudflare: apex and www as proxied **A records** to 2.28.64.83 (AAAA removed); public traffic served by Caddy (slot blue); `mark dns-switched`, `mark rollback-point` | 09:39:38 | 6 min 42 s | 30 min |
+| Cloudflare: apex and www as proxied **A records** to <origin-ip> (AAAA removed); public traffic served by Caddy (slot blue); `mark dns-switched`, `mark rollback-point` | 09:39:38 | 6 min 42 s | 30 min |
 | First production `backup` (31 s) and `verify-restore` (20 s); backup gate passed | 09:40:56 | — | — |
 
 **Data carried over:** 3,018 users and 3,205 calculations. `django_site` 2 already named `www.mawareeth.com`.

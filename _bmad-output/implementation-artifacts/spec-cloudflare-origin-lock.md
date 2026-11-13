@@ -75,7 +75,7 @@ A new `deploy/cloudflare-ips.txt` is the single source of the ranges, also for C
   1. set `PUBLIC_WEB_SOURCES=cloudflare` in `host-baseline.env`;
   2. rerun provisioning (from the container pattern);
   3. rerun `monitor.sh install`, because bootstrap resets UFW;
-  4. verify: Hetzner rules, `iptables`/`ip6tables -S DOCKER-USER`, `ufw status`, the public site through Cloudflare, and a direct `curl --resolve www.mawareeth.com:443:2.28.64.83` from a non-Cloudflare address timing out.
+  4. verify: Hetzner rules, `iptables`/`ip6tables -S DOCKER-USER`, `ufw status`, the public site through Cloudflare, and a direct `curl --resolve www.mawareeth.com:443:<origin-ip>` from a non-Cloudflare address timing out.
 
   Rollback is `any` and rerun. Refresh `cloudflare-ips.txt` from `https://www.cloudflare.com/ips-v4` and `/ips-v6` when Cloudflare changes them, and redeploy for Caddy.
 

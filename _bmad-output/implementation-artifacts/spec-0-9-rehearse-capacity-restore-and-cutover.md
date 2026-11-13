@@ -124,7 +124,7 @@ Write the runbook in `deploy/README.md`.
 ## Spec Change Log
 
 - **First rehearsal on `mawareeth-prod`, 2026-10-26/27: gate passed, path `write-freeze`.**
-  - **Host:** rebuilt CX33 in nbg1 (2.28.64.83, tailnet 100.64.64.22) at release `0b6170f`.
+  - **Host:** rebuilt CX33 in nbg1 (<origin-ip>, tailnet <tailnet-ip>) at release `0b6170f`.
   - **Throwaway record:** `rehearsal.mawareeth.com`, already pointing at the host.
   - **Report** (`report` at 2026-10-27T07:22:08Z, `gate=pass`, `unmet_items=0`):
     - **Import:** passed in 12 s total (count 3 s, dump 6 s, restore 6 s, compare 2 s, analyze 1 s). All 49 tables match on counts and checksums, and sequences match. The source is PostgreSQL 17.10.
