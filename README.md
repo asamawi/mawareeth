@@ -2,8 +2,6 @@
 
 [Mawareeth](https://www.mawareeth.com/) is a free, open-source web calculator for Islamic inheritance. It divides an estate among the heirs under the four Sunni schools of law and shows every step of the calculation with the rule it relies on. Its results are a calculation aid, not a fatwa or legal advice.
 
-The first version is still online at [v1.mawareeth.com](http://v1.mawareeth.com).
-
 ## Features
 
 - **No account needed.** A guided interview asks about the deceased and the surviving relatives, and shows each heir's share as you go.
