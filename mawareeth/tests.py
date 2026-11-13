@@ -920,10 +920,19 @@ class WorkflowContractTests(SimpleTestCase):
             "npm test",
             "npm run build",
             "node scripts/check-export.mjs",
+            "npx playwright install --with-deps chromium",
+            "npm run test:e2e",
         ):
             with self.subTest(command=command):
                 self.assertRegex(job, rf"(?m)^ +run: {re.escape(command)}$")
-        self.assertNotRegex(job, r"(?m)^ +(if|continue-on-error):")
+        self.assertNotRegex(job, r"(?m)^ +continue-on-error:")
+        # Every gate always runs. The only conditional step is the failure-report upload,
+        # which runs after the gates and cannot turn a failed job green.
+        steps = re.split(r"(?m)^      - ", job)[1:]
+        conditional = [step for step in steps if re.search(r"(?m)^ +if:", step)]
+        self.assertEqual(len(conditional), 1)
+        self.assertIn("uses: actions/upload-artifact@", conditional[0])
+        self.assertIs(steps[-1], conditional[0])
 
     def test_publish_smoke_test_covers_the_frontend_and_api(self):
         workflow = (PROJECT_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
