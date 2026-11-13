@@ -11,7 +11,7 @@ const pages = ["", "interview", "results", "about", "terms", "privacy"];
 // Only these pages are indexable; every other page must carry a robots noindex.
 const publicPages = ["", "about", "terms", "privacy"];
 // Text that belongs to the public pages and must not ship to the private pages' client chunks.
-const publicOnlyText = ["webste", "Jafari (Shia) law is not supported", "Privacy Policy for Mawareeth 2.0", "الأسئلة الشائعة", "Questions fréquentes"];
+const publicOnlyText = ["webste", "Privacy Policy for Mawareeth 2.0", "الأسئلة الشائعة", "Questions fréquentes"];
 const rootFiles = ["robots.txt", "sitemap.xml", "llms.txt"];
 const problems = [];
 

@@ -81,5 +81,5 @@ test("llms.txt links every public page and states what the tool does not do", ()
   const text = readFileSync(new URL("../../public/llms.txt", import.meta.url), "utf8");
   for (const entry of publicUrls()) assert.ok(text.includes(`(${entry.url})`), entry.url);
   assert.match(text, /not a fatwa/i);
-  assert.match(text, /does not support Jafari/i);
+  assert.match(text, /asks the visitor to choose a school/i);
 });

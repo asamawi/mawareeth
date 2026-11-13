@@ -46,8 +46,8 @@ export const publicText: Record<Locale, PublicPageText> = {
           "body": "أدخل بيانات المتوفى والتركة والأقارب الأحياء."
         },
         {
-          "title": "اختر المذهب",
-          "body": "اختر الحنفي أو المالكي أو الشافعي أو الحنبلي؛ فقواعد المذهب هي التي تحدد الأنصبة."
+          "title": "قارن المذاهب",
+          "body": "تحسب مواريث الحالة وفق المذاهب السنية الأربعة؛ فإن اتفقت ظهرت نتيجة واحدة، وإن اختلفت بيّنت مواضع الخلاف وطلبت منك اختيار المذهب."
         },
         {
           "title": "اقرأ البرهان",
@@ -58,7 +58,7 @@ export const publicText: Record<Locale, PublicPageText> = {
       "coverage": [
         {
           "title": "المذاهب السنية الأربعة",
-          "body": "الحنفي والمالكي والشافعي والحنبلي. المذهب الجعفري غير مدعوم."
+          "body": "الحنفي والمالكي والشافعي والحنبلي."
         },
         {
           "title": "الوفيات المتتالية",
@@ -99,7 +99,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         "تتيح لك حفظ الحالات في حساب ومشاركتها."
       ],
       "limitsHeading": "ما لا تقدمه مواريث",
-      "limitsBody": "لا تُصدر مواريث فتاوى ولا استشارات قانونية، ولا تدعم المذهب الجعفري. وإذا اختلفت المذاهب أو كانت الأسرة خارج ما يستطيع المحرك الحسم فيه، فإنها تذكر ذلك ولا تخمّن.",
+      "limitsBody": "لا تُصدر مواريث فتاوى ولا استشارات قانونية. وإذا اختلفت المذاهب بيّنت مواضع الخلاف وطلبت منك الاختيار، وإذا كانت الأسرة خارج ما يستطيع المحرك الحسم فيه ذكرت ذلك ولم تخمّن.",
       "heading": "من نحن",
       "promiseHeading": "مهمتنا",
       "promiseBody": "نعدكم بتقديم أفضل النتائج لتقسيم التركات بدقة ووضوح وبساطة لا مثيل لها في أي مكان آخر. هدفنا هو أن نقدم للمجتمع أفضل خدمة يستحقها مع الاهتمام باحتياجاته و التجاوب معها.",
@@ -116,7 +116,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         },
         {
           "q": "ما المذاهب المدعومة؟",
-          "a": "المذاهب السنية الأربعة: الحنفي والمالكي والشافعي والحنبلي. تختار المذهب فتُحسب الأنصبة بقواعده. المذهب الجعفري (الشيعي) غير مدعوم."
+          "a": "المذاهب السنية الأربعة: الحنفي والمالكي والشافعي والحنبلي. إذا اتفقت على نتيجة الأسرة ظهرت نتيجة واحدة، وإذا اختلفت تختار المذهب فتُحسب الأنصبة بقواعده."
         },
         {
           "q": "هل أحتاج إلى حساب؟",
@@ -831,8 +831,8 @@ export const publicText: Record<Locale, PublicPageText> = {
           "body": "Enter the deceased, the estate and the surviving relatives."
         },
         {
-          "title": "Choose a school",
-          "body": "Pick Hanafi, Maliki, Shafi'i or Hanbali. The rules of that school decide the shares."
+          "title": "Compare the schools",
+          "body": "Mawareeth works out the case under the four Sunni schools. If they agree you get one result; if they differ, it shows how and asks you to choose."
         },
         {
           "title": "Read the proof",
@@ -843,7 +843,7 @@ export const publicText: Record<Locale, PublicPageText> = {
       "coverage": [
         {
           "title": "Four Sunni schools",
-          "body": "Hanafi, Maliki, Shafi'i and Hanbali. Jafari law is not supported."
+          "body": "Hanafi, Maliki, Shafi'i and Hanbali."
         },
         {
           "title": "Successive deaths",
@@ -884,7 +884,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         "Lets you save cases to an account and share them."
       ],
       "limitsHeading": "What it does not do",
-      "limitsBody": "Mawareeth does not issue fatwas or legal advice, and it does not support Jafari law. When the schools disagree or a family is outside what the engine can decide, it says so instead of guessing.",
+      "limitsBody": "Mawareeth does not issue fatwas or legal advice. When the schools disagree, it shows how and asks you to choose; when a family is outside what the engine can decide, it says so instead of guessing.",
       "heading": "About Us",
       "promiseHeading": "Our promise",
       "promiseBody": "We promise to provide the best calculations results with accuracy, clarity and simplicity that is not matched elsewhere. Our goal is to provide to our community the best service they deserve paying attention and responding to their needs.",
@@ -901,7 +901,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         },
         {
           "q": "Which schools of law does it support?",
-          "a": "The four Sunni schools: Hanafi, Maliki, Shafi'i and Hanbali. You choose the school and the shares follow its rules. Jafari (Shia) law is not supported."
+          "a": "The four Sunni schools: Hanafi, Maliki, Shafi'i and Hanbali. When they give the same result for a family you see one result; when they differ, you choose the school and the shares follow its rules."
         },
         {
           "q": "Do I need an account?",
@@ -1616,8 +1616,8 @@ export const publicText: Record<Locale, PublicPageText> = {
           "body": "Saisissez le défunt, la succession et les proches survivants."
         },
         {
-          "title": "Choisissez une école",
-          "body": "Choisissez hanafite, malikite, chaféite ou hanbalite. Les règles de cette école déterminent les parts."
+          "title": "Comparez les écoles",
+          "body": "Mawareeth calcule le cas selon les quatre écoles sunnites : si elles concordent, vous obtenez un seul résultat ; si elles divergent, il montre en quoi et vous demande de choisir."
         },
         {
           "title": "Lisez la preuve",
@@ -1628,7 +1628,7 @@ export const publicText: Record<Locale, PublicPageText> = {
       "coverage": [
         {
           "title": "Quatre écoles sunnites",
-          "body": "Hanafite, malikite, chaféite et hanbalite. Le droit jaafarite n’est pas pris en charge."
+          "body": "Hanafite, malikite, chaféite et hanbalite."
         },
         {
           "title": "Décès successifs",
@@ -1669,7 +1669,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         "Permet d’enregistrer des dossiers dans un compte et de les partager."
       ],
       "limitsHeading": "Ce qu’il ne fait pas",
-      "limitsBody": "Mawareeth n’émet ni fatwa ni conseil juridique et ne prend pas en charge le droit jaafarite. Lorsque les écoles divergent ou qu’une famille dépasse ce que le moteur peut trancher, il l’indique au lieu de deviner.",
+      "limitsBody": "Mawareeth n’émet ni fatwa ni conseil juridique. Lorsque les écoles divergent, il montre en quoi et vous demande de choisir ; lorsqu’une famille dépasse ce que le moteur peut trancher, il l’indique au lieu de deviner.",
       "heading": "A propos de nous",
       "promiseHeading": "Notre promesse",
       "promiseBody": "Nous nous engageons à fournir les meilleurs résultats de calcul avec une précision, une clarté et une simplicité qui ne sont égalées nulle part ailleurs. Notre objectif est de fournir à notre communauté le meilleur service qu'elle mérite en prêtant attention et en répondant à ses besoins.",
@@ -1686,7 +1686,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         },
         {
           "q": "Quelles écoles juridiques sont prises en charge ?",
-          "a": "Les quatre écoles sunnites : hanafite, malikite, chaféite et hanbalite. Vous choisissez l’école et les parts suivent ses règles. Le droit jaafarite (chiite) n’est pas pris en charge."
+          "a": "Les quatre écoles sunnites : hanafite, malikite, chaféite et hanbalite. Lorsqu’elles donnent le même résultat pour une famille, vous voyez un seul résultat ; lorsqu’elles divergent, vous choisissez l’école et les parts suivent ses règles."
         },
         {
           "q": "Ai-je besoin d’un compte ?",

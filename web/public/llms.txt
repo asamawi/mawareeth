@@ -14,8 +14,7 @@
 ## What Mawareeth does not do
 
 - It does not issue fatwas or legal advice. Have a qualified scholar or a lawyer review any result before an estate is divided.
-- It does not support Jafari (Shia) law.
-- When the schools disagree on a family, or the case is outside what the engine can decide, it says so and shows no shares instead of guessing.
+- When the schools disagree on a family, it shows how and asks the visitor to choose a school. When the case is outside what the engine can decide, it says so and shows no shares instead of guessing.
 
 ## Pages
 
