@@ -21,9 +21,13 @@ PUBLIC_URLS = frozenset(
 )
 
 EXECUTABLE_SCRIPT_TYPES = ('', 'text/javascript', 'module')
+# Cloudflare injects its Web Analytics beacon into every page at the edge; the owner
+# chose on 2026-11-14 to keep it, so its script origin and report endpoint are allowed.
+CLOUDFLARE_ANALYTICS_SCRIPT = 'https://static.cloudflareinsights.com'
+CLOUDFLARE_ANALYTICS_REPORT = 'https://cloudflareinsights.com'
 CSP_TEMPLATE = (
     "default-src 'self'; script-src {script_src}; style-src 'self' 'unsafe-inline'; "
-    "img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; "
+    "img-src 'self' data: blob:; font-src 'self'; connect-src 'self' " + CLOUDFLARE_ANALYTICS_REPORT + "; object-src 'none'; "
     "base-uri 'none'; frame-ancestors 'none'; "
     "form-action 'self' https://www.facebook.com https://www.linkedin.com"
 )
@@ -80,7 +84,7 @@ def content_security_policy(path):
     except (OSError, ValueError):
         logger.warning('CSP for %s allows no inline scripts: the page could not be read', path, exc_info=True)
         hashes = []
-    return CSP_TEMPLATE.format(script_src=' '.join(["'self'", *hashes]))
+    return CSP_TEMPLATE.format(script_src=' '.join(["'self'", CLOUDFLARE_ANALYTICS_SCRIPT, *hashes]))
 
 
 def add_web_headers(headers, path, url):
