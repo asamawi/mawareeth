@@ -155,10 +155,6 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Calculation engine & proof
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-hanbali-label-on-legacy-results-pages.md`
-  summary: Native AR/FR review of the Hanbali-school note added to the legacy results pages.
-  evidence: The Arabic msgstr (`هذه الحصص محسوبة وفق المذهب الحنبلي`) and French msgstr (`Ces parts sont calculées selon l'école hanbalite`) were produced without native review; a qualified Arabic and French speaker should confirm both phrasings before production reliance.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
   summary: Add the Jafari school in its own story: its rules (no awl or radd as the Sunni schools have them, its own order of heirs and blocking), plus the relationships it needs that the engine does not model yet.
   evidence: `compute(madhab='jafari')` raises `UnsupportedCase` with `school_not_supported`. Jafari needs at least the distinction between paternal and maternal lines for grandparents, siblings and uncles, which the current relationship types do not record.

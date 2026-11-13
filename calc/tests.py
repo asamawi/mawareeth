@@ -983,14 +983,14 @@ class CalculationAccessControlTests(TestCase):
                 compute.assert_called_once_with()
 
     @override_settings(WAFFLE_FLAG_DEFAULT=True)
-    def test_results_show_hanbali_school_note(self):
+    def test_results_no_longer_show_a_hanbali_school_note(self):
         calc, _, _ = self.make_case()
         self.client.force_login(self.owner)
         for route in ('results', 'new_results'):
             with self.subTest(route=route), translation.override('en'):
                 url = reverse(f'calc:{route}', args=[calc.pk])
                 response = self.client.get(url, secure=True)
-                self.assertContains(response, "These shares follow the Hanbali school of law")
+                self.assertNotContains(response, "These shares follow the Hanbali school of law")
 
     def setUp(self):
         cache.clear()  # waffle caches flag state across tests
