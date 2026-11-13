@@ -640,10 +640,10 @@ msgstr ""
 
 #: .\calc\templates\calc\about.html:21
 msgid ""
-"Mawareeth 2.0 is the latest release for our website and it was started in "
+"Mawareeth is the latest release for our website and it was started in "
 "2020."
 msgstr ""
-"Mawareeth 2.0 is the latest release for our website and it was started in "
+"Mawareeth is the latest release for our website and it was started in "
 "2020."
 
 #: .\calc\templates\calc\about.html:24
@@ -677,10 +677,6 @@ msgstr ""
 #: .\calc\templates\calc\about.html:35
 msgid "GitHub Repository."
 msgstr "GitHub Repository."
-
-#: .\calc\templates\calc\base.html:38 .\calc\templates\calc\base.html:41
-msgid "Mawareeth 2.0"
-msgstr "Mawareeth 2.0"
 
 #: .\calc\templates\calc\base.html:49 .\calc\templates\calc\home.html:6
 msgid "Home"
@@ -1027,8 +1023,8 @@ msgid "New imporved and interactive user interface"
 msgstr "New imporved and interactive user interface"
 
 #: .\calc\templates\calc\home.html:54
-msgid "Welcome to Mawareeth 2.0"
-msgstr "Welcome to Mawareeth 2.0"
+msgid "Welcome to Mawareeth"
+msgstr "Welcome to Mawareeth"
 
 #: .\calc\templates\calc\home.html:55
 msgid ""
@@ -1130,8 +1126,8 @@ msgid "blocked"
 msgstr "blocked"
 
 #: .\calc\templates\calc\privacy.html:5 .\calc\templates\calc\privacy.html:11
-msgid "Privacy Policy for Mawareeth 2.0"
-msgstr "Privacy Policy for Mawareeth 2.0"
+msgid "Privacy Policy for Mawareeth"
+msgstr "Privacy Policy for Mawareeth"
 
 #: .\calc\templates\calc\privacy.html:13
 msgid ""
@@ -1560,10 +1556,10 @@ msgstr "Welcome to Mawareeth.com!"
 #: .\calc\templates\calc\terms.html:15
 msgid ""
 "These terms and conditions outline the rules and regulations for the use of "
-"Mawareeth 2.0's Website, located at https://www.mawareeth.com/."
+"Mawareeth's Website, located at https://www.mawareeth.com/."
 msgstr ""
 "These terms and conditions outline the rules and regulations for the use of "
-"Mawareeth 2.0's Website, located at https://www.mawareeth.com/."
+"Mawareeth's Website, located at https://www.mawareeth.com/."
 
 #: .\calc\templates\calc\terms.html:17
 msgid ""
@@ -1612,10 +1608,10 @@ msgstr "Cookies"
 #: .\calc\templates\calc\terms.html:23
 msgid ""
 "We employ the use of cookies. By accessing Mawareeth.com, you agreed to use "
-"cookies in agreement with the Mawareeth 2.0's Privacy Policy."
+"cookies in agreement with the Mawareeth's Privacy Policy."
 msgstr ""
 "We employ the use of cookies. By accessing Mawareeth.com, you agreed to use "
-"cookies in agreement with the Mawareeth 2.0's Privacy Policy."
+"cookies in agreement with the Mawareeth's Privacy Policy."
 
 #: .\calc\templates\calc\terms.html:25
 msgid ""
@@ -1635,13 +1631,13 @@ msgstr "License"
 
 #: .\calc\templates\calc\terms.html:29
 msgid ""
-"Unless otherwise stated, Mawareeth 2.0 and/or its licensors own the "
+"Unless otherwise stated, Mawareeth and/or its licensors own the "
 "intellectual property rights for all material on Mawareeth.com. All "
 "intellectual property rights are reserved. You may access this from "
 "Mawareeth.com for your own personal use subjected to restrictions set in "
 "these terms and conditions."
 msgstr ""
-"Unless otherwise stated, Mawareeth 2.0 and/or its licensors own the "
+"Unless otherwise stated, Mawareeth and/or its licensors own the "
 "intellectual property rights for all material on Mawareeth.com. All "
 "intellectual property rights are reserved. You may access this from "
 "Mawareeth.com for your own personal use subjected to restrictions set in "
@@ -1674,32 +1670,32 @@ msgstr "This Agreement shall begin on the date hereof."
 #: .\calc\templates\calc\terms.html:41
 msgid ""
 "Parts of this website offer an opportunity for users to post and exchange "
-"opinions and information in certain areas of the website. Mawareeth 2.0 does "
+"opinions and information in certain areas of the website. Mawareeth does "
 "not filter, edit, publish or review Comments prior to their presence on the "
-"website. Comments do not reflect the views and opinions of Mawareeth 2.0,its "
+"website. Comments do not reflect the views and opinions of Mawareeth,its "
 "agents and/or affiliates. Comments reflect the views and opinions of the "
 "person who post their views and opinions. To the extent permitted by "
-"applicable laws, Mawareeth 2.0 shall not be liable for the Comments or for "
+"applicable laws, Mawareeth shall not be liable for the Comments or for "
 "any liability, damages or expenses caused and/or suffered as a result of any "
 "use of and/or posting of and/or appearance of the Comments on this website."
 msgstr ""
 "Parts of this website offer an opportunity for users to post and exchange "
-"opinions and information in certain areas of the website. Mawareeth 2.0 does "
+"opinions and information in certain areas of the website. Mawareeth does "
 "not filter, edit, publish or review Comments prior to their presence on the "
-"website. Comments do not reflect the views and opinions of Mawareeth 2.0,its "
+"website. Comments do not reflect the views and opinions of Mawareeth,its "
 "agents and/or affiliates. Comments reflect the views and opinions of the "
 "person who post their views and opinions. To the extent permitted by "
-"applicable laws, Mawareeth 2.0 shall not be liable for the Comments or for "
+"applicable laws, Mawareeth shall not be liable for the Comments or for "
 "any liability, damages or expenses caused and/or suffered as a result of any "
 "use of and/or posting of and/or appearance of the Comments on this website."
 
 #: .\calc\templates\calc\terms.html:43
 msgid ""
-"Mawareeth 2.0 reserves the right to monitor all Comments and to remove any "
+"Mawareeth reserves the right to monitor all Comments and to remove any "
 "Comments which can be considered inappropriate, offensive or causes breach "
 "of these Terms and Conditions."
 msgstr ""
-"Mawareeth 2.0 reserves the right to monitor all Comments and to remove any "
+"Mawareeth reserves the right to monitor all Comments and to remove any "
 "Comments which can be considered inappropriate, offensive or causes breach "
 "of these Terms and Conditions."
 
@@ -1741,11 +1737,11 @@ msgstr ""
 
 #: .\calc\templates\calc\terms.html:54
 msgid ""
-"You hereby grant Mawareeth 2.0 a non-exclusive license to use, reproduce, "
+"You hereby grant Mawareeth a non-exclusive license to use, reproduce, "
 "edit and authorize others to use, reproduce and edit any of your Comments in "
 "any and all forms, formats or media."
 msgstr ""
-"You hereby grant Mawareeth 2.0 a non-exclusive license to use, reproduce, "
+"You hereby grant Mawareeth a non-exclusive license to use, reproduce, "
 "edit and authorize others to use, reproduce and edit any of your Comments in "
 "any and all forms, formats or media."
 
@@ -1847,14 +1843,14 @@ msgid ""
 "(a) the link would not make us look unfavorably to ourselves or to our "
 "accredited businesses; (b) the organization does not have any negative "
 "records with us; (c) the benefit to us from the visibility of the hyperlink "
-"compensates the absence of Mawareeth 2.0; and (d) the link is in the context "
+"compensates the absence of Mawareeth; and (d) the link is in the context "
 "of general resource information."
 msgstr ""
 "We will approve link requests from these organizations if we decide that: "
 "(a) the link would not make us look unfavorably to ourselves or to our "
 "accredited businesses; (b) the organization does not have any negative "
 "records with us; (c) the benefit to us from the visibility of the hyperlink "
-"compensates the absence of Mawareeth 2.0; and (d) the link is in the context "
+"compensates the absence of Mawareeth; and (d) the link is in the context "
 "of general resource information."
 
 #: .\calc\templates\calc\terms.html:84
@@ -1873,14 +1869,14 @@ msgstr ""
 msgid ""
 "If you are one of the organizations listed in paragraph 2 above and are "
 "interested in linking to our website, you must inform us by sending an e-"
-"mail to Mawareeth 2.0. Please include your name, your organization name, "
+"mail to Mawareeth. Please include your name, your organization name, "
 "contact information as well as the URL of your site, a list of any URLs from "
 "which you intend to link to our Website, and a list of the URLs on our site "
 "to which you would like to link. Wait 2-3 weeks for a response."
 msgstr ""
 "If you are one of the organizations listed in paragraph 2 above and are "
 "interested in linking to our website, you must inform us by sending an e-"
-"mail to Mawareeth 2.0. Please include your name, your organization name, "
+"mail to Mawareeth. Please include your name, your organization name, "
 "contact information as well as the URL of your site, a list of any URLs from "
 "which you intend to link to our Website, and a list of the URLs on our site "
 "to which you would like to link. Wait 2-3 weeks for a response."
@@ -1907,10 +1903,10 @@ msgstr ""
 
 #: .\calc\templates\calc\terms.html:96
 msgid ""
-"No use of Mawareeth 2.0's logo or other artwork will be allowed for linking "
+"No use of Mawareeth's logo or other artwork will be allowed for linking "
 "absent a trademark license agreement."
 msgstr ""
-"No use of Mawareeth 2.0's logo or other artwork will be allowed for linking "
+"No use of Mawareeth's logo or other artwork will be allowed for linking "
 "absent a trademark license agreement."
 
 #: .\calc\templates\calc\terms.html:98
@@ -2154,8 +2150,8 @@ msgid "To initiate the password reset process for your"
 msgstr "To initiate the password reset process for your"
 
 #: .\calc\templates\registration\password_reset_email.html:6
-msgid "Mawareeth 2.0 account,"
-msgstr "Mawareeth 2.0 account,"
+msgid "Mawareeth account,"
+msgstr "Mawareeth account,"
 
 #: .\calc\templates\registration\password_reset_email.html:7
 msgid "click the link below:"
@@ -2174,8 +2170,8 @@ msgid "Sincerely,"
 msgstr "Sincerely,"
 
 #: .\calc\templates\registration\password_reset_email.html:14
-msgid "The Mawareeth 2.0 team,"
-msgstr "The Mawareeth 2.0 team,"
+msgid "The Mawareeth team,"
+msgstr "The Mawareeth team,"
 
 #: .\calc\templates\registration\password_reset_form.html:12
 msgid "Forgot password"

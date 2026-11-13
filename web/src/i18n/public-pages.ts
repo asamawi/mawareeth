@@ -493,7 +493,7 @@ export const publicText: Record<Locale, PublicPageText> = {
       ]
     },
     privacy: {
-      "title": "سياسة الخصوصية لموقع المواريث النسخة 2.0",
+      "title": "سياسة الخصوصية لموقع المواريث",
       "metaDescription": "كيف يجمع موقع Mawareeth.com المعلومات ويستخدمها، وملفات تعريف الارتباط، وحقوقك في حماية بياناتك.",
       "blocks": [
         {
@@ -940,7 +940,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "These terms and conditions outline the rules and regulations for the use of Mawareeth 2.0's Website, located at https://www.mawareeth.com/."
+            "These terms and conditions outline the rules and regulations for the use of Mawareeth's Website, located at https://www.mawareeth.com/."
           ]
         },
         {
@@ -964,7 +964,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "We employ the use of cookies. By accessing Mawareeth.com, you agreed to use cookies in agreement with the Mawareeth 2.0's Privacy Policy."
+            "We employ the use of cookies. By accessing Mawareeth.com, you agreed to use cookies in agreement with the Mawareeth's Privacy Policy."
           ]
         },
         {
@@ -982,7 +982,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "Unless otherwise stated, Mawareeth 2.0 and/or its licensors own the intellectual property rights for all material on Mawareeth.com. All intellectual property rights are reserved. You may access this from Mawareeth.com for your own personal use subjected to restrictions set in these terms and conditions."
+            "Unless otherwise stated, Mawareeth and/or its licensors own the intellectual property rights for all material on Mawareeth.com. All intellectual property rights are reserved. You may access this from Mawareeth.com for your own personal use subjected to restrictions set in these terms and conditions."
           ]
         },
         {
@@ -1017,13 +1017,13 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "Parts of this website offer an opportunity for users to post and exchange opinions and information in certain areas of the website. Mawareeth 2.0 does not filter, edit, publish or review Comments prior to their presence on the website. Comments do not reflect the views and opinions of Mawareeth 2.0,its agents and/or affiliates. Comments reflect the views and opinions of the person who post their views and opinions. To the extent permitted by applicable laws, Mawareeth 2.0 shall not be liable for the Comments or for any liability, damages or expenses caused and/or suffered as a result of any use of and/or posting of and/or appearance of the Comments on this website."
+            "Parts of this website offer an opportunity for users to post and exchange opinions and information in certain areas of the website. Mawareeth does not filter, edit, publish or review Comments prior to their presence on the website. Comments do not reflect the views and opinions of Mawareeth,its agents and/or affiliates. Comments reflect the views and opinions of the person who post their views and opinions. To the extent permitted by applicable laws, Mawareeth shall not be liable for the Comments or for any liability, damages or expenses caused and/or suffered as a result of any use of and/or posting of and/or appearance of the Comments on this website."
           ]
         },
         {
           "kind": "p",
           "parts": [
-            "Mawareeth 2.0 reserves the right to monitor all Comments and to remove any Comments which can be considered inappropriate, offensive or causes breach of these Terms and Conditions."
+            "Mawareeth reserves the right to monitor all Comments and to remove any Comments which can be considered inappropriate, offensive or causes breach of these Terms and Conditions."
           ]
         },
         {
@@ -1052,7 +1052,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "You hereby grant Mawareeth 2.0 a non-exclusive license to use, reproduce, edit and authorize others to use, reproduce and edit any of your Comments in any and all forms, formats or media."
+            "You hereby grant Mawareeth a non-exclusive license to use, reproduce, edit and authorize others to use, reproduce and edit any of your Comments in any and all forms, formats or media."
           ]
         },
         {
@@ -1128,7 +1128,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "We will approve link requests from these organizations if we decide that: (a) the link would not make us look unfavorably to ourselves or to our accredited businesses; (b) the organization does not have any negative records with us; (c) the benefit to us from the visibility of the hyperlink compensates the absence of Mawareeth 2.0; and (d) the link is in the context of general resource information."
+            "We will approve link requests from these organizations if we decide that: (a) the link would not make us look unfavorably to ourselves or to our accredited businesses; (b) the organization does not have any negative records with us; (c) the benefit to us from the visibility of the hyperlink compensates the absence of Mawareeth; and (d) the link is in the context of general resource information."
           ]
         },
         {
@@ -1140,7 +1140,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "If you are one of the organizations listed in paragraph 2 above and are interested in linking to our website, you must inform us by sending an e-mail to Mawareeth 2.0. Please include your name, your organization name, contact information as well as the URL of your site, a list of any URLs from which you intend to link to our Website, and a list of the URLs on our site to which you would like to link. Wait 2-3 weeks for a response."
+            "If you are one of the organizations listed in paragraph 2 above and are interested in linking to our website, you must inform us by sending an e-mail to Mawareeth. Please include your name, your organization name, contact information as well as the URL of your site, a list of any URLs from which you intend to link to our Website, and a list of the URLs on our site to which you would like to link. Wait 2-3 weeks for a response."
           ]
         },
         {
@@ -1166,7 +1166,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "No use of Mawareeth 2.0's logo or other artwork will be allowed for linking absent a trademark license agreement."
+            "No use of Mawareeth's logo or other artwork will be allowed for linking absent a trademark license agreement."
           ]
         },
         {
@@ -1279,7 +1279,7 @@ export const publicText: Record<Locale, PublicPageText> = {
       ]
     },
     privacy: {
-      "title": "Privacy Policy for Mawareeth 2.0",
+      "title": "Privacy Policy for Mawareeth",
       "metaDescription": "How Mawareeth.com collects and uses information, cookies and your data protection rights.",
       "blocks": [
         {
@@ -1726,7 +1726,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "Ces termes et conditions décrivent les règles et réglementations pour l'utilisation du site Web de Mawareeth 2.0, situé à https://www.mawareeth.com/."
+            "Ces termes et conditions décrivent les règles et réglementations pour l'utilisation du site Web de Mawareeth, situé à https://www.mawareeth.com/."
           ]
         },
         {
@@ -1750,7 +1750,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "Nous utilisons des cookies. En accédant à Mawareeth.com, vous avez accepté d'utiliser des cookies en accord avec la politique de confidentialité de Mawareeth 2.0."
+            "Nous utilisons des cookies. En accédant à Mawareeth.com, vous avez accepté d'utiliser des cookies en accord avec la politique de confidentialité de Mawareeth."
           ]
         },
         {
@@ -1768,7 +1768,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "Sauf indication contraire, Mawareeth 2.0 et / ou ses concédants de licence détiennent les droits de propriété intellectuelle pour tout le matériel sur Mawareeth.com. Tous les droits de propriété intellectuelle sont réservés. Vous pouvez y accéder à partir de Mawareeth.com pour votre usage personnel soumis aux restrictions définies dans ces termes et conditions."
+            "Sauf indication contraire, Mawareeth et / ou ses concédants de licence détiennent les droits de propriété intellectuelle pour tout le matériel sur Mawareeth.com. Tous les droits de propriété intellectuelle sont réservés. Vous pouvez y accéder à partir de Mawareeth.com pour votre usage personnel soumis aux restrictions définies dans ces termes et conditions."
           ]
         },
         {
@@ -1803,13 +1803,13 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "Certaines parties de ce site Web offrent aux utilisateurs la possibilité de publier et d'échanger des opinions et des informations dans certaines zones du site Web. Mawareeth 2.0 ne filtre pas, ne modifie pas, ne publie pas et ne révise pas les commentaires avant leur présence sur le site Web. Les commentaires ne reflètent pas les vues et opinions de Mawareeth 2.0, de ses agents et / ou affiliés. Les commentaires reflètent les points de vue et opinions de la personne qui publie leurs points de vue et opinions. Dans la mesure permise par les lois applicables, Mawareeth 2.0 ne sera pas responsable des Commentaires ou de toute responsabilité, dommages ou dépenses causés et / ou subis du fait de toute utilisation et / ou publication et / ou apparition des Commentaires sur ce site."
+            "Certaines parties de ce site Web offrent aux utilisateurs la possibilité de publier et d'échanger des opinions et des informations dans certaines zones du site Web. Mawareeth ne filtre pas, ne modifie pas, ne publie pas et ne révise pas les commentaires avant leur présence sur le site Web. Les commentaires ne reflètent pas les vues et opinions de Mawareeth, de ses agents et / ou affiliés. Les commentaires reflètent les points de vue et opinions de la personne qui publie leurs points de vue et opinions. Dans la mesure permise par les lois applicables, Mawareeth ne sera pas responsable des Commentaires ou de toute responsabilité, dommages ou dépenses causés et / ou subis du fait de toute utilisation et / ou publication et / ou apparition des Commentaires sur ce site."
           ]
         },
         {
           "kind": "p",
           "parts": [
-            "Mawareeth 2.0 se réserve le droit de surveiller tous les commentaires et de supprimer tout commentaire pouvant être considéré comme inapproprié, offensant ou entraînant une violation des présentes conditions générales."
+            "Mawareeth se réserve le droit de surveiller tous les commentaires et de supprimer tout commentaire pouvant être considéré comme inapproprié, offensant ou entraînant une violation des présentes conditions générales."
           ]
         },
         {
@@ -1838,7 +1838,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "Par la présente, vous accordez à Mawareeth 2.0 une licence non exclusive pour utiliser, reproduire, modifier et autoriser d'autres personnes à utiliser, reproduire et modifier n'importe lequel de vos commentaires sous toutes formes, formats ou supports."
+            "Par la présente, vous accordez à Mawareeth une licence non exclusive pour utiliser, reproduire, modifier et autoriser d'autres personnes à utiliser, reproduire et modifier n'importe lequel de vos commentaires sous toutes formes, formats ou supports."
           ]
         },
         {
@@ -1914,7 +1914,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "Nous approuverons les demandes de lien de ces organisations si nous décidons que: (a) le lien ne nous ferait pas nuire à nous-mêmes ou à nos entreprises accréditées; (b) l'organisation n'a aucun dossier négatif avec nous; (c) l'avantage pour nous de la visibilité de l'hyperlien compense l'absence de Mawareeth 2.0; et (d) le lien se situe dans le contexte des informations générales sur les ressources."
+            "Nous approuverons les demandes de lien de ces organisations si nous décidons que: (a) le lien ne nous ferait pas nuire à nous-mêmes ou à nos entreprises accréditées; (b) l'organisation n'a aucun dossier négatif avec nous; (c) l'avantage pour nous de la visibilité de l'hyperlien compense l'absence de Mawareeth; et (d) le lien se situe dans le contexte des informations générales sur les ressources."
           ]
         },
         {
@@ -1926,7 +1926,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "Si vous êtes l'une des organisations énumérées au paragraphe 2 ci-dessus et que vous souhaitez créer un lien vers notre site Web, vous devez nous en informer en envoyant un e-mail à Mawareeth 2.0. Veuillez inclure votre nom, le nom de votre organisation, vos coordonnées ainsi que l'URL de votre site, une liste de toutes les URL à partir desquelles vous avez l'intention de créer un lien vers notre site Web, et une liste des URL sur notre site vers lesquelles vous souhaitez lien. Attendez 2-3 semaines pour une réponse."
+            "Si vous êtes l'une des organisations énumérées au paragraphe 2 ci-dessus et que vous souhaitez créer un lien vers notre site Web, vous devez nous en informer en envoyant un e-mail à Mawareeth. Veuillez inclure votre nom, le nom de votre organisation, vos coordonnées ainsi que l'URL de votre site, une liste de toutes les URL à partir desquelles vous avez l'intention de créer un lien vers notre site Web, et une liste des URL sur notre site vers lesquelles vous souhaitez lien. Attendez 2-3 semaines pour une réponse."
           ]
         },
         {
@@ -1952,7 +1952,7 @@ export const publicText: Record<Locale, PublicPageText> = {
         {
           "kind": "p",
           "parts": [
-            "Aucune utilisation du logo de Mawareeth 2.0 ou d'autres illustrations ne sera autorisée pour le lien en l'absence d'un accord de licence de marque."
+            "Aucune utilisation du logo de Mawareeth ou d'autres illustrations ne sera autorisée pour le lien en l'absence d'un accord de licence de marque."
           ]
         },
         {
@@ -2065,7 +2065,7 @@ export const publicText: Record<Locale, PublicPageText> = {
       ]
     },
     privacy: {
-      "title": "Politique de confidentialité de Mawareeth 2.0",
+      "title": "Politique de confidentialité de Mawareeth",
       "metaDescription": "Comment Mawareeth.com collecte et utilise les informations, les cookies et vos droits en matière de protection des données.",
       "blocks": [
         {
