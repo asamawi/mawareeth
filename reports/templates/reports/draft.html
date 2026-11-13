@@ -19,11 +19,11 @@ bdi { direction: ltr; } .proof { break-inside: avoid; }
 <p>{% translate "Generation date" %}: <bdi>{{ generated|date:"Y-m-d H:i" }}</bdi></p>
 <p>{% translate "School" %}: {{ school }}</p>
 <h2>{% translate "Deceased and estate" %}</h2>
-<p><bdi>{{ deceased }}</bdi> · {% translate "Estate" %}: <bdi>{{ estate|default_if_none:"—" }}</bdi></p>
+<p><bdi>{{ deceased }}</bdi>{% if with_amount %} · {% translate "Estate" %}: <bdi>{{ estate }}</bdi>{% endif %}</p>
 <h2>{% translate "Heirs and shares" %}</h2>
-<table><thead><tr><th>{% translate "Name" %}</th><th>{% translate "Relationship" %}</th><th>{% translate "Fraction" %}</th><th>{% translate "Percentage" %}</th><th>{% translate "Kirat" %}</th><th>{% translate "Amount" %}</th></tr></thead><tbody>
+<table><thead><tr><th>{% translate "Name" %}</th><th>{% translate "Relationship" %}</th><th>{% translate "Fraction" %}</th><th>{% translate "Percentage" %}</th><th>{% translate "Kirat" %}</th>{% if with_amount %}<th>{% translate "Amount" %}</th>{% endif %}</tr></thead><tbody>
 {% for row in shares %}<tr><td><bdi>{{ row.name }}</bdi></td><td>{{ row.relationship }}</td>
-{% if row.blocked %}<td colspan="4">{% translate "Blocked" %}</td>{% else %}<td><bdi>{{ row.fraction }}</bdi></td><td><bdi>{{ row.percent }}%</bdi></td><td><bdi>{{ row.kirat }}</bdi></td><td><bdi>{{ row.amount|default_if_none:"—" }}</bdi></td>{% endif %}</tr>{% endfor %}
+{% if row.blocked %}<td colspan="{% if with_amount %}4{% else %}3{% endif %}">{% translate "Blocked" %}</td>{% else %}<td><bdi>{{ row.fraction }}</bdi></td><td><bdi>{{ row.percent }}%</bdi></td><td><bdi>{{ row.kirat }}</bdi></td>{% if with_amount %}<td><bdi>{{ row.amount|default_if_none:"—" }}</bdi></td>{% endif %}{% endif %}</tr>{% endfor %}
 </tbody></table>
 {% if tables %}<h2>{% translate "Scholars' table" %}</h2>{% endif %}
 {% for table in tables %}

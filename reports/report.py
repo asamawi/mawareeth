@@ -101,7 +101,8 @@ def build_context(case, body):
     locale = translation.get_language() or 'en'
     return {'locale': locale, 'direction': 'rtl' if locale.split('-')[0] == 'ar' else 'ltr',
             'generated': timezone.now(), 'school': _(SCHOOLS[body['madhab']]),
-            'deceased': _('Male') if case['deceased']['gender'] == 'male' else _('Female'), 'estate': body['basis']['estate'],
+            'deceased': _('Male') if case['deceased']['gender'] == 'male' else _('Female'),
+            'estate': body['basis']['estate'], 'with_amount': body['basis']['estate'] is not None,
             'shares': shares, 'evidence': evidence, 'tables': tables,
             'unallocated': fraction(body['unallocated']) if body.get('unallocated') else None}
 

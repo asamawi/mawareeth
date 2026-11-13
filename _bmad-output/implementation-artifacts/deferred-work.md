@@ -305,10 +305,6 @@ Completed and obsolete items are removed; their history is in git.
   evidence: ar "أقارب آخرون" / "صلة قرابة أخرى"; en "More relatives" / "Other relationship"; fr "Autres proches" / "Autre lien de parenté". Check wording and the Arabic RTL layout of the picker.
 
 - source_spec: none
-  summary: Make the estate amount optional in the interview, results and draft report so a case can be computed and saved as shares/fractions only, which makes anonymization (FR-19) more attainable.
-  evidence: Split on 2026-11-13 at the project owner's request (order 5 of 6); related to the existing FR-19 anonymization deferral from Story 4.2.
-
-- source_spec: none
   summary: Retire the remaining legacy Django HTML pages (calc form, detail, results, delete confirmations, profile, error) by redirecting each to its Next.js equivalent and deleting the templates and views.
   evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 6 of 6); must follow the legacy-calculation migration. The old Django home, about, terms and privacy pages are already gone (replaced by the Next.js pages at the site root). Open question for the owner: whether old calculation URLs redirect to the migrated saved case (no legacy-to-SavedCase link is stored today) or simply to My saved cases.
 

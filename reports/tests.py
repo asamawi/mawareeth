@@ -112,6 +112,34 @@ class ReportContentTests(SimpleTestCase):
                     if body['unallocated']:
                         self.assertIn('Unallocated remainder', html)
 
+    def test_shares_only_report_without_estate(self):
+        fixtures = [f for f in AVAILABLE if f['response'].get('table') and f['response']['basis']['estate']
+                    and any(s['blocked'] for s in f['response']['shares'])]
+        self.assertTrue(fixtures)
+        for fixture in fixtures:
+            with self.subTest(fixture['title']), translation.override('en'):
+                case, body = fixture['case'], copy.deepcopy(fixture['response'])
+                with_estate = render_html(case, body)
+                def deceased_line(html):
+                    return html.split('</h2>', 2)[1].split('</p>')[0]
+                self.assertIn('Estate:', deceased_line(with_estate))
+                self.assertEqual(len(RenderedReport(with_estate).tables[0][0]), 6)
+                body['basis']['estate'] = None
+                for share in body['shares']:
+                    share['amount'] = None
+                html = render_html(case, body)
+                self.assertNotIn('Estate', deceased_line(html))
+                self.assertNotIn('—', deceased_line(html))
+                parsed = RenderedReport(html)
+                self.assertEqual([c[1] for c in parsed.tables[0][0]],
+                                 ['Name', 'Relationship', 'Fraction', 'Percentage', 'Kirat'])
+                for cells, share in zip(parsed.tables[0][1:], body['shares'], strict=True):
+                    if share['blocked']:
+                        self.assertEqual(cells[2:], [[{'colspan': '3'}, 'Blocked']])
+                    else:
+                        self.assertEqual(len(cells), 5)
+                        self.assertNotIn('\u2014', cells[-1][1])
+
     def test_rendered_values_and_rowspans(self):
         # Include blocked, shared-row, corrected, and three-death fixtures.
         fixtures = [f for f in AVAILABLE if f['response'].get('table')]
@@ -125,17 +153,19 @@ class ReportContentTests(SimpleTestCase):
                     from reports.report import RELATIONSHIPS
                     from django.utils.translation import gettext
                     return row.get('name') or gettext(RELATIONSHIPS[row['relationship']])
+                with_amount = body['basis']['estate'] is not None
                 for cells, share in zip(parsed.tables[0][1:], body['shares'], strict=True):
                     self.assertEqual(cells[0][1], name(share['heir_id']))
                     if share['blocked']:
-                        self.assertEqual(cells[2:], [[{'colspan': '4'}, 'Blocked']])
+                        self.assertEqual(cells[2:], [[{'colspan': '4' if with_amount else '3'}, 'Blocked']])
                     else:
                         n, d = share['numerator'], share['denominator']
                         percent = int(Fraction(n * 1000, d) + Fraction(1, 2))
                         kirat = int(Fraction(n * 2400, d) + Fraction(1, 2))
                         self.assertEqual([c[1] for c in cells[2:]], [
                             f'{n}/{d}', f'{percent // 10}.{percent % 10}%',
-                            f'{kirat // 100}.{kirat % 100:02}', share['amount'] or '\u2014'])
+                            f'{kirat // 100}.{kirat % 100:02}',
+                            *([share['amount'] or '\u2014'] if with_amount else [])])
                 layered = 'layers' in body['table']
                 layers = body['table']['layers'] if layered else [{'table': body['table']}]
                 for index, layer in enumerate(layers):
