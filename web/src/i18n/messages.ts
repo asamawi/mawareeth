@@ -575,7 +575,7 @@ export const messages: Record<Locale, Messages> = {
         noteHint: "مرّر المؤشر أو ركّز أو انقر على وريث لعرض تفسير نصيبه. اضغط Esc للإغلاق.",
       },
     },
-    cta: "ابدأ حالة بدون حساب",
+    cta: "ابدأ حالة الآن",
     pageError: { title: "لم يتم تحميل هذه الصفحة بشكل صحيح", body: "أعد تحميل الصفحة للمتابعة. إجاباتك المحفوظة باقية.", reload: "إعادة تحميل الصفحة", interview: "العودة إلى المقابلة" },
     footer: {
       "label": "معلومات الموقع",
@@ -891,7 +891,7 @@ export const messages: Record<Locale, Messages> = {
         noteHint: "Hover, focus or click a heir to see how their share was reached. Press Escape to close.",
       },
     },
-    cta: "Start a case without an account",
+    cta: "Start a case now",
     pageError: { title: "This page did not load correctly", body: "Reload the page to continue. Your saved answers are kept.", reload: "Reload page", interview: "Back to the interview" },
     footer: {
       "label": "Site information",
@@ -1210,7 +1210,7 @@ export const messages: Record<Locale, Messages> = {
         noteHint: "Survolez, mettez le focus ou cliquez sur un héritier pour voir comment sa part a été établie. Échap pour fermer.",
       },
     },
-    cta: "Commencer un dossier sans compte",
+    cta: "Commencer un dossier maintenant",
     pageError: { title: "Cette page ne s'est pas chargée correctement", body: "Rechargez la page pour continuer. Vos réponses enregistrées sont conservées.", reload: "Recharger la page", interview: "Retour à l'entretien" },
     footer: {
       "label": "Informations sur le site",
