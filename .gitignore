@@ -15,6 +15,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!web/src/lib/
 lib64/
 parts/
 sdist/
@@ -61,6 +62,7 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 verification.sqlite3
+dev.sqlite3
 
 # Flask stuff:
 instance/
@@ -134,3 +136,15 @@ staticfiles/
 
 # migrations
 #migrations/
+
+# Next.js frontend
+web-dist/
+web/node_modules/
+web/.next/
+web/out/
+web/.env*
+web/next-env.d.ts
+web/*.tsbuildinfo
+web/test-results/
+web/playwright-report/
+web/blob-report/

@@ -82,7 +82,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --locked --no-default-groups
+          uv sync --locked --no-default-groups --group test
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Verify committed migrations
@@ -105,10 +105,22 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
         run: python manage.py check --deploy --fail-level WARNING
 
+      # The service database is thrown away after the job, so durability only
+      # costs time; all three settings take effect on reload.
+      - name: Turn off durability on the throwaway database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p ${{ job.services.postgres.ports[5432] }} -U postgres -d mydb_test -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET fsync = off" \
+            -c "ALTER SYSTEM SET synchronous_commit = off" \
+            -c "ALTER SYSTEM SET full_page_writes = off" \
+            -c "SELECT pg_reload_conf()"
+
       - name: Run tests
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
-        run: python manage.py test
+        run: python manage.py test --parallel auto --durations 20
 
   # Decides whether the slow deploy suites need to run. Anything unclear runs
   # them. On master the comparison starts from the last successful run, not the
@@ -239,6 +251,62 @@ jobs:
           build-args: |
             RELEASE_VERSION=ci
             RELEASE_COMMIT_SHA=${{ github.sha }}
+
+  # A failure here fails the run, which keeps Publish Release Image from starting.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: web
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build static export
+        run: npm run build
+
+      - name: Check static export
+        run: node scripts/check-export.mjs
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: ${{ !success() && !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
 
   caddy-config:
     runs-on: ubuntu-latest

@@ -2,6 +2,8 @@
 
 This directory contains the secured host baseline, the private Compose runtime, blue-green release deployment, encrypted off-host database backup with restore verification, and host monitoring with alerting through SCDF's Prometheus/Alertmanager plus an external Better Stack probe. Crash recovery after an interrupted deploy is automated by `release.sh recover`, and `monitor.sh drill` records the operator's alert-path drill. It does not automate contract-migration detection, host-state restore, DNS, or cutover.
 
+The release image also contains the Next.js static export (`web-dist/`, built from `web/` by the `Dockerfile`), which WhiteNoise serves from the site root (`/<locale>/...`) from the same Gunicorn process as the DRF API under `/api/v1/`. Deploys are unchanged: there is no Node process, no extra container, and no change to Compose, Caddy or the release scripts, so frontend and API release and roll back together.
+
 ## Private Compose runtime
 
 Run runtime operations as root with `sudo`; Docker-group access is root-equivalent and is not the supported operator boundary. Copy the directly installable `runtime.env.example` to `/etc/mawareeth/runtime.env`, keep it `root:root` mode `0600`, and edit it with `sudoedit`. Values use a strict raw `KEY=VALUE` schema: no comments, blank lines, control characters, shell expansion, or extra keys. Compose consumes the generated app snapshot with `env_file.format: raw`, so values are passed literally rather than interpolated. PostgreSQL passwords must contain only URL-safe unreserved characters (`A-Z`, `a-z`, `0-9`, `.`, `_`, `~`, `-`) because the same value is embedded in `DATABASE_URL` without lossy transformation. Keep `DOMAIN` lowercase and within DNS label/total-length limits; `BREVO_SMTP_LOGIN` must also be a valid hostname.
@@ -90,7 +92,7 @@ The `cloudflare-aop` files are the `cloudflare` ones plus client-certificate aut
 
 Caddy keeps `X-Forwarded-For`, `-Proto` and `-Host` only on connections from those ranges. From any other address, including IPv6 clients that docker-proxy presents as the bridge gateway, it still replaces them. No address matcher is used.
 
-What the trust gains, precisely: the visitor's real address, taken from `X-Forwarded-For`, appears in Caddy's logs as the client IP, and Caddy forwards it to the app in `X-Forwarded-For`. Django reads only `X-Forwarded-Proto` (`SECURE_PROXY_SSL_HEADER`); it ignores `X-Forwarded-For` and `X-Forwarded-Host`. Code that later reads `X-Forwarded-For` must treat it as client-controlled data relayed by Cloudflare.
+What the trust gains, precisely: the visitor's real address, taken from `X-Forwarded-For`, appears in Caddy's logs as the client IP, and Caddy forwards it to the app in `X-Forwarded-For`. Django reads `X-Forwarded-Proto` (`SECURE_PROXY_SSL_HEADER`) and ignores `X-Forwarded-Host`. It does not use `X-Forwarded-For` for `REMOTE_ADDR` or any access decision. The one reader is DRF's throttle, which takes the client as the 2nd entry from the end (`NUM_PROXIES = 2`: `client, cloudflare` behind Cloudflare, or the single address Caddy writes otherwise) for rate limiting only, and keys IPv6 clients on their /64. Any other code that reads `X-Forwarded-For` must treat it as client-controlled data relayed by Cloudflare.
 
 What it trusts: any connection whose source is a Cloudflare address. That includes requests that other Cloudflare customers send through Cloudflare, for example from their Workers, which can set these headers freely. Nothing in this setup proves that a connection comes from Mawareeth's own zone. The opt-in range lock, `PUBLIC_WEB_SOURCES=cloudflare` (see [Locking the origin to Cloudflare](#locking-the-origin-to-cloudflare)), stops direct access to the origin from any address outside Cloudflare. It does not stop other Cloudflare customers' traffic, because that arrives from the same ranges. The opt-in `ORIGIN_CLIENT_AUTH=require` closes that gap with per-hostname Authenticated Origin Pulls (see [Authenticated Origin Pulls](#authenticated-origin-pulls)). Caddy then completes the TLS handshake for either name only when the client presents a certificate issued by the operator's own CA, and only Cloudflare presents it, for this zone's hostnames. Until it is enabled, the trust described here applies.
 
@@ -165,9 +167,9 @@ In `acme` mode Let's Encrypt validates from its own addresses, so certificate is
    - `sudo ufw status` allows 80,443/tcp only from the ranges, and still lists the SSH and `tailscale0` rules;
    - the public site loads through Cloudflare: `curl -sI https://www.mawareeth.com/health/ready/` answers 200, and `curl -sI https://mawareeth.com/` answers 301;
    - from a non-Cloudflare address (for example the workstation), each of these times out instead of connecting:
-     - direct IPv4: `curl -sv --max-time 10 --resolve www.mawareeth.com:443:2.28.64.83 https://www.mawareeth.com/`;
+     - direct IPv4: `curl -sv --max-time 10 --resolve www.mawareeth.com:443:<origin-ip> https://www.mawareeth.com/`;
      - direct IPv6, from a host with IPv6: `curl -6 -sv --max-time 10 --resolve 'www.mawareeth.com:443:[<host IPv6>]' https://www.mawareeth.com/`, with the address from `hcloud server ip -6 <server>`;
-     - direct port 80: `curl -sv --max-time 10 http://2.28.64.83/`.
+     - direct port 80: `curl -sv --max-time 10 http://<origin-ip>/`.
 
 **Rollback:** set `PUBLIC_WEB_SOURCES=any` (or remove it), rerun provisioning and `monitor.sh install` the same way. Each run leaves exactly that mode's rules.
 
@@ -606,8 +608,9 @@ Mawareeth reuses SCDF's monitoring stack instead of running its own. This host r
    - Writes `/etc/systemd/journald.conf.d/50-mawareeth.conf` (`SystemMaxUse=500M`, `SystemKeepFree=1G`, `MaxRetentionSec=30day`) and restarts journald.
    - Writes and enables `mawareeth-monitor-collect.{service,timer}` (`OnCalendar=*:0/5`, `Persistent=true`).
    - Writes and enables `mawareeth-github-token-check.{service,timer}` (`OnCalendar=daily`, `RandomizedDelaySec=1h`, `Persistent=true`), runs one [token check](#github-read-token-check), and publishes the first metrics, so `mawareeth.prom` already holds the certificate and token series. A host without `/etc/mawareeth/github-read.token` yet records `result=missing` and `MawareethGithubTokenUnhealthy` fires until the token is installed.
+   - Writes and enables `mawareeth-clear-sessions.{service,timer}` (`OnCalendar=daily`, `RandomizedDelaySec=1h`, `Persistent=true`). The service runs `monitor.sh clear-sessions`, which finds the active slot from the persisted route and runs `python manage.py clearsessions` in that slot's container. Without it, expired anonymous interview cases (24 hours idle) and logged-in sessions stay in the database forever. A failed run leaves the unit failed, so `MawareethSystemdUnitFailed` fires; fix the cause (usually no running `app-<slot>` container during a deploy) and run `sudo deploy/monitor.sh clear-sessions` again. Exit codes: 0 cleaned, 1 could not clean, 2 refused.
 
-   Re-run `install` after moving the checkout. Re-running it also upgrades a host whose wrapper predates a flag (such as `--collector.systemd`): it rewrites the wrapper and restarts the exporter.
+   Re-run `install` after moving the checkout, and once on an existing host after the release that adds the cleanup timer. Re-running it also upgrades a host whose wrapper predates a flag (such as `--collector.systemd`): it rewrites the wrapper and restarts the exporter.
 2. **Join the tailnet interactively.** Run `sudo tailscale up --hostname=mawareeth-prod` and open the printed login URL as an SCDF tailnet admin. Never pass an auth key on the command line, and never put one in this repository, CI, or a log. In the Tailscale admin console, disable key expiry for this node, and restrict the tailnet ACL so that only `p1` may reach `mawareeth-prod:9100` and only administrators' devices may reach `mawareeth-prod:22`. Then run `sudo systemctl restart prometheus-node-exporter` (otherwise it starts within 15 seconds anyway).
 3. **Check the host.** All of these must hold:
    - `tailscale ip -4` prints a `100.x` address.
@@ -617,7 +620,7 @@ Mawareeth reuses SCDF's monitoring stack instead of running its own. This host r
    - `curl -s http://$(tailscale ip -4):9100/metrics | grep '^mawareeth_'` lists the eleven metrics, plus one `mawareeth_origin_certificate_expiry_timestamp_seconds` series per origin certificate file on the host.
    - `curl -s http://$(tailscale ip -4):9100/metrics | grep -c '^node_systemd_unit_state'` prints a number above 0 (the systemd collector is on).
    - `curl -s http://$(tailscale ip -4):9100/metrics | grep -oE '^node_(vmstat_oom_kill|timex_sync_status|filesystem_files|filesystem_readonly)' | sort -u` prints all four names (the host-health rules need them).
-   - `systemctl list-timers mawareeth-monitor-collect.timer mawareeth-github-token-check.timer` shows both timers.
+   - `systemctl list-timers mawareeth-monitor-collect.timer mawareeth-github-token-check.timer mawareeth-clear-sessions.timer` shows all three timers.
 
 **Collector.** `monitor.sh collect` runs every 5 minutes. It reads `<state dir>/backup/last-backup` and `restore-verified` with the same strict reader as `backup.sh gate`: root-owned, mode 0600, `key=value` lines. It then atomically writes `/var/lib/prometheus/node-exporter/mawareeth.prom` (0644). That file holds these gauges:
 - `mawareeth_backup_last_result_ok` and `mawareeth_backup_last_ok_timestamp_seconds` (the finish time when the result is `ok`).
@@ -680,9 +683,9 @@ The steps:
 | `MawareethRestoreUnhealthy` | Last restore check not `pass`, record unusable, last pass older than 35 days, or more than 5 minutes in the future | critical |
 | `MawareethDiskWarning` | An ext4/xfs/btrfs filesystem more than 75% used for 5 minutes | warning |
 | `MawareethDiskCritical` | More than 85% used for 5 minutes (inhibits the warning on the same mountpoint) | critical |
-| `MawareethCollectorStale` | `mawareeth.prom` older than 20 minutes, absent, or unparseable (`node_textfile_scrape_error == 1`) | warning |
+| `MawareethCollectorStale` | `mawareeth.prom` older than 20 minutes or unparseable (`node_textfile_scrape_error == 1`); collector timestamp metric absent for 5 minutes | warning |
 | `MawareethAlertDrill` | An alert-path drill is active (`mawareeth_drill_active_code > 0`); fires at once and carries the code in its summary | info |
-| `MawareethDrillOverdue` | The last passed drill is older than 92 days, none has passed (or the drill record is unusable), the metric is absent, or it is more than 5 minutes in the future | warning |
+| `MawareethDrillOverdue` | The last passed drill is older than 92 days, none has passed (or the drill record is unusable), it is more than 5 minutes in the future, or the metric is absent for 5 minutes | warning |
 | `MawareethInodesLow` | An ext4/xfs/btrfs filesystem with more than 85% of its inodes used for 5 minutes; a filesystem reporting no inode count (`node_filesystem_files == 0`, as btrfs does) never fires | critical |
 | `MawareethFilesystemReadOnly` | An ext4/xfs/btrfs filesystem read-only (`node_filesystem_readonly == 1`) for 2 minutes | critical |
 | `MawareethMemoryPressure` | `MemAvailable` below 10% of `MemTotal`, or more than 50% of swap used (only when `SwapTotal > 0`), for 10 minutes | warning |
@@ -799,6 +802,7 @@ This alert is expected right after the change that added `globals.sql` ships, un
 
 <a id="runbook-mawareethcollectorstale"></a>
 **MawareethCollectorStale.**
+A missing metric fires only after 5 minutes, so a single failed scrape does not trigger this alert.
 1. Run `systemctl list-timers mawareeth-monitor-collect.timer`, then `journalctl -u mawareeth-monitor-collect.service -n 50`, then `sudo deploy/monitor.sh status`.
 2. Exit 2 means a refusal (for example, the state or textfile directory is missing). Exit 3 means another monitor run holds the lock.
 3. Re-run `sudo deploy/monitor.sh install` if the units are missing or the checkout moved.
@@ -811,6 +815,7 @@ This alert is expected right after the change that added `globals.sql` ships, un
 
 <a id="runbook-mawareethdrilloverdue"></a>
 **MawareethDrillOverdue.**
+A missing metric fires only after 5 minutes, so a single failed scrape does not trigger this alert.
 1. Run `sudo deploy/monitor.sh status` and read the drill section.
 2. `(absent: no drill has run)` or `last_result=aborted` with no `last_pass_at` means the launch drill has not passed yet. Run the [alert-path drill](#alert-path-drill).
 3. `(unusable ...)` means the record is not `root:root` 0600 or is malformed. Inspect it with `sudo ls -l <state dir>/monitor/` and `sudo cat <state dir>/monitor/drill`, move it aside, and run the drill again.
@@ -891,6 +896,22 @@ The workflow uploads `release-manifest-<commit>` containing `release-manifest.js
 The workflow validates the manifest inputs before pushing, so an unsupported contract never reaches GHCR. A registry push that succeeds before a later step fails can still leave a `:<commit>` tag without a manifest; never deploy by tag. Re-running the workflow rebuilds and re-pushes that tag with a new digest. Earlier manifests still name their own digests, so keep GHCR cleanup from deleting untagged versions that a retained manifest references. Manifest artifacts are kept for 90 days; archive any manifest you may need to roll back to after that.
 
 `deploy.yml` runs from the default branch (a `workflow_run` rule), but it checks out and executes `deploy/release_manifest.py` from the released commit. Keep the script's CLI backward compatible with the default branch's workflow, or merge workflow and CLI changes together. The manifest contains identities and contract versions only. Runtime credentials, environment values, secret material, host deployment logic, and mutable source references must never be added. Stories 0.5 and 0.6 consume and verify this contract. `deploy.yml` itself never contacts or deploys to the production host. Deploys from GitHub Actions run only through the separate `deploy-production.yml`, which starts after a successful master publish (or by hand) and sends the host nothing but a commit SHA (see [Deploying from GitHub Actions](#deploying-from-github-actions)).
+
+### Release version numbers
+
+The repository-root `VERSION` file holds a hand-edited `major.minor`. The publish workflow adds the patch with `deploy/version.sh`: the number of first-parent commits since the first-parent commit that last changed `VERSION`. A merge that brings a new `VERSION` to `master` is therefore `<major>.<minor>.0` however many commits its branch carries, and each later commit or merge on `master` adds one. Rebuilding a commit gives the same number.
+
+The number is baked into the image as `APP_VERSION`, shown in page titles, and reported as `version` by `/health/release/`. `release` and `commit` stay the commit SHA, because the smoke test and deploys compare them to the commit. Without `APP_VERSION` (local and test runs) the application reports `<VERSION>.0-dev`.
+
+`Derive release version` runs before the build and fails the run on a malformed `VERSION`, a shallow history, or a number already tagged on another commit, so nothing is pushed. After every publish step succeeds, the separate `tag-release` job, the only one with `contents: write`, pushes the tag `v<version>` to the published commit. A rerun for the same commit keeps the same number and creates no second tag. Tags record what was published; deploys still use only the manifest's digest.
+
+To change `major.minor`, edit `VERSION` and merge it to `master` with a merge commit. Merge `development` the same way: a fast-forward puts the branch's own commits on the first-parent history, so the patch would not start at 0. Any change to the file restarts the count, so returning to an earlier `major.minor` or making a whitespace-only edit reuses numbers already tagged, and the publish fails until `VERSION` moves on. Reverting a merge that changed `VERSION` counts as such a change, so when reverting one, move `VERSION` on in the same fix (for example from `3.0` to `3.1`) or publishing stays blocked.
+
+Published numbers can have gaps, and that is expected. Every commit on `master` adds one, including commits that never published, so `v3.0.6` may exist without `v3.0.5`.
+
+If `tag-release` fails, the image and manifest are already published and the release can be deployed. Rerun the failed job; it needs tag pushes allowed for `GITHUB_TOKEN`, so check any tag ruleset first. Until the tag exists its number is not reserved against a later collision.
+
+Numbering starts at the commit that adds `VERSION` and `deploy/version.sh`. The publish workflow runs from the default branch but uses the released commit's script, so an older commit can no longer be republished.
 
 ## Deploying from GitHub Actions
 
@@ -1039,7 +1060,7 @@ The baseline creates `/etc/mawareeth/runtime.env`, owned by root with mode 0600.
 
 ## Application runtime contract
 
-With `DJANGO_ENV=production` the application refuses to start unless these are set: `DJANGO_KEY`, `DJANGO_ALLOWED_HOSTS` (explicit hostnames, no wildcards), `DJANGO_CSRF_TRUSTED_ORIGINS` (explicit `https://` origins), `DATABASE_URL`, `DATABASE_SSL_MODE`, `BREVO_SMTP_KEY`, and `BREVO_SMTP_LOGIN`. Use `DATABASE_SSL_MODE=disable` for the private Compose PostgreSQL and `verify-ca`/`verify-full` for any new managed database; `prefer` is rejected because it silently falls back to plaintext. `require` is rejected too, because it never checks the server certificate. The verified modes also need `DATABASE_SSL_ROOT_CERT`: the in-container path of a readable CA file (e.g. a mounted Compose secret), not the certificate contents. Optional: `DATABASE_CONNECT_TIMEOUT` (default 5 seconds), `RELEASE_VERSION`, and `RELEASE_COMMIT_SHA` (baked into the image by CI).
+With `DJANGO_ENV=production` the application refuses to start unless these are set: `DJANGO_KEY`, `DJANGO_ALLOWED_HOSTS` (explicit hostnames, no wildcards), `DJANGO_CSRF_TRUSTED_ORIGINS` (explicit `https://` origins), `DATABASE_URL`, `DATABASE_SSL_MODE`, `BREVO_SMTP_KEY`, and `BREVO_SMTP_LOGIN`. Use `DATABASE_SSL_MODE=disable` for the private Compose PostgreSQL and `verify-ca`/`verify-full` for any new managed database; `prefer` is rejected because it silently falls back to plaintext. `require` is rejected too, because it never checks the server certificate. The verified modes also need `DATABASE_SSL_ROOT_CERT`: the in-container path of a readable CA file (e.g. a mounted Compose secret), not the certificate contents. Optional: `DATABASE_CONNECT_TIMEOUT` (default 5 seconds), `APP_VERSION`, `RELEASE_VERSION`, and `RELEASE_COMMIT_SHA` (baked into the image by CI).
 
 Django trusts `X-Forwarded-Proto` from its upstream (`SECURE_PROXY_SSL_HEADER`), so it must stay reachable only through Caddy. Two invariants make that safe, and the offline tests (`deploy/tests/test_compose_runtime.sh`) pin both (case-insensitively for the header check, and also against `network_mode:` on the slots):
 

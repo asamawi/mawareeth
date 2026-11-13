@@ -1,0 +1,41 @@
+# Mawareeth
+
+> Mawareeth is a free, open-source, non-profit web calculator for Islamic inheritance. It divides an estate among the heirs under the Hanafi, Maliki, Shafi'i or Hanbali school and shows every step of the calculation with the rule it relies on. It is a calculation aid: its results are not a fatwa and not legal advice.
+
+## What Mawareeth does
+
+- Calculates each heir's share under the four Sunni schools: Hanafi, Maliki, Shafi'i and Hanbali.
+- Handles successive deaths, where an heir dies before the estate is divided.
+- Shows a step-by-step proof for each share, with the rules cited.
+- Produces a draft PDF report of the case and its results.
+- Works without an account. With an account, cases can be saved and shared by link, email invitation or WhatsApp.
+- Available in Arabic, English and French.
+
+## What Mawareeth does not do
+
+- It does not issue fatwas or legal advice. Have a qualified scholar or a lawyer review any result before an estate is divided.
+- When the schools disagree on a family, it shows how and asks the visitor to choose a school. When the case is outside what the engine can decide, it says so and shows no shares instead of guessing.
+
+## Pages
+
+### English
+- [Home](https://www.mawareeth.com/en/): start a calculation and read the FAQ
+- [About](https://www.mawareeth.com/en/about/)
+- [Terms and Conditions](https://www.mawareeth.com/en/terms/)
+- [Privacy Policy](https://www.mawareeth.com/en/privacy/)
+
+### Arabic (العربية)
+- [الرئيسية](https://www.mawareeth.com/ar/)
+- [عن مواريث](https://www.mawareeth.com/ar/about/)
+- [الأحكام والشروط](https://www.mawareeth.com/ar/terms/)
+- [سياسة الخصوصية](https://www.mawareeth.com/ar/privacy/)
+
+### French (Français)
+- [Accueil](https://www.mawareeth.com/fr/)
+- [À propos](https://www.mawareeth.com/fr/about/)
+- [Termes et conditions](https://www.mawareeth.com/fr/terms/)
+- [Politique de confidentialité](https://www.mawareeth.com/fr/privacy/)
+
+## Source code
+
+- [GitHub repository](https://github.com/asamawi/mawareeth)

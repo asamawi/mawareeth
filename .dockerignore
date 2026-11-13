@@ -22,3 +22,8 @@ docs/
 .agents/
 .claude/
 .gemini/
+web-dist/
+web/node_modules
+web/.next
+web/out
+web/.env*

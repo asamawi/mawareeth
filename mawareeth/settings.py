@@ -1,4 +1,6 @@
 import os
+import re
+import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -7,14 +9,27 @@ from decouple import Csv, config
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.translation import gettext_lazy as _
 
+from mawareeth.web_headers import add_web_headers
+
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Application version (major.minor.patch)
-APP_VERSION_MAJOR = 2
-APP_VERSION_MINOR = 0
-APP_VERSION_PATCH = 1
-APP_VERSION = f"{APP_VERSION_MAJOR}.{APP_VERSION_MINOR}.{APP_VERSION_PATCH}"
+# Application version (major.minor.patch). The publish workflow derives it and
+# bakes it into the image; see "Release version numbers" in deploy/README.md.
+def _app_version():
+    version = config("APP_VERSION", default="").strip()
+    if version:
+        return version
+    try:
+        base = (BASE_DIR / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError as error:
+        raise ImproperlyConfigured("The VERSION file is required when APP_VERSION is not set.") from error
+    if not re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", base):
+        raise ImproperlyConfigured("The VERSION file must contain major.minor.")
+    return f"{base}.0-dev"
+
+
+APP_VERSION = _app_version()
 RELEASE_VERSION = config("RELEASE_VERSION", default=APP_VERSION)
 RELEASE_COMMIT_SHA = config("RELEASE_COMMIT_SHA", default="local")
 DJANGO_ENV = config("DJANGO_ENV", default="development").strip().lower()
@@ -46,7 +61,7 @@ def _production_hosts():
     return hosts
 
 
-def _production_csrf_origins():
+def _csrf_trusted_origins():
     origins = _csv_setting("DJANGO_CSRF_TRUSTED_ORIGINS", required=IS_PRODUCTION)
     if IS_PRODUCTION:
         for origin in origins:
@@ -63,6 +78,10 @@ def _production_csrf_origins():
                 raise ImproperlyConfigured(
                     "DJANGO_CSRF_TRUSTED_ORIGINS must contain explicit HTTPS origins only."
                 )
+    else:
+        # `next dev` serves the pages on :3000 and proxies /api/ to Django, so its
+        # POSTs carry that Origin. Without this the first anonymous write is rejected.
+        origins = [*origins, "http://localhost:3000", "http://127.0.0.1:3000"]
     return origins
 
 
@@ -153,7 +172,7 @@ if IS_PRODUCTION and DEBUG:
     raise ImproperlyConfigured("DEBUG must be False when DJANGO_ENV=production.")
 
 ALLOWED_HOSTS = _production_hosts()
-CSRF_TRUSTED_ORIGINS = _production_csrf_origins()
+CSRF_TRUSTED_ORIGINS = _csrf_trusted_origins()
 
 
 # Application definition
@@ -177,6 +196,9 @@ INSTALLED_APPS = [
     'active_link',
     'social_django',
     'waffle',
+    'rest_framework',
+    'api.apps.ApiConfig',
+    'reports.apps.ReportsConfig',
 ]
 
 # Default primary key field type for models
@@ -197,6 +219,10 @@ MIDDLEWARE = [
     'mawareeth.middleware.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Must stay directly before SessionMiddleware: it locks the visitor's session
+    # row before the session is loaded and releases it after the session is saved,
+    # so overlapping case writes run one after another.
+    'mawareeth.middleware.CaseWriteLockMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
 
     'django.middleware.locale.LocaleMiddleware',
@@ -240,6 +266,11 @@ DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
 
+# The default hasher is deliberately slow; tests create and log in many users, so
+# `manage.py test` (and the workers it spawns, which inherit argv) use a fast one.
+if sys.argv[1:2] == ["test"]:
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -281,6 +312,35 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage" if not DEBUG else "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
+
+# The Next.js export, built into the release image at web-dist/ and served from
+# the site root (/<locale>/...). It is absent in development and tests, where
+# /<locale>/ pages 404 while / and /app/... still redirect.
+WEB_DIST_DIR = BASE_DIR / 'web-dist'
+if WEB_DIST_DIR.is_dir():
+    WHITENOISE_ROOT = WEB_DIST_DIR
+WHITENOISE_INDEX_FILE = True
+WHITENOISE_ADD_HEADERS_FUNCTION = add_web_headers
+
+REPORT_STATUS_PROVIDER = None
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.SessionAuthentication'],
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
+    'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
+    'DEFAULT_PARSER_CLASSES': ['rest_framework.parsers.JSONParser'],
+    'DEFAULT_THROTTLE_RATES': {'auth': '20/hour', 'case_write': '120/hour', 'case_preview': '300/hour', 'report_draft': '30/hour',
+                                'share_invite': '30/hour',
+                                'share_view': '300/hour'},
+    # Caddy leaves X-Forwarded-For as "client, cloudflare" behind Cloudflare and replaces it
+    # with the single client address otherwise, so the client is the 2nd entry from the end
+    # (or the only one). Without this DRF keys on the whole header, which a client can vary.
+    'NUM_PROXIES': 2,
+}
+
+# Anonymous interview cases live in the Django session and expire after this much idle time.
+# Logged-in sessions keep Django's default (SESSION_COOKIE_AGE).
+ANONYMOUS_CASE_IDLE_SECONDS = 24 * 60 * 60
 
 
 SITE_ID = config("SITE_ID",default=1, cast=int)
@@ -336,7 +396,7 @@ AUTHENTICATION_BACKENDS = [
 
 LOGIN_URL = 'login'
 # Without this, social-auth middleware returns None on errors, causing 500s.
-SOCIAL_AUTH_LOGIN_ERROR_URL = 'login'
+SOCIAL_AUTH_LOGIN_ERROR_URL = '/accounts/login/?error=social'
 LOGIN_REDIRECT_URL = 'calc:index'
 LOGOUT_URL = 'logout'
 LOGOUT_REDIRECT_URL = 'login'
@@ -397,6 +457,8 @@ LOGGING = {
         },
     },
     "loggers": {
+        "weasyprint": {"level": "WARNING"},
+        "fontTools": {"level": "WARNING"},
         "django.request": {
             "handlers": ["console"],
             "level": "ERROR",

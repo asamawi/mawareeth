@@ -17,11 +17,13 @@ dependencies = [
     "django-icons==25.3",
     "django-polymorphic==4.1.0",
     "django-waffle==5.0.0",
+    "djangorestframework==3.18.3",
     "dnspython==2.9.0",
     "gunicorn==26.2.0",
     "idna==3.15",
     "oauthlib==4.0.1",
     "packaging==25.0",
+    "polib==1.2.0",
     "psycopg2-binary==2.9.11",
     "pycparser==3.0",
     "pyjwt==2.15.0",
@@ -35,8 +37,17 @@ dependencies = [
     "sqlparse==0.6.0",
     "tzdata==2025.2",
     "urllib3==2.8.0",
+    "weasyprint==70.0",
     "whitenoise==6.11.0",
 ]
 
 [tool.uv]
 package = false
+# tblib lets parallel test runs report a failure's traceback; CI and the image
+# pass --no-default-groups, so CI asks for it with --group test.
+default-groups = ["test"]
+
+[dependency-groups]
+test = [
+    "tblib>=3.2.2",
+]

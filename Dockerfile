@@ -1,5 +1,21 @@
+# Builds the Next.js static export, which the release image serves under /app/.
+FROM node:26.13.0-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS web
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+WORKDIR /web
+
+COPY web/package.json web/package-lock.json web/.npmrc ./
+
+RUN npm ci
+
+COPY web/ ./
+
+RUN npm run build && node scripts/check-export.mjs
+
 FROM python:3.12.15-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS builder
 
+ARG APP_VERSION=
 ARG RELEASE_VERSION=build
 ARG RELEASE_COMMIT_SHA=build
 
@@ -22,6 +38,10 @@ RUN uv sync --locked --no-default-groups
 
 COPY . .
 
+# The image carries the export, never the frontend sources or their dependencies.
+RUN rm -rf /app/web
+COPY --from=web /web/out /app/web-dist
+
 # These values exist only for build-time Django validation; runtime secrets are
 # injected by the deployment environment and never baked into the image.
 RUN DJANGO_ENV=production \
@@ -32,6 +52,7 @@ RUN DJANGO_ENV=production \
     DATABASE_SSL_MODE=disable \
     BREVO_SMTP_KEY=build-only \
     BREVO_SMTP_LOGIN=build@example.invalid \
+    APP_VERSION="$APP_VERSION" \
     RELEASE_VERSION="$RELEASE_VERSION" \
     RELEASE_COMMIT_SHA="$RELEASE_COMMIT_SHA" \
     python manage.py collectstatic --noinput && \
@@ -43,12 +64,14 @@ RUN DJANGO_ENV=production \
     DATABASE_SSL_MODE=disable \
     BREVO_SMTP_KEY=build-only \
     BREVO_SMTP_LOGIN=build@example.invalid \
+    APP_VERSION="$APP_VERSION" \
     RELEASE_VERSION="$RELEASE_VERSION" \
     RELEASE_COMMIT_SHA="$RELEASE_COMMIT_SHA" \
     python manage.py check --deploy --fail-level WARNING
 
 FROM python:3.12.15-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS runtime
 
+ARG APP_VERSION=
 ARG RELEASE_VERSION=build
 ARG RELEASE_COMMIT_SHA=build
 
@@ -57,11 +80,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
     DJANGO_SETTINGS_MODULE=mawareeth.settings \
+    APP_VERSION="$APP_VERSION" \
     RELEASE_VERSION="$RELEASE_VERSION" \
     RELEASE_COMMIT_SHA="$RELEASE_COMMIT_SHA" \
     PORT=8000
 
 WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-noto-core && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN addgroup --system app && \
     adduser --system --ingroup app --home /home/app app

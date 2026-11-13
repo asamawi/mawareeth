@@ -74,7 +74,7 @@ mawareeth/
 - `/api/v1/cases/*` → cases + heirs
 - `/api/v1/engine/*` → deterministic engine (no manual overrides)
 - `/api/v1/reports/*` → PDF generation + verification status
-- `/api/v1/verification/*` → lawyer certification + audit
+- `/api/v1/verification/*` → lawyer certification + audit (**private package**, AD-14)
 
 **Component Boundaries:**
 - `web/src/features/*` owns feature logic and state.
@@ -94,6 +94,12 @@ mawareeth/
 - Anonymous draft data remains browser-local until explicit promotion to a persisted case.
 - Share tokens are stored hashed with metadata and never treated as primary identifiers for cases or reports.
 - Audit is append-only.
+
+**Open-Core Ownership (AD-14):**
+- Public repository: `api/apps/engine`, cases/heirs, draft reports and share links for drafts, `web/src/features/interview`, `web/src/features/reports` (draft rendering), the known-answer corpus.
+- Private package: lawyer accounts and approval, membership/pricing/sponsorship, marketplace, certification purchase and action, `verification`, certification `audit`, billing, the certification registry and its signing keys.
+- Report status is the only seam: public code reads it through an extension point that returns "draft" when the private package is absent; only the private package can set "certified" or render a seal.
+- The private package may import public modules; public modules never import private ones, and public CI never needs private access.
 
 ## Requirements to Structure Mapping
 
@@ -119,7 +125,7 @@ mawareeth/
 **External Integrations:**
 - WhatsApp Cloud API → `api/core/notifications/whatsapp`
 - Email + MFA → `api/core/notifications/email`
-- Payments (future) → `api/apps/billing` (deferred)
+- Payments (future) → billing in the **private package** (deferred; AD-14)
 
 **Data Flow:**
 - Anonymous interview → IndexedDB draft snapshot → explicit save/promote → persisted case snapshot → Engine calc → Report HTML/PDF → Verification → Audit

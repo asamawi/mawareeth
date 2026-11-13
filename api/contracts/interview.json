@@ -1,0 +1,60 @@
+{
+  "relationships": [
+    { "id": "father", "gender": "male" },
+    { "id": "mother", "gender": "female" },
+    { "id": "husband", "gender": "male" },
+    { "id": "wife", "gender": "female" },
+    { "id": "son", "gender": "male" },
+    { "id": "daughter", "gender": "female" },
+    { "id": "son_of_son", "gender": "male" },
+    { "id": "daughter_of_son", "gender": "female" },
+    { "id": "grandfather", "gender": "male" },
+    { "id": "paternal_grandmother", "gender": "female" },
+    { "id": "maternal_grandmother", "gender": "female" },
+    { "id": "brother", "gender": "male" },
+    { "id": "sister", "gender": "female" },
+    { "id": "paternal_brother", "gender": "male" },
+    { "id": "paternal_sister", "gender": "female" },
+    { "id": "maternal_brother", "gender": "male" },
+    { "id": "maternal_sister", "gender": "female" },
+    { "id": "son_of_brother", "gender": "male" },
+    { "id": "son_of_paternal_brother", "gender": "male" },
+    { "id": "uncle", "gender": "male" },
+    { "id": "paternal_uncle", "gender": "male" },
+    { "id": "son_of_uncle", "gender": "male" },
+    { "id": "son_of_paternal_uncle", "gender": "male" }
+  ],
+  "errorCodes": {
+    "gender": ["required", "invalid", "has_husband", "has_wife", "has_both_spouses"],
+    "estate": ["invalid", "not_positive", "too_large", "decimals"],
+    "relationship": [
+      "required", "invalid", "gender_locked", "second_father", "second_mother", "second_husband",
+      "second_grandfather", "second_paternal_grandmother", "second_maternal_grandmother", "fifth_wife", "husband_of_male", "wife_of_female"
+    ],
+    "name": ["invalid", "too_long"],
+    "heirs": ["limit"],
+    "case": ["deceased_required"],
+    "relatives": ["required", "invalid"],
+    "same_as": ["gender_mismatch", "not_alive", "already_linked"],
+    "death": ["order_required", "simultaneous", "unknown", "order_conflict", "limit", "already_deceased"]
+  },
+  "heir": {
+    "id": "row id",
+    "relationship": "one of relationships[].id",
+    "gender": "male | female (derived by server)",
+    "name": "string | null",
+    "same_as": "earliest row id (later layers only)",
+    "edit_options": "HeirOptions — computed without this heir; same shape as heir_options"
+  },
+  "relativeQuestion": {
+    "id": "question id (person id for relative questions)",
+    "kind": ["relative", "shared_father"],
+    "person": "earliest row id",
+    "options": "relationship ids plus none; yes/no for shared_father",
+    "suggested": "one of options"
+  },
+  "saveErrors": ["school_required"],
+  "previewStatuses": ["available", "unavailable", "not_ready", "choose_school"],
+  "previewAgreement": ["all"],
+  "previewReasons": ["school_not_supported", "malikiyya_disputed", "invalid_family", "manasikhat_unsupported"]
+}

@@ -1,0 +1,52 @@
+{% load i18n %}<!doctype html>
+<html lang="{{ locale }}" dir="{{ direction }}">
+<head><meta charset="utf-8"><title>{% translate "Draft inheritance report" %}</title>
+<style>
+@page { size: A4; margin: 32mm 15mm 20mm; }
+body { font-family: "Noto Naskh Arabic", "Noto Sans", sans-serif; font-size: 10pt; color: #18212b; }
+.disclaimer { position: fixed; top: -25mm; left: 0; right: 0; border: 2px solid #475569; padding: 3mm; text-align: center; font-weight: bold; font-size: 13pt; }
+.watermark { position: fixed; top: 105mm; left: 20mm; transform: rotate(-35deg); font-size: 90pt; color: rgba(90,100,115,.10); z-index: -1; }
+h1 { font-size: 20pt; } h2 { font-size: 14pt; break-after: avoid; }
+table { width: 100%; border-collapse: collapse; margin: 3mm 0 6mm; table-layout: auto; }
+th, td { border: 1px solid #94a3b8; padding: 1.5mm; overflow-wrap: anywhere; }
+thead { display: table-header-group; } tr { break-inside: avoid; }
+bdi { direction: ltr; } .proof { break-inside: avoid; }
+.combination { margin: 2mm 0; break-inside: avoid; } .combination dt, .combination dd { display: inline; margin: 0; } .combination dt { font-weight: bold; } .combination dd { margin-inline-end: 5mm; } .combination dt::after { content: ": "; }
+</style></head><body>
+<div class="disclaimer">{% translate "Draft / not certified" %}</div>
+<div class="watermark" dir="ltr">DRAFT</div>
+<h1>{% translate "Draft inheritance report" %}</h1>
+<p>{% translate "Generation date" %}: <bdi>{{ generated|date:"Y-m-d H:i" }}</bdi></p>
+<p>{% translate "School" %}: {{ school }}</p>
+<h2>{% translate "Deceased and estate" %}</h2>
+<p><bdi>{{ deceased }}</bdi>{% if with_amount %} · {% translate "Estate" %}: <bdi>{{ estate }}</bdi>{% endif %}</p>
+<h2>{% translate "Heirs and shares" %}</h2>
+<table><thead><tr><th>{% translate "Name" %}</th><th>{% translate "Relationship" %}</th><th>{% translate "Fraction" %}</th><th>{% translate "Percentage" %}</th><th>{% translate "Kirat" %}</th>{% if with_amount %}<th>{% translate "Amount" %}</th>{% endif %}</tr></thead><tbody>
+{% for row in shares %}<tr><td><bdi>{{ row.name }}</bdi></td><td>{{ row.relationship }}</td>
+{% if row.blocked %}<td colspan="{% if with_amount %}4{% else %}3{% endif %}">{% translate "Blocked" %}</td>{% else %}<td><bdi>{{ row.fraction }}</bdi></td><td><bdi>{{ row.percent }}%</bdi></td><td><bdi>{{ row.kirat }}</bdi></td>{% if with_amount %}<td><bdi>{{ row.amount|default_if_none:"—" }}</bdi></td>{% endif %}{% endif %}</tr>{% endfor %}
+</tbody></table>
+{% if tables %}<h2>{% translate "Scholars' table" %}</h2>{% endif %}
+{% for table in tables %}
+{% if table.order %}<h3>{% translate "Death" %} <bdi>{{ table.order }}</bdi> <bdi>{{ table.deceased }}</bdi></h3>{% endif %}
+<table><thead><tr><th>{% translate "Name" %}</th><th>{% translate "Fraction" %}</th>{% for column in table.columns %}<th>{{ column.label }}<br><bdi>{{ column.total }}</bdi></th>{% endfor %}</tr></thead><tbody>
+{% for row in table.rows %}<tr><td><bdi>{{ row.name }}</bdi></td>{% if row.group_span %}<td rowspan="{{ row.group_span }}">{% if row.blocked %}{% translate "Blocked" %}{% else %}<bdi>{{ row.prescribed_fraction }}</bdi>{% endif %}</td>{% endif %}{% for cell in row.cells %}{% if cell.span %}<td rowspan="{{ cell.span }}"><bdi>{{ cell.value }}</bdi></td>{% endif %}{% endfor %}</tr>{% endfor %}
+{% if table.unallocated %}<tr><td colspan="2">{% translate "Unallocated remainder" %}</td>{% for value in table.unallocated_cells %}<td><bdi>{{ value }}</bdi></td>{% endfor %}</tr>{% endif %}
+</tbody></table>
+{% if table.order > 1 %}<dl class="combination">
+<dt>{% translate "Deceased's parts" %} (p)</dt><dd><bdi>{% if table.p == 0 %}{% translate "No share" %}{% else %}{{ table.p }}{% endif %}</bdi></dd>
+<dt>{% translate "GCD" %}</dt><dd><bdi>{{ table.gcd }}</bdi></dd>
+<dt>{% translate "Relation" %}</dt><dd>{{ table.relation_label }}</dd>
+<dt>{% translate "Old jami'a multiplier" %}</dt><dd><bdi>{{ table.old_multiplier }}</bdi></dd>
+<dt>{% translate "New problem multiplier" %}</dt><dd><bdi>{{ table.new_multiplier }}</bdi></dd>
+<dt>{% translate "New jami'a" %}</dt><dd><bdi>{{ table.jamia }}</bdi></dd>
+</dl>{% elif table.order == 1 %}<p>{% translate "Starting jami'a" %}: <bdi>{{ table.jamia }}</bdi></p>{% endif %}
+{% if table.order > 1 %}
+<table><thead><tr><th>{% translate "Name" %}</th><th>{% translate "Combined parts" %} / <bdi>{{ table.jamia }}</bdi></th></tr></thead><tbody>{% for part in table.parts %}<tr><td><bdi>{{ part.name }}</bdi></td><td><bdi>{{ part.value }}</bdi></td></tr>{% endfor %}{% if table.unallocated %}<tr><td>{% translate "Unallocated remainder" %}</td><td><bdi>{{ table.unallocated }}</bdi></td></tr>{% endif %}</tbody></table>{% endif %}
+{% endfor %}
+<h2>{% translate "Proof summary" %}</h2>
+{% for layer in evidence %}{% if layer.order %}<h3>{% translate "Death" %} <bdi>{{ layer.order }}</bdi> <bdi>{{ layer.deceased }}</bdi></h3>{% endif %}
+{% for heir in layer.heirs %}<div class="proof"><h4><bdi>{{ heir.name }}</bdi></h4><ul>
+{% for kind, label in heir.labels.items %}{% if label %}<li>{{ label }}</li>{% endif %}{% endfor %}
+</ul></div>{% endfor %}{% for rule in layer.school_rules %}<p>{{ rule }}</p>{% endfor %}{% endfor %}
+{% if unallocated %}<h2>{% translate "Unallocated remainder" %}</h2><p><bdi>{{ unallocated }}</bdi></p>{% endif %}
+</body></html>

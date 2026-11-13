@@ -640,10 +640,10 @@ msgstr ""
 
 #: .\calc\templates\calc\about.html:21
 msgid ""
-"Mawareeth 2.0 is the latest release for our website and it was started in "
+"Mawareeth is the latest release for our website and it was started in "
 "2020."
 msgstr ""
-"Mawareeth 2.0 is the latest release for our website and it was started in "
+"Mawareeth is the latest release for our website and it was started in "
 "2020."
 
 #: .\calc\templates\calc\about.html:24
@@ -677,10 +677,6 @@ msgstr ""
 #: .\calc\templates\calc\about.html:35
 msgid "GitHub Repository."
 msgstr "GitHub Repository."
-
-#: .\calc\templates\calc\base.html:38 .\calc\templates\calc\base.html:41
-msgid "Mawareeth 2.0"
-msgstr "Mawareeth 2.0"
 
 #: .\calc\templates\calc\base.html:49 .\calc\templates\calc\home.html:6
 msgid "Home"
@@ -736,6 +732,10 @@ msgstr "Delete"
 #: .\calc\templates\calc\heir_confirm_delete.html:19
 msgid "Are you sure you want to delete"
 msgstr "Are you sure you want to delete"
+
+#: .\calc\templates\calc\calculation_confirm_delete.html:21
+msgid "Cancel"
+msgstr "Cancel"
 
 #: .\calc\templates\calc\deceased_confirm_delete.html:19
 msgid "All heirs will be deleted"
@@ -1023,8 +1023,8 @@ msgid "New imporved and interactive user interface"
 msgstr "New imporved and interactive user interface"
 
 #: .\calc\templates\calc\home.html:54
-msgid "Welcome to Mawareeth 2.0"
-msgstr "Welcome to Mawareeth 2.0"
+msgid "Welcome to Mawareeth"
+msgstr "Welcome to Mawareeth"
 
 #: .\calc\templates\calc\home.html:55
 msgid ""
@@ -1126,8 +1126,8 @@ msgid "blocked"
 msgstr "blocked"
 
 #: .\calc\templates\calc\privacy.html:5 .\calc\templates\calc\privacy.html:11
-msgid "Privacy Policy for Mawareeth 2.0"
-msgstr "Privacy Policy for Mawareeth 2.0"
+msgid "Privacy Policy for Mawareeth"
+msgstr "Privacy Policy for Mawareeth"
 
 #: .\calc\templates\calc\privacy.html:13
 msgid ""
@@ -1556,10 +1556,10 @@ msgstr "Welcome to Mawareeth.com!"
 #: .\calc\templates\calc\terms.html:15
 msgid ""
 "These terms and conditions outline the rules and regulations for the use of "
-"Mawareeth 2.0's Website, located at https://www.mawareeth.com/."
+"Mawareeth's Website, located at https://www.mawareeth.com/."
 msgstr ""
 "These terms and conditions outline the rules and regulations for the use of "
-"Mawareeth 2.0's Website, located at https://www.mawareeth.com/."
+"Mawareeth's Website, located at https://www.mawareeth.com/."
 
 #: .\calc\templates\calc\terms.html:17
 msgid ""
@@ -1608,10 +1608,10 @@ msgstr "Cookies"
 #: .\calc\templates\calc\terms.html:23
 msgid ""
 "We employ the use of cookies. By accessing Mawareeth.com, you agreed to use "
-"cookies in agreement with the Mawareeth 2.0's Privacy Policy."
+"cookies in agreement with the Mawareeth's Privacy Policy."
 msgstr ""
 "We employ the use of cookies. By accessing Mawareeth.com, you agreed to use "
-"cookies in agreement with the Mawareeth 2.0's Privacy Policy."
+"cookies in agreement with the Mawareeth's Privacy Policy."
 
 #: .\calc\templates\calc\terms.html:25
 msgid ""
@@ -1631,13 +1631,13 @@ msgstr "License"
 
 #: .\calc\templates\calc\terms.html:29
 msgid ""
-"Unless otherwise stated, Mawareeth 2.0 and/or its licensors own the "
+"Unless otherwise stated, Mawareeth and/or its licensors own the "
 "intellectual property rights for all material on Mawareeth.com. All "
 "intellectual property rights are reserved. You may access this from "
 "Mawareeth.com for your own personal use subjected to restrictions set in "
 "these terms and conditions."
 msgstr ""
-"Unless otherwise stated, Mawareeth 2.0 and/or its licensors own the "
+"Unless otherwise stated, Mawareeth and/or its licensors own the "
 "intellectual property rights for all material on Mawareeth.com. All "
 "intellectual property rights are reserved. You may access this from "
 "Mawareeth.com for your own personal use subjected to restrictions set in "
@@ -1670,32 +1670,32 @@ msgstr "This Agreement shall begin on the date hereof."
 #: .\calc\templates\calc\terms.html:41
 msgid ""
 "Parts of this website offer an opportunity for users to post and exchange "
-"opinions and information in certain areas of the website. Mawareeth 2.0 does "
+"opinions and information in certain areas of the website. Mawareeth does "
 "not filter, edit, publish or review Comments prior to their presence on the "
-"website. Comments do not reflect the views and opinions of Mawareeth 2.0,its "
+"website. Comments do not reflect the views and opinions of Mawareeth,its "
 "agents and/or affiliates. Comments reflect the views and opinions of the "
 "person who post their views and opinions. To the extent permitted by "
-"applicable laws, Mawareeth 2.0 shall not be liable for the Comments or for "
+"applicable laws, Mawareeth shall not be liable for the Comments or for "
 "any liability, damages or expenses caused and/or suffered as a result of any "
 "use of and/or posting of and/or appearance of the Comments on this website."
 msgstr ""
 "Parts of this website offer an opportunity for users to post and exchange "
-"opinions and information in certain areas of the website. Mawareeth 2.0 does "
+"opinions and information in certain areas of the website. Mawareeth does "
 "not filter, edit, publish or review Comments prior to their presence on the "
-"website. Comments do not reflect the views and opinions of Mawareeth 2.0,its "
+"website. Comments do not reflect the views and opinions of Mawareeth,its "
 "agents and/or affiliates. Comments reflect the views and opinions of the "
 "person who post their views and opinions. To the extent permitted by "
-"applicable laws, Mawareeth 2.0 shall not be liable for the Comments or for "
+"applicable laws, Mawareeth shall not be liable for the Comments or for "
 "any liability, damages or expenses caused and/or suffered as a result of any "
 "use of and/or posting of and/or appearance of the Comments on this website."
 
 #: .\calc\templates\calc\terms.html:43
 msgid ""
-"Mawareeth 2.0 reserves the right to monitor all Comments and to remove any "
+"Mawareeth reserves the right to monitor all Comments and to remove any "
 "Comments which can be considered inappropriate, offensive or causes breach "
 "of these Terms and Conditions."
 msgstr ""
-"Mawareeth 2.0 reserves the right to monitor all Comments and to remove any "
+"Mawareeth reserves the right to monitor all Comments and to remove any "
 "Comments which can be considered inappropriate, offensive or causes breach "
 "of these Terms and Conditions."
 
@@ -1737,11 +1737,11 @@ msgstr ""
 
 #: .\calc\templates\calc\terms.html:54
 msgid ""
-"You hereby grant Mawareeth 2.0 a non-exclusive license to use, reproduce, "
+"You hereby grant Mawareeth a non-exclusive license to use, reproduce, "
 "edit and authorize others to use, reproduce and edit any of your Comments in "
 "any and all forms, formats or media."
 msgstr ""
-"You hereby grant Mawareeth 2.0 a non-exclusive license to use, reproduce, "
+"You hereby grant Mawareeth a non-exclusive license to use, reproduce, "
 "edit and authorize others to use, reproduce and edit any of your Comments in "
 "any and all forms, formats or media."
 
@@ -1843,14 +1843,14 @@ msgid ""
 "(a) the link would not make us look unfavorably to ourselves or to our "
 "accredited businesses; (b) the organization does not have any negative "
 "records with us; (c) the benefit to us from the visibility of the hyperlink "
-"compensates the absence of Mawareeth 2.0; and (d) the link is in the context "
+"compensates the absence of Mawareeth; and (d) the link is in the context "
 "of general resource information."
 msgstr ""
 "We will approve link requests from these organizations if we decide that: "
 "(a) the link would not make us look unfavorably to ourselves or to our "
 "accredited businesses; (b) the organization does not have any negative "
 "records with us; (c) the benefit to us from the visibility of the hyperlink "
-"compensates the absence of Mawareeth 2.0; and (d) the link is in the context "
+"compensates the absence of Mawareeth; and (d) the link is in the context "
 "of general resource information."
 
 #: .\calc\templates\calc\terms.html:84
@@ -1869,14 +1869,14 @@ msgstr ""
 msgid ""
 "If you are one of the organizations listed in paragraph 2 above and are "
 "interested in linking to our website, you must inform us by sending an e-"
-"mail to Mawareeth 2.0. Please include your name, your organization name, "
+"mail to Mawareeth. Please include your name, your organization name, "
 "contact information as well as the URL of your site, a list of any URLs from "
 "which you intend to link to our Website, and a list of the URLs on our site "
 "to which you would like to link. Wait 2-3 weeks for a response."
 msgstr ""
 "If you are one of the organizations listed in paragraph 2 above and are "
 "interested in linking to our website, you must inform us by sending an e-"
-"mail to Mawareeth 2.0. Please include your name, your organization name, "
+"mail to Mawareeth. Please include your name, your organization name, "
 "contact information as well as the URL of your site, a list of any URLs from "
 "which you intend to link to our Website, and a list of the URLs on our site "
 "to which you would like to link. Wait 2-3 weeks for a response."
@@ -1903,10 +1903,10 @@ msgstr ""
 
 #: .\calc\templates\calc\terms.html:96
 msgid ""
-"No use of Mawareeth 2.0's logo or other artwork will be allowed for linking "
+"No use of Mawareeth's logo or other artwork will be allowed for linking "
 "absent a trademark license agreement."
 msgstr ""
-"No use of Mawareeth 2.0's logo or other artwork will be allowed for linking "
+"No use of Mawareeth's logo or other artwork will be allowed for linking "
 "absent a trademark license agreement."
 
 #: .\calc\templates\calc\terms.html:98
@@ -2150,8 +2150,8 @@ msgid "To initiate the password reset process for your"
 msgstr "To initiate the password reset process for your"
 
 #: .\calc\templates\registration\password_reset_email.html:6
-msgid "Mawareeth 2.0 account,"
-msgstr "Mawareeth 2.0 account,"
+msgid "Mawareeth account,"
+msgstr "Mawareeth account,"
 
 #: .\calc\templates\registration\password_reset_email.html:7
 msgid "click the link below:"
@@ -2170,8 +2170,8 @@ msgid "Sincerely,"
 msgstr "Sincerely,"
 
 #: .\calc\templates\registration\password_reset_email.html:14
-msgid "The Mawareeth 2.0 team,"
-msgstr "The Mawareeth 2.0 team,"
+msgid "The Mawareeth team,"
+msgstr "The Mawareeth team,"
 
 #: .\calc\templates\registration\password_reset_form.html:12
 msgid "Forgot password"
@@ -2275,25 +2275,29 @@ msgid "Your account has been updated!"
 msgstr "Your account has been updated!"
 
 msgid "Page not found"
-msgstr ""
+msgstr "Page not found"
 
 msgid "This page doesn't exist, or you don't have access to it."
-msgstr ""
+msgstr "This page doesn't exist, or you don't have access to it."
 
 msgid "Go to my calculations"
-msgstr ""
+msgstr "Go to my calculations"
 
 msgid "Go to the home page"
-msgstr ""
+msgstr "Go to the home page"
 
 msgid "Something went wrong"
-msgstr ""
+msgstr "Something went wrong"
 
 msgid "We couldn't complete your request. Please try again in a moment."
-msgstr ""
+msgstr "We couldn't complete your request. Please try again in a moment."
 
 msgid "Your account doesn't have access to this page. To proceed, please login with an account that has access."
-msgstr ""
+msgstr "Your account doesn't have access to this page. To proceed, please login with an account that has access."
+
+#: calc/templates/calc/home.html
+msgid "Start a case without an account"
+msgstr "Start a case without an account"
 
 #: calc/models.py
 msgid "Grandfather shares the estate with the full and paternal siblings and takes the best of his options"
@@ -2347,5 +2351,534 @@ msgstr "Paternal sister/s share the estate with the grandfather"
 msgid "Paternal sister/s are blocked by sisters"
 msgstr "Paternal sister/s are blocked by sisters"
 
+#: calc/schools.py
+msgid "This school of law is not supported yet"
+msgstr "This school of law is not supported yet"
+
+#: calc/schools.py
+msgid "The Malikiyya case is disputed within the Maliki school, so no result is given"
+msgstr "The Malikiyya case is disputed within the Maliki school, so no result is given"
+
+#: calc/schools.py
+msgid "Mushtaraka: the full siblings share the maternal siblings' third equally"
+msgstr "Mushtaraka: the full siblings share the maternal siblings' third equally"
+
+#: calc/proof.py
+msgid "Fixed share"
+msgstr "Fixed share"
+
+#: calc/proof.py
+msgid "Fixed share plus the remainder"
+msgstr "Fixed share plus the remainder"
+
+#: calc/proof.py
+msgid "Residuary heir, who takes what is left"
+msgstr "Residuary heir, who takes what is left"
+
+#: calc/proof.py
+msgid "Blocked from inheriting"
+msgstr "Blocked from inheriting"
+
+#: calc/proof.py
+msgid "The grandfather takes the best of his options with the siblings"
+msgstr "The grandfather takes the best of his options with the siblings"
+
+#: calc/proof.py
+msgid "Shares the maternal siblings' third equally"
+msgstr "Shares the maternal siblings' third equally"
+
+#: calc/proof.py
+msgid "The grandfather and the sister pool their shares and split them two to one"
+msgstr "The grandfather and the sister pool their shares and split them two to one"
+
+#: calc/proof.py
+msgid "There is a male descendant"
+msgstr "There is a male descendant"
+
+#: calc/proof.py
+msgid "There is a female descendant and no male descendant"
+msgstr "There is a female descendant and no male descendant"
+
+#: calc/proof.py
+msgid "There is a descendant"
+msgstr "There is a descendant"
+
+#: calc/proof.py
+msgid "There is no descendant"
+msgstr "There is no descendant"
+
+#: calc/proof.py
+msgid "There are two or more siblings"
+msgstr "There are two or more siblings"
+
+#: calc/proof.py
+msgid "There is no descendant and fewer than two siblings"
+msgstr "There is no descendant and fewer than two siblings"
+
+#: calc/proof.py
+msgid "A spouse and the father are present, so she takes a third of the remainder"
+msgstr "A spouse and the father are present, so she takes a third of the remainder"
+
+#: calc/proof.py
+msgid "Together with a son"
+msgstr "Together with a son"
+
+#: calc/proof.py
+msgid "Together with a son of a son"
+msgstr "Together with a son of a son"
+
+#: calc/proof.py
+msgid "Together with one daughter"
+msgstr "Together with one daughter"
+
+#: calc/proof.py
+msgid "Together with a full brother"
+msgstr "Together with a full brother"
+
+#: calc/proof.py
+msgid "Together with a paternal brother"
+msgstr "Together with a paternal brother"
+
+#: calc/proof.py
+msgid "Together with the grandfather"
+msgstr "Together with the grandfather"
+
+#: calc/proof.py
+msgid "Together with full or paternal siblings"
+msgstr "Together with full or paternal siblings"
+
+#: calc/proof.py
+msgid "Together with one full sister"
+msgstr "Together with one full sister"
+
+#: calc/proof.py
+msgid "Maternal brothers and sisters share one third"
+msgstr "Maternal brothers and sisters share one third"
+
+#: calc/proof.py
+msgid "There is no mother"
+msgstr "There is no mother"
+
+#: calc/proof.py
+msgid "Only one of this kind of heir"
+msgstr "Only one of this kind of heir"
+
+#: calc/proof.py
+msgid "Several of this kind of heir share one fixed share"
+msgstr "Several of this kind of heir share one fixed share"
+
+#: calc/proof.py
+msgid "The fixed shares use up the whole estate"
+msgstr "The fixed shares use up the whole estate"
+
+#: calc/proof.py
+msgid "The full siblings take all that is left"
+msgstr "The full siblings take all that is left"
+
+#: calc/proof.py
+msgid "Blocked by a male descendant"
+msgstr "Blocked by a male descendant"
+
+#: calc/proof.py
+msgid "Blocked by a descendant"
+msgstr "Blocked by a descendant"
+
+#: calc/proof.py
+msgid "Blocked by the father"
+msgstr "Blocked by the father"
+
+#: calc/proof.py
+msgid "Blocked by the grandfather"
+msgstr "Blocked by the grandfather"
+
+#: calc/proof.py
+msgid "Blocked by the mother"
+msgstr "Blocked by the mother"
+
+#: calc/proof.py
+msgid "Blocked by a son"
+msgstr "Blocked by a son"
+
+#: calc/proof.py
+msgid "Blocked by two or more daughters"
+msgstr "Blocked by two or more daughters"
+
+#: calc/proof.py
+msgid "Blocked by a full brother"
+msgstr "Blocked by a full brother"
+
+#: calc/proof.py
+msgid "Blocked by the full sisters"
+msgstr "Blocked by the full sisters"
+
+#: calc/proof.py
+msgid "Blocked by a paternal brother"
+msgstr "Blocked by a paternal brother"
+
+#: calc/proof.py
+msgid "Blocked by a paternal sister"
+msgstr "Blocked by a paternal sister"
+
+#: calc/proof.py
+msgid "Blocked by a son of a full brother"
+msgstr "Blocked by a son of a full brother"
+
+#: calc/proof.py
+msgid "Blocked by a son of a paternal brother"
+msgstr "Blocked by a son of a paternal brother"
+
+#: calc/proof.py
+msgid "Blocked by a full uncle"
+msgstr "Blocked by a full uncle"
+
+#: calc/proof.py
+msgid "Blocked by a paternal uncle"
+msgstr "Blocked by a paternal uncle"
+
+#: calc/proof.py
+msgid "Blocked by a son of a full uncle"
+msgstr "Blocked by a son of a full uncle"
+
+#: calc/proof.py
+msgid "Hanafi school: the grandfather blocks the full and paternal siblings"
+msgstr "Hanafi school: the grandfather blocks the full and paternal siblings"
+
+#: calc/proof.py
+msgid "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings"
+msgstr "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings"
+
+#: calc/proof.py
+msgid "Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third"
+msgstr "Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third"
+
+#: calc/proof.py
+msgid "Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third"
+msgstr "Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third"
+
+#: calc/proof.py
+msgid "The remainder is returned to the heirs in proportion to their shares"
+msgstr "The remainder is returned to the heirs in proportion to their shares"
+
+#: calc/proof.py
+msgid "Later Maliki and Shafi'i scholars: the remainder is returned to the heirs other than a spouse, in proportion to their shares"
+msgstr "Later Maliki and Shafi'i scholars: the remainder is returned to the heirs other than a spouse, in proportion to their shares"
+
+#: calc/proof.py
+msgid "Sharing the estate with the siblings as one more brother"
+msgstr "Sharing the estate with the siblings as one more brother"
+
+#: calc/proof.py
+msgid "A third of what is left after the fixed shares"
+msgstr "A third of what is left after the fixed shares"
+
+#: calc/proof.py
+msgid "A sixth of the whole estate"
+msgstr "A sixth of the whole estate"
+
+#: calc/proof.py
+msgid "The common base of the fixed shares"
+msgstr "The common base of the fixed shares"
+
+#: calc/proof.py
+msgid "Awl: the base is raised because the fixed shares exceed the estate"
+msgstr "Awl: the base is raised because the fixed shares exceed the estate"
+
+#: calc/proof.py
+msgid "Radd: the shares are recalculated so that the remainder returns to the heirs"
+msgstr "Radd: the shares are recalculated so that the remainder returns to the heirs"
+
+#: calc/proof.py
+msgid "Correction: the base is multiplied so that every heir gets whole parts"
+msgstr "Correction: the base is multiplied so that every heir gets whole parts"
+
+#: calc/proof.py
+msgid "The part of the estate that no heir takes"
+msgstr "The part of the estate that no heir takes"
+
+#: calc/proof.py
+msgid "Quran 4:11 (An-Nisa)"
+msgstr "Quran 4:11 (An-Nisa)"
+
+#: calc/proof.py
+msgid "Quran 4:12 (An-Nisa)"
+msgstr "Quran 4:12 (An-Nisa)"
+
+#: calc/proof.py
+msgid "Quran 4:176 (An-Nisa)"
+msgstr "Quran 4:176 (An-Nisa)"
+
+#: calc/models.py
+msgid "Paternal grandmother is blocked by father"
+msgstr "Paternal grandmother is blocked by father"
+
+#: calc/models.py
+msgid "Maternal grandmother is blocked by mother"
+msgstr "Maternal grandmother is blocked by mother"
+
+#: calc/models.py
+msgid "Maternal grandmother gets 1/6 if no mother"
+msgstr "Maternal grandmother gets 1/6 if no mother"
+
+#: calc/proof.py
+msgid "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
+msgstr "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
+
+#: calc/proof.py
+msgid "Hanbali school: the paternal grandmother inherits although her son, the father, is alive"
+msgstr "Hanbali school: the paternal grandmother inherits although her son, the father, is alive"
+
 #~ msgid "Son of paternal brother"
 #~ msgstr "Son of paternal brother"
+
+#: calc/schools.py
+msgid "This successive inheritance case is not supported"
+msgstr "This successive inheritance case is not supported"
+
+#: api/preview.py
+msgid "Remainder"
+msgstr "Remainder"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Draft inheritance report"
+msgstr "Draft inheritance report"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Draft / not certified"
+msgstr "Draft / not certified"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Generation date"
+msgstr "Generation date"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "School"
+msgstr "School"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Deceased and estate"
+msgstr "Deceased and estate"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Estate"
+msgstr "Estate"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Heirs and shares"
+msgstr "Heirs and shares"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Relationship"
+msgstr "Relationship"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Fraction"
+msgstr "Fraction"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Percentage"
+msgstr "Percentage"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Kirat"
+msgstr "Kirat"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Blocked"
+msgstr "Blocked"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Scholars' table"
+msgstr "Scholars' table"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Death"
+msgstr "Death"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Unallocated remainder"
+msgstr "Unallocated remainder"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Deceased's parts"
+msgstr "Deceased's parts"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Multipliers"
+msgstr "Multipliers"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Combined base"
+msgstr "Combined base"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Combined parts"
+msgstr "Combined parts"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Proof summary"
+msgstr "Proof summary"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: father"
+msgstr "Father"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: mother"
+msgstr "Mother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: husband"
+msgstr "Husband"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: wife"
+msgstr "Wife"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son"
+msgstr "Son"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: daughter"
+msgstr "Daughter"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_son"
+msgstr "Son's son"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: daughter_of_son"
+msgstr "Son's daughter"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: grandfather"
+msgstr "Grandfather"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_grandmother"
+msgstr "Paternal grandmother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: maternal_grandmother"
+msgstr "Maternal grandmother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: brother"
+msgstr "Full brother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: sister"
+msgstr "Full sister"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_brother"
+msgstr "Half-brother (same father)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_sister"
+msgstr "Half-sister (same father)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: maternal_brother"
+msgstr "Half-brother (same mother)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: maternal_sister"
+msgstr "Half-sister (same mother)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_brother"
+msgstr "Full brother's son"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_paternal_brother"
+msgstr "Half-brother's son (same father)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: uncle"
+msgstr "Paternal uncle (father's full brother)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: paternal_uncle"
+msgstr "Paternal uncle (father's half-brother)"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_uncle"
+msgstr "Son of father's full brother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report relationship: son_of_paternal_uncle"
+msgstr "Son of father's half-brother"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: hanafi"
+msgstr "Hanafi"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: maliki"
+msgstr "Maliki"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: shafii"
+msgstr "Shafii"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: hanbali"
+msgstr "Hanbali"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Report school: jafari"
+msgstr "Jafari"
+
+#: reports/report.py
+msgid "Same result in all four Sunni schools"
+msgstr "Same result in all four Sunni schools"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Equality"
+msgstr "Equality"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Common factor"
+msgstr "Common factor"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Coprime"
+msgstr "Coprime"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "No share"
+msgstr "No share"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "GCD"
+msgstr "GCD"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Old jami'a multiplier"
+msgstr "Old jami'a multiplier"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "New problem multiplier"
+msgstr "New problem multiplier"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "New jami'a"
+msgstr "New jami'a"
+
+#: reports/templates/reports/draft.html reports/report.py
+msgid "Starting jami'a"
+msgstr "Starting jami'a"
+
+#: calc/templates/calc/results.html calc/templates/calc/new_results.html
+msgid "These shares follow the Hanbali school of law"
+msgstr "These shares follow the Hanbali school of law"
+
+
+msgid "You have been invited to view a draft case"
+msgstr "You have been invited to view a draft case"
+
+
+#, python-format
+msgid "Sign in or register to accept this invitation. The invitation expires in 30 days.\n\n%(link)s"
+msgstr "Sign in or register to accept this invitation. The invitation expires in 30 days.\n\n%(link)s"

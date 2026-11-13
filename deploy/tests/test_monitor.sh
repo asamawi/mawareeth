@@ -18,8 +18,10 @@ scrape="$root/deploy/monitoring/prometheus-scrape.yml"
 route="$root/deploy/monitoring/alertmanager-route.yml"
 bash -n "$monitor_src" "$root/deploy/backup.sh" "$root/deploy/runtime.sh" "$0"
 ! grep -Eq '\|\|[[:space:]]*(true|:)([[:space:]]|$|;)' "$monitor_src" || fail 'monitor.sh must not mask failures with || true'
-! grep -Eq 'acquire_deploy_lock|deploy_lock_file|journal_file|route_file|slots_dir|write_snapshot|routes_dir|acquire_backup_lock|backup_lock_file|docker|compose' "$monitor_src" \
-  || fail 'monitor.sh must not take the deploy or backup locks or touch slots, routes, the journal, snapshots, containers, or the database'
+# Only the marked clear-sessions block may reach a container, and only through the active route.
+! sed '/^# --- clear-sessions begin/,/^# --- clear-sessions end/d' "$monitor_src" \
+  | grep -Eq 'acquire_deploy_lock|deploy_lock_file|journal_file|route_file|slots_dir|write_snapshot|routes_dir|acquire_backup_lock|backup_lock_file|docker|compose' \
+  || fail 'monitor.sh must not take the deploy or backup locks or touch slots, routes, the journal, snapshots, containers, or the database outside clear-sessions'
 ! grep -Eiq 'authkey|auth-key|SMTP_PASS|smtp_auth_password' "$monitor_src" "$alerts" "$scrape" "$route" || fail 'no Tailscale or SMTP secret may appear in the repository'
 ! grep -Eq '0\.0\.0\.0|\[::\]' "$monitor_src" || fail 'monitor.sh must never mention a wildcard listen address'
 # No real Better Stack heartbeat URL (it works as a bearer secret) anywhere in
@@ -971,6 +973,15 @@ lacks "$token_service" 'docker'; lacks "$token_service" "$token_value"
 need "$service" "Environment=MAWAREETH_ORIGIN_TLS_DIR=$tls"
 lacks "$service" 'SuccessExitStatus'; lacks "$token_service" 'SuccessExitStatus'
 need "$S/calls.log" 'systemctl enable --now mawareeth-github-token-check.timer'
+# The daily session cleanup: its timer is enabled and its service runs clear-sessions with Docker.
+sessions_timer="$units/mawareeth-clear-sessions.timer"; sessions_service="$units/mawareeth-clear-sessions.service"
+for line in 'OnCalendar=daily' 'RandomizedDelaySec=1h' 'Persistent=true' 'Unit=mawareeth-clear-sessions.service' 'WantedBy=timers.target'; do need "$sessions_timer" "$line"; done
+for line in 'Type=oneshot' 'Requires=docker.service' "Environment=MAWAREETH_RUNTIME_DIR=$state" 'Environment=MAWAREETH_CLEAR_SESSIONS_TIMEOUT=300'   "ExecStart=/bin/bash $bundle/deploy/monitor.sh clear-sessions" 'TimeoutStartSec=420' 'Restart=on-failure' 'RestartSec=900'   'StartLimitIntervalSec=7200' 'StartLimitBurst=3'; do need "$sessions_service" "$line"; done
+# The limits belong to [Unit] (before [Service]) and the restart policy to [Service].
+[[ "$(grep -n '^StartLimitBurst=' "$sessions_service" | cut -d: -f1)" -lt "$(grep -n '^\[Service\]' "$sessions_service" | cut -d: -f1)" ]] || fail 'StartLimit lines must be in [Unit]'
+[[ "$(grep -n '^Restart=' "$sessions_service" | cut -d: -f1)" -gt "$(grep -n '^\[Service\]' "$sessions_service" | cut -d: -f1)" ]] || fail 'Restart must be in [Service]'
+lacks "$sessions_service" 'SuccessExitStatus'
+need "$S/calls.log" 'systemctl enable --now mawareeth-clear-sessions.timer'
 [[ "$(grep -c rate_limit "$S/calls.log")" == 1 ]] || fail 'install must run exactly one token check'
 expect_cert cert.pem "$end90" 'install publishes the certificate series'
 expect_metric mawareeth_github_token_usable 1 'install publishes the token series'
@@ -1059,10 +1070,10 @@ for name in $all_rules; do
   [[ -n "$anchor" ]] || fail "$name has no runbook annotation"
   need "$root/deploy/README.md" "<a id=\"$anchor\"></a>"
 done
-[[ "$(grep -c '^ *- alert:' "$alerts")" == 19 ]] || fail 'expected exactly nineteen alert rules'
-[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 19 ]] || fail 'every rule needs a project: mawareeth label'
-[[ "$(grep -c '^ *severity: ' "$alerts")" == 19 ]] || fail 'every rule needs a severity label'
-[[ "$(grep -c '^ *runbook: ' "$alerts")" == 19 ]] || fail 'every rule needs a runbook annotation'
+[[ "$(grep -c '^ *- alert:' "$alerts")" == 21 ]] || fail 'expected exactly twenty-one alert rules'
+[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 21 ]] || fail 'every rule needs a project: mawareeth label'
+[[ "$(grep -c '^ *severity: ' "$alerts")" == 21 ]] || fail 'every rule needs a severity label'
+[[ "$(grep -c '^ *runbook: ' "$alerts")" == 21 ]] || fail 'every rule needs a runbook annotation'
 [[ "$(grep -c '^ *- alert: MawareethOriginCertificateExpiring$' "$alerts")" == 2 ]] || fail 'the certificate alert needs a warning and a critical rule'
 # shellcheck disable=SC2013 # anchors are single words without spaces.
 for anchor in $(grep -o 'README.md#runbook-[a-z]*' "$alerts" | sort -u | cut -d# -f2); do
@@ -1072,11 +1083,11 @@ for text in 'up{job="mawareeth-node"} == 0 or absent(up{job="mawareeth-node"})' 
   '(mawareeth_backup_last_ok_timestamp_seconds{job="mawareeth-node"} - time()) > 300' \
   '(mawareeth_restore_last_pass_timestamp_seconds{job="mawareeth-node"} - time()) > 300' \
   'node_textfile_scrape_error{job="mawareeth-node"} == 1' 'for: 2m' '> 26 * 3600' '> 35 * 86400' '> 75' '> 85' '> 20 * 60' \
-  'absent(mawareeth_monitor_collect_timestamp_seconds{job="mawareeth-node"})' \
+  'expr: absent(mawareeth_monitor_collect_timestamp_seconds{job="mawareeth-node"})' \
   'expr: mawareeth_drill_active_code{job="mawareeth-node"} > 0' '{{ $value | printf "%.0f" }}' \
   '(time() - mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"}) > 92 * 86400' \
   'or (mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"} - time()) > 300' \
-  'or absent(mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"})' \
+  'expr: absent(mawareeth_drill_last_pass_timestamp_seconds{job="mawareeth-node"})' \
   'severity: info' 'mawareeth_backup_last_archives_complete{job="mawareeth-node"} == 0' \
   'and mawareeth_backup_last_result_ok{job="mawareeth-node"} == 1' \
   'or (absent(mawareeth_backup_last_archives_complete{job="mawareeth-node"})' \
@@ -1101,13 +1112,27 @@ for text in 'up{job="mawareeth-node"} == 0 or absent(up{job="mawareeth-node"})' 
   'and (mawareeth_github_token_expiry_timestamp_seconds{job="mawareeth-node"} - time()) < 30 * 86400)' \
   'or absent(mawareeth_github_token_usable{job="mawareeth-node"})' \
   'expr: vector(1)' 'severity: heartbeat'; do need "$alerts" "$text"; done
-# for: delays: HostDown and read-only 2m; disk, inodes, failed units, and the
-# GitHub token 5m (its absent() must not fire on one failed scrape, before
-# HostDown can inhibit it); memory and clock 10m. Backup, restore, collector,
-# drill, certificates, OOM, and the Watchdog fire at once.
-[[ "$(grep -c '^ *for: ' "$alerts")" == 9 ]] || fail 'expected exactly nine for: delays'
+# for: delays: HostDown and read-only 2m; disk, inodes, failed units, the
+# GitHub token, and collector/drill absent-only branches 5m (missing metrics
+# must wait for HostDown to inhibit them); memory and clock 10m. Backup,
+# restore, collector/drill thresholds, certificates, OOM, and Watchdog fire at once.
+[[ "$(grep -c '^ *for: ' "$alerts")" == 11 ]] || fail 'expected exactly eleven for: delays'
 [[ "$(grep -c '^ *for: 2m$' "$alerts")" == 2 ]] || fail 'HostDown and the read-only alert need for: 2m'
-[[ "$(grep -c '^ *for: 5m$' "$alerts")" == 5 ]] || fail 'the disk, inode, failed-unit, and GitHub token alerts need for: 5m'
+[[ "$(grep -c '^ *for: 5m$' "$alerts")" == 7 ]] || fail 'expected seven for: 5m delays'
+for name in MawareethCollectorStale MawareethDrillOverdue; do
+  awk -v name="$name" '
+    /^ *- alert: / { selected = ($3 == name); absent = 0; delay = "" }
+    selected && /^ *expr: absent\(/ { absent = 1 }
+    selected && /^ *for: / { delay = $2 }
+    selected && /^ *labels:/ {
+      count++
+      if (absent) { missing++; if (delay != "5m") bad = 1 }
+      else { threshold++; if (delay != "") bad = 1 }
+      selected = 0
+    }
+    END { exit (bad || count != 2 || missing != 1 || threshold != 1) }
+  ' "$alerts" || fail "$name needs an immediate threshold rule and an absent-only rule with for: 5m"
+done
 sed -n '/alert: MawareethGithubTokenUnhealthy$/,/labels:/p' "$alerts" | grep -q 'for: 5m' || fail 'MawareethGithubTokenUnhealthy needs for: 5m'
 [[ "$(grep -c '^ *for: 10m$' "$alerts")" == 2 ]] || fail 'the memory and clock alerts need for: 10m'
 for name in MawareethOOMKill MawareethOriginCertificateExpiring MawareethWatchdog; do
@@ -1240,9 +1265,22 @@ elif command -v promtool >/dev/null 2>&1; then
     printf '      - {eval_time: 19m, alertname: MawareethCollectorStale, exp_alerts: []}\n'
     printf '      - eval_time: 21m\n        alertname: MawareethCollectorStale\n        exp_alerts:\n'; alert_labels warning MawareethCollectorStale
     printf '  - interval: 1m\n    input_series:\n'
-    printf "      - {series: 'up{%s}', values: '1x5'}\n" "$labels"
+    printf "      - {series: 'up{%s}', values: '1x10'}\n" "$labels"
     printf '    alert_rule_test:\n'
-    printf '      - eval_time: 1m\n        alertname: MawareethCollectorStale\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethCollectorStale, job: mawareeth-node}\n'
+    printf '      - {eval_time: 4m, alertname: MawareethCollectorStale, exp_alerts: []}\n'
+    printf '      - eval_time: 6m\n        alertname: MawareethCollectorStale\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethCollectorStale, job: mawareeth-node}\n'
+    # A short scrape outage (3 failed scrapes) marks both metrics stale; recovery
+    # before 5m resets the pending absent-only alerts.
+    printf '  - interval: 1m\n    input_series:\n'
+    printf "      - {series: 'up{%s}', values: '1 1 1 1 0 0 0 1 1 1 1 1'}\n" "$labels"
+    printf "      - {series: 'mawareeth_monitor_collect_timestamp_seconds{%s}', values: '0+60x3 stale stale stale 360+60x5'}\n" "$labels"
+    printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '0x3 stale stale stale 0x5'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    for eval_time in 5m 7m 9m; do
+      for name in MawareethCollectorStale MawareethDrillOverdue; do
+        printf '      - {eval_time: %s, alertname: %s, exp_alerts: []}\n' "$eval_time" "$name"
+      done
+    done
     # The scrape job is missing on p1: up is absent, HostDown still fires.
     printf '  - interval: 1m\n    input_series:\n'
     printf "      - {series: 'mawareeth_monitor_collect_timestamp_seconds{%s}', values: '0+60x10'}\n" "$labels"
@@ -1302,11 +1340,12 @@ elif command -v promtool >/dev/null 2>&1; then
     printf "      - {series: 'mawareeth_drill_last_pass_timestamp_seconds{%s}', values: '300x5'}\n" "$labels"
     printf '    alert_rule_test:\n'
     printf '      - {eval_time: 1m, alertname: MawareethDrillOverdue, exp_alerts: []}\n'
-    # The drill metric is missing while the host is scraped: Overdue fires.
+    # The drill metric is missing while the host is scraped: Overdue fires after 5m.
     printf '  - interval: 1m\n    input_series:\n'
-    printf "      - {series: 'up{%s}', values: '1x5'}\n" "$labels"
+    printf "      - {series: 'up{%s}', values: '1x10'}\n" "$labels"
     printf '    alert_rule_test:\n'
-    printf '      - eval_time: 1m\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethDrillOverdue, job: mawareeth-node}\n'
+    printf '      - {eval_time: 4m, alertname: MawareethDrillOverdue, exp_alerts: []}\n'
+    printf '      - eval_time: 6m\n        alertname: MawareethDrillOverdue\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethDrillOverdue, job: mawareeth-node}\n'
     # Certificates, 30-day boundary: 5 minutes short of it the warning is silent,
     # and it fires just past it, labelled with the file.
     cert_series='mawareeth_origin_certificate_expiry_timestamp_seconds'
@@ -1522,6 +1561,62 @@ elif command -v promtool >/dev/null 2>&1; then
 else
   missing_tool promtool 'rule unit tests'
 fi
+
+# --- clear-sessions: runs manage.py clearsessions in the active slot's container -----
+mkdir -p "$state/routes"
+route_active="$state/routes/active-slot.caddy"
+write_route() {
+  printf 'reverse_proxy app-%s:8000 {\n\thealth_uri /health/ready/\n\thealth_interval 10s\n\thealth_timeout 3s\n\thealth_status 200\n\theader_down X-Mawareeth-Slot %s\n}\n' "$1" "$1" > "$route_active"
+  chmod 644 "$route_active"; set_meta "$route_active" 0:0:644
+}
+# docker lists "$S/docker-ids" for a ps, and fails a ps or an exec while its marker file exists.
+cat > "$stub/docker" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "docker \$*" >> '$S/calls.log'
+case "\$1" in
+  ps) [[ ! -e '$S/docker-ps-fails' ]] || exit 1; [[ ! -e '$S/docker-ids' ]] || cat '$S/docker-ids' ;;
+  exec) [[ ! -e '$S/docker-exec-fails' ]] || exit 1 ;;
+esac
+EOF
+chmod +x "$stub/docker"
+container=0123456789ab
+
+rm -f "$route_active"
+run "$monitor" clear-sessions; expect_rc 2 'clear-sessions with no persisted route'
+lacks "$S/calls.log" 'docker exec'
+
+write_route green; printf '%s\n' "$container" > "$S/docker-ids"
+run "$monitor" clear-sessions; expect_rc 0 'clear-sessions on the green slot'
+need "$S/calls.log" 'label=com.docker.compose.service=app-green'
+compose_project="$(sed -n 's/^project=//p' "$root/deploy/runtime.sh")"
+[[ -n "$compose_project" ]] || fail 'cannot read the Compose project name from runtime.sh'
+need "$S/calls.log" "label=com.docker.compose.project=$compose_project"
+need "$S/calls.log" "docker exec $container timeout 300 python manage.py clearsessions"
+lacks "$S/calls.log" 'app-blue'
+write_route blue
+run "$monitor" clear-sessions; expect_rc 0 'clear-sessions on the blue slot'
+need "$S/calls.log" 'label=com.docker.compose.service=app-blue'
+
+: > "$S/docker-exec-fails"
+run "$monitor" clear-sessions; expect_rc 1 'clear-sessions when clearsessions fails'
+rm -f "$S/docker-exec-fails"
+: > "$S/docker-ps-fails"
+run "$monitor" clear-sessions; expect_rc 1 'clear-sessions when Docker cannot list containers'
+rm -f "$S/docker-ps-fails"
+: > "$S/docker-ids"
+run "$monitor" clear-sessions; expect_rc 1 'clear-sessions with no running container'
+lacks "$S/calls.log" 'docker exec'
+printf '%s\n%s\n' "$container" abcdef012345 > "$S/docker-ids"
+run "$monitor" clear-sessions; expect_rc 1 'clear-sessions with two containers'
+lacks "$S/calls.log" 'docker exec'
+printf '%s\n' "$container" > "$S/docker-ids"
+run "$monitor" MAWAREETH_CLEAR_SESSIONS_TIMEOUT=0 clear-sessions; expect_rc 2 'clear-sessions with a bad timeout'
+# install refuses a bad timeout before writing any unit.
+rm -f "$units"/mawareeth-*
+run "$monitor" MAWAREETH_CLEAR_SESSIONS_TIMEOUT=0 install; expect_rc 2 'install with a bad clear-sessions timeout'
+[[ ! -e "$units/mawareeth-clear-sessions.service" && ! -e "$units/mawareeth-github-token-check.service" ]] || fail 'install wrote units despite a bad timeout'
+[[ ! -e "$state/backup.lock" && ! -e "$state/deploy.lock" ]] || fail 'clear-sessions opened the backup or deploy lock'
+rm -f "$stub/docker" "$route_active"
 
 if ((rule_tools_skipped)); then
   :

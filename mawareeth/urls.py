@@ -17,10 +17,10 @@ from django.conf.urls.i18n import i18n_patterns
 from django.contrib import admin
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import LogoutView
-from django.urls import include, path
+from django.urls import include, path, re_path
 from django.views.i18n import set_language
 from calc import views as calc_views
-from mawareeth import ops_views
+from mawareeth import ops_views, web_views
 from user_auth import views as user_auth_views
 
 urlpatterns = [
@@ -31,20 +31,26 @@ urlpatterns = [
     path('health/release/', ops_views.release, name='ops-release'),
     path('i18n/setlang/', login_not_required(set_language), name='set_language'),
     path('accounts/logout/', login_not_required(LogoutView.as_view()), name='logout'),
-    path('accounts/', include('django.contrib.auth.urls')),
+    path('accounts/password_change/', web_views.auth_redirect, {'page': 'password-change'}, name='password_change'),
+    path('accounts/password_change/done/', web_views.auth_redirect, {'page': 'password-change'}, name='password_change_done'),
+    path('accounts/login/', web_views.auth_redirect, name='login'),
+    path('accounts/password_reset/', web_views.auth_redirect, {'page': 'password-reset'}, name='password_reset'),
+    path('accounts/password_reset/done/', web_views.auth_redirect, {'page': 'password-reset'}, name='password_reset_done'),
+    path('accounts/reset/done/', web_views.auth_redirect, {'page': 'login'}, name='password_reset_complete'),
+    path('accounts/reset/<uidb64>/<token>/', web_views.auth_redirect, {'page': 'password-reset/confirm'}, name='password_reset_confirm'),
     path('social-auth/', include('social_django.urls', namespace="social")),
+    path('api/v1/', include('api.urls')),
+    # The export's pages are served by WhiteNoise; only these entry points are views.
+    path('', web_views.site_root, name='web-site-root'),
+    re_path(r'^app/(?P<rest>.*)$', web_views.legacy_app_redirect, name='web-legacy-app'),
 
 ]
 
 calc_patterns = ([
     path('calc/', calc_views.IndexView.as_view(), name='index'),
-    path('', calc_views.HomePage.as_view(), name='home'),
-	path('terms/', calc_views.Terms.as_view(), name='terms'),
-	path('privacy/', calc_views.Privacy.as_view(), name='privacy'),
-    path('about/', calc_views.About.as_view(), name='about'),
     path('new/', calc_views.new, name='new'),
     path('<int:pk>/', calc_views.DetailView.as_view(), name='detail'),
-    path('<int:pk>/delete/', calc_views.delete, name='delete'),
+    path('<int:pk>/delete/', calc_views.CalculationDelete.as_view(), name='delete'),
     path('<int:calc_id>/deceased', calc_views.DeceasedCreate.as_view(), name='deceased'),
 	path('<int:pk>/deceased_delete', calc_views.DeceasedDelete.as_view(), name='deceased_delete'),
 	path('<int:pk>/deceased_update', calc_views.DeceasedUpdate.as_view(), name='deceased_update'),
@@ -76,7 +82,6 @@ calc_patterns = ([
     path('<int:pk>/results/', calc_views.ResultsView.as_view(), name='results'),
     path('<int:pk>/new-results/', calc_views.NewResultsView.as_view(), name='new_results'),
     path('error/', calc_views.error, name='error'),
-    path('signup/', calc_views.SignUp.as_view(), name='signup'),
 
 
 ], 'calc')

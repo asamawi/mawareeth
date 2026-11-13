@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from polymorphic.models import PolymorphicModel
 from polymorphic.managers import PolymorphicManager
 from django.urls import reverse
@@ -9,6 +9,8 @@ from decimal import Decimal
 from functools import reduce
 import math
 from django.db.models import Count
+from . import proof, schools
+from .schools import UnsupportedCase
 
 
 
@@ -22,6 +24,8 @@ class _Group:
         self.stage = self.final = self.amount
         self.members = []
         self.weights = []
+        # a pooled group's prescribed share of each member, for the scholars' table
+        self.prescribed = {}
 
     def add(self, heir, weight=1):
         self.members.append(heir)
@@ -253,6 +257,11 @@ class Marriage(models.Model):
 
 class Calculation(models.Model):
     """Calculation for bequest class"""
+    parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.CASCADE, related_name="layers")
+    # The school of the run in progress. It is an input to compute() and is never stored.
+    madhab = schools.DEFAULT
+    # The proof of the last compute(); like the school it is transient and never stored.
+    proof = None
     shares = models.IntegerField(default=0)      # LCM for all prescribed shares
     excess = models.BooleanField(default=False)       # if prescribed shares is greater than gcm
     shortage = models.BooleanField(default=False)
@@ -409,6 +418,15 @@ class Calculation(models.Model):
     def has_grandFather(self):
         return self.heir_set.instance_of(GrandFather).count() > 0
 
+    def grandmother_count(self):
+        """How many grandmothers of either line the family has that are not blocked. The
+        mother blocks both lines, and that case never reaches this count; the father blocks
+        only his own mother, and only under the schools where he does."""
+        count = self.heir_set.instance_of(MaternalGrandMother).count()
+        if not (self.has_father() and schools.father_blocks_his_mother(self.madhab)):
+            count += self.heir_set.instance_of(GrandMother).count()
+        return count
+
     def has_mohter(self):
         return self.heir_set.instance_of(Mother).count() > 0
 
@@ -525,13 +543,28 @@ class Calculation(models.Model):
         if self.correction and self.shares_corrected != 0:
             return sum(heir.corrected_share for heir in self.heir_set.filter(blocked=False))
 
+    def gf_meets_siblings(self):
+        """True when a grandfather and full or paternal siblings are in the family and nobody
+        else decides between them: no father (who would block him) and no male descendant
+        (who would block the siblings). The school then decides who takes what."""
+        return (self.has_grandFather() and not self.has_father() and not self.has_male_descendent()
+                and self.heir_set.instance_of(Brother, Sister, PaternalBrother, PaternalSister).count() > 0)
+
     def gf_shares_with_siblings(self):
         """True when the grandfather shares the estate with full or paternal siblings.
 
-        That is the case when there is no father (who would block him) and no
-        male descendant (who would block the siblings)."""
-        return (self.has_grandFather() and not self.has_father() and not self.has_male_descendent()
-                and self.heir_set.instance_of(Brother, Sister, PaternalBrother, PaternalSister).count() > 0)
+        That is the case when the school does not let him block them."""
+        return not schools.grandfather_blocks_siblings(self.madhab) and self.gf_meets_siblings()
+
+    def paternal_siblings_counted_out(self):
+        """True when paternal siblings are counted against a grandfather and then get nothing.
+
+        Only where the grandfather shares with the siblings (Maliki, Shafi'i, Hanbali): a full
+        brother takes the whole siblings' pool, and so do full sisters who are residuary with a
+        female descendant. The paternal siblings stay live, so they still count in his muqasama."""
+        paternal = self.heir_set.instance_of(PaternalBrother, PaternalSister).count() > 0
+        return (self.gf_shares_with_siblings() and paternal
+                and (self.has_brother() or (self.has_sister() and self.has_female_descendent())))
 
     def is_akdariyya(self, live):
         """Husband, mother, grandfather and one full or paternal sister, and no other heir."""
@@ -557,53 +590,77 @@ class Calculation(models.Model):
         gf_mode = self.gf_shares_with_siblings()
         sibs = [h for h in live if isinstance(h, (Brother, Sister, PaternalBrother, PaternalSister))] if gf_mode else []
         sib_ids = {h.pk for h in sibs}
+        mushtaraka = []
+        if schools.has_mushtaraka(self.madhab, self.live_counts(heirs)):
+            mushtaraka = [h for h in live if isinstance(h, (Brother, Sister, MaternalBrother, MaternalSister))]
+        mushtaraka_ids = {h.pk for h in mushtaraka}
 
         # fixed shares, one group per type (maternal siblings share one group)
+        reasons_pending = []
         fixed = {}
         for heir in live:
-            if heir.asaba or heir.pk in sib_ids or (gf_mode and isinstance(heir, GrandFather)):
+            if heir.asaba or heir.pk in sib_ids or heir.pk in mushtaraka_ids or (gf_mode and isinstance(heir, GrandFather)):
                 continue
             quote = heir.exact_quote()
             if quote <= 0:
                 continue
             if self.maternal_quote and isinstance(heir, (MaternalBrother, MaternalSister)):
                 key = 'maternal'
+            elif isinstance(heir, (GrandMother, MaternalGrandMother)):
+                key = 'grandmother'
             else:
                 key = type(heir)
             if key not in fixed:
                 fixed[key] = _Group(key, quote)
             fixed[key].add(heir)
         groups = list(fixed.values())
+        if mushtaraka:
+            # the full siblings join the maternal siblings, and all of them share the third equally
+            group = _Group('mushtaraka', Fraction(1, 3), kind='mushtaraka')
+            for heir in mushtaraka:
+                group.add(heir, 1)
+                # all of them share the maternal siblings' third, which the table shows once
+                group.prescribed[heir.pk] = Fraction(1, 3)
+                heir.asaba = False
+                reasons_pending.append(heir)
+            groups.append(group)
         fixed_total = sum((g.amount for g in groups), zero)
 
         extra = None          # father or grandfather who also takes the remainder
         extra_remainder = zero
         radd_groups = []
-        reasons = {}
+        reasons = {heir.pk: _("Mushtaraka: the full siblings share the maternal siblings' third equally")
+                   for heir in reasons_pending}
+        # what each overridden reason rests on, for the proof: (rule, condition, option)
+        bases = {heir.pk: (proof.MUSHTARAKA, None, None) for heir in reasons_pending}
         residual = zero
         if gf_mode:
             grandfather = next(h for h in live if isinstance(h, GrandFather))
             left = max(zero, one - fixed_total)
             units = sum(2 if is_male(h) else 1 for h in sibs)
             options = [
-                (left * 2 / (2 + units), _("Grandfather shares the remainder with the siblings as one more brother, which is the best of his options")),
-                (left / 3, _("Grandfather gets 1/3 of the remainder, which is the best of his options with siblings")),
-                (Fraction(1, 6), _("Grandfather gets 1/6 of the estate, which is the best of his options with siblings")),
+                (left * 2 / (2 + units), _("Grandfather shares the remainder with the siblings as one more brother, which is the best of his options"), 'muqasama'),
+                (left / 3, _("Grandfather gets 1/3 of the remainder, which is the best of his options with siblings"), 'third_of_remainder'),
+                (Fraction(1, 6), _("Grandfather gets 1/6 of the estate, which is the best of his options with siblings"), 'sixth_of_estate'),
             ]
-            grandfather_amount, grandfather_reason = max(options, key=lambda option: option[0])
+            grandfather_amount, grandfather_reason, grandfather_option = max(options, key=lambda option: option[0])
             pool = max(zero, left - grandfather_amount)
             if self.is_akdariyya(live):
                 group = _Group('akdariyya', grandfather_amount + Fraction(1, 2), kind='akdariyya')
                 group.add(grandfather, 2)
                 group.add(sibs[0], 1)
+                # the scholars' table shows each one's own share before they are pooled
+                group.prescribed = {grandfather.pk: grandfather_amount, sibs[0].pk: Fraction(1, 2)}
                 groups.append(group)
                 for heir in (grandfather, sibs[0]):
                     reasons[heir.pk] = _("Akdariyya: the grandfather and the sister pool their shares and split them two to one")
+                    bases[heir.pk] = (proof.AKDARIYYA, None, None)
             else:
                 group = _Group('grandfather', grandfather_amount, kind='grandfather')
                 group.add(grandfather)
                 groups.append(group)
                 reasons[grandfather.pk] = grandfather_reason
+                bases[grandfather.pk] = (proof.GRANDFATHER_BEST_OPTION, 'with_siblings', grandfather_option)
                 full = [h for h in sibs if isinstance(h, (Brother, Sister))]
                 paternal = [h for h in sibs if isinstance(h, (PaternalBrother, PaternalSister))]
                 full_units = sum(2 if is_male(h) else 1 for h in full)
@@ -612,6 +669,8 @@ class Calculation(models.Model):
                     full_total = pool
                 elif not full:
                     full_total = zero
+                elif self.paternal_siblings_counted_out():
+                    full_total = pool
                 elif any(is_male(h) for h in full):
                     full_total = pool
                 else:
@@ -630,10 +689,12 @@ class Calculation(models.Model):
                         for heir in members:
                             if members is paternal and full and full_total > 0:
                                 reasons[heir.pk] = _("Paternal siblings count against the grandfather but get nothing because of the full siblings")
+                                bases[heir.pk] = (proof.RESIDUARY, 'excluded_by_full_siblings', None)
                             else:
                                 reasons[heir.pk] = _("The shares of the grandfather and the others use up the whole estate, so nothing is left for the siblings")
+                                bases[heir.pk] = (proof.RESIDUARY, 'estate_exhausted', None)
         else:
-            asaba = [h for h in live if h.asaba]
+            asaba = [h for h in live if h.asaba and h.pk not in mushtaraka_ids]
             residual = max(zero, one - fixed_total)
             if asaba:
                 group = _Group('asaba', residual, kind='asaba')
@@ -644,6 +705,7 @@ class Calculation(models.Model):
                 if residual == 0:
                     for heir in asaba:
                         reasons[heir.pk] = _("The fixed shares use up the whole estate, so nothing is left for the residuary heirs")
+                        bases[heir.pk] = (proof.RESIDUARY, 'estate_exhausted', None)
             else:
                 if self.has_female_descendent() and not self.has_male_descendent():
                     extra = next((g for g in groups if g.key in (Father, GrandFather)), None)
@@ -666,6 +728,12 @@ class Calculation(models.Model):
             for group in radd_groups:
                 group.final = group.amount * (one - spouse_total) / radd_total
 
+        # a father or grandfather with a female descendant who is left no remainder only has the fixed share
+        has_remainder = extra is not None and extra_remainder > 0
+        for heir in live:
+            if heir.basis['rule'] == proof.FIXED_AND_RESIDUARY and not (has_remainder and heir in extra.members):
+                heir.basis['condition'] = 'estate_exhausted'
+
         # the final fraction of every heir
         final = {heir.pk: zero for heir in heirs}
         for group in groups:
@@ -684,11 +752,15 @@ class Calculation(models.Model):
         columns = {h.pk: {'share': 0, 'shorted_share': 0, 'shortage_calc_share': 0, 'shortage_union_share': 0,
                           'correction': False} for h in heirs}
 
+        merged = {}
+
         def put(group, column, values, fell_back):
             for heir, value in zip(group.members, values):
                 columns[heir.pk][column] = value
                 if fell_back:
                     columns[heir.pk]['correction'] = True
+            if fell_back:
+                merged.setdefault(column, set()).add(id(group))
 
         for group in groups:
             put(group, 'share', *group.column(base, group.stage))
@@ -741,7 +813,7 @@ class Calculation(models.Model):
         deceased = self.deceased_set.first()
         estate = Fraction(deceased.estate) if deceased else zero
         for group in groups:
-            if group.kind == 'akdariyya':
+            if group.kind in ('akdariyya', 'mushtaraka'):
                 for heir, weight in zip(group.members, group.weights):
                     heir.set_quote(group.stage * weight / sum(group.weights))
             elif group.kind in ('asaba', 'siblings', 'grandfather') and group.stage > 0:
@@ -760,6 +832,7 @@ class Calculation(models.Model):
             heir.amount = money(estate * fraction)
             if heir.pk in reasons:
                 heir.quote_reason = reasons[heir.pk]
+                heir.set_basis(bases[heir.pk][0], bases[heir.pk][1], option=bases[heir.pk][2])
             heir.save()
 
         self.shares = base
@@ -775,7 +848,60 @@ class Calculation(models.Model):
         self.shares_corrected = shares_corrected
         self.common_quote = False
         self.save()
+        self._tag_school_rules(heirs, live, [h for g in radd_groups for h in g.members] if radd else [])
+        left = one - sum(final.values(), zero)
+        totals = {'share': base, 'shorted_share': shares_shorted, 'shortage_calc_share': shortage_calc_shares,
+                  'shortage_union_share': shortage_union_shares, 'corrected_share': shares_corrected}
+        spec = [('base', 'share', base, 'share')]
+        if excess:
+            spec.append(('awl', 'share', shares_excess, 'share'))
+        if shortage:
+            spec.append(('radd' if radd else 'remainder', 'shorted_share', shares_shorted, 'shorted_share'))
+        if shortage_calc:
+            spec.append(('radd_calc', 'shortage_calc_share', shortage_calc_shares, 'shortage_calc_share'))
+            spec.append(('radd_union', 'shortage_union_share', shortage_union_shares, 'shortage_union_share'))
+        if correction:
+            spec.append(('correction', 'corrected_share', shares_corrected, None))
+        self.table = None
+        if groups and base > 0:
+            self.table = proof.build_table(
+                [{'code': code, 'total': total,
+                  'values': {h.pk: getattr(h, attr) for h in heirs},
+                  'merged': {i for i, g in enumerate(groups) if mkey and id(g) in merged.get(mkey, ())}}
+                 for code, attr, total, mkey in spec],
+                [[h.pk for h in g.members] for g in groups],
+                [h.pk for h in heirs],
+                {**{h.pk: h.basis['fraction'] for h in heirs},
+                 **{pk: share for g in groups for pk, share in g.prescribed.items()}},
+                {h.pk for h in heirs if h.blocked})
+        self._proof_steps = {
+            'base': base,
+            'awl': shares_excess if excess else None,
+            'radd': final_base if radd else None,
+            'correction': shares_corrected if correction else None,
+            'unallocated': left if left > 0 else None,
+        }
         return final
+
+    def _tag_school_rules(self, heirs, live, radd_members):
+        """Name, on the heirs a school rule decided, the rule that applied. A heir keeps the
+        first rule that tags it."""
+        def tag(members, code):
+            for heir in members:
+                if heir.basis['school_rule'] is None:
+                    heir.basis['school_rule'] = code
+        if self.gf_meets_siblings():
+            tag([h for h in heirs if isinstance(h, (GrandFather, Brother, Sister, PaternalBrother, PaternalSister))],
+                schools.grandfather_rule(self.madhab))
+        if schools.is_mushtaraka_family(self.live_counts(heirs)):
+            tag([h for h in live if isinstance(h, (Brother, Sister, MaternalBrother, MaternalSister))],
+                schools.mushtaraka_rule(self.madhab))
+        if (any(isinstance(h, Father) for h in heirs) and any(isinstance(h, GrandMother) for h in heirs)
+                and not any(isinstance(h, Mother) for h in heirs)):
+            tag([h for h in heirs if isinstance(h, (GrandMother, MaternalGrandMother))],
+                schools.grandmother_rule(self.madhab))
+        if radd_members:
+            tag(radd_members, schools.radd_rule(self.madhab))
 
     def clear(self):
         self.shares = 0
@@ -795,21 +921,73 @@ class Calculation(models.Model):
             heir.clear()
         self.save()
 
-    def compute(self):
-        self.clear()
-        heirs = self.get_quotes()
-        return self.distribute(heirs)
+    def compute(self, madhab=schools.DEFAULT):
+        """Work out every heir's share under one school: hanafi, maliki, shafii or
+        hanbali. With no school the result is the Hanbali one, as before.
+
+        The school is an input to this run and is never stored. An unknown id raises
+        ValueError. A case the engine refuses raises UnsupportedCase with a stable
+        `reason` code, and no result is given for it.
+
+        The run first reloads this calculation under its row lock, preserving committed
+        name and owner changes. It is one transaction, so on
+        PostgreSQL simultaneous runs on one case go one after another (a run waits,
+        with no time limit, while another holds the lock), other readers only see
+        complete results, and any exception, a refusal included, rolls back every
+        write the run made. The in-memory instance and its heirs are not restored
+        after such a failure, so do not save them. Inside a caller's transaction the
+        run is a savepoint and the lock is held until that outer transaction ends.
+        A deleted case raises Calculation.DoesNotExist and writes nothing. Cases
+        with later deaths are refused here; compute_manasikhat() is their entry
+        point. Legacy results pages do not run layered cases."""
+        self.proof = None
+        self.table = None
+        self._proof_steps = None
+        schools.check_school(madhab)
+        with transaction.atomic():
+            self.refresh_from_db(from_queryset=Calculation.objects.select_for_update())
+            if not getattr(self, "_manasikhat_run", False) and (
+                    self.parent_id is not None or self.layers.exists()
+                    or Deceased.objects.filter(heir__calc=self).exists()):
+                raise UnsupportedCase(schools.MANASIKHAT_UNSUPPORTED)
+            self.madhab = madhab
+            self.clear()
+            heirs = self.get_quotes()
+            live = self.live_counts(heirs)
+            maternal = sum(1 for h in heirs if isinstance(h, (MaternalBrother, MaternalSister)))
+            if self.has_descendent() or self.has_father():
+                maternal = 0
+            schools.check_family(madhab, live, maternal)
+            final = self.distribute(heirs)
+            self.proof = proof.build(
+                madhab, [(h.pk, type(h).__name__, h.basis, final[h.pk]) for h in heirs], self._proof_steps)
+            return final
+
+    @staticmethod
+    def live_counts(heirs):
+        """How many heirs of each type are not blocked, keyed by class name."""
+        counts = {}
+        for heir in heirs:
+            if not heir.blocked:
+                name = type(heir).__name__
+                counts[name] = counts.get(name, 0) + 1
+        return counts
 
     def get_absolute_url(self):
         return reverse('calc:detail', args=[self.id])
 class Deceased(Person):
     """Deceased class"""
+    heir = models.ForeignKey("Heir", null=True, blank=True, on_delete=NON_POLYMORPHIC_CASCADE, related_name="later_deaths")
+    death_order = models.IntegerField(default=1)
     estate = models.IntegerField()
     calc = models.ForeignKey(Calculation, on_delete=NON_POLYMORPHIC_CASCADE,null=True)
     def get_absolute_url(self):
         return reverse('calc:detail', args=[self.calc.id])
 class Heir(Person):
     """Heir class"""
+    # Free the inherited Person.heir name for Deceased.heir.
+    person_ptr = models.OneToOneField(Person, on_delete=models.CASCADE, parent_link=True, primary_key=True, related_name="heir_row")
+    same_person = models.ForeignKey("self", null=True, blank=True, on_delete=NON_POLYMORPHIC_CASCADE, related_name="person_rows")
     quote = models.DecimalField(max_digits=11, decimal_places=10, default=0)  #prescribed share
     shared_quote = models.BooleanField(default=False)    #prescribed share is shared with other heir like 2 daughters
     share = models.IntegerField(default=0)
@@ -819,6 +997,8 @@ class Heir(Person):
     asaba = models.BooleanField(default=False)           #agnate or residuary
     blocked = models.BooleanField(default=False)         # restricted from inheritance
     quote_reason = models.CharField(max_length=255, default="")
+    # What the share rests on, as stable codes for the proof. Transient, set by get_quote().
+    basis = None
     correction = models.BooleanField(default=False)
     shortage_calc = models.BooleanField(default = False)
     shortage_calc_share = models.IntegerField(default=0)
@@ -843,6 +1023,15 @@ class Heir(Person):
             quote = Fraction(self.quote).limit_denominator(10 ** 6)
         return quote
 
+    def set_basis(self, rule, condition=None, blocked_by=None, option=None):
+        """Record what this heir's share rests on, beside the translated quote_reason, as
+        stable codes for the proof. Call it after set_quote, which a fixed share reads."""
+        self.basis = {
+            'rule': rule, 'condition': condition, 'blocked_by': blocked_by,
+            'fraction': self.exact_quote() if rule in proof.FRACTION_RULES else None,
+            'school_rule': None, 'option': option,
+        }
+
     def set_share(self, calc):
         return self.share
 
@@ -862,6 +1051,7 @@ class Heir(Person):
         self.asaba = False
         self.blocked = False
         self.quote_reason = ""
+        self.basis = None
         self.correction = False
         self.shortage_calc = False
         self.shortage_calc_share  = 0
@@ -876,13 +1066,16 @@ class Father(Heir):
         if calc.has_male_descendent():
             self.set_quote(Fraction(1, 6))
             self.quote_reason = _("father gets 1/6 prescribed share because of male descendant")
+            self.set_basis('fixed', 'male_descendant')
         elif calc.has_female_descendent():
             self.set_quote(Fraction(1, 6))
             #self.asaba = True
             self.quote_reason = _("father gets 1/6 plus remainder because of female descendant")
+            self.set_basis('fixed_and_residuary', 'female_descendant')
         else:
             self.asaba = True
             self.quote_reason = _("father gets the remainder because there is no descendant")
+            self.set_basis('residuary', 'no_descendant')
         self.save()
         return self.quote
 
@@ -896,19 +1089,24 @@ class Mother(Heir):
         if calc.has_descendent():
             self.set_quote(Fraction(1, 6))
             self.quote_reason = _("mother gets 1/6 because of descendant")
+            self.set_basis('fixed', 'descendant')
         elif calc.has_siblings():
             self.set_quote(Fraction(1, 6))
             self.quote_reason = _("mother gets 1/6 because of siblings")
+            self.set_basis('fixed', 'siblings')
         elif calc.has_spouse() and calc.has_father():
             if calc.deceased_set.first().sex == 'M':
                 self.set_quote(Fraction(1, 4))
                 self.quote_reason = _("mother gets 1/3 of the remainder which is 1/4.")
+                self.set_basis('fixed', 'spouse_and_father')
             else:
                 self.set_quote(Fraction(1, 6))
                 self.quote_reason = _("mother gets 1/3 of the remainder which is 1/6")
+                self.set_basis('fixed', 'spouse_and_father')
         else:
             self.set_quote(Fraction(1, 3))
             self.quote_reason = _("mother gets 1/3 because no descendant or siblings")
+            self.set_basis('fixed', 'no_descendant_or_siblings')
         self.save()
         return self.quote
 
@@ -923,9 +1121,11 @@ class Husband(Heir):
         if calc.has_descendent():
             self.set_quote(Fraction(1, 4))
             self.quote_reason = _("husband gets 1/4 becuase of descendant")
+            self.set_basis('fixed', 'descendant')
         else:
             self.set_quote(Fraction(1, 2))
             self.quote_reason = _("husband gets 1/2 becuase there is no descendant")
+            self.set_basis('fixed', 'no_descendant')
         self.save()
         return self.quote
 
@@ -939,16 +1139,20 @@ class Wife(Heir):
             if calc.has_descendent():
                 self.set_quote(Fraction(1, 8))
                 self.quote_reason = _("wife gets 1/8 becuase of descendant")
+                self.set_basis('fixed', 'descendant')
             else:
                 self.set_quote(Fraction(1, 4))
                 self.quote_reason = _("wife gets 1/4 becuase there is no descendant")
+                self.set_basis('fixed', 'no_descendant')
         else:
             if calc.has_descendent():
                 self.set_quote(Fraction(1, 8))
                 self.quote_reason = _("wives share the qoute of 1/8 becuase of descendant")
+                self.set_basis('fixed', 'descendant')
             else:
                 self.set_quote(Fraction(1, 4))
                 self.quote_reason = _("wives share the quote of 1/4 becuase there is no descendant")
+                self.set_basis('fixed', 'no_descendant')
             self.shared_quote = True
         self.save()
         return self.quote
@@ -962,15 +1166,18 @@ class Daughter(Heir):
         if calc.has_son():
             self.asaba = True
             self.quote_reason = _("Daughter/s with Son/s share the residuary. The son will receive a share of two daughters.")
+            self.set_basis('residuary', 'with_son')
             if calc.heir_set.instance_of(Daughter).count() > 1:
                 self.shared_quote = True
         elif calc.heir_set.instance_of(Daughter).count() == 1:
             self.set_quote(Fraction(1, 2))
             self.quote_reason = _("Daughter gets 1/2 when she has no other sibling/s")
+            self.set_basis('fixed', 'single')
         else:
             self.set_quote(Fraction(2, 3))
             self.shared_quote = True
             self.quote_reason = _("Daughters share the quote of 2/3 when there is no son/s")
+            self.set_basis('fixed', 'several')
         self.save()
         return self.quote
 
@@ -984,6 +1191,7 @@ class Son(Heir):
             self.shared_quote = True
         self.asaba =  True
         self.quote_reason = _("Son/s share the remainder or all amount if no other heir exist")
+        self.set_basis('residuary')
         self.save()
         return self.quote
 
@@ -999,15 +1207,23 @@ class Brother(Heir):
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Bother/s are blocked by male descendant")
+            self.set_basis('blocked', blocked_by='male_descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Brother/s are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
+        elif calc.has_grandFather() and schools.grandfather_blocks_siblings(calc.madhab):
+            self.blocked = True
+            self.quote_reason = _("Brother/s are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_grandFather():
             self.asaba = True
             self.quote_reason = _("Brother/s share the estate with the grandfather")
+            self.set_basis('residuary', 'with_grandfather')
         else:
             self.asaba =  True
             self.quote_reason = _("Brother/s share the remainder or all amount if no other heir exist")
+            self.set_basis('residuary')
         self.save()
         return self.quote
 
@@ -1023,25 +1239,36 @@ class Sister(Heir):
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Sister/s are blocked by male descendant")
+            self.set_basis('blocked', blocked_by='male_descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Sister/s are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
+        elif calc.has_grandFather() and schools.grandfather_blocks_siblings(calc.madhab):
+            self.blocked = True
+            self.quote_reason = _("Sister/s are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_grandFather():
             self.asaba = True
             self.quote_reason = _("Sister/s share the estate with the grandfather")
+            self.set_basis('residuary', 'with_grandfather')
         elif calc.has_brother():
             self.asaba = True
             self.quote_reason = _("Sister/s with borther/s share the remainder or all the amount if no other heir exist. The brother will receive a share of two sisters")
+            self.set_basis('residuary', 'with_brother')
         elif calc.has_female_descendent():
             self.asaba = True
             self.quote_reason = _("Sister/s with female descendant share the remainder")
+            self.set_basis('residuary', 'female_descendant')
         else:
             if sisters.count() == 1:
                 self.set_quote(Fraction(1, 2))
                 self.quote_reason = _("Sister gets half when no father or son. ")
+                self.set_basis('fixed', 'single')
             else:
                 self.set_quote(Fraction(2, 3))
                 self.quote_reason = _("Sisters share 2/3 when no father or son.")
+                self.set_basis('fixed', 'several')
         self.save()
         return self.quote
 
@@ -1054,23 +1281,28 @@ class GrandFather(Heir):
         if calc.has_father():
             self.blocked = True
             self.quote_reason = _("Grandfather is blocked by father")
+            self.set_basis('blocked', blocked_by='father')
         elif calc.has_male_descendent():
             self.set_quote(Fraction(1, 6))
             self.quote_reason = _("Grandfather gets 1/6 prescribed share because of male descendant")
+            self.set_basis('fixed', 'male_descendant')
         elif calc.gf_shares_with_siblings():
             self.quote_reason = _("Grandfather shares the estate with the full and paternal siblings and takes the best of his options")
+            self.set_basis('grandfather_best_option', 'with_siblings')
         elif calc.has_female_descendent():
             self.set_quote(Fraction(1, 6))
             #self.asaba = True
             self.quote_reason = _("Grandfather gets 1/6 plus remainder because of female descendant")
+            self.set_basis('fixed_and_residuary', 'female_descendant')
         else:
             self.asaba = True
             self.quote_reason = _("Grandfather gets the remainder because there is no descendant")
+            self.set_basis('residuary', 'no_descendant')
         self.save()
         return self.quote
 
 class GrandMother(Heir):
-    """GrandMother class"""
+    """GrandMother class: the paternal grandmother, the father's mother."""
     def add(self, calc):
         calc.deceased_set.first().add_grandMother(grandMother=self)
 
@@ -1078,12 +1310,36 @@ class GrandMother(Heir):
         if calc.has_mohter():
             self.blocked = True
             self.quote_reason = _("Grandmother is blocked by mother")
+            self.set_basis('blocked', blocked_by='mother')
+        elif calc.has_father() and schools.father_blocks_his_mother(calc.madhab):
+            self.blocked = True
+            self.quote_reason = _("Paternal grandmother is blocked by father")
+            self.set_basis('blocked', blocked_by='father')
         else:
-            grandmothers = calc.heir_set.instance_of(GrandMother)
-            if grandmothers.count() > 1:
+            if calc.grandmother_count() > 1:
                 self.shared_quote = True
             self.set_quote(Fraction(1, 6))
             self.quote_reason = _("Grandmother gets 1/6 if no mother")
+            self.set_basis('fixed', 'no_mother')
+        self.save()
+        return self.quote
+
+class MaternalGrandMother(Heir):
+    """MaternalGrandMother class: the mother's mother."""
+    def add(self, calc):
+        pass
+
+    def get_quote(self, calc):
+        if calc.has_mohter():
+            self.blocked = True
+            self.quote_reason = _("Maternal grandmother is blocked by mother")
+            self.set_basis('blocked', blocked_by='mother')
+        else:
+            if calc.grandmother_count() > 1:
+                self.shared_quote = True
+            self.set_quote(Fraction(1, 6))
+            self.quote_reason = _("Maternal grandmother gets 1/6 if no mother")
+            self.set_basis('fixed', 'no_mother')
         self.save()
         return self.quote
 
@@ -1096,11 +1352,13 @@ class SonOfSon(Heir):
         if calc.has_son():
             self.blocked = True
             self.quote_reason = _("Son of son is blocked by Son")
+            self.set_basis('blocked', blocked_by='son')
         else:
             if calc.heir_set.instance_of(SonOfSon).count() > 1:
                 self.shared_quote = True
             self.asaba = True
             self.quote_reason = _("Son of son share the remainder or all amount if no other heir exist")
+            self.set_basis('residuary')
         self.save()
         return self.quote
 
@@ -1116,23 +1374,29 @@ class DaughterOfSon(Heir):
         if calc.has_son():
             self.blocked = True
             self.quote_reason = _("Daughter of son is blocked by son")
+            self.set_basis('blocked', blocked_by='son')
         elif calc.has_sonOfSon():
             self.asaba = True
             self.quote_reason = _("Daughter/s of son with Son/s of son share the residuary. The son of son will receive a share of two daughters of son.")
+            self.set_basis('residuary', 'with_son_of_son')
         elif calc.has_daughter():
             daughters = calc.heir_set.instance_of(Daughter)
             if daughters.count()==1:
                 self.set_quote(Fraction(1, 6))
                 self.quote_reason = _("Daughter of son get 1/6, with daughter")
+                self.set_basis('fixed', 'with_daughter')
             else:
                 self.blocked = True
                 self.quote_reason = _("Daughter/s of son are blocked by daugters")
+                self.set_basis('blocked', blocked_by='daughters')
         elif daughtersOfSon.count() == 1:
             self.set_quote(Fraction(1, 2))
             self.quote_reason = _("Daughter of son gets 1/2 when she has no other sibling/s")
+            self.set_basis('fixed', 'single')
         else:
             self.set_quote(Fraction(2, 3))
             self.quote_reason = _("Daughters of son share the quote of 2/3 when there is no son/s of son")
+            self.set_basis('fixed', 'several')
         self.save()
         return self.quote
 
@@ -1149,38 +1413,53 @@ class PaternalSister(Heir):
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Paternal sister/s are blocked by male descendant")
+            self.set_basis('blocked', blocked_by='male_descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Paternal sister/s are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
+        elif calc.has_grandFather() and schools.grandfather_blocks_siblings(calc.madhab):
+            self.blocked = True
+            self.quote_reason = _("Paternal sister/s are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_grandFather():
             self.asaba = True
             self.quote_reason = _("Paternal sister/s share the estate with the grandfather")
+            self.set_basis('residuary', 'with_grandfather')
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Paternal sister/s are blocked by borther/s")
+            self.set_basis('blocked', blocked_by='brother')
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Paternal sister/s are blocked by sisters")
+            self.set_basis('blocked', blocked_by='sisters')
         elif calc.has_paternalBrother():
             self.asaba = True
             self.quote_reason = _("Paternal sister/s with paternal half borther/s share the remainder or all the amount if no other heir exist. The brother will receive a share of two sisters")
+            self.set_basis('residuary', 'with_paternal_brother')
         elif calc.has_sister():
             sisters= calc.heir_set.instance_of(Sister)
             if sisters.count()==1:
                 self.set_quote(Fraction(1, 6))
                 self.quote_reason = _("Paternal sister/s get 1/6 with sister")
+                self.set_basis('fixed', 'with_sister')
             else:
                 self.blocked = True
                 self.quote_reason = _("Paternal sisters/s are blocked by sisters")
+                self.set_basis('blocked', blocked_by='sisters')
         elif calc.has_female_descendent():
             self.asaba = True
             self.quote_reason = _("Paternal sister/s with female descendant share the remainder")
+            self.set_basis('residuary', 'female_descendant')
         elif paternalSisters.count() == 1:
             self.set_quote(Fraction(1, 2))
             self.quote_reason = _("Paternal sister gets half when no father or son. ")
+            self.set_basis('fixed', 'single')
         else:
             self.set_quote(Fraction(2, 3))
             self.quote_reason = _("Paternal sisters share 2/3 when no father or son.")
+            self.set_basis('fixed', 'several')
         self.save()
         return self.quote
 
@@ -1196,26 +1475,37 @@ class PaternalBrother(Heir):
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Paternal brother/s are blocked by male descendant")
+            self.set_basis('blocked', blocked_by='male_descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Paternal brother/s are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
+        elif calc.has_grandFather() and schools.grandfather_blocks_siblings(calc.madhab):
+            self.blocked = True
+            self.quote_reason = _("Paternal brother/s are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_grandFather():
             self.asaba = True
             self.quote_reason = _("Paternal brother/s share the estate with the grandfather")
+            self.set_basis('residuary', 'with_grandfather')
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Paternal brother/s are blocked by brothers")
+            self.set_basis('blocked', blocked_by='brother')
         elif calc.has_sister():
             asaba = calc.get_sisters().filter(asaba=True)
             if asaba:
                 self.blocked = True
                 self.quote_reason = _("Paternal brother/s are blocked by sisters")
+                self.set_basis('blocked', blocked_by='sisters')
             else:
                 self.asaba = True
                 self.quote_reason = _("Paternal brother/s share the remainder or all amount if no other heir exist")
+                self.set_basis('residuary')
         else:
             self.asaba =  True
             self.quote_reason = _("Paternal brother/s share the remainder or all amount if no other heir exist")
+            self.set_basis('residuary')
         self.save()
         return self.quote
 
@@ -1231,24 +1521,30 @@ class MaternalSister(Heir):
         if calc.has_descendent():
             self.blocked = True
             self.quote_reason = _("Maternal sister/s are blocked by descendant")
+            self.set_basis('blocked', blocked_by='descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Maternal sister/s are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Maternal sister/s are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_maternalBrother():
             calc.maternal_quote = True
             calc.save()
             self.shared_quote = True
             self.set_quote(Fraction(1, 3))
             self.quote_reason = _("Maternal sister/s with maternal brother/s share 1/3")
+            self.set_basis('fixed', 'with_maternal_siblings')
         elif maternalSisters.count() == 1:
             self.set_quote(Fraction(1, 6))
             self.quote_reason = _("Maternal sister get 1/6")
+            self.set_basis('fixed', 'single')
         else:
             self.set_quote(Fraction(1, 3))
             self.quote_reason = _("Maternal sisters share 1/3")
+            self.set_basis('fixed', 'several')
         self.save()
         return self.quote
 
@@ -1264,24 +1560,30 @@ class MaternalBrother(Heir):
         if calc.has_descendent():
             self.blocked = True
             self.quote_reason = _("Maternal brother/s are blocked by descendant")
+            self.set_basis('blocked', blocked_by='descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Maternal brother/s are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Maternal brother/s are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_maternalSister():
             calc.maternal_quote = True
             calc.save()
             self.shared_quote = True
             self.set_quote(Fraction(1, 3))
             self.quote_reason = _("Maternal brother/s with maternal sister/s share 1/3")
+            self.set_basis('fixed', 'with_maternal_siblings')
         elif MaternalBrothers.count() == 1:
             self.set_quote(Fraction(1, 6))
             self.quote_reason = _("Maternal brother get 1/6")
+            self.set_basis('fixed', 'single')
         else:
             self.set_quote(Fraction(1, 3))
             self.quote_reason = _("Maternal brothers share 1/3")
+            self.set_basis('fixed', 'several')
         self.save()
         return self.quote
 
@@ -1297,27 +1599,35 @@ class SonOfBrother(Heir):
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by male descendant")
+            self.set_basis('blocked', blocked_by='male_descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by brother/s")
+            self.set_basis('blocked', blocked_by='brother')
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by sisters")
+            self.set_basis('blocked', blocked_by='sisters')
         elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by paternal brother/s")
+            self.set_basis('blocked', blocked_by='paternal_brother')
         elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Brother are blocked by paternal sister/s")
+            self.set_basis('blocked', blocked_by='paternal_sister')
         else:
             self.asaba =  True
             self.quote_reason = _("Son/s of Brother share the remainder or all amount if no other heir exist")
+            self.set_basis('residuary')
         self.save()
         return self.quote
 
@@ -1333,30 +1643,39 @@ class SonOfPaternalBrother(Heir):
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by male descendant")
+            self.set_basis('blocked', blocked_by='male_descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by brother/s")
+            self.set_basis('blocked', blocked_by='brother')
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by sisters")
+            self.set_basis('blocked', blocked_by='sisters')
         elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by paternal brother/s")
+            self.set_basis('blocked', blocked_by='paternal_brother')
         elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by paternal sister/s")
+            self.set_basis('blocked', blocked_by='paternal_sister')
         elif calc.has_sonOfBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Paternal Brother are blocked by sons of brother")
+            self.set_basis('blocked', blocked_by='son_of_brother')
         else:
             self.asaba =  True
             self.quote_reason = _("Son/s of Paternal Brother share the remainder or all amount if no other heir exist")
+            self.set_basis('residuary')
         self.save()
         return self.quote
 
@@ -1372,33 +1691,43 @@ class Uncle(Heir):
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by male descendant")
+            self.set_basis('blocked', blocked_by='male_descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by brother/s")
+            self.set_basis('blocked', blocked_by='brother')
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by sisters")
+            self.set_basis('blocked', blocked_by='sisters')
         elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by paternal brother/s")
+            self.set_basis('blocked', blocked_by='paternal_brother')
         elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by paternal sister/s")
+            self.set_basis('blocked', blocked_by='paternal_sister')
         elif calc.has_sonOfBrother():
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by sons of brother")
+            self.set_basis('blocked', blocked_by='son_of_brother')
         elif calc.has_sonOfPaternalBrother():
             self.blocked = True
             self.quote_reason = _("Uncle/s are blocked by sons of paternal brother")
+            self.set_basis('blocked', blocked_by='son_of_paternal_brother')
         else:
             self.asaba =  True
             self.quote_reason = _("Uncle/s share the remainder or all amount if no other heir exist")
+            self.set_basis('residuary')
         self.save()
         return self.quote
 
@@ -1414,36 +1743,47 @@ class PaternalUncle(Heir):
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by male descendant")
+            self.set_basis('blocked', blocked_by='male_descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by brother/s")
+            self.set_basis('blocked', blocked_by='brother')
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by sisters")
+            self.set_basis('blocked', blocked_by='sisters')
         elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by paternal brother/s")
+            self.set_basis('blocked', blocked_by='paternal_brother')
         elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by paternal sister/s")
+            self.set_basis('blocked', blocked_by='paternal_sister')
         elif calc.has_sonOfBrother():
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by sons of brother")
+            self.set_basis('blocked', blocked_by='son_of_brother')
         elif calc.has_sonOfPaternalBrother():
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by sons of paternal brother")
+            self.set_basis('blocked', blocked_by='son_of_paternal_brother')
         elif calc.has_uncle():
             self.blocked = True
             self.quote_reason = _("Paternal Uncle/s are blocked by uncle/s")
+            self.set_basis('blocked', blocked_by='uncle')
         else:
             self.asaba =  True
             self.quote_reason = _("Paternal Uncle/s share the remainder or all amount if no other heir exist")
+            self.set_basis('residuary')
         self.save()
         return self.quote
 
@@ -1459,39 +1799,51 @@ class SonOfUncle(Heir):
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Son/s of uncle are blocked by male descendant")
+            self.set_basis('blocked', blocked_by='male_descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by brother/s")
+            self.set_basis('blocked', blocked_by='brother')
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by sisters")
+            self.set_basis('blocked', blocked_by='sisters')
         elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by paternal brother/s")
+            self.set_basis('blocked', blocked_by='paternal_brother')
         elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by paternal sister/s")
+            self.set_basis('blocked', blocked_by='paternal_sister')
         elif calc.has_sonOfBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by sons of brother")
+            self.set_basis('blocked', blocked_by='son_of_brother')
         elif calc.has_sonOfPaternalBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by sons of paternal brother")
+            self.set_basis('blocked', blocked_by='son_of_paternal_brother')
         elif calc.has_uncle():
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by uncle/s")
+            self.set_basis('blocked', blocked_by='uncle')
         elif calc.has_paternalUncle():
             self.blocked = True
             self.quote_reason = _("Son/s of Uncle/s are blocked by paternal uncle/s")
+            self.set_basis('blocked', blocked_by='paternal_uncle')
         else:
             self.asaba =  True
             self.quote_reason = _("Son/s of Uncle/s share the remainder or all amount if no other heir exist")
+            self.set_basis('residuary')
         self.save()
         return self.quote
 
@@ -1507,42 +1859,55 @@ class SonOfPaternalUncle(Heir):
         if calc.has_male_descendent():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal uncle are blocked by male descendant")
+            self.set_basis('blocked', blocked_by='male_descendant')
         elif calc.has_father():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by father")
+            self.set_basis('blocked', blocked_by='father')
         elif calc.has_grandFather():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by grandfather")
+            self.set_basis('blocked', blocked_by='grandfather')
         elif calc.has_brother():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by brother/s")
+            self.set_basis('blocked', blocked_by='brother')
         elif calc.get_sisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by sisters")
+            self.set_basis('blocked', blocked_by='sisters')
         elif calc.has_paternalBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by paternal brother/s")
+            self.set_basis('blocked', blocked_by='paternal_brother')
         elif calc.get_paternalSisters().filter(asaba=True):
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by paternal sister/s")
+            self.set_basis('blocked', blocked_by='paternal_sister')
         elif calc.has_sonOfBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by sons of brother")
+            self.set_basis('blocked', blocked_by='son_of_brother')
         elif calc.has_sonOfPaternalBrother():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by sons of paternal brother")
+            self.set_basis('blocked', blocked_by='son_of_paternal_brother')
         elif calc.has_uncle():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by uncle/s")
+            self.set_basis('blocked', blocked_by='uncle')
         elif calc.has_paternalUncle():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by paternal uncle/s")
+            self.set_basis('blocked', blocked_by='paternal_uncle')
         elif calc.has_sonOfUncle():
             self.blocked = True
             self.quote_reason = _("Son/s of paternal Uncle/s are blocked by son/s of uncle/s")
+            self.set_basis('blocked', blocked_by='son_of_uncle')
         else:
             self.asaba =  True
             self.quote_reason = _("Son/s of paternal Uncle/s share the remainder or all amount if no other heir exist")
+            self.set_basis('residuary')
         self.save()
         return self.quote
 
@@ -1551,7 +1916,7 @@ class SonOfPaternalUncle(Heir):
 # siblings, then nephews and uncles. A heir only depends on those before it.
 FIQH_ORDER = [
     Son, Daughter, SonOfSon, DaughterOfSon,
-    Father, GrandFather, Mother, GrandMother, Husband, Wife,
+    Father, GrandFather, Mother, GrandMother, MaternalGrandMother, Husband, Wife,
     Brother, Sister, PaternalBrother, PaternalSister, MaternalBrother, MaternalSister,
     SonOfBrother, SonOfPaternalBrother, Uncle, PaternalUncle, SonOfUncle, SonOfPaternalUncle,
 ]

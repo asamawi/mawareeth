@@ -1,0 +1,578 @@
+{
+  "families": [
+    {
+      "name": "no heirs, Hanbali",
+      "madhab": "hanbali",
+      "gender": "male",
+      "heirs": [],
+      "heir_options": {
+        "blocked": [],
+        "invalid": {
+          "husband": "husband_of_male"
+        }
+      }
+    },
+    {
+      "name": "no heirs, female deceased",
+      "madhab": "hanbali",
+      "gender": "female",
+      "heirs": [],
+      "heir_options": {
+        "blocked": [],
+        "invalid": {
+          "wife": "wife_of_female"
+        }
+      }
+    },
+    {
+      "name": "father under Hanbali",
+      "madhab": "hanbali",
+      "gender": "male",
+      "heirs": [
+        "father"
+      ],
+      "heir_options": {
+        "blocked": [
+          "grandfather",
+          "brother",
+          "sister",
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "father": "second_father",
+          "husband": "husband_of_male"
+        }
+      }
+    },
+    {
+      "name": "father under Hanafi",
+      "madhab": "hanafi",
+      "gender": "female",
+      "heirs": [
+        "father"
+      ],
+      "heir_options": {
+        "blocked": [
+          "grandfather",
+          "paternal_grandmother",
+          "brother",
+          "sister",
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "father": "second_father",
+          "wife": "wife_of_female"
+        }
+      }
+    },
+    {
+      "name": "father, mother and two brothers",
+      "madhab": "hanbali",
+      "gender": "male",
+      "heirs": [
+        "father",
+        "mother",
+        "brother",
+        "brother"
+      ],
+      "heir_options": {
+        "blocked": [
+          "grandfather",
+          "paternal_grandmother",
+          "maternal_grandmother",
+          "brother",
+          "sister",
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "father": "second_father",
+          "mother": "second_mother",
+          "husband": "husband_of_male"
+        }
+      }
+    },
+    {
+      "name": "grandfather under Hanbali",
+      "madhab": "hanbali",
+      "gender": "male",
+      "heirs": [
+        "grandfather"
+      ],
+      "heir_options": {
+        "blocked": [
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "husband": "husband_of_male",
+          "grandfather": "second_grandfather"
+        }
+      }
+    },
+    {
+      "name": "grandfather under Hanafi",
+      "madhab": "hanafi",
+      "gender": "male",
+      "heirs": [
+        "grandfather"
+      ],
+      "heir_options": {
+        "blocked": [
+          "brother",
+          "sister",
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "husband": "husband_of_male",
+          "grandfather": "second_grandfather"
+        }
+      }
+    },
+    {
+      "name": "grandfather under Maliki",
+      "madhab": "maliki",
+      "gender": "male",
+      "heirs": [
+        "grandfather"
+      ],
+      "heir_options": {
+        "blocked": [
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "husband": "husband_of_male",
+          "grandfather": "second_grandfather"
+        }
+      }
+    },
+    {
+      "name": "two daughters",
+      "madhab": "shafii",
+      "gender": "male",
+      "heirs": [
+        "daughter",
+        "daughter"
+      ],
+      "heir_options": {
+        "blocked": [
+          "daughter_of_son",
+          "maternal_brother",
+          "maternal_sister"
+        ],
+        "invalid": {
+          "husband": "husband_of_male"
+        }
+      }
+    },
+    {
+      "name": "two daughters and a son of a son",
+      "madhab": "shafii",
+      "gender": "male",
+      "heirs": [
+        "daughter",
+        "daughter",
+        "son_of_son"
+      ],
+      "heir_options": {
+        "blocked": [
+          "brother",
+          "sister",
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "husband": "husband_of_male"
+        }
+      }
+    },
+    {
+      "name": "father under Jafari",
+      "madhab": "jafari",
+      "gender": "male",
+      "heirs": [
+        "father"
+      ],
+      "heir_options": {
+        "blocked": [],
+        "invalid": {
+          "father": "second_father",
+          "husband": "husband_of_male"
+        }
+      }
+    },
+    {
+      "name": "father, no school",
+      "madhab": null,
+      "gender": "male",
+      "heirs": [
+        "father"
+      ],
+      "heir_options": {
+        "blocked": [],
+        "invalid": {
+          "father": "second_father",
+          "husband": "husband_of_male"
+        }
+      }
+    },
+    {
+      "name": "four wives",
+      "madhab": "hanafi",
+      "gender": "male",
+      "heirs": [
+        "wife",
+        "wife",
+        "wife",
+        "wife"
+      ],
+      "heir_options": {
+        "blocked": [],
+        "invalid": {
+          "husband": "husband_of_male",
+          "wife": "fifth_wife"
+        }
+      }
+    },
+    {
+      "name": "husband of a woman",
+      "madhab": "hanafi",
+      "gender": "female",
+      "heirs": [
+        "husband"
+      ],
+      "heir_options": {
+        "blocked": [],
+        "invalid": {
+          "husband": "second_husband",
+          "wife": "wife_of_female"
+        }
+      }
+    },
+    {
+      "name": "father and grandfather",
+      "madhab": "hanbali",
+      "gender": "male",
+      "heirs": [
+        "father",
+        "grandfather"
+      ],
+      "heir_options": {
+        "blocked": [
+          "brother",
+          "sister",
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "father": "second_father",
+          "husband": "husband_of_male",
+          "grandfather": "second_grandfather"
+        }
+      }
+    },
+    {
+      "name": "mother and paternal grandmother",
+      "madhab": "hanafi",
+      "gender": "female",
+      "heirs": [
+        "mother",
+        "paternal_grandmother"
+      ],
+      "heir_options": {
+        "blocked": [
+          "maternal_grandmother"
+        ],
+        "invalid": {
+          "mother": "second_mother",
+          "wife": "wife_of_female",
+          "paternal_grandmother": "second_paternal_grandmother"
+        }
+      }
+    },
+    {
+      "name": "two sisters and a paternal brother",
+      "madhab": "hanbali",
+      "gender": "male",
+      "heirs": [
+        "sister",
+        "sister",
+        "paternal_brother"
+      ],
+      "heir_options": {
+        "blocked": [
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "husband": "husband_of_male"
+        }
+      }
+    },
+    {
+      "name": "a son",
+      "madhab": "maliki",
+      "gender": "female",
+      "heirs": [
+        "son"
+      ],
+      "heir_options": {
+        "blocked": [
+          "son_of_son",
+          "daughter_of_son",
+          "brother",
+          "sister",
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "wife": "wife_of_female"
+        }
+      }
+    },
+    {
+      "name": "father and a paternal grandmother under Hanafi",
+      "madhab": "hanafi",
+      "gender": "male",
+      "heirs": [
+        "father",
+        "paternal_grandmother"
+      ],
+      "heir_options": {
+        "blocked": [
+          "grandfather",
+          "brother",
+          "sister",
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "father": "second_father",
+          "husband": "husband_of_male",
+          "paternal_grandmother": "second_paternal_grandmother"
+        }
+      }
+    },
+    {
+      "name": "father and a paternal grandmother under Hanbali",
+      "madhab": "hanbali",
+      "gender": "male",
+      "heirs": [
+        "father",
+        "paternal_grandmother"
+      ],
+      "heir_options": {
+        "blocked": [
+          "grandfather",
+          "brother",
+          "sister",
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "father": "second_father",
+          "husband": "husband_of_male",
+          "paternal_grandmother": "second_paternal_grandmother"
+        }
+      }
+    },
+    {
+      "name": "father and a maternal grandmother under Maliki",
+      "madhab": "maliki",
+      "gender": "male",
+      "heirs": [
+        "father",
+        "maternal_grandmother"
+      ],
+      "heir_options": {
+        "blocked": [
+          "grandfather",
+          "paternal_grandmother",
+          "brother",
+          "sister",
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "father": "second_father",
+          "husband": "husband_of_male",
+          "maternal_grandmother": "second_maternal_grandmother"
+        }
+      }
+    },
+    {
+      "name": "mother, with both grandmothers recorded",
+      "madhab": "shafii",
+      "gender": "male",
+      "heirs": [
+        "mother",
+        "paternal_grandmother",
+        "maternal_grandmother"
+      ],
+      "heir_options": {
+        "blocked": [],
+        "invalid": {
+          "mother": "second_mother",
+          "husband": "husband_of_male",
+          "paternal_grandmother": "second_paternal_grandmother",
+          "maternal_grandmother": "second_maternal_grandmother"
+        }
+      }
+    },
+    {
+      "name": "grandfather and full brother under Hanbali",
+      "madhab": "hanbali",
+      "gender": "male",
+      "heirs": [
+        "grandfather",
+        "brother"
+      ],
+      "heir_options": {
+        "blocked": [
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "husband": "husband_of_male",
+          "grandfather": "second_grandfather"
+        }
+      }
+    },
+    {
+      "name": "daughter, grandfather and sister under Maliki",
+      "madhab": "maliki",
+      "gender": "male",
+      "heirs": [
+        "daughter",
+        "grandfather",
+        "sister"
+      ],
+      "heir_options": {
+        "blocked": [
+          "paternal_brother",
+          "paternal_sister",
+          "maternal_brother",
+          "maternal_sister",
+          "son_of_brother",
+          "son_of_paternal_brother",
+          "uncle",
+          "paternal_uncle",
+          "son_of_uncle",
+          "son_of_paternal_uncle"
+        ],
+        "invalid": {
+          "husband": "husband_of_male",
+          "grandfather": "second_grandfather"
+        }
+      }
+    }
+  ]
+}

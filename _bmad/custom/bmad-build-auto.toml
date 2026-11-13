@@ -1,0 +1,16 @@
+[workflow]
+
+persistent_facts = [
+  "Unattended run driven by scripts/auto-dev.ps1 on the branch already checked out (`development`, or a fix branch for bug fixes). Never push, merge, rebase, reset or switch branches; commit locally only.",
+  "Django tests need Postgres on localhost:5432 (the driver starts it). Run tests serially with `uv run python manage.py test <targeted labels> --noinput`; never use --parallel and never start two test runs at once. Run targeted test modules for the story, not the full calc+api suite (the driver runs that once per batch).",
+  "This is a headless run: ending your turn ends the run. Never end the turn after the implementation subagent reports back; continue through step 4 review and stop only at the HALT protocol with a final status written to the spec.",
+  "Never change user-facing translations (ar, en, fr message text or .po msgstrs) just to make a test pass; fix the test, or HALT if real text is wrong. New or changed text needs native review, so record it in deferred-work.md.",
+]
+
+implementation_handoff = """
+Launch a subagent with no prior conversation context, using model `sonnet`, with this prompt:
+
+> Read {spec_file} fully and implement it — the spec is the sole source of truth. Load every file listed in its frontmatter `context:` before you start.
+>
+> When done, report what you changed, how you verified it, and anything left incomplete or risky.
+"""

@@ -1,13 +1,16 @@
 import importlib.util
+import json
 import os
 import re
 import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from uuid import uuid4
+from wsgiref.headers import Headers
 
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.management.commands import migrate
 from django.db import OperationalError, connection, connections, migrations, models, transaction
@@ -15,6 +18,8 @@ from django.db.migrations.recorder import MigrationRecorder
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+
+from mawareeth.web_headers import add_web_headers
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -44,6 +49,48 @@ def load_settings_module(extra_env):
 
 
 class ProductionSettingsTests(SimpleTestCase):
+    def test_next_dev_origins_are_trusted_outside_production_only(self):
+        dev_origins = {"http://localhost:3000", "http://127.0.0.1:3000"}
+        production = load_settings_module({})
+        self.assertTrue(dev_origins.isdisjoint(production.CSRF_TRUSTED_ORIGINS))
+        for mode in ("development", "test"):
+            with self.subTest(mode=mode):
+                module = load_settings_module({"DJANGO_ENV": mode})
+                self.assertTrue(dev_origins <= set(module.CSRF_TRUSTED_ORIGINS))
+
+    def test_app_version_comes_from_the_environment(self):
+        settings_module = load_settings_module({"APP_VERSION": "3.0.7", "RELEASE_VERSION": "a" * 40})
+        self.assertEqual(settings_module.APP_VERSION, "3.0.7")
+        self.assertEqual(settings_module.RELEASE_VERSION, "a" * 40)
+
+    def test_app_version_falls_back_to_the_version_file(self):
+        base = (PROJECT_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+        self.assertRegex(base, r"^\d+\.\d+$")
+        for extra_env in ({}, {"APP_VERSION": ""}):
+            with self.subTest(extra_env=extra_env):
+                settings_module = load_settings_module(extra_env)
+                self.assertEqual(settings_module.APP_VERSION, f"{base}.0-dev")
+                self.assertEqual(settings_module.RELEASE_VERSION, f"{base}.0-dev")
+
+    def test_blank_app_version_counts_as_unset(self):
+        settings_module = load_settings_module({"APP_VERSION": "   "})
+        self.assertTrue(settings_module.APP_VERSION.endswith(".0-dev"))
+
+    def test_committed_version_file_is_exactly_what_publishing_accepts(self):
+        # Matches deploy/version.sh, so a bad edit fails before it reaches master.
+        raw = (PROJECT_ROOT / "VERSION").read_bytes().decode("utf-8")
+        self.assertRegex(raw, r"\A(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\n?\Z")
+
+    def test_unusable_version_file_is_a_configuration_error(self):
+        for name, read_text in (
+            ("missing", Mock(side_effect=FileNotFoundError)),
+            ("malformed", Mock(return_value="3.x\n")),
+            ("empty", Mock(return_value="")),
+        ):
+            with self.subTest(name), patch("pathlib.Path.read_text", read_text):
+                with self.assertRaises(ImproperlyConfigured):
+                    load_settings_module({})
+
     def test_missing_production_secret_raises(self):
         with self.assertRaises(ImproperlyConfigured):
             load_settings_module({"DJANGO_KEY": ""})
@@ -224,11 +271,12 @@ class OpsEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertJSONEqual(response.content, {"status": "ok", "database": "ok", "schema": "ok"})
 
-    @override_settings(RELEASE_VERSION="build-2026-09-02", RELEASE_COMMIT_SHA="abc1234")
+    @override_settings(APP_VERSION="3.0.7", RELEASE_VERSION="build-2026-09-02", RELEASE_COMMIT_SHA="abc1234")
     def test_release_identity_endpoint_returns_expected_markers(self):
         response = self.client.get(reverse("ops-release"), secure=True)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
+        self.assertEqual(response.json()["version"], "3.0.7")
         self.assertEqual(response.json()["release"], "build-2026-09-02")
         self.assertEqual(response.json()["commit"], "abc1234")
 
@@ -390,9 +438,303 @@ class PrivateHealthProbeTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_public_requests_still_redirect_to_https(self):
-        response = self.client.get(reverse("calc:home"), HTTP_HOST="mawareeth.example")
+        response = self.client.get("/", HTTP_HOST="mawareeth.example")
         self.assertEqual(response.status_code, 301)
         self.assertTrue(response["Location"].startswith("https://mawareeth.example/"))
+
+
+class WebExportTests(TestCase):
+    """The export is a build artifact, so these use a stand-in for it."""
+
+    ASSET = "/_next/static/chunks/abc123.js"
+    PUBLIC = ("", "about/", "terms/", "privacy/")
+    SCRIPT_A = "self.__next_f.push([1,\"a\"])"
+    SCRIPT_B = "window.title = 'مواريث';"
+    SCRIPT_C = "window.c = 1;"
+    SCRIPT_D = "window.d = 1;"
+    SCRIPT_CRLF = "window.e = 1;\r\nwindow.f = 2;\rwindow.g = 3;"
+    CSP_TAIL = (
+        "; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; "
+        "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; "
+        "form-action 'self' https://www.facebook.com https://www.linkedin.com"
+    )
+
+    @staticmethod
+    def sha(text):
+        import base64
+        import hashlib
+
+        return "'sha256-" + base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode() + "'"
+
+    def csp(self, *hashes):
+        return "default-src 'self'; script-src " + " ".join(["'self'", *hashes]) + self.CSP_TAIL
+
+    def setUp(self):
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        for locale, direction in (("ar", "rtl"), ("en", "ltr"), ("fr", "ltr")):
+            for page in (*self.PUBLIC, "interview/"):
+                path = root / locale / page / "index.html"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(f'<!DOCTYPE html><html lang="{locale}" dir="{direction}"></html>', encoding="utf-8")
+        scripted = root / "en" / "scripted" / "index.html"
+        scripted.parent.mkdir(parents=True)
+        scripted.write_text(
+            "<!DOCTYPE html><html><head>"
+            f"<script>{self.SCRIPT_A}</script>"
+            '<script src="/_next/static/chunks/abc123.js"></script>'
+            '<script type="application/ld+json">{"@type":"WebSite"}</script>'
+            f'<script type="">{self.SCRIPT_A}</script>'
+            f'<script id="_R_" type="module">{self.SCRIPT_B}</script>'
+            f'<script type="text/javascript">{self.SCRIPT_C}</script>'
+            f'<script type=" Module ">{self.SCRIPT_D}</script>'
+            "</head></html>",
+            encoding="utf-8",
+        )
+        crlf = root / "en" / "crlf" / "index.html"
+        crlf.parent.mkdir(parents=True)
+        crlf.write_bytes(f"<!DOCTYPE html>\r\n<html><head><script>{self.SCRIPT_CRLF}</script></head></html>".encode("utf-8"))
+        undecodable = root / "en" / "undecodable" / "index.html"
+        undecodable.parent.mkdir(parents=True)
+        undecodable.write_bytes(b"<html><script>\xff\xfe</script></html>")
+        for name in ("robots.txt", "sitemap.xml", "llms.txt"):
+            (root / name).write_text("x", encoding="utf-8")
+        asset = root / self.ASSET.lstrip("/")
+        asset.parent.mkdir(parents=True)
+        asset.write_text("console.log(1)", encoding="utf-8")
+        overridden = override_settings(WHITENOISE_ROOT=root)
+        overridden.enable()
+        self.addCleanup(overridden.disable)
+
+    def test_shell_page_has_language_direction_and_headers(self):
+        for locale, direction in (("ar", "rtl"), ("en", "ltr"), ("fr", "ltr")):
+            with self.subTest(locale=locale):
+                response = self.client.get(f"/{locale}/interview/", secure=True)
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response["Content-Type"].startswith("text/html"))
+                self.assertEqual(response["X-Frame-Options"], "DENY")
+                self.assertEqual(response["X-Robots-Tag"], "noindex")
+                self.assertEqual(response["Cache-Control"], "no-cache")
+                self.assertIn("ETag", response)
+                content = b"".join(response.streaming_content).decode()
+                self.assertIn(f'lang="{locale}"', content)
+                self.assertIn(f'dir="{direction}"', content)
+
+    def test_public_pages_are_indexable_but_still_framed_and_revalidated(self):
+        urls = [f"/{locale}/{page}" for locale in ("ar", "en", "fr") for page in self.PUBLIC]
+        urls += ["/robots.txt", "/sitemap.xml", "/llms.txt"]
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url, secure=True)
+                self.assertEqual(response.status_code, 200)
+                self.assertNotIn("X-Robots-Tag", response)
+                self.assertEqual(response["X-Frame-Options"], "DENY")
+                self.assertEqual(response["Cache-Control"], "no-cache")
+                response.close()
+
+    def test_html_gets_csp_with_hashes_of_inline_executable_scripts_only(self):
+        expected = self.csp(*(self.sha(script) for script in (self.SCRIPT_A, self.SCRIPT_B, self.SCRIPT_C, self.SCRIPT_D)))
+        response = self.client.get("/en/scripted/", secure=True)
+        self.assertEqual(response["Content-Security-Policy"], expected)
+        response.close()
+        # WhiteNoise redirects the /index.html form, but indexes it with the same path.
+        from mawareeth.web_headers import add_web_headers
+
+        for url in ("/en/scripted/", "/en/scripted/index.html"):
+            with self.subTest(url=url):
+                headers = {}
+                add_web_headers(headers, str(settings.WHITENOISE_ROOT / "en/scripted/index.html"), url)
+                self.assertEqual(headers["Content-Security-Policy"], expected)
+
+    def test_page_without_inline_scripts_allows_only_self(self):
+        response = self.client.get("/en/about/", secure=True)
+        self.assertEqual(response["Content-Security-Policy"], self.csp())
+        response.close()
+
+    def test_non_html_and_assets_get_no_csp(self):
+        for url in ("/robots.txt", "/sitemap.xml", self.ASSET):
+            with self.subTest(url=url):
+                response = self.client.get(url, secure=True)
+                self.assertEqual(response.status_code, 200)
+                self.assertNotIn("Content-Security-Policy", response)
+                response.close()
+
+    def test_crlf_and_lone_cr_are_hashed_as_lf_like_browsers(self):
+        response = self.client.get("/en/crlf/", secure=True)
+        normalized = self.SCRIPT_CRLF.replace("\r\n", "\n").replace("\r", "\n")
+        self.assertEqual(response["Content-Security-Policy"], self.csp(self.sha(normalized)))
+        # Consume rather than close(): a direct close() fires request_finished, which
+        # closes the test transaction's DB connection for the tests that follow.
+        b"".join(response.streaming_content)
+
+    def test_unreadable_path_fails_closed(self):
+        from mawareeth.web_headers import add_web_headers
+
+        undecodable = str(settings.WHITENOISE_ROOT / "en/undecodable/index.html")
+        for path in ("does-not-exist.html", undecodable):
+            with self.subTest(path=path):
+                headers = {}
+                with self.assertLogs("mawareeth.web_headers", level="WARNING"):
+                    add_web_headers(headers, path, "/en/about/")
+                self.assertEqual(headers["Content-Security-Policy"], self.csp())
+
+    def test_private_pages_stay_noindex(self):
+        response = self.client.get("/en/interview/", secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["X-Robots-Tag"], "noindex")
+        response.close()
+
+    def test_header_rules_handle_both_url_forms_and_leave_static_alone(self):
+        from mawareeth.web_headers import add_web_headers
+
+        def headers_for(url):
+            headers = {}
+            add_web_headers(headers, "unused", url)
+            return headers
+
+        for url in ("/en/about/", "/en/about/index.html", "/robots.txt"):
+            with self.subTest(url=url):
+                expected = {"X-Frame-Options": "DENY", "Cache-Control": "no-cache"}
+                if url != "/robots.txt":
+                    expected["Content-Security-Policy"] = self.csp()
+                self.assertEqual(headers_for(url), expected)
+        for url in ("/en/interview/", "/en/interview/index.html", "/en/cases/", "/ar/index.html.bak"):
+            with self.subTest(url=url):
+                self.assertEqual(headers_for(url)["X-Robots-Tag"], "noindex")
+        self.assertEqual(headers_for("/static/calc/css/content.css"), {})
+
+    def test_unknown_locale_is_404(self):
+        self.assertEqual(self.client.get("/de/", secure=True).status_code, 404)
+
+    def test_hashed_asset_is_immutable_for_one_year(self):
+        response = self.client.get(self.ASSET, secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Cache-Control"], "public, max-age=31536000, immutable")
+        self.assertEqual(response["X-Frame-Options"], "DENY")
+        response.close()
+
+    def test_missing_asset_is_404(self):
+        response = self.client.get("/_next/static/chunks/missing.js", secure=True)
+        self.assertEqual(response.status_code, 404)
+
+    def test_root_is_not_served_by_the_export(self):
+        self.assertEqual(self.client.get("/", secure=True).status_code, 302)
+
+    def test_existing_routes_still_respond(self):
+        self.assertEqual(self.client.get("/health/ready/", secure=True).status_code, 200)
+        self.assertEqual(self.client.get("/api/v1/session/", secure=True).status_code, 200)
+
+
+class WebRootRedirectTests(TestCase):
+    def assertRedirectsTo(self, response, location):
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], location)
+
+    def test_defaults_to_arabic(self):
+        self.assertRedirectsTo(self.client.get("/", secure=True), "/ar/")
+
+    def test_unsupported_language_falls_back_to_arabic(self):
+        response = self.client.get("/", secure=True, headers={"accept-language": "de"})
+        self.assertRedirectsTo(response, "/ar/")
+
+    def test_ignores_accept_language(self):
+        for header in ("fr-FR,fr;q=0.9", "en-US,en;q=0.9"):
+            with self.subTest(header=header):
+                response = self.client.get("/", secure=True, headers={"accept-language": header})
+                self.assertRedirectsTo(response, "/ar/")
+
+    def test_language_cookie_wins(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "en"
+        response = self.client.get("/", secure=True, headers={"accept-language": "fr"})
+        self.assertRedirectsTo(response, "/en/")
+
+    def test_unsupported_language_cookie_falls_back_to_arabic(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"
+        self.assertRedirectsTo(self.client.get("/", secure=True), "/ar/")
+
+    def test_keeps_the_query_string(self):
+        response = self.client.get('/?utm=x&a=1', secure=True, headers={'Accept-Language': 'fr'})
+        self.assertEqual(response['Location'], '/ar/?utm=x&a=1')
+
+    def test_redirect_is_not_cached_or_indexed(self):
+        response = self.client.get("/", secure=True)
+        self.assertIn("no-store", response["Cache-Control"])
+        self.assertEqual(response["X-Robots-Tag"], "noindex")
+        self.assertIn("Cookie", response["Vary"])
+
+    def test_post_is_rejected(self):
+        self.assertEqual(self.client.post("/", secure=True).status_code, 405)
+
+
+class LegacyAppRedirectTests(TestCase):
+    def test_deep_link_keeps_path_and_query(self):
+        response = self.client.get("/app/en/password-reset/confirm/?uid=a&token=b", secure=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/en/password-reset/confirm/?uid=a&token=b")
+        self.assertEqual(response["X-Robots-Tag"], "noindex")
+
+    def test_bare_prefix_uses_the_language_redirect(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "en"
+        response = self.client.get("/app/", secure=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/en/")
+        self.assertIn("Cookie", response["Vary"])
+
+    def test_bare_prefix_keeps_the_query_string(self):
+        response = self.client.get("/app/?utm=x", secure=True, headers={"accept-language": "fr"})
+        self.assertEqual(response["Location"], "/ar/?utm=x")
+
+    def test_double_slash_never_becomes_a_protocol_relative_location(self):
+        for path in ("/app//evil.com/", "/app///evil.com/", "/app//evil.com"):
+            with self.subTest(path=path):
+                response = self.client.get(path, secure=True)
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(response["Location"], "/evil.com/" if path.endswith("/") else "/evil.com")
+                self.assertFalse(response["Location"].startswith("//"))
+
+    def test_backslash_and_control_characters_never_start_an_external_location(self):
+        for path in ("/app/%5Cevil.com", "/app//%5Cevil.com", "/app/%5C%5Cevil.com", "/app/%09/evil.com", "/app/%0D%0A/evil.com"):
+            with self.subTest(path=path):
+                response = self.client.get(path, secure=True)
+                if path.endswith("%0D%0A/evil.com"):
+                    # `.*` does not match a newline, so the route does not match at all.
+                    self.assertEqual(response.status_code, 404)
+                    continue
+                self.assertEqual(response.status_code, 302)
+                location = response["Location"]
+                self.assertTrue(location.startswith("/"))
+                self.assertNotIn(location[1:2], ("/", "\\"))
+                self.assertFalse(location.startswith("//"))
+                self.assertFalse(location.startswith("/\\"))
+
+    def test_post_is_rejected(self):
+        self.assertEqual(self.client.post("/app/en/login/", secure=True).status_code, 405)
+
+
+class WebExportAbsentTests(TestCase):
+    @override_settings(WHITENOISE_ROOT=None)
+    def test_shell_page_404s_while_redirect_and_api_work(self):
+        self.assertEqual(self.client.get("/ar/", secure=True).status_code, 404)
+        self.assertEqual(self.client.get("/en/signup/", secure=True).status_code, 404)
+        self.assertEqual(self.client.get("/", secure=True).status_code, 302)
+        self.assertEqual(self.client.get("/app/ar/", secure=True).status_code, 302)
+        self.assertEqual(self.client.get("/api/v1/session/", secure=True).status_code, 200)
+
+    def test_settings_only_set_whitenoise_root_when_the_export_exists(self):
+        with patch("pathlib.Path.is_dir", return_value=False):
+            self.assertFalse(hasattr(load_settings_module({}), "WHITENOISE_ROOT"))
+        with patch("pathlib.Path.is_dir", return_value=True):
+            module = load_settings_module({})
+        self.assertEqual(module.WHITENOISE_ROOT, module.BASE_DIR / "web-dist")
+
+
+class WebHeadersTests(SimpleTestCase):
+    def test_static_files_keep_their_immutable_headers(self):
+        immutable = "max-age=315360000, public, immutable"
+        headers = Headers([("Cache-Control", immutable)])
+        add_web_headers(headers, "/srv/staticfiles/site.abc123.css", "/static/site.abc123.css")
+        self.assertEqual(headers.items(), [("Cache-Control", immutable)])
 
 
 class WorkflowContractTests(SimpleTestCase):
@@ -403,7 +745,7 @@ class WorkflowContractTests(SimpleTestCase):
             "python manage.py migrate --noinput",
             "python manage.py collectstatic --noinput",
             "python manage.py check --deploy --fail-level WARNING",
-            "python manage.py test",
+            "python manage.py test --parallel auto --durations 20",
         ]
         for command in required_commands:
             with self.subTest(command=command):
@@ -411,6 +753,26 @@ class WorkflowContractTests(SimpleTestCase):
                 match = re.search(executable_step, workflow)
                 self.assertIsNotNone(match)
                 self.assertNotRegex(match.group(0), r"(?m)^ +if: false$")
+
+    @unittest.skipUnless((PROJECT_ROOT / "web").is_dir(), "the release image has no frontend sources")
+    def test_export_locales_match_django_languages(self):
+        codes = sorted(code for code, _name in settings.LANGUAGES)
+        web = PROJECT_ROOT / "web"
+        messages = (web / "src" / "i18n" / "messages.ts").read_text(encoding="utf-8")
+        locales = re.search(r"locales = \[([^\]]*)\]", messages).group(1)
+        self.assertEqual(sorted(re.findall(r'"([a-z-]+)"', locales)), codes)
+        check = (web / "scripts" / "check-export.mjs").read_text(encoding="utf-8")
+        expected = re.search(r"expected = \{([^}]*)\}", check).group(1)
+        self.assertEqual(sorted(re.findall(r"([a-z-]+):", expected)), codes)
+
+    @unittest.skipUnless((PROJECT_ROOT / "web").is_dir(), "the release image has no frontend sources")
+    def test_node_version_is_the_same_everywhere(self):
+        web = PROJECT_ROOT / "web"
+        nvmrc = (web / ".nvmrc").read_text(encoding="utf-8").strip()
+        engines = json.loads((web / "package.json").read_text(encoding="utf-8"))["engines"]["node"]
+        dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        image = re.search(r"FROM node:([0-9.]+)-slim@sha256:", dockerfile).group(1)
+        self.assertEqual({nvmrc, engines, image}, {nvmrc})
 
     def test_image_build_fails_on_static_or_deploy_check_errors(self):
         dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
@@ -457,6 +819,41 @@ class WorkflowContractTests(SimpleTestCase):
         self.assertIn("release_manifest.py validate --input release-manifest.json", workflow)
         self.assertEqual(workflow.count('--expected-repository "${{ steps.image.outputs.repository }}"'), 3)
         self.assertNotIn("release-metadata.json", workflow)
+
+    def test_publish_workflow_numbers_the_image_and_tags_only_after_publishing(self):
+        workflow = (PROJECT_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+        ordered_steps = (
+            "fetch-depth: 0",
+            "- name: Derive release version",
+            "- name: Build release image once",
+            "- name: Push smoke-tested image",
+            "- name: Upload release manifest",
+            "tag-release:",
+        )
+        positions = [workflow.index(step) for step in ordered_steps]
+        self.assertEqual(positions, sorted(positions))
+
+        self.assertIn("APP_VERSION=${{ steps.version.outputs.version }}", workflow)
+        self.assertIn("RELEASE_VERSION=${{ github.event.workflow_run.head_sha }}", workflow)
+        self.assertIn("RELEASE_COMMIT_SHA=${{ github.event.workflow_run.head_sha }}", workflow)
+        self.assertIn('data["version"] == os.environ["EXPECTED_VERSION"]', workflow)
+        self.assertIn('deploy/version.sh check-tag "$version"', workflow)
+
+        # Only the job that runs after a complete publish can write to the repository.
+        self.assertRegex(workflow, r"(?m)^permissions:\n  contents: read\n  packages: write$")
+        self.assertEqual(workflow.count("contents: write"), 1)
+        tag_job = workflow[workflow.index("  tag-release:") :]
+        self.assertRegex(tag_job, r"(?m)^    needs: publish$")
+        self.assertRegex(tag_job, r"(?m)^    permissions:\n      contents: write$")
+        self.assertNotRegex(tag_job, r"(?m)^ +(if|continue-on-error):")
+        self.assertIn('deploy/version.sh tag "$VERSION" "$COMMIT_SHA"', tag_job)
+
+    def test_image_build_passes_app_version_in_every_stage(self):
+        dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        self.assertEqual(len(re.findall(r"(?m)^ARG APP_VERSION=$", dockerfile)), 2)
+        self.assertEqual(dockerfile.count('APP_VERSION="$APP_VERSION"'), 3)
+        ignored = (PROJECT_ROOT / ".dockerignore").read_text(encoding="utf-8").split()
+        self.assertNotIn("VERSION", ignored)
 
     def test_validation_workflow_builds_image_and_validates_caddyfile_before_merge(self):
         workflow = (PROJECT_ROOT / ".github" / "workflows" / "django.yml").read_text(encoding="utf-8")
@@ -513,6 +910,42 @@ class WorkflowContractTests(SimpleTestCase):
                 self.assertRegex(jobs[name], r"(?m)^    timeout-minutes: \d+$")
                 self.assertRegex(jobs[name], r"(?m)^    permissions:\n      contents: read$")
                 self.assertNotRegex(jobs[name], r"(?m)^ +if:")
+
+    def test_validation_workflow_gates_on_the_web_job(self):
+        workflow = (PROJECT_ROOT / ".github" / "workflows" / "django.yml").read_text(encoding="utf-8")
+        jobs_section = workflow[workflow.index("\njobs:\n") :]
+        match = re.search(r"(?m)^  web:\n((?:(?: {4}[^\n]*| *)\n)*)", jobs_section)
+        self.assertIsNotNone(match)
+        job = match.group(1)
+        self.assertIn("node-version-file: web/.nvmrc", job)
+        for command in (
+            "npm ci",
+            "npm run lint",
+            "npm run typecheck",
+            "npm test",
+            "npm run build",
+            "node scripts/check-export.mjs",
+            "npx playwright install --with-deps chromium",
+            "npm run test:e2e",
+        ):
+            with self.subTest(command=command):
+                self.assertRegex(job, rf"(?m)^ +run: {re.escape(command)}$")
+        self.assertNotRegex(job, r"(?m)^ +continue-on-error:")
+        # Every gate always runs. The only conditional step is the failure-report upload,
+        # which runs after the gates and cannot turn a failed job green.
+        steps = re.split(r"(?m)^      - ", job)[1:]
+        conditional = [step for step in steps if re.search(r"(?m)^ +if:", step)]
+        self.assertEqual(len(conditional), 1)
+        self.assertIn("uses: actions/upload-artifact@", conditional[0])
+        self.assertIs(steps[-1], conditional[0])
+
+    def test_publish_smoke_test_covers_the_frontend_and_api(self):
+        workflow = (PROJECT_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+        start = workflow.index("- name: Smoke-test release image")
+        smoke = workflow[start : workflow.index("- name: Preflight release manifest inputs")]
+        for snippet in ("X-Forwarded-Proto: https", "/ar/", 'dir="rtl"', "/_next/static/", "/api/v1/session/"):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, smoke)
 
     def _production_deploy_workflow(self):
         return (PROJECT_ROOT / ".github" / "workflows" / "deploy-production.yml").read_text(encoding="utf-8")

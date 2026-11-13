@@ -38,21 +38,21 @@
   <title>{% block title %}{% endblock %} | {% trans "Mawareeth" %} {{ APP_VERSION }}</title>
 </head>
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
-  <a class="navbar-brand" href="{% url 'calc:index' %}"> {% trans "Mawareeth 2.0" %} </a>
+  <a class="navbar-brand" href="{% url 'calc:index' %}"> {% trans "Mawareeth" %} </a>
   <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
     <span class="navbar-toggler-icon"></span>
   </button>
 
   <div class="collapse navbar-collapse" id="navbarSupportedContent">
     <ul class="navbar-nav mr-auto">
-      <li class="nav-item {% active_link 'calc:home' strict=True %}">
-        <a class="nav-link" href="{% url 'calc:home' %}"> {% trans "Home" %} <span class="sr-only">(current)</span></a>
+      <li class="nav-item">
+        <a class="nav-link" href="/{{ LANGUAGE_CODE }}/"> {% trans "Home" %}</a>
       </li>
       <li class="nav-item {% active_link 'calc:index' %}">
         <a class="nav-link" href="{% url 'calc:index' %}"> {% trans "Calculations" %} </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" href="{% url 'calc:about' %}"> {% trans "About" %} </a>
+        <a class="nav-link" href="/{{ LANGUAGE_CODE }}/about/"> {% trans "About" %} </a>
       </li>
     </ul>
     {% if user.is_authenticated %}
@@ -63,7 +63,7 @@
     </form>
     {% else %}
     <a href="{% url 'login' %}">{% trans 'login' %}</a> |
-    <a href="{% url 'calc:signup' %}">{% trans 'Sign Up' %}</a>
+    <a href="/{{ LANGUAGE_CODE }}/signup/">{% trans 'Sign Up' %}</a>
 
     {% endif %}
     <form class="form-inline my-2 my-lg-0" action="{% url 'set_language' %}" method="post">{% csrf_token %}
@@ -97,10 +97,10 @@
 
   <footer class="footer">
       <div class="container">
-        <a href="{% url 'calc:terms' %}">
+        <a href="/{{ LANGUAGE_CODE }}/terms/">
           {% trans "Terms and Conditions" %}
         </a> |
-        <a href="{% url 'calc:privacy' %}">
+        <a href="/{{ LANGUAGE_CODE }}/privacy/">
           {% trans "Privacy Policy" %}
         </a>
       </div>

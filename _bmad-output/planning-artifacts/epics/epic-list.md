@@ -171,6 +171,52 @@ So that I only add heirs who are eligible under fiqh.
 **When** I submit
 **Then** I see all relevant errors without losing my entered data
 
+## Story 1.7: Successive Deaths (Manasikhat) in the Interview
+
+**Implements:** FR-02, FR-05, FR-07
+
+As a visitor,
+I want to say that an heir has also died and add that heir's own heirs in the same interview,
+So that a case with successive deaths is captured and previewed without starting over.
+
+**Acceptance Criteria:**
+
+**Given** I have added an heir who can have heirs of their own
+**When** I mark that heir as also deceased
+**Then** the interview asks for that person's heirs as a new layer
+**And** people already in the case who are also that person's relatives (for example the mother or a brother) are linked as the same person, not entered twice
+**And** the tree shows the new layer with a generation indicator, and a breadcrumb shows which death I am editing
+
+**Given** two heirs are marked as deceased
+**When** I add the second one
+**Then** I am asked which of them died first
+**And** a simultaneous or unknown order of death is refused with a clear message
+
+**Given** a layered case within the engine's bounds (the first death and up to two later deaths)
+**When** the preview runs
+**Then** it shows each living person's combined final share of the first estate, computed by the layered engine
+**And** the heirs who died later are not listed as receiving a share
+
+**Given** a layered case the engine refuses (more than two later deaths, the Jafari school, or a refused layer)
+**When** the preview runs or I try to add another death
+**Then** the UI states the engine's reason and shows no provisional numbers
+**And** I can continue the interview
+
+**Given** an heir who has a later death
+**When** I remove that heir, or unmark them as deceased, and confirm
+**Then** their layer and its heirs are removed with them, and no orphaned layer remains
+
+**Given** overlapping edits and preview requests on one layered case
+**When** they run at the same time
+**Then** the whole case is locked so a preview never reads a half-written layer, and no request fails with a server error
+
+**Given** layered input and preview output
+**When** automated tests run
+**Then** contract tests check the layered request and preview payloads against the engine
+**And** the Story 2.4 matrix fixtures match the displayed final shares
+
+**Out of scope:** the dedicated lawyer Manasikhat mode, showing the per-layer proof (Epic 3), the legacy Django pages, a later deceased's own separate property, and simultaneous deaths (gharqa).
+
 ## Epic 2: Multi-School Deterministic Inheritance Engine
 Users receive deterministic inheritance calculations for all 4 Sunni Madhabs and the Jafari school, with measurable rule coverage, proof output, and no manual overrides.
 **FRs covered:** FR-01, FR-02, FR-03, FR-16
@@ -319,6 +365,11 @@ So that I can keep, review, or share a draft inheritance report.
 **Then** I see a clear failure message
 **And** I can retry without losing the calculation result
 
+**Given** the open-core boundary (AD-14)
+**When** the report status and disclaimer are rendered
+**Then** the public code reads the status only through the report-status extension point, which returns "draft" when no private package is installed
+**And** no certified seal, signature, registry link or certification wording is implemented in the public repository
+
 ## Epic 4: Save, Share, and Privacy
 Users can save cases optionally, share reports, and control privacy/anonymization.
 **FRs covered:** FR-18, FR-19
@@ -436,6 +487,29 @@ So that I can send the result to selected recipients from my account.
 ## Epic 5: Lawyer Registration and Approval
 Lawyers can apply for professional access, administrators can review applications, and only approved lawyers gain certification privileges.
 **FRs covered:** FR-11
+
+## Story 5.0: Marketplace Validation Gate and Private Package Bootstrap
+
+**Implements:** AD-14 (open-core boundary); precondition for FR-11 through FR-17
+
+As the product owner,
+I want evidence that lawyers and courts will accept platform certification, and a private home for the marketplace code,
+So that Epics 5–7 are built on a validated demand and never land in the public repository.
+
+**Acceptance Criteria:**
+
+**Given** Epic 5 has not started
+**When** the validation gate is reviewed
+**Then** at least five Lebanese lawyers who handle estates and five heirs abroad (Lebanese expats in the Gulf) have been interviewed
+**And** the findings record whether Lebanese Sharia courts give weight to a platform-certified Hasr al-Irth report, what lawyers charge today, and whether they would certify through a platform for a commission
+**And** the owner records a go, change, or stop decision for Epics 5–7
+
+**Given** the gate decision is "go"
+**When** the private package is bootstrapped
+**Then** a private repository exists that depends on the public engine and is never imported by it
+**And** the public repository still builds, tests and runs with the private package absent, and report status defaults to "draft"
+**And** any release image that contains the private package is published only to a private registry, with the mechanism recorded against AD-14
+**And** the public repository has a CONTRIBUTING file requiring a CLA for outside contributions
 
 ## Story 5.1: Public Lawyer Application
 
@@ -731,3 +805,30 @@ So that report trust and accountability can be reviewed later.
 **Given** an audit record exists
 **When** authorized staff review the certification history
 **Then** they can see a chronological record of certification-related events
+
+## Story 7.7: Certification Registry and QR Verification
+
+**Implements:** NFR-06; AD-14 (private package)
+
+As a court clerk or relative holding a certified report,
+I want to scan the report's QR code and see whether the certification is genuine and current,
+So that I can trust the report without contacting the platform or the lawyer.
+
+**Acceptance Criteria:**
+
+**Given** a lawyer certifies a report (Story 7.5)
+**When** the certified report is issued
+**Then** the registry records the report, the certifying lawyer, the time, and the engine version and rule set that produced the result
+**And** the certification is signed with a key held only by the private service, and the report carries a QR code linking to its registry entry on the Mawareeth domain
+
+**Given** someone scans a certified report's QR code
+**When** the registry entry is valid and not revoked
+**Then** the page shows the certifying lawyer, the certification date and the shares, and states that the result can be re-derived with the published engine version
+
+**Given** a certification is revoked, the lawyer's approval is withdrawn, or the report was altered
+**When** someone scans or checks it
+**Then** the page clearly shows that the report is not currently certified
+
+**Given** the signing key must change
+**When** it is rotated
+**Then** earlier certifications still verify, and the verification page lists the current and previous public keys
