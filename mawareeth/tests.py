@@ -448,6 +448,26 @@ class WebExportTests(TestCase):
 
     ASSET = "/_next/static/chunks/abc123.js"
     PUBLIC = ("", "about/", "terms/", "privacy/")
+    SCRIPT_A = "self.__next_f.push([1,\"a\"])"
+    SCRIPT_B = "window.title = 'مواريث';"
+    SCRIPT_C = "window.c = 1;"
+    SCRIPT_D = "window.d = 1;"
+    SCRIPT_CRLF = "window.e = 1;\r\nwindow.f = 2;\rwindow.g = 3;"
+    CSP_TAIL = (
+        "; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; "
+        "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; "
+        "form-action 'self' https://www.facebook.com https://www.linkedin.com"
+    )
+
+    @staticmethod
+    def sha(text):
+        import base64
+        import hashlib
+
+        return "'sha256-" + base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode() + "'"
+
+    def csp(self, *hashes):
+        return "default-src 'self'; script-src " + " ".join(["'self'", *hashes]) + self.CSP_TAIL
 
     def setUp(self):
         directory = TemporaryDirectory()
@@ -458,6 +478,26 @@ class WebExportTests(TestCase):
                 path = root / locale / page / "index.html"
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(f'<!DOCTYPE html><html lang="{locale}" dir="{direction}"></html>', encoding="utf-8")
+        scripted = root / "en" / "scripted" / "index.html"
+        scripted.parent.mkdir(parents=True)
+        scripted.write_text(
+            "<!DOCTYPE html><html><head>"
+            f"<script>{self.SCRIPT_A}</script>"
+            '<script src="/_next/static/chunks/abc123.js"></script>'
+            '<script type="application/ld+json">{"@type":"WebSite"}</script>'
+            f'<script type="">{self.SCRIPT_A}</script>'
+            f'<script id="_R_" type="module">{self.SCRIPT_B}</script>'
+            f'<script type="text/javascript">{self.SCRIPT_C}</script>'
+            f'<script type=" Module ">{self.SCRIPT_D}</script>'
+            "</head></html>",
+            encoding="utf-8",
+        )
+        crlf = root / "en" / "crlf" / "index.html"
+        crlf.parent.mkdir(parents=True)
+        crlf.write_bytes(f"<!DOCTYPE html>\r\n<html><head><script>{self.SCRIPT_CRLF}</script></head></html>".encode("utf-8"))
+        undecodable = root / "en" / "undecodable" / "index.html"
+        undecodable.parent.mkdir(parents=True)
+        undecodable.write_bytes(b"<html><script>\xff\xfe</script></html>")
         for name in ("robots.txt", "sitemap.xml", "llms.txt"):
             (root / name).write_text("x", encoding="utf-8")
         asset = root / self.ASSET.lstrip("/")
@@ -493,6 +533,52 @@ class WebExportTests(TestCase):
                 self.assertEqual(response["Cache-Control"], "no-cache")
                 response.close()
 
+    def test_html_gets_csp_with_hashes_of_inline_executable_scripts_only(self):
+        expected = self.csp(*(self.sha(script) for script in (self.SCRIPT_A, self.SCRIPT_B, self.SCRIPT_C, self.SCRIPT_D)))
+        response = self.client.get("/en/scripted/", secure=True)
+        self.assertEqual(response["Content-Security-Policy"], expected)
+        response.close()
+        # WhiteNoise redirects the /index.html form, but indexes it with the same path.
+        from mawareeth.web_headers import add_web_headers
+
+        for url in ("/en/scripted/", "/en/scripted/index.html"):
+            with self.subTest(url=url):
+                headers = {}
+                add_web_headers(headers, str(settings.WHITENOISE_ROOT / "en/scripted/index.html"), url)
+                self.assertEqual(headers["Content-Security-Policy"], expected)
+
+    def test_page_without_inline_scripts_allows_only_self(self):
+        response = self.client.get("/en/about/", secure=True)
+        self.assertEqual(response["Content-Security-Policy"], self.csp())
+        response.close()
+
+    def test_non_html_and_assets_get_no_csp(self):
+        for url in ("/robots.txt", "/sitemap.xml", self.ASSET):
+            with self.subTest(url=url):
+                response = self.client.get(url, secure=True)
+                self.assertEqual(response.status_code, 200)
+                self.assertNotIn("Content-Security-Policy", response)
+                response.close()
+
+    def test_crlf_and_lone_cr_are_hashed_as_lf_like_browsers(self):
+        response = self.client.get("/en/crlf/", secure=True)
+        normalized = self.SCRIPT_CRLF.replace("\r\n", "\n").replace("\r", "\n")
+        self.assertEqual(response["Content-Security-Policy"], self.csp(self.sha(normalized)))
+        # Consume rather than close(): a direct close() fires request_finished, which
+        # closes the test transaction's DB connection for the tests that follow.
+        b"".join(response.streaming_content)
+
+    def test_unreadable_path_fails_closed(self):
+        from mawareeth.web_headers import add_web_headers
+
+        undecodable = str(settings.WHITENOISE_ROOT / "en/undecodable/index.html")
+        for path in ("does-not-exist.html", undecodable):
+            with self.subTest(path=path):
+                headers = {}
+                with self.assertLogs("mawareeth.web_headers", level="WARNING"):
+                    add_web_headers(headers, path, "/en/about/")
+                self.assertEqual(headers["Content-Security-Policy"], self.csp())
+
     def test_private_pages_stay_noindex(self):
         response = self.client.get("/en/interview/", secure=True)
         self.assertEqual(response.status_code, 200)
@@ -509,7 +595,10 @@ class WebExportTests(TestCase):
 
         for url in ("/en/about/", "/en/about/index.html", "/robots.txt"):
             with self.subTest(url=url):
-                self.assertEqual(headers_for(url), {"X-Frame-Options": "DENY", "Cache-Control": "no-cache"})
+                expected = {"X-Frame-Options": "DENY", "Cache-Control": "no-cache"}
+                if url != "/robots.txt":
+                    expected["Content-Security-Policy"] = self.csp()
+                self.assertEqual(headers_for(url), expected)
         for url in ("/en/interview/", "/en/interview/index.html", "/en/cases/", "/ar/index.html.bak"):
             with self.subTest(url=url):
                 self.assertEqual(headers_for(url)["X-Robots-Tag"], "noindex")

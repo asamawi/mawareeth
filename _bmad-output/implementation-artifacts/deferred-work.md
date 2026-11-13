@@ -114,6 +114,10 @@ Completed and obsolete items are removed; their history is in git.
   summary: Confirm the real `X-Forwarded-For` value reaching Django behind Cloudflare before relying on the case-write throttle's `NUM_PROXIES = 2`.
   evidence: A local Caddy run on 2026-11-06 confirmed Caddy appends the peer from a trusted proxy and replaces the header otherwise, but Cloudflare's own contribution can only be observed on the deployed stack. Release blocker.
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-content-security-policy.md`
+  summary: Exercise Facebook and LinkedIn social login live on the deployed stack under the new CSP `form-action`.
+  evidence: The export CSP allows `form-action 'self' https://www.facebook.com https://www.linkedin.com` because `/social-auth/login/…` redirects to those origins and Chrome applies `form-action` to redirects. Not testable locally; confirm both providers complete sign-in.
+
 ## Django / API
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-7-successive-deaths-manasikhat-in-the-interview.md`
@@ -196,10 +200,6 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
   summary: Add shadcn/ui, React Query, Zustand and drf-spectacular with the first story that uses each.
   evidence: The foundation has one page and one read-only endpoint, so none of them has a user yet.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
-  summary: Add a Content-Security-Policy for pages under `/{lang}/…` before they reach production.
-  evidence: Story 1.1 links `/{lang}/interview/` from the landing page. The project owner deferred this on 2026-11-06 as a release blocker because product work stays on local `development` until all epics are complete. `add_web_headers` sets frame and robots headers only, and the settings define no CSP. Sources: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`; `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
   summary: Add browser-level tests for the Next.js `/{lang}/…` routes, covering hydration, rendered states, RTL, no-retry, keyboard and reduced motion, before they reach production.
