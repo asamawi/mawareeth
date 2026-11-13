@@ -10,7 +10,7 @@ from django.views.decorators.http import require_safe
 def _language_redirect(language, query):
     response = HttpResponseRedirect(f'/{language}/' + (f'?{query}' if query else ''))
     response['X-Robots-Tag'] = 'noindex'
-    patch_vary_headers(response, ('Cookie', 'Accept-Language'))
+    patch_vary_headers(response, ('Cookie',))
     return response
 
 
@@ -18,11 +18,12 @@ def _language_redirect(language, query):
 @never_cache
 @require_safe
 def site_root(request):
-    """Send / to the export's page for the language LocaleMiddleware activated.
+    """Send / to the Arabic landing page, or to the language saved in the language cookie.
 
-    A static index.html cannot negotiate the language, so Django owns this path.
+    The browser's Accept-Language is deliberately ignored: Arabic is the default for
+    every first visit. A static index.html cannot read the cookie, so Django owns this path.
     """
-    language = get_language()
+    language = request.COOKIES.get(settings.LANGUAGE_COOKIE_NAME)
     if language not in dict(settings.LANGUAGES):
         language = settings.LANGUAGE_CODE
     return _language_redirect(language, request.META.get('QUERY_STRING'))

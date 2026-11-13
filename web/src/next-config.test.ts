@@ -10,6 +10,12 @@ test("production builds are a static export at the site root with no rewrites", 
   assert.equal(built.output, "export");
   assert.equal(built.basePath, undefined);
   assert.equal(built.rewrites, undefined);
+  assert.equal(built.redirects, undefined);
+});
+
+test("development sends the site root to the Arabic landing page", async () => {
+  const dev = config(PHASE_DEVELOPMENT_SERVER);
+  assert.deepEqual(await dev.redirects?.(), [{ source: "/", destination: "/ar/", permanent: false }]);
 });
 
 test("development proxies the API to Django", async () => {

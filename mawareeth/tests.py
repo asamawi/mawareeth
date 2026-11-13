@@ -638,25 +638,30 @@ class WebRootRedirectTests(TestCase):
         response = self.client.get("/", secure=True, headers={"accept-language": "de"})
         self.assertRedirectsTo(response, "/ar/")
 
-    def test_follows_accept_language(self):
-        response = self.client.get("/", secure=True, headers={"accept-language": "fr-FR,fr;q=0.9"})
-        self.assertRedirectsTo(response, "/fr/")
+    def test_ignores_accept_language(self):
+        for header in ("fr-FR,fr;q=0.9", "en-US,en;q=0.9"):
+            with self.subTest(header=header):
+                response = self.client.get("/", secure=True, headers={"accept-language": header})
+                self.assertRedirectsTo(response, "/ar/")
 
-    def test_cookie_wins_over_accept_language(self):
+    def test_language_cookie_wins(self):
         self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "en"
         response = self.client.get("/", secure=True, headers={"accept-language": "fr"})
         self.assertRedirectsTo(response, "/en/")
 
+    def test_unsupported_language_cookie_falls_back_to_arabic(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"
+        self.assertRedirectsTo(self.client.get("/", secure=True), "/ar/")
+
     def test_keeps_the_query_string(self):
         response = self.client.get('/?utm=x&a=1', secure=True, headers={'Accept-Language': 'fr'})
-        self.assertEqual(response['Location'], '/fr/?utm=x&a=1')
+        self.assertEqual(response['Location'], '/ar/?utm=x&a=1')
 
     def test_redirect_is_not_cached_or_indexed(self):
         response = self.client.get("/", secure=True)
         self.assertIn("no-store", response["Cache-Control"])
         self.assertEqual(response["X-Robots-Tag"], "noindex")
         self.assertIn("Cookie", response["Vary"])
-        self.assertIn("Accept-Language", response["Vary"])
 
     def test_post_is_rejected(self):
         self.assertEqual(self.client.post("/", secure=True).status_code, 405)
@@ -678,7 +683,7 @@ class LegacyAppRedirectTests(TestCase):
 
     def test_bare_prefix_keeps_the_query_string(self):
         response = self.client.get("/app/?utm=x", secure=True, headers={"accept-language": "fr"})
-        self.assertEqual(response["Location"], "/fr/?utm=x")
+        self.assertEqual(response["Location"], "/ar/?utm=x")
 
     def test_double_slash_never_becomes_a_protocol_relative_location(self):
         for path in ("/app//evil.com/", "/app///evil.com/", "/app//evil.com"):

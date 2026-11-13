@@ -17,6 +17,10 @@ export default function config(phase: string): NextConfig {
   if (phase === PHASE_DEVELOPMENT_SERVER) {
     return {
       ...shared,
+      // In production Django answers / (Arabic unless the language cookie says otherwise).
+      async redirects() {
+        return [{ source: "/", destination: "/ar/", permanent: false }];
+      },
       // Production is same-origin; in development Django runs on its own port.
       async rewrites() {
         return [
