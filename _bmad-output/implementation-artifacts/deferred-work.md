@@ -120,10 +120,6 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Django / API
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-school-only-when-it-matters.md`
-  summary: Fix the failing `api.tests.InterviewAnswerTests.test_edit_heir_keeps_id_and_place_and_derives_gender_again`, which expects an edited heir without the `edit_options` object the API now returns.
-  evidence: The test fails identically at 8168f72 in a clean worktree, so an earlier change on `development` (probably the add-heir picker) broke it. CI runs the `api` suite, so this blocks a green pipeline.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-7-successive-deaths-manasikhat-in-the-interview.md`
   summary: Arrange qualified fiqh review of layered previews built from interview input.
   evidence: Story 1.7a adds linked identities, inferred death order and combined shares across layers; these interview-built previews need qualified review across the supported schools.

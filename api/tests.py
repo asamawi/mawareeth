@@ -809,8 +809,11 @@ class InterviewAnswerTests(InterviewBase):
 
         self.assertEqual(response.status_code, 200)
         edited = response.json()['case']['heirs']
+        # Each heir also carries the add/edit form's `edit_options`, which the blur-check derives anew.
+        self.assertIn('edit_options', edited[0])
         self.assertEqual(
-            edited[0], {'id': heirs[0]['id'], 'relationship': 'daughter', 'gender': 'female', 'name': None})
+            {key: value for key, value in edited[0].items() if key != 'edit_options'},
+            {'id': heirs[0]['id'], 'relationship': 'daughter', 'gender': 'female', 'name': None})
         self.assertEqual(edited[1], heirs[1])
 
     def test_bad_edit_stores_nothing(self):
