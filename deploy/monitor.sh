@@ -689,7 +689,8 @@ cmd_install() {
   atomic_write "$systemd_dir/$token_unit.timer" 0644 "$(unit_timer 'Mawareeth GitHub read token check every day' daily 1h "$token_unit.service")" \
     || install_fail "could not write $token_unit.timer"
   atomic_write "$systemd_dir/$sessions_unit.service" 0644 "$(sessions_service_content)" || install_fail "could not write $sessions_unit.service"
-  atomic_write "$systemd_dir/$sessions_unit.timer" 0644 "$(unit_timer 'Mawareeth expired session cleanup every day' daily 1h "$sessions_unit.service")" \n    || install_fail "could not write $sessions_unit.timer"
+  atomic_write "$systemd_dir/$sessions_unit.timer" 0644 "$(unit_timer 'Mawareeth expired session cleanup every day' daily 1h "$sessions_unit.service")" \
+    || install_fail "could not write $sessions_unit.timer"
 
   # Publishes the token series on the first file; a host whose token is not
   # installed yet records missing and alerts until it is.
