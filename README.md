@@ -21,7 +21,6 @@
 | Calculation engine | [`calc/`](calc/) | Python; school differences live in [`calc/schools.py`](calc/schools.py) |
 | PDF reports | [`reports/`](reports/) | WeasyPrint |
 | Site settings, headers, health checks | [`mawareeth/`](mawareeth/) | Django |
-| Production | [`deploy/`](deploy/) | Docker Compose with blue-green releases behind Caddy and Cloudflare |
 
 One Django process serves both the API and the static export. Requests to `/` go to the Arabic landing page unless the visitor has chosen another language.
 
@@ -58,11 +57,7 @@ uv run python manage.py test --keepdb --parallel auto
 
 Tests that run the engine many times derive from `TransactionTestCase`, not `TestCase`. Inside `TestCase`'s per-test transaction each engine run is a savepoint, and once a transaction holds more than 64 subtransactions PostgreSQL slows every query sharply.
 
-The web app has unit tests and Playwright browser tests; see [`web/README.md`](web/README.md). Deployment scripts have shell test suites under [`deploy/tests/`](deploy/tests/).
-
-## Deployment
-
-Production runs on a Hetzner host. The release image holds the Django app and the Next.js export, and releases switch between two slots so a deploy can roll back. Merges to `master` build the image, and production deploys need approval. Host setup, backups, monitoring and the release procedure are documented in [`deploy/README.md`](deploy/README.md).
+The web app has unit tests and Playwright browser tests; see [`web/README.md`](web/README.md).
 
 ## Contributing
 
