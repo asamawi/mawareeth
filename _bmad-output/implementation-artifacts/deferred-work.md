@@ -306,7 +306,7 @@ Completed and obsolete items are removed; their history is in git.
 
 - source_spec: none
   summary: Retire the remaining legacy Django HTML pages (calc form, detail, results, delete confirmations, profile, error) by redirecting each to its Next.js equivalent and deleting the templates and views.
-  evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 6 of 6); must follow the legacy-calculation migration. The old Django home, about, terms and privacy pages are already gone (replaced by the Next.js pages at the site root). Open question for the owner: whether old calculation URLs redirect to the migrated saved case (no legacy-to-SavedCase link is stored today) or simply to My saved cases.
+  evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 6 of 6); must follow the legacy-calculation migration. The old Django home, about, terms and privacy pages are already gone (replaced by the Next.js pages at the site root). Owner decision 2026-11-13: old calculation URLs are not displayed any more; they are retired with the Django pages and not redirected to the migrated saved case (migrated cases are reached from My saved cases).
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-auth-pages.md`
   summary: Harden auth abuse controls beyond the per-IP `auth` quota: per-account login attempt limits (and current-password attempts on `auth/password-change/`), a per-recipient password-reset email cooldown, and sending reset email off the request path so response timing cannot reveal whether an account exists.
