@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:3000/en/> (also `ar` and `fr`). The page shows the connected state when it reaches Django: in development only, Next forwards `/api/*` to `localhost:8000`, so the browser still sees one origin.
+Open <http://localhost:3000/>, which redirects to the Arabic landing page `/ar/` (also `/en/` and `/fr/`). In development only, Next forwards `/api/*` to `localhost:8000`, so the browser still sees one origin. In production Django answers `/` and sends visitors to `/ar/` unless their language cookie names another language.
 
 Without a `web-dist/` directory, which is the normal case in development, Django itself answers `/<locale>/` with 404. Use the Next dev server for these pages.
 
@@ -28,9 +28,15 @@ npm run typecheck
 npm test
 npm run build
 node scripts/check-export.mjs
+npx playwright install --with-deps chromium
+npm run test:e2e
 ```
 
 `npm run build` writes the export to `out/`. The `Dockerfile` copies it to `web-dist/` in the release image.
+
+## Browser tests
+
+`npm run test:e2e` runs the Playwright suite in `e2e/` against the built export in `out/`, so run `npm run build` first; locally, `npx playwright install chromium` is enough. A small static server (`e2e/serve.mjs`) serves the export, and every `/api/v1/` request is answered by stubs in `e2e/api.ts`, so neither Django nor PostgreSQL is needed. The suite covers hydration, the interview's states, no automatic retry, RTL, keyboard use, reduced motion, the no-JavaScript fallback, axe accessibility checks, the school comparison, and recovery from failed or stale script chunks. It does not send the production Content-Security-Policy.
 
 ## Limits of a static export
 
