@@ -1,9 +1,9 @@
 import type { Locale } from "./messages.ts";
 
-/** Return to the current page under /app after authentication. */
+/** Return to the current page after authentication. */
 export function loginHref(pathname: string): string {
   const locale = pathname.split("/")[1];
-  return `/app/${["ar", "en", "fr"].includes(locale) ? locale : "en"}/login/?next=${encodeURIComponent(`/app${pathname}`)}`;
+  return `/${["ar", "en", "fr"].includes(locale) ? locale : "en"}/login/?next=${encodeURIComponent(pathname)}`;
 }
 
 export type AuthLink = { kind: "login" | "signup"; href: string };
@@ -24,7 +24,7 @@ export function pathForLocale(pathname: string, target: Locale): string {
 }
 
 export function signupHref(locale: string, pathname: string): string {
-  return `/app/${locale}/signup/?next=${encodeURIComponent(`/app${pathname}`)}`;
+  return `/${locale}/signup/?next=${encodeURIComponent(pathname)}`;
 }
 
 export function resultsResumePath(locale: string, action: "save" | "share" | "whatsapp"): string {
@@ -42,7 +42,7 @@ export function sharedPath(locale: string): string { return `/${locale}/shared/`
 
 /** The link an owner hands out. The token sits in the fragment, so it never reaches a server log or Referer. */
 export function shareUrl(origin: string, locale: string, token: string): string {
-  return `${origin}/app${sharedPath(locale)}#${token}`;
+  return `${origin}${sharedPath(locale)}#${token}`;
 }
 
 export function invitePath(locale: string): string { return `/${locale}/invite/`; }

@@ -10,14 +10,14 @@ import type { AuthAction } from "@/api/auth";
 
 const nativeFetch = globalThis.fetch;
 const nativeFormData = globalThis.FormData;
-async function mount(action: Exclude<AuthAction, "logout">, locale: Locale = "en", authenticated = false, query = "next=%2Fapp%2Fen%2Fresults%2F%3Fresume%3Dsave", valid = true, probe: "ok" | "slow" | "failed" = "ok", check: "ok" | "slow" | "failed" = "ok", changeStatus = 200) {
-  const dom = installDom(`https://localhost/app/${locale}/${action}/?${query}`);
+async function mount(action: Exclude<AuthAction, "logout">, locale: Locale = "en", authenticated = false, query = "next=%2Fen%2Fresults%2F%3Fresume%3Dsave", valid = true, probe: "ok" | "slow" | "failed" = "ok", check: "ok" | "slow" | "failed" = "ok", changeStatus = 200) {
+  const dom = installDom(`https://localhost/${locale}/${action}/?${query}`);
   globalThis.FormData = dom.FormData as unknown as typeof FormData;
   document.cookie = "csrftoken=test-token";
   const posts: { url: string; init: RequestInit }[] = [];
   const redirects: string[] = [];
   window.location.assign = (target: string | URL) => { redirects.push(String(target)); };
-  let body: object = { redirect: "/app/en/results/?resume=save" };
+  let body: object = { redirect: "/en/results/?resume=save" };
   let status = 200;
   let resolveCheck: (response: Response) => void = () => {};
   globalThis.fetch = async (input, init) => {
@@ -53,19 +53,19 @@ async function mount(action: Exclude<AuthAction, "logout">, locale: Locale = "en
 
 for (const action of ["login", "signup", "password-reset", "password-reset/confirm"] as const) {
   test(`${action} submits with CSRF, language and query continuation`, async () => {
-    const ui = await mount(action, "fr", false, "next=%2Fapp%2Fen%2Fresults%2F%3Fresume%3Dsave&uid=abc&token=secret");
+    const ui = await mount(action, "fr", false, "next=%2Fen%2Fresults%2F%3Fresume%3Dsave&uid=abc&token=secret");
     try {
-      ui.respond(action === "password-reset" ? { sent: true } : action === "password-reset/confirm" ? { complete: true } : { redirect: "/app/en/results/?resume=save" });
+      ui.respond(action === "password-reset" ? { sent: true } : action === "password-reset/confirm" ? { complete: true } : { redirect: "/en/results/?resume=save" });
       await ui.submit();
       assert.equal(ui.posts.length, 1);
       assert.equal(ui.posts[0].url, `/api/v1/auth/${action}/`);
       const headers = ui.posts[0].init.headers as Record<string, string>;
       assert.equal(headers["X-CSRFToken"], "test-token"); assert.equal(headers["Accept-Language"], "fr");
       const data = JSON.parse(String(ui.posts[0].init.body));
-      assert.equal(data.next, "/app/en/results/?resume=save");
+      assert.equal(data.next, "/en/results/?resume=save");
       if (action === "password-reset/confirm") { assert.equal(data.uid, "abc"); assert.equal(data.token, "secret"); }
       if (action.startsWith("password-reset")) assert.ok(ui.node.textContent?.includes(action.endsWith("confirm") ? messages.fr.auth.complete : messages.fr.auth.sent));
-      else assert.deepEqual(ui.redirects, ["/app/en/results/?resume=save"]);
+      else assert.deepEqual(ui.redirects, ["/en/results/?resume=save"]);
     } finally { await ui.close(); }
   });
 }
@@ -97,7 +97,7 @@ test("used reset token offers another request", async () => {
   try {
     ui.respond({ error: "invalid_link" }, 400); await ui.submit();
     assert.ok(ui.node.textContent?.includes(messages.en.auth.invalid));
-    assert.ok(ui.node.querySelector('a[href^="/app/en/password-reset/?"]'));
+    assert.ok(ui.node.querySelector('a[href^="/en/password-reset/?"]'));
     assert.equal(ui.node.querySelector("form"), null);
   } finally { await ui.close(); }
 });
@@ -119,7 +119,7 @@ test("Arabic auth forms are RTL and social buttons POST with CSRF and next", asy
       const form = ui.node.querySelector<HTMLFormElement>(`form[action="/social-auth/login/${backend}/"]`)!;
       assert.equal(form.method, "post");
       assert.equal(form.querySelector<HTMLInputElement>('[name="csrfmiddlewaretoken"]')!.value, "test-token");
-      assert.equal(form.querySelector<HTMLInputElement>('[name="next"]')!.value, "/app/en/results/?resume=save");
+      assert.equal(form.querySelector<HTMLInputElement>('[name="next"]')!.value, "/en/results/?resume=save");
     }
   } finally { await ui.close(); }
 });
@@ -127,7 +127,7 @@ test("Arabic auth forms are RTL and social buttons POST with CSRF and next", asy
 
 test("nav logout ends the session and returns to the locale root", async () => {
   const { SiteNav } = await import("./site-nav");
-  const dom = installDom("https://localhost/app/en/");
+  const dom = installDom("https://localhost/en/");
   document.cookie = "csrftoken=nav-token";
   const redirects: string[] = [];
   window.location.assign = (target: string | URL) => { redirects.push(String(target)); };
@@ -144,7 +144,7 @@ test("nav logout ends the session and returns to the locale root", async () => {
     assert.equal(button.textContent, messages.en.auth.logout);
     await act(async () => button.click());
     assert.deepEqual(posts, ["/api/v1/auth/logout/"]);
-    assert.deepEqual(redirects, ["/app/en/"]);
+    assert.deepEqual(redirects, ["/en/"]);
   } finally { await act(async () => root.unmount()); await teardownDom(dom); globalThis.fetch = nativeFetch; }
 });
 
@@ -189,15 +189,15 @@ test("social sign in failures show the localized message", async () => {
   try { assert.ok(ui.node.textContent?.includes(messages.fr.auth.socialError)); } finally { await ui.close(); }
 });
 
-const continuation = "/app/en/results/?resume=save";
+const continuation = "/en/results/?resume=save";
 for (const action of ["login", "signup"] as const) {
   for (const probe of ["slow", "failed"] as const) {
     test(`${action} preserves encoded next before a ${probe} session probe completes`, async () => {
       const ui = await mount(action, "en", false, `next=${encodeURIComponent(continuation)}`, true, probe);
       try {
         for (const page of ["login", "signup", "password-reset"]) {
-          const link = ui.node.querySelector<HTMLAnchorElement>(`a[href^="/app/en/${page}/?"]`)!;
-          assert.equal(link.getAttribute("href"), `/app/en/${page}/?next=${encodeURIComponent(continuation)}`);
+          const link = ui.node.querySelector<HTMLAnchorElement>(`a[href^="/en/${page}/?"]`)!;
+          assert.equal(link.getAttribute("href"), `/en/${page}/?next=${encodeURIComponent(continuation)}`);
         }
         for (const input of ui.node.querySelectorAll<HTMLInputElement>('input[name="next"]')) assert.equal(input.value, continuation);
       } finally { await ui.close(); }
@@ -210,7 +210,7 @@ for (const action of ["password-reset", "password-reset/confirm"] as const) {
     try {
       ui.respond(action === "password-reset" ? { sent: true } : { complete: true });
       await ui.submit();
-      assert.equal(ui.node.querySelector('a[href^="/app/en/login/?"]')?.getAttribute("href"), `/app/en/login/?next=${encodeURIComponent(continuation)}`);
+      assert.equal(ui.node.querySelector('a[href^="/en/login/?"]')?.getAttribute("href"), `/en/login/?next=${encodeURIComponent(continuation)}`);
     } finally { await ui.close(); }
   });
 }
@@ -261,7 +261,7 @@ for (const locale of ["ar", "en", "fr"] as const) {
       ui.respond({}, 429); await ui.submit();
       assert.ok(ui.node.textContent?.includes(messages[locale].auth.throttled));
       ui.respond({}, 403); await ui.submit();
-      assert.deepEqual(ui.redirects, [`/app/${locale}/login/?next=${encodeURIComponent(`/app/${locale}/password-change/`)}`]);
+      assert.deepEqual(ui.redirects, [`/${locale}/login/?next=${encodeURIComponent(`/${locale}/password-change/`)}`]);
       ui.respond({}, 500); await ui.submit();
       assert.ok(ui.node.textContent?.includes(messages[locale].auth.error));
       ui.respond({ complete: true }); await ui.submit();
@@ -276,7 +276,7 @@ for (const locale of ["ar", "en", "fr"] as const) {
 
 test("anonymous password change redirects with continuation", async () => {
   const ui = await mount("password-change", "fr", false, "", true, "ok", "ok", 403);
-  try { assert.deepEqual(ui.redirects, ["/app/fr/login/?next=%2Fapp%2Ffr%2Fpassword-change%2F"]); }
+  try { assert.deepEqual(ui.redirects, ["/fr/login/?next=%2Ffr%2Fpassword-change%2F"]); }
   finally { await ui.close(); }
 });
 
@@ -308,13 +308,13 @@ for (const check of ["slow", "failed"] as const) {
 
 for (const authenticated of [false, true]) {
   test(`password change nav link authenticated=${authenticated}`, async () => {
-    const dom = installDom("https://localhost/app/en/");
+    const dom = installDom("https://localhost/en/");
     globalThis.fetch = async () => new Response(JSON.stringify({ authenticated }));
     const node = document.createElement("div"); document.body.append(node);
     const root = createRoot(node);
     try {
       await act(async () => { root.render(<SiteNav locale="en" nav={messages.en.nav} />); });
-      const link = node.querySelector('a[href="/app/en/password-change/"]');
+      const link = node.querySelector('a[href="/en/password-change/"]');
       assert.equal(!!link, authenticated);
       if (link) assert.equal(link.textContent, messages.en.auth.change);
     } finally {

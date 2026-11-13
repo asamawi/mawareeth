@@ -40,7 +40,7 @@ COPY . .
 
 # The image carries the export, never the frontend sources or their dependencies.
 RUN rm -rf /app/web
-COPY --from=web /web/out /app/web-dist/app
+COPY --from=web /web/out /app/web-dist
 
 # These values exist only for build-time Django validation; runtime secrets are
 # injected by the deployment environment and never baked into the image.

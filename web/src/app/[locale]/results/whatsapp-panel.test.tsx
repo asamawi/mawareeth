@@ -10,7 +10,7 @@ import { WhatsappPanel } from "./whatsapp-panel.tsx";
 let dom: Window;
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
-const url = "http://localhost/app/en/shared/#tok123";
+const url = "http://localhost/en/shared/#tok123";
 
 let originalOpen: typeof window.open;
 before(() => { dom = installDom("http://localhost/en/results/"); originalOpen = window.open; });

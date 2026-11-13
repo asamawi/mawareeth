@@ -313,8 +313,9 @@ STORAGES = {
     },
 }
 
-# The Next.js export, built into the release image at web-dist/app/ and served
-# under /app/. It is absent in development and tests, where /app/<locale>/ 404s.
+# The Next.js export, built into the release image at web-dist/ and served from
+# the site root (/<locale>/...). It is absent in development and tests, where
+# /<locale>/ pages 404 while / and /app/... still redirect.
 WEB_DIST_DIR = BASE_DIR / 'web-dist'
 if WEB_DIST_DIR.is_dir():
     WHITENOISE_ROOT = WEB_DIST_DIR

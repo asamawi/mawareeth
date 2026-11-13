@@ -3,7 +3,7 @@
  *
  * Usage:
  *   import { installDom, teardownDom } from "@/test/dom.ts";
- *   let dom = installDom("http://localhost/app/en/results/");
+ *   let dom = installDom("http://localhost/en/results/");
  *   // ...tests...
  *   await teardownDom(dom);
  */

@@ -4,10 +4,6 @@ from . import views
 app_name = 'calc'
 urlpatterns = [
 	path('calc/', views.IndexView.as_view(), name='index'),
-	path('', views.HomePage.as_view(), name='home'),
-	path('terms/', views.Terms.as_view(), name='terms'),
-	path('privacy/', views.Privacy.as_view(), name='privacy'),
-	path('about/', views.About.as_view(), name='about'),
 	path('new/', views.new, name='new'),
 	path('<int:pk>/', views.DetailView.as_view(), name='detail'),
 	path('<int:pk>/delete/', views.CalculationDelete.as_view(), name='delete'),
@@ -42,5 +38,4 @@ urlpatterns = [
 	path('<int:pk>/results/', views.ResultsView.as_view(), name='results'),
 	path('<int:pk>/new-results/', views.NewResultsView.as_view(), name='new_results'),
 	path('error/', views.error, name='error'),
-	path('signup/', views.SignUp.as_view(), name='signup'),
 ]

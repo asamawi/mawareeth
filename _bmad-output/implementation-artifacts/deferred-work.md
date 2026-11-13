@@ -197,20 +197,16 @@ Completed and obsolete items are removed; their history is in git.
   summary: Add shadcn/ui, React Query, Zustand and drf-spectacular with the first story that uses each.
   evidence: The foundation has one page and one read-only endpoint, so none of them has a user yet.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
-  summary: Unify full-site i18n URLs between `/ar/` and `/app/ar/`.
-  evidence: `/ar/`, `/en/` and `/fr/` belong to Django, which is why the export is served under `/app/`.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
+  summary: Add a Content-Security-Policy for pages under `/{lang}/…` before they reach production.
+  evidence: Story 1.1 links `/{lang}/interview/` from the landing page. The project owner deferred this on 2026-11-06 as a release blocker because product work stays on local `development` until all epics are complete. `add_web_headers` sets frame and robots headers only, and the settings define no CSP. Sources: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`; `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
-  summary: Add a Content-Security-Policy for pages under `/app/` before they reach production.
-  evidence: Story 1.1 links `/app/` from the landing page. The project owner deferred this on 2026-11-06 as a release blocker because product work stays on local `development` until all epics are complete. `add_web_headers` sets frame and robots headers only, and the settings define no CSP. Sources: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`; `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
-  summary: Add browser-level tests for `/app/` routes, covering hydration, rendered states, RTL, no-retry, keyboard and reduced motion, before they reach production.
+  summary: Add browser-level tests for the Next.js `/{lang}/…` routes, covering hydration, rendered states, RTL, no-retry, keyboard and reduced motion, before they reach production.
   evidence: Deferred by the project owner on 2026-11-06 as a release blocker. The tests have more to cover once Stories 1.2 and 1.3 add interview content. The foundation's automated tests cover the probe logic but not `SessionStatus` rendering; hydration was checked by hand in headless Chrome only. Sources: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`; `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
-  summary: Handle failed or stale JavaScript chunks on `/app/` routes with an interview fallback, including tabs left open across a deploy, before they reach production.
+  summary: Handle failed or stale JavaScript chunks on the Next.js `/{lang}/…` routes with an interview fallback, including tabs left open across a deploy, before they reach production.
   evidence: The project owner deferred failed or stale JavaScript chunk handling on 2026-11-06 as a release blocker. The image holds only its own release's hashed assets; an interview fallback for failed chunks remains open. Partly shipped in `27215dc` and `3a0ab0d`: noscript covers disabled JavaScript and `web/src/app/[locale]/site-nav.tsx:56-71` provides language switching. Sources: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`; `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-3-deceased-info-add-heirs-via-guided-interview-form.md`
@@ -305,10 +301,6 @@ Completed and obsolete items are removed; their history is in git.
   evidence: The migration prints the report to the `migrate` output only. Converted cases are school Hanbali and lose their calculation title, deceased name and later estates, which the snapshot cannot hold. Release blocker.
 
 - source_spec: none
-  summary: Move the landing, about, terms and privacy pages to Next.js served at the site root, designed with ui-ux-pro-max, and set up SEO and GEO/AEO (metadata, canonical https://www.mawareeth.com, hreflang ar/en/fr, robots.txt, sitemap.xml, Organization/WebApplication/FAQPage structured data, llms.txt, answer-first content).
-  evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 3 of 6); the owner confirmed AEO means AI-search optimization and the canonical domain.
-
-- source_spec: none
   summary: UI/UX review and improvement of the Next.js interview's add-heir flow: replace the heir-type dropdown with an intuitive picker that puts the common heirs (spouse, sons, daughters, father, mother) one tap away, with the rarer relatives behind a secondary control.
   evidence: Split on 2026-11-13 at the project owner's request (order 4 of 6); the owner finds adding heirs from a dropdown unintuitive.
 
@@ -318,7 +310,7 @@ Completed and obsolete items are removed; their history is in git.
 
 - source_spec: none
   summary: Retire the remaining legacy Django HTML pages (calc form, detail, results, delete confirmations, profile, error) by redirecting each to its Next.js equivalent and deleting the templates and views.
-  evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 6 of 6); must follow the legacy-calculation migration and the root landing move. Open question for the owner: whether old calculation URLs redirect to the migrated saved case (no legacy-to-SavedCase link is stored today) or simply to My saved cases.
+  evidence: Split on 2026-11-13 from the "move all Django HTML to Next.js" intent at the project owner's choice (order 6 of 6); must follow the legacy-calculation migration. The old Django home, about, terms and privacy pages are already gone (replaced by the Next.js pages at the site root). Open question for the owner: whether old calculation URLs redirect to the migrated saved case (no legacy-to-SavedCase link is stored today) or simply to My saved cases.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-auth-pages.md`
   summary: Harden auth abuse controls beyond the per-IP `auth` quota: per-account login attempt limits (and current-password attempts on `auth/password-change/`), a per-recipient password-reset email cooldown, and sending reset email off the request path so response timing cannot reveal whether an account exists.
@@ -327,3 +319,15 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-password-change-page.md`
   summary: Request native Arabic, English and French review of the new password-change strings (`auth.change`, `auth.old_password`, `auth.noPassword` in `web/src/i18n/messages.ts`).
   evidence: Review the change-password title, current-password label and social-only account explanation, including Arabic RTL readability.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-site-root-landing-seo.md`
+  summary: Request native Arabic, English and French review, and fiqh review for the Arabic and French fiqh terms, of all new landing, about and FAQ text (`landing`, `about`, `faq`, `footer` and the metadata descriptions in `web/src/i18n/messages.ts`).
+  evidence: The text was drafted by the model, not translated from reviewed sources. It states only what the product does today (four Sunni schools, successive deaths, proof with citations, draft PDF, save and share) and that results are not a fatwa. The English first about paragraph fixes the grammar of the old "is was first launched" sentence; the Arabic and French about history paragraphs are the existing `.po` translations of the old wording.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-site-root-landing-seo.md`
+  summary: Review the ported terms and privacy text (`terms` and `privacy` in `web/src/i18n/messages.ts`) and the drafted `metaDescription` for each, in all three languages.
+  evidence: No `.po` msgstr for these pages was empty, so ar and fr are the existing translations copied verbatim. English is the msgid verbatim, including its typos (for example "webste"). Only the two short meta descriptions are new drafts.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-site-root-landing-seo.md`
+  summary: Update the terms and privacy text for accounts, sharing and email delivery.
+  evidence: The ported wording predates registration, saved cases, share links, email invitations and WhatsApp sharing, and still describes advertising partners; the owner kept the meaning unchanged for this move.

@@ -3570,7 +3570,7 @@ class InviteTests(InterviewBase):
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
 class AuthApiTests(TestCase):
     password = 'Strong-auth-password-937!'
-    destination = '/app/en/results/?resume=save'
+    destination = '/en/results/?resume=save'
 
     def setUp(self):
         cache.clear()
@@ -3620,7 +3620,7 @@ class AuthApiTests(TestCase):
         from django.core import mail
         self.assertEqual(self.post('password-reset', {'email': self.user.email}).status_code, 200)
         self.assertEqual(len(mail.outbox), 1)
-        link = re.search(r'https://testserver/app/(?:ar|en|fr)/password-reset/confirm/\?[^\s]+', mail.outbox[0].body).group()
+        link = re.search(r'https://testserver/(?:ar|en|fr)/password-reset/confirm/\?[^\s]+', mail.outbox[0].body).group()
         query = parse_qs(urlsplit(link).query)
         data = {key: query[key][0] for key in ('uid', 'token')}
         response = self.client.get('/api/v1/auth/password-reset/confirm/', data, secure=True)
@@ -3653,7 +3653,7 @@ class AuthApiTests(TestCase):
         self.assertNotEqual(bodies[0], bodies[2])
 
     def test_next_is_relative_only(self):
-        for target in ('https://evil.com/', '//evil.com/', 'https://testserver/app/en/', '/\\evil.com/', 'javascript:alert(1)'):
+        for target in ('https://evil.com/', '//evil.com/', 'https://testserver/en/', '/\\evil.com/', 'javascript:alert(1)'):
             response = self.post('login', {'username': self.user.username, 'password': self.password, 'next': target})
             from django.shortcuts import resolve_url
             self.assertEqual(response.json()['redirect'], resolve_url(settings.LOGIN_REDIRECT_URL))
@@ -3692,7 +3692,7 @@ class AuthApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), expected)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn('https://testserver/app/fr/password-reset/confirm/?uid=', mail.outbox[0].body)
+        self.assertIn('https://testserver/fr/password-reset/confirm/?uid=', mail.outbox[0].body)
         with mock.patch('django.contrib.auth.forms.PasswordResetForm.save', side_effect=OSError('SMTP unavailable')):
             with self.assertLogs('api.auth_views', level='ERROR'):
                 response = self.post('password-reset', {'email': self.user.email})

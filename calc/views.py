@@ -10,7 +10,6 @@ from django.db import transaction
 from calc.forms import HeirForm, DeceasedForm
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.utils.translation import gettext as _
-from django.views.generic.base import TemplateView
 from .models import *
 from .schools import UnsupportedCase
 from waffle.mixins import WaffleFlagMixin, WaffleSwitchMixin
@@ -58,25 +57,6 @@ class OwnedByCalculationMixin:
 
 
 
-@method_decorator(login_not_required, name='dispatch')
-class HomePage(TemplateView):
-	template_name="calc/home.html"
-
-	def get(self, request, **kwargs):
-		if request.user.is_authenticated:
-			return HttpResponseRedirect(reverse( 'calc:index'))
-		else:
-			context = self.get_context_data(**kwargs)
-			return self.render_to_response(context)
-@method_decorator(login_not_required, name='dispatch')
-class Terms(TemplateView):
-	template_name="calc/terms.html"
-@method_decorator(login_not_required, name='dispatch')
-class Privacy(TemplateView):
-	template_name="calc/privacy.html"
-@method_decorator(login_not_required, name='dispatch')
-class About(TemplateView):
-	template_name="calc/about.html"
 class DeceasedCreate(CalculationLockMixin, CreateView):
 	model = Deceased
 	fields = ['first_name','last_name','sex', 'estate']

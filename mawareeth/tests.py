@@ -438,7 +438,7 @@ class PrivateHealthProbeTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_public_requests_still_redirect_to_https(self):
-        response = self.client.get(reverse("calc:home"), HTTP_HOST="mawareeth.example")
+        response = self.client.get("/", HTTP_HOST="mawareeth.example")
         self.assertEqual(response.status_code, 301)
         self.assertTrue(response["Location"].startswith("https://mawareeth.example/"))
 
@@ -446,16 +446,20 @@ class PrivateHealthProbeTests(TestCase):
 class WebExportTests(TestCase):
     """The export is a build artifact, so these use a stand-in for it."""
 
-    ASSET = "/app/_next/static/chunks/abc123.js"
+    ASSET = "/_next/static/chunks/abc123.js"
+    PUBLIC = ("", "about/", "terms/", "privacy/")
 
     def setUp(self):
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         root = Path(directory.name)
         for locale, direction in (("ar", "rtl"), ("en", "ltr"), ("fr", "ltr")):
-            page = root / "app" / locale / "index.html"
-            page.parent.mkdir(parents=True)
-            page.write_text(f'<!DOCTYPE html><html lang="{locale}" dir="{direction}"></html>', encoding="utf-8")
+            for page in (*self.PUBLIC, "interview/"):
+                path = root / locale / page / "index.html"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(f'<!DOCTYPE html><html lang="{locale}" dir="{direction}"></html>', encoding="utf-8")
+        for name in ("robots.txt", "sitemap.xml", "llms.txt"):
+            (root / name).write_text("x", encoding="utf-8")
         asset = root / self.ASSET.lstrip("/")
         asset.parent.mkdir(parents=True)
         asset.write_text("console.log(1)", encoding="utf-8")
@@ -466,7 +470,7 @@ class WebExportTests(TestCase):
     def test_shell_page_has_language_direction_and_headers(self):
         for locale, direction in (("ar", "rtl"), ("en", "ltr"), ("fr", "ltr")):
             with self.subTest(locale=locale):
-                response = self.client.get(f"/app/{locale}/", secure=True)
+                response = self.client.get(f"/{locale}/interview/", secure=True)
                 self.assertEqual(response.status_code, 200)
                 self.assertTrue(response["Content-Type"].startswith("text/html"))
                 self.assertEqual(response["X-Frame-Options"], "DENY")
@@ -477,8 +481,42 @@ class WebExportTests(TestCase):
                 self.assertIn(f'lang="{locale}"', content)
                 self.assertIn(f'dir="{direction}"', content)
 
+    def test_public_pages_are_indexable_but_still_framed_and_revalidated(self):
+        urls = [f"/{locale}/{page}" for locale in ("ar", "en", "fr") for page in self.PUBLIC]
+        urls += ["/robots.txt", "/sitemap.xml", "/llms.txt"]
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url, secure=True)
+                self.assertEqual(response.status_code, 200)
+                self.assertNotIn("X-Robots-Tag", response)
+                self.assertEqual(response["X-Frame-Options"], "DENY")
+                self.assertEqual(response["Cache-Control"], "no-cache")
+                response.close()
+
+    def test_private_pages_stay_noindex(self):
+        response = self.client.get("/en/interview/", secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["X-Robots-Tag"], "noindex")
+        response.close()
+
+    def test_header_rules_handle_both_url_forms_and_leave_static_alone(self):
+        from mawareeth.web_headers import add_web_headers
+
+        def headers_for(url):
+            headers = {}
+            add_web_headers(headers, "unused", url)
+            return headers
+
+        for url in ("/en/about/", "/en/about/index.html", "/robots.txt"):
+            with self.subTest(url=url):
+                self.assertEqual(headers_for(url), {"X-Frame-Options": "DENY", "Cache-Control": "no-cache"})
+        for url in ("/en/interview/", "/en/interview/index.html", "/en/cases/", "/ar/index.html.bak"):
+            with self.subTest(url=url):
+                self.assertEqual(headers_for(url)["X-Robots-Tag"], "noindex")
+        self.assertEqual(headers_for("/static/calc/css/content.css"), {})
+
     def test_unknown_locale_is_404(self):
-        self.assertEqual(self.client.get("/app/de/", secure=True).status_code, 404)
+        self.assertEqual(self.client.get("/de/", secure=True).status_code, 404)
 
     def test_hashed_asset_is_immutable_for_one_year(self):
         response = self.client.get(self.ASSET, secure=True)
@@ -488,12 +526,15 @@ class WebExportTests(TestCase):
         response.close()
 
     def test_missing_asset_is_404(self):
-        response = self.client.get("/app/_next/static/chunks/missing.js", secure=True)
+        response = self.client.get("/_next/static/chunks/missing.js", secure=True)
         self.assertEqual(response.status_code, 404)
 
+    def test_root_is_not_served_by_the_export(self):
+        self.assertEqual(self.client.get("/", secure=True).status_code, 302)
+
     def test_existing_routes_still_respond(self):
-        self.assertEqual(self.client.get("/ar/", secure=True).status_code, 200)
         self.assertEqual(self.client.get("/health/ready/", secure=True).status_code, 200)
+        self.assertEqual(self.client.get("/api/v1/session/", secure=True).status_code, 200)
 
 
 class WebRootRedirectTests(TestCase):
@@ -502,41 +543,88 @@ class WebRootRedirectTests(TestCase):
         self.assertEqual(response["Location"], location)
 
     def test_defaults_to_arabic(self):
-        self.assertRedirectsTo(self.client.get("/app/", secure=True), "/app/ar/")
+        self.assertRedirectsTo(self.client.get("/", secure=True), "/ar/")
 
     def test_unsupported_language_falls_back_to_arabic(self):
-        response = self.client.get("/app/", secure=True, headers={"accept-language": "de"})
-        self.assertRedirectsTo(response, "/app/ar/")
+        response = self.client.get("/", secure=True, headers={"accept-language": "de"})
+        self.assertRedirectsTo(response, "/ar/")
 
     def test_follows_accept_language(self):
-        response = self.client.get("/app/", secure=True, headers={"accept-language": "fr-FR,fr;q=0.9"})
-        self.assertRedirectsTo(response, "/app/fr/")
+        response = self.client.get("/", secure=True, headers={"accept-language": "fr-FR,fr;q=0.9"})
+        self.assertRedirectsTo(response, "/fr/")
 
     def test_cookie_wins_over_accept_language(self):
         self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "en"
-        response = self.client.get("/app/", secure=True, headers={"accept-language": "fr"})
-        self.assertRedirectsTo(response, "/app/en/")
+        response = self.client.get("/", secure=True, headers={"accept-language": "fr"})
+        self.assertRedirectsTo(response, "/en/")
 
     def test_keeps_the_query_string(self):
-        response = self.client.get('/app/?utm_source=x&a=1', secure=True, headers={'Accept-Language': 'en'})
-        self.assertEqual(response['Location'], '/app/en/?utm_source=x&a=1')
+        response = self.client.get('/?utm=x&a=1', secure=True, headers={'Accept-Language': 'fr'})
+        self.assertEqual(response['Location'], '/fr/?utm=x&a=1')
 
     def test_redirect_is_not_cached_or_indexed(self):
-        response = self.client.get("/app/", secure=True)
+        response = self.client.get("/", secure=True)
         self.assertIn("no-store", response["Cache-Control"])
         self.assertEqual(response["X-Robots-Tag"], "noindex")
         self.assertIn("Cookie", response["Vary"])
         self.assertIn("Accept-Language", response["Vary"])
 
     def test_post_is_rejected(self):
-        self.assertEqual(self.client.post("/app/", secure=True).status_code, 405)
+        self.assertEqual(self.client.post("/", secure=True).status_code, 405)
+
+
+class LegacyAppRedirectTests(TestCase):
+    def test_deep_link_keeps_path_and_query(self):
+        response = self.client.get("/app/en/password-reset/confirm/?uid=a&token=b", secure=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/en/password-reset/confirm/?uid=a&token=b")
+        self.assertEqual(response["X-Robots-Tag"], "noindex")
+
+    def test_bare_prefix_uses_the_language_redirect(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "en"
+        response = self.client.get("/app/", secure=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/en/")
+        self.assertIn("Cookie", response["Vary"])
+
+    def test_bare_prefix_keeps_the_query_string(self):
+        response = self.client.get("/app/?utm=x", secure=True, headers={"accept-language": "fr"})
+        self.assertEqual(response["Location"], "/fr/?utm=x")
+
+    def test_double_slash_never_becomes_a_protocol_relative_location(self):
+        for path in ("/app//evil.com/", "/app///evil.com/", "/app//evil.com"):
+            with self.subTest(path=path):
+                response = self.client.get(path, secure=True)
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(response["Location"], "/evil.com/" if path.endswith("/") else "/evil.com")
+                self.assertFalse(response["Location"].startswith("//"))
+
+    def test_backslash_and_control_characters_never_start_an_external_location(self):
+        for path in ("/app/%5Cevil.com", "/app//%5Cevil.com", "/app/%5C%5Cevil.com", "/app/%09/evil.com", "/app/%0D%0A/evil.com"):
+            with self.subTest(path=path):
+                response = self.client.get(path, secure=True)
+                if path.endswith("%0D%0A/evil.com"):
+                    # `.*` does not match a newline, so the route does not match at all.
+                    self.assertEqual(response.status_code, 404)
+                    continue
+                self.assertEqual(response.status_code, 302)
+                location = response["Location"]
+                self.assertTrue(location.startswith("/"))
+                self.assertNotIn(location[1:2], ("/", "\\"))
+                self.assertFalse(location.startswith("//"))
+                self.assertFalse(location.startswith("/\\"))
+
+    def test_post_is_rejected(self):
+        self.assertEqual(self.client.post("/app/en/login/", secure=True).status_code, 405)
 
 
 class WebExportAbsentTests(TestCase):
     @override_settings(WHITENOISE_ROOT=None)
     def test_shell_page_404s_while_redirect_and_api_work(self):
-        self.assertEqual(self.client.get("/app/ar/", secure=True).status_code, 404)
-        self.assertEqual(self.client.get("/app/", secure=True).status_code, 302)
+        self.assertEqual(self.client.get("/ar/", secure=True).status_code, 404)
+        self.assertEqual(self.client.get("/en/signup/", secure=True).status_code, 404)
+        self.assertEqual(self.client.get("/", secure=True).status_code, 302)
+        self.assertEqual(self.client.get("/app/ar/", secure=True).status_code, 302)
         self.assertEqual(self.client.get("/api/v1/session/", secure=True).status_code, 200)
 
     def test_settings_only_set_whitenoise_root_when_the_export_exists(self):
@@ -752,7 +840,7 @@ class WorkflowContractTests(SimpleTestCase):
         workflow = (PROJECT_ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
         start = workflow.index("- name: Smoke-test release image")
         smoke = workflow[start : workflow.index("- name: Preflight release manifest inputs")]
-        for snippet in ("X-Forwarded-Proto: https", "/app/ar/", 'dir="rtl"', "/app/_next/static/", "/api/v1/session/"):
+        for snippet in ("X-Forwarded-Proto: https", "/ar/", 'dir="rtl"', "/_next/static/", "/api/v1/session/"):
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, smoke)
 

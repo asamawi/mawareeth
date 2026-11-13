@@ -5,21 +5,20 @@ import { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_BUILD } from "next/constants
 
 import config from "../next.config.ts";
 
-test("production builds are a static export under /app with no rewrites", () => {
+test("production builds are a static export at the site root with no rewrites", () => {
   const built = config(PHASE_PRODUCTION_BUILD);
   assert.equal(built.output, "export");
-  assert.equal(built.basePath, "/app");
+  assert.equal(built.basePath, undefined);
   assert.equal(built.rewrites, undefined);
 });
 
-test("development proxies the API to Django, outside the base path", async () => {
+test("development proxies the API to Django", async () => {
   const dev = config(PHASE_DEVELOPMENT_SERVER);
   assert.equal(dev.output, undefined);
   assert.deepEqual(await dev.rewrites?.(), [
     {
       source: "/api/:path*/",
       destination: "http://localhost:8000/api/:path*/",
-      basePath: false,
     },
   ]);
 });

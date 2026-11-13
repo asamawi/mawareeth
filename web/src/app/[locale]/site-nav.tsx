@@ -28,7 +28,7 @@ export function SiteNav({ locale, nav }: { locale: Locale; nav: Messages["nav"] 
   async function logout() {
     setLoggingOut(true);
     const result = await submitAuth("logout", locale, {});
-    if (result && result.status === 200) window.location.assign(`/app/${locale}/`);
+    if (result && result.status === 200) window.location.assign(`/${locale}/`);
     else { setLoggingOut(false); setLogoutError(result?.status === 429 ? messages[locale].auth.throttled : messages[locale].auth.error); }
   }
 
@@ -49,7 +49,7 @@ export function SiteNav({ locale, nav }: { locale: Locale; nav: Messages["nav"] 
       </div>
       <div className="flex flex-wrap items-center gap-4">
         {authenticated && <Link href={casesPath(locale)} prefetch={false} className={linkClass}>{nav.cases}</Link>}
-        {authenticated && <a href={`/app/${locale}/password-change/`} className={linkClass}>{messages[locale].auth.change}</a>}
+        {authenticated && <a href={`/${locale}/password-change/`} className={linkClass}>{messages[locale].auth.change}</a>}
         {authenticated && <button className={linkClass} disabled={loggingOut} onClick={logout}>{loggingOut ? messages[locale].auth.pending : messages[locale].auth.logout}</button>}
         {logoutError && <p role="alert">{logoutError}</p>}
         {authLinks(authenticated, locale, pathname).map((link) => (

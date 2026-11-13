@@ -2,7 +2,6 @@ import { PHASE_DEVELOPMENT_SERVER } from "next/constants.js";
 import type { NextConfig } from "next";
 
 const shared: NextConfig = {
-  basePath: "/app",
   trailingSlash: true,
   turbopack: {
     rules: {
@@ -24,7 +23,6 @@ export default function config(phase: string): NextConfig {
           {
             source: "/api/:path*/",
             destination: "http://localhost:8000/api/:path*/",
-            basePath: false,
           },
         ];
       },

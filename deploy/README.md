@@ -2,7 +2,7 @@
 
 This directory contains the secured host baseline, the private Compose runtime, blue-green release deployment, encrypted off-host database backup with restore verification, and host monitoring with alerting through SCDF's Prometheus/Alertmanager plus an external Better Stack probe. Crash recovery after an interrupted deploy is automated by `release.sh recover`, and `monitor.sh drill` records the operator's alert-path drill. It does not automate contract-migration detection, host-state restore, DNS, or cutover.
 
-The release image also contains the Next.js static export (`web-dist/app/`, built from `web/` by the `Dockerfile`), which WhiteNoise serves under `/app/` from the same Gunicorn process as the DRF API under `/api/v1/`. Deploys are unchanged: there is no Node process, no extra container, and no change to Compose, Caddy or the release scripts, so frontend and API release and roll back together.
+The release image also contains the Next.js static export (`web-dist/`, built from `web/` by the `Dockerfile`), which WhiteNoise serves from the site root (`/<locale>/...`) from the same Gunicorn process as the DRF API under `/api/v1/`. Deploys are unchanged: there is no Node process, no extra container, and no change to Compose, Caddy or the release scripts, so frontend and API release and roll back together.
 
 ## Private Compose runtime
 

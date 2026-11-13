@@ -3,12 +3,40 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --muted: #4b5563;
+  --surface: #f2f7f5;
+  --border: #d3dfd9;
+  --accent: #0f766e;
+  --accent-foreground: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --muted: #a8b0ad;
+    --surface: #101a17;
+    --border: #25352f;
+    --accent: #5eead4;
+    --accent-foreground: #042f2e;
+  }
+}
+
+@theme inline {
+  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-line: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 }
 

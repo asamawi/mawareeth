@@ -111,9 +111,9 @@ export function AuthForm({ locale, action }: { locale: Locale; action: Exclude<A
       <button className="rounded border px-4 py-2" disabled={!csrf || pending}>{name}</button>
     </form>)}</div>}
     <div className="flex flex-wrap gap-4">
-      {action !== "password-change" && <><a className="underline" href={`/app/${locale}/login/?${new URLSearchParams({ next })}`}>{t.login}</a>
-      <a className="underline" href={`/app/${locale}/signup/?${new URLSearchParams({ next })}`}>{t.signup}</a></>}
-      <a className="underline" href={`/app/${locale}/password-reset/?${new URLSearchParams({ next })}`}>{t.reset}</a>
+      {action !== "password-change" && <><a className="underline" href={`/${locale}/login/?${new URLSearchParams({ next })}`}>{t.login}</a>
+      <a className="underline" href={`/${locale}/signup/?${new URLSearchParams({ next })}`}>{t.signup}</a></>}
+      <a className="underline" href={`/${locale}/password-reset/?${new URLSearchParams({ next })}`}>{t.reset}</a>
     </div>
   </main>;
 }

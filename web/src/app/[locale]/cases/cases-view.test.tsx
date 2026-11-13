@@ -128,5 +128,5 @@ test("Shared with me links to the account-bound read-only view", async () => {
   await settle(); await settle();
   assert.ok(container.textContent?.includes("Shared with me"));
   assert.ok(container.textContent?.includes("Case Owner"));
-  assert.equal(container.querySelector('a[href="/app/en/received/#9"]')?.textContent, "View draft");
+  assert.equal(container.querySelector('a[href="/en/received/#9"]')?.textContent, "View draft");
 });

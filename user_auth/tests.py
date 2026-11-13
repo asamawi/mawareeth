@@ -34,10 +34,10 @@ class SocialLoginTestCase(TestCase):
         self.assertIn('/login/?error=social', login['Location'])
 
     def test_login_and_signup_pages_redirect_to_export(self, _oidc_config):
-        for page in (reverse("login"), reverse("calc:signup")):
+        for page in (reverse("login"), "/accounts/login/"):
             response = self.client.get(page, secure=True)
             self.assertEqual(response.status_code, 302)
-            self.assertTrue(response['Location'].startswith('/app/'))
+            self.assertTrue(response['Location'].startswith('/en/') or response['Location'].startswith('/ar/'))
 
     def test_post_to_begin_view_redirects_to_provider(self, _oidc_config):
         for backend, provider in self.BACKENDS.items():

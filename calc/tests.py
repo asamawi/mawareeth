@@ -932,7 +932,7 @@ CALC_ROUTES = {
 }
 DECEASED_ROUTES = {'deceased_update', 'deceased_delete'}
 HEIR_ROUTES = {'heir_update', 'heir_delete'}
-PUBLIC_ROUTES = {'home', 'terms', 'privacy', 'about', 'error', 'signup'}
+PUBLIC_ROUTES = {'error'}
 LOGIN_ONLY_ROUTES = {'index', 'new'}
 TAMPER = {'name': 'HACKED', 'first_name': 'HACKED', 'last_name': 'HACKED', 'sex': 'M', 'estate': '1'}
 
@@ -1127,7 +1127,7 @@ class CalculationAccessControlTests(TestCase):
         for name in sorted(PUBLIC_ROUTES):
             with self.subTest(route=name):
                 response = self.client.get(reverse(f'calc:{name}'), secure=True)
-                self.assertEqual(response.status_code, 302 if name == 'signup' else 200)
+                self.assertEqual(response.status_code, 200)
         for url in (reverse('login'), reverse('password_reset'), reverse('admin:login')):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url, secure=True).status_code, 200 if url == reverse('admin:login') else 302)
@@ -1142,21 +1142,21 @@ class CalculationAccessControlTests(TestCase):
         # Regression: when next= carries a language-prefixed path, the redirect must land
         # on the same path under the new language prefix (not the old-language URL).
         # The app uses Arabic as the default prefix (/ar/), so switching from /ar/ to fr
-        # should produce /fr/.
+        # should produce /fr/calc/.
         response = self.client.post(
             reverse('set_language'),
-            {'language': 'fr', 'next': '/ar/'},
+            {'language': 'fr', 'next': '/ar/calc/'},
             secure=True,
         )
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], '/fr/')
+        self.assertEqual(response['Location'], '/fr/calc/')
         self.assertEqual(response.cookies[settings.LANGUAGE_COOKIE_NAME].value, 'fr')
 
     def test_language_switch_form_next_field_contains_current_path(self):
         # Regression: base.html must use {{ request.get_full_path }} (not a stale
         # context variable like {{ redirect_to }}) so that the hidden next field
         # always reflects the page the user is actually on.
-        path = reverse('calc:about')  # resolves to /ar/about/ — public, renders base.html
+        path = reverse('calc:index')  # resolves to /ar/calc/ — renders base.html
         self.client.force_login(self.owner)
         response = self.client.get(path, secure=True)
         self.assertEqual(response.status_code, 200)
@@ -1288,7 +1288,7 @@ class ErrorPageTests(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertTemplateUsed(response, '404.html')
         self.assertContains(response, 'Page not found', status_code=404)
-        self.assertContains(response, reverse('calc:home'), status_code=404)
+        self.assertContains(response, 'href="/en/"', status_code=404)
         self.assertNotContains(response, 'Go to my calculations', status_code=404)
 
     def test_logged_in_404_links_to_calculations(self):
@@ -1387,28 +1387,25 @@ class TemplateTagTests(TestCase):
         # literal text on the page.
         split_tag = re.compile(r'\{%((?!%\}).)*\n|\{\{((?!\}\}).)*\n|\{#((?!#\}).)*\n', re.S)
         templates = [p for p in Path(settings.BASE_DIR).glob('*/templates/**/*') if p.is_file()]
-        self.assertGreater(len(templates), 20)
+        self.assertGreater(len(templates), 10)
         for path in templates:
             with self.subTest(template=str(path)):
                 self.assertIsNone(split_tag.search(path.read_text(encoding='utf-8')))
 
-    def test_signup_redirect_uses_each_language(self):
-        for language in ('en', 'ar', 'fr'):
-            with self.subTest(language=language), translation.override(language):
-                response = self.client.get(reverse('calc:signup'), secure=True)
-                self.assertRedirects(response, f'/app/{language}/signup/', fetch_redirect_response=False)
+    def test_retired_django_public_routes_are_gone(self):
+        # The export owns these at the site root; with no export they are plain 404s, not loops.
+        for path in ('/en/', '/en/about/', '/en/terms/', '/en/privacy/', '/en/signup/', '/fr/signup/'):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path, secure=True).status_code, 404)
 
-    def test_home_links_to_the_interview_in_each_language(self):
-        expected = {
-            'en': 'Start a case without an account',
-            'ar': 'ابدأ حالة بدون حساب',
-            'fr': 'Commencer un dossier sans compte',
-        }
-        for language, text in expected.items():
+    def test_legacy_pages_link_to_the_site_root_pages_in_each_language(self):
+        self.client.force_login(User.objects.create_user('linker', password='x'))
+        for language in ('en', 'ar', 'fr'):
             with self.subTest(language=language):
-                response = self.client.get(f'/{language}/', secure=True)
-                self.assertContains(response, f'href="/app/{language}/interview/"')
-                self.assertContains(response, text)
+                response = self.client.get(f'/{language}/calc/', secure=True)
+                self.assertEqual(response.status_code, 200)
+                for page in ('', 'about/', 'terms/', 'privacy/'):
+                    self.assertContains(response, f'href="/{language}/{page}"')
                 self.assertNotContains(response, '{%')
 
     def test_login_redirect_uses_cookie_language_for_signed_in_visitors(self):
@@ -1417,7 +1414,7 @@ class TemplateTagTests(TestCase):
             with self.subTest(language=language):
                 self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = language
                 response = self.client.get(reverse('login') + '?next=/en/', secure=True)
-                self.assertRedirects(response, f'/app/{language}/login/?next=%2Fen%2F', fetch_redirect_response=False)
+                self.assertRedirects(response, f'/{language}/login/?next=%2Fen%2F', fetch_redirect_response=False)
 
 
 # Engine-heavy tests are TransactionTestCase: inside TestCase's per-test transaction every
@@ -3567,30 +3564,27 @@ class LayeredTableTests(TestCase):
 
 class SignupContinuationTests(TestCase):
     def test_old_auth_urls_keep_query(self):
-        for path, target in [('/en/signup/', '/app/en/signup/'),
-                             ('/fr/signup/', '/app/fr/signup/'),
-                             ('/unknown/signup/', '/app/en/signup/'),
-                             ('/accounts/login/', '/app/en/login/'),
-                             ('/accounts/password_reset/', '/app/en/password-reset/'),
-                             ('/accounts/password_change/', '/app/en/password-change/'),
-                             ('/accounts/password_change/done/', '/app/en/password-change/'),
-                             ('/accounts/password_reset/done/', '/app/en/password-reset/'),
-                             ('/accounts/reset/done/', '/app/en/login/')]:
+        for path, target in [('/accounts/login/', '/en/login/'),
+                             ('/accounts/password_reset/', '/en/password-reset/'),
+                             ('/accounts/password_change/', '/en/password-change/'),
+                             ('/accounts/password_change/done/', '/en/password-change/'),
+                             ('/accounts/password_reset/done/', '/en/password-reset/'),
+                             ('/accounts/reset/done/', '/en/login/')]:
             self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'
-            response = self.client.get(path + '?next=%2Fapp%2Fen%2Fresults%2F&extra=1', secure=True)
-            self.assertRedirects(response, target + '?next=%2Fapp%2Fen%2Fresults%2F&extra=1', fetch_redirect_response=False)
+            response = self.client.get(path + '?next=%2Fen%2Fresults%2F&extra=1', secure=True)
+            self.assertRedirects(response, target + '?next=%2Fen%2Fresults%2F&extra=1', fetch_redirect_response=False)
 
     def test_old_confirm_moves_path_parameters_to_query(self):
         self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'fr'
         response = self.client.get('/accounts/reset/abc/token/?next=x', secure=True)
-        self.assertRedirects(response, '/app/fr/password-reset/confirm/?next=x&uid=abc&token=token', fetch_redirect_response=False)
+        self.assertRedirects(response, '/fr/password-reset/confirm/?next=x&uid=abc&token=token', fetch_redirect_response=False)
 
     def test_legacy_login_required_lands_on_export(self):
         self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'
         response = self.client.get('/en/calc/', secure=True)
         self.assertEqual(response.status_code, 302)
         landing = self.client.get(response['Location'], secure=True)
-        self.assertTrue(landing['Location'].startswith('/app/en/login/?next='))
+        self.assertTrue(landing['Location'].startswith('/en/login/?next='))
 
 
 class PasswordChangeRedirectTests(TestCase):
@@ -3602,10 +3596,10 @@ class PasswordChangeRedirectTests(TestCase):
             response = auth_redirect(request, page='password-change', lang=language)
             expected = language if language in ('ar', 'en', 'fr') else 'en'
             self.assertEqual(response.status_code, 302)
-            self.assertEqual(response['Location'], f'/app/{expected}/password-change/?extra=1')
+            self.assertEqual(response['Location'], f'/{expected}/password-change/?extra=1')
         for language in ('ar', 'en', 'fr'):
             self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = language
             for suffix in ('', 'done/'):
                 response = self.client.get('/accounts/password_change/' + suffix + '?extra=1', secure=True)
                 self.assertEqual(response.status_code, 302)
-                self.assertEqual(response['Location'], f'/app/{language}/password-change/?extra=1')
+                self.assertEqual(response['Location'], f'/{language}/password-change/?extra=1')

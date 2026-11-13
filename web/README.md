@@ -1,6 +1,6 @@
 # Mawareeth web
 
-The Next.js frontend, built as a static export and served by Django under `/app/`. The landing page links to `/app/<locale>/interview/` (zero-signup case start) and every page is `noindex`.
+The Next.js frontend, built as a static export and served by Django from the site root (`/<locale>/...`). The landing page links to `/<locale>/interview/` (zero-signup case start). Only the landing, about, terms and privacy pages (plus `robots.txt`, `sitemap.xml` and `llms.txt`) are indexable; every other page is `noindex`. Old `/app/...` URLs redirect to the same path without the prefix.
 
 ## Local development
 
@@ -13,9 +13,9 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:3000/app/en/> (also `ar` and `fr`). The page shows the connected state when it reaches Django: in development only, Next forwards `/api/*` to `localhost:8000`, so the browser still sees one origin.
+Open <http://localhost:3000/en/> (also `ar` and `fr`). The page shows the connected state when it reaches Django: in development only, Next forwards `/api/*` to `localhost:8000`, so the browser still sees one origin.
 
-Without a `web-dist/` directory, which is the normal case in development, Django itself answers `/app/<locale>/` with 404. Use the Next dev server for these pages.
+Without a `web-dist/` directory, which is the normal case in development, Django itself answers `/<locale>/` with 404. Use the Next dev server for these pages.
 
 ## Checks
 
@@ -30,7 +30,7 @@ npm run build
 node scripts/check-export.mjs
 ```
 
-`npm run build` writes the export to `out/`. The `Dockerfile` copies it to `web-dist/app/` in the release image.
+`npm run build` writes the export to `out/`. The `Dockerfile` copies it to `web-dist/` in the release image.
 
 ## Limits of a static export
 

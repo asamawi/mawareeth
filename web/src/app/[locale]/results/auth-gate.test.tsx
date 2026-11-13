@@ -279,7 +279,7 @@ test("authenticated WhatsApp click saves, creates a private share, and shows bot
     window.open = original;
   }
   assert.equal(opened.length, 1);
-  assert.equal(decodeURIComponent(opened[0].slice("https://wa.me/?text=".length)), `${messages.en.shared.banner}\nhttp://localhost/app/en/shared/#tok123`);
+  assert.equal(decodeURIComponent(opened[0].slice("https://wa.me/?text=".length)), `${messages.en.shared.banner}\nhttp://localhost/en/shared/#tok123`);
 });
 
 test("WhatsApp clicked while the session loads, then signed in: closing the dialog prepares the WhatsApp panel", async () => {

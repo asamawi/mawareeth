@@ -253,6 +253,7 @@ export type Messages = {
       noteHint: string;
     };
   };
+  footer: { label: string; about: string; terms: string; privacy: string; note: string };
   cta: string;
 };
 
@@ -557,6 +558,13 @@ export const messages: Record<Locale, Messages> = {
       },
     },
     cta: "ابدأ حالة بدون حساب",
+    footer: {
+      "label": "معلومات الموقع",
+      "about": "من نحن",
+      "terms": "الأحكام و الشروط",
+      "privacy": "سياسة الخصوصية",
+      "note": "مواريث أداة مساعدة على الحساب وليست فتوى ولا استشارة قانونية."
+    },
   },
   en: {
     auth: {"change": "Change password", "old_password": "Current password", "noPassword": "This account signs in with Facebook or LinkedIn and has no password to change.", "passwordRequirements": "Use at least 8 characters, avoid similarity to your username and common passwords, and do not use only numbers.", "login": "Sign in", "signup": "Create account", "reset": "Reset password", "confirm": "Choose a new password", "username": "Username", "email": "Email address", "password": "Password", "password2": "Confirm password", "new_password1": "New password", "new_password2": "Confirm new password", "pending": "Please wait...", "throttled": "Please try again later.", "error": "Unable to connect. Please try again.", "invalid": "This reset link is invalid or has expired.", "sent": "If an account exists, we have sent password reset instructions.", "complete": "Your password has been changed.", "facebook": "Facebook", "linkedin": "LinkedIn", "socialError": "Social sign in failed. Please try again.", "logout": "Sign out"},
@@ -858,6 +866,13 @@ export const messages: Record<Locale, Messages> = {
       },
     },
     cta: "Start a case without an account",
+    footer: {
+      "label": "Site information",
+      "about": "About",
+      "terms": "Terms and Conditions",
+      "privacy": "Privacy Policy",
+      "note": "Mawareeth is a calculation aid, not a fatwa or legal advice."
+    },
   },
   fr: {
     auth: {"change": "Modifier le mot de passe", "old_password": "Mot de passe actuel", "noPassword": "Ce compte se connecte avec Facebook ou LinkedIn et n’a pas de mot de passe à modifier.", "passwordRequirements": "Utilisez au moins 8 caractères, un mot de passe peu similaire au nom d’utilisateur, non courant et pas entièrement numérique.", "login": "Se connecter", "signup": "Créer un compte", "reset": "Réinitialiser le mot de passe", "confirm": "Choisir un nouveau mot de passe", "username": "Nom d’utilisateur", "email": "Adresse e-mail", "password": "Mot de passe", "password2": "Confirmer le mot de passe", "new_password1": "Nouveau mot de passe", "new_password2": "Confirmer le nouveau mot de passe", "pending": "Veuillez patienter…", "throttled": "Veuillez réessayer plus tard.", "error": "Connexion impossible. Veuillez réessayer.", "invalid": "Ce lien est invalide ou a expiré.", "sent": "Si un compte existe, les instructions de réinitialisation ont été envoyées.", "complete": "Votre mot de passe a été modifié.", "facebook": "Facebook", "linkedin": "LinkedIn", "socialError": "La connexion sociale a échoué. Veuillez réessayer.", "logout": "Se déconnecter"},
@@ -1162,5 +1177,12 @@ export const messages: Record<Locale, Messages> = {
       },
     },
     cta: "Commencer un dossier sans compte",
+    footer: {
+      "label": "Informations sur le site",
+      "about": "À propos",
+      "terms": "Termes et conditions",
+      "privacy": "Politique de confidentialité",
+      "note": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique."
+    },
   },
 };

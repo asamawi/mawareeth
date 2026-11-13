@@ -22,7 +22,7 @@ def issue(saved_case, email, actor, request, language):
             token_hash=hash_token(token), expires_at=timezone.now() + LINK_LIFETIME)
         audit(invite, actor, 'created', subject='invite')
         with translation.override(language):
-            link = request.build_absolute_uri(f'/app/{language}/invite/') + '#' + token
+            link = request.build_absolute_uri(f'/{language}/invite/') + '#' + token
             try:
                 sent = send_mail(_('You have been invited to view a draft case'),
                     _('Sign in or register to accept this invitation. The invitation expires in 30 days.\n\n%(link)s') % {'link': link},

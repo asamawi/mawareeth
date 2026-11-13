@@ -38,20 +38,16 @@ urlpatterns = [
     path('accounts/password_reset/done/', web_views.auth_redirect, {'page': 'password-reset'}, name='password_reset_done'),
     path('accounts/reset/done/', web_views.auth_redirect, {'page': 'login'}, name='password_reset_complete'),
     path('accounts/reset/<uidb64>/<token>/', web_views.auth_redirect, {'page': 'password-reset/confirm'}, name='password_reset_confirm'),
-    re_path(r'^(?P<lang>[^/]+)/signup/$', web_views.auth_redirect, {'page': 'signup'}),
     path('social-auth/', include('social_django.urls', namespace="social")),
     path('api/v1/', include('api.urls')),
-    # The export's pages are served by WhiteNoise; only this entry point is a view.
-    path('app/', web_views.app_root, name='web-app-root'),
+    # The export's pages are served by WhiteNoise; only these entry points are views.
+    path('', web_views.site_root, name='web-site-root'),
+    re_path(r'^app/(?P<rest>.*)$', web_views.legacy_app_redirect, name='web-legacy-app'),
 
 ]
 
 calc_patterns = ([
     path('calc/', calc_views.IndexView.as_view(), name='index'),
-    path('', calc_views.HomePage.as_view(), name='home'),
-	path('terms/', calc_views.Terms.as_view(), name='terms'),
-	path('privacy/', calc_views.Privacy.as_view(), name='privacy'),
-    path('about/', calc_views.About.as_view(), name='about'),
     path('new/', calc_views.new, name='new'),
     path('<int:pk>/', calc_views.DetailView.as_view(), name='detail'),
     path('<int:pk>/delete/', calc_views.CalculationDelete.as_view(), name='delete'),
@@ -86,7 +82,6 @@ calc_patterns = ([
     path('<int:pk>/results/', calc_views.ResultsView.as_view(), name='results'),
     path('<int:pk>/new-results/', calc_views.NewResultsView.as_view(), name='new_results'),
     path('error/', calc_views.error, name='error'),
-    path('signup/', web_views.auth_redirect, {'page': 'signup'}, name='signup'),
 
 
 ], 'calc')

@@ -66,7 +66,7 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
         <span>{text.invites.owner}: <bdi>{row.owner}</bdi></span>
         <span>{text.cases.updated}: {new Date(row.updated_at).toLocaleString(locale)}</span>
         <span>{text.invites.expires}: {new Date(row.expires_at).toLocaleDateString(locale)}</span>
-        <span>{text.cases.draft}</span><a href={`/app${receivedPath(locale, row.id)}`} className={buttonClass}>{text.invites.open}</a>
+        <span>{text.cases.draft}</span><a href={receivedPath(locale, row.id)} className={buttonClass}>{text.invites.open}</a>
       </li>)}</ul>
     </>
   );
