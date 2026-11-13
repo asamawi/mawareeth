@@ -145,3 +145,6 @@ web/out/
 web/.env*
 web/next-env.d.ts
 web/*.tsbuildinfo
+web/test-results/
+web/playwright-report/
+web/blob-report/

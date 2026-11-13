@@ -193,6 +193,10 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Interview & web UI
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-browser-tests.md`
+  summary: Run a browser hydration check under the production Content-Security-Policy, for example a Playwright project that serves the export through Django/WhiteNoise (or sends the CSP computed by `mawareeth/web_headers.py`) and fails on any CSP console violation.
+  evidence: The Playwright suite serves `web/out` with a plain Node server and no CSP. The hash-based CSP from `9d2e3ff` is covered by Django header tests and by one manual headless-Edge run. A hash mismatch that blocks Next's inline bootstrap scripts would therefore pass every automated test while breaking hydration in production.
+
 - source_spec: none
   summary: Have a native Arabic and French speaker review the new "Cancel" label added to calc/templates/calc/calculation_confirm_delete.html — AR msgstr is empty.
   evidence: Added as msgid "Cancel" with msgstr "" in locale/ar and locale/fr as part of the case-delete confirmation story; EN is self-translating.
@@ -200,10 +204,6 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`
   summary: Add shadcn/ui, React Query, Zustand and drf-spectacular with the first story that uses each.
   evidence: The foundation has one page and one read-only endpoint, so none of them has a user yet.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
-  summary: Add browser-level tests for the Next.js `/{lang}/…` routes, covering hydration, rendered states, RTL, no-retry, keyboard and reduced motion, before they reach production.
-  evidence: Deferred by the project owner on 2026-11-06 as a release blocker. The tests have more to cover once Stories 1.2 and 1.3 add interview content. The foundation's automated tests cover the probe logic but not `SessionStatus` rendering; hydration was checked by hand in headless Chrome only. Sources: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`; `_bmad-output/implementation-artifacts/spec-nextjs-drf-foundation.md`.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
   summary: Handle failed or stale JavaScript chunks on the Next.js `/{lang}/…` routes with an interview fallback, including tabs left open across a deploy, before they reach production.
