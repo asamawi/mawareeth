@@ -455,7 +455,7 @@ class WebExportTests(TestCase):
     SCRIPT_CRLF = "window.e = 1;\r\nwindow.f = 2;\rwindow.g = 3;"
     CSP_TAIL = (
         "; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; "
-        "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; "
+        "connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; "
         "form-action 'self' https://www.facebook.com https://www.linkedin.com"
     )
 
@@ -467,7 +467,8 @@ class WebExportTests(TestCase):
         return "'sha256-" + base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode() + "'"
 
     def csp(self, *hashes):
-        return "default-src 'self'; script-src " + " ".join(["'self'", *hashes]) + self.CSP_TAIL
+        return ("default-src 'self'; script-src "
+                + " ".join(["'self'", "https://static.cloudflareinsights.com", *hashes]) + self.CSP_TAIL)
 
     def setUp(self):
         directory = TemporaryDirectory()
