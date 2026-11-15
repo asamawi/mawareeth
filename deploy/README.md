@@ -1083,6 +1083,6 @@ Also confirm the Docker-port backstop is active and in effect: `systemctl is-act
 
 ## Heroku cutover history
 
-Production moved from Heroku to this host on 2026-11-01, and Heroku is destroyed. See `_bmad-output/implementation-artifacts/spec-0-10-execute-production-cutover-and-retire-heroku.md` for timings and findings. The rehearsal and inventory tooling and their runbooks were removed afterwards; the last commit that has them is `e61f4dd`.
+Production moved from Heroku to this host on 2026-11-01, and Heroku is destroyed. See `_bmad-output/archive/phase-1/implementation-artifacts/spec-0-10-execute-production-cutover-and-retire-heroku.md` for timings and findings. The rehearsal and inventory tooling and their runbooks were removed afterwards; the last commit that has them is `e61f4dd`.
 
 The final state of the Heroku database is kept in the restic repository as snapshot tag `heroku-final` (`heroku-final-20261101.dump`, a `pg_dump -Fc --schema=public` archive). Nightly retention never prunes it, because it lacks the `complete` tag. To inspect it, run Restic with the same repository settings as `backup.sh`, then `dump latest /heroku-final-20261101.dump --tag heroku-final` into `pg_restore -l` (or `pg_restore` into a scratch database, never into production).
