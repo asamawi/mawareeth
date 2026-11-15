@@ -1,0 +1,15 @@
+# Citation check (2026-11-16)
+
+| ref | claim in report | verdict | evidence |
+|---|---|---|---|
+| [1] | Egypt bequest method: parent's share as if alive, cap 1/3, taken out first; 59,904-share example | supports | Page gives the 3 steps; Court of Cassation "must come out of the estate first"; example 59,904 total, 5,824 bequest, 54,080 remainder |
+| [8] | Saudi: no obligatory bequest; art. 212 grandfather excludes siblings; art. 231 radd; art. 235 tanzil equal shares | supports | Text extracted locally from PDF. Art. 212(3): grandfather "يحجب الإخوة". Art. 231: radd to non-spouses; spouse only if no fard/asaba/dhawu al-arham heir. Art. 235: tanzil "دون تفاضل بين سهم الذكر وسهم الأنثى". No occurrence of "الوصية الواجبة" in the whole PDF (absence, not an express denial) |
+| [9] | Najiz calculator, Nafath login, per-heir shares and amounts | supports | Page: login with Nafath; result shows each heir's share, percentage and amount. "No successive deaths" not tested here |
+| [15] | UAE art. 179 includes daughter's children; cap 1/3; killer and apostate barred | supports | Art. 179 cl.1(c) "children of the son and children of the daughter, however low"; 1(a) cap one-third; cl.3 killer and apostate barred (shushin.io, text at offset 100000+) |
+| [16] | UAE art. 179 includes daughter's children | supports | Al Etihad: "أولاد الابن وأولاد البنت، وإن نزلوا، وصية واجبة... في حدود الثلث" (second fetch; first timed out) |
+| [21] | Morocco arts. 349, 369-372: bequest 1/3, son's line to infinity, daughter's children first degree only, spouses in radd, two phases | supports | Art. 372: son's children and son's son's "à l'infini"; daughter's children "à l'exclusion de leurs descendants". Art. 370 cap 1/3, parent's share. Art. 349: a lone fard heir takes the rest; several fard heirs share it. Treasury last. The art. 349 text lists asaba classes and does not say "spouses" explicitly |
+| [22] | Morocco reform deferred to next legislature, ta'sib kept (Oct 2026) | supports | LesMRE 15 Oct 2026: Justice Ministry 26 Sep said project moves to next legislature; scholars refused abolishing taasib; 2004 code still applies |
+| [23] | Morocco reform politics Jan 2026 (vote 2026 or deferral) | supports | Hespress: PPS "n'exclut pas un report"; Hamouni says vote before end of term unlikely. Article does not mention inheritance or ta'sib |
+| [29] | Qatar art. 251 order (spouse after distant kin); no obligatory bequest | supports (art. 251); bequest absence only by search | Art. 251 order: fard, asaba, radd except spouses, maternal relatives, then residue to a spouse. Searches for "obligatory" and "predeceased" found no obligatory bequest |
+| [35] | Iraq Ja'fari code approved 27 Aug 2025, so couples can choose it | partially supports | HRW says "passed by parliament on August 27" (year not in that sentence; article dated 15 Oct 2025). The couples' choice of 1959 law or the code is tied to the Feb 2025 amendment, not to the code's passage |
+| [46] | Egypt 81.9% online, ~117M people | supports | DataReportal: "online penetration stood at 81.9 percent"; population 117 million (Jan 2025) |
