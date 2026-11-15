@@ -83,28 +83,5 @@ development_status:
   4-5-whatsapp-share-for-registered-users: backlog
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-0-marketplace-validation-gate-and-private-package-bootstrap: backlog
-  5-1-public-lawyer-application: backlog
-  5-2-internal-lawyer-approval-workflow: backlog
-  5-3-certification-access-control-by-lawyer-status: backlog
-  epic-5-retrospective: optional
-
-  epic-6: backlog
-  6-1-default-free-membership-with-commission-rules: backlog
-  6-2-membership-upgrade-to-internal-tiers: backlog
-  6-3-lawyer-defined-certification-pricing-model: backlog
-  6-4-sponsored-fixed-position-management: backlog
-  6-5-earned-badge-eligibility-rules: backlog
-  epic-6-retrospective: optional
-
-  epic-7: backlog
-  7-1-bequest-amount-gate-for-lawyer-pricing: backlog
-  7-2-lawyer-marketplace-listing-with-sponsored-and-earned-signals: backlog
-  7-3-verified-review-and-rating-generation: backlog
-  7-4-certification-purchase-and-lawyer-selection: backlog
-  7-5-certify-draft-report-as-approved-lawyer: backlog
-  7-6-audit-trail-for-certification-actions: backlog
-  7-7-certification-registry-and-qr-verification: backlog
-  epic-7-retrospective: optional
-last_updated: 2026-11-12
+  # Epics 5–7 are tracked in the private repository asamawi/mawareeth-marketplace (AD-14).
+last_updated: 2026-11-16
