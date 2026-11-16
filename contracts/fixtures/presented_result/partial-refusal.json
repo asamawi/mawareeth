@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "locale": "en",
+  "direction": "ltr",
+  "basis": {
+    "kind": "compare"
+  },
+  "state": "selection_required",
+  "comparison_outcome": "difference",
+  "rows": [],
+  "rounding": null,
+  "unallocated": null,
+  "refusals": [
+    {
+      "school": "maliki",
+      "reason": "malikiyya_disputed",
+      "text": "This case is disputed."
+    }
+  ],
+  "notices": [
+    {
+      "code": "disclaimer",
+      "text": "This is not legal advice."
+    }
+  ]
+}

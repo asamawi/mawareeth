@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "locale": "en",
+  "direction": "ltr",
+  "basis": {
+    "kind": "school",
+    "school": "hanbali"
+  },
+  "state": "answer",
+  "comparison_outcome": "difference",
+  "rows": [
+    {
+      "person": "p_gf",
+      "name": {
+        "text": "Ali"
+      },
+      "relationship": {
+        "translated": {
+          "text": "Grandfather",
+          "lang": "en",
+          "dir": "ltr"
+        },
+        "original": {
+          "text": "جد",
+          "lang": "ar",
+          "dir": "rtl"
+        }
+      },
+      "kind": "residue",
+      "share": {
+        "fraction": {
+          "numerator": 1,
+          "denominator": 2
+        },
+        "text": "1/2"
+      },
+      "amount": {
+        "amount_minor": 50000,
+        "currency": "SAR",
+        "text": "SAR 500.00"
+      }
+    },
+    {
+      "person": "p_bro",
+      "name": null,
+      "relationship": {
+        "translated": {
+          "text": "Brother",
+          "lang": "en",
+          "dir": "ltr"
+        },
+        "original": {
+          "text": "أخ",
+          "lang": "ar",
+          "dir": "rtl"
+        }
+      },
+      "kind": "residue",
+      "share": {
+        "fraction": {
+          "numerator": 1,
+          "denominator": 2
+        },
+        "text": "1/2"
+      },
+      "amount": {
+        "amount_minor": 50000,
+        "currency": "SAR",
+        "text": "SAR 500.00"
+      }
+    }
+  ],
+  "rounding": {
+    "amount_minor": 0,
+    "currency": "SAR",
+    "text": "SAR 0.00"
+  },
+  "unallocated": {
+    "fraction": {
+      "numerator": 0,
+      "denominator": 1
+    },
+    "text": "0"
+  },
+  "refusals": [],
+  "notices": [
+    {
+      "code": "disclaimer",
+      "text": "This is not legal advice."
+    },
+    {
+      "code": "civil_law",
+      "text": "Civil law may differ."
+    }
+  ]
+}

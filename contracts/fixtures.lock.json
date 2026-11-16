@@ -1,0 +1,137 @@
+{
+  "fixtures/basis/compare.json": {
+    "contract": "basis",
+    "sha256": "f386aaac9c9adbc8005a6accd24e9c2e30703dd91fea1369cfd0001257ebccbb",
+    "version": 1
+  },
+  "fixtures/basis/country.json": {
+    "contract": "basis",
+    "sha256": "014b2c8592d524bb3cee16d1ce41c1b5ebd7be0baa00d55014249c91a0faa820",
+    "version": 1
+  },
+  "fixtures/basis/school.json": {
+    "contract": "basis",
+    "sha256": "20fb73b82d69405f78f65afec51767884d7cf941c5d891bddf6d8946b4f1f75a",
+    "version": 1
+  },
+  "fixtures/catalog/en.json": {
+    "contract": "catalog",
+    "sha256": "406de784cd8243af62286ad37e1a3ad19a15e807c6899a3f6bb4d333e08aed6e",
+    "version": 1
+  },
+  "fixtures/comparison/agreement.json": {
+    "contract": "comparison",
+    "sha256": "f79dbd62bdbf1a7fcb21eb2ee3695ba9dc8c5d2318058584b65651d61a3e8831",
+    "version": 1
+  },
+  "fixtures/comparison/all-refused.json": {
+    "contract": "comparison",
+    "sha256": "d57bf0a980fc6035e5ba1af54c598c8fbaed3926100dc9046ea4a8d1074afa36",
+    "version": 1
+  },
+  "fixtures/comparison/difference-selected.json": {
+    "contract": "comparison",
+    "sha256": "02d8c7a6d1282d2f2292c8cb70ad198ae6595f5c2cf6cb1b381ae9b48470b4e2",
+    "version": 1
+  },
+  "fixtures/comparison/difference-selection-required.json": {
+    "contract": "comparison",
+    "sha256": "5b2e4c69a47966ebc26a843abd5a4cab0c17834e88d5b8e090792b19a8e6d6ad",
+    "version": 1
+  },
+  "fixtures/comparison/partial-refusal.json": {
+    "contract": "comparison",
+    "sha256": "8e1084eb533a460b950c437545f6abb96dd7a32ae0755ba62b32ce32ec900c2d",
+    "version": 1
+  },
+  "fixtures/family/later-deaths.json": {
+    "contract": "family",
+    "sha256": "68dbd7417b21b3e09c176652bd334f5b09bab0beead8091103059af97e78fd77",
+    "version": 1
+  },
+  "fixtures/family/single-estate.json": {
+    "contract": "family",
+    "sha256": "179527fbbbecd73747854363c189c5b9958e8348658a0b36bd3022e767139112",
+    "version": 1
+  },
+  "fixtures/invalid/basis.json": {
+    "contract": "basis",
+    "sha256": "5509b54d759b573b3dc8536410da03f10f915c8cc941374ab303c527751ce6e0",
+    "version": 1
+  },
+  "fixtures/invalid/catalog.json": {
+    "contract": "catalog",
+    "sha256": "0ef604c5258c35f33b8e0315ecf2b09e8e79841c21d1c2c724a9ca448e9e0a52",
+    "version": 1
+  },
+  "fixtures/invalid/comparison.json": {
+    "contract": "comparison",
+    "sha256": "76eab99ed02103558744253af54614ce08bb4126c038506dd774a03ea2f5d5bd",
+    "version": 1
+  },
+  "fixtures/invalid/family.json": {
+    "contract": "family",
+    "sha256": "5f9e10b07f694eb3f428992c304c9cbce14d9c9f30dea251cda0702f9ddade9f",
+    "version": 1
+  },
+  "fixtures/invalid/presented_result.json": {
+    "contract": "presented_result",
+    "sha256": "1e85b6a1d00422258abfd5f63e4726bd1311a23177ca888a4250ea09157aa90d",
+    "version": 1
+  },
+  "fixtures/invalid/preset.json": {
+    "contract": "preset",
+    "sha256": "104ee8215f8a547cbf3449b0018199b6bc48b478ad9b7db52663287761a5ef98",
+    "version": 1
+  },
+  "fixtures/invalid/result.json": {
+    "contract": "result",
+    "sha256": "1fd1eee09415fc7731d5216293392a7016a17e7db5794ded4d004349be553328",
+    "version": 1
+  },
+  "fixtures/presented_result/agreement.json": {
+    "contract": "presented_result",
+    "sha256": "4fd2755d63a04e9a39adac780f359611392e3ed29eb00f3dd5da911aac1e2beb",
+    "version": 1
+  },
+  "fixtures/presented_result/difference.json": {
+    "contract": "presented_result",
+    "sha256": "ca9a3c9d65eb3cc07b2d296b22dfd2f3885addb7e3d4c11ebedb87d0a8489dc5",
+    "version": 1
+  },
+  "fixtures/presented_result/partial-refusal.json": {
+    "contract": "presented_result",
+    "sha256": "7ac0d4d29412a5e59df994ca7b271a9c1ce619adb17437136854fdc4f59cb18b",
+    "version": 1
+  },
+  "fixtures/presented_result/refused.json": {
+    "contract": "presented_result",
+    "sha256": "08fad9b6ba2f59d483e212c5718705c5f3ce8eb626bf712a68075970ab7701af",
+    "version": 1
+  },
+  "fixtures/presented_result/selection-required.json": {
+    "contract": "presented_result",
+    "sha256": "996ce4cb9a6d6d4da67d2bc556e42fd58b89f700a3dafa68b2dc772d4c5ca650",
+    "version": 1
+  },
+  "fixtures/preset/zz-2026-01-01.json": {
+    "contract": "preset",
+    "sha256": "560bc57515c3ea72ce9d81e3e64b669e744e25e9bda725c8f10695dd0257738f",
+    "version": 1
+  },
+  "fixtures/result/blocked.json": {
+    "contract": "result",
+    "sha256": "bd954a07720624ce3f6455ce2948b4947d40ff86e902f074ce056dfa98117196",
+    "version": 1
+  },
+  "fixtures/result/later-deaths.json": {
+    "contract": "result",
+    "sha256": "81f281d46bffd57b0d1a68976b87d19dc695ea71305e6fb3afddbaddb279511c",
+    "version": 1
+  },
+  "fixtures/result/refused.json": {
+    "contract": "result",
+    "sha256": "1d6a1a4b1dbf6bde2bc7863a8aa20f7a09233d9a4f73961e300ab307fabccfd6",
+    "version": 1
+  }
+}

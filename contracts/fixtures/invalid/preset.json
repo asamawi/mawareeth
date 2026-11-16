@@ -1,0 +1,309 @@
+[
+  {
+    "name": "unsupported schema version",
+    "input": {
+      "schema_version": 2,
+      "id": "zz",
+      "version": "2026-01-01",
+      "default_school": "hanbali",
+      "default_currency": "SAR",
+      "settings": {
+        "rounding": "half_up",
+        "allow_gifts": true
+      },
+      "rules": {
+        "radd_to_spouse": false,
+        "bequest_cap_denominator": 3
+      },
+      "citations": {
+        "radd_to_spouse": {
+          "statute_id": "zz_family_law_2020",
+          "article": "art_12",
+          "checked_on": "2026-01-01"
+        },
+        "bequest_cap_denominator": {
+          "gap_school": "hanbali"
+        }
+      },
+      "reviewed_by": null,
+      "reviewed_on": null
+    },
+    "error": "unsupported_version"
+  },
+  {
+    "name": "unknown key",
+    "input": {
+      "schema_version": 1,
+      "id": "zz",
+      "version": "2026-01-01",
+      "default_school": "hanbali",
+      "default_currency": "SAR",
+      "settings": {
+        "rounding": "half_up",
+        "allow_gifts": true
+      },
+      "rules": {
+        "radd_to_spouse": false,
+        "bequest_cap_denominator": 3
+      },
+      "citations": {
+        "radd_to_spouse": {
+          "statute_id": "zz_family_law_2020",
+          "article": "art_12",
+          "checked_on": "2026-01-01"
+        },
+        "bequest_cap_denominator": {
+          "gap_school": "hanbali"
+        }
+      },
+      "reviewed_by": null,
+      "reviewed_on": null,
+      "extra": 1
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "rule without a citation",
+    "input": {
+      "schema_version": 1,
+      "id": "zz",
+      "version": "2026-01-01",
+      "default_school": "hanbali",
+      "default_currency": "SAR",
+      "settings": {
+        "rounding": "half_up",
+        "allow_gifts": true
+      },
+      "rules": {
+        "radd_to_spouse": false,
+        "bequest_cap_denominator": 3
+      },
+      "citations": {
+        "bequest_cap_denominator": {
+          "gap_school": "hanbali"
+        }
+      },
+      "reviewed_by": null,
+      "reviewed_on": null
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "reviewed_by without reviewed_on",
+    "input": {
+      "schema_version": 1,
+      "id": "zz",
+      "version": "2026-01-01",
+      "default_school": "hanbali",
+      "default_currency": "SAR",
+      "settings": {
+        "rounding": "half_up",
+        "allow_gifts": true
+      },
+      "rules": {
+        "radd_to_spouse": false,
+        "bequest_cap_denominator": 3
+      },
+      "citations": {
+        "radd_to_spouse": {
+          "statute_id": "zz_family_law_2020",
+          "article": "art_12",
+          "checked_on": "2026-01-01"
+        },
+        "bequest_cap_denominator": {
+          "gap_school": "hanbali"
+        }
+      },
+      "reviewed_by": "A. Reviewer",
+      "reviewed_on": null
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "bad checked_on date",
+    "input": {
+      "schema_version": 1,
+      "id": "zz",
+      "version": "2026-01-01",
+      "default_school": "hanbali",
+      "default_currency": "SAR",
+      "settings": {
+        "rounding": "half_up",
+        "allow_gifts": true
+      },
+      "rules": {
+        "radd_to_spouse": false,
+        "bequest_cap_denominator": 3
+      },
+      "citations": {
+        "radd_to_spouse": {
+          "statute_id": "zz_family_law_2020",
+          "article": "art_12",
+          "checked_on": "2026-02-30"
+        },
+        "bequest_cap_denominator": {
+          "gap_school": "hanbali"
+        }
+      },
+      "reviewed_by": null,
+      "reviewed_on": null
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "float setting",
+    "input": {
+      "schema_version": 1,
+      "id": "zz",
+      "version": "2026-01-01",
+      "default_school": "hanbali",
+      "default_currency": "SAR",
+      "settings": {
+        "rounding": "half_up",
+        "allow_gifts": true,
+        "ratio": 0.5
+      },
+      "rules": {
+        "radd_to_spouse": false,
+        "bequest_cap_denominator": 3
+      },
+      "citations": {
+        "radd_to_spouse": {
+          "statute_id": "zz_family_law_2020",
+          "article": "art_12",
+          "checked_on": "2026-01-01"
+        },
+        "bequest_cap_denominator": {
+          "gap_school": "hanbali"
+        }
+      },
+      "reviewed_by": null,
+      "reviewed_on": null
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "unknown default school",
+    "input": {
+      "schema_version": 1,
+      "id": "zz",
+      "version": "2026-01-01",
+      "default_school": "zaidi",
+      "default_currency": "SAR",
+      "settings": {
+        "rounding": "half_up",
+        "allow_gifts": true
+      },
+      "rules": {
+        "radd_to_spouse": false,
+        "bequest_cap_denominator": 3
+      },
+      "citations": {
+        "radd_to_spouse": {
+          "statute_id": "zz_family_law_2020",
+          "article": "art_12",
+          "checked_on": "2026-01-01"
+        },
+        "bequest_cap_denominator": {
+          "gap_school": "hanbali"
+        }
+      },
+      "reviewed_by": null,
+      "reviewed_on": null
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "trailing newline in the preset id",
+    "input": {
+      "schema_version": 1,
+      "id": "zz\n",
+      "version": "2026-01-01",
+      "default_school": "hanbali",
+      "default_currency": "SAR",
+      "settings": {
+        "rounding": "half_up",
+        "allow_gifts": true
+      },
+      "rules": {
+        "radd_to_spouse": false,
+        "bequest_cap_denominator": 3
+      },
+      "citations": {
+        "radd_to_spouse": {
+          "statute_id": "zz_family_law_2020",
+          "article": "art_12",
+          "checked_on": "2026-01-01"
+        },
+        "bequest_cap_denominator": {
+          "gap_school": "hanbali"
+        }
+      },
+      "reviewed_by": null,
+      "reviewed_on": null
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "Arabic-Indic digits in a date",
+    "input": {
+      "schema_version": 1,
+      "id": "zz",
+      "version": "2026-01-01",
+      "default_school": "hanbali",
+      "default_currency": "SAR",
+      "settings": {
+        "rounding": "half_up",
+        "allow_gifts": true
+      },
+      "rules": {
+        "radd_to_spouse": false,
+        "bequest_cap_denominator": 3
+      },
+      "citations": {
+        "radd_to_spouse": {
+          "statute_id": "zz_family_law_2020",
+          "article": "art_12",
+          "checked_on": "٢٠٢٦-01-01"
+        },
+        "bequest_cap_denominator": {
+          "gap_school": "hanbali"
+        }
+      },
+      "reviewed_by": null,
+      "reviewed_on": null
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "year below 100 is still a real date, but 0000 is not",
+    "input": {
+      "schema_version": 1,
+      "id": "zz",
+      "version": "2026-01-01",
+      "default_school": "hanbali",
+      "default_currency": "SAR",
+      "settings": {
+        "rounding": "half_up",
+        "allow_gifts": true
+      },
+      "rules": {
+        "radd_to_spouse": false,
+        "bequest_cap_denominator": 3
+      },
+      "citations": {
+        "radd_to_spouse": {
+          "statute_id": "zz_family_law_2020",
+          "article": "art_12",
+          "checked_on": "0000-01-01"
+        },
+        "bequest_cap_denominator": {
+          "gap_school": "hanbali"
+        }
+      },
+      "reviewed_by": null,
+      "reviewed_on": null
+    },
+    "error": "invalid_contract"
+  }
+]

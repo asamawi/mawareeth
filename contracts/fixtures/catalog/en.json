@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "locale": "en",
+  "terms": {
+    "school.hanafi": {
+      "text": "Hanafi",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "refusal.malikiyya_disputed": {
+      "text": "This case is disputed within the Maliki school.",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "proof.base": {
+      "text": "The estate is divided into {base} parts.",
+      "review": "pending",
+      "placeholders": {
+        "base": "int"
+      }
+    },
+    "proof.gets": {
+      "text": "{person} receives {share} by {rule}, citing {verse}.",
+      "review": "pending",
+      "placeholders": {
+        "person": "person",
+        "share": "fraction",
+        "rule": "code",
+        "verse": "citation"
+      }
+    }
+  }
+}

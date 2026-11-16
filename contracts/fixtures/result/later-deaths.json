@@ -1,0 +1,263 @@
+{
+  "version": 1,
+  "school": "hanbali",
+  "status": "calculated",
+  "refusal": null,
+  "allocations": [
+    {
+      "person": "p7",
+      "kind": "fixed",
+      "share": {
+        "numerator": 1,
+        "denominator": 2
+      },
+      "stage": {
+        "step": "base",
+        "base": 24
+      },
+      "rule": "fixed",
+      "condition": "single",
+      "blocked_by": null,
+      "school_rule": null,
+      "option": null,
+      "citations": [
+        "quran_4_11"
+      ]
+    },
+    {
+      "person": "p2",
+      "kind": "fixed",
+      "share": {
+        "numerator": 1,
+        "denominator": 6
+      },
+      "stage": {
+        "step": "base",
+        "base": 24
+      },
+      "rule": "fixed",
+      "condition": "descendant",
+      "blocked_by": null,
+      "school_rule": null,
+      "option": null,
+      "citations": [
+        "quran_4_11"
+      ]
+    },
+    {
+      "person": "p1",
+      "kind": "residue",
+      "share": {
+        "numerator": 1,
+        "denominator": 3
+      },
+      "stage": {
+        "step": "base",
+        "base": 24
+      },
+      "rule": "residuary",
+      "condition": null,
+      "blocked_by": null,
+      "school_rule": null,
+      "option": null,
+      "citations": [
+        "quran_4_11"
+      ]
+    }
+  ],
+  "unallocated": {
+    "numerator": 0,
+    "denominator": 1
+  },
+  "steps": [
+    {
+      "step": "base",
+      "params": {
+        "base": {
+          "type": "int",
+          "value": 24
+        },
+        "floor": {
+          "type": "fraction",
+          "value": {
+            "numerator": 1,
+            "denominator": 6
+          }
+        },
+        "heir": {
+          "type": "person",
+          "value": "p7"
+        },
+        "rule": {
+          "type": "code",
+          "value": "fixed"
+        },
+        "verse": {
+          "type": "citation",
+          "value": "quran_4_11"
+        }
+      }
+    },
+    {
+      "step": "correction",
+      "params": {
+        "base": {
+          "type": "int",
+          "value": 24
+        },
+        "from": {
+          "type": "code",
+          "value": "radd"
+        }
+      }
+    }
+  ],
+  "layers": [
+    {
+      "order": 2,
+      "deceased": "p1",
+      "inherited": {
+        "numerator": 1,
+        "denominator": 3
+      },
+      "allocations": [
+        {
+          "person": "p5",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 8
+          },
+          "stage": {
+            "step": "base",
+            "base": 8
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_12"
+          ]
+        },
+        {
+          "person": "p2",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p7",
+          "kind": "residue",
+          "share": {
+            "numerator": 17,
+            "denominator": 24
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 24
+            }
+          }
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      }
+    },
+    {
+      "order": 3,
+      "deceased": "p2",
+      "inherited": {
+        "numerator": 1,
+        "denominator": 4
+      },
+      "allocations": [
+        {
+          "person": "p7",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 2
+          },
+          "stage": {
+            "step": "base",
+            "base": 2
+          },
+          "rule": "fixed",
+          "condition": "single",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p9",
+          "kind": "residue",
+          "share": {
+            "numerator": 1,
+            "denominator": 2
+          },
+          "stage": {
+            "step": "base",
+            "base": 2
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "steps": [
+        {
+          "step": "unallocated",
+          "params": {
+            "rest": {
+              "type": "fraction",
+              "value": {
+                "numerator": 0,
+                "denominator": 1
+              }
+            }
+          }
+        }
+      ],
+      "unallocated": null
+    }
+  ]
+}

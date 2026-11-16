@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "locale": "en",
+  "direction": "ltr",
+  "basis": {
+    "kind": "compare"
+  },
+  "state": "selection_required",
+  "comparison_outcome": "difference",
+  "rows": [],
+  "rounding": null,
+  "unallocated": null,
+  "refusals": [],
+  "notices": [
+    {
+      "code": "disclaimer",
+      "text": "This is not legal advice."
+    }
+  ]
+}

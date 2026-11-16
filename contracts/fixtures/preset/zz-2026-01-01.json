@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "zz",
+  "version": "2026-01-01",
+  "default_school": "hanbali",
+  "default_currency": "SAR",
+  "settings": {
+    "rounding": "half_up",
+    "allow_gifts": true
+  },
+  "rules": {
+    "radd_to_spouse": false,
+    "bequest_cap_denominator": 3
+  },
+  "citations": {
+    "radd_to_spouse": {
+      "statute_id": "zz_family_law_2020",
+      "article": "art_12",
+      "checked_on": "2026-01-01"
+    },
+    "bequest_cap_denominator": {
+      "gap_school": "hanbali"
+    }
+  },
+  "reviewed_by": null,
+  "reviewed_on": null
+}

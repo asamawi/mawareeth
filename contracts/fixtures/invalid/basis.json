@@ -1,0 +1,122 @@
+[
+  {
+    "name": "compare with extra key",
+    "input": {
+      "kind": "compare",
+      "school": "hanafi"
+    },
+    "error": "invalid_basis"
+  },
+  {
+    "name": "school without school",
+    "input": {
+      "kind": "school"
+    },
+    "error": "invalid_basis"
+  },
+  {
+    "name": "country with school",
+    "input": {
+      "kind": "country",
+      "preset_id": "zz",
+      "preset_version": "2026-01-01",
+      "school": "hanafi"
+    },
+    "error": "invalid_basis"
+  },
+  {
+    "name": "unknown kind",
+    "input": {
+      "kind": "madhab"
+    },
+    "error": "invalid_basis"
+  },
+  {
+    "name": "unknown school",
+    "input": {
+      "kind": "school",
+      "school": "zaidi"
+    },
+    "error": "invalid_basis"
+  },
+  {
+    "name": "bad date",
+    "input": {
+      "kind": "country",
+      "preset_id": "zz",
+      "preset_version": "2026-13-45"
+    },
+    "error": "invalid_basis"
+  },
+  {
+    "name": "uppercase preset id",
+    "input": {
+      "kind": "country",
+      "preset_id": "SA",
+      "preset_version": "2026-01-01"
+    },
+    "error": "invalid_basis"
+  },
+  {
+    "name": "Arabic-Indic digits in the date",
+    "input": {
+      "kind": "country",
+      "preset_id": "zz",
+      "preset_version": "٢٠٢٦-01-01"
+    },
+    "error": "invalid_basis"
+  },
+  {
+    "name": "trailing newline in the preset id",
+    "input": {
+      "kind": "country",
+      "preset_id": "zz\n",
+      "preset_version": "2026-01-01"
+    },
+    "error": "invalid_basis"
+  },
+  {
+    "name": "not an object",
+    "input": "compare",
+    "error": "invalid_basis"
+  },
+  {
+    "name": "null",
+    "input": null,
+    "error": "invalid_basis"
+  },
+  {
+    "name": "country unavailable",
+    "input": {
+      "kind": "country",
+      "preset_id": "zz",
+      "preset_version": "2026-01-01"
+    },
+    "error": "preset_unavailable",
+    "presets": {}
+  },
+  {
+    "name": "country with another version only",
+    "input": {
+      "kind": "country",
+      "preset_id": "zz",
+      "preset_version": "2026-01-01"
+    },
+    "error": "preset_unavailable",
+    "presets": {
+      "zz@2025-01-01": "hanbali"
+    }
+  },
+  {
+    "name": "malformed even when a preset exists",
+    "input": {
+      "kind": "country",
+      "preset_id": "SA",
+      "preset_version": "2026-01-01"
+    },
+    "error": "invalid_basis",
+    "presets": {
+      "zz@2026-01-01": "hanbali"
+    }
+  }
+]

@@ -1,0 +1,266 @@
+[
+  {
+    "name": "unsupported schema version",
+    "input": {
+      "schema_version": 2,
+      "locale": "en",
+      "terms": {
+        "school.hanafi": {
+          "text": "Hanafi",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "refusal.malikiyya_disputed": {
+          "text": "This case is disputed within the Maliki school.",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "proof.base": {
+          "text": "The estate is divided into {base} parts.",
+          "review": "pending",
+          "placeholders": {
+            "base": "int"
+          }
+        },
+        "proof.gets": {
+          "text": "{person} receives {share} by {rule}, citing {verse}.",
+          "review": "pending",
+          "placeholders": {
+            "person": "person",
+            "share": "fraction",
+            "rule": "code",
+            "verse": "citation"
+          }
+        }
+      }
+    },
+    "error": "unsupported_version"
+  },
+  {
+    "name": "empty text",
+    "input": {
+      "schema_version": 1,
+      "locale": "en",
+      "terms": {
+        "school.hanafi": {
+          "text": "  ",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "refusal.malikiyya_disputed": {
+          "text": "This case is disputed within the Maliki school.",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "proof.base": {
+          "text": "The estate is divided into {base} parts.",
+          "review": "pending",
+          "placeholders": {
+            "base": "int"
+          }
+        },
+        "proof.gets": {
+          "text": "{person} receives {share} by {rule}, citing {verse}.",
+          "review": "pending",
+          "placeholders": {
+            "person": "person",
+            "share": "fraction",
+            "rule": "code",
+            "verse": "citation"
+          }
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "undeclared placeholder",
+    "input": {
+      "schema_version": 1,
+      "locale": "en",
+      "terms": {
+        "school.hanafi": {
+          "text": "Hanafi {x}",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "refusal.malikiyya_disputed": {
+          "text": "This case is disputed within the Maliki school.",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "proof.base": {
+          "text": "The estate is divided into {base} parts.",
+          "review": "pending",
+          "placeholders": {
+            "base": "int"
+          }
+        },
+        "proof.gets": {
+          "text": "{person} receives {share} by {rule}, citing {verse}.",
+          "review": "pending",
+          "placeholders": {
+            "person": "person",
+            "share": "fraction",
+            "rule": "code",
+            "verse": "citation"
+          }
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "declared placeholder missing from text",
+    "input": {
+      "schema_version": 1,
+      "locale": "en",
+      "terms": {
+        "school.hanafi": {
+          "text": "Hanafi",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "refusal.malikiyya_disputed": {
+          "text": "This case is disputed within the Maliki school.",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "proof.base": {
+          "text": "Parts.",
+          "review": "pending",
+          "placeholders": {
+            "base": "int"
+          }
+        },
+        "proof.gets": {
+          "text": "{person} receives {share} by {rule}, citing {verse}.",
+          "review": "pending",
+          "placeholders": {
+            "person": "person",
+            "share": "fraction",
+            "rule": "code",
+            "verse": "citation"
+          }
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "unknown placeholder type",
+    "input": {
+      "schema_version": 1,
+      "locale": "en",
+      "terms": {
+        "school.hanafi": {
+          "text": "Hanafi",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "refusal.malikiyya_disputed": {
+          "text": "This case is disputed within the Maliki school.",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "proof.base": {
+          "text": "The estate is divided into {base} parts.",
+          "review": "pending",
+          "placeholders": {
+            "base": "float"
+          }
+        },
+        "proof.gets": {
+          "text": "{person} receives {share} by {rule}, citing {verse}.",
+          "review": "pending",
+          "placeholders": {
+            "person": "person",
+            "share": "fraction",
+            "rule": "code",
+            "verse": "citation"
+          }
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "unknown review state",
+    "input": {
+      "schema_version": 1,
+      "locale": "en",
+      "terms": {
+        "school.hanafi": {
+          "text": "Hanafi",
+          "review": "maybe",
+          "placeholders": {}
+        },
+        "refusal.malikiyya_disputed": {
+          "text": "This case is disputed within the Maliki school.",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "proof.base": {
+          "text": "The estate is divided into {base} parts.",
+          "review": "pending",
+          "placeholders": {
+            "base": "int"
+          }
+        },
+        "proof.gets": {
+          "text": "{person} receives {share} by {rule}, citing {verse}.",
+          "review": "pending",
+          "placeholders": {
+            "person": "person",
+            "share": "fraction",
+            "rule": "code",
+            "verse": "citation"
+          }
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "bad term key",
+    "input": {
+      "schema_version": 1,
+      "locale": "en",
+      "terms": {
+        "school.hanafi": {
+          "text": "Hanafi",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "refusal.malikiyya_disputed": {
+          "text": "This case is disputed within the Maliki school.",
+          "review": "pending",
+          "placeholders": {}
+        },
+        "proof.base": {
+          "text": "The estate is divided into {base} parts.",
+          "review": "pending",
+          "placeholders": {
+            "base": "int"
+          }
+        },
+        "proof.gets": {
+          "text": "{person} receives {share} by {rule}, citing {verse}.",
+          "review": "pending",
+          "placeholders": {
+            "person": "person",
+            "share": "fraction",
+            "rule": "code",
+            "verse": "citation"
+          }
+        },
+        "Bad Key": {
+          "text": "Hanafi",
+          "review": "pending",
+          "placeholders": {}
+        }
+      }
+    },
+    "error": "invalid_contract"
+  }
+]

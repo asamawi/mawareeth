@@ -1,0 +1,2559 @@
+[
+  {
+    "name": "unsupported version",
+    "input": {
+      "version": 2,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Khalid",
+          "relationship": "son",
+          "status": "died_later",
+          "death_order": 2
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "مريم",
+          "relationship": "wife",
+          "status": "died_later",
+          "death_order": 3
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": "Huda",
+          "relationship": "daughter",
+          "status": "died_before_or_with",
+          "death_order": null
+        },
+        {
+          "id": "p5",
+          "gender": "female",
+          "name": null,
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p7",
+          "gender": "female",
+          "name": "Sara",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p9",
+          "gender": "male",
+          "name": "Yusuf",
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p3"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p7"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p2",
+          "to": "root"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p5",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "p2",
+          "to": "p9"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "wife"
+            },
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "deceased": "p1",
+          "heirs": [
+            {
+              "person": "p5",
+              "relationship": "wife"
+            },
+            {
+              "person": "p2",
+              "relationship": "mother"
+            },
+            {
+              "person": "p7",
+              "relationship": "sister"
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "heirs": [
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p9",
+              "relationship": "son"
+            }
+          ]
+        }
+      ],
+      "answers": [],
+      "gifts": [
+        {
+          "branch": "p1",
+          "amount_minor": 50000
+        }
+      ],
+      "bequests": [
+        {
+          "branch": "p7",
+          "amount_minor": 20000
+        }
+      ],
+      "estate": {
+        "amount_minor": null,
+        "currency": null
+      }
+    },
+    "error": "unsupported_version"
+  },
+  {
+    "name": "missing version",
+    "input": {
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Khalid",
+          "relationship": "son",
+          "status": "died_later",
+          "death_order": 2
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "مريم",
+          "relationship": "wife",
+          "status": "died_later",
+          "death_order": 3
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": "Huda",
+          "relationship": "daughter",
+          "status": "died_before_or_with",
+          "death_order": null
+        },
+        {
+          "id": "p5",
+          "gender": "female",
+          "name": null,
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p7",
+          "gender": "female",
+          "name": "Sara",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p9",
+          "gender": "male",
+          "name": "Yusuf",
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p3"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p7"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p2",
+          "to": "root"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p5",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "p2",
+          "to": "p9"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "wife"
+            },
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "deceased": "p1",
+          "heirs": [
+            {
+              "person": "p5",
+              "relationship": "wife"
+            },
+            {
+              "person": "p2",
+              "relationship": "mother"
+            },
+            {
+              "person": "p7",
+              "relationship": "sister"
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "heirs": [
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p9",
+              "relationship": "son"
+            }
+          ]
+        }
+      ],
+      "answers": [],
+      "gifts": [
+        {
+          "branch": "p1",
+          "amount_minor": 50000
+        }
+      ],
+      "bequests": [
+        {
+          "branch": "p7",
+          "amount_minor": 20000
+        }
+      ],
+      "estate": {
+        "amount_minor": null,
+        "currency": null
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "not an object",
+    "input": [],
+    "error": "invalid_contract"
+  },
+  {
+    "name": "unknown key",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Khalid",
+          "relationship": "son",
+          "status": "died_later",
+          "death_order": 2
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "مريم",
+          "relationship": "wife",
+          "status": "died_later",
+          "death_order": 3
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": "Huda",
+          "relationship": "daughter",
+          "status": "died_before_or_with",
+          "death_order": null
+        },
+        {
+          "id": "p5",
+          "gender": "female",
+          "name": null,
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p7",
+          "gender": "female",
+          "name": "Sara",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p9",
+          "gender": "male",
+          "name": "Yusuf",
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p3"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p7"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p2",
+          "to": "root"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p5",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "p2",
+          "to": "p9"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "wife"
+            },
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "deceased": "p1",
+          "heirs": [
+            {
+              "person": "p5",
+              "relationship": "wife"
+            },
+            {
+              "person": "p2",
+              "relationship": "mother"
+            },
+            {
+              "person": "p7",
+              "relationship": "sister"
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "heirs": [
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p9",
+              "relationship": "son"
+            }
+          ]
+        }
+      ],
+      "answers": [],
+      "gifts": [
+        {
+          "branch": "p1",
+          "amount_minor": 50000
+        }
+      ],
+      "bequests": [
+        {
+          "branch": "p7",
+          "amount_minor": 20000
+        }
+      ],
+      "estate": {
+        "amount_minor": null,
+        "currency": null
+      },
+      "extra": 1
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "duplicate person id",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Khalid",
+          "relationship": "son",
+          "status": "died_later",
+          "death_order": 2
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "مريم",
+          "relationship": "wife",
+          "status": "died_later",
+          "death_order": 3
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": "Huda",
+          "relationship": "daughter",
+          "status": "died_before_or_with",
+          "death_order": null
+        },
+        {
+          "id": "p5",
+          "gender": "female",
+          "name": null,
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p7",
+          "gender": "female",
+          "name": "Sara",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p9",
+          "gender": "male",
+          "name": "Yusuf",
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Khalid",
+          "relationship": "son",
+          "status": "died_later",
+          "death_order": 2
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p3"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p7"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p2",
+          "to": "root"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p5",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "p2",
+          "to": "p9"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "wife"
+            },
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "deceased": "p1",
+          "heirs": [
+            {
+              "person": "p5",
+              "relationship": "wife"
+            },
+            {
+              "person": "p2",
+              "relationship": "mother"
+            },
+            {
+              "person": "p7",
+              "relationship": "sister"
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "heirs": [
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p9",
+              "relationship": "son"
+            }
+          ]
+        }
+      ],
+      "answers": [],
+      "gifts": [
+        {
+          "branch": "p1",
+          "amount_minor": 50000
+        }
+      ],
+      "bequests": [
+        {
+          "branch": "p7",
+          "amount_minor": 20000
+        }
+      ],
+      "estate": {
+        "amount_minor": null,
+        "currency": null
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "edge to a missing id",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Khalid",
+          "relationship": "son",
+          "status": "died_later",
+          "death_order": 2
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "مريم",
+          "relationship": "wife",
+          "status": "died_later",
+          "death_order": 3
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": "Huda",
+          "relationship": "daughter",
+          "status": "died_before_or_with",
+          "death_order": null
+        },
+        {
+          "id": "p5",
+          "gender": "female",
+          "name": null,
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p7",
+          "gender": "female",
+          "name": "Sara",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p9",
+          "gender": "male",
+          "name": "Yusuf",
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p3"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p7"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p2",
+          "to": "root"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p5",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "p2",
+          "to": "p9"
+        },
+        {
+          "kind": "parent_of",
+          "from": "p1",
+          "to": "zz9"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "wife"
+            },
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "deceased": "p1",
+          "heirs": [
+            {
+              "person": "p5",
+              "relationship": "wife"
+            },
+            {
+              "person": "p2",
+              "relationship": "mother"
+            },
+            {
+              "person": "p7",
+              "relationship": "sister"
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "heirs": [
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p9",
+              "relationship": "son"
+            }
+          ]
+        }
+      ],
+      "answers": [],
+      "gifts": [
+        {
+          "branch": "p1",
+          "amount_minor": 50000
+        }
+      ],
+      "bequests": [
+        {
+          "branch": "p7",
+          "amount_minor": 20000
+        }
+      ],
+      "estate": {
+        "amount_minor": null,
+        "currency": null
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "died_later without death_order",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Khalid",
+          "relationship": "son",
+          "status": "died_later",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "مريم",
+          "relationship": "wife",
+          "status": "died_later",
+          "death_order": 3
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": "Huda",
+          "relationship": "daughter",
+          "status": "died_before_or_with",
+          "death_order": null
+        },
+        {
+          "id": "p5",
+          "gender": "female",
+          "name": null,
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p7",
+          "gender": "female",
+          "name": "Sara",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p9",
+          "gender": "male",
+          "name": "Yusuf",
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p3"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p7"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p2",
+          "to": "root"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p5",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "p2",
+          "to": "p9"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "wife"
+            },
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "deceased": "p1",
+          "heirs": [
+            {
+              "person": "p5",
+              "relationship": "wife"
+            },
+            {
+              "person": "p2",
+              "relationship": "mother"
+            },
+            {
+              "person": "p7",
+              "relationship": "sister"
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "heirs": [
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p9",
+              "relationship": "son"
+            }
+          ]
+        }
+      ],
+      "answers": [],
+      "gifts": [
+        {
+          "branch": "p1",
+          "amount_minor": 50000
+        }
+      ],
+      "bequests": [
+        {
+          "branch": "p7",
+          "amount_minor": 20000
+        }
+      ],
+      "estate": {
+        "amount_minor": null,
+        "currency": null
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "alive with an order",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Khalid",
+          "relationship": "son",
+          "status": "died_later",
+          "death_order": 2
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "مريم",
+          "relationship": "wife",
+          "status": "died_later",
+          "death_order": 3
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": "Huda",
+          "relationship": "daughter",
+          "status": "died_before_or_with",
+          "death_order": null
+        },
+        {
+          "id": "p5",
+          "gender": "female",
+          "name": null,
+          "relationship": null,
+          "status": "alive",
+          "death_order": 2
+        },
+        {
+          "id": "p7",
+          "gender": "female",
+          "name": "Sara",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p9",
+          "gender": "male",
+          "name": "Yusuf",
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p3"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p7"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p2",
+          "to": "root"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p5",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "p2",
+          "to": "p9"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "wife"
+            },
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "deceased": "p1",
+          "heirs": [
+            {
+              "person": "p5",
+              "relationship": "wife"
+            },
+            {
+              "person": "p2",
+              "relationship": "mother"
+            },
+            {
+              "person": "p7",
+              "relationship": "sister"
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "heirs": [
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p9",
+              "relationship": "son"
+            }
+          ]
+        }
+      ],
+      "answers": [],
+      "gifts": [
+        {
+          "branch": "p1",
+          "amount_minor": 50000
+        }
+      ],
+      "bequests": [
+        {
+          "branch": "p7",
+          "amount_minor": 20000
+        }
+      ],
+      "estate": {
+        "amount_minor": null,
+        "currency": null
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "layer heir missing",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Khalid",
+          "relationship": "son",
+          "status": "died_later",
+          "death_order": 2
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "مريم",
+          "relationship": "wife",
+          "status": "died_later",
+          "death_order": 3
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": "Huda",
+          "relationship": "daughter",
+          "status": "died_before_or_with",
+          "death_order": null
+        },
+        {
+          "id": "p5",
+          "gender": "female",
+          "name": null,
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p7",
+          "gender": "female",
+          "name": "Sara",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p9",
+          "gender": "male",
+          "name": "Yusuf",
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p3"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p7"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p2",
+          "to": "root"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p5",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "p2",
+          "to": "p9"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "wife"
+            },
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "deceased": "p1",
+          "heirs": [
+            {
+              "person": "ghost",
+              "relationship": "wife"
+            },
+            {
+              "person": "p2",
+              "relationship": "mother"
+            },
+            {
+              "person": "p7",
+              "relationship": "sister"
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "heirs": [
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p9",
+              "relationship": "son"
+            }
+          ]
+        }
+      ],
+      "answers": [],
+      "gifts": [
+        {
+          "branch": "p1",
+          "amount_minor": 50000
+        }
+      ],
+      "bequests": [
+        {
+          "branch": "p7",
+          "amount_minor": 20000
+        }
+      ],
+      "estate": {
+        "amount_minor": null,
+        "currency": null
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "root listed as a person",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "root",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": "son",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": 1000000,
+        "currency": {
+          "code": "SAR",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "first estate not the root",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": "son",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "p1",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": 1000000,
+        "currency": {
+          "code": "SAR",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "first-estate person without relationship",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": 1000000,
+        "currency": {
+          "code": "SAR",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "unknown relationship code",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": "cousin",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": 1000000,
+        "currency": {
+          "code": "SAR",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "bool as int",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": "son",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": true,
+        "currency": {
+          "code": "SAR",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "float amount",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": "son",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": 0.5,
+        "currency": {
+          "code": "SAR",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "unsafe integer",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": "son",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": 9007199254740992,
+        "currency": {
+          "code": "SAR",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "negative amount",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": "son",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": -1,
+        "currency": {
+          "code": "SAR",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "bad currency code",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": "son",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": 1000000,
+        "currency": {
+          "code": "sar",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "trailing newline in an id",
+    "input": {
+      "version": 1,
+      "root": "root\n",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": "son",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": 1000000,
+        "currency": {
+          "code": "SAR",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "died later without an estate of their own",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": "son",
+          "status": "died_later",
+          "death_order": 2
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": 1000000,
+        "currency": {
+          "code": "SAR",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "heir already dead at the estate",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Omar",
+          "relationship": "son",
+          "status": "died_before_or_with",
+          "death_order": null
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "فاطمة",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": null,
+          "relationship": "wife",
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p2"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p3",
+          "to": "root"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p3",
+              "relationship": "wife"
+            }
+          ]
+        }
+      ],
+      "answers": [
+        {
+          "question": "same_religion",
+          "person": "p3",
+          "value": true
+        },
+        {
+          "question": "sect",
+          "person": null,
+          "value": "sunni"
+        }
+      ],
+      "gifts": [],
+      "bequests": [],
+      "estate": {
+        "amount_minor": 1000000,
+        "currency": {
+          "code": "SAR",
+          "explicit": true
+        }
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "heir who died later but not after the estate",
+    "input": {
+      "version": 1,
+      "root": "root",
+      "persons": [
+        {
+          "id": "p1",
+          "gender": "male",
+          "name": "Khalid",
+          "relationship": "son",
+          "status": "died_later",
+          "death_order": 2
+        },
+        {
+          "id": "p2",
+          "gender": "female",
+          "name": "مريم",
+          "relationship": "wife",
+          "status": "died_later",
+          "death_order": 3
+        },
+        {
+          "id": "p3",
+          "gender": "female",
+          "name": "Huda",
+          "relationship": "daughter",
+          "status": "died_before_or_with",
+          "death_order": null
+        },
+        {
+          "id": "p5",
+          "gender": "female",
+          "name": null,
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p7",
+          "gender": "female",
+          "name": "Sara",
+          "relationship": "daughter",
+          "status": "alive",
+          "death_order": null
+        },
+        {
+          "id": "p9",
+          "gender": "male",
+          "name": "Yusuf",
+          "relationship": null,
+          "status": "alive",
+          "death_order": null
+        }
+      ],
+      "edges": [
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p3"
+        },
+        {
+          "kind": "parent_of",
+          "from": "root",
+          "to": "p7"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p2",
+          "to": "root"
+        },
+        {
+          "kind": "spouse_of",
+          "from": "p5",
+          "to": "p1"
+        },
+        {
+          "kind": "parent_of",
+          "from": "p2",
+          "to": "p9"
+        }
+      ],
+      "estates": [
+        {
+          "order": 1,
+          "deceased": "root",
+          "heirs": [
+            {
+              "person": "p1",
+              "relationship": "son"
+            },
+            {
+              "person": "p2",
+              "relationship": "wife"
+            },
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "deceased": "p1",
+          "heirs": [
+            {
+              "person": "p5",
+              "relationship": "wife"
+            },
+            {
+              "person": "p2",
+              "relationship": "mother"
+            },
+            {
+              "person": "p7",
+              "relationship": "sister"
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "heirs": [
+            {
+              "person": "p7",
+              "relationship": "daughter"
+            },
+            {
+              "person": "p9",
+              "relationship": "son"
+            },
+            {
+              "person": "p1",
+              "relationship": "brother"
+            }
+          ]
+        }
+      ],
+      "answers": [],
+      "gifts": [
+        {
+          "branch": "p1",
+          "amount_minor": 50000
+        }
+      ],
+      "bequests": [
+        {
+          "branch": "p7",
+          "amount_minor": 20000
+        }
+      ],
+      "estate": {
+        "amount_minor": null,
+        "currency": null
+      }
+    },
+    "error": "invalid_contract"
+  }
+]

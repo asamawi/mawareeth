@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "root": "root",
+  "persons": [
+    {
+      "id": "p1",
+      "gender": "male",
+      "name": "Khalid",
+      "relationship": "son",
+      "status": "died_later",
+      "death_order": 2
+    },
+    {
+      "id": "p2",
+      "gender": "female",
+      "name": "مريم",
+      "relationship": "wife",
+      "status": "died_later",
+      "death_order": 3
+    },
+    {
+      "id": "p3",
+      "gender": "female",
+      "name": "Huda",
+      "relationship": "daughter",
+      "status": "died_before_or_with",
+      "death_order": null
+    },
+    {
+      "id": "p5",
+      "gender": "female",
+      "name": null,
+      "relationship": null,
+      "status": "alive",
+      "death_order": null
+    },
+    {
+      "id": "p7",
+      "gender": "female",
+      "name": "Sara",
+      "relationship": "daughter",
+      "status": "alive",
+      "death_order": null
+    },
+    {
+      "id": "p9",
+      "gender": "male",
+      "name": "Yusuf",
+      "relationship": null,
+      "status": "alive",
+      "death_order": null
+    }
+  ],
+  "edges": [
+    {
+      "kind": "parent_of",
+      "from": "root",
+      "to": "p1"
+    },
+    {
+      "kind": "parent_of",
+      "from": "root",
+      "to": "p3"
+    },
+    {
+      "kind": "parent_of",
+      "from": "root",
+      "to": "p7"
+    },
+    {
+      "kind": "spouse_of",
+      "from": "p2",
+      "to": "root"
+    },
+    {
+      "kind": "spouse_of",
+      "from": "p5",
+      "to": "p1"
+    },
+    {
+      "kind": "parent_of",
+      "from": "p2",
+      "to": "p9"
+    }
+  ],
+  "estates": [
+    {
+      "order": 1,
+      "deceased": "root",
+      "heirs": [
+        {
+          "person": "p1",
+          "relationship": "son"
+        },
+        {
+          "person": "p2",
+          "relationship": "wife"
+        },
+        {
+          "person": "p7",
+          "relationship": "daughter"
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "deceased": "p1",
+      "heirs": [
+        {
+          "person": "p5",
+          "relationship": "wife"
+        },
+        {
+          "person": "p2",
+          "relationship": "mother"
+        },
+        {
+          "person": "p7",
+          "relationship": "sister"
+        }
+      ]
+    },
+    {
+      "order": 3,
+      "deceased": "p2",
+      "heirs": [
+        {
+          "person": "p7",
+          "relationship": "daughter"
+        },
+        {
+          "person": "p9",
+          "relationship": "son"
+        }
+      ]
+    }
+  ],
+  "answers": [],
+  "gifts": [
+    {
+      "branch": "p1",
+      "amount_minor": 50000
+    }
+  ],
+  "bequests": [
+    {
+      "branch": "p7",
+      "amount_minor": 20000
+    }
+  ],
+  "estate": {
+    "amount_minor": null,
+    "currency": null
+  }
+}

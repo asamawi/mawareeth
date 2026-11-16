@@ -1,0 +1,2486 @@
+[
+  {
+    "name": "unsupported version",
+    "input": {
+      "version": 2,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "unsupported_version"
+  },
+  {
+    "name": "unknown key",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": [],
+      "extra": 1
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "unreduced fraction",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 2,
+            "denominator": 12
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "float share",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": 0.5,
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "float numerator",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1.5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "unsafe numerator",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 9007199254740992,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "zero denominator",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 0
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "negative share",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": -1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "blocked with a share",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "stage not an integer",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 4
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "unknown rule",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "invented",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "unknown refusal reason",
+    "input": {
+      "version": 1,
+      "school": "jafari",
+      "status": "refused",
+      "refusal": {
+        "reason": "because"
+      },
+      "allocations": [],
+      "unallocated": null,
+      "steps": [],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "refused with allocations",
+    "input": {
+      "version": 1,
+      "school": "jafari",
+      "status": "refused",
+      "refusal": {
+        "reason": "school_not_supported"
+      },
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": null,
+      "steps": [],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "calculated with a refusal",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": {
+        "reason": "invalid_family"
+      },
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "unknown param type",
+    "input": {
+      "version": 1,
+      "school": "hanbali",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p7",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 2
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "fixed",
+          "condition": "single",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p2",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p1",
+          "kind": "residue",
+          "share": {
+            "numerator": 1,
+            "denominator": 3
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "decimal",
+              "value": 24
+            },
+            "floor": {
+              "type": "fraction",
+              "value": {
+                "numerator": 1,
+                "denominator": 6
+              }
+            },
+            "heir": {
+              "type": "person",
+              "value": "p7"
+            },
+            "rule": {
+              "type": "code",
+              "value": "fixed"
+            },
+            "verse": {
+              "type": "citation",
+              "value": "quran_4_11"
+            }
+          }
+        },
+        {
+          "step": "correction",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 24
+            },
+            "from": {
+              "type": "code",
+              "value": "radd"
+            }
+          }
+        }
+      ],
+      "layers": [
+        {
+          "order": 2,
+          "deceased": "p1",
+          "inherited": {
+            "numerator": 1,
+            "denominator": 3
+          },
+          "allocations": [
+            {
+              "person": "p5",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 8
+              },
+              "stage": {
+                "step": "base",
+                "base": 8
+              },
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_12"
+              ]
+            },
+            {
+              "person": "p2",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "stage": {
+                "step": "base",
+                "base": 24
+              },
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_11"
+              ]
+            },
+            {
+              "person": "p7",
+              "kind": "residue",
+              "share": {
+                "numerator": 17,
+                "denominator": 24
+              },
+              "stage": {
+                "step": "base",
+                "base": 24
+              },
+              "rule": "residuary",
+              "condition": null,
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": []
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "params": {
+                "base": {
+                  "type": "int",
+                  "value": 24
+                }
+              }
+            }
+          ],
+          "unallocated": {
+            "numerator": 0,
+            "denominator": 1
+          }
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "inherited": {
+            "numerator": 1,
+            "denominator": 4
+          },
+          "allocations": [
+            {
+              "person": "p7",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "stage": {
+                "step": "base",
+                "base": 2
+              },
+              "rule": "fixed",
+              "condition": "single",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_11"
+              ]
+            },
+            {
+              "person": "p9",
+              "kind": "residue",
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "stage": {
+                "step": "base",
+                "base": 2
+              },
+              "rule": "residuary",
+              "condition": null,
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": []
+            }
+          ],
+          "steps": [
+            {
+              "step": "unallocated",
+              "params": {
+                "rest": {
+                  "type": "fraction",
+                  "value": {
+                    "numerator": 0,
+                    "denominator": 1
+                  }
+                }
+              }
+            }
+          ],
+          "unallocated": null
+        }
+      ]
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "param value of the wrong type",
+    "input": {
+      "version": 1,
+      "school": "hanbali",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p7",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 2
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "fixed",
+          "condition": "single",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p2",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p1",
+          "kind": "residue",
+          "share": {
+            "numerator": 1,
+            "denominator": 3
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": "six"
+            },
+            "floor": {
+              "type": "fraction",
+              "value": {
+                "numerator": 1,
+                "denominator": 6
+              }
+            },
+            "heir": {
+              "type": "person",
+              "value": "p7"
+            },
+            "rule": {
+              "type": "code",
+              "value": "fixed"
+            },
+            "verse": {
+              "type": "citation",
+              "value": "quran_4_11"
+            }
+          }
+        },
+        {
+          "step": "correction",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 24
+            },
+            "from": {
+              "type": "code",
+              "value": "radd"
+            }
+          }
+        }
+      ],
+      "layers": [
+        {
+          "order": 2,
+          "deceased": "p1",
+          "inherited": {
+            "numerator": 1,
+            "denominator": 3
+          },
+          "allocations": [
+            {
+              "person": "p5",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 8
+              },
+              "stage": {
+                "step": "base",
+                "base": 8
+              },
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_12"
+              ]
+            },
+            {
+              "person": "p2",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "stage": {
+                "step": "base",
+                "base": 24
+              },
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_11"
+              ]
+            },
+            {
+              "person": "p7",
+              "kind": "residue",
+              "share": {
+                "numerator": 17,
+                "denominator": 24
+              },
+              "stage": {
+                "step": "base",
+                "base": 24
+              },
+              "rule": "residuary",
+              "condition": null,
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": []
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "params": {
+                "base": {
+                  "type": "int",
+                  "value": 24
+                }
+              }
+            }
+          ],
+          "unallocated": {
+            "numerator": 0,
+            "denominator": 1
+          }
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "inherited": {
+            "numerator": 1,
+            "denominator": 4
+          },
+          "allocations": [
+            {
+              "person": "p7",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "stage": {
+                "step": "base",
+                "base": 2
+              },
+              "rule": "fixed",
+              "condition": "single",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_11"
+              ]
+            },
+            {
+              "person": "p9",
+              "kind": "residue",
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "stage": {
+                "step": "base",
+                "base": 2
+              },
+              "rule": "residuary",
+              "condition": null,
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": []
+            }
+          ],
+          "steps": [
+            {
+              "step": "unallocated",
+              "params": {
+                "rest": {
+                  "type": "fraction",
+                  "value": {
+                    "numerator": 0,
+                    "denominator": 1
+                  }
+                }
+              }
+            }
+          ],
+          "unallocated": null
+        }
+      ]
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "shares do not add up",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 2,
+            "denominator": 3
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "over-distributed",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 1,
+        "denominator": 6
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "layer shares do not add up",
+    "input": {
+      "version": 1,
+      "school": "hanbali",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p7",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 2
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "fixed",
+          "condition": "single",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p2",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p1",
+          "kind": "residue",
+          "share": {
+            "numerator": 1,
+            "denominator": 3
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 24
+            },
+            "floor": {
+              "type": "fraction",
+              "value": {
+                "numerator": 1,
+                "denominator": 6
+              }
+            },
+            "heir": {
+              "type": "person",
+              "value": "p7"
+            },
+            "rule": {
+              "type": "code",
+              "value": "fixed"
+            },
+            "verse": {
+              "type": "citation",
+              "value": "quran_4_11"
+            }
+          }
+        },
+        {
+          "step": "correction",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 24
+            },
+            "from": {
+              "type": "code",
+              "value": "radd"
+            }
+          }
+        }
+      ],
+      "layers": [
+        {
+          "order": 2,
+          "deceased": "p1",
+          "inherited": {
+            "numerator": 1,
+            "denominator": 3
+          },
+          "allocations": [
+            {
+              "person": "p5",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 4
+              },
+              "stage": {
+                "step": "base",
+                "base": 8
+              },
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_12"
+              ]
+            },
+            {
+              "person": "p2",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "stage": {
+                "step": "base",
+                "base": 24
+              },
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_11"
+              ]
+            },
+            {
+              "person": "p7",
+              "kind": "residue",
+              "share": {
+                "numerator": 17,
+                "denominator": 24
+              },
+              "stage": {
+                "step": "base",
+                "base": 24
+              },
+              "rule": "residuary",
+              "condition": null,
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": []
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "params": {
+                "base": {
+                  "type": "int",
+                  "value": 24
+                }
+              }
+            }
+          ],
+          "unallocated": {
+            "numerator": 0,
+            "denominator": 1
+          }
+        },
+        {
+          "order": 3,
+          "deceased": "p2",
+          "inherited": {
+            "numerator": 1,
+            "denominator": 4
+          },
+          "allocations": [
+            {
+              "person": "p7",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "stage": {
+                "step": "base",
+                "base": 2
+              },
+              "rule": "fixed",
+              "condition": "single",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_11"
+              ]
+            },
+            {
+              "person": "p9",
+              "kind": "residue",
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "stage": {
+                "step": "base",
+                "base": 2
+              },
+              "rule": "residuary",
+              "condition": null,
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": []
+            }
+          ],
+          "steps": [
+            {
+              "step": "unallocated",
+              "params": {
+                "rest": {
+                  "type": "fraction",
+                  "value": {
+                    "numerator": 0,
+                    "denominator": 1
+                  }
+                }
+              }
+            }
+          ],
+          "unallocated": null
+        }
+      ]
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "layer orders not ascending",
+    "input": {
+      "version": 1,
+      "school": "hanbali",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p7",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 2
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "fixed",
+          "condition": "single",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p2",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p1",
+          "kind": "residue",
+          "share": {
+            "numerator": 1,
+            "denominator": 3
+          },
+          "stage": {
+            "step": "base",
+            "base": 24
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 24
+            },
+            "floor": {
+              "type": "fraction",
+              "value": {
+                "numerator": 1,
+                "denominator": 6
+              }
+            },
+            "heir": {
+              "type": "person",
+              "value": "p7"
+            },
+            "rule": {
+              "type": "code",
+              "value": "fixed"
+            },
+            "verse": {
+              "type": "citation",
+              "value": "quran_4_11"
+            }
+          }
+        },
+        {
+          "step": "correction",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 24
+            },
+            "from": {
+              "type": "code",
+              "value": "radd"
+            }
+          }
+        }
+      ],
+      "layers": [
+        {
+          "order": 3,
+          "deceased": "p2",
+          "inherited": {
+            "numerator": 1,
+            "denominator": 4
+          },
+          "allocations": [
+            {
+              "person": "p7",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "stage": {
+                "step": "base",
+                "base": 2
+              },
+              "rule": "fixed",
+              "condition": "single",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_11"
+              ]
+            },
+            {
+              "person": "p9",
+              "kind": "residue",
+              "share": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "stage": {
+                "step": "base",
+                "base": 2
+              },
+              "rule": "residuary",
+              "condition": null,
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": []
+            }
+          ],
+          "steps": [
+            {
+              "step": "unallocated",
+              "params": {
+                "rest": {
+                  "type": "fraction",
+                  "value": {
+                    "numerator": 0,
+                    "denominator": 1
+                  }
+                }
+              }
+            }
+          ],
+          "unallocated": null
+        },
+        {
+          "order": 2,
+          "deceased": "p1",
+          "inherited": {
+            "numerator": 1,
+            "denominator": 3
+          },
+          "allocations": [
+            {
+              "person": "p5",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 8
+              },
+              "stage": {
+                "step": "base",
+                "base": 8
+              },
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_12"
+              ]
+            },
+            {
+              "person": "p2",
+              "kind": "fixed",
+              "share": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "stage": {
+                "step": "base",
+                "base": 24
+              },
+              "rule": "fixed",
+              "condition": "descendant",
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": [
+                "quran_4_11"
+              ]
+            },
+            {
+              "person": "p7",
+              "kind": "residue",
+              "share": {
+                "numerator": 17,
+                "denominator": 24
+              },
+              "stage": {
+                "step": "base",
+                "base": 24
+              },
+              "rule": "residuary",
+              "condition": null,
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "citations": []
+            }
+          ],
+          "steps": [
+            {
+              "step": "base",
+              "params": {
+                "base": {
+                  "type": "int",
+                  "value": 24
+                }
+              }
+            }
+          ],
+          "unallocated": {
+            "numerator": 0,
+            "denominator": 1
+          }
+        }
+      ]
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "blocked kind with another rule",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "blocked",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "fixed",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "blocked rule with another kind",
+    "input": {
+      "version": 1,
+      "school": "hanafi",
+      "status": "calculated",
+      "refusal": null,
+      "allocations": [
+        {
+          "person": "p_mother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 1,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "fixed",
+          "condition": "descendant",
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_son",
+          "kind": "residue",
+          "share": {
+            "numerator": 5,
+            "denominator": 6
+          },
+          "stage": {
+            "step": "base",
+            "base": 6
+          },
+          "rule": "residuary",
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "citations": [
+            "quran_4_11"
+          ]
+        },
+        {
+          "person": "p_brother",
+          "kind": "fixed",
+          "share": {
+            "numerator": 0,
+            "denominator": 1
+          },
+          "stage": null,
+          "rule": "blocked",
+          "condition": null,
+          "blocked_by": "son",
+          "school_rule": null,
+          "option": null,
+          "citations": []
+        }
+      ],
+      "unallocated": {
+        "numerator": 0,
+        "denominator": 1
+      },
+      "steps": [
+        {
+          "step": "base",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 6
+            }
+          }
+        }
+      ],
+      "layers": []
+    },
+    "error": "invalid_contract"
+  }
+]

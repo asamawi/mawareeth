@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "locale": "en",
+  "direction": "ltr",
+  "basis": {
+    "kind": "school",
+    "school": "jafari"
+  },
+  "state": "refused",
+  "comparison_outcome": null,
+  "rows": [],
+  "rounding": null,
+  "unallocated": null,
+  "refusals": [
+    {
+      "school": null,
+      "reason": "school_not_supported",
+      "text": "Not supported yet."
+    }
+  ],
+  "notices": [
+    {
+      "code": "disclaimer",
+      "text": "This is not legal advice."
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "outcome": "all_refused",
+  "schools": [
+    {
+      "school": "hanafi",
+      "result": {
+        "version": 1,
+        "school": "hanafi",
+        "status": "refused",
+        "refusal": {
+          "reason": "manasikhat_unsupported"
+        },
+        "allocations": [],
+        "unallocated": null,
+        "steps": [],
+        "layers": []
+      }
+    },
+    {
+      "school": "maliki",
+      "result": {
+        "version": 1,
+        "school": "maliki",
+        "status": "refused",
+        "refusal": {
+          "reason": "manasikhat_unsupported"
+        },
+        "allocations": [],
+        "unallocated": null,
+        "steps": [],
+        "layers": []
+      }
+    },
+    {
+      "school": "shafii",
+      "result": {
+        "version": 1,
+        "school": "shafii",
+        "status": "refused",
+        "refusal": {
+          "reason": "manasikhat_unsupported"
+        },
+        "allocations": [],
+        "unallocated": null,
+        "steps": [],
+        "layers": []
+      }
+    },
+    {
+      "school": "hanbali",
+      "result": {
+        "version": 1,
+        "school": "hanbali",
+        "status": "refused",
+        "refusal": {
+          "reason": "manasikhat_unsupported"
+        },
+        "allocations": [],
+        "unallocated": null,
+        "steps": [],
+        "layers": []
+      }
+    }
+  ],
+  "differing_persons": [],
+  "refusals": [
+    {
+      "school": "hanafi",
+      "reason": "manasikhat_unsupported"
+    },
+    {
+      "school": "maliki",
+      "reason": "manasikhat_unsupported"
+    },
+    {
+      "school": "shafii",
+      "reason": "manasikhat_unsupported"
+    },
+    {
+      "school": "hanbali",
+      "reason": "manasikhat_unsupported"
+    }
+  ],
+  "selection_required": false,
+  "selected_school": null
+}

@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "root": "root",
+  "persons": [
+    {
+      "id": "p1",
+      "gender": "male",
+      "name": "Omar",
+      "relationship": "son",
+      "status": "alive",
+      "death_order": null
+    },
+    {
+      "id": "p2",
+      "gender": "female",
+      "name": "فاطمة",
+      "relationship": "daughter",
+      "status": "alive",
+      "death_order": null
+    },
+    {
+      "id": "p3",
+      "gender": "female",
+      "name": null,
+      "relationship": "wife",
+      "status": "alive",
+      "death_order": null
+    }
+  ],
+  "edges": [
+    {
+      "kind": "parent_of",
+      "from": "root",
+      "to": "p1"
+    },
+    {
+      "kind": "parent_of",
+      "from": "root",
+      "to": "p2"
+    },
+    {
+      "kind": "spouse_of",
+      "from": "p3",
+      "to": "root"
+    }
+  ],
+  "estates": [
+    {
+      "order": 1,
+      "deceased": "root",
+      "heirs": [
+        {
+          "person": "p1",
+          "relationship": "son"
+        },
+        {
+          "person": "p2",
+          "relationship": "daughter"
+        },
+        {
+          "person": "p3",
+          "relationship": "wife"
+        }
+      ]
+    }
+  ],
+  "answers": [
+    {
+      "question": "same_religion",
+      "person": "p3",
+      "value": true
+    },
+    {
+      "question": "sect",
+      "person": null,
+      "value": "sunni"
+    }
+  ],
+  "gifts": [],
+  "bequests": [],
+  "estate": {
+    "amount_minor": 1000000,
+    "currency": {
+      "code": "SAR",
+      "explicit": true
+    }
+  }
+}
