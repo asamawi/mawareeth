@@ -1,0 +1,162 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 11-16-2026 21:00
+last_updated: 11-16-2026 21:00
+project: mawareeth
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+development_status:
+  epic-8: backlog
+  8-1-preserve-case-meaning-through-versioned-shared-contracts: backlog
+  8-2-reproduce-existing-single-estate-school-answers-in-memory: backlog
+  8-3-preserve-successive-death-answers-and-proof-inside-the-core: backlog
+  8-4-give-every-family-action-one-engine-decision: backlog
+  8-5-keep-terms-and-locale-settings-consistent-across-consumers: backlog
+  8-6-produce-one-presented-answer-for-every-renderer: backlog
+  8-7-switch-existing-calculation-consumers-only-after-full-parity: backlog
+  8-8-let-every-reader-open-both-savedcase-snapshot-versions: backlog
+  8-9-apply-case-changes-atomically-against-one-revision: backlog
+  8-10-upgrade-existing-saved-cases-without-losing-their-original-b: backlog
+  8-11-prove-the-foundation-meets-wave-1-release-budgets: backlog
+  8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert: backlog
+  epic-8-retrospective: optional
+
+  epic-9: backlog
+  9-1-establish-the-interview-shell-and-accessible-tree-tokens: backlog
+  9-2-render-the-family-as-lineage-cards-on-a-navigable-canvas: backlog
+  9-3-add-one-relative-with-one-press: backlog
+  9-4-edit-and-remove-relatives-from-the-tree: backlog
+  9-5-add-a-group-of-relatives-with-a-count-stepper: backlog
+  9-6-undo-family-changes-throughout-the-page-visit: backlog
+  9-7-add-relatives-at-a-chosen-node-by-touch-keyboard-or-drag: backlog
+  9-8-open-and-edit-later-death-estates-with-a-breadcrumb: backlog
+  9-9-complete-keyboard-navigation-and-the-screen-reader-outline: backlog
+  9-10-coordinate-interview-announcements-and-updating-states: backlog
+  9-11-verify-responsive-rtl-and-reduced-motion-tree-interactions: backlog
+  9-12-prove-the-complete-family-entry-journey-meets-capacity-and-s: backlog
+  epic-9-retrospective: optional
+
+  epic-10: backlog
+  10-1-name-a-case-and-show-whether-saving-succeeded: backlog
+  10-2-find-and-rename-named-cases-in-my-cases: backlog
+  10-3-open-saved-cases-directly-and-keep-guest-recovery-separate: backlog
+  10-4-preserve-received-invitations-and-label-shared-cases-as-read: backlog
+  epic-10-retrospective: optional
+
+  epic-11: backlog
+  11-1-show-school-agreement-and-ask-for-a-school-only-when-shares: backlog
+  11-2-present-one-readable-share-preview-in-the-desktop-slot: backlog
+  11-3-open-the-full-preview-from-a-sticky-summary-bar-and-modal-sh: backlog
+  11-4-keep-summary-controls-reachable-at-narrow-widths-and-high-zo: backlog
+  11-5-preserve-the-results-table-and-make-result-actions-clear: backlog
+  11-6-explain-the-estate-input-and-identify-user-supplied-facts: backlog
+  11-7-make-rounding-adjustments-visible-and-reconcile-displayed-to: backlog
+  epic-11-retrospective: optional
+
+  epic-12: backlog
+  12-1-replace-outdated-legal-claims-and-record-legacy-retirement-d: backlog
+  12-2-reconcile-the-arabic-and-french-copy-backlog-with-owner-revi: backlog
+  12-3-clarify-proof-and-refusal-wording-without-implying-scholarly: backlog
+  12-4-count-product-outcomes-in-privacy-safe-server-aggregates: backlog
+  12-5-expose-daily-counts-and-document-metric-interpretation: backlog
+  12-6-give-the-owner-a-repeatable-five-heir-usability-test: backlog
+  epic-12-retrospective: optional
+
+  epic-13: backlog
+  13-1-accept-a-question-and-email-its-ticket-number-reliably: backlog
+  13-2-ask-for-help-from-contact-or-whatsapp-and-see-the-real-outco: backlog
+  13-3-answer-and-manage-tickets-in-one-admin-queue: backlog
+  13-4-attach-visitor-email-replies-to-the-correct-ticket: backlog
+  13-5-delete-support-data-on-schedule-and-on-request: backlog
+  13-6-verify-support-delivery-alerts-and-recovery-on-the-shared-ho: backlog
+  epic-13-retrospective: optional
+
+  epic-14: backlog
+  14-1-register-immutable-presets-behind-the-owner-go-live-gate: backlog
+  14-2-apply-country-rule-settings-through-the-shared-engine: backlog
+  14-3-add-the-relationships-reached-by-descendants-and-distant-kin: backlog
+  14-4-change-the-basis-from-share-preview-and-full-results: backlog
+  14-5-cite-country-rules-in-proof-and-draft-pdf: backlog
+  14-6-preserve-pinned-versions-and-offer-explicit-recalculation: backlog
+  14-7-ask-required-country-facts-and-refuse-uncovered-rules: backlog
+  14-8-deliver-the-saudi-arabia-preset-with-statute-backed-tests: backlog
+  14-9-deliver-the-lebanon-sunni-preset-with-a-sect-boundary: backlog
+  epic-14-retrospective: optional
+
+  epic-15: backlog
+  15-1-calculate-a-shared-preset-driven-obligatory-bequest-before-i: backlog
+  15-2-record-the-facts-needed-to-apply-bequest-offsets: backlog
+  15-3-show-bequests-separately-with-cited-calculation-steps: backlog
+  15-4-add-the-egypt-preset-with-verified-bequest-examples: backlog
+  15-5-add-the-morocco-preset-with-its-two-phase-worked-example: backlog
+  15-6-offer-live-bequest-laws-when-a-school-result-omits-eligible: backlog
+  epic-15-retrospective: optional
+
+  epic-16: backlog
+  16-1-choose-and-retain-the-estate-currency: backlog
+  16-2-read-matching-locale-numbers-and-dates-on-screen-and-pdf: backlog
+  16-3-show-the-selected-country-law-s-notice-in-every-locale: backlog
+  16-4-explain-civil-law-limits-under-every-school-in-every-locale: backlog
+  epic-16-retrospective: optional
+
+  epic-17: backlog
+  17-1-add-the-radd-distant-kin-and-parent-s-share-settings-jordan: backlog
+  17-2-deliver-the-jordan-preset-with-statute-backed-tests: backlog
+  17-3-deliver-the-uae-preset-with-statute-backed-tests: backlog
+  17-4-deliver-the-algeria-preset-with-a-configurable-daughters-lin: backlog
+  epic-17-retrospective: optional
+
+  epic-18: backlog
+  18-1-publish-a-locale-through-the-registry-with-beta-label-switch: backlog
+  18-2-use-mawareeth-in-urdu-right-to-left: backlog
+  18-3-use-mawareeth-in-hindi: backlog
+  18-4-use-mawareeth-in-indonesian-and-malay: backlog
+  18-5-use-mawareeth-in-turkish: backlog
+  epic-18-retrospective: optional
+
+  epic-19: backlog
+  19-1-publish-mawareeth-in-german: backlog
+  19-2-publish-mawareeth-in-spanish: backlog
+  19-3-publish-mawareeth-in-italian: backlog
+  19-4-publish-mawareeth-in-simplified-chinese: backlog
+  epic-19-retrospective: optional
+
+  epic-20: backlog
+  20-1-calculate-a-family-through-the-public-endpoint: backlog
+  20-2-publish-the-openapi-document-and-code-lists: backlog
+  20-3-limit-keyless-use-fairly-and-explain-the-limit: backlog
+  20-4-link-every-result-to-a-prefilled-interview: backlog
+  20-5-let-assistants-connect-through-the-mcp-server: backlog
+  20-6-issue-meter-and-revoke-billable-api-keys: backlog
+  20-7-explain-the-api-mcp-setup-and-terms-on-one-page: backlog
+  20-8-prove-the-public-surface-meets-capacity-and-observability-ga: backlog
+  epic-20-retrospective: optional
