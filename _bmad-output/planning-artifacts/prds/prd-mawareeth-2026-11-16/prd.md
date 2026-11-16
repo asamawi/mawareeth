@@ -182,10 +182,11 @@ A user can add several Heirs of the same relationship at once (for example "4 da
 - [ASSUMPTION: a count stepper on each relationship button is acceptable UI; the UX pass may choose another form.]
 
 #### FR-5: Undo
-A user can undo the last add, edit or delete in the Interview. Realises UJ-2.
+A user can undo adds, edits and deletes in the Interview, one change at a time, back through the changes made since the page was opened. Realises UJ-2.
 
 **Consequences (testable):**
 - An "Undo" control appears for at least 10 seconds after each change and restores the previous family exactly.
+- Each further Undo walks back one more change. The history covers the current page visit only and is cleared on reload (architecture AD-20).
 - Undo works by keyboard and screen reader.
 
 #### FR-6: Relationships the new rules need
@@ -318,7 +319,7 @@ A Saved case, a share link and a PDF store the Basis and the Country preset vers
 
 **Consequences (testable):**
 - Opening a Saved case after its Country preset changes shows the stored version and offers to recalculate under the current one. Nothing recalculates silently.
-- A shared link shows the version it was shared with, and says when a newer version exists.
+- A shared link is a live view of its Saved case: it shows the Case's current family and its pinned Country preset version, and says when a newer version exists. The pinned version changes only when the owner explicitly switches (architecture AD-18).
 
 #### FR-20: Beta label on unreviewed Country presets
 Each live Country preset shows a Beta label until a qualified reviewer signs it off.
@@ -522,7 +523,7 @@ A heavy user, such as a law firm or a commercial app above the free limit, can r
 - [ASSUMPTION: in phase 2 billing is manual. The owner invoices from the monthly usage, and there is no in-app payment.]
 
 **Feature-specific NFRs:**
-- p95 response time under 1 s for families of up to 50 Heirs. The API uses the in-memory calculation path, never a database write per request.
+- p95 response time under 1 s for families of up to 50 Heirs. The calculation itself runs in memory and writes nothing to the database. The only writes per request are the fair-use and usage counters (FR-42, FR-43) and, when requested, the prefill token (FR-41) (architecture AD-22, AD-23).
 - The API returns text in any supported Locale on request.
 
 ### 4.10 Measurement
@@ -629,7 +630,7 @@ Measured with FR-44 counts over the 90 days after each wave ships, against the 9
 3. UAE: confirm the art. 240 mushtaraka split and the grandfather article. Blocks go-live.
 4. Algeria: whether daughters' children qualify for *tanzil* (Supreme Court ruling 932349). Blocks go-live.
 5. Egypt: the art. 76 generation limits, and the outcome of the constitutional challenge. Generation limits block go-live.
-6. Ticketing: a hosted helpdesk, self-hosted Zammad, or a small Ticket store built into the app? (architecture; options in `addendum.md` §C)
+6. ~~Ticketing: a hosted helpdesk, self-hosted Zammad, or a small Ticket store built into the app?~~ Resolved 2026-11-16 (architecture AD-24): a Ticket store built into the app, with email through Brevo (outbound SMTP, inbound-parse webhook to a per-Ticket reply address).
 7. WhatsApp: a personal number, or a WhatsApp Business number shared with a future team?
 8. Language order within waves 3 and 4.
 9. API pricing: the free limit, and the price per key or per calculation above it.

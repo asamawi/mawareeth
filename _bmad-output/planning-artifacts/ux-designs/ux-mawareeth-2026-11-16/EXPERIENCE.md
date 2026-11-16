@@ -129,7 +129,7 @@ Behavioural. Visual specs are in DESIGN.md Components, under the same names.
 | Undo available | Interview | undo-toast for at least 10 seconds (paused while hovered or focused) and the persistent undo-control until the next change. |
 | Guest Case, 24 hours | Interview | A returning guest sees the shipped "resume or start over" prompt for an unsaved Case (FR-7 [ASSUMPTION]); a Saved case never does. |
 | Expired case | Interview, shared link, prefilled link | "This case has expired" with a plain explanation (guest Cases last 24 hours; prefilled links 7 days, FR-41 [ASSUMPTION]); one button to start a new Case. No family data is shown. |
-| Offline or slow | All | A persistent status-line "You're offline. Changes are kept on this page and will be calculated when you reconnect." [ASSUMPTION: local edits continue and the Share preview resumes on reconnect; the shipped app's offline behaviour is not documented in the code reviewed]. Slow (over about 3 s): the Updating state stays and a "Still working" status-line appears. |
+| Offline or slow | All | A persistent status-line "You're offline. Reconnect to keep editing." The family and the last Share preview stay visible; add, edit, delete and Undo are disabled until the connection returns (architecture AD-20: edits are blocked offline, no client queue). Slow (over about 3 s): the Updating state stays and a "Still working" status-line appears. |
 | Rate limited | API page, Contact | "Too many requests; try again after {time}" with the way to request a key (FR-42). |
 | Not signed in | Save, Share, My cases | The sign-in dialog; the action resumes afterwards. |
 | Contact sent | Contact us | Ticket number in the page and email; WhatsApp link stays visible. |
@@ -299,7 +299,7 @@ Medium and low findings not applied in this pass (review-rubric.md = RR, review-
 - RR: no distinct error or refusal notice variant.
 - RR: no `body-ur` token or Urdu font stack; heading-xl and heading-lg line heights.
 - RR: non-standard value syntax (`at N%`, rgba, px outside the scale); unused spacing tokens.
-- RR: offline behaviour is still an [ASSUMPTION] (client queue versus blocked edits).
+- RR: offline behaviour resolved 2026-11-16 by architecture AD-20: edits are blocked while offline (no client queue).
 - RR: My cases empty or failed, Shared case revoked or invalid, Received/Invite invalid, and Contact form validation states.
 - RR: disabled look for stepper minus at 1 and relationship buttons at 50 Heirs; hover only on button-secondary.
 - RR: only the Interview has a visual reference; other surfaces rely on DESIGN.md.
