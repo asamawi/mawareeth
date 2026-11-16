@@ -71,13 +71,13 @@ The calculation, comparison, proof and draft PDF stay free. Mawareeth remains a 
   - **Persona and context:** Mona, 41, in Cairo. Her father died; her brother Karim died two years before him and left two children. Her aunt says Karim's children get nothing, her cousin says they do.
   - **Entry state:** guest, on a phone, Arabic UI, coming from a search.
   - **Path:**
-    1. She opens the Interview and picks "Law of Egypt" as the Basis.
-    2. She enters her father and the estate.
-    3. She taps *Wife*, *Daughter*, *Son* to add her mother, herself and her brother Hassan.
-    4. She adds Karim as a son who died before his father, then drags *Son* and *Daughter* onto his node to add his two children.
+    1. She opens the Interview and enters the Deceased (her father) and the estate. There is no Basis step.
+    2. She taps *Wife*, *Daughter*, *Son* to add her mother, herself and her brother Hassan.
+    3. She adds Karim as a son who died before the Deceased, then drags *Son* and *Daughter* onto his node to add his two children.
+    4. The Share preview shows "Same result in all four Sunni schools", with a prompt: Karim died before the Deceased and left children, and some countries' laws give them an Obligatory bequest (FR-14). She taps it and chooses "Law of Egypt".
   - **Climax:** the Share preview shows an "Obligatory bequest" line for Karim's children, capped at a third, with "Egyptian Wills Law 71/1946, art. 76" beneath it. Her mother, Hassan and Mona share the rest. A Beta label says the Egypt preset is not yet scholar-reviewed.
   - **Resolution:** she taps the prominent *Full results* button, downloads the draft PDF and sends it on WhatsApp.
-  - **Edge case:** had she chosen "compare all four Schools", the preview would warn that Egyptian law adds an Obligatory bequest for Karim's children, and offer to switch the Basis (FR-14).
+  - **Edge case:** if she ignores the prompt, the result stays under the four Schools and the prompt remains in the Share preview and Full results.
 
 - **UJ-2. Yusuf builds a big family in minutes and fixes a slip on the tree.**
   - **Persona and context:** Yusuf, 55, in Amman, eldest son, entering his mother's estate. Eleven surviving relatives.
@@ -109,7 +109,7 @@ The calculation, comparison, proof and draft PDF stay free. Mawareeth remains a 
 
 - **UJ-6. Maître Benali checks a Moroccan case.** *(secondary)*
   - **Persona and context:** a notary's clerk in Casablanca, French UI.
-  - **Path:** they choose "Loi marocaine (Code de la famille 2004)" as the Basis, enter the family, and open the proof.
+  - **Path:** they enter the family, choose "Loi marocaine (Code de la famille 2004)" from the "Calculate under a country's law" link, and open the proof.
   - **Climax:** every share cites its article, for example the Obligatory bequest articles. A notice says that a reform of the Family Code is pending.
   - **Resolution:** they save the Case under a client name and share it by private link.
 
@@ -280,13 +280,14 @@ When the Basis is a School or "compare all four Schools", and the family has an 
 
 The engine gains one shared Obligatory bequest step and a few rule switches. Each Country preset is versioned data, not a separate engine. A Country preset goes live only when every rule in it has an article the owner has checked against the official text (FR-22). Realises UJ-1 and UJ-6. Rule detail per country is in `addendum.md` §A.
 
-#### FR-15: Choose the Basis
-A user can choose the Basis of a Case: "compare all four Schools", one School, or a live Country law. Realises UJ-1.
+#### FR-15: Change the Basis
+Every Case starts on "compare all four Schools". There is no Basis step in the Interview. A user changes the Basis only from the Share preview or Full results. Realises UJ-1 and UJ-6.
 
 **Consequences (testable):**
-- The Basis choice lists the options in the current Locale. Only Country presets that have passed FR-22 appear.
-- [ASSUMPTION: the choice is offered at the start of the Interview and can be changed later; the default stays "compare all four Schools".]
-- Changing the Basis recalculates the Share preview.
+- When the four Schools give different shares, the user is asked to choose a School, as today. When they agree, no School question appears.
+- A quiet "Calculate under a country's law" link in the Share preview and Full results lists the live Country presets in the current Locale. Only presets that have passed FR-22 appear.
+- The FR-14 prompt offers the same choice when a Country law would change this family's shares.
+- The user can return to "compare all four Schools" at any time. Changing the Basis recalculates the Share preview.
 
 #### FR-16: Obligatory bequest
 Under a Country law that has one, the engine gives an Obligatory bequest to the qualifying descendants of an Heir who died before or with the Deceased. Realises UJ-1.
@@ -323,7 +324,7 @@ A Saved case, a share link and a PDF store the Basis and the Country preset vers
 Each live Country preset shows a Beta label until a qualified reviewer signs it off.
 
 **Consequences (testable):**
-- The Beta label appears on the Basis choice, the Share preview, Full results and the PDF.
+- The Beta label appears in the country-law list, the Share preview, Full results and the PDF.
 - Removing the label is a data change recorded with the reviewer's name and date.
 
 #### FR-21: Unsupported situations under a Country law
@@ -560,7 +561,7 @@ Phase 2 ships in four waves. Each wave is releasable on its own.
 | Wave | Contents | FRs |
 |---|---|---|
 | 1. Easier and correct | Faster entry, editable tree, undo, named cases, existing-case defaults, results clarity, rounding, legal pages, copy and fiqh passes, contact and support, measurement | FR-1 to FR-5, FR-7 to FR-13, FR-31 to FR-37, FR-44, FR-45 |
-| 2. Country law, first presets | New relationships, School warning, Basis choice, Obligatory bequest, rule switches, citations, versioning, Beta labels, refusals, go-live gate; Saudi Arabia, Egypt, Morocco, Lebanon; currency, number formats, notices | FR-6, FR-14 to FR-26 |
+| 2. Country law, first presets | New relationships, School warning, Basis change, Obligatory bequest, rule switches, citations, versioning, Beta labels, refusals, go-live gate; Saudi Arabia, Egypt, Morocco, Lebanon; currency, number formats, notices | FR-6, FR-14 to FR-26 |
 | 3. More countries and first languages | Jordan, UAE, Algeria presets (each after FR-22); Urdu, Hindi, Indonesian, Malay, Turkish | FR-27 to FR-30 (first five Locales) |
 | 4. More languages and AI access | German, Spanish, Italian, Chinese; public API, MCP server, prefilled links, fair use, API keys | FR-27 to FR-30 (remaining Locales), FR-38 to FR-43 |
 
@@ -637,7 +638,6 @@ Measured with FR-44 counts over the 90 days after each wave ships, against the 9
 
 - §4.1 FR-4: a count stepper on relationship buttons is acceptable UI.
 - §4.2 FR-7: the resume/start-over prompt stays only for a returning guest with an unsaved Case.
-- §4.4 FR-15: the Basis is chosen at the start, can be changed later, and the default stays "compare all four Schools".
 - §4.4 FR-17: the UAE and Algeria use Maliki as the default School for gaps.
 - §4.6 FR-27: Chinese uses Simplified script.
 - §4.8 FR-34: spam protection without a third-party tracking captcha.
