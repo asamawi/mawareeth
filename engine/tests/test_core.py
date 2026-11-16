@@ -175,9 +175,9 @@ class KnownAnswerTests(unittest.TestCase):
         self.assertEqual(calculate(fam, school_rule_set('hanbali')).refusal, 'invalid_family')
         self.assertEqual(calculate(fam, school_rule_set('jafari')).refusal, 'invalid_family')
 
-    def test_later_deaths_are_refused(self):
+    def test_later_deaths_are_calculated(self):
         fam = c.parse_family(later_deaths_document())
-        self.assertEqual(calculate(fam, school_rule_set('hanbali')).refusal, 'manasikhat_unsupported')
+        self.assertEqual(calculate(fam, school_rule_set('hanbali')).status, 'calculated')
         self.assertEqual(calculate(fam, school_rule_set('jafari')).refusal, 'school_not_supported')
 
     def test_unknown_school(self):
@@ -206,7 +206,7 @@ class RoundTripTests(unittest.TestCase):
 
     def test_refused_results_round_trip(self):
         cases = ((family(['father', 'father']), 'hanbali'), (family(['son']), 'jafari'),
-                 (family(MALIKIYYA), 'maliki'), (c.parse_family(later_deaths_document()), 'hanafi'))
+                 (family(MALIKIYYA), 'maliki'), (c.parse_family(later_deaths_document()), 'jafari'))
         for fam, school in cases:
             result = calculate(fam, school_rule_set(school))
             self.assertEqual(result.status, 'refused')

@@ -11,7 +11,7 @@ from typing import Optional
 from . import proof as proof_module
 from .contracts.errors import ContractError
 from .contracts.codes import CONTRACT_VERSIONS
-from .contracts.result import Allocation, Param, Result, Stage, Step
+from .contracts.result import Allocation, Layer, Param, Result, Stage, Step
 from .rule_set import RuleSet
 from .single import Refused, solve
 
@@ -91,25 +91,10 @@ def _steps(facts):
     return tuple(steps)
 
 
-def evaluate(family, rule_set):
-    """Calculate the Family under the RuleSet and return the Result with its proof and table."""
-    if not isinstance(rule_set, RuleSet):
-        raise ContractError('invalid_contract', 'rule_set must be a RuleSet')
-    # refusals, in order: an impossible family, a School not supported, later deaths
-    for estate in family.estates:
-        if is_impossible([heir.relationship for heir in estate.heirs]):
-            return _refused(rule_set, 'invalid_family')
-    if rule_set.school == 'jafari':
-        return _refused(rule_set, 'school_not_supported')
-    if len(family.estates) > 1:
-        return _refused(rule_set, 'manasikhat_unsupported')
-
-    heirs = family.estates[0].heirs
-    try:
-        solved = solve([(heir.person, heir.relationship) for heir in heirs], rule_set.rules)
-    except Refused as refusal:
-        return _refused(rule_set, refusal.reason)
-
+def _estate(estate, rule_set):
+    """Map one unchanged single-estate solution into Result values and evidence."""
+    heirs = estate.heirs
+    solved = solve([(heir.person, heir.relationship) for heir in heirs], rule_set.rules)
     final = solved.final
     evidence = proof_module.build(
         rule_set.school, [(h.id, h.rel, h.basis, final[h.id]) for h in solved.heirs], solved.steps)
@@ -131,6 +116,70 @@ def evaluate(family, rule_set):
     result = Result(CONTRACT_VERSIONS['result'], rule_set.school, 'calculated', None, tuple(allocations),
                     unallocated, _steps(solved.steps), ())
     return Evaluation(result, freeze(evidence), freeze(solved.table))
+
+
+def evaluate(family, rule_set):
+    """Solve in death order, carrying exact running totals between estates."""
+    if not isinstance(rule_set, RuleSet):
+        raise ContractError('invalid_contract', 'rule_set must be a RuleSet')
+    people = {person.id: person for person in family.persons}
+    for estate in family.estates:
+        rels = [heir.relationship for heir in estate.heirs]
+        if (is_impossible(rels) or (estate.order > 1 and (
+                ('husband' in rels and people[estate.deceased].gender == 'male') or
+                ('wife' in rels and people[estate.deceased].gender == 'female')))):
+            return _refused(rule_set, 'invalid_family')
+    if rule_set.school == 'jafari':
+        return _refused(rule_set, 'school_not_supported')
+    earlier = set()
+    for estate in family.estates:
+        if estate.order > 1 and estate.deceased not in earlier:
+            return _refused(rule_set, 'manasikhat_unsupported')
+        earlier.update(heir.person for heir in estate.heirs)
+    totals, identities, entries, tables, layers = {}, {}, [], [], []
+    root = None
+    for estate in family.estates:
+        try:
+            evaluation = _estate(estate, rule_set)
+        except Refused as refusal:
+            return _refused(rule_set, refusal.reason)
+        if root is None:
+            root = evaluation
+        inherited = Fraction(1) if estate.order == 1 else totals.pop(estate.deceased, Fraction(0))
+        result = evaluation.result
+        for allocation in result.allocations:
+            pid = allocation.person
+            identities.setdefault(pid, pid)
+            totals[pid] = totals.get(pid, Fraction(0)) + inherited * allocation.share
+        entries.append({'order': estate.order, 'deceased': estate.deceased,
+                        'heir': None if estate.order == 1 else estate.deceased,
+                        'estate': inherited, 'proof': thaw(evaluation.proof)})
+        tables.append(thaw(evaluation.table))
+        if estate.order > 1:
+            layers.append(Layer(estate.order, estate.deceased, inherited, result.allocations,
+                                result.steps, result.unallocated))
+    if not layers:
+        return root
+    result = root.result
+    result = Result(result.version, result.school, result.status, result.refusal, result.allocations,
+                    result.unallocated, result.steps, tuple(layers))
+    return Evaluation(result, freeze(proof_module.build_layered(rule_set.school, entries, totals)),
+                      freeze(proof_module.build_layered_table(entries, tables, totals, identities)))
+
+
+def final_shares(result) -> Optional[dict]:
+    """Recompose living persons' exact fractions from a calculated Result."""
+    if result.status == 'refused':
+        return None
+    totals = {allocation.person: allocation.share for allocation in result.allocations}
+    for layer in result.layers:
+        inherited = totals.pop(layer.deceased, Fraction(0))
+        if inherited != layer.inherited:
+            raise ContractError('invalid_contract', 'layer inherited share disagrees with running total')
+        for allocation in layer.allocations:
+            pid = allocation.person
+            totals[pid] = totals.get(pid, Fraction(0)) + inherited * allocation.share
+    return totals
 
 
 def calculate(family, rule_set):

@@ -266,3 +266,84 @@ class CoreFamilyParityTests(ParityMixin, TransactionTestCase):
         found = core_families()
         self.assertEqual(len(found), 446)
         self.sweep(found)
+
+class LayeredParityTests(TransactionTestCase):
+    """All successive-death corpus families, keyed by earliest-row person identity."""
+
+    def test_layered_families_match_compute_manasikhat(self):
+        from .manasikhat import compute_manasikhat
+        from .tests import build_layer
+        from engine.tests.test_layered import layered_cases
+
+        classes = {relationship(cls): cls for cls in HEIR_SEX}
+        cases = layered_cases()
+        self.assertEqual(len(cases), 16)
+        for name, document in cases.items():
+            for school in ALL_SCHOOLS:
+                with self.subTest(name=name, school=school):
+                    family = contracts.parse_family(document)
+                    evaluation = engine.evaluate(family, engine.school_rule_set(school))
+                    result = evaluation.result
+                    persons = {p.id: p for p in family.persons}
+                    first_rows, row_ids, deaths, calcs = {}, {}, {}, []
+                    for estate in family.estates:
+                        types = [classes[h.relationship] for h in estate.heirs]
+                        sex = ('F' if any(h.relationship == 'husband' for h in estate.heirs) else 'M') if estate.order == 1 else (
+                            'M' if persons[estate.deceased].gender == 'male' else 'F')
+                        if estate.order == 1:
+                            calc, rows = build_case(sex, types)
+                        else:
+                            links = [(i, first_rows[h.person]) for i, h in enumerate(estate.heirs)
+                                     if h.person in first_rows]
+                            calc, rows = build_layer(calcs[-1], first_rows[estate.deceased], sex, types,
+                                                     links, order=estate.order)
+                        calcs.append(calc)
+                        deaths[calc.deceased_set.get().pk] = estate.deceased
+                        for heir, row in zip(estate.heirs, rows):
+                            first_rows.setdefault(heir.person, row)
+                            row_ids[row.pk] = heir.person
+                    impossible = any(
+                        heir_rules.is_impossible_family(persons[e.deceased].gender,
+                            heir_rules.counts([{'relationship': h.relationship} for h in e.heirs]))
+                        for e in family.estates[1:])
+                    if impossible:
+                        self.assertEqual(result.refusal, 'invalid_family')
+                        self.assertEqual((result.allocations, result.layers, evaluation.proof, evaluation.table),
+                                         ((), (), None, None))
+                        continue
+                    try:
+                        exact, evidence = compute_manasikhat(calcs[0], school)
+                    except schools.UnsupportedCase as refusal:
+                        self.assertEqual(result.refusal, refusal.reason)
+                        self.assertEqual((result.allocations, result.layers, evaluation.proof, evaluation.table),
+                                         ((), (), None, None))
+                        self.assertIsNone(engine.final_shares(result))
+                        continue
+                    self.assertEqual(result.status, 'calculated')
+                    expected_final = {row_ids[pk]: share for pk, share in exact.items()}
+                    self.assertEqual(engine.final_shares(result), expected_final)
+
+                    def mapped(value):
+                        if isinstance(value, dict):
+                            return {key: (row_ids[item] if key in ('heir', 'row', 'person') and item is not None
+                                          else deaths[item] if key == 'deceased' else mapped(item))
+                                    for key, item in value.items()}
+                        if isinstance(value, list):
+                            return [mapped(item) for item in value]
+                        return value
+
+                    expected_proof = mapped(evidence)
+                    expected_proof['people'] = [p for p in expected_proof['people'] if p['row'] != p['person']]
+                    self.assertEqual(engine.thaw(evaluation.proof), expected_proof)
+                    self.assertEqual(engine.thaw(evaluation.table), mapped(calcs[0].table))
+                    for layer, entry in zip(result.layers, evidence['layers'][1:]):
+                        self.assertEqual(layer.order, entry['order'])
+                        self.assertEqual(layer.deceased, deaths[entry['deceased']])
+                        self.assertEqual(layer.inherited, entry['estate'] if isinstance(entry['estate'], F) else
+                                         F(entry['estate']['numerator'], entry['estate']['denominator']))
+                        self.assertEqual({a.person: a.share for a in layer.allocations},
+                                         {row_ids[h['heir']]: F(h['share']['numerator'], h['share']['denominator'])
+                                          for h in entry['proof']['heirs']})
+                    restored = contracts.parse_result(contracts.dump_result(result))
+                    self.assertEqual(restored, result)
+                    self.assertEqual(engine.final_shares(restored), expected_final)
