@@ -174,7 +174,7 @@ All of the parent spine's AD-1 to AD-14 stay binding. These are the ones that sh
   - **One function.** `presentation.present(outcome, basis, locale, currency)` is the only producer of the versioned `PresentedResult` (AD-25), and every consumer renders it without adding meaning.
   - **Comparison.** It runs each School for a `compare` Basis and builds the comparison envelope: agreement means identical per-person shares *and* statuses; difference lists the persons affected; a selection-required state appears when Schools differ; partial refusals are explicit.
   - **Text.** It attaches catalog labels, emitting each relationship as a translated segment plus an Arabic-original segment with language and direction metadata (FR-28). Names, fractions and amounts are bidi-isolated.
-  - **Notices.** It selects the disclaimer (always), the Country notice, the civil-law notice (School Basis in de, es, it, tr, zh, en), the Beta states, the FR-14 prompt and statute citations. None is dismissible except the FR-14 prompt, whose dismissal is Case state (AD-20).
+  - **Notices.** It selects the disclaimer (always), the Country notice, the civil-law notice (School Basis, every Locale), the Beta states, the FR-14 prompt and statute citations. None is dismissible except the FR-14 prompt, whose dismissal is Case state (AD-20).
   - **Money.**
     - Currency is a persisted Case input `{code, explicit}`. Its default comes from the Country preset, otherwise from the Locale, and it is re-defaulted only while `explicit` is false.
     - The estate is integer minor units validated against the currency's precision (Babel `get_currency_precision`).

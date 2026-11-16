@@ -96,7 +96,7 @@ Behavioural. Visual specs are in DESIGN.md Components, under the same names.
 | country-law-list | Share preview | The live presets as choice-cards, each with its name and version date and a badge-beta where unreviewed. |
 | school-prompt | Share preview | Only when the Schools differ: a choice-card group to pick a School; until picked, the Share preview shows the Schools side by side. No upfront Basis step. |
 | undo-toast | After any add, edit, delete | At least 10 seconds (FR-5); the timer pauses while the pointer hovers it or focus is inside it, and restarts after. Restores the previous family exactly. `role="status"`, never steals focus, placed in DOM order after the Heirs list. A new change replaces the toast, but the undo-control keeps the multi-step history, so the earlier change is not lost. |
-| notice | Preview, Full results, PDF | Disclaimer always. Country notice only under that Country law (FR-25); civil-law notice only under a School Basis in listed Locales (FR-26). Notices are text, never dismissible. |
+| notice | Preview, Full results, PDF | Disclaimer always. Country notice only under that Country law (FR-25); civil-law notice under a School Basis in every Locale (FR-26). Notices are text, never dismissible. |
 | badge-beta | Basis list, preview, results, footer, PDF | Always paired with an explanation in the nearby notice. Cannot be hidden by the user. |
 | case-name-field | Save, My cases | Prefilled "Estate of {Deceased name or label}, {date}" (FR-8); up to 100 characters, any script; rename inline in My cases. |
 | contact-form | Contact us | Topic (incl. "API access"), message, email, optional Case link; never requires case data (FR-34). Success shows the Ticket number and says an email was sent. |

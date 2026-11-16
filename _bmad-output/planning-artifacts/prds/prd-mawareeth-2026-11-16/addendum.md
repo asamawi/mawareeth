@@ -13,7 +13,7 @@ Depth that belongs downstream (architecture, engine design, UX) rather than in t
 | Distant kin | 3 classes, parent's place, equal shares [8] | 4 classes, ranked, 2:1 [4] | 4 classes, 2:1 [11] | inherit, also beside a sole spouse [15] | none; treasury [21] | inherit [27] | Hanafi default |
 | Grandfather with siblings | grandfather excludes siblings [8] | better of sharing or residue; floor 1/6 [4] | same as Egypt [11] | codified, article to confirm | best of 1/3 or sharing [21] | to confirm | Hanafi: grandfather excludes siblings |
 | Mushtaraka | no sharing [8] | not found | sharing [11] | art. 240, to confirm | equal sharing, art. 365 [21] | to confirm | Hanafi: no sharing |
-| Default School for gaps | law's own preferences [8] | Hanafi [6] | Hanafi [11] | Sharia, unnamed [15]; engine uses Maliki (assumption) | Maliki [21] | Sharia [28]; engine uses Maliki (assumption) | Hanafi, after Council decisions and the 1917 Ottoman law (1962 law art. 242, am. 2011) [L1] |
+| Default School for gaps | law's own preferences [8]; engine uses Hanbali (owner decision) | Hanafi [6] | Hanafi [11] | Sharia, unnamed [15]; engine uses Maliki (assumption) | Maliki [21] | Sharia [28]; engine uses Maliki (assumption) | Hanafi, after Council decisions and the 1917 Ottoman law (1962 law art. 242, am. 2011) [L1] |
 | Confidence | high | high (method) / medium (articles) | medium | medium | high | low-medium | high (school); medium (no overlay found) |
 
 [L1], [L2]: Lebanon research, `research/domain-lebanon-sunni-inheritance-law-2026-11-16/research.md` sources [1] and [2].

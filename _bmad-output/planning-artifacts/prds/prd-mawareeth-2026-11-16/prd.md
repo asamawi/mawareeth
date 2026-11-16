@@ -305,7 +305,7 @@ The engine applies each Country preset's settings for leftover estate (*radd*), 
 **Consequences (testable):**
 - Each Country preset has at least one passing test case per setting that differs from its default school.
 - The research examples (for example Saudi Arabia: the grandfather excludes siblings, and the mushtaraka is not shared) pass as tests.
-- Each preset names a concrete default School for gaps. The UAE and Algeria use Maliki `[ASSUMPTION: to confirm]`, because their statutes refer only to "Islamic Sharia".
+- Each preset names a concrete default School for gaps. Saudi Arabia uses Hanbali (owner decision, 2026-11-16). The UAE and Algeria use Maliki `[ASSUMPTION: to confirm]`, because their statutes refer only to "Islamic Sharia".
 
 #### FR-18: Statute citations in proof and PDF
 For each share under a Country law, the proof and the PDF cite the statute and article. Realises UJ-6.
@@ -372,7 +372,7 @@ Each Country law carries a short notice in every Locale.
   - **Lebanon:** "Lebanese Sunni courts apply Hanafi rules; Shia families follow Ja'fari courts; changing sect changes the applicable law."
 
 #### FR-26: Civil-law notice outside the preset countries
-When the Basis is a School and the Locale is de, es, it, tr, zh or en, the results carry a notice that local civil law may decide what forms the estate and who may claim, and that a local lawyer should confirm. Realises UJ-4.
+When the Basis is a School, the results carry, in every Locale, a notice that local civil law may decide what forms the estate and who may claim, and that a local lawyer should confirm. Realises UJ-4.
 
 **Consequences (testable):**
 - The notice appears on Full results and in the PDF in those Locales, and does not appear under a Country law.
