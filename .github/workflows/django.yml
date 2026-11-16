@@ -85,6 +85,9 @@ jobs:
           uv sync --locked --no-default-groups --group test
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
+      - name: Engine purity gate
+        run: python -m unittest engine.tests.test_purity -v
+
       - name: Verify committed migrations
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test

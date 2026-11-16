@@ -15,16 +15,7 @@ from .contracts.result import Allocation, Layer, Param, Result, Stage, Step
 from .rule_set import RuleSet
 from .single import Refused, solve
 
-# Relationship id to the code of the rule broken when a family already has one of them.
-SECOND_OF = {
-    'father': 'second_father',
-    'mother': 'second_mother',
-    'husband': 'second_husband',
-    'grandfather': 'second_grandfather',
-    'paternal_grandmother': 'second_paternal_grandmother',
-    'maternal_grandmother': 'second_maternal_grandmother',
-}
-MAX_WIVES = 4
+from .kinship import SECOND_OF, MAX_WIVES, is_impossible as impossible_counts
 
 # What an allocation's `kind` is, by the proof rule it rests on.
 KINDS = {
@@ -67,11 +58,7 @@ def is_impossible(relationships):
     counts = {}
     for relationship in relationships:
         counts[relationship] = counts.get(relationship, 0) + 1
-    if any(counts.get(name, 0) > 1 for name in SECOND_OF):
-        return True
-    if counts.get('husband', 0) and counts.get('wife', 0):
-        return True
-    return counts.get('wife', 0) > MAX_WIVES
+    return impossible_counts(counts)
 
 
 def _refused(rule_set, reason):
