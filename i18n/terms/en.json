@@ -526,6 +526,41 @@
       "text": "Same result in all four Sunni schools",
       "review": "pending",
       "placeholders": {}
+    },
+    "table.column.base": {
+      "text": "Shares",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.awl": {
+      "text": "Excess",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd": {
+      "text": "Shortage",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.remainder": {
+      "text": "Remainder",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd_calc": {
+      "text": "Shortage calc",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd_union": {
+      "text": "Calc Union",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.correction": {
+      "text": "Correction",
+      "review": "pending",
+      "placeholders": {}
     }
   }
 }

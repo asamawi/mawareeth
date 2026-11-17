@@ -526,6 +526,41 @@
       "text": "Même résultat dans les quatre écoles sunnites",
       "review": "pending",
       "placeholders": {}
+    },
+    "table.column.base": {
+      "text": "Parts",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.awl": {
+      "text": "Excès",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd": {
+      "text": "Pénurie",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.remainder": {
+      "text": "Reste",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd_calc": {
+      "text": "Pénurie calc",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd_union": {
+      "text": "Calc Union",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.correction": {
+      "text": "Correction",
+      "review": "pending",
+      "placeholders": {}
     }
   }
 }

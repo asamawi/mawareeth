@@ -38,7 +38,23 @@ export type PresentedResult = {
   comparison: { schools: School[]; differing_persons: string[] } | null;
   evidence: Evidence[]; refusals: (Refusal & { school: string | null })[];
   notices: { code: string; text: string | null }[];
+  table: PresentedTable | null;
 };
+export type Num = { value: number | Fraction; text: string; dir: "ltr" };
+export type TableColumn = { code: string; label: string; total: Num };
+export type TableRow = {
+  heir: string; blocked: boolean; group_span: number; prescribed: Num | null;
+  cells: { value: Num | null; span: number }[];
+};
+export type SingleTable = { columns: TableColumn[]; rows: TableRow[] };
+export type LayerTable = {
+  order: number; heir: string | null; table: SingleTable; p: Num | null; base: Num; gcd: Num | null;
+  old_multiplier: Num; new_multiplier: Num; relation: string | null; jamia: Num;
+  parts: { heir: string; value: Num }[]; unallocated: Num; unallocated_cells: Num[];
+};
+export type LayeredTable = { layers: LayerTable[]; rows: { heir: string }[]; unallocated: boolean };
+export type PresentedTable = SingleTable | LayeredTable;
+const TABLE_COLUMNS = ["base", "awl", "radd", "remainder", "radd_calc", "radd_union", "correction"] as const;
 
 type Reader = (value: unknown, path: string) => void;
 const text: Reader = (v, p) => {
@@ -49,6 +65,55 @@ const fractionText: Reader = (v, p) => {
   const r = obj(v, p, ["fraction", "text", "dir"]);
   fraction(r.fraction, `${p}.fraction`); text({ text: r.text, dir: r.dir }, p);
 };
+const number: Reader = (v, p) => {
+  const r = obj(v, p, ["value", "text", "dir"]);
+  if (r.value !== null && typeof r.value === "object") fraction(r.value, `${p}.value`); else integer(r.value, `${p}.value`, 0);
+  text({ text: r.text, dir: r.dir }, p);
+};
+function singleTable(v: unknown, p: string): void {
+  const r = obj(v, p, ["columns", "rows"]);
+  const columns = array(r.columns, `${p}.columns`);
+  columns.forEach((c, i) => {
+    const q = `${p}.columns[${i}]`;
+    const column = obj(c, q, ["code", "label", "total"]);
+    code(column.code, `${q}.code`, TABLE_COLUMNS); string(column.label, `${q}.label`, true); number(column.total, `${q}.total`);
+  });
+  const rows = array(r.rows, `${p}.rows`);
+  rows.forEach((v, i) => {
+    const q = `${p}.rows[${i}]`;
+    const row = obj(v, q, ["heir", "blocked", "group_span", "prescribed", "cells"]);
+    ident(row.heir, `${q}.heir`); boolean(row.blocked, `${q}.blocked`); integer(row.group_span, `${q}.group_span`, 0);
+    nullable(number, row.prescribed, `${q}.prescribed`);
+    const cells = array(row.cells, `${q}.cells`);
+    if (cells.length !== columns.length) fail(q, "a row has one cell per column");
+    cells.forEach((c, j) => {
+      const cell = obj(c, `${q}.cells[${j}]`, ["value", "span"]);
+      nullable(number, cell.value, `${q}.cells[${j}].value`); integer(cell.span, `${q}.cells[${j}].span`, 0);
+    });
+  });
+  unique(rows.map((row) => (row as TableRow).heir), `${p}.rows`, "heir");
+}
+function tableReader(v: unknown, p: string): void {
+  if (v !== null && typeof v === "object" && "layers" in v) {
+    const r = obj(v, p, ["layers", "rows", "unallocated"]);
+    boolean(r.unallocated, `${p}.unallocated`);
+    array(r.rows, `${p}.rows`).forEach((row, i) => ident(obj(row, `${p}.rows[${i}]`, ["heir"]).heir, `${p}.rows[${i}].heir`));
+    array(r.layers, `${p}.layers`).forEach((l, i) => {
+      const q = `${p}.layers[${i}]`;
+      const layer = obj(l, q, ["order", "heir", "table", "p", "base", "gcd", "old_multiplier", "new_multiplier",
+        "relation", "jamia", "parts", "unallocated", "unallocated_cells"]);
+      integer(layer.order, `${q}.order`, 1, 3); nullable(ident, layer.heir, `${q}.heir`); singleTable(layer.table, `${q}.table`);
+      for (const key of ["p", "gcd"]) nullable(number, layer[key], `${q}.${key}`);
+      for (const key of ["base", "old_multiplier", "new_multiplier", "jamia", "unallocated"]) number(layer[key], `${q}.${key}`);
+      nullable((x, y) => code(x, y, ["no_share", "tamathul", "tawafuq", "tabayun"]), layer.relation, `${q}.relation`);
+      array(layer.parts, `${q}.parts`).forEach((part, j) => {
+        const r = obj(part, `${q}.parts[${j}]`, ["heir", "value"]);
+        ident(r.heir, `${q}.parts[${j}].heir`); number(r.value, `${q}.parts[${j}].value`);
+      });
+      array(layer.unallocated_cells, `${q}.unallocated_cells`).forEach((cell, j) => number(cell, `${q}.unallocated_cells[${j}]`));
+    });
+  } else singleTable(v, p);
+}
 function money(v: unknown, p: string, signed = false): void {
   if (v === null) return;
   const r = obj(v, p, ["amount_minor", "currency", "text", "dir"]);
@@ -137,7 +202,7 @@ export function parsePresentedResult(data: unknown): PresentedResult {
   checkVersion(data, "version", "presented_result");
   const p = "presented_result";
   const r = obj(data, p, ["version", "locale", "direction", "basis", "state", "comparison_outcome", "school_line",
-    "rows", "rounding", "unallocated", "comparison", "evidence", "refusals", "notices"]);
+    "rows", "rounding", "unallocated", "comparison", "evidence", "refusals", "notices", "table"]);
   pattern(r.locale, `${p}.locale`, LANG_RE, "a locale tag"); code(r.direction, `${p}.direction`, ["ltr", "rtl"]);
   const basis = parseBasis(r.basis);
   const state = code(r.state, `${p}.state`, ["answer", "selection_required", "refused"]);
@@ -181,6 +246,8 @@ export function parsePresentedResult(data: unknown): PresentedResult {
     nullable((v, p) => string(v, p, true), n.text, `${q}.text`); return n;
   });
   unique(notices.map((n) => n.code as string), `${p}.notices`, "notice");
+  nullable(tableReader, r.table, `${p}.table`);
+  if (state !== "answer" && r.table !== null) fail(p, "only an answer has a table");
   if (state === "refused") {
     if (rows.length || r.comparison !== null || r.school_line !== null || entries.length) fail(p, "a refused answer has no rows, comparison, school line or evidence");
     if (!refusals.length || r.rounding !== null || r.unallocated !== null) fail(p, "a refused answer names its refusal and has no amounts");

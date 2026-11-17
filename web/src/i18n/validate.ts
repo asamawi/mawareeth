@@ -78,6 +78,7 @@ export function requiredKeys(codes: Codes): string[] {
     ["step", "proof_steps"],
   ];
   for (const [kind, vocabulary] of proof) for (const id of codes[vocabulary]) keys.push(`proof.${kind}.${id}`);
+  for (const column of ["base", "awl", "radd", "remainder", "radd_calc", "radd_union", "correction"]) keys.push(`table.column.${column}`);
   for (const verse of ["4:11", "4:12", "4:176"]) keys.push(`proof.verse.quran_${verse.replace(":", "_")}`);
   return sorted(keys);
 }

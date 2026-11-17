@@ -356,6 +356,44 @@ class NoticeTests(unittest.TestCase):
         self.assertEqual(self.notices(fam, school, enabled=frozenset()), ())
 
 
+class TableTests(unittest.TestCase):
+    def leaves(self, value):
+        """Every {value, text, dir} leaf of a presented table."""
+        if isinstance(value, dict):
+            if set(value) == {'value', 'text', 'dir'}:
+                yield value
+            else:
+                for item in value.values():
+                    yield from self.leaves(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from self.leaves(item)
+
+    def test_single_table_numbers_carry_text_and_isolation(self):
+        for locale in LOCALES:
+            with self.subTest(locale=locale):
+                r = run(family(['wife', 'mother', 'daughter']), {'kind': 'school', 'school': 'hanbali'}, locale)
+                table = r.table
+                self.assertEqual([c['code'] for c in table['columns']][0], 'base')
+                self.assertEqual(table['columns'][0]['label'], i18n.term('table.column.base', locale))
+                self.assertEqual(table['columns'][0]['total']['text'], str(table['columns'][0]['total']['value']))
+                leaves = list(self.leaves(table))
+                self.assertTrue(leaves)
+                for leaf in leaves:
+                    self.assertEqual(leaf['dir'], 'ltr')
+                    if isinstance(leaf['value'], dict):
+                        self.assertEqual(leaf['text'], f"{leaf['value']['numerator']}/{leaf['value']['denominator']}")
+
+    def test_layered_table_and_no_table_unless_an_answer(self):
+        document = later_deaths_document()
+        resolved = c.resolve_basis({'kind': 'school', 'school': 'hanbali'}, {})
+        r = p.present(p.outcome(c.parse_family(document), resolved), resolved, 'en', None)
+        self.assertEqual([layer['order'] for layer in r.table['layers']], [1, 2])
+        self.assertTrue(all(isinstance(leaf['value'], (int, dict)) for leaf in self.leaves(r.table)))
+        self.assertIsNone(run(family(['grandfather', 'brother'])).table)
+        self.assertIsNone(run(family(['wife']), {'kind': 'school', 'school': 'jafari'}).table)
+
+
 class PurityTests(unittest.TestCase):
     def test_presentation_imports_only_stdlib_engine_i18n_and_babel(self):
         allowed = {'engine', 'i18n', 'babel', 'presentation'}

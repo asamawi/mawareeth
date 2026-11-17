@@ -4,8 +4,6 @@ import { useState, type FormEvent } from "react";
 
 import { SUNNI_IDS, type SunniId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
-import { localFraction } from "@/interview/format";
-import { previewRows } from "@/interview/preview";
 import type { ChoosePreview } from "@/interview/results";
 
 import { buttonClass } from "./form-bits";
@@ -17,7 +15,6 @@ import { buttonClass } from "./form-bits";
  */
 export function SchoolChoice({
   messages,
-  locale,
   preview,
   labels,
   disabled,
@@ -25,7 +22,6 @@ export function SchoolChoice({
   onChoose,
 }: {
   messages: Messages["interview"];
-  locale: string;
   preview: ChoosePreview;
   /** A label for every heir id, so no share reads as a raw id. */
   labels: Record<string, string>;
@@ -36,7 +32,6 @@ export function SchoolChoice({
 }) {
   const [picked, setPicked] = useState<SunniId | null>(null);
   const [prompt, setPrompt] = useState(false);
-  const reasons = messages.previewReasons as Record<string, string | undefined>;
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -60,30 +55,27 @@ export function SchoolChoice({
         </div>
       )}
       <ul className="grid gap-3 sm:grid-cols-2">
-        {SUNNI_IDS.map((id) => {
-          const body = preview.schools[id];
-          return (
-            <li key={id} className="flex flex-col gap-2 rounded-md border border-current/60 p-3">
-              <strong>{messages.madhabs[id].name}</strong>
-              {body.status === "available" ? (
-                <ul className="flex flex-col gap-1">
-                  {previewRows(body).rows.map((row) => (
-                    <li key={row.heirId} className="flex flex-wrap justify-between gap-x-3">
-                      <bdi>{labels[row.heirId] ?? row.heirId}</bdi>
-                      {row.blocked || row.fraction === null ? (
-                        <span>{messages.previewNoShare}</span>
-                      ) : (
-                        <bdi dir="ltr">{localFraction(row.fraction, locale)}</bdi>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>{reasons[body.reason] ?? messages.previewUnavailable}</p>
-              )}
-            </li>
-          );
-        })}
+        {(preview.presented?.comparison?.schools ?? []).map((school) => (
+          <li key={school.school} className="flex flex-col gap-2 rounded-md border border-current/60 p-3">
+            <strong>{school.label}</strong>
+            {school.status === "calculated" ? (
+              <ul className="flex flex-col gap-1">
+                {school.shares.map((share) => (
+                  <li key={share.person} className="flex flex-wrap justify-between gap-x-3">
+                    <bdi>{labels[share.person] ?? share.person}</bdi>
+                    {share.blocked ? (
+                      <span>{messages.previewNoShare}</span>
+                    ) : (
+                      <bdi dir={share.share.dir}>{share.share.text}</bdi>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>{school.refusal?.text ?? messages.previewUnavailable}</p>
+            )}
+          </li>
+        ))}
       </ul>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <fieldset role="radiogroup" className="flex flex-col gap-2">

@@ -10,6 +10,7 @@ from .compare import answers, compare, row_kinds, unallocated_of
 from .formatting import formatter
 from .money import PresentationError, default_currency, precision, round_minor
 from .notices import notice_text, select_notices
+from .table import present_table
 
 ARABIC = 'ar'
 
@@ -149,13 +150,14 @@ def present(out, basis, locale, currency):
                     for c in select_notices(basis, fmt.locale, out))
     shown = {'rows': (), 'rounding': None, 'unallocated': None, 'comparison': None, 'evidence': (),
              'school_line': None, 'refusals': (), 'comparison_outcome': None}
-    result = None
+    result, table = None, None
 
     if basis.basis.kind == 'compare':
         cmp = compare(out)
         shown['comparison_outcome'] = cmp.outcome
         if cmp.outcome == 'agreement':
-            state, result = 'answer', out.evaluations[-1][1].result
+            state, table = 'answer', out.evaluations[-1][1].table
+            result = out.evaluations[-1][1].result
             shown['school_line'] = {'code': 'same_in_all_schools',
                                     'text': i18n.term('comparison.same_in_all_schools', fmt.locale)}
         elif cmp.outcome == 'difference':
@@ -175,7 +177,7 @@ def present(out, basis, locale, currency):
             state = 'refused'
             shown['refusals'] = (_refusal(fmt.locale, evaluation.result.refusal, True, school),)
         else:
-            state, result = 'answer', evaluation.result
+            state, result, table = 'answer', evaluation.result, evaluation.table
             shown['school_line'] = {'code': 'school', 'text': i18n.term(f'school.{school}', fmt.locale)}
 
     if result is not None:
@@ -198,4 +200,4 @@ def present(out, basis, locale, currency):
     return PresentedResult(
         CONTRACT_VERSIONS['presented_result'], fmt.locale, fmt.direction, basis.basis, state,
         shown['comparison_outcome'], shown['school_line'], shown['rows'], shown['rounding'], shown['unallocated'],
-        shown['comparison'], shown['evidence'], shown['refusals'], notices)
+        shown['comparison'], shown['evidence'], shown['refusals'], notices, present_table(fmt, table))

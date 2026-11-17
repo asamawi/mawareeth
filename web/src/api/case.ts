@@ -1,3 +1,4 @@
+import { parsePresentedResult, type PresentedResult } from "../contracts/presented.ts";
 import { fetchSession } from "./session.ts";
 
 /** In display order. The server accepts exactly these. */
@@ -735,16 +736,20 @@ export type SchoolPreview = Extract<Preview, { status: "available" | "unavailabl
 export type Preview =
   | { status: "not_ready" }
   /** `reason` is any code the server sends; one with no sentence shows the generic text only. `madhab` is null when no school was chosen and every school refuses alike. */
-  | { status: "unavailable"; madhab: MadhabId | null; reason: string; basis: PreviewBasis }
+  | { status: "unavailable"; madhab: MadhabId | null; reason: string; basis: PreviewBasis; presented?: PresentedResult }
   /** No school was chosen and the schools differ: each school's answer, and the rules or refusals behind it. */
   | {
       status: "choose_school";
       basis: PreviewBasis;
       schools: Record<SunniId, SchoolPreview>;
       rules: { code: string; label: string }[];
+      /** The server's PresentedResult (v3); every number and comparison text on screen is its own. */
+      presented?: PresentedResult;
     }
   | {
       status: "available";
+      /** The server's PresentedResult (v3); every number, School line and evidence text on screen is its own. */
+      presented?: PresentedResult;
       /** Null with `agreement: "all"`: the case has no school and all four Sunni schools agree. */
       madhab: MadhabId | null;
       agreement?: "all";
@@ -1213,6 +1218,30 @@ export function parseLayeredTable(value: unknown, proof: LayeredProof, shares: P
   return { layers, rows: value.rows as { heir: string }[], unallocated: value.unallocated };
 }
 
+const STATE_OF_STATUS = { available: "answer", unavailable: "refused", choose_school: "selection_required" } as const;
+
+/**
+ * The body's PresentedResult: undefined when the body has none (a school's own body inside a choice
+ * has none), null when it is not a valid v3 for this status. Rows must be the very heirs of `shares`.
+ */
+function parsePresented(value: Record<string, unknown>, status: keyof typeof STATE_OF_STATUS, heirs?: Set<string>): PresentedResult | undefined | null {
+  if (!Object.hasOwn(value, "presented")) return undefined;
+  try {
+    const presented = parsePresentedResult(value.presented);
+    if (presented.state !== STATE_OF_STATUS[status]) return null;
+    if (heirs && (presented.rows.length !== heirs.size || presented.rows.some((row) => !heirs.has(row.person)))) return null;
+    return presented;
+  } catch {
+    return null;
+  }
+}
+
+/** A body the server just served: every answer carries its PresentedResult, so nothing is shown without one. */
+export function parseServedPreview(body: unknown): Preview | null {
+  const preview = parsePreview(body);
+  return preview && (preview.status === "not_ready" || preview.presented) ? preview : null;
+}
+
 /** Strict: anything that is not exactly the documented shape is rejected, never repaired. */
 export function parsePreview(body: unknown): Preview | null {
   if (typeof body !== "object" || body === null) return null;
@@ -1224,9 +1253,10 @@ export function parsePreview(body: unknown): Preview | null {
   const basis = parseBasis(value.basis);
   if (!basis || ((basis.deaths || madhab === null) && basis.madhab !== madhab)) return null;
   if (value.status === "unavailable") {
-    return typeof value.reason === "string" && value.reason !== ""
-      ? { status: "unavailable", madhab, reason: value.reason, basis }
-      : null;
+    if (typeof value.reason !== "string" || value.reason === "") return null;
+    const presented = parsePresented(value, "unavailable");
+    if (presented === null) return null;
+    return { status: "unavailable", madhab, reason: value.reason, basis, ...(presented ? { presented } : {}) };
   }
   if (value.status !== "available" || !Array.isArray(value.shares)) return null;
   // Agreement is exactly the answer to a case with no school.
@@ -1265,9 +1295,12 @@ export function parsePreview(body: unknown): Preview | null {
     }
     if (top !== bottom) return null;
   }
+  const presented = parsePresented(value, "available", seen);
+  if (presented === null) return null;
+  const extra = presented ? { presented } : {};
   return madhab === null
-    ? { status: "available", madhab, agreement: "all", basis, shares, unallocated, proof, table }
-    : { status: "available", madhab, basis, shares, unallocated, proof, table };
+    ? { status: "available", madhab, agreement: "all", basis, shares, unallocated, proof, table, ...extra }
+    : { status: "available", madhab, basis, shares, unallocated, proof, table, ...extra };
 }
 
 /** The family a basis is for, whatever its school. */
@@ -1277,7 +1310,9 @@ function familyKey(basis: PreviewBasis): string {
 
 /** A `choose_school` body: the four Sunni schools' own answers and the rules behind the difference. */
 function parseChoice(value: Record<string, unknown>): Preview | null {
-  if (!hasExactKeys(value, ["status", "basis", "schools", "rules"])) return null;
+  if (!hasExactKeys(value, Object.hasOwn(value, "presented") ? ["status", "basis", "schools", "rules", "presented"] : ["status", "basis", "schools", "rules"])) return null;
+  const presented = parsePresented(value, "choose_school");
+  if (presented === null) return null;
   const basis = parseBasis(value.basis);
   if (!basis || basis.madhab !== null) return null;
   const { schools, rules } = value;
@@ -1298,7 +1333,7 @@ function parseChoice(value: Record<string, unknown>): Preview | null {
     if (familyKey(body.basis) !== family) return null;
     parsed[id] = body;
   }
-  return { status: "choose_school", basis, schools: parsed as Record<SunniId, SchoolPreview>, rules: parsedRules };
+  return { status: "choose_school", basis, schools: parsed as Record<SunniId, SchoolPreview>, rules: parsedRules, ...(presented ? { presented } : {}) };
 }
 
 /**
@@ -1327,7 +1362,7 @@ export async function fetchPreview(
     if (response.status === 404) return { kind: "gone" };
     if (response.status === 409) return { kind: "replaced" };
     if (!response.ok) return { kind: "failed" };
-    const preview = parsePreview(await response.json());
+    const preview = parseServedPreview(await response.json());
     return preview ? { kind: "preview", preview } : { kind: "failed" };
   } catch {
     return { kind: "failed" };

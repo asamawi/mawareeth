@@ -526,6 +526,41 @@
       "text": "النتيجة نفسها في المذاهب السنية الأربعة",
       "review": "pending",
       "placeholders": {}
+    },
+    "table.column.base": {
+      "text": "السهام",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.awl": {
+      "text": "العول",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd": {
+      "text": "الرد",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.remainder": {
+      "text": "الباقي تعصيبًا",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd_calc": {
+      "text": "مسالة الرد",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd_union": {
+      "text": "الجامعة",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.correction": {
+      "text": "التصحيح",
+      "review": "pending",
+      "placeholders": {}
     }
   }
 }

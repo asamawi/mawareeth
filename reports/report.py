@@ -1,11 +1,16 @@
-"""Presentation only: fractions, money, proofs and table parts come from preview."""
+"""Presentation only: every number, comparison, School line and evidence text is the PresentedResult's.
+
+The report draws `body['presented']` (the one server-produced PresentedResult) and adds only layout and the
+names the visitor typed, which the preview never carries.
+"""
 from django.template.loader import render_to_string
-from django.utils import timezone, translation
+from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext as _, gettext_noop
 
 import i18n
 from api import anonymous_case
+from presentation import format_datetime
 
 
 COMBINATION_RELATIONS = {
@@ -14,70 +19,73 @@ COMBINATION_RELATIONS = {
     'tabayun': gettext_noop('Coprime'),
     'no_share': gettext_noop('No share'),
 }
-SAME_IN_ALL_SCHOOLS = gettext_noop('Same result in all four Sunni schools')
+LABEL_KINDS = ('rule', 'condition', 'blocked_by', 'verse', 'school_rule', 'option')
 
 
-def percent_of(numerator, denominator):
-    tenths = (numerator * 2000 + denominator) // (2 * denominator)
-    return f'{tenths // 10}.{tenths % 10}'
-
-
-def kirat_of(numerator, denominator):
-    hundredths = (numerator * 4800 + denominator) // (2 * denominator)
-    return f'{hundredths // 100}.{hundredths % 100:02}'
-
-
-def fraction(value):
-    return f"{value['numerator']}/{value['denominator']}" if value is not None else '—'
+def _label(entry, kind):
+    if kind == 'verse':
+        return '; '.join(verse['text'] for verse in entry['verses']) or None
+    label = entry[kind]
+    return None if label is None else label['text']
 
 
 def build_context(case, body):
-    locale = translation.get_language() or 'en'
-    config = i18n.locale_config(i18n.resolve_locale(locale))
+    presented = body['presented']
+    locale = presented['locale']
+    config = i18n.locale_config(locale)
     rows = anonymous_case._rows({**case, 'deaths': case.get('deaths', [])})
-    def relation(row):
-        return i18n.term(f"relationship.{row['relationship']}", locale)
-    def name(key):
-        row = rows[key]
-        return row.get('name') or relation(row)
-    shares = []
-    for share in body['shares']:
-        row = rows[share['heir_id']]
-        shares.append({**share, 'name': name(share['heir_id']), 'relationship': relation(row),
-                       'fraction': fraction(share),
-                       'percent': percent_of(share['numerator'], share['denominator']),
-                       'kirat': kirat_of(share['numerator'], share['denominator'])})
-    proof = body.get('proof')
-    evidence = []
-    if proof:
-        layers = proof['layers'] if proof['version'] == 2 else [{'order': None, 'proof': proof}]
-        for layer in layers:
-            evidence.append({'order': layer['order'],
-                             'deceased': name(layer['deceased']) if layer.get('deceased') else '',
-                             'heirs': [{'name': name(entry['heir']), 'labels': entry['labels']}
-                                       for entry in layer['proof']['heirs']],
-                             'school_rules': layer['proof']['school_rule_labels']})
-    table = body.get('table')
+    relationships = {row['person']: row['relationship']['translated']['text'] for row in presented['rows']}
+
+    def own(row):
+        return row.get('name') or i18n.term(f"relationship.{row['relationship']}", locale)
+
+    def person_of(key):
+        while rows[key].get('same_as'):
+            key = rows[key]['same_as']
+        return key
+
+    # In an estate a person is shown as that estate's own heir, so a wife who later dies is a mother there.
+    in_estate = {order: {person_of(row['id']): own(row) for row in entries}
+                 for order, (_key, _deceased, entries) in enumerate(anonymous_case._layers(
+                     {**case, 'deaths': case.get('deaths', [])}), 1)}
+
+    def name(key, order=1):
+        if key in in_estate.get(order, {}):
+            return in_estate[order][key]
+        row = rows.get(key)
+        return (row.get('name') if row else None) or relationships.get(key) or (own(row) if row else key)
+
+    shares = [{**row, 'name': name(row['person']), 'relationship': row['relationship']['translated']['text'],
+               'fraction': row['share']} for row in presented['rows']]
+    layered = len(presented['evidence']) > 1
+    evidence = [{'order': entry['order'] if layered else None,
+                 'deceased': name(entry['deceased']) if entry['deceased'] else '',
+                 'heirs': [{'name': name(heir['person'], entry['order']), 'labels': {kind: _label(heir, kind) for kind in LABEL_KINDS}}
+                           for heir in entry['heirs']],
+                 'school_rules': [rule['text'] for rule in entry['school_rules']]}
+                for entry in presented['evidence']]
+    table = presented['table']
     tables = []
     if table:
-        layers = table['layers'] if 'layers' in table else [{'order': None, 'table': table}]
-        for layer in layers:
-            source = layer['table']
-            tables.append({**layer, 'deceased': name(layer['heir']) if layer.get('heir') else '',
-                           'relation_label': _(COMBINATION_RELATIONS[layer['relation']]) if layer.get('relation') else '',
-                           'columns': source['columns'],
-                           'rows': [{**row, 'name': name(row['heir']),
-                                     'prescribed_fraction': fraction(row['prescribed'])}
-                                    for row in source['rows']],
-                           'parts': [{'name': name(part['heir']), 'value': part['value']}
-                                     for part in layer.get('parts', [])]})
+        for layer in (table['layers'] if 'layers' in table else [{'order': None, 'table': table}]):
+            relation = layer.get('relation')
+            tables.append({
+                **layer, 'deceased': name(layer['heir']) if layer.get('heir') else '',
+                'relation_label': _(COMBINATION_RELATIONS[relation]) if relation else '',
+                'columns': layer['table']['columns'],
+                'rows': [{**row, 'name': name(row['heir'], layer['order'] or 1)} for row in layer['table']['rows']],
+                'parts': [{'name': name(part['heir']), 'value': part['value']} for part in layer.get('parts', [])],
+                'unallocated_cells': layer.get('unallocated_cells', []),
+            })
+    estate = body['basis']['estate']
     font_family = mark_safe(', '.join([f'"{family}"' for family in config['pdf_font_stack']] + ['sans-serif']))
     return {'locale': locale, 'direction': config['direction'], 'font_family': font_family,
-            'generated': timezone.now(), 'school': i18n.term(f"school.{body['madhab']}", locale) if body['madhab'] else _(SAME_IN_ALL_SCHOOLS),
+            'generated': format_datetime(timezone.now(), locale),
+            'school': presented['school_line']['text'],
             'deceased': _('Male') if case['deceased']['gender'] == 'male' else _('Female'),
-            'estate': body['basis']['estate'], 'with_amount': body['basis']['estate'] is not None,
+            'estate': estate, 'with_amount': estate is not None,
             'shares': shares, 'evidence': evidence, 'tables': tables,
-            'unallocated': fraction(body['unallocated']) if body.get('unallocated') else None}
+            'rounding': presented['rounding'], 'unallocated': presented['unallocated']}
 
 
 def render_html(case, body):

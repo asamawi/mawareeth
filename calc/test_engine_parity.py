@@ -146,7 +146,7 @@ class ParityMixin:
         calc, heirs = build_case(sex, types)
         ids = {heir.pk: f'h{i}' for i, heir in enumerate(heirs)}
         try:
-            exact = calc.compute(madhab=school)
+            exact = calc.legacy_compute(madhab=school)
         except schools.UnsupportedCase as refusal:
             self.assertEqual((result.status, result.refusal), ('refused', refusal.reason))
             self.assertEqual((result.allocations, result.steps, result.unallocated), ((), (), None))

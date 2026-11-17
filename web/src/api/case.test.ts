@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 
 import { locales, messages } from "../i18n/messages.ts";
+import { previewFixture } from "../test/preview-fixtures.ts";
 import {
   addHeir,
   fetchCase,
@@ -449,9 +450,12 @@ const AVAILABLE = {
   },
 };
 
+const SERVED = previewFixture("Hanbali wife and son with an estate").response as Record<string, unknown>;
+
 test("fetchPreview makes one read with the case id and returns the typed preview", async () => {
-  const calls = stubFetch(async () => Response.json(AVAILABLE));
-  assert.deepEqual(await fetchPreview(signal(), "a b"), { kind: "preview", preview: AVAILABLE });
+  const calls = stubFetch(async () => Response.json(SERVED));
+  assert.deepEqual(await fetchPreview(signal(), "a b"), { kind: "preview", preview: SERVED });
+  assert.equal((SERVED.presented as { version: number }).version, 3);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "/api/v1/case/preview/?case_id=a%20b");
   assert.equal(calls[0].init?.method, undefined);
@@ -459,23 +463,35 @@ test("fetchPreview makes one read with the case id and returns the typed preview
   assert.equal(header(calls[0], "Accept-Language"), undefined);
 });
 
+test("an answer with no valid PresentedResult for its status and heirs is a failure, never numbers", async () => {
+  const presented = SERVED.presented as Record<string, unknown>;
+  const bad: unknown[] = [
+    (({ presented: _kept, ...bare }) => bare)(SERVED),
+    { ...SERVED, presented: { ...presented, version: 2 } },
+    { ...SERVED, presented: { ...presented, state: "refused" } },
+    { ...SERVED, presented: { ...presented, rows: (presented.rows as unknown[]).slice(1) } },
+    { ...SERVED, presented: { ...presented, table: { columns: [{ code: "base" }], rows: [] } } },
+  ];
+  for (const body of bad) {
+    stubFetch(async () => Response.json(body));
+    assert.deepEqual(await fetchPreview(signal(), "abc"), { kind: "failed" });
+  }
+  // The structure alone still parses: the legacy fields are the contract's old shape.
+  const { presented: _kept, ...bare } = SERVED;
+  assert.equal(parsePreview(bare)?.status, "available");
+});
+
 test("fetchPreview asks for the page's language, so labels follow the page and not the browser", async () => {
-  const calls = stubFetch(async () => Response.json(AVAILABLE));
+  const calls = stubFetch(async () => Response.json(SERVED));
   await fetchPreview(signal(), "abc", { locale: "ar" });
   assert.equal(header(calls[0], "Accept-Language"), "ar");
 });
 
 test("fetchPreview reads each status", async () => {
+  const refused = previewFixture("Jafari is not supported").response;
   const cases: [number, unknown, unknown][] = [
     [200, { status: "not_ready" }, { kind: "preview", preview: { status: "not_ready" } }],
-    [
-      200,
-      { status: "unavailable", madhab: "jafari", reason: "school_not_supported", basis: BASIS },
-      {
-        kind: "preview",
-        preview: { status: "unavailable", madhab: "jafari", reason: "school_not_supported", basis: BASIS },
-      },
-    ],
+    [200, refused, { kind: "preview", preview: refused }],
     [429, { detail: "x" }, { kind: "throttled" }],
     [404, { detail: "x", case: null }, { kind: "gone" }],
     [409, { detail: "x", case: CASE }, { kind: "replaced" }],

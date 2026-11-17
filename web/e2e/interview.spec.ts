@@ -28,9 +28,25 @@ async function tabTo(page: Page, name: string, backwards = false): Promise<void>
 }
 
 type PreviewFixture = { title: string; case: Record<string, unknown>; response: Record<string, any> }; // eslint-disable-line @typescript-eslint/no-explicit-any
+const contracts = join(process.cwd(), "..", "api", "contracts");
+const served = JSON.parse(readFileSync(join(contracts, "preview-presented-fixtures.json"), "utf8")) as {
+  presented: Record<string, unknown>;
+  chosen: Record<string, Record<string, unknown>>;
+};
+// The shared preview fixtures as the server serves them: each legacy body with the PresentedResult beside it,
+// and each school's body in a choice with that school's own PresentedResult.
 const fixtures = (
-  JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: PreviewFixture[] }
-).fixtures;
+  JSON.parse(readFileSync(join(contracts, "preview-fixtures.json"), "utf8")) as { fixtures: PreviewFixture[] }
+).fixtures.map((fixture) => {
+  const response: PreviewFixture["response"] = { ...fixture.response, presented: served.presented[fixture.title] };
+  const chosen = served.chosen[fixture.title];
+  if (chosen) {
+    response.schools = Object.fromEntries(
+      Object.entries(response.schools as Record<string, Record<string, unknown>>).map(([school, body]) => [school, { ...body, presented: chosen[school] }]),
+    );
+  }
+  return { ...fixture, response };
+});
 const fixture = (title: string) => fixtures.find((item) => item.title === title)!;
 
 test.describe("hydration", () => {
@@ -245,6 +261,13 @@ test.describe("the school of law, asked only when it matters", () => {
     await expect(choice.getByText(en.schoolsDiffer)).toBeVisible();
     await expect(choice.getByText(en.schoolsDifferBecause)).toBeVisible();
     for (const rule of differ.response.rules) await expect(choice.getByText(rule.label, { exact: true })).toBeVisible();
+    // Each school's summary is the presented comparison's own text.
+    for (const school of differ.response.presented.comparison.schools) {
+      await expect(choice.getByText(school.label, { exact: true }).first()).toBeVisible();
+      for (const share of school.shares.filter((item: { blocked: boolean }) => !item.blocked)) {
+        await expect(choice.getByText(share.share.text, { exact: false }).first()).toBeVisible();
+      }
+    }
     const group = page.getByRole("radiogroup", { name: en.chooseSchool });
     await expect(group.getByRole("radio")).toHaveCount(4);
     await expect(group.getByRole("radio", { name: en.madhabs.jafari.name })).toHaveCount(0);

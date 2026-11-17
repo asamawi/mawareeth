@@ -2,10 +2,11 @@
 from dataclasses import dataclass
 from fractions import Fraction
 
-from engine import evaluate, final_shares, school_rule_set
+from engine import Evaluation, evaluate, final_shares, school_rule_set
 from engine.contracts import codes
 from engine.contracts.codes import CONTRACT_VERSIONS
 from engine.contracts.comparison import Comparison, Refusal, SchoolResult
+from engine.contracts.result import Result
 from engine.contracts.family import Family
 
 from .money import PresentationError
@@ -23,6 +24,16 @@ def outcome(family, resolved_basis):
     kind = resolved_basis.basis.kind
     schools = codes.SUNNI_SCHOOLS if kind == 'compare' else (resolved_basis.school,)
     return Outcome(family, tuple((school, evaluate(family, school_rule_set(school))) for school in schools))
+
+
+def refused_outcome(family, resolved_basis, reason):
+    """An Outcome in which every School asked for refuses for `reason`: a rule only the consumer can see,
+    such as a spouse of the deceased's own sex, which the Family does not hold for its root."""
+    kind = resolved_basis.basis.kind
+    schools = codes.SUNNI_SCHOOLS if kind == 'compare' else (resolved_basis.school,)
+    return Outcome(family, tuple(
+        (school, Evaluation(Result(CONTRACT_VERSIONS['result'], school, 'refused', reason, (), None, (), ()),
+                            None, None)) for school in schools))
 
 
 def row_kinds(result):

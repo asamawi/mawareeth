@@ -59,7 +59,7 @@ class LegacyCaseTests(InterviewHelpers, TestCase):
         self.assertEqual(anonymous_case.export_snapshot(case), expected)
         preview = self.client.get(f'/api/v1/case/preview/?case_id={case["id"]}', secure=True)
         self.assertEqual(preview.status_code, 200)
-        final = calc.compute(madhab='hanbali')
+        final = calc.legacy_compute(madhab='hanbali')
         for share, heir in zip(preview.json()['shares'], heirs):
             self.assertEqual((share['numerator'], share['denominator']),
                              (final[heir.pk].numerator, final[heir.pk].denominator))

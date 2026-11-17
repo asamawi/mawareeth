@@ -150,9 +150,9 @@ class FatherQuoteTestCase(TestCase):
         calc1 = Calculation.objects.get(name="calc1")
         calc2 = Calculation.objects.get(name="calc2")
         calc3 = Calculation.objects.get(name="calc3")
-        calc1.compute()
-        calc2.compute()
-        calc3.compute()
+        calc1.legacy_compute()
+        calc2.legacy_compute()
+        calc3.legacy_compute()
         self.assertEqual(Fraction(calc1.get_father().quote).limit_denominator(), Fraction(1,6))
         self.assertEqual(calc1.get_father().asaba, False)
         self.assertEqual(Fraction(calc2.get_father().quote).limit_denominator(), Fraction(1,6))
@@ -195,10 +195,10 @@ class GrandFatherQuoteTestCase(TestCase):
         calc2 = Calculation.objects.get(name="calc2")
         calc3 = Calculation.objects.get(name="calc3")
         calc4 = Calculation.objects.get(name="calc4")
-        calc1.compute()
-        calc2.compute()
-        calc3.compute()
-        calc4.compute()
+        calc1.legacy_compute()
+        calc2.legacy_compute()
+        calc3.legacy_compute()
+        calc4.legacy_compute()
         self.assertEqual(Fraction(calc1.get_grandFather().quote).limit_denominator(), Fraction(1,6))
         self.assertEqual(calc1.get_grandFather().asaba, False)
         self.assertEqual(Fraction(calc2.get_grandFather().quote).limit_denominator(), Fraction(1,6))
@@ -312,8 +312,8 @@ class HusbandQuoteTestCase(TestCase):
         calc1 = Calculation.objects.get(name="calc1")
         calc2 = Calculation.objects.get(name="calc2")
 
-        calc1.compute()
-        calc2.compute()
+        calc1.legacy_compute()
+        calc2.legacy_compute()
 
         self.assertEqual(Fraction(calc1.get_husband().quote).limit_denominator(), Fraction(1,4))
         self.assertEqual(calc1.get_husband().asaba, False)
@@ -357,9 +357,9 @@ class WifeQuoteTestCase(TestCase):
         calc2 = Calculation.objects.get(name="calc2")
         calc3 = Calculation.objects.get(name="calc3")
 
-        calc11.compute()
-        calc2.compute()
-        calc3.compute()
+        calc11.legacy_compute()
+        calc2.legacy_compute()
+        calc3.legacy_compute()
 
         self.assertEqual(Fraction(calc11.get_wives().first().quote).limit_denominator(), Fraction(1,8))
         self.assertEqual(calc11.get_wives().first().asaba, False)
@@ -421,10 +421,10 @@ class DaughterQuoteTestCase(TestCase):
         calc3 = Calculation.objects.get(name="calc3")
         calc4 = Calculation.objects.get(name="calc4")
 
-        calc1.compute()
-        calc2.compute()
-        calc3.compute()
-        calc4.compute()
+        calc1.legacy_compute()
+        calc2.legacy_compute()
+        calc3.legacy_compute()
+        calc4.legacy_compute()
 
 
         self.assertEqual(Fraction(calc1.get_daughters().first().quote).limit_denominator(), Fraction(1,1))
@@ -478,8 +478,8 @@ class SonQuoteTestCase(TestCase):
         calc2 = Calculation.objects.get(name="calc2")
 
 
-        calc1.compute()
-        calc2.compute()
+        calc1.legacy_compute()
+        calc2.legacy_compute()
 
 
         self.assertEqual(Fraction(calc1.get_sons().first().quote).limit_denominator(), Fraction(1,1))
@@ -554,12 +554,12 @@ class SisterQuoteTestCase(TestCase):
         calc5 = Calculation.objects.get(name="calc5")
         calc6 = Calculation.objects.get(name="calc6")
 
-        calc1.compute()
-        calc2.compute()
-        calc3.compute()
-        calc4.compute()
-        calc5.compute()
-        calc6.compute()
+        calc1.legacy_compute()
+        calc2.legacy_compute()
+        calc3.legacy_compute()
+        calc4.legacy_compute()
+        calc5.legacy_compute()
+        calc6.legacy_compute()
 
 
         self.assertEqual(calc1.shares,3)
@@ -624,9 +624,9 @@ class BrotherQuoteTestCase(TestCase):
         calc3 = Calculation.objects.get(name="calc3")
 
 
-        calc1.compute()
-        calc2.compute()
-        calc3.compute()
+        calc1.legacy_compute()
+        calc2.legacy_compute()
+        calc3.legacy_compute()
 
 
         self.assertEqual(calc1.shares,3)
@@ -668,8 +668,8 @@ class CalculationGetSharesTestCase(TestCase):
         calc1 = Calculation.objects.get(name="calc1")
         calc22 = Calculation.objects.get(name="calc22")
 
-        calc1.compute()
-        calc22.compute()
+        calc1.legacy_compute()
+        calc22.legacy_compute()
 
         self.assertEqual(calc1.get_fractions(calc1.heir_set.all()), {Fraction(1,1)})
         self.assertEqual(calc22.get_fractions(calc22.heir_set.all()), {Fraction(1,2), Fraction(1,6)})
@@ -697,7 +697,7 @@ class CalculationGetShareTestCase(TestCase):
     def test_set_calc_correction(self):
         calc1 = Calculation.objects.get(name="calc1")
 
-        calc1.compute()
+        calc1.legacy_compute()
 
         self.assertEqual(calc1.get_fractions(calc1.heir_set.all()), {Fraction(1,6),Fraction(2,3)})
         self.assertEqual(calc1.set_calc_shares(), 6)
@@ -747,8 +747,8 @@ class CalculationSetCalcCorrectionTestCase(TestCase):
         calc1 = Calculation.objects.get(name="calc1")
         calc2 = Calculation.objects.get(name="calc2")
 
-        calc1.compute()
-        calc2.compute()
+        calc1.legacy_compute()
+        calc2.legacy_compute()
 
         self.assertEqual(calc1.get_fractions(calc1.heir_set.all()), {Fraction(1,6),Fraction(2,3)})
         self.assertEqual(calc1.set_calc_shares(), 6)
@@ -814,7 +814,7 @@ class CalculationSetCalcExcessTestCase(TestCase):
     def test_set_calc_Excess(self):
         calc1 = Calculation.objects.get(name="calc1")
 
-        calc1.compute()
+        calc1.legacy_compute()
 
 
         self.assertEqual(calc1.get_fractions(calc1.heir_set.all()), {Fraction(1,6),Fraction(2,3),Fraction(1,8)})
@@ -851,7 +851,7 @@ class CalculationShortageTestCase(TestCase):
     def test_set_calc_Excess(self):
         calc1 = Calculation.objects.get(name="calc1")
 
-        calc1.compute()
+        calc1.legacy_compute()
 
 
         self.assertEqual(calc1.get_fractions(calc1.heir_set.all()), {Fraction(1,6),Fraction(1,4),Fraction(1,2)})
@@ -885,7 +885,7 @@ class CalculationAsabaTestCase(TestCase):
     def test_set_calc_Excess(self):
         calc1 = Calculation.objects.get(name="calc1")
 
-        calc1.compute()
+        calc1.legacy_compute()
 
 
         self.assertEqual(calc1.get_fractions(calc1.heir_set.all()), {Fraction(1,6),Fraction(1,8),Fraction(13,24)})
@@ -909,7 +909,7 @@ class CalculationSonOfUncleTestCase(TestCase):
 
     def test_son_of_uncle(self):
         calc1 = Calculation.objects.get(name="calc1")
-        calc1.compute()
+        calc1.legacy_compute()
 
         self.assertEqual(calc1.heir_set.instance_of(SonOfUncle).first().blocked, True)
         self.assertEqual(calc1.heir_set.instance_of(SonOfUncle).first().asaba, False)
@@ -1657,7 +1657,7 @@ class DistributionFixtureTests(TransactionTestCase):
         for title, sex, expected in FIXTURES:
             with self.subTest(title):
                 calc, heirs = build_case(sex, [cls for cls, _fraction in expected])
-                exact = calc.compute()
+                exact = calc.legacy_compute()
                 self.assertEqual([exact[h.pk] for h in heirs], [fraction for _cls, fraction in expected])
                 for heir, (cls, fraction) in zip(heirs, expected):
                     self.assertEqual(stored(heir).amount, half_up(ESTATE, fraction), cls.__name__)
@@ -1667,7 +1667,7 @@ class DistributionFixtureTests(TransactionTestCase):
 
     def test_awl_columns(self):
         calc, heirs = build_case('M', [Wife, Wife, Mother, Father, Daughter, Daughter])
-        calc.compute()
+        calc.legacy_compute()
         calc.refresh_from_db()
         self.assertEqual((calc.shares, calc.shares_excess, calc.excess), (24, 27, True))
         self.assertEqual((calc.correction, calc.shares_corrected), (True, 54))
@@ -1678,7 +1678,7 @@ class DistributionFixtureTests(TransactionTestCase):
 
     def test_radd_columns(self):
         calc, heirs = build_case('M', [Wife, Mother, Daughter, Daughter, Daughter])
-        calc.compute()
+        calc.legacy_compute()
         calc.refresh_from_db()
         self.assertEqual((calc.shortage, calc.shortage_calc), (True, True))
         self.assertEqual((calc.shares_shorted, calc.shortage_union_shares), (8, 40))
@@ -1690,7 +1690,7 @@ class DistributionFixtureTests(TransactionTestCase):
 
     def test_radd_without_spouse_columns(self):
         calc, heirs = build_case('M', [Mother, Daughter])
-        calc.compute()
+        calc.legacy_compute()
         calc.refresh_from_db()
         mother, daughter = stored(heirs[0]), stored(heirs[1])
         self.assertTrue(calc.shortage)
@@ -1700,7 +1700,7 @@ class DistributionFixtureTests(TransactionTestCase):
 
     def test_grandfather_quote_is_stored_and_shown(self):
         calc, heirs = build_case('M', [GrandFather, Brother])
-        calc.compute()
+        calc.legacy_compute()
         grandfather = stored(heirs[0])
         self.assertEqual(grandfather.get_fraction(), F(1, 2))
         self.assertEqual(stored(heirs[1]).get_fraction(), F(1, 2))
@@ -1709,7 +1709,8 @@ class DistributionFixtureTests(TransactionTestCase):
         client.force_login(calc.user)
         response = client.get(f'/en/{calc.id}/results/', secure=True)
         self.assertTemplateUsed(response, 'calc/results.html')
-        self.assertContains(response, '<td>1/2</td>', count=1)
+        # The presented page shows each heir's share: the grandfather's 1/2 and the brother's equal 1/2.
+        self.assertContains(response, '<td><span dir="ltr">1/2</span></td>', count=2)
 
     def test_fiqh_order_covers_every_heir_type(self):
         concrete = {cls for cls in Heir.__subclasses__()}
@@ -1719,12 +1720,12 @@ class DistributionFixtureTests(TransactionTestCase):
     def test_unknown_heir_type_sorts_last_instead_of_failing(self):
         calc, heirs = build_case('M', [Father])
         with mock.patch('calc.models.FIQH_ORDER', [Son]):
-            calc.compute()
+            calc.legacy_compute()
         self.assertEqual(stored(heirs[0]).amount, Decimal(ESTATE))
 
     def test_father_with_daughters_shows_the_remainder_as_shortage(self):
         calc, heirs = build_case('M', [Father, Daughter])
-        calc.compute()
+        calc.legacy_compute()
         calc.refresh_from_db()
         father, daughter = stored(heirs[0]), stored(heirs[1])
         self.assertEqual((calc.shares, calc.shortage, calc.shares_shorted), (6, True, 6))
@@ -1732,7 +1733,7 @@ class DistributionFixtureTests(TransactionTestCase):
 
     def test_amounts_round_half_up(self):
         calc, heirs = build_case('M', [Wife, Mother, Son], estate=1)
-        calc.compute()
+        calc.legacy_compute()
         self.assertEqual([stored(h).amount for h in heirs], [Decimal('0.13'), Decimal('0.17'), Decimal('0.71')])
 
     def test_stale_results_correct_themselves_on_compute(self):
@@ -1743,7 +1744,7 @@ class DistributionFixtureTests(TransactionTestCase):
             heir.save()
         Calculation.objects.filter(pk=calc.pk).update(shares=77, excess=True, shares_excess=88)
         calc = Calculation.objects.get(pk=calc.pk)
-        calc.compute()
+        calc.legacy_compute()
         calc.refresh_from_db()
         self.assertEqual((calc.shares, calc.excess, calc.shares_excess), (8, False, 0))
         self.assertEqual(stored(heirs[0]).amount, Decimal('437.50'))
@@ -1760,6 +1761,8 @@ class DistributionFixtureTests(TransactionTestCase):
         client = Client()
         for title, (sex, types) in cases.items():
             calc, heirs = build_case(sex, types)
+            # The pages no longer store amounts on GET: the ORM reference stores them to compare against.
+            Calculation.objects.get(pk=calc.pk).legacy_compute()
             client.force_login(calc.user)
             for lang in ('en', 'ar'):
                 for page in ('results', 'new-results'):
@@ -1798,7 +1801,7 @@ class DistributionFixtureTests(TransactionTestCase):
                     self.assertNotEqual(translated, msgid)
         calc, heirs = build_case('F', [Husband, Mother, GrandFather, Sister])
         with translation.override('fr'):
-            calc.compute()
+            calc.legacy_compute()
             self.assertNotIn('Akdariyya: the grandfather', stored(heirs[2]).quote_reason)
 
 
@@ -1895,7 +1898,7 @@ class DistributionInvariantTests(TransactionTestCase):
         for sex, types in families():
             with self.subTest(f'{sex}: {[t.__name__ for t in types]}'):
                 calc, heirs = build_case(sex, types)
-                assert_invariants(self, calc, heirs, calc.compute())
+                assert_invariants(self, calc, heirs, calc.legacy_compute())
 
 
 @tag('slow')
@@ -1908,8 +1911,8 @@ class DistributionEntryOrderTests(TransactionTestCase):
                 forward, forward_heirs = build_case(sex, types)
                 backward, backward_heirs = build_case(sex, list(reversed(types)))
                 self.assertEqual(
-                    fingerprint(forward, forward_heirs, forward.compute()),
-                    fingerprint(backward, backward_heirs, backward.compute()),
+                    fingerprint(forward, forward_heirs, forward.legacy_compute()),
+                    fingerprint(backward, backward_heirs, backward.legacy_compute()),
                 )
 
 
@@ -1974,7 +1977,7 @@ class CoreFamilyReferenceTests(TransactionTestCase):
                          + [Son] * sons + [Daughter] * daughters)
                 with self.subTest(f'{sex}: {[t.__name__ for t in types]}'):
                     calc, heirs = build_case(sex, types)
-                    exact = calc.compute()
+                    exact = calc.legacy_compute()
                     groups = {}
                     for heir in heirs:
                         groups[type(heir)] = groups.get(type(heir), F(0)) + exact[heir.pk]
@@ -2066,7 +2069,7 @@ def run(sex, types, madhab=None):
     The outcome is the reason code when the run is refused."""
     calc, heirs = build_case(sex, types)
     try:
-        exact = calc.compute() if madhab is None else calc.compute(madhab=madhab)
+        exact = calc.legacy_compute() if madhab is None else calc.legacy_compute(madhab=madhab)
     except schools.UnsupportedCase as refusal:
         return refusal.reason, calc, heirs
     return exact, calc, heirs
@@ -2145,7 +2148,7 @@ class SchoolFixtureTests(TransactionTestCase):
     def test_a_refusal_is_not_a_generic_failure(self):
         calc, _heirs = build_case('F', MALIKIYYA)
         with self.assertRaises(schools.UnsupportedCase) as caught:
-            calc.compute(madhab=MALIKI)
+            calc.legacy_compute(madhab=MALIKI)
         self.assertEqual(caught.exception.reason, schools.MALIKIYYA_DISPUTED)
         self.assertNotIsInstance(caught.exception, ValueError)
         self.assertTrue(caught.exception.message)
@@ -2154,17 +2157,17 @@ class SchoolFixtureTests(TransactionTestCase):
         calc, _heirs = build_case('M', [Son])
         for bad in ('hanbalii', '', None, 3, 'Hanafi'):
             with self.subTest(bad), self.assertRaises(ValueError):
-                calc.compute(madhab=bad)
+                calc.legacy_compute(madhab=bad)
 
     def test_jafari_is_refused_before_anything_is_written(self):
         calc, heirs = build_case('M', [Son])
         with self.assertRaises(schools.UnsupportedCase):
-            calc.compute(madhab=schools.JAFARI)
+            calc.legacy_compute(madhab=schools.JAFARI)
         self.assertEqual(stored(heirs[0]).amount, 0)
 
     def test_school_is_never_stored(self):
         calc, _heirs = build_case('M', [GrandFather, Brother])
-        calc.compute(madhab=HANAFI)
+        calc.legacy_compute(madhab=HANAFI)
         fresh = Calculation.objects.get(pk=calc.pk)
         self.assertEqual(fresh.madhab, HANBALI)
         self.assertNotIn('madhab', [f.name for f in Calculation._meta.get_fields()])
@@ -2175,15 +2178,15 @@ class SchoolFixtureTests(TransactionTestCase):
             with self.subTest(madhab):
                 calc, heirs = build_case(sex, types)
                 with self.assertRaises(schools.UnsupportedCase):
-                    calc.compute(madhab=madhab)
-                again = fingerprint(calc, heirs, calc.compute())
+                    calc.legacy_compute(madhab=madhab)
+                again = fingerprint(calc, heirs, calc.legacy_compute())
                 reference, reference_calc, reference_heirs = run(sex, types)
                 self.assertEqual(again, fingerprint(reference_calc, reference_heirs, reference))
 
     def test_a_school_run_then_a_normal_compute_forgets_the_school(self):
         calc, heirs = build_case('M', [GrandFather, Brother])
-        calc.compute(madhab=HANAFI)
-        exact = calc.compute()
+        calc.legacy_compute(madhab=HANAFI)
+        exact = calc.legacy_compute()
         self.assertEqual([exact[h.pk] for h in heirs], [F(1, 2), F(1, 2)])
 
     def test_mushtaraka_members_keep_their_reason(self):
@@ -2581,21 +2584,21 @@ class ProofMatrixTests(TransactionTestCase):
     def test_a_refused_case_has_no_proof(self):
         calc, _heirs = build_case('M', [Son])
         with self.assertRaises(schools.UnsupportedCase):
-            calc.compute(madhab=schools.JAFARI)
+            calc.legacy_compute(madhab=schools.JAFARI)
         self.assertIsNone(calc.proof)
         calc, _heirs = build_case('F', MALIKIYYA)
-        calc.compute(madhab=HANBALI)
+        calc.legacy_compute(madhab=HANBALI)
         self.assertIsNotNone(calc.proof)
         with self.assertRaises(schools.UnsupportedCase):
-            calc.compute(madhab=MALIKI)
+            calc.legacy_compute(madhab=MALIKI)
         self.assertIsNone(calc.proof, 'a refused run leaves no proof from an earlier one')
-        calc.compute(madhab=HANBALI)
+        calc.legacy_compute(madhab=HANBALI)
         with self.assertRaises(schools.UnsupportedCase):
-            calc.compute(madhab=schools.JAFARI)
+            calc.legacy_compute(madhab=schools.JAFARI)
         self.assertIsNone(calc.proof)
-        calc.compute(madhab=HANBALI)
+        calc.legacy_compute(madhab=HANBALI)
         with self.assertRaises(ValueError):
-            calc.compute(madhab='nonsense')
+            calc.legacy_compute(madhab='nonsense')
         self.assertIsNone(calc.proof)
         self.assertIsNone(calc._proof_steps)
 
@@ -2608,7 +2611,7 @@ class ProofMatrixTests(TransactionTestCase):
         self.assertNotIn('proof', [f.name for f in Calculation._meta.get_fields()])
         self.assertNotIn('basis', [f.name for f in Heir._meta.get_fields()])
         calc, heirs = build_case('M', [Wife, Son])
-        exact = calc.compute()
+        exact = calc.legacy_compute()
         self.assertEqual([exact[h.pk] for h in heirs], [F(1, 8), F(7, 8)])
         self.assertEqual(calc.proof['madhab'], HANBALI)
 
@@ -2661,7 +2664,7 @@ class ProofInvariantTests(TransactionTestCase):
                     for rule in proof['school_rules']:
                         self.assertIn(rule, VOCABULARY['school_rule'])
                     # the same family under the same school gives the same proof on a second run
-                    again = calc.compute(madhab=madhab)
+                    again = calc.legacy_compute(madhab=madhab)
                     self.assertEqual(again, outcome)
                     self.assertEqual(calc.proof, proof)
         self.assertGreater(checked, 500)
@@ -2757,7 +2760,7 @@ class ScholarsTableTests(TransactionTestCase):
 
     def table(self, sex, types, madhab='hanbali'):
         calc, heirs = build_case(sex, types)
-        calc.compute(madhab=madhab)
+        calc.legacy_compute(madhab=madhab)
         return calc.table, Calculation.objects.get(pk=calc.pk), heirs
 
     def codes(self, table):
@@ -2901,7 +2904,7 @@ class ComputeTransactionTests(TransactionTestCase):
 
     def settled(self):
         calc, heirs = build_case('F', MALIKIYYA)
-        exact = calc.compute(madhab=HANBALI)
+        exact = calc.legacy_compute(madhab=HANBALI)
         return calc, heirs, exact
 
     def test_mid_run_failure_leaves_the_stored_result(self):
@@ -2909,21 +2912,21 @@ class ComputeTransactionTests(TransactionTestCase):
         before = fingerprint(calc, heirs, exact)
         with mock.patch.object(Calculation, 'distribute', side_effect=RuntimeError('boom')):
             with self.assertRaises(RuntimeError):
-                calc.compute()
+                calc.legacy_compute()
         self.assertEqual(fingerprint(calc, heirs, exact), before)
 
     def test_refusal_without_a_caller_transaction_leaves_the_stored_result(self):
         calc, heirs, exact = self.settled()
         before = fingerprint(calc, heirs, exact)
         with self.assertRaises(schools.UnsupportedCase):
-            calc.compute(madhab=MALIKI)
+            calc.legacy_compute(madhab=MALIKI)
         self.assertEqual(fingerprint(calc, heirs, exact), before)
 
     def test_stale_instance_preserves_committed_name_and_owner(self):
         calc, heirs = build_case('M', [Son])
         owner = User.objects.create(username='new-owner')
         Calculation.objects.filter(pk=calc.pk).update(name='renamed', user=owner)
-        calc.compute()
+        calc.legacy_compute()
         calc.refresh_from_db()
         self.assertEqual(calc.name, 'renamed')
         self.assertEqual(calc.user_id, owner.pk)
@@ -2932,7 +2935,7 @@ class ComputeTransactionTests(TransactionTestCase):
         calc, heirs = build_case('M', [Son])
         Calculation.objects.filter(pk=calc.pk).delete()
         with self.assertRaises(Calculation.DoesNotExist):
-            calc.compute()
+            calc.legacy_compute()
         self.assertFalse(Calculation.objects.filter(pk=calc.pk).exists())
         self.assertFalse(Heir.objects.filter(pk=heirs[0].pk).exists())
 
@@ -2945,7 +2948,7 @@ class ComputeConcurrencyTests(TransactionTestCase):
 
     def setUp(self):
         self.calc, self.heirs = build_case('F', MALIKIYYA)
-        self.exact = self.calc.compute()
+        self.exact = self.calc.legacy_compute()
         self.before = fingerprint(self.calc, self.heirs, self.exact)
         self.held = threading.Event()
         self.release = threading.Event()
@@ -2977,7 +2980,7 @@ class ComputeConcurrencyTests(TransactionTestCase):
                 with connection.cursor() as cursor:
                     cursor.execute('SELECT pg_backend_pid()')
                     self.pids[name] = cursor.fetchone()[0]
-                self.results[name] = Calculation.objects.get(pk=self.calc.pk).compute()
+                self.results[name] = Calculation.objects.get(pk=self.calc.pk).legacy_compute()
             except BaseException:
                 self.failures.append(f'{name}:\n{traceback.format_exc()}')
             finally:
@@ -3110,7 +3113,7 @@ class ComputeConcurrencyTests(TransactionTestCase):
                     with mock.patch.object(Heir._meta.get_field('calc'), 'null', False):
                         self.results[name] = client.post(reverse('calc:delete', args=[pk]), secure=True)
                 else:
-                    Calculation.objects.get(pk=pk).compute()
+                    Calculation.objects.get(pk=pk).legacy_compute()
             except Calculation.DoesNotExist as exc:
                 if name == 'compute':
                     self.results[name] = exc
@@ -3154,6 +3157,133 @@ class ComputeConcurrencyTests(TransactionTestCase):
         self.assertIsInstance(self.results.get('compute'), Calculation.DoesNotExist)
 
 
+class ComputeAdapterTests(TransactionTestCase):
+    """`compute` is a thin adapter over the core: no writes, no locks, the legacy fractions."""
+
+    WRITES = ('INSERT', 'UPDATE', 'DELETE', 'FOR UPDATE', 'SAVEPOINT')
+
+    def assertNoCalcWrites(self, queries):
+        for query in queries:
+            sql = query['sql'].upper()
+            if 'CALC_' in sql:
+                for word in self.WRITES:
+                    self.assertNotIn(word, sql, query['sql'])
+
+    def test_compute_gives_the_legacy_fractions_with_no_write_lock_or_savepoint(self):
+        from django.test.utils import CaptureQueriesContext
+        for school in schools.SUNNI:
+            with self.subTest(school=school):
+                calc, heirs = build_case('M', [Wife, Mother, Daughter, Daughter, Daughter])
+                legacy = calc.legacy_compute(school)
+                before = [stored(heir) for heir in heirs]
+                fresh = Calculation.objects.get(pk=calc.pk)
+                with CaptureQueriesContext(connection) as queries:
+                    final = fresh.compute(school)
+                self.assertNoCalcWrites(queries.captured_queries)
+                self.assertEqual(final, legacy)
+                self.assertEqual((fresh.madhab, fresh.proof['version']), (school, 1))
+                self.assertEqual({entry['heir'] for entry in fresh.proof['heirs']}, {heir.pk for heir in heirs})
+                self.assertEqual(fresh.table, calc.table)
+                for original in before:
+                    after = stored(original)
+                    for field in original._meta.concrete_fields:
+                        self.assertEqual(getattr(original, field.attname), getattr(after, field.attname))
+
+    def test_compute_does_not_touch_the_derived_columns_on_disk(self):
+        calc, heirs = build_case('M', [Wife, Son])
+        self.assertEqual(stored(heirs[0]).share, 0)
+        calc.compute()
+        self.assertEqual(Calculation.objects.get(pk=calc.pk).shares, 0)
+        self.assertEqual([stored(heir).share for heir in heirs], [0, 0])
+
+    def test_compute_refuses_as_before_and_unknown_schools_raise(self):
+        calc, _heirs = build_case('F', MALIKIYYA)
+        with self.assertRaises(schools.UnsupportedCase) as refused:
+            calc.compute('maliki')
+        self.assertEqual(refused.exception.reason, schools.MALIKIYYA_DISPUTED)
+        with self.assertRaises(schools.UnsupportedCase):
+            calc.compute('jafari')
+        with self.assertRaises(ValueError):
+            calc.compute('made-up')
+        calc.delete()
+        with self.assertRaises(Calculation.DoesNotExist):
+            calc.compute()
+
+    def test_results_pages_read_twice_without_writes_or_locks(self):
+        from django.test.utils import CaptureQueriesContext
+        calc, heirs = build_case('M', [Wife, Son])
+        self.client.force_login(calc.user)
+        for route in ('results', 'new_results'):
+            with self.subTest(route=route), override_flag('new_results', active=True):
+                with CaptureQueriesContext(connection) as queries, translation.override('en'):
+                    for _ in range(2):
+                        response = self.client.get(reverse('calc:' + route, args=[calc.pk]), secure=True)
+                        self.assertEqual(response.status_code, 200)
+                self.assertNoCalcWrites(queries.captured_queries)
+                # The page shows the presented strings, SAR explicit.
+                self.assertContains(response, '1/8')
+                self.assertContains(response, 'SAR')
+        self.assertEqual([stored(heir).share for heir in heirs], [0, 0])
+
+
+class LegacyWriteLockTests(TransactionTestCase):
+    """A person write waits at most LOCK_WAIT_MS for the case lock, then answers a retryable 503."""
+
+    def setUp(self):
+        self.calc, self.heirs = build_case('M', [Son])
+        self.client.force_login(self.calc.user)
+        self.held, self.release = threading.Event(), threading.Event()
+        self.addCleanup(self.release.set)
+
+    def hold(self):
+        from django.db import transaction
+
+        def run():
+            try:
+                with transaction.atomic():
+                    list(Calculation.objects.select_for_update().filter(pk=self.calc.pk))
+                    self.held.set()
+                    self.release.wait(30)
+            finally:
+                connection.close()
+
+        thread = threading.Thread(target=run)
+        thread.start()
+        self.addCleanup(thread.join)
+        self.assertTrue(self.held.wait(10))
+
+    def test_the_bound_is_500_ms(self):
+        self.assertEqual(views.LOCK_WAIT_MS, 500)
+
+    def test_a_held_lock_times_out_in_lock_calculation(self):
+        import time
+        from django.db import transaction
+        self.hold()
+        started = time.monotonic()
+        with self.assertRaises(views.LockTimeout), transaction.atomic():
+            views.lock_calculation(self.calc.pk)
+        elapsed = time.monotonic() - started
+        self.assertGreaterEqual(elapsed, 0.4)
+        self.assertLess(elapsed, 5)
+
+    def test_a_person_write_gets_a_retryable_503_and_changes_nothing(self):
+        import time
+        self.hold()
+        started = time.monotonic()
+        response = self.client.post(reverse('calc:mother', args=[self.calc.pk]),
+                                    {'first_name': 'Mother', 'last_name': 'Family'}, secure=True)
+        elapsed = time.monotonic() - started
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response['Retry-After'], '1')
+        self.assertLess(elapsed, 5)
+        self.assertFalse(Mother.objects.filter(calc=self.calc).exists())
+        self.release.set()
+        retry = self.client.post(reverse('calc:mother', args=[self.calc.pk]),
+                                 {'first_name': 'Mother', 'last_name': 'Family'}, secure=True)
+        self.assertEqual(retry.status_code, 302)
+        self.assertTrue(Mother.objects.filter(calc=self.calc).exists())
+
+
 class CalculationWriteViewTests(TestCase):
     def setUp(self):
         self.calc, self.heirs = build_case('M', [Son])
@@ -3166,7 +3296,7 @@ class CalculationWriteViewTests(TestCase):
             self.assertEqual(response.status_code, 302)
             lock.assert_called_once_with(self.calc.pk)
         self.assertTrue(Mother.objects.filter(calc=self.calc, first_name='Mother').exists())
-        self.calc.compute()
+        self.calc.legacy_compute()
         before = stored(self.heirs[0])
         with mock.patch('calc.views.lock_calculation', wraps=views.lock_calculation) as lock:
             response = self.client.post(reverse('calc:heir_update', args=[before.pk]),
@@ -3343,9 +3473,9 @@ class ManasikhatTests(TestCase):
 
     def test_plain_compute_and_jafari(self):
         root, _, (second, third) = self.fixture(True)
-        for call, reason in [(lambda: root.compute(), schools.MANASIKHAT_UNSUPPORTED),
-                             (lambda: second.compute(), schools.MANASIKHAT_UNSUPPORTED),
-                             (lambda: third.compute(), schools.MANASIKHAT_UNSUPPORTED),
+        for call, reason in [(lambda: root.legacy_compute(), schools.MANASIKHAT_UNSUPPORTED),
+                             (lambda: second.legacy_compute(), schools.MANASIKHAT_UNSUPPORTED),
+                             (lambda: third.legacy_compute(), schools.MANASIKHAT_UNSUPPORTED),
                              (lambda: self.run_layered(root, schools.JAFARI), schools.SCHOOL_NOT_SUPPORTED)]:
             with self.assertRaises(schools.UnsupportedCase) as error:
                 call()

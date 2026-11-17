@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "locale": "en",
   "direction": "ltr",
   "basis": {
@@ -246,5 +246,68 @@
       "code": "disclaimer",
       "text": "Mawareeth is a calculation aid, not a fatwa or legal advice."
     }
-  ]
+  ],
+  "table": {
+    "columns": [
+      {
+        "code": "base",
+        "label": "Shares",
+        "total": {
+          "value": 3,
+          "text": "3",
+          "dir": "ltr"
+        }
+      }
+    ],
+    "rows": [
+      {
+        "heir": "h0",
+        "blocked": false,
+        "group_span": 3,
+        "prescribed": null,
+        "cells": [
+          {
+            "value": {
+              "value": 1,
+              "text": "1",
+              "dir": "ltr"
+            },
+            "span": 1
+          }
+        ]
+      },
+      {
+        "heir": "h1",
+        "blocked": false,
+        "group_span": 0,
+        "prescribed": null,
+        "cells": [
+          {
+            "value": {
+              "value": 1,
+              "text": "1",
+              "dir": "ltr"
+            },
+            "span": 1
+          }
+        ]
+      },
+      {
+        "heir": "h2",
+        "blocked": false,
+        "group_span": 0,
+        "prescribed": null,
+        "cells": [
+          {
+            "value": {
+              "value": 1,
+              "text": "1",
+              "dir": "ltr"
+            },
+            "span": 1
+          }
+        ]
+      }
+    ]
+  }
 }

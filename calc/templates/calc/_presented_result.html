@@ -1,0 +1,65 @@
+{% load i18n %}
+<table class="table table-bordered table-hover table-sm table-light" cellpadding="4" cellspacing="4" {% if LANGUAGE_BIDI %} dir="rtl" {% endif %}>
+  <thead class="thead-light">
+    <tr>
+      <th scope="col">{% trans "Name" %}</th>
+      <th scope="col">{% trans "Quote" %}</th>
+      <th scope="col">{% trans "Percentage" %}</th>
+      <th scope="col">{% trans "Relation" %}</th>
+      <th scope="col">{% trans "Amount" %}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr{% if row.reason %} title="{{ row.reason }}"{% endif %}>
+      <td>{% if row.name %}<span dir="{{ row.name.dir }}">{{ row.name.text }}</span>{% endif %}</td>
+      <td>{% if row.blocked %}{% trans "blocked" %}{% else %}<span dir="{{ row.share.dir }}">{{ row.share.text }}</span>{% endif %}</td>
+      <td><span dir="{{ row.percent.dir }}">{{ row.percent.text }}</span></td>
+      <td>
+        <span lang="{{ row.relationship.translated.lang }}" dir="{{ row.relationship.translated.dir }}">{{ row.relationship.translated.text }}</span>
+        {% if row.relationship.original.text != row.relationship.translated.text %}<span lang="{{ row.relationship.original.lang }}" dir="{{ row.relationship.original.dir }}">({{ row.relationship.original.text }})</span>{% endif %}
+      </td>
+      <td>{% if row.amount %}<span dir="{{ row.amount.dir }}">{{ row.amount.text }}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    {% if presented.unallocated %}
+    <tr>
+      <td>{% trans "Unallocated remainder" %}</td>
+      <td><span dir="{{ presented.unallocated.dir }}">{{ presented.unallocated.text }}</span></td>
+      <td></td>
+      <td></td>
+      <td>{% if presented.unallocated.amount %}<span dir="{{ presented.unallocated.amount.dir }}">{{ presented.unallocated.amount.text }}</span>{% endif %}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+<p>{% for notice in presented.notices %}{% if notice.text %}<small class="text-muted">{{ notice.text }}</small> {% endif %}{% endfor %}</p>
+{% if table %}
+<table class="table table-bordered table-sm table-light" cellpadding="4" cellspacing="4" {% if LANGUAGE_BIDI %} dir="rtl" {% endif %}>
+  <thead class="thead-light">
+    <tr>
+      <th scope="col" rowspan="2">{% trans "Name" %}</th>
+      <th scope="col" rowspan="2">{% trans "Quote" %}</th>
+      {% for column in table.columns %}<th scope="col">{{ column.label }}</th>{% endfor %}
+    </tr>
+    <tr>
+      {% for column in table.columns %}<th scope="col"><span dir="{{ column.total.dir }}">{{ column.total.text }}</span></th>{% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in table.rows %}
+    <tr>
+      <td>{% if row.person.name %}<span dir="{{ row.person.name.dir }}">{{ row.person.name.text }}</span>{% else %}<span lang="{{ row.person.relationship.translated.lang }}" dir="{{ row.person.relationship.translated.dir }}">{{ row.person.relationship.translated.text }}</span>{% endif %}</td>
+      {% if row.group_span %}
+      <td{% if row.group_span > 1 %} rowspan="{{ row.group_span }}" class="align-middle"{% endif %}>{% if row.prescribed %}<span dir="{{ row.prescribed.dir }}">{{ row.prescribed.text }}</span>{% endif %}</td>
+      {% endif %}
+      {% for cell in row.cells %}
+      {% if cell.span %}
+      <td{% if cell.span > 1 %} rowspan="{{ cell.span }}" class="align-middle"{% endif %}>{% if cell.value %}<span dir="{{ cell.value.dir }}">{{ cell.value.text }}</span>{% endif %}</td>
+      {% endif %}
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

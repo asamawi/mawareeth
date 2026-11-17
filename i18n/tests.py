@@ -16,6 +16,21 @@ from reports.report import build_context
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def presented_hanafi(lang):
+    """A presented answer with no heirs' rows to speak of: only the School line, which the report shows."""
+    from engine.contracts import dump_presented_result
+    from engine.tests.test_core import family
+    import presentation
+    resolved = codes_resolve({'kind': 'school', 'school': 'hanafi'})
+    return dump_presented_result(presentation.present(
+        presentation.outcome(family(['son']), resolved), resolved, lang, None))
+
+
+def codes_resolve(basis):
+    from engine.contracts import resolve_basis
+    return resolve_basis(basis, {})
+
+
 def required_keys():
     keys = [f'relationship.{c}' for c in codes.RELATIONSHIPS]
     keys += [f'school.{c}' for c in codes.SCHOOLS] + [f'school.{c}.description' for c in codes.SCHOOLS]
@@ -25,6 +40,7 @@ def required_keys():
                              ('option', codes.PROOF_OPTIONS), ('step', codes.PROOF_STEPS)):
         keys += [f'proof.{kind}.{c}' for c in vocabulary]
     keys += ['proof.verse.quran_4_11', 'proof.verse.quran_4_12', 'proof.verse.quran_4_176']
+    keys += [f'table.column.{c}' for c in ('base', 'awl', 'radd', 'remainder', 'radd_calc', 'radd_union', 'correction')]
     return keys + ['notice.disclaimer', 'comparison.same_in_all_schools']
 
 
@@ -82,9 +98,10 @@ class ConsumerTests(SimpleTestCase):
 
     def test_report_direction_and_font_come_from_the_registry(self):
         case = {'deceased': {'gender': 'male'}, 'heirs': [], 'madhab': 'hanafi'}
-        body = {'shares': [], 'madhab': 'hanafi', 'basis': {'estate': None}, 'unallocated': None}
+        body = {'basis': {'estate': None}}
         for lang in i18n.published_codes():
             with translation.override(lang):
+                body['presented'] = presented_hanafi(lang)
                 context = build_context(case, body)
             config = i18n.locale_config(lang)
             self.assertEqual(context['direction'], config['direction'])

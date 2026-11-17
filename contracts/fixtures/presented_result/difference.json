@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "locale": "en",
   "direction": "ltr",
   "basis": {
@@ -154,5 +154,6 @@
       "code": "disclaimer",
       "text": "Mawareeth is a calculation aid, not a fatwa or legal advice."
     }
-  ]
+  ],
+  "table": null
 }

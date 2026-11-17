@@ -3,13 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { downloadDraftReport, fetchCase, fetchPreview, setMadhab, type Case, type DraftReportResult, type PreviewProofStep, type PreviewResult, type SunniId } from "@/api/case";
+import { downloadDraftReport, fetchCase, fetchPreview, setMadhab, type Case, type DraftReportResult, type PreviewResult, type SunniId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
-import { formatEstate } from "@/interview/answers";
-import { localFraction, localKirat, localPercent } from "@/interview/format";
 import { breadcrumb, layersOf, rowLabels } from "@/interview/layers";
 import { previewKey, previewReady, reconcile } from "@/interview/preview";
-import { hasTable, tableView } from "@/interview/table";
+import { evidenceNotes, relationsOf, tableOf, tableView } from "@/interview/table";
 import {
   isLayeredPreview,
   presentationOf,
@@ -23,6 +21,7 @@ import {
 import { FamilyTree } from "../interview/family-tree";
 import { crumbTextOf } from "../interview/death-breadcrumb";
 import { buttonClass } from "../interview/form-bits";
+import { RelationshipText } from "../interview/relationship-text";
 import { SchoolChoice } from "../interview/school-choice";
 import { AuthGate } from "./auth-gate";
 import { InheritanceTable, ProofList } from "./inheritance-table";
@@ -129,7 +128,6 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
       <ChooseSchool
         key={kase.id}
         messages={messages}
-        locale={locale}
         kase={kase}
         preview={state.preview}
         back={back}
@@ -155,14 +153,12 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
 /** The schools differ for this family and none is chosen: the visitor chooses, and then sees the results. */
 function ChooseSchool({
   messages,
-  locale,
   kase,
   preview,
   back,
   onChosen,
 }: {
   messages: Messages;
-  locale: string;
   kase: Case;
   preview: ChoosePreview;
   back: React.ReactNode;
@@ -200,7 +196,6 @@ function ChooseSchool({
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
       <SchoolChoice
         messages={interview}
-        locale={locale}
         preview={preview}
         labels={labels}
         disabled={saving}
@@ -246,18 +241,24 @@ export function Available({
     [kase, interview.relationships, interview.heirNumbered],
   );
   const layers = layersOf(kase);
-  const school = preview.madhab ? interview.madhabs[preview.madhab].name : null;
-  const proof = preview.proof?.version === 1 ? preview.proof : null;
-  const table = hasTable(preview) ? tableView(preview.table, preview) : null;
-  const proofs = useMemo(() => Object.fromEntries((preview.proof?.version === 1 ? preview.proof.heirs : []).map((entry) => [entry.heir, entry])), [preview]);
-  const relations = useMemo(
-    () => Object.fromEntries((preview.proof?.version === 1 ? preview.proof.heirs : []).map((entry) => [entry.heir, entry.relationship])),
-    [preview],
-  );
+  const presented = preview.presented;
+  const schoolLine = presented?.school_line ?? null;
+  // A single estate shows the calculation steps; the evidence lists one entry per death otherwise.
+  const single = presented !== undefined && presented.evidence.length === 1 ? presented.evidence[0] : null;
+  const data = tableOf(preview);
+  const table = data ? tableView(data, preview) : null;
+  const proofs = useMemo(() => Object.fromEntries(Object.entries(evidenceNotes(preview)).map(([id, notes]) => [id, notes[0].proof])), [preview]);
+  const relations = useMemo(() => relationsOf(kase), [kase]);
+  const segments = useMemo(() => Object.fromEntries(entries.map((entry) => [entry.row.heirId, entry.row.relationship])), [entries]);
+  const stepTexts = useMemo(() => {
+    const totals = new Map(data && !("layers" in data) ? data.columns.map((column) => [column.code, column.total.text] as const) : []);
+    // A shortage with a spouse is stated as the union of its two calculations.
+    return (step: string) => (step === "unallocated" ? presented?.unallocated?.text : totals.get(step === "radd" && totals.has("radd_union") ? "radd_union" : step)) ?? null;
+  }, [data, presented]);
 
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
-      <p>{school === null ? interview.schoolsAgree : text.school.split("{school}").join(school)}</p>
+      <p>{schoolLine?.code === "school" ? text.school.split("{school}").join(schoolLine.text) : schoolLine?.text}</p>
       {gate && <AuthGate key={`${kase.id}:${kase.madhab ?? ""}`} caseId={kase.id} locale={locale} text={text} share={messages.share} onSchoolRequired={onSchoolRequired} />}
       <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} download={download} />
 
@@ -270,10 +271,10 @@ export function Available({
           <InheritanceTable
             text={text}
             relationships={interview.relationships}
-            locale={locale}
             view={table}
             labels={labels}
             relations={relations}
+            segments={segments}
             proofs={proofs}
           />
         ) : (
@@ -282,7 +283,6 @@ export function Available({
               <HeirCard
                 key={entry.row.heirId}
                 messages={messages}
-                locale={locale}
                 entry={entry}
                 label={labels[entry.row.heirId] ?? entry.row.heirId}
               />
@@ -291,30 +291,30 @@ export function Available({
         )}
         {unallocated && (
           <p>
-            {interview.previewUnallocated}: <bdi dir="ltr">{localFraction(unallocated.fraction, locale)}</bdi>{" "}
-            (<bdi dir="ltr">{localPercent(unallocated.percent, locale)}</bdi>)
+            {interview.previewUnallocated}: <bdi dir="ltr">{unallocated.fraction}</bdi>
+            {unallocated.amount !== null && <>{" "}(<bdi dir="auto">{unallocated.amount}</bdi>)</>}
           </p>
         )}
       </section>
 
-      {proof && (
+      {single && (
         <section aria-labelledby="results-steps" className="flex flex-col gap-3">
           <h2 id="results-steps" className="text-xl font-semibold">
             {text.stepsHeading}
           </h2>
           <ol className="flex list-decimal flex-col gap-1 ps-6">
-            {proof.steps.map((step) => (
+            {single.steps.map((step) => (
               <li key={step.step}>
-                {step.label}: <StepValue value={step.value} locale={locale} />
+                {step.text}: {stepTexts(step.step) !== null && <bdi dir="ltr">{stepTexts(step.step)}</bdi>}
               </li>
             ))}
           </ol>
-          {proof.school_rule_labels.length > 0 && (
+          {single.school_rules.length > 0 && (
             <>
               <h3 className="text-lg font-semibold">{text.schoolRulesHeading}</h3>
               <ul className="flex list-disc flex-col gap-1 ps-6">
-                {proof.school_rule_labels.map((label, index) => (
-                  <li key={proof.school_rules[index]}>{label}</li>
+                {single.school_rules.map((rule) => (
+                  <li key={rule.code}>{rule.text}</li>
                 ))}
               </ul>
             </>
@@ -346,22 +346,12 @@ export function Available({
   );
 }
 
-function StepValue({ value, locale }: { value: PreviewProofStep["value"]; locale: string }) {
-  const shown =
-    typeof value === "number"
-      ? new Intl.NumberFormat(locale, { useGrouping: false }).format(value)
-      : localFraction(`${value.numerator}/${value.denominator}`, locale);
-  return <bdi dir="ltr">{shown}</bdi>;
-}
-
 function HeirCard({
   messages,
-  locale,
   entry,
   label,
 }: {
   messages: Messages;
-  locale: string;
   entry: ResultEntry;
   label: string;
 }) {
@@ -375,26 +365,28 @@ function HeirCard({
     <li className="flex flex-col gap-2 rounded-md border border-current/60 p-3">
       <strong>
         <bdi>{label}</bdi>
+        {" "}
+        <small className="font-normal"><RelationshipText relationship={row.relationship} /></small>
       </strong>
       {hasShare ? (
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
           <dt>{text.share}</dt>
           <dd>
-            <bdi dir="ltr">{localFraction(row.fraction ?? "", locale)}</bdi>
+            <bdi dir="ltr">{row.fraction}</bdi>
           </dd>
           <dt>{text.percent}</dt>
           <dd>
-            <bdi dir="ltr">{localPercent(row.percent ?? "0", locale)}</bdi>
+            <bdi dir="ltr">{row.percent}</bdi>
           </dd>
           <dt>{text.kirat}</dt>
           <dd>
-            <bdi dir="ltr">{localKirat(row.kirat ?? "0", locale)}</bdi>
+            <bdi dir="ltr">{row.kirat}</bdi>
           </dd>
           {row.amount !== null && (
             <>
               <dt>{text.amount}</dt>
               <dd>
-                <bdi dir="ltr">{formatEstate(row.amount, locale)}</bdi>
+                <bdi dir="auto">{row.amount}</bdi>
               </dd>
             </>
           )}
@@ -420,7 +412,7 @@ function HeirCard({
             </button>
           </div>
           <div id={panelId} hidden={!open}>
-            <ProofList text={text} proof={proof} locale={locale} />
+            <ProofList text={text} proof={proof} />
           </div>
         </>
       )}

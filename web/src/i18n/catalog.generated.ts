@@ -154,7 +154,14 @@ export type TermKey =
   | "school.maliki"
   | "school.maliki.description"
   | "school.shafii"
-  | "school.shafii.description";
+  | "school.shafii.description"
+  | "table.column.awl"
+  | "table.column.base"
+  | "table.column.correction"
+  | "table.column.radd"
+  | "table.column.radd_calc"
+  | "table.column.radd_union"
+  | "table.column.remainder";
 
 export const terms: Record<Locale, Record<TermKey, string>> = {
   "ar": {
@@ -263,6 +270,13 @@ export const terms: Record<Locale, Record<TermKey, string>> = {
     "school.maliki.description": "مذهب سني ينتسب إلى الإمام مالك بن أنس",
     "school.shafii": "الشافعي",
     "school.shafii.description": "مذهب سني ينتسب إلى الإمام الشافعي",
+    "table.column.awl": "العول",
+    "table.column.base": "السهام",
+    "table.column.correction": "التصحيح",
+    "table.column.radd": "الرد",
+    "table.column.radd_calc": "مسالة الرد",
+    "table.column.radd_union": "الجامعة",
+    "table.column.remainder": "الباقي تعصيبًا",
   },
   "en": {
     "basis.compare": "Compare the four Sunni schools",
@@ -370,6 +384,13 @@ export const terms: Record<Locale, Record<TermKey, string>> = {
     "school.maliki.description": "Sunni school named after Imam Malik ibn Anas",
     "school.shafii": "Shafi'i",
     "school.shafii.description": "Sunni school named after Imam al-Shafi'i",
+    "table.column.awl": "Excess",
+    "table.column.base": "Shares",
+    "table.column.correction": "Correction",
+    "table.column.radd": "Shortage",
+    "table.column.radd_calc": "Shortage calc",
+    "table.column.radd_union": "Calc Union",
+    "table.column.remainder": "Remainder",
   },
   "fr": {
     "basis.compare": "Comparer les quatre écoles sunnites",
@@ -477,6 +498,13 @@ export const terms: Record<Locale, Record<TermKey, string>> = {
     "school.maliki.description": "École sunnite nommée d'après l'imam Malik ibn Anas",
     "school.shafii": "Chaféite",
     "school.shafii.description": "École sunnite nommée d'après l'imam al-Shafi'i",
+    "table.column.awl": "Excès",
+    "table.column.base": "Parts",
+    "table.column.correction": "Correction",
+    "table.column.radd": "Pénurie",
+    "table.column.radd_calc": "Pénurie calc",
+    "table.column.radd_union": "Calc Union",
+    "table.column.remainder": "Reste",
   },
 };
 
@@ -586,4 +614,11 @@ export const termPlaceholders: Record<TermKey, Record<string, string>> = {
   "school.maliki.description": {},
   "school.shafii": {},
   "school.shafii.description": {},
+  "table.column.awl": {},
+  "table.column.base": {},
+  "table.column.correction": {},
+  "table.column.radd": {},
+  "table.column.radd_calc": {},
+  "table.column.radd_union": {},
+  "table.column.remainder": {},
 };

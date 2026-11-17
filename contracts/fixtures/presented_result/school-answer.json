@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "locale": "fr",
   "direction": "ltr",
   "basis": {
@@ -146,5 +146,43 @@
       "code": "disclaimer",
       "text": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique."
     }
-  ]
+  ],
+  "table": {
+    "columns": [
+      {
+        "code": "base",
+        "label": "Parts",
+        "total": {
+          "value": 4,
+          "text": "4",
+          "dir": "ltr"
+        }
+      }
+    ],
+    "rows": [
+      {
+        "heir": "h0",
+        "blocked": false,
+        "group_span": 1,
+        "prescribed": {
+          "value": {
+            "numerator": 1,
+            "denominator": 4
+          },
+          "text": "1/4",
+          "dir": "ltr"
+        },
+        "cells": [
+          {
+            "value": {
+              "value": 1,
+              "text": "1",
+              "dir": "ltr"
+            },
+            "span": 1
+          }
+        ]
+      }
+    ]
+  }
 }

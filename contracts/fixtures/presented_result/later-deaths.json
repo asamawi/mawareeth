@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "locale": "fr",
   "direction": "ltr",
   "basis": {
@@ -263,5 +263,251 @@
       "code": "disclaimer",
       "text": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique."
     }
-  ]
+  ],
+  "table": {
+    "layers": [
+      {
+        "order": 1,
+        "heir": null,
+        "table": {
+          "columns": [
+            {
+              "code": "base",
+              "label": "Parts",
+              "total": {
+                "value": 8,
+                "text": "8",
+                "dir": "ltr"
+              }
+            }
+          ],
+          "rows": [
+            {
+              "heir": "h1",
+              "blocked": false,
+              "group_span": 1,
+              "prescribed": {
+                "value": {
+                  "numerator": 1,
+                  "denominator": 8
+                },
+                "text": "1/8",
+                "dir": "ltr"
+              },
+              "cells": [
+                {
+                  "value": {
+                    "value": 1,
+                    "text": "1",
+                    "dir": "ltr"
+                  },
+                  "span": 1
+                }
+              ]
+            },
+            {
+              "heir": "h0",
+              "blocked": false,
+              "group_span": 1,
+              "prescribed": null,
+              "cells": [
+                {
+                  "value": {
+                    "value": 7,
+                    "text": "7",
+                    "dir": "ltr"
+                  },
+                  "span": 1
+                }
+              ]
+            }
+          ]
+        },
+        "p": null,
+        "base": {
+          "value": 8,
+          "text": "8",
+          "dir": "ltr"
+        },
+        "gcd": null,
+        "old_multiplier": {
+          "value": 1,
+          "text": "1",
+          "dir": "ltr"
+        },
+        "new_multiplier": {
+          "value": 1,
+          "text": "1",
+          "dir": "ltr"
+        },
+        "relation": null,
+        "jamia": {
+          "value": 8,
+          "text": "8",
+          "dir": "ltr"
+        },
+        "parts": [
+          {
+            "heir": "h0",
+            "value": {
+              "value": 7,
+              "text": "7",
+              "dir": "ltr"
+            }
+          },
+          {
+            "heir": "h1",
+            "value": {
+              "value": 1,
+              "text": "1",
+              "dir": "ltr"
+            }
+          },
+          {
+            "heir": "h2",
+            "value": {
+              "value": 0,
+              "text": "0",
+              "dir": "ltr"
+            }
+          }
+        ],
+        "unallocated": {
+          "value": 0,
+          "text": "0",
+          "dir": "ltr"
+        },
+        "unallocated_cells": [
+          {
+            "value": 0,
+            "text": "0",
+            "dir": "ltr"
+          }
+        ]
+      },
+      {
+        "order": 2,
+        "heir": "h0",
+        "table": {
+          "columns": [
+            {
+              "code": "base",
+              "label": "Parts",
+              "total": {
+                "value": 4,
+                "text": "4",
+                "dir": "ltr"
+              }
+            }
+          ],
+          "rows": [
+            {
+              "heir": "h2",
+              "blocked": false,
+              "group_span": 1,
+              "prescribed": {
+                "value": {
+                  "numerator": 1,
+                  "denominator": 4
+                },
+                "text": "1/4",
+                "dir": "ltr"
+              },
+              "cells": [
+                {
+                  "value": {
+                    "value": 1,
+                    "text": "1",
+                    "dir": "ltr"
+                  },
+                  "span": 1
+                }
+              ]
+            }
+          ]
+        },
+        "p": {
+          "value": 7,
+          "text": "7",
+          "dir": "ltr"
+        },
+        "base": {
+          "value": 4,
+          "text": "4",
+          "dir": "ltr"
+        },
+        "gcd": {
+          "value": 1,
+          "text": "1",
+          "dir": "ltr"
+        },
+        "old_multiplier": {
+          "value": 4,
+          "text": "4",
+          "dir": "ltr"
+        },
+        "new_multiplier": {
+          "value": 7,
+          "text": "7",
+          "dir": "ltr"
+        },
+        "relation": "tabayun",
+        "jamia": {
+          "value": 32,
+          "text": "32",
+          "dir": "ltr"
+        },
+        "parts": [
+          {
+            "heir": "h0",
+            "value": {
+              "value": 0,
+              "text": "0",
+              "dir": "ltr"
+            }
+          },
+          {
+            "heir": "h1",
+            "value": {
+              "value": 4,
+              "text": "4",
+              "dir": "ltr"
+            }
+          },
+          {
+            "heir": "h2",
+            "value": {
+              "value": 7,
+              "text": "7",
+              "dir": "ltr"
+            }
+          }
+        ],
+        "unallocated": {
+          "value": 21,
+          "text": "21",
+          "dir": "ltr"
+        },
+        "unallocated_cells": [
+          {
+            "value": 3,
+            "text": "3",
+            "dir": "ltr"
+          }
+        ]
+      }
+    ],
+    "rows": [
+      {
+        "heir": "h0"
+      },
+      {
+        "heir": "h1"
+      },
+      {
+        "heir": "h2"
+      }
+    ],
+    "unallocated": true
+  }
 }

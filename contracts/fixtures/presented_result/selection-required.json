@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "locale": "ar",
   "direction": "rtl",
   "basis": {
@@ -154,5 +154,6 @@
       "code": "disclaimer",
       "text": "مواريث أداة مساعدة على الحساب وليست فتوى ولا استشارة قانونية."
     }
-  ]
+  ],
+  "table": null
 }

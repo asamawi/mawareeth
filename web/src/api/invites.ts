@@ -1,4 +1,4 @@
-import { write, parseCase, parsePreview, CASE_TIMEOUT_MS, type Case, type Preview, type DraftReportResult, type WriteOptions } from "./case.ts";
+import { write, parseCase, parseServedPreview, CASE_TIMEOUT_MS, type Case, type Preview, type DraftReportResult, type WriteOptions } from "./case.ts";
 
 export type Invite = { id: number; email: string; status: "pending" | "accepted" | "expired"; expires_at: string; created_at?: string; accepted_by?: string | null };
 export type Received = { id: number; owner: string; updated_at: string; expires_at: string };
@@ -78,7 +78,7 @@ export async function viewReceived(signal: AbortSignal, id: number, locale: stri
     if (error) return error;
     const body = await response.json();
     const kase = parseCase(body);
-    const preview = parsePreview(body.preview);
+    const preview = parseServedPreview(body.preview);
     return kase && preview && typeof body.status === "string" && typeof body.owner === "string" ? { kind: "view", view: { status: body.status, owner: body.owner, kase, preview } } : { kind: "failed" };
   })) ?? { kind: "failed" };
 }

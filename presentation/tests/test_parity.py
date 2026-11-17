@@ -152,7 +152,7 @@ class SingleEstateParity(PresentedParity):
             legacy = {}
             for school in ALL_SCHOOLS:
                 try:
-                    exact = calc.compute(madhab=school)
+                    exact = calc.legacy_compute(madhab=school)
                 except schools.UnsupportedCase as refusal:
                     legacy[school] = ('refused', refusal.reason)
                     continue

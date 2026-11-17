@@ -371,3 +371,41 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
   summary: Display changes the consumers will show once they render PresentedResult strings (AD-19). The full labelled table is `presentation/tests/fixtures/display-changes.json`.
   evidence: Amounts gain a currency in Babel's form (en "$125.00", fr "125,00 €", ar "‏125.00 ر.س.‏" with CLDR's own right-to-left marks around it) where preview showed a bare "125.00". fr percent gains the CLDR no-break space ("12,5 %", was "12.5%" in the PDF). Percent and kirat keep the PDF's half-up rounding. The Arabic amount text contains U+200F from CLDR itself; presentation injects no control characters. A family with no heirs yet raises `PresentationError("no_heirs")`: the legacy preview is "not ready" there. A person blocked in the first estate but who inherits from a later death has `blocked: true` (kind `blocked`), where the legacy layered preview flagged only a zero final share.
+
+## Existing consumers switched after full parity (Story 8.7)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: Native and fiqh review of the seven new column catalog keys (all three Locales, `review: pending`). Copied byte for byte from the existing `.po` msgstr of the legacy table captions; nothing was reworded.
+  evidence: `table.column.base` = "Shares", `awl` = "Excess", `radd` = "Shortage", `remainder` = "Remainder", `radd_calc` = "Shortage calc", `radd_union` = "Calc Union", `correction` = "Correction" (ar "السهام", "العول", "الرد", "الباقي تعصيبًا", "مسالة الرد", "الجامعة", "التصحيح"; fr "Parts", "Excès", "Pénurie", "Reste", "Pénurie calc", "Calc Union", "Correction"). The legacy gettext captions in `api/preview._column_labels` stay for the legacy `table` field until it is removed.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: The legacy Django results pages (`ResultsView`, `NewResultsView`) now look the way PresentedResult draws them: one table of presented rows (name, quote, percentage, relationship with its Arabic original, amount), an unallocated row and the scholars' table, instead of the per-class ORM column layout with its rowspan and JS cell merging. Product and visual review needed; Epic 12 decides whether the pages are retired.
+  evidence: `calc/templates/calc/_presented_result.html` is shared by both pages. Later deaths are still refused on these pages (the existing `manasikhat_unsupported` page). The pages render `percentage` and `blocked` with the existing msgids; `Unallocated remainder` is reused for the unallocated row.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: Still awaiting removal: `Calculation.legacy_compute` and `calc.manasikhat.compute_manasikhat` (parity reference only, Epic 12), the ORM derived columns, the legacy preview fields (`shares`, `unallocated`, `proof`, `table`, `schools`, `rules` beside `presented`; next release, once no cached bundle needs them), and the test-only `calc/legacy_preview_reference.py`.
+  evidence: No production path calls `legacy_compute` or the reference preview. `legacy_compute` still takes an unbounded `select_for_update` (it is no longer reachable from a request). `calc/test_switch_gate.py` compares the switched consumers with all of them.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: Amounts now carry a currency symbol everywhere they are rendered from `presented` (the legacy session estate is SAR explicit): en "SAR1,000.00", ar "‏1,000.00 ر.س.‏". The PDF, the web and the legacy pages show it; the legacy preview `amount` field is unchanged ("1000.00").
+  evidence: Owner decision 2026-11-16 for phase-1 bare decimals. The PDF "Estate" line and the web `formatEstate` still echo the typed estate.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: `formatEstate` in `web/src/interview/answers.ts` formats the visitor's typed estate (an input, not a result) with `Intl` and is left as it is.
+  evidence: The acceptance grep for `Intl.NumberFormat` is over the result renderers; `answers.ts` is the only remaining use.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: Small display differences of the switch for review: the web shows the unallocated share with its amount only (the percent beside it is not in PresentedResult); the "Death n" caption, the table's `span`, `group_span` and `order` stay plain integers (structural, not formatted leaves); the PDF's new Rounding line uses the untranslated msgid `Rounding` in ar and fr until a translator adds it (no gettext tools on the development host); a blocked heir's empty scholars'-table cell is empty in the PDF, where it printed "None".
+  evidence: v3 formats every numeric leaf of the table (`{value, text, dir}`) except those structural counts. The web proof panels take a fixed share's fraction from the table's own prescribed text. The step values on the Full results page are the table's column totals (`radd` reads the union column when there is one).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: A preview or results response from this release carries `presented` (v3). A web bundle from the release before parses the body without it; a bundle from this release treats an answer without a valid `presented` as a failed preview. `invalid_family` was added to `UnsupportedCase.message` so a core refusal of an impossible family has a sentence on the legacy pages.
+  evidence: The additive field is why the legacy fields stay for one release. A spouse of the deceased's own sex alone is still refused by the preview's consumer guard (the Family holds no gender for its root), through `presentation.refused_outcome`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: Two new gettext msgids have no ar or fr translation yet and show in English there. One is "The case is busy. Try again.", the retryable 503 body of a legacy write whose case lock wait passes 500 ms. The other is "Rounding", the PDF rounding line. Both need native translation and review.
+  evidence: Neither msgid is in `locale/{ar,fr}/LC_MESSAGES/django.po`. The other captions the legacy pages use already have translations: Name, Quote, Percentage, Relation, Amount, Unallocated remainder and blocked.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: The copied column captions need a terminology review before they leave `pending`.
+  evidence: The ar `table.column.radd_calc` "مسالة الرد" is missing its hamza ("مسألة"). en "Excess"/"Shortage" for awl/radd are not the usual fiqh terms. fr "Pénurie" for radd and the English "Calc Union" / "Shortage calc" in fr need a translator. These are the legacy `.po` texts, copied unchanged per the no-rewording rule.

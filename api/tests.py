@@ -1257,6 +1257,25 @@ class InterviewReviewTests(InterviewBase):
 
 
 PREVIEW_URL = '/api/v1/case/preview/'
+
+
+def calc_sequences():
+    """Where each calculation table's id sequence stands: a preview must not advance any of them."""
+    found = []
+    with connection.cursor() as cursor:
+        for table in ('calc_calculation', 'calc_person', 'calc_marriage'):
+            cursor.execute('SELECT pg_get_serial_sequence(%s, %s)', [table, 'id'])
+            name = cursor.fetchone()[0]
+            cursor.execute(f'SELECT last_value, is_called FROM {name}')
+            found.append(cursor.fetchone())
+    return found
+
+
+def legacy_fields(body):
+    """A preview body without `presented`: the additive PresentedResult beside the unchanged legacy fields."""
+    return {k: v for k, v in body.items() if k != 'presented'}
+
+
 PREVIEW_FIXTURES = json.loads(
     (Path(__file__).parent / 'contracts' / 'preview-fixtures.json').read_text(encoding='utf-8'))['fixtures']
 
@@ -1292,7 +1311,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
 
     def rows(self):
         from calc.models import Calculation, Marriage, Person
-        return (Calculation.objects.count(), Person.objects.count(), Marriage.objects.count())
+        return (Calculation.objects.count(), Person.objects.count(), Marriage.objects.count(), calc_sequences())
 
     def test_route_is_versioned(self):
         self.assertEqual(reverse('api:case-preview'), PREVIEW_URL)
@@ -1310,7 +1329,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                 if case.get('deaths'):
                     live = self.start()
                     self.plant(**{k: v for k, v in case.items() if k not in ('id', 'started_at')})
-                    self.assertEqual(self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json(),
+                    self.assertEqual(legacy_fields(self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()),
                                      fixture['response'])
                     continue
                 live = self.build(
@@ -1335,7 +1354,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                         for item in node:
                             with_real_ids(item)
                 with_real_ids(expected)
-                self.assertEqual(response.json(), expected)
+                self.assertEqual(legacy_fields(response.json()), expected)
                 # And the numbers are the engine's own, run directly on a persisted case.
                 if expected['status'] == 'available':
                     # A null school is the Hanbali body, which every school agreed with.
@@ -1343,7 +1362,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                     types = [HEIR_CLASSES[heir['relationship']] for heir in case['heirs']]
                     sex = 'M' if case['deceased']['gender'] == 'male' else 'F'
                     calc, heirs = build_case(sex, types, estate=1)
-                    final = calc.compute(madhab=madhab)
+                    final = calc.legacy_compute(madhab=madhab)
                     self.assertEqual(
                         [{k: v for k, v in e.items() if k not in ('heir', 'labels')} for e in expected['proof']['heirs']],
                         [{k: v for k, v in e.items() if k != 'heir'} for e in calc.proof['heirs']])
@@ -1373,7 +1392,71 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         from api import preview
         for fixture in PREVIEW_FIXTURES:
             with self.subTest(fixture['title']), translation.override('en'):
-                self.assertEqual(preview.preview(fixture['case']), fixture['response'])
+                self.assertEqual(legacy_fields(preview.preview(fixture['case'])), fixture['response'])
+
+    def test_presented_fixtures_are_the_bridge_output(self):
+        """The web's PresentedResult fixtures are this bridge's own English output, never hand-edited."""
+        from django.utils import translation
+        from api import preview
+        stored = json.loads((Path(__file__).parent / 'contracts' / 'preview-presented-fixtures.json')
+                            .read_text(encoding='utf-8'))
+        made, chosen = {}, {}
+        for fixture in PREVIEW_FIXTURES:
+            with translation.override('en'):
+                body = preview.preview(fixture['case'])
+                if body['status'] == 'choose_school':
+                    # What each school's own preview presents once the visitor chooses it (the e2e flow).
+                    chosen[fixture['title']] = {school: preview.preview({**fixture['case'], 'madhab': school})['presented']
+                                                for school in body['schools']}
+            if body['status'] != 'not_ready':
+                made[fixture['title']] = body['presented']
+        self.assertEqual(stored['presented'], made)
+        self.assertEqual(stored['chosen'], chosen)
+
+    def test_presented_states_follow_the_legacy_status(self):
+        from decimal import Decimal
+        from django.utils import translation
+        from engine.contracts import parse_presented_result
+        from api import preview
+        states = {'available': 'answer', 'unavailable': 'refused', 'choose_school': 'selection_required'}
+        seen = set()
+        for fixture in PREVIEW_FIXTURES:
+            with self.subTest(fixture['title']), translation.override('en'):
+                body = preview.preview(fixture['case'])
+                if body['status'] == 'not_ready':
+                    self.assertEqual(body, {'status': 'not_ready'})
+                    continue
+                presented = body['presented']
+                parse_presented_result(presented)
+                self.assertEqual(presented['version'], 3)
+                self.assertEqual(presented['state'], states[body['status']])
+                seen.add(presented['state'])
+                if body['status'] == 'available':
+                    code = 'same_in_all_schools' if body.get('agreement') == 'all' else 'school'
+                    self.assertEqual(presented['school_line']['code'], code)
+                    # the legacy amount is the presented amount scaled to two decimals
+                    amounts = {row['person']: row['amount'] for row in presented['rows']}
+                    for share in body['shares']:
+                        minor = amounts[share['heir_id']]
+                        self.assertEqual(share['amount'], None if minor is None
+                                         else f"{Decimal(minor['amount_minor']).scaleb(-2):.2f}")
+                        self.assertTrue(minor is None or minor['currency'] == 'SAR')
+                    self.assertEqual(presented['table'] is None, body['table'] is None)
+                elif body['status'] == 'choose_school':
+                    self.assertEqual(len(presented['comparison']['schools']), 4)
+                else:
+                    self.assertTrue(presented['refusals'])
+        self.assertEqual(seen, {'answer', 'refused', 'selection_required'})
+
+    def test_presented_text_follows_the_asked_language_and_the_table_is_labelled(self):
+        from django.utils import translation
+        from api import preview
+        fixture = next(f for f in PREVIEW_FIXTURES if f['title'] == 'Husband and two sisters need awl')
+        for language, caption in [('ar', '\u0627\u0644\u0633\u0647\u0627\u0645'), ('en', 'Shares'), ('fr', 'Parts')]:
+            with translation.override(language):
+                presented = preview.preview(fixture['case'])['presented']
+            self.assertEqual(presented['locale'], language)
+            self.assertEqual(presented['table']['columns'][0]['label'], caption)
 
     def test_table_labels_follow_the_language_and_layered_cases_have_tables(self):
         from django.utils import translation
@@ -1638,6 +1721,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                 live = self.build('hanbali', gender, None, relationships)
                 body = self.preview(live['id']).json()
                 body.pop('basis')
+                self.assertEqual(body.pop('presented')['state'], 'refused')
                 self.assertEqual(body, {'status': 'unavailable', 'madhab': 'hanbali', 'reason': 'invalid_family'})
         # The edge of each rule still calculates.
         for gender, relationships in [('male', ['wife'] * 4), ('female', ['husband'])]:
@@ -1695,9 +1779,8 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
             self.assertEqual(self.rows(), before, args)
         self.assertGreaterEqual(len(seen), 5)
         # Even an engine error that escapes leaves nothing behind.
-        from calc.models import Calculation
         live = self.build('hanbali', 'male', None, ['son'])
-        with mock.patch.object(Calculation, 'compute', side_effect=RuntimeError('boom')):
+        with mock.patch('api.preview.evaluate_outcome', side_effect=RuntimeError('boom')):
             self.assertEqual(self.preview(live['id']).status_code, 503)
         self.assertEqual(self.rows(), before)
 
@@ -1739,25 +1822,24 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         self.assertEqual(response.status_code, 405)
 
     def test_names_never_reach_the_engine(self):
-        from calc.models import Calculation, Person
+        from presentation import outcome
         seen = []
-        real = Calculation.compute
 
-        def spy(calc, madhab='hanbali'):
-            seen.append((madhab, [(p.first_name, p.last_name, p.sex) for p in Person.objects.all()], calc.name))
-            return real(calc, madhab=madhab)
+        def spy(family, resolved):
+            seen.append((resolved.school, [(p.name, p.gender) for p in family.persons]))
+            return outcome(family, resolved)
 
         live = self.build('hanafi', 'male', '12345.67', ['wife', 'son'], names=['Secret Wife', 'Secret Son'])
-        with mock.patch.object(Calculation, 'compute', autospec=True, side_effect=spy):
-            self.assertEqual(self.preview(live['id']).status_code, 200)
+        with mock.patch('api.preview.evaluate_outcome', side_effect=spy):
+            response = self.preview(live['id'])
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(len(seen), 1)
-        madhab, people, name = seen[0]
-        self.assertEqual(madhab, 'hanafi')
-        self.assertEqual(name, '')
-        self.assertEqual(sorted(people), [('', '', 'F'), ('', '', 'M'), ('', '', 'M')])
+        school, people = seen[0]
+        self.assertEqual(school, 'hanafi')
+        self.assertEqual(sorted(people), [(None, 'female'), (None, 'male')])
+        self.assertNotIn('Secret', response.content.decode())
 
     def test_names_and_amounts_never_reach_the_logs_even_when_the_engine_fails(self):
-        from calc.models import Calculation
         handler = RecordingHandler()
         loggers = [logging.getLogger(name) for name in ('', 'api', 'django.request')]
         levels = [logger.level for logger in loggers]
@@ -1766,7 +1848,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
             logger.setLevel(logging.DEBUG)
         try:
             live = self.build('hanbali', 'male', '987654.32', ['son'], names=['Secret Name'])
-            with mock.patch.object(Calculation, 'compute', side_effect=RuntimeError('Secret Name 987654.32')):
+            with mock.patch('api.preview.evaluate_outcome', side_effect=RuntimeError('Secret Name 987654.32')):
                 response = self.preview(live['id'])
         finally:
             for logger, level in zip(loggers, levels):
@@ -2800,8 +2882,9 @@ class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, Transaction
     def test_layered_engine_reason_is_preserved_without_numbers(self):
         self.two()
         before = self.rows()
-        with mock.patch('api.preview.compute_manasikhat', side_effect=schools.UnsupportedCase(
-                schools.MANASIKHAT_UNSUPPORTED)):
+        from presentation import refused_outcome
+        with mock.patch('api.preview.evaluate_outcome', side_effect=lambda family, resolved: refused_outcome(
+                family, resolved, schools.MANASIKHAT_UNSUPPORTED)):
             body = self.preview(self.case_id).json()
         self.assertEqual(body['reason'], 'manasikhat_unsupported')
         self.assertNotIn('shares', body)
@@ -3153,7 +3236,7 @@ class LayeredPreviewTableTests(TestCase):
                 response = preview(fixture['case'])
                 self.assertEqual(response['table']['layers'][0]['table']['columns'][0]['label'], caption)
                 self.assertTrue(all(e['labels']['rule'] for l in response['proof']['layers'] for e in l['proof']['heirs']))
-        with patch('calc.proof.build_layered_table', return_value=None):
+        with patch('engine.proof.build_layered_table', return_value=None):
             response = preview(fixture['case'])
         self.assertIsNone(response['table'])
         self.assertEqual(response['proof']['version'], 2)

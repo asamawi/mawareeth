@@ -85,62 +85,55 @@ export function previewReady(kase: Case): boolean {
   );
 }
 
+/** One heir's row as the server presented it: every field is a display string, never a number to format. */
 export type PreviewRow = {
   heirId: string;
   /** True when the heir receives nothing; the other fields are then null. */
   blocked: boolean;
-  /** "1/8", always ASCII. The screen puts it in the language's digits. */
+  /** The reduced share, such as "1/8", in the language's digits. */
   fraction: string | null;
-  /** The percentage to one decimal, half up, such as "12.5". */
+  /** The percentage, such as "12.5%". */
   percent: string | null;
-  /** The share in 24ths with 2 decimals, half up, such as "3.00"; null for a blocked heir. */
+  /** The share in 24ths, such as "3.00"; null for a blocked heir. */
   kirat: string | null;
-  /** The amount with 2 decimals from the server, or null when the case has no estate. */
+  /** The amount with its currency, or null when the case has no estate. */
   amount: string | null;
+  /** The translated relationship and its Arabic original, each with its language and direction. */
+  relationship: { translated: Segment; original: Segment };
 };
 
 export type PreviewRows = {
   rows: PreviewRow[];
-  unallocated: { fraction: string; percent: string } | null;
+  /** What no heir takes: its share and amount strings, or null. */
+  unallocated: { fraction: string; amount: string | null } | null;
+  /** The rounding line, which is separate from the unallocated share, or null. */
+  rounding: string | null;
 };
 
-/** A part of the whole as a percentage with one decimal, rounded half up, with no float. */
-export function percentOf(numerator: number, denominator: number): string {
-  const top = BigInt(numerator);
-  const bottom = BigInt(denominator);
-  const tenths = (top * BigInt(2000) + bottom) / (BigInt(2) * bottom);
-  return `${tenths / BigInt(10)}.${tenths % BigInt(10)}`;
-}
+type Segment = { text: string; lang: string; dir: string };
 
-/** A share in kirat (24ths of the estate) with 2 decimals, rounded half up, with no float. */
-export function kiratOf(numerator: number, denominator: number): string {
-  const top = BigInt(numerator);
-  const bottom = BigInt(denominator);
-  const hundredths = (top * BigInt(4800) + bottom) / (BigInt(2) * bottom);
-  return `${hundredths / BigInt(100)}.${(hundredths % BigInt(100)).toString().padStart(2, "0")}`;
-}
-
-/** What to show for an available preview, in the order the server gave the heirs. */
+/** What to show for an available preview, in the order the server gave the heirs: its presented strings only. */
 export function previewRows(preview: Extract<Preview, { status: "available" }>): PreviewRows {
+  const presented = preview.presented;
+  if (!presented) return { rows: [], unallocated: null, rounding: null };
   return {
-    rows: preview.shares.map((share) =>
-      share.blocked
-        ? { heirId: share.heir_id, blocked: true, fraction: null, percent: null, kirat: null, amount: null }
+    rows: presented.rows.map((row) =>
+      row.blocked
+        ? { heirId: row.person, blocked: true, fraction: null, percent: null, kirat: null, amount: null, relationship: row.relationship }
         : {
-            heirId: share.heir_id,
+            heirId: row.person,
             blocked: false,
-            fraction: `${share.numerator}/${share.denominator}`,
-            percent: percentOf(share.numerator, share.denominator),
-            kirat: kiratOf(share.numerator, share.denominator),
-            amount: share.amount,
+            fraction: row.share.text,
+            percent: row.percent.text,
+            kirat: row.kirat.text,
+            amount: row.amount ? row.amount.text : null,
+            relationship: row.relationship,
           },
     ),
-    unallocated: preview.unallocated
-      ? {
-          fraction: `${preview.unallocated.numerator}/${preview.unallocated.denominator}`,
-          percent: percentOf(preview.unallocated.numerator, preview.unallocated.denominator),
-        }
+    unallocated: presented.unallocated
+      ? { fraction: presented.unallocated.text, amount: presented.unallocated.amount ? presented.unallocated.amount.text : null }
       : null,
+    rounding: presented.rounding ? presented.rounding.text : null,
   };
 }
 

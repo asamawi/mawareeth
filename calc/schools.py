@@ -62,7 +62,8 @@ class UnsupportedCase(Exception):
 
     @property
     def message(self):
-        return str({**REASONS, **LAYERED_REASONS}[self.reason])
+        known = {**REASONS, **LAYERED_REASONS}
+        return str(known[self.reason] if self.reason in known else _refusal(self.reason))
 
 
 def is_known(madhab):

@@ -1,20 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 
 import { parsePreview, type Case, type Preview } from "../api/case.ts";
-import { localKirat } from "./format.ts";
+import { previewFixtures as fixtures } from "../test/preview-fixtures.ts";
 import { previewKey, reconcile } from "./preview.ts";
 import { isLayeredPreview, presentationOf, resultEntries, resultsState } from "./results.ts";
-
-const dir = dirname(fileURLToPath(import.meta.url));
-const fixtures = (
-  JSON.parse(readFileSync(join(dir, "..", "..", "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as {
-    fixtures: { title: string; case: Case; response: unknown }[];
-  }
-).fixtures;
 const by = (title: string) => {
   const fixture = fixtures.find((item) => item.title === title);
   assert.ok(fixture, title);
@@ -78,9 +68,9 @@ test("every available fixture joins each heir to its proof by heir id, layered o
     }
     single += 1;
     for (const entry of entries) {
-      assert.equal(entry.proof?.heir, entry.row.heirId, fixture.title);
-      // A residuary left with nothing is a blocked row whose proof has no blocked-by.
-      if (entry.proof?.rule === "blocked") assert.equal(entry.row.blocked, true, fixture.title);
+      assert.ok(entry.proof, fixture.title);
+      // A blocked row is worded as blocked by its evidence, and a residuary left with nothing is not.
+      if (entry.proof.labels.blocked_by) assert.equal(entry.row.blocked, true, fixture.title);
     }
   }
   assert.ok(single >= 10);
@@ -106,12 +96,12 @@ test("a blocked heir keeps its blocked-by label and no share", () => {
   assert.equal(blocked.row.kirat, null);
 });
 
-test("kirat show with 2 decimals in the language's digits", () => {
-  assert.equal(localKirat("3.00", "en"), "3.00");
-  assert.equal(localKirat("3.43", "fr"), "3,43");
-  const digits = new Intl.NumberFormat("ar", { useGrouping: false });
-  const point = new Intl.NumberFormat("ar").formatToParts(1.1).find((part) => part.type === "decimal")?.value;
-  assert.equal(localKirat("16.05", "ar"), `${digits.format(16)}${point}${digits.format(0)}${digits.format(5)}`);
+test("kirat are the server's own strings, never worked out in the browser", () => {
+  const { kase, preview } = by("Hanbali wife and son with an estate");
+  const state = resultsState(kase, settle(kase, preview));
+  assert.equal(state.kind, "available");
+  if (state.kind !== "available") return;
+  assert.deepEqual(resultEntries(state.preview).entries.map((entry) => entry.row.kirat), ["3.00", "21.00"]);
 });
 
 test("every state without numbers has a presentation, and only failed and replaced offer retry", () => {

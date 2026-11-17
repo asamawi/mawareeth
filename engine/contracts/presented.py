@@ -1,4 +1,4 @@
-"""PresentedResult v2. Nested values retain the wire shape; readers validate every key.
+"""PresentedResult v3. Nested values retain the wire shape; readers validate every key.
 
 This contract contains display strings, never calculation or localization policy.
 """
@@ -10,6 +10,8 @@ from .basis import dump_basis, parse_basis
 from .result import _param
 from .values import (CURRENCY_RE, LANG_RE, array, boolean, check_version, code, fail, fraction,
                      ident, integer, nullable, obj, pattern, snake, string, unique)
+
+TABLE_COLUMNS = ('base', 'awl', 'radd', 'remainder', 'radd_calc', 'radd_union', 'correction')
 
 
 @dataclass(frozen=True)
@@ -28,6 +30,7 @@ class PresentedResult:
     evidence: tuple
     refusals: tuple
     notices: tuple
+    table: object
 
 
 def _text(v, p, direction='ltr', empty=False):
@@ -108,6 +111,74 @@ def _comparison(v, p):
     calculated = [s for s in schools if s['status'] == 'calculated']
     if not calculated or (not differing and len(calculated) == len(schools)):
         fail(p, 'a comparison needs a difference or a partial refusal')
+
+
+def _number(v, p):
+    """A numeric leaf of the scholars' table: its exact value, its Babel text, left-to-right."""
+    obj(v, p, ('value', 'text', 'dir'))
+    if isinstance(v['value'], dict):
+        fraction(v['value'], p + '.value')
+    else:
+        integer(v['value'], p + '.value', 0)
+    _text({k: v[k] for k in ('text', 'dir')}, p)
+
+
+def _single_table(v, p):
+    obj(v, p, ('columns', 'rows'))
+    columns = array(v['columns'], p + '.columns')
+    for i, column in enumerate(columns):
+        q = f'{p}.columns[{i}]'
+        obj(column, q, ('code', 'label', 'total'))
+        code(column['code'], q + '.code', TABLE_COLUMNS)
+        string(column['label'], q + '.label', True)
+        _number(column['total'], q + '.total')
+    rows = array(v['rows'], p + '.rows')
+    for i, row in enumerate(rows):
+        q = f'{p}.rows[{i}]'
+        obj(row, q, ('heir', 'blocked', 'group_span', 'prescribed', 'cells'))
+        ident(row['heir'], q + '.heir')
+        boolean(row['blocked'], q + '.blocked')
+        integer(row['group_span'], q + '.group_span', 0)
+        nullable(_number, row['prescribed'], q + '.prescribed')
+        cells = array(row['cells'], q + '.cells')
+        if len(cells) != len(columns):
+            fail(q, 'a row has one cell per column')
+        for j, cell in enumerate(cells):
+            obj(cell, f'{q}.cells[{j}]', ('value', 'span'))
+            nullable(_number, cell['value'], f'{q}.cells[{j}].value')
+            integer(cell['span'], f'{q}.cells[{j}].span', 0)
+    unique([r['heir'] for r in rows], p + '.rows', 'heir')
+
+
+def _table(v, p):
+    if v is None:
+        return
+    if isinstance(v, dict) and 'layers' in v:
+        obj(v, p, ('layers', 'rows', 'unallocated'))
+        boolean(v['unallocated'], p + '.unallocated')
+        for i, row in enumerate(array(v['rows'], p + '.rows')):
+            obj(row, f'{p}.rows[{i}]', ('heir',))
+            ident(row['heir'], f'{p}.rows[{i}].heir')
+        for i, layer in enumerate(array(v['layers'], p + '.layers')):
+            q = f'{p}.layers[{i}]'
+            obj(layer, q, ('order', 'heir', 'table', 'p', 'base', 'gcd', 'old_multiplier', 'new_multiplier',
+                           'relation', 'jamia', 'parts', 'unallocated', 'unallocated_cells'))
+            integer(layer['order'], q + '.order', 1, 3)
+            nullable(ident, layer['heir'], q + '.heir')
+            _single_table(layer['table'], q + '.table')
+            for key in ('p', 'gcd'):
+                nullable(_number, layer[key], f'{q}.{key}')
+            for key in ('base', 'old_multiplier', 'new_multiplier', 'jamia', 'unallocated'):
+                _number(layer[key], f'{q}.{key}')
+            nullable(code, layer['relation'], q + '.relation', ('no_share', 'tamathul', 'tawafuq', 'tabayun'))
+            for j, part in enumerate(array(layer['parts'], q + '.parts')):
+                obj(part, f'{q}.parts[{j}]', ('heir', 'value'))
+                ident(part['heir'], f'{q}.parts[{j}].heir')
+                _number(part['value'], f'{q}.parts[{j}].value')
+            for j, cell in enumerate(array(layer['unallocated_cells'], q + '.unallocated_cells')):
+                _number(cell, f'{q}.unallocated_cells[{j}]')
+    else:
+        _single_table(v, p)
 
 
 def _evidence(v, p):
@@ -205,6 +276,9 @@ def parse_presented_result(data):
                                          'obligatory_bequest_prompt', 'locale_beta'))
         nullable(string, notice['text'], q + '.text', True)
     unique([n['code'] for n in notices], p + '.notices', 'notice')
+    _table(data['table'], p + '.table')
+    if state != 'answer' and data['table'] is not None:
+        fail(p, 'only an answer has a table')
     if state == 'refused':
         if rows or data['comparison'] is not None or data['school_line'] is not None or evidence:
             fail(p, 'a refused answer has no rows, comparison, school line or evidence')
