@@ -1,0 +1,57 @@
+{
+  "deceased": {
+    "gender": "male"
+  },
+  "family": {
+    "version": 1,
+    "root": "root",
+    "persons": [
+      {
+        "id": "wife",
+        "gender": "female",
+        "name": null,
+        "relationship": "wife",
+        "status": "alive",
+        "death_order": null
+      },
+      {
+        "id": "son",
+        "gender": "male",
+        "name": "Ali",
+        "relationship": "son",
+        "status": "alive",
+        "death_order": null
+      }
+    ],
+    "edges": [],
+    "estates": [
+      {
+        "order": 1,
+        "deceased": "root",
+        "heirs": [
+          {
+            "person": "wife",
+            "relationship": "wife"
+          },
+          {
+            "person": "son",
+            "relationship": "son"
+          }
+        ]
+      }
+    ],
+    "answers": [],
+    "gifts": [],
+    "bequests": [],
+    "estate": {
+      "amount_minor": 120050,
+      "currency": {
+        "code": "SAR",
+        "explicit": true
+      }
+    }
+  },
+  "basis": {
+    "kind": "compare"
+  }
+}

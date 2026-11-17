@@ -16,6 +16,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api import anonymous_case, invites, preview, sharing
+from api.snapshots import READ_VERSIONS, SnapshotError, decode
 from api.models import SavedCase, ShareInvite, ShareLink
 from api.permissions import CsrfProtectedWrites
 from api.throttling import CasePreviewThrottle, CaseWriteThrottle, ShareInviteThrottle, ShareViewThrottle
@@ -32,6 +33,11 @@ class ApiView(APIView):
     clients a redirect to the HTML login page. This opts out of it only; access
     is still decided by permission_classes, which default to IsAuthenticated.
     """
+
+    def handle_exception(self, exc):
+        if isinstance(exc, SnapshotError):
+            return Response({'detail': 'This case version is unsupported.', 'code': exc.code}, status=422)
+        return super().handle_exception(exc)
 
 
 @method_decorator([ensure_csrf_cookie, never_cache], name='dispatch')
@@ -55,9 +61,21 @@ class CaseView(ApiView):
         return Response({'case': anonymous_case.get(request)})
 
     def post(self, request):
-        existing = anonymous_case.get(request)
         data = request.data if isinstance(request.data, dict) else {}
         replace = data.get('replace') is True
+        try:
+            existing = anonymous_case.get(request)
+        except SnapshotError as error:
+            if not replace:
+                raise
+            stored = request.session.get(anonymous_case.SESSION_KEY, {})
+            stored_id = stored.get('id') if isinstance(stored, dict) else None
+            meant = data.get('case_id')
+            if isinstance(meant, str) and meant != stored_id:
+                return Response(
+                    {'detail': 'That case is no longer the current one.', 'code': error.code},
+                    status=status.HTTP_409_CONFLICT)
+            existing = None
         # A tab confirming "start over" names the case it showed; replacing a newer one is refused.
         meant = data.get('case_id')
         if existing and replace and isinstance(meant, str) and meant != existing['id']:
@@ -230,11 +248,16 @@ class DeathView(CaseWriteView):
 class SavedCasesView(ApiView):
     def get(self, request):
         # Only rows this version can open are listed, so one malformed row cannot break the list.
-        rows = SavedCase.objects.filter(owner=request.user, schema_version=1).order_by('-updated_at', '-pk')
-        return Response({'cases': [
-            {'id': row.pk, 'updated_at': row.updated_at, 'madhab': row.snapshot.get('madhab'),
-             'heir_count': len(row.snapshot.get('heirs') or []), 'status': report_status(row.snapshot)}
-            for row in rows if isinstance(row.snapshot, dict)]})
+        rows = SavedCase.objects.filter(owner=request.user, schema_version__in=READ_VERSIONS).order_by('-updated_at', '-pk')
+        cases = []
+        for row in rows:
+            try:
+                case = decode(row.schema_version, row.snapshot, str(row.pk), row.updated_at.isoformat())
+            except SnapshotError:
+                continue
+            cases.append({'id': row.pk, 'updated_at': row.updated_at, 'madhab': case['madhab'],
+                          'heir_count': len(case['heirs']), 'status': report_status(case)})
+        return Response({'cases': cases})
 
     def post(self, request):
         data = request.data
@@ -271,9 +294,11 @@ class SavedCasesView(ApiView):
 class OpenSavedCaseView(ApiView):
     def post(self, request, id):
         row = get_object_or_404(SavedCase, owner=request.user, pk=id)
-        if row.schema_version != 1:
-            return Response({'detail': 'This saved case version is unsupported.'}, status=400)
-        case = anonymous_case.load_snapshot(request, row.snapshot)
+        try:
+            decoded = decode(row.schema_version, row.snapshot, str(row.pk), row.updated_at.isoformat())
+        except SnapshotError as error:
+            return Response({'detail': 'This saved case version is unsupported.', 'code': error.code}, status=400)
+        case = anonymous_case.load_snapshot(request, anonymous_case.export_snapshot(decoded))
         anonymous_case.set_saved_link(request, case['id'], row.pk)
         return Response({'case': case})
 
@@ -348,12 +373,13 @@ class SharedCaseMixin:
         if share is None:
             return None, None, self.unavailable()
         row = share.saved_case
-        if row.schema_version != 1 or not isinstance(row.snapshot, dict):
-            return None, None, self.unavailable()
         if share.visibility == ShareLink.PRIVATE and not request.user.is_authenticated:
             return None, None, Response(
                 {'detail': 'Sign in to view this link.', 'code': 'sign_in_required'}, status=status.HTTP_403_FORBIDDEN)
-        case = anonymous_case.read_snapshot(row.snapshot, f'share-{share.pk}', row.updated_at.isoformat())
+        try:
+            case = decode(row.schema_version, row.snapshot, f'share-{share.pk}', row.updated_at.isoformat())
+        except SnapshotError as error:
+            return None, None, Response({'detail': 'This link is unavailable.', 'code': error.code}, status=404)
         return share, case, None
 
 
@@ -451,10 +477,13 @@ class ReceivedCaseMixin:
         if not request.user.is_authenticated:
             return None, None, Response({'code': 'sign_in_required'}, status=403)
         invite = invites.live().select_related('saved_case__owner').filter(pk=id, accepted_by=request.user).first()
-        if invite is None or invite.saved_case.schema_version != 1 or not isinstance(invite.saved_case.snapshot, dict):
+        if invite is None:
             return None, None, Response({'detail': 'This link is unavailable.'}, status=404)
         row = invite.saved_case
-        case = anonymous_case.read_snapshot(row.snapshot, f'invite-{id}', row.updated_at.isoformat())
+        try:
+            case = decode(row.schema_version, row.snapshot, f'invite-{id}', row.updated_at.isoformat())
+        except SnapshotError as error:
+            return None, None, Response({'detail': 'This link is unavailable.', 'code': error.code}, status=404)
         return invite, case, None
 
 

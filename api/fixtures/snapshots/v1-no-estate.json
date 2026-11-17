@@ -1,0 +1,22 @@
+{
+  "madhab": "hanbali",
+  "deceased": {
+    "gender": "male",
+    "estate": null
+  },
+  "heirs": [
+    {
+      "id": "wife",
+      "relationship": "wife",
+      "gender": "female",
+      "name": null
+    },
+    {
+      "id": "son",
+      "relationship": "son",
+      "gender": "male",
+      "name": "Ali"
+    }
+  ],
+  "deaths": []
+}

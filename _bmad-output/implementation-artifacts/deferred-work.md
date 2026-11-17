@@ -409,3 +409,11 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
   summary: The copied column captions need a terminology review before they leave `pending`.
   evidence: The ar `table.column.radd_calc` "مسالة الرد" is missing its hamza ("مسألة"). en "Excess"/"Shortage" for awl/radd are not the usual fiqh terms. fr "Pénurie" for radd and the English "Calc Union" / "Shortage calc" in fr need a translator. These are the legacy `.po` texts, copied unchanged per the no-rewording rule.
+
+## Story 8.8 follow-ups
+
+- The 8.10 writer switch must append its release image to `api/fixtures/snapshots/matrix.json`.
+- The schema 2 encoder raises above 2^53 minor units.
+- Alias row ids are regenerated when reading schema 2; person ids remain stable.
+- Unreadable rows are hidden from My cases rather than shown with an error.
+- The web displays typed snapshot errors as its generic failure.

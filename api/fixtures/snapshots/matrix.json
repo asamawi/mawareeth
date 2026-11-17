@@ -1,0 +1,17 @@
+[
+  {
+    "image": "phase-1 (02d3627)",
+    "reads": [
+      1
+    ],
+    "writes": 1
+  },
+  {
+    "image": "8.8 dual reader",
+    "reads": [
+      1,
+      2
+    ],
+    "writes": 1
+  }
+]

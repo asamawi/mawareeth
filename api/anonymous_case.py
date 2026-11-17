@@ -242,7 +242,13 @@ def get(request):
     case = request.session.get(SESSION_KEY)
     if not isinstance(case, dict) or 'id' not in case or 'started_at' not in case:
         return None
-    return read_snapshot(case, case['id'], case['started_at'])
+    from api.snapshots import decode, session_version
+    version = session_version(case)
+    snapshot = case
+    if version == 2:
+        snapshot = {key: value for key, value in case.items()
+                    if key not in ('id', 'started_at', 'schema_version')}
+    return decode(version, snapshot, case['id'], case['started_at'])
 
 
 def read_snapshot(snapshot, case_id, started_at):

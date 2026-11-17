@@ -3397,10 +3397,12 @@ class SavedCaseTests(InterviewBase):
         self.client.force_login(self.owner)
         case = self.complete()
         row = SavedCase.objects.get(pk=self.save(case).json()['id'])
-        row.schema_version = 2
+        row.schema_version = 3
         row.save()
         self.assertEqual(self.client.get(self.url, secure=True).json(), {'cases': []})
-        self.assertEqual(self.send('post', f'{self.url}{row.pk}/open/', {}).status_code, 400)
+        response = self.send('post', f'{self.url}{row.pk}/open/', {})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['code'], 'unsupported_version')
         self.assertEqual(self.live()['id'], case['id'])
 
     def test_each_required_input_and_case_bound_link(self):
@@ -3639,12 +3641,13 @@ class ShareTests(InterviewBase):
         unknown = self.view('unknown-token')
         report = '/api/v1/shares/report/'
         unknown_report = self.send('post', report, {'token': 'unknown-token'}, self.anonymous())
-        for changes in ({'schema_version': 2}, {'schema_version': 1, 'snapshot': ['not', 'a', 'dict']}):
+        for changes in ({'schema_version': 3}, {'schema_version': 1, 'snapshot': ['not', 'a', 'dict']}):
             SavedCase.objects.filter(pk=self.saved_id).update(**changes)
             for response, expected in ((self.view(token), unknown),
                                        (self.send('post', report, {'token': token}, self.anonymous()), unknown_report)):
                 self.assertEqual(response.status_code, 404)
-                self.assertEqual(response.content, expected.content)
+                self.assertEqual(response.json(), {**expected.json(), 'code':
+                    'unsupported_version' if changes['schema_version'] == 3 else 'invalid_snapshot'})
 
     def test_share_view_throttle_applies_to_view_and_report(self):
         self.assertEqual(api_settings.DEFAULT_THROTTLE_RATES['share_view'], '300/hour')
