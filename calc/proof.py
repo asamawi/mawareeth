@@ -2,14 +2,16 @@
 
 The proof is built from stable codes and is language-free, so the same family under the
 same school always gives the same proof. Every code has a label in each language in
-LABELS; whoever shows a proof attaches the labels in the reader's language.
+the term catalog (i18n/terms); whoever shows a proof attaches the labels in the reader's language.
 
 Everything here is pure: it works on the facts the engine hands it and never reads the
 database. The engine records the facts, and `build()` puts them in one fixed shape.
 """
 from fractions import Fraction
 
-from django.utils.translation import gettext_lazy as _
+from django.utils import translation
+
+import i18n
 
 from . import schools
 
@@ -69,86 +71,6 @@ RELATIONSHIPS = {
     'SonOfPaternalUncle': 'son_of_paternal_uncle',
 }
 
-LABELS = {
-    'rule': {
-        FIXED: _("Fixed share"),
-        FIXED_AND_RESIDUARY: _("Fixed share plus the remainder"),
-        RESIDUARY: _("Residuary heir, who takes what is left"),
-        BLOCKED: _("Blocked from inheriting"),
-        GRANDFATHER_BEST_OPTION: _("The grandfather takes the best of his options with the siblings"),
-        MUSHTARAKA: _("Shares the maternal siblings' third equally"),
-        AKDARIYYA: _("The grandfather and the sister pool their shares and split them two to one"),
-    },
-    'condition': {
-        'male_descendant': _("There is a male descendant"),
-        'female_descendant': _("There is a female descendant and no male descendant"),
-        'descendant': _("There is a descendant"),
-        'no_descendant': _("There is no descendant"),
-        'siblings': _("There are two or more siblings"),
-        'no_descendant_or_siblings': _("There is no descendant and fewer than two siblings"),
-        'spouse_and_father': _("A spouse and the father are present, so she takes a third of the remainder"),
-        'with_son': _("Together with a son"),
-        'with_son_of_son': _("Together with a son of a son"),
-        'with_daughter': _("Together with one daughter"),
-        'with_brother': _("Together with a full brother"),
-        'with_paternal_brother': _("Together with a paternal brother"),
-        'with_grandfather': _("Together with the grandfather"),
-        'with_siblings': _("Together with full or paternal siblings"),
-        'with_sister': _("Together with one full sister"),
-        'with_maternal_siblings': _("Maternal brothers and sisters share one third"),
-        'no_mother': _("There is no mother"),
-        'single': _("Only one of this kind of heir"),
-        'several': _("Several of this kind of heir share one fixed share"),
-        'estate_exhausted': _("The fixed shares use up the whole estate"),
-        'excluded_by_full_siblings': _("The full siblings take all that is left"),
-    },
-    'blocked_by': {
-        'male_descendant': _("Blocked by a male descendant"),
-        'descendant': _("Blocked by a descendant"),
-        'father': _("Blocked by the father"),
-        'grandfather': _("Blocked by the grandfather"),
-        'mother': _("Blocked by the mother"),
-        'son': _("Blocked by a son"),
-        'daughters': _("Blocked by two or more daughters"),
-        'brother': _("Blocked by a full brother"),
-        'sisters': _("Blocked by the full sisters"),
-        'paternal_brother': _("Blocked by a paternal brother"),
-        'paternal_sister': _("Blocked by a paternal sister"),
-        'son_of_brother': _("Blocked by a son of a full brother"),
-        'son_of_paternal_brother': _("Blocked by a son of a paternal brother"),
-        'uncle': _("Blocked by a full uncle"),
-        'paternal_uncle': _("Blocked by a paternal uncle"),
-        'son_of_uncle': _("Blocked by a son of a full uncle"),
-    },
-    'school_rule': {
-        schools.GRANDFATHER_BLOCKS_SIBLINGS: _("Hanafi school: the grandfather blocks the full and paternal siblings"),
-        schools.GRANDFATHER_SHARES_WITH_SIBLINGS: _("Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings"),
-        schools.MUSHTARAKA: _("Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third"),
-        schools.NO_MUSHTARAKA: _("Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third"),
-        schools.RADD: _("The remainder is returned to the heirs in proportion to their shares"),
-        schools.RADD_LATER_SCHOLARS: _("Later Maliki and Shafi'i scholars: the remainder is returned to the heirs other than a spouse, in proportion to their shares"),
-        schools.FATHER_BLOCKS_HIS_MOTHER: _("Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"),
-        schools.GRANDMOTHER_INHERITS_WITH_HER_SON: _("Hanbali school: the paternal grandmother inherits although her son, the father, is alive"),
-    },
-    'option': {
-        'muqasama': _("Sharing the estate with the siblings as one more brother"),
-        'third_of_remainder': _("A third of what is left after the fixed shares"),
-        'sixth_of_estate': _("A sixth of the whole estate"),
-    },
-    'step': {
-        'base': _("The common base of the fixed shares"),
-        'awl': _("Awl: the base is raised because the fixed shares exceed the estate"),
-        'radd': _("Radd: the shares are recalculated so that the remainder returns to the heirs"),
-        'correction': _("Correction: the base is multiplied so that every heir gets whole parts"),
-        'unallocated': _("The part of the estate that no heir takes"),
-    },
-    'verse': {
-        '4:11': _("Quran 4:11 (An-Nisa)"),
-        '4:12': _("Quran 4:12 (An-Nisa)"),
-        '4:176': _("Quran 4:176 (An-Nisa)"),
-    },
-}
-
 # Every code of each kind, which is what the labels must cover.
 VOCABULARY = {
     'rule': RULES,
@@ -162,8 +84,13 @@ VOCABULARY = {
 
 
 def label(kind, code):
-    """The label of a code in the active language, or None for no code."""
-    return None if code is None else str(LABELS[kind][code])
+    """The label of a code in the active language, from the term catalog, or None for no code."""
+    if code is None:
+        return None
+    if kind not in VOCABULARY or code not in VOCABULARY[kind]:
+        raise KeyError(code)
+    segment = 'quran_' + code.replace(':', '_') if kind == 'verse' else code
+    return i18n.term(f'proof.{kind}.{segment}', translation.get_language())
 
 
 def fraction_body(value):

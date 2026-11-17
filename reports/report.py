@@ -1,50 +1,19 @@
 """Presentation only: fractions, money, proofs and table parts come from preview."""
 from django.template.loader import render_to_string
 from django.utils import timezone, translation
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext as _, gettext_noop
 
+import i18n
 from api import anonymous_case
 
 
-RELATIONSHIPS = {
-    'father': gettext_noop('Report relationship: father'),
-    'mother': gettext_noop('Report relationship: mother'),
-    'husband': gettext_noop('Report relationship: husband'),
-    'wife': gettext_noop('Report relationship: wife'),
-    'son': gettext_noop('Report relationship: son'),
-    'daughter': gettext_noop('Report relationship: daughter'),
-    'son_of_son': gettext_noop('Report relationship: son_of_son'),
-    'daughter_of_son': gettext_noop('Report relationship: daughter_of_son'),
-    'grandfather': gettext_noop('Report relationship: grandfather'),
-    'paternal_grandmother': gettext_noop('Report relationship: paternal_grandmother'),
-    'maternal_grandmother': gettext_noop('Report relationship: maternal_grandmother'),
-    'brother': gettext_noop('Report relationship: brother'),
-    'sister': gettext_noop('Report relationship: sister'),
-    'paternal_brother': gettext_noop('Report relationship: paternal_brother'),
-    'paternal_sister': gettext_noop('Report relationship: paternal_sister'),
-    'maternal_brother': gettext_noop('Report relationship: maternal_brother'),
-    'maternal_sister': gettext_noop('Report relationship: maternal_sister'),
-    'son_of_brother': gettext_noop('Report relationship: son_of_brother'),
-    'son_of_paternal_brother': gettext_noop('Report relationship: son_of_paternal_brother'),
-    'uncle': gettext_noop('Report relationship: uncle'),
-    'paternal_uncle': gettext_noop('Report relationship: paternal_uncle'),
-    'son_of_uncle': gettext_noop('Report relationship: son_of_uncle'),
-    'son_of_paternal_uncle': gettext_noop('Report relationship: son_of_paternal_uncle'),
-}
 COMBINATION_RELATIONS = {
     'tamathul': gettext_noop('Equality'),
     'tawafuq': gettext_noop('Common factor'),
     'tabayun': gettext_noop('Coprime'),
     'no_share': gettext_noop('No share'),
 }
-SCHOOLS = {
-    'hanafi': gettext_noop('Report school: hanafi'),
-    'maliki': gettext_noop('Report school: maliki'),
-    'shafii': gettext_noop('Report school: shafii'),
-    'hanbali': gettext_noop('Report school: hanbali'),
-    'jafari': gettext_noop('Report school: jafari'),
-}
-
 SAME_IN_ALL_SCHOOLS = gettext_noop('Same result in all four Sunni schools')
 
 
@@ -63,9 +32,11 @@ def fraction(value):
 
 
 def build_context(case, body):
+    locale = translation.get_language() or 'en'
+    config = i18n.locale_config(i18n.resolve_locale(locale))
     rows = anonymous_case._rows({**case, 'deaths': case.get('deaths', [])})
     def relation(row):
-        return _(RELATIONSHIPS[row['relationship']])
+        return i18n.term(f"relationship.{row['relationship']}", locale)
     def name(key):
         row = rows[key]
         return row.get('name') or relation(row)
@@ -100,9 +71,9 @@ def build_context(case, body):
                                     for row in source['rows']],
                            'parts': [{'name': name(part['heir']), 'value': part['value']}
                                      for part in layer.get('parts', [])]})
-    locale = translation.get_language() or 'en'
-    return {'locale': locale, 'direction': 'rtl' if locale.split('-')[0] == 'ar' else 'ltr',
-            'generated': timezone.now(), 'school': _(SCHOOLS[body['madhab']]) if body['madhab'] else _(SAME_IN_ALL_SCHOOLS),
+    font_family = mark_safe(', '.join([f'"{family}"' for family in config['pdf_font_stack']] + ['sans-serif']))
+    return {'locale': locale, 'direction': config['direction'], 'font_family': font_family,
+            'generated': timezone.now(), 'school': i18n.term(f"school.{body['madhab']}", locale) if body['madhab'] else _(SAME_IN_ALL_SCHOOLS),
             'deceased': _('Male') if case['deceased']['gender'] == 'male' else _('Female'),
             'estate': body['basis']['estate'], 'with_amount': body['basis']['estate'] is not None,
             'shares': shares, 'evidence': evidence, 'tables': tables,

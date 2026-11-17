@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 from unittest import mock
 
+import i18n
 from django.conf import settings
 from django.core.cache import cache
 from django.test import SimpleTestCase, TransactionTestCase, override_settings
@@ -150,9 +151,9 @@ class ReportContentTests(SimpleTestCase):
                 names = anonymous_case._rows({**case, 'deaths': case.get('deaths', [])})
                 def name(key):
                     row = names[key]
-                    from reports.report import RELATIONSHIPS
-                    from django.utils.translation import gettext
-                    return row.get('name') or gettext(RELATIONSHIPS[row['relationship']])
+                    import i18n
+                    from django.utils.translation import get_language
+                    return row.get('name') or i18n.term(f"relationship.{row['relationship']}", get_language())
                 with_amount = body['basis']['estate'] is not None
                 for cells, share in zip(parsed.tables[0][1:], body['shares'], strict=True):
                     self.assertEqual(cells[0][1], name(share['heir_id']))
@@ -219,6 +220,8 @@ class ReportContentTests(SimpleTestCase):
             with translation.override(lang):
                 html = render_html(f['case'], f['response'])
                 self.assertIn(f'dir="{"rtl" if lang == "ar" else "ltr"}"', html)
+                stack = ', '.join([f'"{family}"' for family in i18n.locale_config(lang)['pdf_font_stack']] + ['sans-serif'])
+                self.assertIn(f'font-family: {stack};', html)
                 self.assertIn(disclaimer, html)
                 self.assertIn('<bdi>', html)
                 self.assertIn('&lt;script&gt;', html)

@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
+import { defaultLocale } from "@/i18n/catalog.generated";
 import { directionOf, isLocale, messages, type Locale } from "@/i18n/messages";
 
 import { reloadForChunkError } from "../chunk-recovery";
@@ -10,7 +11,7 @@ import { primaryButton, secondaryButton } from "./ui";
 
 export default function LocaleError({ error }: { error: unknown; retry?: () => void }) {
   const first = (usePathname() ?? "").split("/")[1] ?? "";
-  const locale: Locale = isLocale(first) ? first : "ar";
+  const locale: Locale = isLocale(first) ? first : defaultLocale;
   const text = messages[locale].pageError;
   const heading = useRef<HTMLHeadingElement>(null);
 

@@ -24,6 +24,7 @@ from django.shortcuts import resolve_url
 from django.urls import resolve, reverse
 from waffle.testutils import override_flag
 
+import i18n
 from calc import schools
 from . import views
 from mawareeth.urls import calc_patterns
@@ -2207,9 +2208,7 @@ class SchoolFixtureTests(TransactionTestCase):
         ]
         for lang in ('ar', 'en', 'fr'):
             catalog = gettext.translation('django', settings.BASE_DIR / 'locale', languages=[lang])
-            with translation.override('en'):
-                reasons = [str(reason) for reason in schools.REASONS.values()]
-            msgids = reasons + [MUSHTARAKA_REASON] + reused
+            msgids = [MUSHTARAKA_REASON] + reused
             for msgid in msgids:
                 with self.subTest(f'{lang}: {msgid}'):
                     translated = catalog.gettext(msgid)
@@ -2871,21 +2870,20 @@ class ScholarsTableTests(TransactionTestCase):
 
 class ProofLabelTests(TestCase):
     def test_every_code_has_a_label_in_every_language(self):
-        import gettext
-        from calc.proof import LABELS, VOCABULARY
-        for kind, codes in VOCABULARY.items():
-            self.assertEqual(set(LABELS[kind]), set(codes), kind)
+        import i18n
+        from calc.proof import VOCABULARY, label
         for lang in ('ar', 'en', 'fr'):
-            catalog = gettext.translation('django', settings.BASE_DIR / 'locale', languages=[lang])
-            with translation.override('en'):
-                msgids = [str(LABELS[kind][code]) for kind, codes in VOCABULARY.items() for code in codes]
-            self.assertEqual(len(set(msgids)), len(msgids), 'two codes share one label')
-            for msgid in msgids:
-                with self.subTest(f'{lang}: {msgid}'):
-                    translated = catalog.gettext(msgid)
-                    self.assertTrue(translated)
-                    if lang != 'en':
-                        self.assertNotEqual(translated, msgid)
+            labels = []
+            for kind, codes in VOCABULARY.items():
+                for code in codes:
+                    with self.subTest(f'{lang}: {kind}.{code}'):
+                        segment = 'quran_' + code.replace(':', '_') if kind == 'verse' else code
+                        with translation.override(lang):
+                            text = label(kind, code)
+                        self.assertTrue(text)
+                        self.assertEqual(text, i18n.catalog(lang).terms[f'proof.{kind}.{segment}'].text)
+                        labels.append(text)
+            self.assertEqual(len(set(labels)), len(labels), 'two codes share one label')
 
     def test_labels_follow_the_active_language(self):
         from calc.proof import label
@@ -3232,7 +3230,7 @@ class LayeredResultsViewTests(TestCase):
                         response = self.client.get(reverse('calc:' + route, args=[calc.pk]), secure=True)
                     self.assertEqual(response.status_code, 200)
                     self.assertTemplateUsed(response, 'calc/error.html')
-                    self.assertContains(response, 'This successive inheritance case is not supported')
+                    self.assertContains(response, i18n.term('refusal.manasikhat_unsupported', 'en'))
                     for original in before:
                         after = stored(original)
                         for field in original._meta.concrete_fields:

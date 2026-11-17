@@ -5,7 +5,10 @@ family and returns a decision, so it can be read and tested on its own.
 Anything not decided here follows the Hanbali position, which is the engine's
 default.
 """
-from django.utils.translation import gettext_lazy as _
+from django.utils import translation
+from django.utils.functional import lazy
+
+import i18n
 
 HANAFI = 'hanafi'
 MALIKI = 'maliki'
@@ -34,14 +37,19 @@ GRANDMOTHER_INHERITS_WITH_HER_SON = 'grandmother_inherits_with_her_son'
 SCHOOL_RULES = (GRANDFATHER_BLOCKS_SIBLINGS, GRANDFATHER_SHARES_WITH_SIBLINGS, MUSHTARAKA, NO_MUSHTARAKA, RADD,
                 RADD_LATER_SCHOLARS, FATHER_BLOCKS_HIS_MOTHER, GRANDMOTHER_INHERITS_WITH_HER_SON)
 
+def _refusal(reason):
+    """The refusal sentence of a reason code in the active language, from the term catalog."""
+    return lazy(lambda: i18n.term(f'refusal.{reason}', translation.get_language()), str)()
+
+
 REASONS = {
-    SCHOOL_NOT_SUPPORTED: _("This school of law is not supported yet"),
-    MALIKIYYA_DISPUTED: _("The Malikiyya case is disputed within the Maliki school, so no result is given"),
+    SCHOOL_NOT_SUPPORTED: _refusal(SCHOOL_NOT_SUPPORTED),
+    MALIKIYYA_DISPUTED: _refusal(MALIKIYYA_DISPUTED),
 }
 
 
 LAYERED_REASONS = {
-    MANASIKHAT_UNSUPPORTED: _("This successive inheritance case is not supported"),
+    MANASIKHAT_UNSUPPORTED: _refusal(MANASIKHAT_UNSUPPORTED),
 }
 
 

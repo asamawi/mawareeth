@@ -7,8 +7,8 @@ from urllib.parse import urlparse
 import dj_database_url
 from decouple import Csv, config
 from django.core.exceptions import ImproperlyConfigured
-from django.utils.translation import gettext_lazy as _
 
+import i18n
 from mawareeth.web_headers import add_web_headers
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -290,7 +290,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
 
-LANGUAGE_CODE = config("LANGUAGE_CODE",default='ar')
+LANGUAGE_CODE = config("LANGUAGE_CODE", default=i18n.default_locale())
 USE_THOUSAND_SEPARATOR = True
 TIME_ZONE = 'Asia/Riyadh'
 
@@ -351,12 +351,7 @@ LOCALE_PATHS = [
 
 prefix_default_language = False
 
-LANGUAGES = [
-  ('ar', _('Arabic')),
-  ('en', _('English')),
-  ('fr', _('French')),
-
-]
+LANGUAGES = i18n.django_languages()
 LOGIN_REDIRECT_URL = 'calc:index'
 LOGOUT_REDIRECT_URL = 'calc:index'
 # Production sends through Brevo's SMTP relay; anywhere else prints to the console.

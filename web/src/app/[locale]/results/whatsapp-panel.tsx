@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { isLocale, messages, type Messages } from "@/i18n/messages";
+import { directionOf, isLocale, messages, type Messages } from "@/i18n/messages";
 import { whatsappHref } from "@/i18n/paths";
 import { buttonClass } from "../interview/form-bits";
 
@@ -24,7 +24,7 @@ export function WhatsappPanel({ url, locale, text }: { url: string; locale: stri
     }
   }
   return (
-    <section className="flex flex-col gap-3 rounded-md border border-current/60 p-3" dir={locale === "ar" ? "rtl" : "ltr"}>
+    <section className="flex flex-col gap-3 rounded-md border border-current/60 p-3" dir={directionOf(locale)}>
       <p role="status">{text.whatsappReady}</p>
       <button type="button" className={buttonClass} onClick={open}>{text.whatsappOpen}</button>
       <p role="alert">{unavailable ? text.whatsappUnavailable : ""}</p>

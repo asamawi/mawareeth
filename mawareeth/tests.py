@@ -759,8 +759,10 @@ class WorkflowContractTests(SimpleTestCase):
     def test_export_locales_match_django_languages(self):
         codes = sorted(code for code, _name in settings.LANGUAGES)
         web = PROJECT_ROOT / "web"
-        messages = (web / "src" / "i18n" / "messages.ts").read_text(encoding="utf-8")
-        locales = re.search(r"locales = \[([^\]]*)\]", messages).group(1)
+        registry = json.loads((PROJECT_ROOT / "i18n" / "locales.json").read_text(encoding="utf-8"))
+        self.assertEqual(sorted(l["code"] for l in registry["locales"] if l["published"]), codes)
+        generated = (web / "src" / "i18n" / "catalog.generated.ts").read_text(encoding="utf-8")
+        locales = re.search(r"export const locales = \[([^\]]*)\]", generated).group(1)
         self.assertEqual(sorted(re.findall(r'"([a-z-]+)"', locales)), codes)
         check = (web / "scripts" / "check-export.mjs").read_text(encoding="utf-8")
         expected = re.search(r"expected = \{([^}]*)\}", check).group(1)

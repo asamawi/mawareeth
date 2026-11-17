@@ -323,3 +323,29 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-school-only-when-it-matters.md`
   summary: A case with no school costs four engine runs per preview request (and per save, shared view and draft PDF of such a case), because the preview compares the four Sunni schools. This extends the "move the preview off database writes" item above.
   evidence: Each run builds and rolls back its own rows inside a transaction. A school-set case still costs one run. Moving the engine to an in-memory path, or caching the comparison by the case's basis, would remove the multiplier.
+
+## Terms and Locale settings (Story 8.5)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: Native review of the new `basis.*` terms (all three Locales, `review: pending`).
+  evidence: Drafted new, no earlier text existed. en: compare "Compare the four Sunni schools", school "One school", country "Country law"; ar: compare "مقارنة المذاهب السنية الأربعة", school "مذهب واحد", country "قانون البلد"; fr: compare "Comparer les quatre écoles sunnites", school "Une seule école", country "Droit du pays".
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: Native review of the two empty `Cancel` msgstrs that were filled in `locale/{ar,fr}/LC_MESSAGES/django.po`.
+  evidence: ar "إلغاء", fr "Annuler" (en was already "Cancel").
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: Native and fiqh review of every server or PDF string that converged onto the web wording in `i18n/terms/<locale>.json` (all `review: pending`). Before is the old gettext text, after is the catalog text. Relationship names and the other school names already matched.
+  evidence: ar `refusal.school_not_supported`: "هذا المذهب غير مدعوم حتى الآن" -> "المذهب الجعفري غير مدعوم بعد، فلا تُعرض أنصبة." | ar `refusal.malikiyya_disputed`: "مسألة المالكية مختلف فيها داخل المذهب المالكي، لذلك لا تُعطى نتيجة" -> "اختلف علماء المذهب المالكي في هذه الحالة (المالكية)، فلا تُعرض أنصبة." | ar `refusal.manasikhat_unsupported`: "حالة المناسخات هذه غير مدعومة" -> "معاينة الوفيات المتعاقبة غير مدعومة لهذه الحالة. يرجى مراجعة البيانات وطلب مراجعة من مختص في المواريث." | en `refusal.school_not_supported`: "This school of law is not supported yet" -> "The Jafari school is not supported yet, so no shares are shown." | en `refusal.malikiyya_disputed`: "The Malikiyya case is disputed within the Maliki school, so no result is given" -> "Scholars of the Maliki school disagree about this family (the Malikiyya case), so no shares are shown." | en `refusal.manasikhat_unsupported`: "This successive inheritance case is not supported" -> "A preview for successive deaths is not supported for this case. Check the details and seek a qualified inheritance review." | en `school.shafii`: "Shafii" -> "Shafi'i" | fr `refusal.school_not_supported`: "Cette école juridique n'est pas encore prise en charge" -> "L'école jafarite n'est pas encore prise en charge, aucune part n'est donc affichée." | fr `refusal.malikiyya_disputed`: "Le cas de la Malikiyya est controversé au sein de l'école malikite, donc aucun résultat n'est donné" -> "Les savants de l'école malikite divergent sur cette famille (le cas de la Malikiyya), aucune part n'est donc affichée." | fr `refusal.manasikhat_unsupported`: "Ce cas de successions successives n'est pas pris en charge" -> "L'aperçu des décès successifs n'est pas pris en charge pour ce cas. Vérifiez les informations et demandez un examen par une personne qualifiée en successions." | fr `school.maliki`: "Malékite" -> "Malikite" | fr `school.jafari`: "Jafarite" -> "Jaafarite".
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: Fiqh copy still outside the catalog, left for Stories 8.6/8.7 and Epic 12: general UI copy in `messages.ts`, the legacy calc template heir-class msgids (`Mother`, `GrandFather`, ...), report `COMBINATION_RELATIONS`, and the results/table fiqh copy in `messages.ts` and `.po`.
+  evidence: These are not code-keyed in `engine/contracts/codes.py`, so the catalog has no key for them yet. `SAME_IN_ALL_SCHOOLS` stays a gettext msgid.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: The Locale `review` state for ar, en and fr in `i18n/locales.json` stays `pending` until Epic 12/18 decides how a Locale becomes reviewed.
+  evidence: Nothing in this story marks any Locale or term reviewed. `numbering_system` is `latn` for all three, matching today's Latin digits in the PDF.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: Confirm the PDF glyph check (`python -m i18n.glyphs`) passes on CI with `fonts-noto-core`.
+  evidence: The development host has no Noto fonts, so the check was only run locally to the "family not installed" failure (exit 1) and by unit tests with fake cmaps.

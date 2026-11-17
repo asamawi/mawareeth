@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { isLocale, messages } from "@/i18n/messages";
+import { directionOf, isLocale, messages } from "@/i18n/messages";
 
 import { ReceivedView } from "./received-view";
 
@@ -9,7 +9,7 @@ export default async function ReceivedPage({ params }: { params: Promise<{ local
   if (!isLocale(locale)) notFound();
   const text = messages[locale];
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10" dir={locale === "ar" ? "rtl" : "ltr"}>
+    <main className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10" dir={directionOf(locale)}>
       <h1 className="mx-auto w-full max-w-xl text-3xl font-semibold">{text.invites.received}</h1>
       <ReceivedView messages={text} locale={locale} />
     </main>

@@ -148,6 +148,22 @@ test("nav logout ends the session and returns to the locale root", async () => {
   } finally { await act(async () => root.unmount()); await teardownDom(dom); globalThis.fetch = nativeFetch; }
 });
 
+test("the language switcher shows each locale's own name and marks the current one", async () => {
+  const { SiteNav } = await import("./site-nav");
+  const dom = installDom("https://localhost/fr/");
+  globalThis.fetch = async () => new Response(JSON.stringify({ authenticated: false }));
+  const node = document.createElement("div"); document.body.append(node);
+  const root = createRoot(node);
+  try {
+    await act(async () => root.render(<SiteNav locale="fr" nav={messages.fr.nav} />));
+    const items = [...node.querySelectorAll("ul li")].map((li) => li.textContent);
+    assert.deepEqual(items, ["العربية", "English", "Français"]);
+    const current = node.querySelector('[aria-current="true"]')!;
+    assert.equal(current.textContent, "Français");
+    assert.equal(node.querySelectorAll('[aria-current="true"]').length, 1);
+  } finally { await act(async () => root.unmount()); await teardownDom(dom); globalThis.fetch = nativeFetch; }
+});
+
 test("pending login disables submission and reports connection failure", async () => {
   const ui = await mount("login");
   const original = globalThis.fetch;

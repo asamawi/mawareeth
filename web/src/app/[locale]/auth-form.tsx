@@ -5,7 +5,7 @@ import { submitAuth, authDestination, passwordChangeStatus, type AuthAction } fr
 import { loginHref } from "@/i18n/paths";
 import { readCsrfToken } from "@/api/case";
 import { fetchSession } from "@/api/session";
-import { messages, type Locale } from "@/i18n/messages";
+import { directionOf, messages, type Locale } from "@/i18n/messages";
 
 export function AuthForm({ locale, action }: { locale: Locale; action: Exclude<AuthAction, "logout"> }) {
   const t = messages[locale].auth;
@@ -90,7 +90,7 @@ export function AuthForm({ locale, action }: { locale: Locale; action: Exclude<A
   }
   const fields = action === "login" ? ["username", "password"] : action === "signup" ? ["username", "email", "password1", "password2"] : action === "password-reset" ? ["email"] : action === "password-change" ? ["old_password", "new_password1", "new_password2"] : ["new_password1", "new_password2"];
   function label(field: string) { return field === "password1" ? t.password : t[field as keyof typeof t]; }
-  return <main className="mx-auto max-w-lg space-y-5 p-6" dir={locale === "ar" ? "rtl" : "ltr"}>
+  return <main className="mx-auto max-w-lg space-y-5 p-6" dir={directionOf(locale)}>
     <h1 className="text-2xl font-semibold">{title}</h1>
     {notice && <p role="status">{notice}</p>}
     {action === "password-change" && hasPassword === false ? <p role="status">{t.noPassword}</p> : invalid ? <p role="alert">{t.invalid}</p> : !done && <form ref={formRef} method="post" onSubmit={submit} className="space-y-4">

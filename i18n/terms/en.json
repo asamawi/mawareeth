@@ -1,0 +1,521 @@
+{
+  "locale": "en",
+  "schema_version": 1,
+  "terms": {
+    "basis.compare": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Compare the four Sunni schools"
+    },
+    "basis.country": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Country law"
+    },
+    "basis.school": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "One school"
+    },
+    "proof.blocked_by.brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by a full brother"
+    },
+    "proof.blocked_by.daughters": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by two or more daughters"
+    },
+    "proof.blocked_by.descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by a descendant"
+    },
+    "proof.blocked_by.father": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by the father"
+    },
+    "proof.blocked_by.grandfather": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by the grandfather"
+    },
+    "proof.blocked_by.male_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by a male descendant"
+    },
+    "proof.blocked_by.mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by the mother"
+    },
+    "proof.blocked_by.paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by a paternal brother"
+    },
+    "proof.blocked_by.paternal_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by a paternal sister"
+    },
+    "proof.blocked_by.paternal_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by a paternal uncle"
+    },
+    "proof.blocked_by.sisters": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by the full sisters"
+    },
+    "proof.blocked_by.son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by a son"
+    },
+    "proof.blocked_by.son_of_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by a son of a full brother"
+    },
+    "proof.blocked_by.son_of_paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by a son of a paternal brother"
+    },
+    "proof.blocked_by.son_of_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by a son of a full uncle"
+    },
+    "proof.blocked_by.uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked by a full uncle"
+    },
+    "proof.condition.descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "There is a descendant"
+    },
+    "proof.condition.estate_exhausted": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "The fixed shares use up the whole estate"
+    },
+    "proof.condition.excluded_by_full_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "The full siblings take all that is left"
+    },
+    "proof.condition.female_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "There is a female descendant and no male descendant"
+    },
+    "proof.condition.male_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "There is a male descendant"
+    },
+    "proof.condition.no_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "There is no descendant"
+    },
+    "proof.condition.no_descendant_or_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "There is no descendant and fewer than two siblings"
+    },
+    "proof.condition.no_mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "There is no mother"
+    },
+    "proof.condition.several": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Several of this kind of heir share one fixed share"
+    },
+    "proof.condition.siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "There are two or more siblings"
+    },
+    "proof.condition.single": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Only one of this kind of heir"
+    },
+    "proof.condition.spouse_and_father": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "A spouse and the father are present, so she takes a third of the remainder"
+    },
+    "proof.condition.with_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Together with a full brother"
+    },
+    "proof.condition.with_daughter": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Together with one daughter"
+    },
+    "proof.condition.with_grandfather": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Together with the grandfather"
+    },
+    "proof.condition.with_maternal_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Maternal brothers and sisters share one third"
+    },
+    "proof.condition.with_paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Together with a paternal brother"
+    },
+    "proof.condition.with_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Together with full or paternal siblings"
+    },
+    "proof.condition.with_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Together with one full sister"
+    },
+    "proof.condition.with_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Together with a son"
+    },
+    "proof.condition.with_son_of_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Together with a son of a son"
+    },
+    "proof.option.muqasama": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Sharing the estate with the siblings as one more brother"
+    },
+    "proof.option.sixth_of_estate": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "A sixth of the whole estate"
+    },
+    "proof.option.third_of_remainder": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "A third of what is left after the fixed shares"
+    },
+    "proof.rule.akdariyya": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "The grandfather and the sister pool their shares and split them two to one"
+    },
+    "proof.rule.blocked": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Blocked from inheriting"
+    },
+    "proof.rule.fixed": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Fixed share"
+    },
+    "proof.rule.fixed_and_residuary": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Fixed share plus the remainder"
+    },
+    "proof.rule.grandfather_best_option": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "The grandfather takes the best of his options with the siblings"
+    },
+    "proof.rule.mushtaraka": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Shares the maternal siblings' third equally"
+    },
+    "proof.rule.residuary": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Residuary heir, who takes what is left"
+    },
+    "proof.school_rule.father_blocks_his_mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
+    },
+    "proof.school_rule.grandfather_blocks_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Hanafi school: the grandfather blocks the full and paternal siblings"
+    },
+    "proof.school_rule.grandfather_shares_with_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings"
+    },
+    "proof.school_rule.grandmother_inherits_with_her_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Hanbali school: the paternal grandmother inherits although her son, the father, is alive"
+    },
+    "proof.school_rule.mushtaraka": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third"
+    },
+    "proof.school_rule.no_mushtaraka": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third"
+    },
+    "proof.school_rule.radd": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "The remainder is returned to the heirs in proportion to their shares"
+    },
+    "proof.school_rule.radd_later_scholars": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Later Maliki and Shafi'i scholars: the remainder is returned to the heirs other than a spouse, in proportion to their shares"
+    },
+    "proof.step.awl": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Awl: the base is raised because the fixed shares exceed the estate"
+    },
+    "proof.step.base": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "The common base of the fixed shares"
+    },
+    "proof.step.correction": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Correction: the base is multiplied so that every heir gets whole parts"
+    },
+    "proof.step.radd": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Radd: the shares are recalculated so that the remainder returns to the heirs"
+    },
+    "proof.step.unallocated": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "The part of the estate that no heir takes"
+    },
+    "proof.verse.quran_4_11": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Quran 4:11 (An-Nisa)"
+    },
+    "proof.verse.quran_4_12": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Quran 4:12 (An-Nisa)"
+    },
+    "proof.verse.quran_4_176": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Quran 4:176 (An-Nisa)"
+    },
+    "refusal.invalid_family": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "This family is not possible (for example two fathers, or a husband for a male deceased), so no shares are shown. Please check the heirs."
+    },
+    "refusal.malikiyya_disputed": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Scholars of the Maliki school disagree about this family (the Malikiyya case), so no shares are shown."
+    },
+    "refusal.manasikhat_unsupported": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "A preview for successive deaths is not supported for this case. Check the details and seek a qualified inheritance review."
+    },
+    "refusal.school_not_supported": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "The Jafari school is not supported yet, so no shares are shown."
+    },
+    "relationship.brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Full brother"
+    },
+    "relationship.daughter": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Daughter"
+    },
+    "relationship.daughter_of_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Son's daughter"
+    },
+    "relationship.father": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Father"
+    },
+    "relationship.grandfather": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Grandfather"
+    },
+    "relationship.husband": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Husband"
+    },
+    "relationship.maternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Half-brother (same mother)"
+    },
+    "relationship.maternal_grandmother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Maternal grandmother"
+    },
+    "relationship.maternal_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Half-sister (same mother)"
+    },
+    "relationship.mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Mother"
+    },
+    "relationship.paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Half-brother (same father)"
+    },
+    "relationship.paternal_grandmother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Paternal grandmother"
+    },
+    "relationship.paternal_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Half-sister (same father)"
+    },
+    "relationship.paternal_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Paternal uncle (father's half-brother)"
+    },
+    "relationship.sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Full sister"
+    },
+    "relationship.son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Son"
+    },
+    "relationship.son_of_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Full brother's son"
+    },
+    "relationship.son_of_paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Half-brother's son (same father)"
+    },
+    "relationship.son_of_paternal_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Son of father's half-brother"
+    },
+    "relationship.son_of_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Son's son"
+    },
+    "relationship.son_of_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Son of father's full brother"
+    },
+    "relationship.uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Paternal uncle (father's full brother)"
+    },
+    "relationship.wife": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Wife"
+    },
+    "school.hanafi": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Hanafi"
+    },
+    "school.hanafi.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Sunni school named after Imam Abu Hanifa"
+    },
+    "school.hanbali": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Hanbali"
+    },
+    "school.hanbali.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Sunni school named after Imam Ahmad ibn Hanbal"
+    },
+    "school.jafari": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Jafari"
+    },
+    "school.jafari.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Shia school named after Imam Jafar al-Sadiq"
+    },
+    "school.maliki": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Maliki"
+    },
+    "school.maliki.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Sunni school named after Imam Malik ibn Anas"
+    },
+    "school.shafii": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Shafi'i"
+    },
+    "school.shafii.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Sunni school named after Imam al-Shafi'i"
+    }
+  }
+}
