@@ -25,7 +25,7 @@ def required_keys():
                              ('option', codes.PROOF_OPTIONS), ('step', codes.PROOF_STEPS)):
         keys += [f'proof.{kind}.{c}' for c in vocabulary]
     keys += ['proof.verse.quran_4_11', 'proof.verse.quran_4_12', 'proof.verse.quran_4_176']
-    return keys
+    return keys + ['notice.disclaimer', 'comparison.same_in_all_schools']
 
 
 class LookupTests(SimpleTestCase):
@@ -40,6 +40,11 @@ class LookupTests(SimpleTestCase):
         self.assertEqual(i18n.published_codes(), ['ar', 'en', 'fr'])
         self.assertEqual((i18n.default_locale(), i18n.fallback_locale()), ('ar', 'en'))
         self.assertEqual(i18n.locale_config('ar')['direction'], 'rtl')
+        self.assertEqual({c: i18n.locale_config(c)['default_currency'] for c in i18n.published_codes()},
+                         {'ar': 'SAR', 'en': 'USD', 'fr': 'EUR'})
+        from babel import numbers
+        for code in i18n.published_codes():
+            self.assertIn(i18n.locale_config(code)['default_currency'], numbers.list_currencies())
         self.assertEqual(i18n.resolve_locale('AR_sa'), 'ar')
         self.assertEqual(i18n.resolve_locale(None), 'en')
         with self.assertRaises(KeyError):

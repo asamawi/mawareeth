@@ -14,6 +14,7 @@ export type LocaleConfig = {
   ownName: string;
   numberingSystem: string;
   babelLocale: string;
+  defaultCurrency: string;
   published: boolean;
   review: "reviewed" | "pending";
 };
@@ -24,6 +25,7 @@ export const localeConfig: Record<Locale, LocaleConfig> = {
     ownName: "العربية",
     numberingSystem: "latn",
     babelLocale: "ar",
+    defaultCurrency: "SAR",
     published: true,
     review: "pending",
   },
@@ -32,6 +34,7 @@ export const localeConfig: Record<Locale, LocaleConfig> = {
     ownName: "English",
     numberingSystem: "latn",
     babelLocale: "en",
+    defaultCurrency: "USD",
     published: true,
     review: "pending",
   },
@@ -40,6 +43,7 @@ export const localeConfig: Record<Locale, LocaleConfig> = {
     ownName: "Français",
     numberingSystem: "latn",
     babelLocale: "fr",
+    defaultCurrency: "EUR",
     published: true,
     review: "pending",
   },
@@ -49,6 +53,8 @@ export type TermKey =
   | "basis.compare"
   | "basis.country"
   | "basis.school"
+  | "comparison.same_in_all_schools"
+  | "notice.disclaimer"
   | "proof.blocked_by.brother"
   | "proof.blocked_by.daughters"
   | "proof.blocked_by.descendant"
@@ -155,6 +161,8 @@ export const terms: Record<Locale, Record<TermKey, string>> = {
     "basis.compare": "مقارنة المذاهب السنية الأربعة",
     "basis.country": "قانون البلد",
     "basis.school": "مذهب واحد",
+    "comparison.same_in_all_schools": "النتيجة نفسها في المذاهب السنية الأربعة",
+    "notice.disclaimer": "مواريث أداة مساعدة على الحساب وليست فتوى ولا استشارة قانونية.",
     "proof.blocked_by.brother": "محجوب بالأخ الشقيق",
     "proof.blocked_by.daughters": "محجوب ببنتين فأكثر",
     "proof.blocked_by.descendant": "محجوب بفرع وارث",
@@ -260,6 +268,8 @@ export const terms: Record<Locale, Record<TermKey, string>> = {
     "basis.compare": "Compare the four Sunni schools",
     "basis.country": "Country law",
     "basis.school": "One school",
+    "comparison.same_in_all_schools": "Same result in all four Sunni schools",
+    "notice.disclaimer": "Mawareeth is a calculation aid, not a fatwa or legal advice.",
     "proof.blocked_by.brother": "Blocked by a full brother",
     "proof.blocked_by.daughters": "Blocked by two or more daughters",
     "proof.blocked_by.descendant": "Blocked by a descendant",
@@ -365,6 +375,8 @@ export const terms: Record<Locale, Record<TermKey, string>> = {
     "basis.compare": "Comparer les quatre écoles sunnites",
     "basis.country": "Droit du pays",
     "basis.school": "Une seule école",
+    "comparison.same_in_all_schools": "Même résultat dans les quatre écoles sunnites",
+    "notice.disclaimer": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique.",
     "proof.blocked_by.brother": "Exclu par un frère germain",
     "proof.blocked_by.daughters": "Exclu par au moins deux filles",
     "proof.blocked_by.descendant": "Exclu par un descendant",
@@ -472,6 +484,8 @@ export const termPlaceholders: Record<TermKey, Record<string, string>> = {
   "basis.compare": {},
   "basis.country": {},
   "basis.school": {},
+  "comparison.same_in_all_schools": {},
+  "notice.disclaimer": {},
   "proof.blocked_by.brother": {},
   "proof.blocked_by.daughters": {},
   "proof.blocked_by.descendant": {},

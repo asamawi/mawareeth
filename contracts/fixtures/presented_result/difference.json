@@ -1,96 +1,158 @@
 {
-  "version": 1,
+  "version": 2,
   "locale": "en",
   "direction": "ltr",
   "basis": {
-    "kind": "school",
-    "school": "hanbali"
+    "kind": "compare"
   },
-  "state": "answer",
+  "state": "selection_required",
   "comparison_outcome": "difference",
-  "rows": [
-    {
-      "person": "p_gf",
-      "name": {
-        "text": "Ali"
+  "school_line": null,
+  "rows": [],
+  "rounding": null,
+  "unallocated": null,
+  "comparison": {
+    "schools": [
+      {
+        "school": "hanafi",
+        "label": "Hanafi",
+        "status": "calculated",
+        "refusal": null,
+        "shares": [
+          {
+            "person": "h0",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "text": "1/1",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h1",
+            "blocked": true,
+            "share": {
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "text": "0/1",
+              "dir": "ltr"
+            }
+          }
+        ]
       },
-      "relationship": {
-        "translated": {
-          "text": "Grandfather",
-          "lang": "en",
-          "dir": "ltr"
-        },
-        "original": {
-          "text": "جد",
-          "lang": "ar",
-          "dir": "rtl"
-        }
+      {
+        "school": "maliki",
+        "label": "Maliki",
+        "status": "calculated",
+        "refusal": null,
+        "shares": [
+          {
+            "person": "h0",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h1",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          }
+        ]
       },
-      "kind": "residue",
-      "share": {
-        "fraction": {
-          "numerator": 1,
-          "denominator": 2
-        },
-        "text": "1/2"
+      {
+        "school": "shafii",
+        "label": "Shafi'i",
+        "status": "calculated",
+        "refusal": null,
+        "shares": [
+          {
+            "person": "h0",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h1",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          }
+        ]
       },
-      "amount": {
-        "amount_minor": 50000,
-        "currency": "SAR",
-        "text": "SAR 500.00"
+      {
+        "school": "hanbali",
+        "label": "Hanbali",
+        "status": "calculated",
+        "refusal": null,
+        "shares": [
+          {
+            "person": "h0",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h1",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          }
+        ]
       }
-    },
-    {
-      "person": "p_bro",
-      "name": null,
-      "relationship": {
-        "translated": {
-          "text": "Brother",
-          "lang": "en",
-          "dir": "ltr"
-        },
-        "original": {
-          "text": "أخ",
-          "lang": "ar",
-          "dir": "rtl"
-        }
-      },
-      "kind": "residue",
-      "share": {
-        "fraction": {
-          "numerator": 1,
-          "denominator": 2
-        },
-        "text": "1/2"
-      },
-      "amount": {
-        "amount_minor": 50000,
-        "currency": "SAR",
-        "text": "SAR 500.00"
-      }
-    }
-  ],
-  "rounding": {
-    "amount_minor": 0,
-    "currency": "SAR",
-    "text": "SAR 0.00"
+    ],
+    "differing_persons": [
+      "h0",
+      "h1"
+    ]
   },
-  "unallocated": {
-    "fraction": {
-      "numerator": 0,
-      "denominator": 1
-    },
-    "text": "0"
-  },
+  "evidence": [],
   "refusals": [],
   "notices": [
     {
       "code": "disclaimer",
-      "text": "This is not legal advice."
-    },
-    {
-      "code": "civil_law",
-      "text": "Civil law may differ."
+      "text": "Mawareeth is a calculation aid, not a fatwa or legal advice."
     }
   ]
 }

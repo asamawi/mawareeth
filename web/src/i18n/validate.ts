@@ -33,6 +33,7 @@ export type LocaleEntry = {
   direction: "rtl" | "ltr";
   babel_locale: string;
   numbering_system: string;
+  default_currency: string;
   own_name: string;
   pdf_font_stack: string[];
   published: boolean;
@@ -63,7 +64,7 @@ function placeholdersOf(text: string): Set<string> {
 
 /** The term keys every catalog must have, derived from the shared code vocabularies. */
 export function requiredKeys(codes: Codes): string[] {
-  const keys: string[] = [];
+  const keys: string[] = ["notice.disclaimer", "comparison.same_in_all_schools"];
   for (const id of codes.relationships) keys.push(`relationship.${id}`);
   for (const id of codes.schools) keys.push(`school.${id}`, `school.${id}.description`);
   for (const id of codes.basis_kinds) keys.push(`basis.${id}`);
@@ -105,6 +106,9 @@ export function validateRegistry(registry: unknown, catalogCodes: string[]): str
     for (const field of ["babel_locale", "numbering_system", "own_name"]) {
       const value = entry[field];
       if (typeof value !== "string" || value.trim() === "") add(code, `field ${field} must be a non-empty string`);
+    }
+    if (typeof entry.default_currency !== "string" || !/^[A-Z]{3}$/.test(entry.default_currency)) {
+      add(code, "field default_currency must be a currency code");
     }
     const stack = entry.pdf_font_stack;
     if (!Array.isArray(stack) || stack.length === 0 || stack.some((f) => typeof f !== "string" || f.trim() === "")) {
@@ -398,6 +402,7 @@ export function generateModule(registry: Registry, catalogs: Record<string, Cata
     "  ownName: string;",
     "  numberingSystem: string;",
     "  babelLocale: string;",
+    "  defaultCurrency: string;",
     "  published: boolean;",
     '  review: "reviewed" | "pending";',
     "};",
@@ -411,6 +416,7 @@ export function generateModule(registry: Registry, catalogs: Record<string, Cata
       `    ownName: ${q(entry.own_name)},`,
       `    numberingSystem: ${q(entry.numbering_system)},`,
       `    babelLocale: ${q(entry.babel_locale)},`,
+      `    defaultCurrency: ${q(entry.default_currency)},`,
       `    published: ${entry.published},`,
       `    review: ${q(entry.review)},`,
       "  },",

@@ -1,60 +1,15 @@
-"""PresentedResult contract: the one answer every screen, PDF and API renders without adding meaning."""
+"""PresentedResult v2. Nested values retain the wire shape; readers validate every key.
+
+This contract contains display strings, never calculation or localization policy.
+"""
+from copy import deepcopy
 from dataclasses import dataclass
-from fractions import Fraction
-from typing import Optional, Tuple
 
 from . import codes
 from .basis import dump_basis, parse_basis
-from .values import (CURRENCY_RE, LANG_RE, array, check_version, code, dump_fraction, fail, fraction, ident, integer,
-                     nullable, obj, pattern, snake, string, unique)
-
-DIRECTIONS = ('ltr', 'rtl')
-STATES = ('answer', 'selection_required', 'refused')
-
-
-@dataclass(frozen=True)
-class Segment:
-    text: str
-    lang: str
-    dir: str
-
-
-@dataclass(frozen=True)
-class Money:
-    amount_minor: int
-    currency: str
-    text: str
-
-
-@dataclass(frozen=True)
-class Row:
-    person: str
-    name: Optional[str]
-    translated: Segment
-    original: Segment
-    kind: str
-    share: Fraction
-    share_text: str
-    amount: Optional[Money]
-
-
-@dataclass(frozen=True)
-class FractionText:
-    fraction: Fraction
-    text: str
-
-
-@dataclass(frozen=True)
-class RefusalText:
-    school: Optional[str]
-    reason: str
-    text: str
-
-
-@dataclass(frozen=True)
-class Notice:
-    code: str
-    text: str
+from .result import _param
+from .values import (CURRENCY_RE, LANG_RE, array, boolean, check_version, code, fail, fraction,
+                     ident, integer, nullable, obj, pattern, snake, string, unique)
 
 
 @dataclass(frozen=True)
@@ -64,109 +19,221 @@ class PresentedResult:
     direction: str
     basis: object
     state: str
-    comparison_outcome: Optional[str]
-    rows: Tuple[Row, ...]
-    rounding: Optional[Money]
-    unallocated: Optional[FractionText]
-    refusals: Tuple[RefusalText, ...]
-    notices: Tuple[Notice, ...]
+    comparison_outcome: object
+    school_line: object
+    rows: tuple
+    rounding: object
+    unallocated: object
+    comparison: object
+    evidence: tuple
+    refusals: tuple
+    notices: tuple
 
 
-def _segment(value, path, arabic=False):
-    obj(value, path, ('text', 'lang', 'dir'))
-    lang = pattern(value['lang'], f'{path}.lang', LANG_RE, 'a language tag')
-    direction = code(value['dir'], f'{path}.dir', DIRECTIONS)
+def _text(v, p, direction='ltr', empty=False):
+    obj(v, p, ('text', 'dir'))
+    string(v['text'], p + '.text', not empty)
+    code(v['dir'], p + '.dir', (direction,))
+
+
+def _fraction(v, p):
+    obj(v, p, ('fraction', 'text', 'dir'))
+    fraction(v['fraction'], p + '.fraction')
+    _text({k: v[k] for k in ('text', 'dir')}, p)
+
+
+def _money(v, p, signed=False):
+    if v is None:
+        return
+    obj(v, p, ('amount_minor', 'currency', 'text', 'dir'))
+    integer(v['amount_minor'], p + '.amount_minor', None if signed else 0)
+    pattern(v['currency'], p + '.currency', CURRENCY_RE, 'a currency code')
+    _text({k: v[k] for k in ('text', 'dir')}, p, 'auto')
+
+
+def _label(v, p, vocabulary):
+    obj(v, p, ('code', 'text'))
+    code(v['code'], p + '.code', vocabulary)
+    string(v['text'], p + '.text', True)
+
+
+def _segment(v, p, arabic=False):
+    obj(v, p, ('text', 'lang', 'dir'))
+    string(v['text'], p + '.text', True)
+    lang = pattern(v['lang'], p + '.lang', LANG_RE, 'a language tag')
+    direction = code(v['dir'], p + '.dir', ('ltr', 'rtl'))
     if arabic and (lang != 'ar' or direction != 'rtl'):
-        fail(path, 'the original relationship is Arabic and right-to-left')
-    return Segment(string(value['text'], f'{path}.text', True), lang, direction)
+        fail(p, 'the original relationship is Arabic and right-to-left')
 
 
-def _money(value, path, minimum=None):
-    if value is None:
-        return None
-    obj(value, path, ('amount_minor', 'currency', 'text'))
-    return Money(integer(value['amount_minor'], f'{path}.amount_minor', minimum),
-                 pattern(value['currency'], f'{path}.currency', CURRENCY_RE, 'a currency code'),
-                 string(value['text'], f'{path}.text', True))
+def _refusal(v, p, school=False):
+    obj(v, p, ('school', 'reason', 'text') if school else ('reason', 'text'))
+    if school:
+        nullable(code, v['school'], p + '.school', codes.SCHOOLS)
+    code(v['reason'], p + '.reason', codes.REFUSAL_REASONS)
+    string(v['text'], p + '.text', True)
 
 
-def _fraction_text(value, path):
-    if value is None:
-        return None
-    obj(value, path, ('fraction', 'text'))
-    return FractionText(fraction(value['fraction'], f'{path}.fraction'), string(value['text'], f'{path}.text', True))
+def _comparison(v, p):
+    if v is None:
+        return
+    obj(v, p, ('schools', 'differing_persons'))
+    schools = array(v['schools'], p + '.schools')
+    for i, s in enumerate(schools):
+        q = f'{p}.schools[{i}]'
+        obj(s, q, ('school', 'label', 'status', 'refusal', 'shares'))
+        code(s['school'], q + '.school', codes.SUNNI_SCHOOLS)
+        string(s['label'], q + '.label', True)
+        code(s['status'], q + '.status', ('calculated', 'refused'))
+        shares = array(s['shares'], q + '.shares')
+        for j, share in enumerate(shares):
+            r = f'{q}.shares[{j}]'
+            obj(share, r, ('person', 'blocked', 'share'))
+            ident(share['person'], r + '.person')
+            boolean(share['blocked'], r + '.blocked')
+            _fraction(share['share'], r + '.share')
+        unique([s['person'] for s in shares], q + '.shares', 'person')
+        if s['status'] == 'refused':
+            if s['refusal'] is None or shares:
+                fail(q, 'a refused School names its refusal and has no shares')
+            _refusal(s['refusal'], q + '.refusal')
+        elif s['refusal'] is not None:
+            fail(q, 'a calculated School has no refusal')
+    if [s['school'] for s in schools] != list(codes.SUNNI_SCHOOLS):
+        fail(p, 'comparison lists the four Sunni Schools in order')
+    differing = array(v['differing_persons'], p + '.differing_persons')
+    for person in differing:
+        ident(person, p + '.differing_persons')
+    unique(differing, p + '.differing_persons', 'person')
+    calculated = [s for s in schools if s['status'] == 'calculated']
+    if not calculated or (not differing and len(calculated) == len(schools)):
+        fail(p, 'a comparison needs a difference or a partial refusal')
+
+
+def _evidence(v, p):
+    obj(v, p, ('order', 'deceased', 'inherited', 'heirs', 'school_rules', 'steps', 'unallocated'))
+    integer(v['order'], p + '.order', 1, 3)
+    nullable(ident, v['deceased'], p + '.deceased')
+    nullable(_fraction, v['inherited'], p + '.inherited')
+    nullable(_fraction, v['unallocated'], p + '.unallocated')
+    heirs = array(v['heirs'], p + '.heirs')
+    for i, h in enumerate(heirs):
+        q = f'{p}.heirs[{i}]'
+        obj(h, q, ('person', 'stage', 'rule', 'condition', 'blocked_by', 'school_rule', 'option', 'verses'))
+        ident(h['person'], q + '.person')
+        if h['stage'] is not None:
+            obj(h['stage'], q + '.stage', ('step', 'base'))
+            code(h['stage']['step'], q + '.stage.step', codes.PROOF_STEPS)
+            integer(h['stage']['base'], q + '.stage.base', 1)
+        for key, vocabulary in (('rule', codes.PROOF_RULES), ('condition', codes.PROOF_CONDITIONS),
+                                ('blocked_by', codes.BLOCKED_BY), ('school_rule', codes.SCHOOL_RULES),
+                                ('option', codes.PROOF_OPTIONS)):
+            if key == 'rule':
+                _label(h[key], q + '.' + key, vocabulary)
+            else:
+                nullable(_label, h[key], q + '.' + key, vocabulary)
+        for j, verse in enumerate(array(h['verses'], q + '.verses')):
+            _label(verse, f'{q}.verses[{j}]', ('quran_4_11', 'quran_4_12', 'quran_4_176'))
+    unique([h['person'] for h in heirs], p + '.heirs', 'person')
+    for i, rule in enumerate(array(v['school_rules'], p + '.school_rules')):
+        _label(rule, f'{p}.school_rules[{i}]', codes.SCHOOL_RULES)
+    for i, step in enumerate(array(v['steps'], p + '.steps')):
+        q = f'{p}.steps[{i}]'
+        obj(step, q, ('step', 'text', 'params'))
+        code(step['step'], q + '.step', codes.PROOF_STEPS)
+        string(step['text'], q + '.text', True)
+        if not isinstance(step['params'], dict):
+            fail(q + '.params', 'must be an object')
+        for name, param in step['params'].items():
+            snake(name, q + '.params')
+            _param(param, q + '.params.' + name)
 
 
 def parse_presented_result(data):
     check_version(data, 'version', 'presented_result')
-    obj(data, 'presented_result', ('version', 'locale', 'direction', 'basis', 'state', 'comparison_outcome', 'rows',
-                                   'rounding', 'unallocated', 'refusals', 'notices'))
-    locale = pattern(data['locale'], 'presented_result.locale', LANG_RE, 'a locale tag')
-    direction = code(data['direction'], 'presented_result.direction', DIRECTIONS)
+    p = 'presented_result'
+    obj(data, p, tuple(PresentedResult.__dataclass_fields__))
+    pattern(data['locale'], p + '.locale', LANG_RE, 'a locale tag')
+    code(data['direction'], p + '.direction', ('ltr', 'rtl'))
     basis = parse_basis(data['basis'])
-    state = code(data['state'], 'presented_result.state', STATES)
-    outcome = nullable(code, data['comparison_outcome'], 'presented_result.comparison_outcome',
-                       codes.COMPARISON_OUTCOMES)
-    rows = []
-    for i, item in enumerate(array(data['rows'], 'presented_result.rows')):
-        p = f'presented_result.rows[{i}]'
-        obj(item, p, ('person', 'name', 'relationship', 'kind', 'share', 'amount'))
-        name = item['name']
-        if name is not None:
-            obj(name, f'{p}.name', ('text',))
-            name = string(name['text'], f'{p}.name.text')
-        relationship = obj(item['relationship'], f'{p}.relationship', ('translated', 'original'))
-        share = obj(item['share'], f'{p}.share', ('fraction', 'text'))
-        rows.append(Row(
-            ident(item['person'], f'{p}.person'), name, _segment(relationship['translated'], f'{p}.relationship.translated'),
-            _segment(relationship['original'], f'{p}.relationship.original', True),
-            code(item['kind'], f'{p}.kind', codes.ALLOCATION_KINDS), fraction(share['fraction'], f'{p}.share.fraction'),
-            string(share['text'], f'{p}.share.text', True), _money(item['amount'], f'{p}.amount', 0)))
-    rounding = _money(data['rounding'], 'presented_result.rounding')
-    unallocated = _fraction_text(data['unallocated'], 'presented_result.unallocated')
-    refusals = []
-    for i, item in enumerate(array(data['refusals'], 'presented_result.refusals')):
-        p = f'presented_result.refusals[{i}]'
-        obj(item, p, ('school', 'reason', 'text'))
-        refusals.append(RefusalText(nullable(code, item['school'], f'{p}.school', codes.SCHOOLS),
-                                    code(item['reason'], f'{p}.reason', codes.REFUSAL_REASONS),
-                                    string(item['text'], f'{p}.text', True)))
-    notices = []
-    for i, item in enumerate(array(data['notices'], 'presented_result.notices')):
-        p = f'presented_result.notices[{i}]'
-        obj(item, p, ('code', 'text'))
-        notices.append(Notice(snake(item['code'], f'{p}.code'), string(item['text'], f'{p}.text', True)))
-    unique([r.person for r in rows], 'presented_result.rows', 'person')
+    state = code(data['state'], p + '.state', ('answer', 'selection_required', 'refused'))
+    outcome = nullable(code, data['comparison_outcome'], p + '.comparison_outcome', codes.COMPARISON_OUTCOMES)
+    if data['school_line'] is not None:
+        _label(data['school_line'], p + '.school_line', ('same_in_all_schools', 'school'))
+    rows = array(data['rows'], p + '.rows')
+    for i, row in enumerate(rows):
+        q = f'{p}.rows[{i}]'
+        obj(row, q, ('person', 'name', 'relationship', 'kind', 'blocked', 'share', 'percent', 'kirat', 'amount'))
+        ident(row['person'], q + '.person')
+        nullable(_text, row['name'], q + '.name', 'auto', True)
+        obj(row['relationship'], q + '.relationship', ('translated', 'original'))
+        _segment(row['relationship']['translated'], q + '.relationship.translated')
+        _segment(row['relationship']['original'], q + '.relationship.original', True)
+        code(row['kind'], q + '.kind', codes.ALLOCATION_KINDS)
+        boolean(row['blocked'], q + '.blocked')
+        _fraction(row['share'], q + '.share')
+        if row['blocked'] != (fraction(row['share']['fraction'], q + '.share') == 0):
+            fail(q, 'blocked means a zero final share')
+        _text(row['percent'], q + '.percent')
+        _text(row['kirat'], q + '.kirat')
+        _money(row['amount'], q + '.amount')
+    unique([r['person'] for r in rows], p + '.rows', 'person')
+    _money(data['rounding'], p + '.rounding', True)
+    if data['rounding'] is not None and data['rounding']['amount_minor'] == 0:
+        fail(p + '.rounding', 'rounding is emitted only when nonzero')
+    if data['unallocated'] is not None:
+        u = data['unallocated']
+        obj(u, p + '.unallocated', ('fraction', 'text', 'dir', 'amount'))
+        _fraction({k: u[k] for k in ('fraction', 'text', 'dir')}, p + '.unallocated')
+        _money(u['amount'], p + '.unallocated.amount')
+    _comparison(data['comparison'], p + '.comparison')
+    evidence = array(data['evidence'], p + '.evidence')
+    for i, entry in enumerate(evidence):
+        _evidence(entry, f'{p}.evidence[{i}]')
+    orders = [e['order'] for e in evidence]
+    if orders != list(range(1, len(orders) + 1)):
+        fail(p + '.evidence', 'estates must be in death order')
+    refusals = array(data['refusals'], p + '.refusals')
+    for i, refusal in enumerate(refusals):
+        _refusal(refusal, f'{p}.refusals[{i}]', True)
+    unique([r['reason'] for r in refusals], p + '.refusals', 'reason')
+    notices = array(data['notices'], p + '.notices')
+    for i, notice in enumerate(notices):
+        q = f'{p}.notices[{i}]'
+        obj(notice, q, ('code', 'text'))
+        code(notice['code'], q + '.code', ('disclaimer', 'country_notice', 'citation', 'civil_law',
+                                         'obligatory_bequest_prompt', 'locale_beta'))
+        nullable(string, notice['text'], q + '.text', True)
+    unique([n['code'] for n in notices], p + '.notices', 'notice')
     if state == 'refused':
-        if rows:
-            fail('presented_result.rows', 'a refused answer has no rows')
-        if not refusals or rounding is not None or unallocated is not None:
-            fail('presented_result', 'a refused answer names a refusal and has no rounding or unallocated share')
-    if state == 'selection_required' and (outcome != 'difference' or rows):
-        fail('presented_result', 'a required selection follows a difference and has no rows')
-    return PresentedResult(data['version'], locale, direction, basis, state, outcome, tuple(rows), rounding,
-                           unallocated, tuple(refusals), tuple(notices))
+        if rows or data['comparison'] is not None or data['school_line'] is not None or evidence:
+            fail(p, 'a refused answer has no rows, comparison, school line or evidence')
+        if not refusals or data['rounding'] is not None or data['unallocated'] is not None:
+            fail(p, 'a refused answer names its refusal and has no amounts')
+    elif state == 'selection_required':
+        if outcome != 'difference' or rows or data['comparison'] is None or evidence or data['school_line'] is not None:
+            fail(p, 'selection requires a comparison difference and no answer or evidence')
+        if data['rounding'] is not None or data['unallocated'] is not None:
+            fail(p, 'selection has no amounts')
+    elif not rows or data['school_line'] is None or data['comparison'] is not None or refusals:
+        fail(p, 'an answer has rows and a school line, without comparison or refusals')
+    if basis.kind == 'compare':
+        if outcome != {'answer': 'agreement', 'selection_required': 'difference', 'refused': 'all_refused'}[state]:
+            fail(p, 'compare state must match its outcome')
+        if state == 'answer' and data['school_line']['code'] != 'same_in_all_schools':
+            fail(p, 'agreement uses the shared School line')
+    elif outcome is not None or state == 'selection_required' or (state == 'answer' and data['school_line']['code'] != 'school'):
+        fail(p, 'a School or Country answer has no comparison outcome')
+    values = deepcopy(data)
+    values['basis'] = basis
+    for key in ('rows', 'evidence', 'refusals', 'notices'):
+        values[key] = tuple(values[key])
+    return PresentedResult(**values)
 
 
-def _dump_segment(s):
-    return {'text': s.text, 'lang': s.lang, 'dir': s.dir}
-
-
-def _dump_money(m):
-    return None if m is None else {'amount_minor': m.amount_minor, 'currency': m.currency, 'text': m.text}
-
-
-def dump_presented_result(p):
-    return {
-        'version': p.version, 'locale': p.locale, 'direction': p.direction, 'basis': dump_basis(p.basis),
-        'state': p.state, 'comparison_outcome': p.comparison_outcome,
-        'rows': [{'person': r.person, 'name': None if r.name is None else {'text': r.name},
-                  'relationship': {'translated': _dump_segment(r.translated), 'original': _dump_segment(r.original)},
-                  'kind': r.kind, 'share': {'fraction': dump_fraction(r.share), 'text': r.share_text},
-                  'amount': _dump_money(r.amount)} for r in p.rows],
-        'rounding': _dump_money(p.rounding),
-        'unallocated': None if p.unallocated is None
-        else {'fraction': dump_fraction(p.unallocated.fraction), 'text': p.unallocated.text},
-        'refusals': [{'school': r.school, 'reason': r.reason, 'text': r.text} for r in p.refusals],
-        'notices': [{'code': n.code, 'text': n.text} for n in p.notices],
-    }
+def dump_presented_result(presented):
+    values = deepcopy(vars(presented))
+    values['basis'] = dump_basis(presented.basis)
+    for key in ('rows', 'evidence', 'refusals', 'notices'):
+        values[key] = list(values[key])
+    return values

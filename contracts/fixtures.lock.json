@@ -76,8 +76,8 @@
   },
   "fixtures/invalid/presented_result.json": {
     "contract": "presented_result",
-    "sha256": "1e85b6a1d00422258abfd5f63e4726bd1311a23177ca888a4250ea09157aa90d",
-    "version": 1
+    "sha256": "600b8f40c84b711a1bd30739dae4063fb116cda61ffa370e4a458b6ab93f2426",
+    "version": 2
   },
   "fixtures/invalid/preset.json": {
     "contract": "preset",
@@ -91,28 +91,38 @@
   },
   "fixtures/presented_result/agreement.json": {
     "contract": "presented_result",
-    "sha256": "4fd2755d63a04e9a39adac780f359611392e3ed29eb00f3dd5da911aac1e2beb",
-    "version": 1
+    "sha256": "26c99a457606bdd78caf4d7e269ff565d927027e9e87ad075fd87cbbfce32462",
+    "version": 2
   },
   "fixtures/presented_result/difference.json": {
     "contract": "presented_result",
-    "sha256": "ca9a3c9d65eb3cc07b2d296b22dfd2f3885addb7e3d4c11ebedb87d0a8489dc5",
-    "version": 1
+    "sha256": "77104d9f40b482556006ecba39a6e2be348432c9f6276aebcca3571d76a22323",
+    "version": 2
+  },
+  "fixtures/presented_result/later-deaths.json": {
+    "contract": "presented_result",
+    "sha256": "4206aff8d3db63b7656fb48781b9ea3a11f12a1e7f2d8328d78cf2cda6c55e11",
+    "version": 2
   },
   "fixtures/presented_result/partial-refusal.json": {
     "contract": "presented_result",
-    "sha256": "7ac0d4d29412a5e59df994ca7b271a9c1ce619adb17437136854fdc4f59cb18b",
-    "version": 1
+    "sha256": "7018bddffcf2a172c214dfd5fda713494b738aa45d7366dfe353f9582869d2b6",
+    "version": 2
   },
   "fixtures/presented_result/refused.json": {
     "contract": "presented_result",
-    "sha256": "08fad9b6ba2f59d483e212c5718705c5f3ce8eb626bf712a68075970ab7701af",
-    "version": 1
+    "sha256": "6f9cc87a97f52399ba15ee480a13c0a283890dc2c5493c1a898ac91aba5efeec",
+    "version": 2
+  },
+  "fixtures/presented_result/school-answer.json": {
+    "contract": "presented_result",
+    "sha256": "defa74f8907a6ebca8b9ab6bbec74e5cd0fdd0ba442a5cc428f90ae14ae64d04",
+    "version": 2
   },
   "fixtures/presented_result/selection-required.json": {
     "contract": "presented_result",
-    "sha256": "996ce4cb9a6d6d4da67d2bc556e42fd58b89f700a3dafa68b2dc772d4c5ca650",
-    "version": 1
+    "sha256": "962965ff5408dcdef824cadc29af21039cf62c50a604e76c51b909a6c26ff897",
+    "version": 2
   },
   "fixtures/preset/zz-2026-01-01.json": {
     "contract": "preset",

@@ -516,6 +516,16 @@
       "placeholders": {},
       "review": "pending",
       "text": "مذهب سني ينتسب إلى الإمام الشافعي"
+    },
+    "notice.disclaimer": {
+      "text": "مواريث أداة مساعدة على الحساب وليست فتوى ولا استشارة قانونية.",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "comparison.same_in_all_schools": {
+      "text": "النتيجة نفسها في المذاهب السنية الأربعة",
+      "review": "pending",
+      "placeholders": {}
     }
   }
 }

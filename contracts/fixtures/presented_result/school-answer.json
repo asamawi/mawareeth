@@ -1,0 +1,150 @@
+{
+  "version": 2,
+  "locale": "fr",
+  "direction": "ltr",
+  "basis": {
+    "kind": "school",
+    "school": "hanbali"
+  },
+  "state": "answer",
+  "comparison_outcome": null,
+  "school_line": {
+    "code": "school",
+    "text": "Hanbalite"
+  },
+  "rows": [
+    {
+      "person": "h0",
+      "name": {
+        "text": "Layla",
+        "dir": "auto"
+      },
+      "relationship": {
+        "translated": {
+          "text": "Épouse",
+          "lang": "fr",
+          "dir": "ltr"
+        },
+        "original": {
+          "text": "زوجة",
+          "lang": "ar",
+          "dir": "rtl"
+        }
+      },
+      "kind": "fixed",
+      "blocked": false,
+      "share": {
+        "fraction": {
+          "numerator": 1,
+          "denominator": 4
+        },
+        "text": "1/4",
+        "dir": "ltr"
+      },
+      "percent": {
+        "text": "25,0 %",
+        "dir": "ltr"
+      },
+      "kirat": {
+        "text": "6,00",
+        "dir": "ltr"
+      },
+      "amount": {
+        "amount_minor": 25000,
+        "currency": "EUR",
+        "text": "250,00 €",
+        "dir": "auto"
+      }
+    }
+  ],
+  "rounding": null,
+  "unallocated": {
+    "fraction": {
+      "numerator": 3,
+      "denominator": 4
+    },
+    "text": "3/4",
+    "dir": "ltr",
+    "amount": {
+      "amount_minor": 75000,
+      "currency": "EUR",
+      "text": "750,00 €",
+      "dir": "auto"
+    }
+  },
+  "comparison": null,
+  "evidence": [
+    {
+      "order": 1,
+      "deceased": null,
+      "inherited": null,
+      "heirs": [
+        {
+          "person": "h0",
+          "stage": {
+            "step": "base",
+            "base": 4
+          },
+          "rule": {
+            "code": "fixed",
+            "text": "Part fixe"
+          },
+          "condition": {
+            "code": "no_descendant",
+            "text": "Il n'y a aucun descendant"
+          },
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "verses": [
+            {
+              "code": "quran_4_12",
+              "text": "Coran 4:12 (An-Nisa)"
+            }
+          ]
+        }
+      ],
+      "school_rules": [],
+      "steps": [
+        {
+          "step": "base",
+          "text": "La base commune des parts fixes",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 4
+            }
+          }
+        },
+        {
+          "step": "unallocated",
+          "text": "La part de la succession qu'aucun héritier ne reçoit",
+          "params": {
+            "rest": {
+              "type": "fraction",
+              "value": {
+                "numerator": 3,
+                "denominator": 4
+              }
+            }
+          }
+        }
+      ],
+      "unallocated": {
+        "fraction": {
+          "numerator": 3,
+          "denominator": 4
+        },
+        "text": "3/4",
+        "dir": "ltr"
+      }
+    }
+  ],
+  "refusals": [],
+  "notices": [
+    {
+      "code": "disclaimer",
+      "text": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique."
+    }
+  ]
+}

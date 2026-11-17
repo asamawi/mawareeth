@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "locale": "en",
   "direction": "ltr",
   "basis": {
@@ -7,20 +7,280 @@
   },
   "state": "selection_required",
   "comparison_outcome": "difference",
+  "school_line": null,
   "rows": [],
   "rounding": null,
   "unallocated": null,
+  "comparison": {
+    "schools": [
+      {
+        "school": "hanafi",
+        "label": "Hanafi",
+        "status": "calculated",
+        "refusal": null,
+        "shares": [
+          {
+            "person": "h0",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h1",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "text": "1/6",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h2",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 3
+              },
+              "text": "1/3",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h3",
+            "blocked": true,
+            "share": {
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "text": "0/1",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h4",
+            "blocked": true,
+            "share": {
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "text": "0/1",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h5",
+            "blocked": true,
+            "share": {
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "text": "0/1",
+              "dir": "ltr"
+            }
+          }
+        ]
+      },
+      {
+        "school": "maliki",
+        "label": "Maliki",
+        "status": "refused",
+        "refusal": {
+          "reason": "malikiyya_disputed",
+          "text": "Scholars of the Maliki school disagree about this family (the Malikiyya case), so no shares are shown."
+        },
+        "shares": []
+      },
+      {
+        "school": "shafii",
+        "label": "Shafi'i",
+        "status": "calculated",
+        "refusal": null,
+        "shares": [
+          {
+            "person": "h0",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h1",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "text": "1/6",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h2",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "text": "1/6",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h3",
+            "blocked": true,
+            "share": {
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "text": "0/1",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h4",
+            "blocked": true,
+            "share": {
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "text": "0/1",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h5",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "text": "1/6",
+              "dir": "ltr"
+            }
+          }
+        ]
+      },
+      {
+        "school": "hanbali",
+        "label": "Hanbali",
+        "status": "calculated",
+        "refusal": null,
+        "shares": [
+          {
+            "person": "h0",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h1",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "text": "1/6",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h2",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "text": "1/6",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h3",
+            "blocked": true,
+            "share": {
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "text": "0/1",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h4",
+            "blocked": true,
+            "share": {
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "text": "0/1",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h5",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 6
+              },
+              "text": "1/6",
+              "dir": "ltr"
+            }
+          }
+        ]
+      }
+    ],
+    "differing_persons": [
+      "h2",
+      "h5"
+    ]
+  },
+  "evidence": [],
   "refusals": [
     {
       "school": "maliki",
       "reason": "malikiyya_disputed",
-      "text": "This case is disputed."
+      "text": "Scholars of the Maliki school disagree about this family (the Malikiyya case), so no shares are shown."
     }
   ],
   "notices": [
     {
       "code": "disclaimer",
-      "text": "This is not legal advice."
+      "text": "Mawareeth is a calculation aid, not a fatwa or legal advice."
     }
   ]
 }

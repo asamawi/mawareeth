@@ -349,3 +349,25 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
   summary: Confirm the PDF glyph check (`python -m i18n.glyphs`) passes on CI with `fonts-noto-core`.
   evidence: The development host has no Noto fonts, so the check was only run locally to the "family not installed" failure (exit 1) and by unit tests with fake cmaps.
+
+## One presented answer (Story 8.6)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
+  summary: Native and fiqh review of the two new catalog keys (all three Locales, `review: pending`). Copied byte for byte from `messages.ts`; nothing was reworded.
+  evidence: `notice.disclaimer` = `footer.note` (en "Mawareeth is a calculation aid, not a fatwa or legal advice."; ar "مواريث أداة مساعدة على الحساب وليست فتوى ولا استشارة قانونية."; fr "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique."). `comparison.same_in_all_schools` = the `schoolsAgree` key (en "Same result in all four Sunni schools"; ar "النتيجة نفسها في المذاهب السنية الأربعة"; fr "Même résultat dans les quatre écoles sunnites").
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
+  summary: The new `default_currency` field of the Locale registry (`i18n/locales.json`, required by the validator) needs an owner re-check when a Locale is added.
+  evidence: ar SAR, en USD, fr EUR (owner decision 2026-11-16). `presentation.default_currency(locale, preset=None)` returns the preset's currency when a preset is given; no caller passes one until the Country extension.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
+  summary: Notice slots with no copy yet: `country_notice`, `citation`, `civil_law`, `obligatory_bequest_prompt` (FR-14) and `locale_beta`. They are selected by `presentation.select_notices` but disabled in `ENABLED_NOTICES`, which holds only `disclaimer`.
+  evidence: Copy and enabling belong to Epics 9-12. The predicates are tested with an `enabled` override so they are ready.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
+  summary: The scholars' table is not part of PresentedResult v2. Story 8.7 must add it (or keep rendering it from the evaluation's `table`) before the results page and the PDF switch.
+  evidence: `Evaluation.table` carries it; `present` never reads it.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
+  summary: Display changes the consumers will show once they render PresentedResult strings (AD-19). The full labelled table is `presentation/tests/fixtures/display-changes.json`.
+  evidence: Amounts gain a currency in Babel's form (en "$125.00", fr "125,00 €", ar "‏125.00 ر.س.‏" with CLDR's own right-to-left marks around it) where preview showed a bare "125.00". fr percent gains the CLDR no-break space ("12,5 %", was "12.5%" in the PDF). Percent and kirat keep the PDF's half-up rounding. The Arabic amount text contains U+200F from CLDR itself; presentation injects no control characters. A family with no heirs yet raises `PresentationError("no_heirs")`: the legacy preview is "not ready" there. A person blocked in the first estate but who inherits from a later death has `blocked: true` (kind `blocked`), where the legacy layered preview flagged only a zero final share.

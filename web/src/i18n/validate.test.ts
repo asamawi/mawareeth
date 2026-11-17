@@ -16,7 +16,7 @@ import {
 } from "./validate.ts";
 
 const entry = (code: string, direction: "rtl" | "ltr" = "ltr") => ({
-  code, direction, babel_locale: code, numbering_system: "latn", own_name: code.toUpperCase(),
+  code, direction, babel_locale: code, numbering_system: "latn", default_currency: "USD", own_name: code.toUpperCase(),
   pdf_font_stack: ["Noto Sans"], published: true, review: "pending" as const,
 });
 const registry = (): Registry => ({
@@ -44,7 +44,7 @@ test("a clean registry and catalogs have no errors", () => {
 
 test("required keys come from the code vocabularies", () => {
   assert.deepEqual(requiredKeys(codes), [
-    "basis.compare", "proof.rule.fixed", "proof.step.base", "proof.verse.quran_4_11", "proof.verse.quran_4_12",
+    "basis.compare", "comparison.same_in_all_schools", "notice.disclaimer", "proof.rule.fixed", "proof.step.base", "proof.verse.quran_4_11", "proof.verse.quran_4_12",
     "proof.verse.quran_4_176", "refusal.invalid_family", "relationship.father", "relationship.uncle",
     "school.hanafi", "school.hanafi.description",
   ]);
@@ -186,4 +186,13 @@ test("a stale, hand-edited or missing generated module is drift; CRLF alone is n
   assert.deepEqual(driftErrors(fresh.replace(/\n/g, "\r\n"), fresh), []);
   assert.deepEqual(driftErrors(fresh.replace("fr relationship.uncle", "edited"), fresh), drift);
   assert.deepEqual(driftErrors(null, fresh), drift);
+});
+
+test("every locale requires a three-letter uppercase default currency", () => {
+  for (const value of [undefined, "usd", "US", "USDD", 123]) {
+    const bad = registry();
+    (bad.locales[0] as unknown as Record<string, unknown>).default_currency = value;
+    assert.ok(validateRegistry(bad, ["ar", "en", "fr"]).includes("i18n/locales.json: ar: field default_currency must be a currency code"));
+  }
+  assert.ok(generateModule(registry(), catalogs()).includes('defaultCurrency: "USD"'));
 });

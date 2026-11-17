@@ -516,6 +516,16 @@
       "placeholders": {},
       "review": "pending",
       "text": "École sunnite nommée d'après l'imam al-Shafi'i"
+    },
+    "notice.disclaimer": {
+      "text": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique.",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "comparison.same_in_all_schools": {
+      "text": "Même résultat dans les quatre écoles sunnites",
+      "review": "pending",
+      "placeholders": {}
     }
   }
 }

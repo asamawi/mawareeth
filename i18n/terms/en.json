@@ -516,6 +516,16 @@
       "placeholders": {},
       "review": "pending",
       "text": "Sunni school named after Imam al-Shafi'i"
+    },
+    "notice.disclaimer": {
+      "text": "Mawareeth is a calculation aid, not a fatwa or legal advice.",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "comparison.same_in_all_schools": {
+      "text": "Same result in all four Sunni schools",
+      "review": "pending",
+      "placeholders": {}
     }
   }
 }

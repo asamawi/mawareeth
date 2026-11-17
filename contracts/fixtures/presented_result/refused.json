@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "locale": "en",
   "direction": "ltr",
   "basis": {
@@ -8,20 +8,23 @@
   },
   "state": "refused",
   "comparison_outcome": null,
+  "school_line": null,
   "rows": [],
   "rounding": null,
   "unallocated": null,
+  "comparison": null,
+  "evidence": [],
   "refusals": [
     {
       "school": null,
       "reason": "school_not_supported",
-      "text": "Not supported yet."
+      "text": "The Jafari school is not supported yet, so no shares are shown."
     }
   ],
   "notices": [
     {
       "code": "disclaimer",
-      "text": "This is not legal advice."
+      "text": "Mawareeth is a calculation aid, not a fatwa or legal advice."
     }
   ]
 }

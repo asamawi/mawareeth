@@ -13,7 +13,8 @@
         "Noto Sans"
       ],
       "published": true,
-      "review": "pending"
+      "review": "pending",
+      "default_currency": "SAR"
     },
     {
       "babel_locale": "en",
@@ -26,7 +27,8 @@
         "Noto Sans"
       ],
       "published": true,
-      "review": "pending"
+      "review": "pending",
+      "default_currency": "USD"
     },
     {
       "babel_locale": "fr",
@@ -39,7 +41,8 @@
         "Noto Sans"
       ],
       "published": true,
-      "review": "pending"
+      "review": "pending",
+      "default_currency": "EUR"
     }
   ],
   "schema_version": 1
