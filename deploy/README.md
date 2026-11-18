@@ -1169,13 +1169,10 @@ Populated roots are kept even if a later layer is broken. Saved cases, shares,
 invites and users are untouched.
 
 Calculation 2402 (owner 1829) is not selected: it has heirs (a mother and three
-daughters) and the same deceased entered twice. The owner decided on 2026-11-18
-to delete it anyway, as a separate manual step after the same backup:
+daughters). Its second, unlinked deceased row (11034) was deleted on 2026-11-19 by
+owner decision, keeping the deceased the family is attached to (11033); the
+removed row is kept root-only in
+`deploy/runtime/backup/calc-2402-deceased-11034-20261119.txt`. 2402 now converts.
 
-```console
-docker compose -p mawareeth exec -T app-blue python manage.py shell -c "from calc.models import Calculation; c = Calculation.objects.get(pk=2402, user_id=1829, parent=None); print(c.delete()[0])"
-```
-
-It prints only the number of rows deleted. Record the production purge date, the
-deleted count and the 2402 deletion in the legacy-import entry in
+Record the production purge date and deleted count in the legacy-import entry in
 `_bmad-output/implementation-artifacts/deferred-work.md`.

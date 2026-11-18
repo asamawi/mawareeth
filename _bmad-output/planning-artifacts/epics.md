@@ -1111,7 +1111,7 @@ As the owner/maintainer,
 I want the empty legacy calculations that the `api.0004` import reported as unconvertible removed,
 So that the database holds no dead drafts with nothing to compute.
 
-(Reconciled 2026-11-18: later-death layers only exist since v3, so emptiness is judged on the calculation's own rows. The production dry run found 1,145 empty drafts. Calculation 2402 is not empty (the same deceased entered twice, plus four heirs), so the command keeps it; the owner decided to delete it by hand after the same backup.)
+(Reconciled 2026-11-18: later-death layers only exist since v3, so emptiness is judged on the calculation's own rows. The production dry run found 1,145 empty drafts. Calculation 2402 is not empty (the same deceased entered twice, plus four heirs), so the command keeps it; on 2026-11-19 the owner had its extra, unlinked deceased row removed by hand so it converts.)
 
 **Acceptance Criteria:**
 
@@ -1127,8 +1127,8 @@ So that the database holds no dead drafts with nothing to compute.
 
 **Given** any converted calculation, or an unconvertible one whose own rows have both a deceased and an heir
 **When** the purge runs
-**Then** it is never deleted or modified by the command; calculation 2402 is one of these and is deleted by hand, separately, by owner decision
-**And** the deferred-work entry records the procedure and, after the production run, its date, the deleted count and the 2402 deletion.
+**Then** it is never deleted or modified by the command; calculation 2402 is one of these, repaired by hand separately by owner decision
+**And** the deferred-work entry records the procedure, the 2402 repair and, after the production run, its date and deleted count.
 
 **Given** the production purge
 **When** it is about to run

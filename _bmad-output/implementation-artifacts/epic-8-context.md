@@ -30,7 +30,7 @@ Families must see identical shares on screen, in the PDF and in Saved cases, and
 - Money: estate is integer minor units, validated with Babel currency precision; allocations round half-up with a signed rounding line summing to the estate, kept separate from legal unallocated/treasury shares. Phase-1 bare-decimal estates convert to currency SAR with explicit true (owner decision).
 - Disclaimer is always shown; PDFs are regenerated non-canonical drafts; results are never stored as truth.
 - Budgets: engine under 200 ms for a standard family; Share preview p95 under 1 s for 50 Heirs on mid-range phone over 4G; lock waits bounded and included in the budget. Logs never contain names, family data or request bodies.
-- Existing 841 no-deceased and 304 no-heirs legacy drafts (1,145 total) are purged by a dry-run-capable command; calculation 2402 is not empty and is deleted by hand (owner decision 2026-11-18). Take a fresh restic backup before the production purge.
+- Existing 841 no-deceased and 304 no-heirs legacy drafts (1,145 total) are purged by a dry-run-capable command; calculation 2402 is not empty; its duplicated deceased row was removed by hand on 2026-11-19 so it converts. Take a fresh restic backup before the production purge.
 - Country execution, Country writes and new Locales/presets stay disabled.
 
 ## Technical Decisions
