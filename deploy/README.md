@@ -1148,25 +1148,34 @@ Use the active slot in the same Compose/runtime environment as deployment
 (replace `app-blue` below with `app-green` if green is active):
 
 ```console
-docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --dry-run --expect 1146
+docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --dry-run --expect 1145
 ```
 
-Check `no_deceased=841 no_heirs=305 total=1146`, the ascending ids, and that
-2402 appears in `no_heirs_ids`.
+Check `no_deceased=841 no_heirs=304 total=1145` (the production dry run of
+2026-11-18 found exactly this) and the ascending ids.
 Output contains only reason keys, counts and integer ids; no family data.
 If the expected count differs, the command fails without deleting anything;
 resolve the difference before proceeding (legacy pages can still create drafts).
 After confirming the backup and dry-run counts, run:
 
 ```console
-docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --expect 1146
+docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --expect 1145
 ```
 
-Check `deleted=1146`. The command reclassifies candidates under root-row locks
+Check `deleted=1145`. The command reclassifies candidates under root-row locks
 and deletes matching roots and their dependent legacy rows in one transaction.
 Selection requires an unconvertible root with no root Deceased or no root Heir.
-Populated roots are kept even if a later layer is broken. Calculation 2402 is
-an empty draft and is included (owner decision 2026-11-18);
-Saved cases, shares, invites and users are untouched. Record the production purge
-date and deleted count in the legacy-import entry in
+Populated roots are kept even if a later layer is broken. Saved cases, shares,
+invites and users are untouched.
+
+Calculation 2402 (owner 1829) is not selected: it has heirs (a mother and three
+daughters) and the same deceased entered twice. The owner decided on 2026-11-18
+to delete it anyway, as a separate manual step after the same backup:
+
+```console
+docker compose -p mawareeth exec -T app-blue python manage.py shell -c "from calc.models import Calculation; c = Calculation.objects.get(pk=2402, user_id=1829, parent=None); print(c.delete()[0])"
+```
+
+It prints only the number of rows deleted. Record the production purge date, the
+deleted count and the 2402 deletion in the legacy-import entry in
 `_bmad-output/implementation-artifacts/deferred-work.md`.

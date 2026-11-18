@@ -1111,13 +1111,13 @@ As the owner/maintainer,
 I want the empty legacy calculations that the `api.0004` import reported as unconvertible removed,
 So that the database holds no dead drafts with nothing to compute.
 
-(Reconciled 2026-11-18: the owner decided that calculation 2402 is also an empty draft and is purged, so the expected total is 1,146; later-death layers only exist since v3, so emptiness is judged on the calculation's own rows.)
+(Reconciled 2026-11-18: later-death layers only exist since v3, so emptiness is judged on the calculation's own rows. The production dry run found 1,145 empty drafts. Calculation 2402 is not empty (the same deceased entered twice, plus four heirs), so the command keeps it; the owner decided to delete it by hand after the same backup.)
 
 **Acceptance Criteria:**
 
-**Given** the legacy calculations reported but not converted by `api.0004` on production (841 with no deceased, 304 with no heirs, and 2402 with more than one deceased and no heirs)
-**When** the owner runs the purge management command with `--dry-run --expect 1146`
-**Then** it lists the count per reason and the affected calculation ids, deletes nothing, and the counts match (`no_deceased=841 no_heirs=305 total=1146`, with 2402 among the no-heirs ids)
+**Given** the legacy calculations reported but not converted by `api.0004` on production (841 with no deceased, 304 with no heirs)
+**When** the owner runs the purge management command with `--dry-run --expect 1145`
+**Then** it lists the count per reason and the affected calculation ids, deletes nothing, and the counts match (`no_deceased=841 no_heirs=304 total=1145`)
 **And** it selects only owned root calculations that cannot be converted and whose own rows have no deceased or no heirs.
 
 **Given** the same selection
@@ -1127,8 +1127,8 @@ So that the database holds no dead drafts with nothing to compute.
 
 **Given** any converted calculation, or an unconvertible one whose own rows have both a deceased and an heir
 **When** the purge runs
-**Then** it is never deleted or modified
-**And** the deferred-work entry records the procedure and, after the production run, its date and deleted count.
+**Then** it is never deleted or modified by the command; calculation 2402 is one of these and is deleted by hand, separately, by owner decision
+**And** the deferred-work entry records the procedure and, after the production run, its date, the deleted count and the 2402 deletion.
 
 **Given** the production purge
 **When** it is about to run
