@@ -5,6 +5,7 @@ import { listShares, revokeShare, updateShare, type CreatedShare, type Share } f
 import type { Messages } from "@/i18n/messages";
 import { shareUrl } from "@/i18n/paths";
 import { buttonClass } from "../interview/form-bits";
+import { directionOf } from "@/i18n/messages";
 
 /** The new link (shown once, with Copy) and every active link of the saved case, with its visibility controls. */
 export function SharePanel({ savedId, created, locale, text }: { savedId: number; created: CreatedShare; locale: string; text: Messages["share"] }) {
@@ -67,7 +68,7 @@ export function SharePanel({ savedId, created, locale, text }: { savedId: number
   }
 
   return (
-    <section aria-labelledby={`${title}-h`} className="flex flex-col gap-3 rounded-md border border-current/60 p-3" dir={locale === "ar" ? "rtl" : "ltr"}>
+    <section aria-labelledby={`${title}-h`} className="flex flex-col gap-3 rounded-md border border-current/60 p-3" dir={directionOf(locale)}>
       <h2 id={`${title}-h`} className="text-xl font-semibold">{text.heading}</h2>
       {live && <><p role="status">{text.created}</p>
       <div className="flex flex-wrap items-center gap-3">
@@ -93,7 +94,7 @@ export function SharePanel({ savedId, created, locale, text }: { savedId: number
         ))}
       </ul>
       <p role="alert">{error ? text.actionError : ""}</p>
-      <dialog ref={dialog} aria-labelledby={title} className="m-auto max-w-md rounded border bg-white p-6 text-black backdrop:bg-black/50" dir={locale === "ar" ? "rtl" : "ltr"} onClose={() => { setWarning(null); trigger.current?.focus(); }}>
+      <dialog ref={dialog} aria-labelledby={title} className="m-auto max-w-md rounded border bg-white p-6 text-black backdrop:bg-black/50" dir={directionOf(locale)} onClose={() => { setWarning(null); trigger.current?.focus(); }}>
         <div className="flex flex-col gap-4">
           <h2 id={title} className="text-xl font-semibold">{text.warningTitle}</h2>
           <p>{text.warningBody}</p>

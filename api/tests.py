@@ -171,6 +171,10 @@ class CaseTests(TestCase):
             return client.generic(
                 'PATCH', CASE_URL, raw, content_type='application/json', secure=True,
                 headers=self.csrf(client))
+        if isinstance(body, dict) and 'expected_revision' not in body and Session.objects.count() == 1:
+            stored = self.stored()
+            if isinstance(stored, dict):
+                body = {**body, 'expected_revision': anonymous_case.revision_of(stored)}
         return client.patch(CASE_URL, body, format='json', secure=True, headers=self.csrf(client))
 
     def stored(self):
@@ -198,7 +202,8 @@ class CaseTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         case = response.json()['case']
-        self.assertEqual(set(case), {'id', 'started_at', 'madhab', 'deceased', 'heirs', 'heir_options', 'deaths'})
+        self.assertEqual(
+            set(case), {'id', 'revision', 'started_at', 'madhab', 'deceased', 'heirs', 'heir_options', 'deaths'})
         self.assertIsNone(case['madhab'])
         self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
         self.assertEqual(self.client.get(CASE_URL, secure=True).json(), {'case': case})
@@ -342,7 +347,9 @@ class CaseTests(TestCase):
             with self.subTest(madhab=madhab):
                 response = self.patch({'madhab': madhab})
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.json()['case'], {**case, 'madhab': madhab})
+                expected = case['revision'] + 1 + anonymous_case.MADHABS.index(madhab)
+                self.assertEqual(response.json()['case'], {**case, 'madhab': madhab, 'revision': expected})
+                self.assertEqual(self.stored()['revision'], expected)
                 self.assertEqual(self.client.get(CASE_URL, secure=True).json()['case']['madhab'], madhab)
         self.assertEqual(Calculation.objects.count(), 0)
         self.assertEqual(Person.objects.count(), 0)
@@ -444,7 +451,7 @@ class CaseTests(TestCase):
         response = self.patch({'madhab': 'jafari', 'case_id': old['id']})
 
         self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.json()['case'], {**live, 'madhab': 'maliki'})
+        self.assertEqual(response.json()['case'], {**live, 'madhab': 'maliki', 'revision': live['revision'] + 1})
         self.assertEqual(self.stored()['madhab'], 'maliki')
 
     def test_the_matching_case_id_is_accepted(self):
@@ -544,8 +551,18 @@ class InterviewHelpers:
         token = client.get(SESSION_URL, secure=True).cookies[settings.CSRF_COOKIE_NAME].value
         return {'X-CSRFToken': token, 'Referer': 'https://testserver/app/en/interview/'}
 
+    def current_revision(self, client):
+        morsel = client.cookies.get(settings.SESSION_COOKIE_NAME)
+        row = Session.objects.filter(session_key=morsel.value).first() if morsel else None
+        stored = row.get_decoded().get(anonymous_case.SESSION_KEY) if row else None
+        return anonymous_case.revision_of(stored) if isinstance(stored, dict) else None
+
     def send(self, method, url, body, client=None):
         client = client or self.client
+        if isinstance(body, dict) and body.get('case_id') and 'expected_revision' not in body:
+            revision = self.current_revision(client)
+            if revision is not None:
+                body = {**body, 'expected_revision': revision}
         if method == 'delete':
             # DELETE carries the case id in the query string; a body may be dropped on the way.
             query = urlencode({k: v for k, v in body.items() if v is not None}) if isinstance(body, dict) else ''
@@ -960,7 +977,7 @@ class InterviewAnswerTests(InterviewBase):
         response = self.send('patch', CASE_URL, {'madhab': 'jafari', 'case_id': case['id']})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['case'], {**before, 'madhab': 'jafari'})
+        self.assertEqual(response.json()['case'], {**before, 'madhab': 'jafari', 'revision': before['revision'] + 1})
 
     def test_start_over_clears_the_answers(self):
         case = self.ready()
@@ -1091,7 +1108,8 @@ class InterviewReviewTests(InterviewBase):
     def test_a_lone_surrogate_in_a_name_is_a_json_400(self):
         case = self.ready()
         heirs = self.heir(case).json()['case']['heirs']
-        body = '{"case_id": "%s", "relationship": "son", "name": "a%sud800"}' % (case['id'], BACKSLASH)
+        body = '{"case_id": "%s", "expected_revision": %d, "relationship": "son", "name": "a%sud800"}' % (
+            case['id'], self.live()['revision'], BACKSLASH)
 
         for method, url in (('post', HEIRS_URL), ('put', f'{HEIRS_URL}{heirs[0]["id"]}/')):
             with self.subTest(method=method):
@@ -1169,7 +1187,8 @@ class InterviewReviewTests(InterviewBase):
         stale = self.client.delete(f'{url}?case_id={"b" * 32}', secure=True, headers=headers)
         self.assertEqual(stale.status_code, 409)
         self.assertEqual(self.live()['heirs'], heirs)
-        gone = self.client.delete(f'{url}?case_id={case["id"]}', secure=True, headers=headers)
+        gone = self.client.delete(
+            f'{url}?case_id={case["id"]}&expected_revision={self.live()["revision"]}', secure=True, headers=headers)
         self.assertEqual(gone.status_code, 200)
 
     def test_editing_an_heir_with_50_stored_succeeds(self):
@@ -1257,6 +1276,25 @@ class InterviewReviewTests(InterviewBase):
 
 
 PREVIEW_URL = '/api/v1/case/preview/'
+
+
+def calc_sequences():
+    """Where each calculation table's id sequence stands: a preview must not advance any of them."""
+    found = []
+    with connection.cursor() as cursor:
+        for table in ('calc_calculation', 'calc_person', 'calc_marriage'):
+            cursor.execute('SELECT pg_get_serial_sequence(%s, %s)', [table, 'id'])
+            name = cursor.fetchone()[0]
+            cursor.execute(f'SELECT last_value, is_called FROM {name}')
+            found.append(cursor.fetchone())
+    return found
+
+
+def legacy_fields(body):
+    """A preview body without the additive `presented` and `revision`: the unchanged legacy fields."""
+    return {k: v for k, v in body.items() if k not in ('presented', 'revision')}
+
+
 PREVIEW_FIXTURES = json.loads(
     (Path(__file__).parent / 'contracts' / 'preview-fixtures.json').read_text(encoding='utf-8'))['fixtures']
 
@@ -1264,6 +1302,14 @@ PREVIEW_FIXTURES = json.loads(
 # Engine-heavy tests are TransactionTestCase: inside TestCase's per-test transaction every
 # compute() and case write is a savepoint, and past 64 subtransactions PostgreSQL slows every query sharply.
 class PreviewTests(InterviewHelpers, TransactionTestCase):
+    def without_revision(self, body):
+        """The body minus its integer `revision`; any other key, such as `presented`, is kept."""
+        self.assertIs(type(body.get('revision')), int)
+        return {k: v for k, v in body.items() if k != 'revision'}
+
+    def not_ready_body(self, case_id):
+        return self.without_revision(self.preview(case_id).json())
+
     def preview(self, case_id, client=None, **extra):
         client = client or self.client
         url = f'{PREVIEW_URL}?{urlencode({"case_id": case_id})}' if case_id is not None else PREVIEW_URL
@@ -1292,7 +1338,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
 
     def rows(self):
         from calc.models import Calculation, Marriage, Person
-        return (Calculation.objects.count(), Person.objects.count(), Marriage.objects.count())
+        return (Calculation.objects.count(), Person.objects.count(), Marriage.objects.count(), calc_sequences())
 
     def test_route_is_versioned(self):
         self.assertEqual(reverse('api:case-preview'), PREVIEW_URL)
@@ -1310,7 +1356,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                 if case.get('deaths'):
                     live = self.start()
                     self.plant(**{k: v for k, v in case.items() if k not in ('id', 'started_at')})
-                    self.assertEqual(self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json(),
+                    self.assertEqual(legacy_fields(self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()),
                                      fixture['response'])
                     continue
                 live = self.build(
@@ -1335,7 +1381,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                         for item in node:
                             with_real_ids(item)
                 with_real_ids(expected)
-                self.assertEqual(response.json(), expected)
+                self.assertEqual(legacy_fields(response.json()), expected)
                 # And the numbers are the engine's own, run directly on a persisted case.
                 if expected['status'] == 'available':
                     # A null school is the Hanbali body, which every school agreed with.
@@ -1343,7 +1389,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                     types = [HEIR_CLASSES[heir['relationship']] for heir in case['heirs']]
                     sex = 'M' if case['deceased']['gender'] == 'male' else 'F'
                     calc, heirs = build_case(sex, types, estate=1)
-                    final = calc.compute(madhab=madhab)
+                    final = calc.legacy_compute(madhab=madhab)
                     self.assertEqual(
                         [{k: v for k, v in e.items() if k not in ('heir', 'labels')} for e in expected['proof']['heirs']],
                         [{k: v for k, v in e.items() if k != 'heir'} for e in calc.proof['heirs']])
@@ -1373,7 +1419,71 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         from api import preview
         for fixture in PREVIEW_FIXTURES:
             with self.subTest(fixture['title']), translation.override('en'):
-                self.assertEqual(preview.preview(fixture['case']), fixture['response'])
+                self.assertEqual(legacy_fields(preview.preview(fixture['case'])), fixture['response'])
+
+    def test_presented_fixtures_are_the_bridge_output(self):
+        """The web's PresentedResult fixtures are this bridge's own English output, never hand-edited."""
+        from django.utils import translation
+        from api import preview
+        stored = json.loads((Path(__file__).parent / 'contracts' / 'preview-presented-fixtures.json')
+                            .read_text(encoding='utf-8'))
+        made, chosen = {}, {}
+        for fixture in PREVIEW_FIXTURES:
+            with translation.override('en'):
+                body = preview.preview(fixture['case'])
+                if body['status'] == 'choose_school':
+                    # What each school's own preview presents once the visitor chooses it (the e2e flow).
+                    chosen[fixture['title']] = {school: preview.preview({**fixture['case'], 'madhab': school})['presented']
+                                                for school in body['schools']}
+            if body['status'] != 'not_ready':
+                made[fixture['title']] = body['presented']
+        self.assertEqual(stored['presented'], made)
+        self.assertEqual(stored['chosen'], chosen)
+
+    def test_presented_states_follow_the_legacy_status(self):
+        from decimal import Decimal
+        from django.utils import translation
+        from engine.contracts import parse_presented_result
+        from api import preview
+        states = {'available': 'answer', 'unavailable': 'refused', 'choose_school': 'selection_required'}
+        seen = set()
+        for fixture in PREVIEW_FIXTURES:
+            with self.subTest(fixture['title']), translation.override('en'):
+                body = preview.preview(fixture['case'])
+                if body['status'] == 'not_ready':
+                    self.assertEqual(body, {'status': 'not_ready'})
+                    continue
+                presented = body['presented']
+                parse_presented_result(presented)
+                self.assertEqual(presented['version'], 3)
+                self.assertEqual(presented['state'], states[body['status']])
+                seen.add(presented['state'])
+                if body['status'] == 'available':
+                    code = 'same_in_all_schools' if body.get('agreement') == 'all' else 'school'
+                    self.assertEqual(presented['school_line']['code'], code)
+                    # the legacy amount is the presented amount scaled to two decimals
+                    amounts = {row['person']: row['amount'] for row in presented['rows']}
+                    for share in body['shares']:
+                        minor = amounts[share['heir_id']]
+                        self.assertEqual(share['amount'], None if minor is None
+                                         else f"{Decimal(minor['amount_minor']).scaleb(-2):.2f}")
+                        self.assertTrue(minor is None or minor['currency'] == 'SAR')
+                    self.assertEqual(presented['table'] is None, body['table'] is None)
+                elif body['status'] == 'choose_school':
+                    self.assertEqual(len(presented['comparison']['schools']), 4)
+                else:
+                    self.assertTrue(presented['refusals'])
+        self.assertEqual(seen, {'answer', 'refused', 'selection_required'})
+
+    def test_presented_text_follows_the_asked_language_and_the_table_is_labelled(self):
+        from django.utils import translation
+        from api import preview
+        fixture = next(f for f in PREVIEW_FIXTURES if f['title'] == 'Husband and two sisters need awl')
+        for language, caption in [('ar', '\u0627\u0644\u0633\u0647\u0627\u0645'), ('en', 'Shares'), ('fr', 'Parts')]:
+            with translation.override(language):
+                presented = preview.preview(fixture['case'])['presented']
+            self.assertEqual(presented['locale'], language)
+            self.assertEqual(presented['table']['columns'][0]['label'], caption)
 
     def test_table_labels_follow_the_language_and_layered_cases_have_tables(self):
         from django.utils import translation
@@ -1520,18 +1630,18 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
 
     def test_not_ready_until_the_case_has_a_deceased_and_an_heir(self):
         case = self.start()
-        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.assertEqual(self.not_ready_body(case['id']), {'status': 'not_ready'})
         self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': 'hanbali'})
-        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.assertEqual(self.not_ready_body(case['id']), {'status': 'not_ready'})
         self.deceased(case)
-        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.assertEqual(self.not_ready_body(case['id']), {'status': 'not_ready'})
         self.heir(case, 'son')
         self.assertEqual(self.preview(case['id']).json()['status'], 'available')
 
     def test_a_case_with_no_school_is_ready_without_one(self):
         case = self.start()
         self.deceased(case)
-        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.assertEqual(self.not_ready_body(case['id']), {'status': 'not_ready'})
         self.heir(case, 'son')
         body = self.preview(case['id']).json()
         self.assertEqual((body['status'], body['madhab'], body['agreement']), ('available', None, 'all'))
@@ -1638,7 +1748,8 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                 live = self.build('hanbali', gender, None, relationships)
                 body = self.preview(live['id']).json()
                 body.pop('basis')
-                self.assertEqual(body, {'status': 'unavailable', 'madhab': 'hanbali', 'reason': 'invalid_family'})
+                self.assertEqual(body.pop('presented')['state'], 'refused')
+                self.assertEqual(legacy_fields(body), {'status': 'unavailable', 'madhab': 'hanbali', 'reason': 'invalid_family'})
         # The edge of each rule still calculates.
         for gender, relationships in [('male', ['wife'] * 4), ('female', ['husband'])]:
             with self.subTest(ok=relationships):
@@ -1695,9 +1806,8 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
             self.assertEqual(self.rows(), before, args)
         self.assertGreaterEqual(len(seen), 5)
         # Even an engine error that escapes leaves nothing behind.
-        from calc.models import Calculation
         live = self.build('hanbali', 'male', None, ['son'])
-        with mock.patch.object(Calculation, 'compute', side_effect=RuntimeError('boom')):
+        with mock.patch('api.preview.evaluate_outcome', side_effect=RuntimeError('boom')):
             self.assertEqual(self.preview(live['id']).status_code, 503)
         self.assertEqual(self.rows(), before)
 
@@ -1739,25 +1849,24 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         self.assertEqual(response.status_code, 405)
 
     def test_names_never_reach_the_engine(self):
-        from calc.models import Calculation, Person
+        from presentation import outcome
         seen = []
-        real = Calculation.compute
 
-        def spy(calc, madhab='hanbali'):
-            seen.append((madhab, [(p.first_name, p.last_name, p.sex) for p in Person.objects.all()], calc.name))
-            return real(calc, madhab=madhab)
+        def spy(family, resolved):
+            seen.append((resolved.school, [(p.name, p.gender) for p in family.persons]))
+            return outcome(family, resolved)
 
         live = self.build('hanafi', 'male', '12345.67', ['wife', 'son'], names=['Secret Wife', 'Secret Son'])
-        with mock.patch.object(Calculation, 'compute', autospec=True, side_effect=spy):
-            self.assertEqual(self.preview(live['id']).status_code, 200)
+        with mock.patch('api.preview.evaluate_outcome', side_effect=spy):
+            response = self.preview(live['id'])
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(len(seen), 1)
-        madhab, people, name = seen[0]
-        self.assertEqual(madhab, 'hanafi')
-        self.assertEqual(name, '')
-        self.assertEqual(sorted(people), [('', '', 'F'), ('', '', 'M'), ('', '', 'M')])
+        school, people = seen[0]
+        self.assertEqual(school, 'hanafi')
+        self.assertEqual(sorted(people), [(None, 'female'), (None, 'male')])
+        self.assertNotIn('Secret', response.content.decode())
 
     def test_names_and_amounts_never_reach_the_logs_even_when_the_engine_fails(self):
-        from calc.models import Calculation
         handler = RecordingHandler()
         loggers = [logging.getLogger(name) for name in ('', 'api', 'django.request')]
         levels = [logger.level for logger in loggers]
@@ -1766,7 +1875,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
             logger.setLevel(logging.DEBUG)
         try:
             live = self.build('hanbali', 'male', '987654.32', ['son'], names=['Secret Name'])
-            with mock.patch.object(Calculation, 'compute', side_effect=RuntimeError('Secret Name 987654.32')):
+            with mock.patch('api.preview.evaluate_outcome', side_effect=RuntimeError('Secret Name 987654.32')):
                 response = self.preview(live['id'])
         finally:
             for logger, level in zip(loggers, levels):
@@ -2365,7 +2474,7 @@ class CaseWriteLockTests(TransactionTestCase):
     def with_deceased(self, headers):
         case = self.start(headers)
         response = self.client.put(
-            DECEASED_URL, {'case_id': case['id'], 'gender': 'male'}, format='json', secure=True, headers=headers)
+            DECEASED_URL, {'case_id': case['id'], 'gender': 'male', 'expected_revision': 1}, format='json', secure=True, headers=headers)
         self.assertEqual(response.status_code, 200)
         return case
 
@@ -2449,30 +2558,36 @@ class CaseWriteLockTests(TransactionTestCase):
         case = self.with_deceased(headers)
         other = self.twin()
 
-        def add(client, relationship):
+        revision = self.stored()['revision']
+
+        def add(client, relationship, expected):
+            # The second tab names the revision the first one's save will produce.
             return lambda: client.post(
-                HEIRS_URL, {'case_id': case['id'], 'relationship': relationship}, format='json',
-                secure=True, headers=headers)
+                HEIRS_URL, {'case_id': case['id'], 'relationship': relationship, 'expected_revision': expected},
+                format='json', secure=True, headers=headers)
 
         with self.hold_first():
-            first, second = self.run_pair(add(self.client, 'son'), add(other, 'daughter'))
+            first, second = self.run_pair(add(self.client, 'son', revision), add(other, 'daughter', revision + 1))
 
         self.assertEqual((first.status_code, second.status_code), (201, 201))
         self.assertEqual(
             sorted(heir['relationship'] for heir in self.stored()['heirs']), ['daughter', 'son'])
+        self.assertEqual(self.stored()['revision'], revision + 2)
 
     def test_heir_add_and_madhab_change_both_persist(self):
         headers = self.headers()
         case = self.with_deceased(headers)
         other = self.twin()
+        revision = self.stored()['revision']
 
         with self.hold_first():
             first, second = self.run_pair(
                 lambda: self.client.post(
-                    HEIRS_URL, {'case_id': case['id'], 'relationship': 'son'}, format='json',
-                    secure=True, headers=headers),
+                    HEIRS_URL, {'case_id': case['id'], 'relationship': 'son', 'expected_revision': revision},
+                    format='json', secure=True, headers=headers),
                 lambda: other.patch(
-                    CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'}, format='json',
+                    CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi', 'expected_revision': revision + 1},
+                    format='json',
                     secure=True, headers=headers))
 
         self.assertEqual((first.status_code, second.status_code), (201, 200))
@@ -2488,8 +2603,8 @@ class CaseWriteLockTests(TransactionTestCase):
         with self.hold_first():
             first, second = self.run_pair(
                 lambda: self.client.put(
-                    DECEASED_URL, {'case_id': case['id'], 'gender': 'male'}, format='json',
-                    secure=True, headers=headers),
+                    DECEASED_URL, {'case_id': case['id'], 'gender': 'male', 'expected_revision': 1},
+                    format='json', secure=True, headers=headers),
                 lambda: other.post(
                     CASE_URL, {'replace': True, 'case_id': case['id']}, format='json',
                     secure=True, headers=headers))
@@ -2511,8 +2626,8 @@ class CaseWriteLockTests(TransactionTestCase):
             self.spawn(
                 'first',
                 lambda: self.client.patch(
-                    CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'}, format='json',
-                    secure=True, headers=headers),
+                    CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi', 'expected_revision': 1},
+                    format='json', secure=True, headers=headers),
                 results)
             self.assertTrue(self.entered.wait(self.WAIT), 'The write never reached the view.')
             # The write is still held: the preview must answer anyway.
@@ -2565,7 +2680,8 @@ class CaseWriteLockTests(TransactionTestCase):
         self.assertEqual(refused.status_code, 400)
         # The lock was released: a later write goes through.
         again = self.client.patch(
-            CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'}, format='json', secure=True, headers=headers)
+            CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi', 'expected_revision': 1}, format='json',
+            secure=True, headers=headers)
         self.assertEqual(again.status_code, 200)
 
         # A stale tab is refused with the live case, and the lock is released after it too.
@@ -2577,7 +2693,8 @@ class CaseWriteLockTests(TransactionTestCase):
         self.assertEqual(stale.status_code, 409)
         self.assertEqual(stale.json()['case']['id'], fresh.json()['case']['id'])
         after = self.client.put(
-            DECEASED_URL, {'case_id': fresh.json()['case']['id'], 'gender': 'male'}, format='json',
+            DECEASED_URL, {'case_id': fresh.json()['case']['id'], 'gender': 'male', 'expected_revision': 1},
+            format='json',
             secure=True, headers=headers)
         self.assertEqual(after.status_code, 200)
 
@@ -2689,11 +2806,11 @@ class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, Transaction
         self.assertEqual(case['deaths'][0]['heirs'][0]['name'], 'W')
         self.assertNotIn('same_as', case['deaths'][0]['heirs'][0])
         self.assertEqual(self.preview(self.case_id).status_code, 200)
-        self.send('delete', DEATHS_URL + self.s1 + '/', {'case_id': self.case_id})
+        self.send('delete', DEATHS_URL + self.s1 + '/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
         self.assertEqual(self.live()['deaths'], [])
         self.two()
         self.mark(self.w)
-        self.send('delete', HEIRS_URL + self.s1 + '/', {'case_id': self.case_id})
+        self.send('delete', HEIRS_URL + self.s1 + '/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
         self.assertEqual(len(self.live()['deaths']), 1)
         self.assertEqual(self.live()['deaths'][0]['order'], 2)
         self.assertEqual(self.live()['deaths'][0]['heir_id'], self.w)
@@ -2794,14 +2911,15 @@ class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, Transaction
         self.assertEqual(body['status'], 'available')
         self.assertEqual({r['heir_id']: (r['numerator'], r['denominator']) for r in body['shares']},
                          {self.w: (13, 48), self.s2: (119, 192), son: (7, 64)})
-        self.send('delete', HEIRS_URL + self.s1 + '/', {'case_id': self.case_id})
+        self.send('delete', HEIRS_URL + self.s1 + '/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
         self.assertEqual(self.live()['deaths'], [])
 
     def test_layered_engine_reason_is_preserved_without_numbers(self):
         self.two()
         before = self.rows()
-        with mock.patch('api.preview.compute_manasikhat', side_effect=schools.UnsupportedCase(
-                schools.MANASIKHAT_UNSUPPORTED)):
+        from presentation import refused_outcome
+        with mock.patch('api.preview.evaluate_outcome', side_effect=lambda family, resolved: refused_outcome(
+                family, resolved, schools.MANASIKHAT_UNSUPPORTED)):
             body = self.preview(self.case_id).json()
         self.assertEqual(body['reason'], 'manasikhat_unsupported')
         self.assertNotIn('shares', body)
@@ -3057,7 +3175,9 @@ class AutomaticRelativesTests(InterviewDeathsHelpers, InterviewHelpers, Transact
         self.assertEqual(self.mark(s1).status_code, 201)
         self.assertEqual(self.live()['deaths'][0]['heirs'], [])
         response = self.preview(self.case_id)
-        self.assertEqual(response.json(), {'status': 'not_ready'})
+        body = response.json()
+        self.assertIs(type(body.pop('revision')), int)
+        self.assertEqual(body, {'status': 'not_ready'})
 
     def test_same_as_gender_mismatch_in_a_later_layer(self):
         s1, s2 = self.family('male', ['son', 'son'])
@@ -3153,7 +3273,7 @@ class LayeredPreviewTableTests(TestCase):
                 response = preview(fixture['case'])
                 self.assertEqual(response['table']['layers'][0]['table']['columns'][0]['label'], caption)
                 self.assertTrue(all(e['labels']['rule'] for l in response['proof']['layers'] for e in l['proof']['heirs']))
-        with patch('calc.proof.build_layered_table', return_value=None):
+        with patch('engine.proof.build_layered_table', return_value=None):
             response = preview(fixture['case'])
         self.assertIsNone(response['table'])
         self.assertEqual(response['proof']['version'], 2)
@@ -3262,6 +3382,8 @@ class SavedCaseTests(InterviewBase):
         opened = self.send('post', f'{self.url}{saved_id}/open/', {}, device)
         self.assertEqual(opened.status_code, 200)
         loaded = opened.json()['case']
+        self.assertEqual(device.session[anonymous_case.SAVED_LINK_KEY], {
+            'case_id': loaded['id'], 'saved_id': row.pk, 'base_revision': row.revision})
         self.assertNotEqual(loaded['id'], case['id'])
         self.assertEqual(anonymous_case.export_snapshot(loaded), row.snapshot)
         regenerated = device.get(
@@ -3314,10 +3436,12 @@ class SavedCaseTests(InterviewBase):
         self.client.force_login(self.owner)
         case = self.complete()
         row = SavedCase.objects.get(pk=self.save(case).json()['id'])
-        row.schema_version = 2
+        row.schema_version = 3
         row.save()
         self.assertEqual(self.client.get(self.url, secure=True).json(), {'cases': []})
-        self.assertEqual(self.send('post', f'{self.url}{row.pk}/open/', {}).status_code, 400)
+        response = self.send('post', f'{self.url}{row.pk}/open/', {})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['code'], 'unsupported_version')
         self.assertEqual(self.live()['id'], case['id'])
 
     def test_each_required_input_and_case_bound_link(self):
@@ -3556,12 +3680,13 @@ class ShareTests(InterviewBase):
         unknown = self.view('unknown-token')
         report = '/api/v1/shares/report/'
         unknown_report = self.send('post', report, {'token': 'unknown-token'}, self.anonymous())
-        for changes in ({'schema_version': 2}, {'schema_version': 1, 'snapshot': ['not', 'a', 'dict']}):
+        for changes in ({'schema_version': 3}, {'schema_version': 1, 'snapshot': ['not', 'a', 'dict']}):
             SavedCase.objects.filter(pk=self.saved_id).update(**changes)
             for response, expected in ((self.view(token), unknown),
                                        (self.send('post', report, {'token': token}, self.anonymous()), unknown_report)):
                 self.assertEqual(response.status_code, 404)
-                self.assertEqual(response.content, expected.content)
+                self.assertEqual(response.json(), {**expected.json(), 'code':
+                    'unsupported_version' if changes['schema_version'] == 3 else 'invalid_snapshot'})
 
     def test_share_view_throttle_applies_to_view_and_report(self):
         self.assertEqual(api_settings.DEFAULT_THROTTLE_RATES['share_view'], '300/hour')

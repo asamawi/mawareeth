@@ -1,0 +1,159 @@
+{
+  "version": 3,
+  "locale": "ar",
+  "direction": "rtl",
+  "basis": {
+    "kind": "compare"
+  },
+  "state": "selection_required",
+  "comparison_outcome": "difference",
+  "school_line": null,
+  "rows": [],
+  "rounding": null,
+  "unallocated": null,
+  "comparison": {
+    "schools": [
+      {
+        "school": "hanafi",
+        "label": "الحنفي",
+        "status": "calculated",
+        "refusal": null,
+        "shares": [
+          {
+            "person": "h0",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 1
+              },
+              "text": "1/1",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h1",
+            "blocked": true,
+            "share": {
+              "fraction": {
+                "numerator": 0,
+                "denominator": 1
+              },
+              "text": "0/1",
+              "dir": "ltr"
+            }
+          }
+        ]
+      },
+      {
+        "school": "maliki",
+        "label": "المالكي",
+        "status": "calculated",
+        "refusal": null,
+        "shares": [
+          {
+            "person": "h0",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h1",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          }
+        ]
+      },
+      {
+        "school": "shafii",
+        "label": "الشافعي",
+        "status": "calculated",
+        "refusal": null,
+        "shares": [
+          {
+            "person": "h0",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h1",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          }
+        ]
+      },
+      {
+        "school": "hanbali",
+        "label": "الحنبلي",
+        "status": "calculated",
+        "refusal": null,
+        "shares": [
+          {
+            "person": "h0",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          },
+          {
+            "person": "h1",
+            "blocked": false,
+            "share": {
+              "fraction": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "text": "1/2",
+              "dir": "ltr"
+            }
+          }
+        ]
+      }
+    ],
+    "differing_persons": [
+      "h0",
+      "h1"
+    ]
+  },
+  "evidence": [],
+  "refusals": [],
+  "notices": [
+    {
+      "code": "disclaimer",
+      "text": "مواريث أداة مساعدة على الحساب وليست فتوى ولا استشارة قانونية."
+    }
+  ],
+  "table": null
+}

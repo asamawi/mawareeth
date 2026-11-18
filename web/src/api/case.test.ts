@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 
 import { locales, messages } from "../i18n/messages.ts";
+import { previewFixture } from "../test/preview-fixtures.ts";
 import {
   addHeir,
   fetchCase,
@@ -40,7 +41,7 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-const CASE = { id: "abc123", started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} }, deaths: [] };
+const CASE = { id: "abc123", revision: 4, started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} }, deaths: [] };
 const signal = () => new AbortController().signal;
 const withToken = { cookie: () => "other=1; csrftoken=tok%3D1" };
 const header = (call: Call, name: string) => (call.init?.headers as Record<string, string>)[name];
@@ -225,26 +226,26 @@ test("parseCase reads a missing or unknown madhab as none and keeps a known one"
 test("setMadhab patches with the CSRF token, the school and the case id", async () => {
   const chosen = { ...CASE, madhab: "hanafi" };
   const calls = stubFetch(async () => Response.json({ case: chosen }));
-  assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", withToken), {
+  assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", 4, withToken), {
     kind: "updated",
     case: chosen,
   });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].init?.method, "PATCH");
   assert.equal(header(calls[0], "X-CSRFToken"), "tok=1");
-  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { madhab: "hanafi", case_id: "abc123" });
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { madhab: "hanafi", case_id: "abc123", expected_revision: 4 });
 });
 
 test("setMadhab maps 404, 409 and 429", async () => {
   stubFetch(async () => Response.json({ detail: "x" }, { status: 404 }));
-  assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", withToken), { kind: "gone" });
+  assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", 4, withToken), { kind: "gone" });
   stubFetch(async () => Response.json({ case: CASE }, { status: 409 }));
-  assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", withToken), {
+  assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", 4, withToken), {
     kind: "replaced",
     case: { ...CASE, madhab: null },
   });
   stubFetch(async () => Response.json({ detail: "slow" }, { status: 429 }));
-  assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", withToken), { kind: "throttled" });
+  assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", 4, withToken), { kind: "throttled" });
 });
 
 test("setMadhab probes the session first when there is no CSRF cookie", async () => {
@@ -256,14 +257,14 @@ test("setMadhab probes the session first when there is no CSRF cookie", async ()
     }
     return Response.json({ case: CASE });
   });
-  assert.equal((await setMadhab(signal(), "maliki", "abc123", { cookie: () => cookie })).kind, "updated");
+  assert.equal((await setMadhab(signal(), "maliki", "abc123", 4, { cookie: () => cookie })).kind, "updated");
   assert.deepEqual(calls.map((call) => call.url), ["/api/v1/session/", "/api/v1/case/"]);
 });
 
 for (const [name, answer] of Object.entries(failures)) {
   test(`setMadhab: ${name} reports failed after exactly one attempt`, async () => {
     const calls = stubFetch(answer);
-    assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", withToken), { kind: "failed" });
+    assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", 4, withToken), { kind: "failed" });
     assert.equal(calls.length, 1);
   });
 }
@@ -277,7 +278,7 @@ test("a hung PATCH reports failed at the timeout", async () => {
         );
       }),
   );
-  assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", { ...withToken, timeoutMs: 10 }), { kind: "failed" });
+  assert.deepEqual(await setMadhab(signal(), "hanafi", "abc123", 4, { ...withToken, timeoutMs: 10 }), { kind: "failed" });
 });
 
 const FULL_CASE = {
@@ -293,6 +294,7 @@ test("parseCase reads deceased and heirs, and tolerates the older shape", async 
   stubFetch(async () => Response.json({ case: { id: "a", started_at: "t" } }));
   assert.deepEqual(await fetchCase(signal()), {
     id: "a",
+    revision: null,
     started_at: "t",
     madhab: null,
     deceased: null,
@@ -321,35 +323,35 @@ test("parseCase reads deceased and heirs, and tolerates the older shape", async 
 
 test("saveDeceased puts the fields and the case id to its own URL", async () => {
   const calls = stubFetch(async () => Response.json({ case: FULL_CASE }));
-  const result = await saveDeceased(signal(), "abc123", { gender: "male", estate: "5" }, withToken);
+  const result = await saveDeceased(signal(), "abc123", 4, { gender: "male", estate: "5" }, withToken);
   assert.deepEqual(result, { kind: "saved", case: FULL_CASE });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "/api/v1/case/deceased/");
   assert.equal(calls[0].init?.method, "PUT");
   assert.equal(header(calls[0], "X-CSRFToken"), "tok=1");
-  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { gender: "male", estate: "5", case_id: "abc123" });
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { gender: "male", estate: "5", case_id: "abc123", expected_revision: 4 });
 });
 
 test("addHeir posts, updateHeir puts and removeHeir deletes, each with the case id", async () => {
   const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
-  await addHeir(signal(), "abc123", { relationship: "son", name: "A" }, withToken);
-  await updateHeir(signal(), "abc123", "h 1", { relationship: "wife", name: null }, withToken);
-  await removeHeir(signal(), "abc123", "h1", withToken);
+  await addHeir(signal(), "abc123", 4, { relationship: "son", name: "A" }, withToken);
+  await updateHeir(signal(), "abc123", 4, "h 1", { relationship: "wife", name: null }, withToken);
+  await removeHeir(signal(), "abc123", 4, "h1", withToken);
   assert.deepEqual(
     calls.map((call) => [call.init?.method, call.url]),
     [
       ["POST", "/api/v1/case/heirs/"],
       ["PUT", "/api/v1/case/heirs/h%201/"],
-      ["DELETE", "/api/v1/case/heirs/h1/?case_id=abc123"],
+      ["DELETE", "/api/v1/case/heirs/h1/?case_id=abc123&expected_revision=4&confirm_cascade=true"],
     ],
   );
-  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { relationship: "son", name: "A", case_id: "abc123" });
-  assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { relationship: "wife", name: null, case_id: "abc123" });
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { relationship: "son", name: "A", case_id: "abc123", expected_revision: 4 });
+  assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { relationship: "wife", name: null, case_id: "abc123", expected_revision: 4 });
   assert.equal(calls[2].init?.body, undefined, "a DELETE body may be dropped on the way, so there is none");
 });
 
 test("answer writes map 400, 404, 409 and 429", async () => {
-  const send = () => addHeir(signal(), "abc123", { relationship: "son", name: null }, withToken);
+  const send = () => addHeir(signal(), "abc123", 4, { relationship: "son", name: null }, withToken);
   stubFetch(async () => Response.json({ errors: { name: "too_long", x: 5 } }, { status: 400 }));
   assert.deepEqual(await send(), { kind: "invalid", errors: { name: "too_long" } });
   stubFetch(async () => Response.json({ detail: "bad" }, { status: 400 }));
@@ -370,7 +372,7 @@ test("answer writes make exactly one attempt and report failure", async () => {
   const calls = stubFetch(async () => {
     throw new TypeError("fetch failed");
   });
-  assert.deepEqual(await removeHeir(signal(), "abc123", "h1", withToken), { kind: "failed" });
+  assert.deepEqual(await removeHeir(signal(), "abc123", 4, "h1", withToken), { kind: "failed" });
   assert.equal(calls.length, 1);
   stubFetch(
     ({ init }) =>
@@ -379,7 +381,7 @@ test("answer writes make exactly one attempt and report failure", async () => {
       }),
   );
   assert.deepEqual(
-    await saveDeceased(signal(), "abc123", { gender: "male", estate: null }, { ...withToken, timeoutMs: 10 }),
+    await saveDeceased(signal(), "abc123", 4, { gender: "male", estate: null }, { ...withToken, timeoutMs: 10 }),
     { kind: "failed" },
   );
 });
@@ -449,9 +451,12 @@ const AVAILABLE = {
   },
 };
 
+const SERVED = previewFixture("Hanbali wife and son with an estate").response as Record<string, unknown>;
+
 test("fetchPreview makes one read with the case id and returns the typed preview", async () => {
-  const calls = stubFetch(async () => Response.json(AVAILABLE));
-  assert.deepEqual(await fetchPreview(signal(), "a b"), { kind: "preview", preview: AVAILABLE });
+  const calls = stubFetch(async () => Response.json(SERVED));
+  assert.deepEqual(await fetchPreview(signal(), "a b"), { kind: "preview", preview: SERVED });
+  assert.equal((SERVED.presented as { version: number }).version, 3);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "/api/v1/case/preview/?case_id=a%20b");
   assert.equal(calls[0].init?.method, undefined);
@@ -459,23 +464,50 @@ test("fetchPreview makes one read with the case id and returns the typed preview
   assert.equal(header(calls[0], "Accept-Language"), undefined);
 });
 
+test("the case revision the server sends beside every preview is read, a School choice included", async () => {
+  // The schools differ here, so the answer is the School choice: its strict shape must not see the revision.
+  const titles = ["Hanbali wife and son with an estate", "Differ: grandfather and full brother", "Refusal: Malikiyya makes the schools differ"];
+  const statuses = [];
+  for (const title of titles) {
+    const served = previewFixture(title).response as Record<string, unknown>;
+    stubFetch(async () => Response.json({ ...served, revision: 7 }));
+    const result = await fetchPreview(signal(), "abc");
+    assert.ok(result.kind === "preview", title);
+    assert.equal(result.revision, 7, title);
+    statuses.push(result.preview.status);
+  }
+  assert.deepEqual(statuses, ["available", "choose_school", "choose_school"]);
+});
+
+test("an answer with no valid PresentedResult for its status and heirs is a failure, never numbers", async () => {
+  const presented = SERVED.presented as Record<string, unknown>;
+  const bad: unknown[] = [
+    (({ presented: _kept, ...bare }) => bare)(SERVED),
+    { ...SERVED, presented: { ...presented, version: 2 } },
+    { ...SERVED, presented: { ...presented, state: "refused" } },
+    { ...SERVED, presented: { ...presented, rows: (presented.rows as unknown[]).slice(1) } },
+    { ...SERVED, presented: { ...presented, table: { columns: [{ code: "base" }], rows: [] } } },
+  ];
+  for (const body of bad) {
+    stubFetch(async () => Response.json(body));
+    assert.deepEqual(await fetchPreview(signal(), "abc"), { kind: "failed" });
+  }
+  // The structure alone still parses: the legacy fields are the contract's old shape.
+  const { presented: _kept, ...bare } = SERVED;
+  assert.equal(parsePreview(bare)?.status, "available");
+});
+
 test("fetchPreview asks for the page's language, so labels follow the page and not the browser", async () => {
-  const calls = stubFetch(async () => Response.json(AVAILABLE));
+  const calls = stubFetch(async () => Response.json(SERVED));
   await fetchPreview(signal(), "abc", { locale: "ar" });
   assert.equal(header(calls[0], "Accept-Language"), "ar");
 });
 
 test("fetchPreview reads each status", async () => {
+  const refused = previewFixture("Jafari is not supported").response;
   const cases: [number, unknown, unknown][] = [
     [200, { status: "not_ready" }, { kind: "preview", preview: { status: "not_ready" } }],
-    [
-      200,
-      { status: "unavailable", madhab: "jafari", reason: "school_not_supported", basis: BASIS },
-      {
-        kind: "preview",
-        preview: { status: "unavailable", madhab: "jafari", reason: "school_not_supported", basis: BASIS },
-      },
-    ],
+    [200, refused, { kind: "preview", preview: refused }],
     [429, { detail: "x" }, { kind: "throttled" }],
     [404, { detail: "x", case: null }, { kind: "gone" }],
     [409, { detail: "x", case: CASE }, { kind: "replaced" }],
@@ -909,21 +941,21 @@ test("parseCase refuses a link to a later layer, a third later death and a repea
 
 test("markDeceased posts the row and the answer to the order question; unmarkDeceased deletes", async () => {
   const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
-  assert.deepEqual(await markDeceased(signal(), "abc123", "s1", undefined, withToken), { kind: "saved", case: FULL_CASE });
+  assert.deepEqual(await markDeceased(signal(), "abc123", 4, "s1", undefined, withToken), { kind: "saved", case: FULL_CASE });
   assert.equal(calls[0].url, "/api/v1/case/deaths/");
   assert.equal(calls[0].init?.method, "POST");
-  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { heir_id: "s1", case_id: "abc123" });
-  await markDeceased(signal(), "abc123", "s2", "s1", withToken);
-  assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { heir_id: "s2", first: "s1", case_id: "abc123" });
-  await unmarkDeceased(signal(), "abc123", "s 1", withToken);
-  assert.equal(calls[2].url, "/api/v1/case/deaths/s%201/?case_id=abc123");
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { heir_id: "s1", case_id: "abc123", expected_revision: 4 });
+  await markDeceased(signal(), "abc123", 4, "s2", "s1", withToken);
+  assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { heir_id: "s2", first: "s1", case_id: "abc123", expected_revision: 4 });
+  await unmarkDeceased(signal(), "abc123", 4, "s 1", withToken);
+  assert.equal(calls[2].url, "/api/v1/case/deaths/s%201/?case_id=abc123&expected_revision=4&confirm_cascade=true");
   assert.equal(calls[2].init?.method, "DELETE");
   assert.equal(calls[2].init?.body, undefined);
 });
 
 test("a refused death comes back as its codes", async () => {
   stubFetch(async () => Response.json({ errors: { death: "order_required" } }, { status: 400 }));
-  assert.deepEqual(await markDeceased(signal(), "abc123", "s2", undefined, withToken), {
+  assert.deepEqual(await markDeceased(signal(), "abc123", 4, "s2", undefined, withToken), {
     kind: "invalid",
     errors: { death: "order_required" },
   });
@@ -953,19 +985,19 @@ test("relative questions reject malformed or unoffered choices", () => {
 test("malformed questions or a non-object 400 body never hide the error codes", async () => {
   for (const body of [{ errors: { relatives: "invalid" }, questions: "oops" }, { errors: { relatives: "invalid" }, questions: [1] }]) {
     stubFetch(async () => new Response(JSON.stringify(body), { status: 400 }));
-    const result = await markDeceased(signal(), CASE.id, "s", undefined, { cookie: () => "csrftoken=token" });
+    const result = await markDeceased(signal(), CASE.id, 4, "s", undefined, { cookie: () => "csrftoken=token" });
     assert.deepEqual(result, { kind: "invalid", errors: { relatives: "invalid" } });
   }
   stubFetch(async () => new Response("null", { status: 400 }));
-  assert.deepEqual(await markDeceased(signal(), CASE.id, "s", undefined, { cookie: () => "csrftoken=token" }), { kind: "failed" });
+  assert.deepEqual(await markDeceased(signal(), CASE.id, 4, "s", undefined, { cookie: () => "csrftoken=token" }), { kind: "failed" });
 });
 
 test("death writes carry relative answers and parse questions alongside order errors", async () => {
   const questions = [{ id: "w", person: "w", kind: "relative", options: ["mother", "none"], suggested: "mother" }];
   const calls = stubFetch(async () => new Response(JSON.stringify({ errors: { death: "order_required", relatives: "required" }, questions }), { status: 400 }));
-  const result = await markDeceased(signal(), CASE.id, "s", "x", { cookie: () => "csrftoken=token" }, { relatives: { w: "mother" }, shared_father: "no" });
+  const result = await markDeceased(signal(), CASE.id, 4, "s", "x", { cookie: () => "csrftoken=token" }, { relatives: { w: "mother" }, shared_father: "no" });
   assert.deepEqual(result, { kind: "invalid", errors: { death: "order_required", relatives: "required" }, questions });
-  assert.deepEqual(JSON.parse(calls[0].init?.body as string), { case_id: CASE.id, heir_id: "s", first: "x", relatives: { w: "mother" }, shared_father: "no" });
+  assert.deepEqual(JSON.parse(calls[0].init?.body as string), { case_id: CASE.id, expected_revision: 4, heir_id: "s", first: "x", relatives: { w: "mother" }, shared_father: "no" });
 });
 
 
@@ -1016,4 +1048,22 @@ test("layered proofs and tables reject malformed data as a whole", async () => {
     mutate(body);
     assert.equal(parsePreview(body), null, title);
   }
+});
+
+test("parseCase reads an integer revision and nothing else", async () => {
+  for (const [revision, expected] of [[7, 7], [0, null], [1.5, null], ["3", null], [undefined, null], [null, null]] as const) {
+    stubFetch(async () => Response.json({ case: { ...CASE, revision } }));
+    assert.equal((await fetchCase(signal()))?.revision, expected, String(revision));
+  }
+});
+
+test("a preview answer carries the revision it was computed from", async () => {
+  stubFetch(async () => Response.json({ ...SERVED, revision: 6 }));
+  assert.deepEqual(await fetchPreview(signal(), "a b"), { kind: "preview", preview: SERVED, revision: 6 });
+});
+
+test("startCase names the revision of the case it replaces", async () => {
+  const calls = stubFetch(async () => Response.json({ case: CASE }, { status: 201 }));
+  await startCase(signal(), { ...withToken, replace: true, caseId: "abc123", revision: 4 });
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { replace: true, case_id: "abc123", expected_revision: 4 });
 });

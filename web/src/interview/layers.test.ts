@@ -30,6 +30,7 @@ const OF = "{heir} of {deceased}";
 // W died third: son = S2, and a new mother M.
 const CASE: Case = {
   id: "c1",
+  revision: 1,
   started_at: "t",
   madhab: "hanafi",
   deceased: { gender: "male", estate: null },

@@ -1,0 +1,566 @@
+{
+  "locale": "ar",
+  "schema_version": 1,
+  "terms": {
+    "basis.compare": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مقارنة المذاهب السنية الأربعة"
+    },
+    "basis.country": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "قانون البلد"
+    },
+    "basis.school": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مذهب واحد"
+    },
+    "proof.blocked_by.brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بالأخ الشقيق"
+    },
+    "proof.blocked_by.daughters": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب ببنتين فأكثر"
+    },
+    "proof.blocked_by.descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بفرع وارث"
+    },
+    "proof.blocked_by.father": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بالأب"
+    },
+    "proof.blocked_by.grandfather": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بالجدّ"
+    },
+    "proof.blocked_by.male_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بفرع وارث مذكر"
+    },
+    "proof.blocked_by.mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بالأم"
+    },
+    "proof.blocked_by.paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بالأخ لأب"
+    },
+    "proof.blocked_by.paternal_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بالأخت لأب"
+    },
+    "proof.blocked_by.paternal_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بالعم لأب"
+    },
+    "proof.blocked_by.sisters": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بالأخوات الشقيقات"
+    },
+    "proof.blocked_by.son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بالابن"
+    },
+    "proof.blocked_by.son_of_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بابن الأخ الشقيق"
+    },
+    "proof.blocked_by.son_of_paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بابن الأخ لأب"
+    },
+    "proof.blocked_by.son_of_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بابن العم الشقيق"
+    },
+    "proof.blocked_by.uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب بالعم الشقيق"
+    },
+    "proof.condition.descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "لوجود فرع وارث"
+    },
+    "proof.condition.estate_exhausted": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "استغرقت الفروض التركة كلها"
+    },
+    "proof.condition.excluded_by_full_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "الإخوة الأشقاء يأخذون كل ما بقي"
+    },
+    "proof.condition.female_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "لوجود فرع وارث مؤنث وعدم وجود فرع وارث مذكر"
+    },
+    "proof.condition.male_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "لوجود فرع وارث مذكر"
+    },
+    "proof.condition.no_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "لعدم وجود فرع وارث"
+    },
+    "proof.condition.no_descendant_or_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "لعدم وجود فرع وارث ولا جمعٍ من الإخوة"
+    },
+    "proof.condition.no_mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "لعدم وجود الأم"
+    },
+    "proof.condition.several": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "عدّة ورثة من هذا النوع يشتركون في فرض واحد"
+    },
+    "proof.condition.siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "لوجود اثنين فأكثر من الإخوة والأخوات"
+    },
+    "proof.condition.single": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "وارث واحد من هذا النوع"
+    },
+    "proof.condition.spouse_and_father": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "لوجود أحد الزوجين والأب فتأخذ ثلث الباقي"
+    },
+    "proof.condition.with_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مع الأخ الشقيق"
+    },
+    "proof.condition.with_daughter": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مع بنت واحدة"
+    },
+    "proof.condition.with_grandfather": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مع الجدّ"
+    },
+    "proof.condition.with_maternal_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "الإخوة والأخوات لأمّ يشتركون في الثلث"
+    },
+    "proof.condition.with_paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مع الأخ لأب"
+    },
+    "proof.condition.with_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مع الإخوة الأشقاء أو لأب"
+    },
+    "proof.condition.with_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مع أخت شقيقة واحدة"
+    },
+    "proof.condition.with_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مع الابن"
+    },
+    "proof.condition.with_son_of_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مع ابن الابن"
+    },
+    "proof.option.muqasama": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "المقاسمة مع الإخوة كأخ واحد منهم"
+    },
+    "proof.option.sixth_of_estate": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "سدس التركة كلها"
+    },
+    "proof.option.third_of_remainder": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "ثلث الباقي بعد الفروض"
+    },
+    "proof.rule.akdariyya": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "الجدّ والأخت يجمعان نصيبيهما ويقتسمان مجموعهما للذكر مثل حظ الأنثيين"
+    },
+    "proof.rule.blocked": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "محجوب من الميراث"
+    },
+    "proof.rule.fixed": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "فرض مقدّر"
+    },
+    "proof.rule.fixed_and_residuary": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "فرض مقدّر مع الباقي بالتعصيب"
+    },
+    "proof.rule.grandfather_best_option": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "الجدّ يأخذ الأفضل له من أحواله مع الإخوة"
+    },
+    "proof.rule.mushtaraka": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "يشارك الإخوة لأمّ في الثلث بالتساوي"
+    },
+    "proof.rule.residuary": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "عاصب يأخذ ما بقي"
+    },
+    "proof.school_rule.father_blocks_his_mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "المذاهب الحنفي والمالكي والشافعي: الأب يحجب أمه، وهي الجدة لأب"
+    },
+    "proof.school_rule.grandfather_blocks_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "المذهب الحنفي: الجدّ يحجب الإخوة الأشقاء والإخوة لأب"
+    },
+    "proof.school_rule.grandfather_shares_with_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "المذاهب الحنبلي والمالكي والشافعي: الجدّ يقاسم الإخوة الأشقاء والإخوة لأب التركة"
+    },
+    "proof.school_rule.grandmother_inherits_with_her_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "المذهب الحنبلي: الجدة لأب ترث مع وجود ابنها، وهو الأب"
+    },
+    "proof.school_rule.mushtaraka": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "المذهبان المالكي والشافعي: الإخوة الأشقاء يشاركون الإخوة لأمّ في ثلثهم"
+    },
+    "proof.school_rule.no_mushtaraka": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "المذهبان الحنفي والحنبلي: الإخوة الأشقاء يبقون عصبة ولا يشاركون الإخوة لأمّ في ثلثهم"
+    },
+    "proof.school_rule.radd": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "يُردّ الباقي على الورثة بنسبة أنصبتهم"
+    },
+    "proof.school_rule.radd_later_scholars": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "المتأخرون من المالكية والشافعية: يُردّ الباقي على الورثة من غير الزوجين بنسبة أنصبتهم"
+    },
+    "proof.step.awl": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "العول: يُزاد الأصل لأن الفروض زادت على التركة"
+    },
+    "proof.step.base": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "أصل المسألة المشترك للفروض"
+    },
+    "proof.step.correction": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "التصحيح: يُضرب الأصل ليأخذ كل وارث أجزاء صحيحة"
+    },
+    "proof.step.radd": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "الردّ: تُعاد القسمة ليرجع الباقي على الورثة"
+    },
+    "proof.step.unallocated": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "الجزء من التركة الذي لا يأخذه أي وارث"
+    },
+    "proof.verse.quran_4_11": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "القرآن الكريم، سورة النساء، الآية 11"
+    },
+    "proof.verse.quran_4_12": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "القرآن الكريم، سورة النساء، الآية 12"
+    },
+    "proof.verse.quran_4_176": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "القرآن الكريم، سورة النساء، الآية 176"
+    },
+    "refusal.invalid_family": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "هذه الأسرة غير ممكنة (مثل أكثر من أب واحد، أو زوج لمتوفى ذكر)، فلا تُعرض أنصبة. يرجى مراجعة الورثة."
+    },
+    "refusal.malikiyya_disputed": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "اختلف علماء المذهب المالكي في هذه الحالة (المالكية)، فلا تُعرض أنصبة."
+    },
+    "refusal.manasikhat_unsupported": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "معاينة الوفيات المتعاقبة غير مدعومة لهذه الحالة. يرجى مراجعة البيانات وطلب مراجعة من مختص في المواريث."
+    },
+    "refusal.school_not_supported": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "المذهب الجعفري غير مدعوم بعد، فلا تُعرض أنصبة."
+    },
+    "relationship.brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "أخ شقيق"
+    },
+    "relationship.daughter": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "بنت"
+    },
+    "relationship.daughter_of_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "بنت الابن"
+    },
+    "relationship.father": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "أب"
+    },
+    "relationship.grandfather": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "جد"
+    },
+    "relationship.husband": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "زوج"
+    },
+    "relationship.maternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "أخ لأم"
+    },
+    "relationship.maternal_grandmother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "جدة لأم"
+    },
+    "relationship.maternal_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "أخت لأم"
+    },
+    "relationship.mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "أم"
+    },
+    "relationship.paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "أخ لأب"
+    },
+    "relationship.paternal_grandmother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "جدة لأب"
+    },
+    "relationship.paternal_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "أخت لأب"
+    },
+    "relationship.paternal_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "عم لأب"
+    },
+    "relationship.sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "أخت شقيقة"
+    },
+    "relationship.son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "ابن"
+    },
+    "relationship.son_of_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "ابن الأخ الشقيق"
+    },
+    "relationship.son_of_paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "ابن الأخ لأب"
+    },
+    "relationship.son_of_paternal_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "ابن العم لأب"
+    },
+    "relationship.son_of_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "ابن الابن"
+    },
+    "relationship.son_of_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "ابن العم الشقيق"
+    },
+    "relationship.uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "عم شقيق"
+    },
+    "relationship.wife": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "زوجة"
+    },
+    "school.hanafi": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "الحنفي"
+    },
+    "school.hanafi.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مذهب سني ينتسب إلى الإمام أبي حنيفة"
+    },
+    "school.hanbali": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "الحنبلي"
+    },
+    "school.hanbali.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مذهب سني ينتسب إلى الإمام أحمد بن حنبل"
+    },
+    "school.jafari": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "الجعفري"
+    },
+    "school.jafari.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مذهب شيعي ينتسب إلى الإمام جعفر الصادق"
+    },
+    "school.maliki": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "المالكي"
+    },
+    "school.maliki.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مذهب سني ينتسب إلى الإمام مالك بن أنس"
+    },
+    "school.shafii": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "الشافعي"
+    },
+    "school.shafii.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "مذهب سني ينتسب إلى الإمام الشافعي"
+    },
+    "notice.disclaimer": {
+      "text": "مواريث أداة مساعدة على الحساب وليست فتوى ولا استشارة قانونية.",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "comparison.same_in_all_schools": {
+      "text": "النتيجة نفسها في المذاهب السنية الأربعة",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.base": {
+      "text": "السهام",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.awl": {
+      "text": "العول",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd": {
+      "text": "الرد",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.remainder": {
+      "text": "الباقي تعصيبًا",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd_calc": {
+      "text": "مسالة الرد",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd_union": {
+      "text": "الجامعة",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.correction": {
+      "text": "التصحيح",
+      "review": "pending",
+      "placeholders": {}
+    }
+  }
+}

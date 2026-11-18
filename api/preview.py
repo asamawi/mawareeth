@@ -1,26 +1,29 @@
 """The share preview: the one bridge between the anonymous session case and the engine.
 
-The engine works on database rows, so a preview builds them inside a transaction that is
-always rolled back and leaves nothing behind. Names never cross this line: the engine gets
-relationships, the deceased's gender and a placeholder estate. Amounts are worked out here
-from the exact fraction, because the engine's estate is an integer and the session's may
-have decimals.
+A preview is computed in memory by the pure core and the presenter. It creates, updates and locks no
+rows and advances no sequence. The legacy fields (`shares`, `proof`, `table`, ...) stay for one release
+so a cached web bundle keeps working; `presented` carries the PresentedResult every renderer shows.
+The core gets relationships and genders; amounts are worked out from exact fractions in integer minor
+units by the presenter's own rounding.
 """
 from decimal import Decimal
 from fractions import Fraction
 
-from django.db import transaction
-from django.utils.translation import gettext as _
+from django.utils.translation import get_language, gettext as _
 
+import engine
 from api import anonymous_case, heir_rules
 from calc import proof as proof_codes, schools
-from calc.manasikhat import compute_manasikhat
+from calc.adapters import basis_from_madhab, family_from_session
 from calc.models import (
-    Brother, Calculation, Daughter, DaughterOfSon, Deceased, Father, GrandFather, GrandMother,
-    Heir, Husband, MaternalBrother, MaternalGrandMother, MaternalSister, Mother, PaternalBrother, PaternalSister,
+    Brother, Daughter, DaughterOfSon, Father, GrandFather, GrandMother,
+    Husband, MaternalBrother, MaternalGrandMother, MaternalSister, Mother, PaternalBrother, PaternalSister,
     PaternalUncle, Sister, Son, SonOfBrother, SonOfPaternalBrother, SonOfPaternalUncle,
-    SonOfSon, SonOfUncle, Uncle, Wife, money,
+    SonOfSon, SonOfUncle, Uncle, Wife,
 )
+from engine.contracts import dump_presented_result
+from presentation import outcome as evaluate_outcome, present, refused_outcome
+from presentation.money import round_minor
 
 # Relationship id to the engine's class for it. Every id in anonymous_case.RELATIONSHIPS is here.
 HEIR_CLASSES = {
@@ -48,10 +51,8 @@ HEIR_CLASSES = {
     'son_of_uncle': SonOfUncle,
     'son_of_paternal_uncle': SonOfPaternalUncle,
 }
-SEX = {'male': 'M', 'female': 'F'}
+SEX = {'male': 'M', 'female': 'F'}  # the ORM rows the tests build
 INVALID_FAMILY = 'invalid_family'
-# The engine's estate is an integer, so it always gets this and amounts are worked out here.
-PLACEHOLDER_ESTATE = 1
 
 
 def is_impossible(case):
@@ -119,61 +120,37 @@ def _table(table, ids):
     }
 
 
-def _compute(case):
-    """The engine's fractions, blocked flags and proof by session heir id. Leaves rows; roll back."""
-    calc = Calculation.objects.create(name='')
-    Deceased.objects.create(sex=SEX[case['deceased']['gender']], estate=PLACEHOLDER_ESTATE, calc=calc)
-    by_pk = {}
-    for heir in case['heirs']:
-        row = HEIR_CLASSES[heir['relationship']].objects.create(sex=SEX[heir['gender']], calc=calc)
-        by_pk[row.pk] = heir['id']
-    final = calc.compute(madhab=case['madhab'])
-    blocked = dict(Heir.objects.filter(calc=calc).values_list('pk', 'blocked'))
-    outcome = {
-        by_pk[pk]: (Fraction(fraction), bool(blocked.get(pk)))
-        for pk, fraction in final.items() if pk in by_pk
-    }
-    return outcome, _labelled(calc.proof, by_pk), _table(calc.table, by_pk)
+def _session_rows(case):
+    """Every session heir row by id, across the later deaths when there are any."""
+    return anonymous_case._rows(case) if case.get('deaths') else {r['id']: r for r in case['heirs']}
 
 
-def _compute_layered(case):
-    root = Calculation.objects.create(name='')
-    Deceased.objects.create(sex=SEX[case['deceased']['gender']], estate=PLACEHOLDER_ESTATE, calc=root)
-    by_id, by_pk = {}, {}
-    for key, deceased, heirs in anonymous_case._layers(case):
-        calc = root
-        if key is not None:
-            death = next(d for d in case['deaths'] if d['heir_id'] == key)
-            calc = Calculation.objects.create(name='', parent=root)
-            Deceased.objects.create(sex=SEX[deceased['gender']], estate=PLACEHOLDER_ESTATE,
-                                    calc=calc, heir=by_id[key], death_order=death['order'])
-        for heir in heirs:
-            row = HEIR_CLASSES[heir['relationship']].objects.create(
-                sex=SEX[heir['gender']], calc=calc,
-                same_person=by_id.get(heir.get('same_as')))
-            by_id[heir['id']] = row
-            by_pk[row.pk] = heir['id']
-    final, evidence = compute_manasikhat(root, case['madhab'])
-    deaths = {d['order']: d['heir_id'] for d in case['deaths']}
-    labelled = {
-        **evidence,
-        'people': [{'row': by_pk[p['row']], 'person': by_pk[p['person']]} for p in evidence['people']],
-        'final': [{**entry, 'heir': by_pk[entry['heir']]} for entry in evidence['final']],
-        'layers': [{**layer, 'deceased': None if layer['order'] == 1 else deaths[layer['order']],
-                    'heir': deaths.get(layer['order']), 'proof': _labelled(layer['proof'], by_pk)}
-                   for layer in evidence['layers']],
-    }
-    table = root.table
+def _evidence(evaluation, case):
+    """The core's proof and table for the client, heirs named by session id and labelled."""
+    proof, table = engine.thaw(evaluation.proof), engine.thaw(evaluation.table)
+    rows = _session_rows(case)
+    ids = {key: key for key in rows}
+    if proof['version'] == 1:
+        return _labelled(proof, ids), _table(table, ids)
+    # The core's proof lists distinct people only; the legacy preview also lists each repeated row.
+    aliases = {r['id']: r.get('same_as', r['id']) for r in rows.values()}
+
+    def identity(key):
+        return identity(aliases[key]) if aliases[key] != key else key
+
+    layer_rows = {i + 1: entries for i, (_key, _deceased, entries) in enumerate(anonymous_case._layers(case))}
+
+    def row_ids(order):
+        return {identity(r['id']): r['id'] for r in layer_rows[order]}
+
+    proof = {**proof,
+             'people': [{'row': key, 'person': identity(key)} for key in rows if key != identity(key)],
+             'layers': [{**layer, 'deceased': None if layer['order'] == 1 else layer['deceased'],
+                         'proof': _labelled(layer['proof'], row_ids(layer['order']))} for layer in proof['layers']]}
     if table is not None:
-        table = {
-            **table,
-            'rows': [{'heir': by_pk[row['heir']]} for row in table['rows']],
-            'layers': [{**layer, 'heir': deaths.get(layer['order']),
-                        'table': _table(layer['table'], by_pk),
-                        'parts': [{**part, 'heir': by_pk[part['heir']]} for part in layer['parts']]}
-                       for layer in table['layers']],
-        }
-    return {by_pk[pk]: (Fraction(value), value == 0) for pk, value in final.items()}, labelled, table
+        table = {**table, 'layers': [{**layer, 'table': _table(layer['table'], row_ids(layer['order']))}
+                                     for layer in table['layers']]}
+    return proof, table
 
 
 def _ready(case):
@@ -183,36 +160,29 @@ def _ready(case):
     return all(d['heirs'] for d in case.get('deaths', []))
 
 
-def _single(case):
-    """The preview of a ready case under the school it holds (or null, which the engine reads as Hanbali)."""
-    madhab = case['madhab']
-    if is_impossible(case) or any(heir_rules.is_impossible_family(
-            d['gender'], heir_rules.counts(d['heirs'])) for d in case.get('deaths', [])):
-        return {'status': 'unavailable', 'madhab': madhab, 'reason': INVALID_FAMILY, 'basis': basis(case)}
-    try:
-        with transaction.atomic():
-            try:
-                outcome, proof, table = _compute_layered(case) if case.get('deaths') else _compute(case)
-            finally:
-                transaction.set_rollback(True)
-    except schools.UnsupportedCase as refused:
-        return {'status': 'unavailable', 'madhab': madhab, 'reason': refused.reason, 'basis': basis(case)}
+def _impossible(case):
+    """Whether the family or any later estate cannot exist, as the deceased's own gender sees it."""
+    return is_impossible(case) or any(heir_rules.is_impossible_family(
+        d['gender'], heir_rules.counts(d['heirs'])) for d in case.get('deaths', []))
 
-    estate = case['deceased']['estate']
-    shares = []
-    rows = anonymous_case._rows(case) if case.get('deaths') else {r['id']: r for r in case['heirs']}
-    for heir_id in rows:
-        if heir_id not in outcome:
-            continue
-        heir = rows[heir_id]
-        fraction, blocked = outcome[heir_id]
-        shares.append({
-            'heir_id': heir['id'],
-            **_fraction(fraction),
-            'blocked': blocked or fraction == 0,
-            'amount': None if estate is None else f'{money(Fraction(Decimal(estate)) * fraction):.2f}',
-        })
-    left = 1 - sum((fraction for fraction, _blocked in outcome.values()), Fraction(0))
+
+def _body(case, evaluation, estate_minor):
+    """The legacy body of a ready case under the school it holds, from the core's evaluation of it."""
+    madhab = case['madhab']
+    invalid = _impossible(case)
+    if invalid or evaluation.result.status == 'refused':
+        return {'status': 'unavailable', 'madhab': madhab,
+                'reason': INVALID_FAMILY if invalid else evaluation.result.refusal, 'basis': basis(case)}
+    proof, table = _evidence(evaluation, case)
+    final = engine.final_shares(evaluation.result)
+    shares = [{
+        'heir_id': heir_id,
+        **_fraction(final[heir_id]),
+        'blocked': final[heir_id] == 0,
+        'amount': None if estate_minor is None else
+        f'{Decimal(round_minor(estate_minor, final[heir_id])).scaleb(-2):.2f}',
+    } for heir_id in _session_rows(case) if heir_id in final]
+    left = 1 - sum(final.values(), Fraction(0))
     return {
         'status': 'available',
         'madhab': madhab,
@@ -222,6 +192,23 @@ def _single(case):
         'proof': proof,
         'table': table,
     }
+
+
+def _single(case):
+    """The preview body of a ready case under the school it holds (null reads as Hanbali, as before)."""
+    school = case['madhab'] or schools.HANBALI
+    family, _currency = family_from_session(case, names=False)
+    out = evaluate_outcome(family, basis_from_madhab(school))
+    return _body(case, out.evaluations[0][1], family.estate.amount_minor)
+
+
+def compare(case, family=None, out=None):
+    """The four Sunni schools' previews of a case that has no school, as {school: body}."""
+    if out is None:
+        family, _currency = family_from_session(case, names=False)
+        out = evaluate_outcome(family, basis_from_madhab(None))
+    return {school: _body({**case, 'madhab': school}, evaluation, family.estate.amount_minor)
+            for school, evaluation in out.evaluations}
 
 
 def _signature(body):
@@ -235,11 +222,6 @@ def _signature(body):
 def _proofs(body):
     proof = body['proof']
     return [layer['proof'] for layer in proof['layers']] if proof['version'] == 2 else [proof]
-
-
-def compare(case):
-    """The four Sunni schools' previews of a case that has no school, as {school: body}."""
-    return {school: _single({**case, 'madhab': school}) for school in schools.SUNNI}
 
 
 def _differences(bodies):
@@ -261,18 +243,26 @@ def preview(case):
 
     With a school it is that school's answer. Without one the four Sunni schools are compared:
     when they agree the answer is one result with `agreement: "all"`, and when they differ the
-    visitor is asked to choose. Never writes: every engine run is rolled back. Raises only for
-    an unexpected engine error, which the caller turns into a 503.
+    visitor is asked to choose. Never writes: the core runs in memory. Raises only for an
+    unexpected core error, which the caller turns into a 503.
     """
     if not _ready(case):
         return {'status': 'not_ready'}
+    family, currency = family_from_session(case, names=False)
+    resolved = basis_from_madhab(case['madhab'])
+    out = (refused_outcome(family, resolved, INVALID_FAMILY) if _impossible(case)
+           else evaluate_outcome(family, resolved))
+    shown = dump_presented_result(present(out, resolved, get_language() or 'en', currency))
+    estate = family.estate.amount_minor
     if case['madhab'] is not None:
-        return _single(case)
-    bodies = compare(case)
+        return {**_body(case, out.evaluations[0][1], estate), 'presented': shown}
+    bodies = compare(case, family, out)
     if all(b['status'] == 'available' for b in bodies.values()) and (
             len({repr(_signature(b)) for b in bodies.values()}) == 1):
-        return {**bodies[schools.HANBALI], 'madhab': None, 'basis': basis(case), 'agreement': 'all'}
+        return {**bodies[schools.HANBALI], 'madhab': None, 'basis': basis(case), 'agreement': 'all',
+                'presented': shown}
     reasons = {b.get('reason') for b in bodies.values()}
     if all(b['status'] == 'unavailable' for b in bodies.values()) and len(reasons) == 1:
-        return {**bodies[schools.HANBALI], 'madhab': None, 'basis': basis(case)}
-    return {'status': 'choose_school', 'basis': basis(case), 'schools': bodies, 'rules': _differences(bodies)}
+        return {**bodies[schools.HANBALI], 'madhab': None, 'basis': basis(case), 'presented': shown}
+    return {'status': 'choose_school', 'basis': basis(case), 'schools': bodies, 'rules': _differences(bodies),
+            'presented': shown}

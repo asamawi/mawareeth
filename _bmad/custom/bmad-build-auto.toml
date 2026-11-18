@@ -7,10 +7,36 @@ persistent_facts = [
   "Never change user-facing translations (ar, en, fr message text or .po msgstrs) just to make a test pass; fix the test, or HALT if real text is wrong. New or changed text needs native review, so record it in deferred-work.md.",
 ]
 
+on_complete = """
+Keep sprint status in step with the spec (the auto-dev driver does the same; this covers runs started directly). Do this only when the final status is `done` and the spec file is named `spec-<E>-<S>-*.md` for a sprint story (for example `spec-8-12-...` is epic 8, story 12):
+1. In `{project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml`, find the one `development_status` key that starts with `<E>-<S>-`. If none exists, or its value is already `done`, stop here.
+2. Set that key's value to `done`. Then set `epic-<E>` to `done` if every `<E>-<n>-...` story key is now `done`, otherwise to `in-progress` if it is `backlog`. Change only those values on their own lines; keep every other line, comment and quoting byte for byte.
+3. Commit only that file: `git add -- <that file>` and `git commit -m "chore(sprint): mark story <E>.<S> done"`. Never push.
+"""
+
 implementation_handoff = """
 Launch a subagent with no prior conversation context, using model `sonnet`, with this prompt:
 
 > Read {spec_file} fully and implement it — the spec is the sole source of truth. Load every file listed in its frontmatter `context:` before you start.
 >
 > When done, report what you changed, how you verified it, and anything left incomplete or risky.
+"""
+
+# Epic 8 retro F19: a response field added in one story (8.9's preview `revision`) broke a strict
+# web parser another story owned (`parseChoice`), and every per-story review passed it.
+[[workflow.review_layers]]
+id = "cross-story-contract"
+name = "Cross-Story Contract Reviewer"
+instruction = """
+Launch a context-free subagent with this prompt:
+
+You review the contract between the server and its consumers. The change under review is the unified diff at `{diff_file}`; read it, then read the repository as it is after the change (the working tree).
+
+1. List every change in the diff to a shape that crosses a boundary: a JSON response or request body built by a Django/DRF view or helper (`api/`, `calc/views.py`, `reports/`, `mawareeth/`), a contract parser or dumper (`engine/contracts/`, `presentation/`, `web/src/contracts/`), or a status/variant value such a body can take. Count added, removed or renamed fields, type or nullability changes, and new status values. If there is none, reply "No contract shape changed" and stop.
+2. For each changed shape, find every consumer on the other side in the whole repository, not only in the diff: strict TypeScript parsers (`hasExactKeys`, `exact(`, `parse*` functions under `web/src/api`, `web/src/contracts`, `web/src/interview`), Python contract parsers, shared fixtures (`api/contracts/*.json`, `contracts/fixtures/`), and harnesses that read these bodies (`api/capacity.py`, `mawareeth/release_gates.py`).
+3. For each consumer and for every status or variant the body can have (for example a preview's `available`, `unavailable`, `choose_school`, `not_ready`), decide whether the consumer accepts the changed shape, and whether a test or fixture sends exactly that envelope through it. Cite file:line for both.
+
+Report one finding per consumer that would reject, drop or misread the changed shape for any variant, and one per variant whose full envelope no test exercises. Give a concrete failure scenario for each: which response, which consumer, and what the user would see. Do not report style.
+
+Do not invoke any skill, and do not spawn subagents of your own — you are the reviewer. Return your findings as text in your final message; do not route them through any findings-reporting tool the host may offer.
 """

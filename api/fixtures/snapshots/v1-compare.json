@@ -1,0 +1,22 @@
+{
+  "madhab": null,
+  "deceased": {
+    "gender": "male",
+    "estate": "1200.50"
+  },
+  "heirs": [
+    {
+      "id": "wife",
+      "relationship": "wife",
+      "gender": "female",
+      "name": null
+    },
+    {
+      "id": "son",
+      "relationship": "son",
+      "gender": "male",
+      "name": "Ali"
+    }
+  ],
+  "deaths": []
+}

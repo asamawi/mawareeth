@@ -1,4 +1,4 @@
-import { write, parseCase, parsePreview, CASE_TIMEOUT_MS, type Case, type Preview, type DraftReportResult, type WriteOptions } from "./case.ts";
+import { write, parseCase, parseServedPreview, CASE_TIMEOUT_MS, type Case, type Preview, type DraftReportResult, type WriteOptions } from "./case.ts";
 
 export type Visibility = "private" | "public";
 export type Share = { id: number; visibility: Visibility; created_at: string; expires_at: string; expired: boolean };
@@ -77,7 +77,7 @@ export async function viewShare(signal: AbortSignal, token: string, locale: stri
     if (!response.ok) return { kind: "failed" };
     const body = await response.json();
     const kase = parseCase(body);
-    const preview = parsePreview(body.preview);
+    const preview = parseServedPreview(body.preview);
     if (!kase || !preview || typeof body.status !== "string" || (body.visibility !== "private" && body.visibility !== "public")) return { kind: "failed" };
     return { kind: "view", view: { status: body.status, visibility: body.visibility, kase, preview } };
   });

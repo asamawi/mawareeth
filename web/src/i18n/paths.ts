@@ -1,9 +1,9 @@
-import type { Locale } from "./messages.ts";
+import { fallbackLocale, locales, type Locale } from "./catalog.generated.ts";
 
 /** Return to the current page after authentication. */
 export function loginHref(pathname: string): string {
   const locale = pathname.split("/")[1];
-  return `/${["ar", "en", "fr"].includes(locale) ? locale : "en"}/login/?next=${encodeURIComponent(pathname)}`;
+  return `/${(locales as readonly string[]).includes(locale) ? locale : fallbackLocale}/login/?next=${encodeURIComponent(pathname)}`;
 }
 
 export type AuthLink = { kind: "login" | "signup"; href: string };

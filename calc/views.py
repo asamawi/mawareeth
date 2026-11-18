@@ -6,12 +6,16 @@ from django.contrib.auth.decorators import login_not_required, login_required
 from django.utils.decorators import method_decorator
 from django.views.generic import View
 from django.contrib import messages
-from django.db import transaction
+from django.db import OperationalError, connection, transaction
+from django.utils import translation
 from calc.forms import HeirForm, DeceasedForm
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.utils.translation import gettext as _
 from .models import *
+from . import schools
+from .adapters import present_calculation
 from .schools import UnsupportedCase
+from engine.contracts import dump_presented_result
 from waffle.mixins import WaffleFlagMixin, WaffleSwitchMixin
 
 import waffle
@@ -22,12 +26,40 @@ def get_owned_calculation(request, pk):
 	return get_object_or_404(Calculation, pk=pk, user=request.user)
 
 
-def lock_calculation(pk):
-	"""Eagerly lock the case before loading or writing its people.
+# How long a person write waits for the case lock before it gives up (inside the 1 s lock budget).
+LOCK_WAIT_MS = 500
+LOCK_NOT_AVAILABLE = '55P03'
 
-	A case deleted while the caller waited for the lock gives 404."""
-	if not list(Calculation.objects.select_for_update().filter(pk=pk).values_list('pk', flat=True)):
+
+class LockTimeout(Exception):
+	"""The case lock was not free within LOCK_WAIT_MS. The write is rolled back and can be retried."""
+
+
+def lock_busy_response():
+	"""A retryable 503: another request holds the case, and nothing was changed."""
+	response = HttpResponse(_('The case is busy. Try again.'), status=503, content_type='text/plain; charset=utf-8')
+	response['Retry-After'] = '1'
+	return response
+
+
+def lock_calculation(pk):
+	"""Eagerly lock the case before loading or writing its people, waiting at most LOCK_WAIT_MS.
+
+	Call it inside a transaction: the wait limit is local to it. A case deleted while the caller
+	waited for the lock gives 404, and a lock that stays busy raises LockTimeout."""
+	with connection.cursor() as cursor:
+		cursor.execute(f"SET LOCAL lock_timeout = '{int(LOCK_WAIT_MS)}ms'")
+	try:
+		found = list(Calculation.objects.select_for_update().filter(pk=pk).values_list('pk', flat=True))
+	except OperationalError as exc:
+		if getattr(exc.__cause__, 'pgcode', None) == LOCK_NOT_AVAILABLE:
+			raise LockTimeout from exc
+		raise
+	if not found:
 		raise Http404
+	# Only the case lock is bounded: the rest of the write waits as it did before.
+	with connection.cursor() as cursor:
+		cursor.execute('SET LOCAL lock_timeout TO DEFAULT')
 
 
 class CalculationLockMixin:
@@ -39,9 +71,12 @@ class CalculationLockMixin:
 			self.get_queryset().values('calc_id'), pk=self.kwargs['pk'])['calc_id']
 
 	def post(self, request, *args, **kwargs):
-		with transaction.atomic():
-			lock_calculation(self.locked_calc_id())
-			return super().post(request, *args, **kwargs)
+		try:
+			with transaction.atomic():
+				lock_calculation(self.locked_calc_id())
+				return super().post(request, *args, **kwargs)
+		except LockTimeout:
+			return lock_busy_response()
 
 
 class OwnedCalculationMixin:
@@ -745,86 +780,62 @@ class DetailView(OwnedCalculationMixin, LoginRequired, generic.DetailView):
 		context['Heirs'] = self.object.heir_set.order_by('polymorphic_ctype_id')
 		return context
 
-class NewResultsView(OwnedCalculationMixin, WaffleFlagMixin, LoginRequired, generic.DetailView):
+class PresentedResultsMixin:
+	"""The legacy results pages show the PresentedResult of the case under one school, in the active language.
+
+	A GET reads only: it takes no row lock and writes nothing. Later deaths stay refused here, as before."""
+
+	def get_context_data(self, **kwargs):
+		context = super().get_context_data(**kwargs)
+		presented = self.presented
+		people = {row['person']: row for row in presented['rows']}
+		table = presented['table']
+		context['presented'] = presented
+		# Each heir's reason from the evidence, shown as the legacy pages' tooltip did.
+		reasons = {heir['person']: heir['rule']['text'] for layer in presented['evidence'][:1] for heir in layer['heirs']}
+		context['rows'] = [{**row, 'reason': reasons.get(row['person'])} for row in presented['rows']]
+		context['table'] = None if table is None else {
+			'columns': table['columns'],
+			'rows': [{**row, 'person': people.get(row['heir'], {})} for row in table['rows']],
+		}
+		return context
+
+	def dispatch(self, request, *args, **kwargs):
+		"""
+		Overridden so we can make sure the `calc` instance exists
+		before going any further.
+		"""
+		self.calc = get_owned_calculation(request, kwargs['pk'])
+		return super().dispatch(request, *args, **kwargs)
+
+	def get(self, request, *args, **kwargs):
+		try:
+			self.calc.compute()
+			if self.is_layered():
+				raise UnsupportedCase(schools.MANASIKHAT_UNSUPPORTED)
+			self.presented = dump_presented_result(
+				present_calculation(self.calc, self.calc.madhab, translation.get_language() or 'en')[0])
+		except Calculation.DoesNotExist as exc:
+			raise Http404 from exc
+		except UnsupportedCase as exc:
+			messages.error(request, exc.message)
+			return render(request, 'calc/error.html')
+		return super().get(request, *args, **kwargs)
+
+	def is_layered(self):
+		calc = self.calc
+		return (calc.parent_id is not None or calc.layers.exists()
+				or Deceased.objects.filter(heir__calc=calc).exists())
+
+
+class NewResultsView(PresentedResultsMixin, OwnedCalculationMixin, WaffleFlagMixin, LoginRequired, generic.DetailView):
 	model = Calculation
 	template_name = 'calc/new_results.html'
 	waffle_flag= "new_results"
 
-	def get_context_data(self, **kwargs):
-		context = super().get_context_data(**kwargs)
-		context['Father'] = self.object.heir_set.instance_of(Father)
-		context['Mother'] = self.object.heir_set.instance_of(Mother)
-		context['Wife'] = self.object.heir_set.instance_of(Wife)
-		context['Husband'] = self.object.heir_set.instance_of(Husband)
-		context['Daughter'] = self.object.heir_set.instance_of(Daughter)
-		context['Son'] = self.object.heir_set.instance_of(Son)
-		context['Brother'] = self.object.heir_set.instance_of(Brother)
-		context['Sister'] = self.object.heir_set.instance_of(Sister)
-		context['GrandFather'] = self.object.heir_set.instance_of(GrandFather)
-		context['female_asaba'] = self.object.heir_set.filter(asaba=True,sex="F")
-		context['asaba'] = self.object.heir_set.filter(asaba=True).order_by('polymorphic_ctype_id')
-		context['Heirs'] = self.object.heir_set.filter(asaba=False).order_by('polymorphic_ctype_id')
-		context['Spouse'] = self.object.heir_set.instance_of(Husband, Wife)
-		context['No_Spouse'] = self.object.heir_set.not_instance_of(Husband, Wife)
-		return context
-
-	def dispatch(self, request, *args, **kwargs):
-		"""
-		Overridden so we can make sure the `calc` instance exists
-		before going any further.
-		"""
-		self.calc = get_owned_calculation(request, kwargs['pk'])
-		return super().dispatch(request, *args, **kwargs)
-
-	def get(self, request, *args, **kwargs):
-		try:
-			self.calc.compute()
-		except Calculation.DoesNotExist as exc:
-			raise Http404 from exc
-		except UnsupportedCase as exc:
-			messages.error(request, exc.message)
-			return render(request, 'calc/error.html')
-		return super().get(request, *args, **kwargs)
-
-class ResultsView(OwnedCalculationMixin, LoginRequired, generic.DetailView):
+class ResultsView(PresentedResultsMixin, OwnedCalculationMixin, LoginRequired, generic.DetailView):
 	model = Calculation
 	template_name = 'calc/results.html'
-
-	def get_context_data(self, **kwargs):
-		context = super().get_context_data(**kwargs)
-		context['Father'] = self.object.heir_set.instance_of(Father)
-		context['Mother'] = self.object.heir_set.instance_of(Mother)
-		context['Wife'] = self.object.heir_set.instance_of(Wife)
-		context['Husband'] = self.object.heir_set.instance_of(Husband)
-		context['Daughter'] = self.object.heir_set.instance_of(Daughter)
-		context['Son'] = self.object.heir_set.instance_of(Son)
-		context['Brother'] = self.object.heir_set.instance_of(Brother)
-		context['Sister'] = self.object.heir_set.instance_of(Sister)
-		context['GrandFather'] = self.object.heir_set.instance_of(GrandFather)
-		context['female_asaba'] = self.object.heir_set.filter(asaba=True,sex="F")
-		context['asaba'] = self.object.heir_set.filter(asaba=True).order_by('polymorphic_ctype_id')
-		context['Heirs'] = self.object.heir_set.filter(asaba=False).order_by('polymorphic_ctype_id')
-		context['Spouse'] = self.object.heir_set.instance_of(Husband, Wife)
-		context['No_Spouse'] = self.object.heir_set.not_instance_of(Husband, Wife)
-		return context
-
-	def dispatch(self, request, *args, **kwargs):
-		"""
-		Overridden so we can make sure the `calc` instance exists
-		before going any further.
-		"""
-		self.calc = get_owned_calculation(request, kwargs['pk'])
-		return super().dispatch(request, *args, **kwargs)
-
-	def get(self, request, *args, **kwargs):
-		try:
-			self.calc.compute()
-		except Calculation.DoesNotExist as exc:
-			raise Http404 from exc
-		except UnsupportedCase as exc:
-			messages.error(request, exc.message)
-			return render(request, 'calc/error.html')
-		return super().get(request, *args, **kwargs)
 
 class CalculationUpdate(OwnedCalculationMixin, UpdateView):
 	model = Calculation
@@ -860,9 +871,12 @@ class CalculationDelete(OwnedCalculationMixin, DeleteView):
 	http_method_names = ['get', 'head', 'post', 'options']
 
 	def form_valid(self, form):
-		with transaction.atomic():
-			lock_calculation(self.object.pk)
-			return super().form_valid(form)
+		try:
+			with transaction.atomic():
+				lock_calculation(self.object.pk)
+				return super().form_valid(form)
+		except LockTimeout:
+			return lock_busy_response()
 
 	def get_success_url(self):
 		return reverse('calc:index')

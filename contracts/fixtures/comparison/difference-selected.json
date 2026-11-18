@@ -1,0 +1,262 @@
+{
+  "version": 1,
+  "outcome": "difference",
+  "schools": [
+    {
+      "school": "hanafi",
+      "result": {
+        "version": 1,
+        "school": "hanafi",
+        "status": "calculated",
+        "refusal": null,
+        "allocations": [
+          {
+            "person": "p_gf",
+            "kind": "residue",
+            "share": {
+              "numerator": 1,
+              "denominator": 1
+            },
+            "stage": {
+              "step": "base",
+              "base": 6
+            },
+            "rule": "grandfather_best_option",
+            "condition": null,
+            "blocked_by": null,
+            "school_rule": "grandfather_blocks_siblings",
+            "option": "muqasama",
+            "citations": []
+          },
+          {
+            "person": "p_bro",
+            "kind": "blocked",
+            "share": {
+              "numerator": 0,
+              "denominator": 1
+            },
+            "stage": null,
+            "rule": "blocked",
+            "condition": null,
+            "blocked_by": "grandfather",
+            "school_rule": null,
+            "option": null,
+            "citations": []
+          }
+        ],
+        "unallocated": {
+          "numerator": 0,
+          "denominator": 1
+        },
+        "steps": [
+          {
+            "step": "base",
+            "params": {
+              "base": {
+                "type": "int",
+                "value": 6
+              }
+            }
+          }
+        ],
+        "layers": []
+      }
+    },
+    {
+      "school": "maliki",
+      "result": {
+        "version": 1,
+        "school": "maliki",
+        "status": "calculated",
+        "refusal": null,
+        "allocations": [
+          {
+            "person": "p_gf",
+            "kind": "residue",
+            "share": {
+              "numerator": 1,
+              "denominator": 2
+            },
+            "stage": {
+              "step": "base",
+              "base": 6
+            },
+            "rule": "grandfather_best_option",
+            "condition": null,
+            "blocked_by": null,
+            "school_rule": "grandfather_shares_with_siblings",
+            "option": "muqasama",
+            "citations": []
+          },
+          {
+            "person": "p_bro",
+            "kind": "residue",
+            "share": {
+              "numerator": 1,
+              "denominator": 2
+            },
+            "stage": {
+              "step": "base",
+              "base": 6
+            },
+            "rule": "residuary",
+            "condition": null,
+            "blocked_by": null,
+            "school_rule": null,
+            "option": null,
+            "citations": []
+          }
+        ],
+        "unallocated": {
+          "numerator": 0,
+          "denominator": 1
+        },
+        "steps": [
+          {
+            "step": "base",
+            "params": {
+              "base": {
+                "type": "int",
+                "value": 6
+              }
+            }
+          }
+        ],
+        "layers": []
+      }
+    },
+    {
+      "school": "shafii",
+      "result": {
+        "version": 1,
+        "school": "shafii",
+        "status": "calculated",
+        "refusal": null,
+        "allocations": [
+          {
+            "person": "p_gf",
+            "kind": "residue",
+            "share": {
+              "numerator": 1,
+              "denominator": 2
+            },
+            "stage": {
+              "step": "base",
+              "base": 6
+            },
+            "rule": "grandfather_best_option",
+            "condition": null,
+            "blocked_by": null,
+            "school_rule": "grandfather_shares_with_siblings",
+            "option": "muqasama",
+            "citations": []
+          },
+          {
+            "person": "p_bro",
+            "kind": "residue",
+            "share": {
+              "numerator": 1,
+              "denominator": 2
+            },
+            "stage": {
+              "step": "base",
+              "base": 6
+            },
+            "rule": "residuary",
+            "condition": null,
+            "blocked_by": null,
+            "school_rule": null,
+            "option": null,
+            "citations": []
+          }
+        ],
+        "unallocated": {
+          "numerator": 0,
+          "denominator": 1
+        },
+        "steps": [
+          {
+            "step": "base",
+            "params": {
+              "base": {
+                "type": "int",
+                "value": 6
+              }
+            }
+          }
+        ],
+        "layers": []
+      }
+    },
+    {
+      "school": "hanbali",
+      "result": {
+        "version": 1,
+        "school": "hanbali",
+        "status": "calculated",
+        "refusal": null,
+        "allocations": [
+          {
+            "person": "p_gf",
+            "kind": "residue",
+            "share": {
+              "numerator": 1,
+              "denominator": 2
+            },
+            "stage": {
+              "step": "base",
+              "base": 6
+            },
+            "rule": "grandfather_best_option",
+            "condition": null,
+            "blocked_by": null,
+            "school_rule": "grandfather_shares_with_siblings",
+            "option": "muqasama",
+            "citations": []
+          },
+          {
+            "person": "p_bro",
+            "kind": "residue",
+            "share": {
+              "numerator": 1,
+              "denominator": 2
+            },
+            "stage": {
+              "step": "base",
+              "base": 6
+            },
+            "rule": "residuary",
+            "condition": null,
+            "blocked_by": null,
+            "school_rule": null,
+            "option": null,
+            "citations": []
+          }
+        ],
+        "unallocated": {
+          "numerator": 0,
+          "denominator": 1
+        },
+        "steps": [
+          {
+            "step": "base",
+            "params": {
+              "base": {
+                "type": "int",
+                "value": 6
+              }
+            }
+          }
+        ],
+        "layers": []
+      }
+    }
+  ],
+  "differing_persons": [
+    "p_bro",
+    "p_gf"
+  ],
+  "refusals": [],
+  "selection_required": false,
+  "selected_school": "hanbali"
+}

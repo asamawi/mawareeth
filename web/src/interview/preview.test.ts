@@ -6,22 +6,22 @@ import { fileURLToPath } from "node:url";
 
 import { noHeirOptions, parsePreview, PREVIEW_REASONS, type Case, type Preview } from "../api/case.ts";
 import { locales, messages } from "../i18n/messages.ts";
-import { basisKey, kiratOf, percentOf, previewKey, previewReady, previewRows, reconcile, shown } from "./preview.ts";
+import { previewFixtures } from "../test/preview-fixtures.ts";
+import { acceptRevision, basisKey, previewKey, previewReady, previewRows, reconcile, shown } from "./preview.ts";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const read = (name: string) => JSON.parse(readFileSync(join(dir, "..", "..", "..", "api", "contracts", name), "utf8"));
 
-type Fixture = {
-  title: string;
-  case: Case;
-  response: unknown;
-  /** The shared display has no kirat: that is this client's own formatting. */
-  display: {
-    rows: Omit<ReturnType<typeof previewRows>["rows"][number], "kirat">[];
-    unallocated: ReturnType<typeof previewRows>["unallocated"];
-  } | null;
+/** The shared display of the old client: fraction and percent without a sign, an amount with no currency, no kirat. */
+type Display = {
+  rows: { heirId: string; blocked: boolean; fraction: string | null; percent: string | null; amount: string | null }[];
+  unallocated: { fraction: string; percent: string } | null;
 };
-const fixtures = (read("preview-fixtures.json") as { fixtures: Fixture[] }).fixtures;
+type Fixture = { title: string; case: Case; response: unknown; display: Display | null };
+const displays = new Map((read("preview-fixtures.json") as { fixtures: { title: string; display: Display | null }[] }).fixtures.map((fixture) => [fixture.title, fixture.display]));
+const fixtures: Fixture[] = previewFixtures.map((fixture) => ({ ...fixture, display: displays.get(fixture.title) ?? null }));
+/** The digits of an amount text such as "SAR1,000.00", which carries a currency and grouping. */
+const plain = (amount: string | null) => (amount === null ? null : amount.replace(/[^0-9.]/g, ""));
 // This refusal is in the contract but has no shared fixture yet.
 const layered = fixtures.find((fixture) => fixture.title === "Layered two under hanafi");
 assert.ok(layered);
@@ -36,6 +36,7 @@ const contract = read("interview.json") as { previewReasons: string[] };
 
 const BASE: Case = {
   id: "c1",
+  revision: 5,
   started_at: "2026-11-07T10:00:00Z",
   madhab: "hanbali",
   deceased: { gender: "male", estate: "8000" },
@@ -55,11 +56,14 @@ test("every fixture response parses strictly and displays as the fixture says", 
     assert.deepEqual(preview, fixture.response, fixture.title);
     if (preview.status === "available") {
       const result = previewRows(preview);
-      const rows = result.rows.map(({ kirat, ...row }) => {
+      // The strings are the server's: the same fractions, percentages and amounts the old client worked out.
+      const rows = result.rows.map(({ kirat, relationship, percent, amount, ...row }) => {
         assert.equal(kirat === null, row.blocked, fixture.title);
-        return row;
+        assert.equal(relationship.original.lang, "ar", fixture.title);
+        return { ...row, percent: percent === null ? null : percent.replace("%", ""), amount: plain(amount) };
       });
-      assert.deepEqual({ ...result, rows }, fixture.display, fixture.title);
+      assert.deepEqual(rows, fixture.display?.rows, fixture.title);
+      assert.equal(result.unallocated?.fraction ?? null, fixture.display?.unallocated?.fraction ?? null, fixture.title);
     } else {
       assert.equal(fixture.display, null, fixture.title);
     }
@@ -164,51 +168,35 @@ test("every refusal reason has a sentence in every language", () => {
 });
 
 test("the matrix's displayed rows", () => {
-  const by = (title: string) => fixtures.find((fixture) => fixture.title === title)?.display;
-  const withEstate = by("Hanbali wife and son with an estate");
+  const by = (title: string) => {
+    const preview = parsePreview(fixtures.find((fixture) => fixture.title === title)?.response);
+    assert.equal(preview?.status, "available", title);
+    return previewRows(preview as Extract<Preview, { status: "available" }>);
+  };
   assert.deepEqual(
-    withEstate?.rows.map((row) => [row.fraction, row.percent, row.amount]),
+    by("Hanbali wife and son with an estate").rows.map((row) => [row.fraction, row.percent, row.kirat, row.amount]),
     [
-      ["1/8", "12.5", "1000.00"],
-      ["7/8", "87.5", "7000.00"],
+      ["1/8", "12.5%", "3.00", "SAR1,000.00"],
+      ["7/8", "87.5%", "21.00", "SAR7,000.00"],
     ],
   );
-  assert.ok(by("Hanbali wife and son without an estate")?.rows.every((row) => row.amount === null));
-  assert.deepEqual(by("Father blocks the brother")?.rows[1], {
-    heirId: "h2",
-    blocked: true,
-    fraction: null,
-    percent: null,
-    amount: null,
-  });
-  assert.deepEqual(by("Wife alone leaves an unallocated remainder")?.unallocated, { fraction: "3/4", percent: "75.0" });
-  assert.deepEqual(by("Grandfather and brother under Hanafi")?.rows.map((row) => row.blocked), [false, true]);
+  assert.ok(by("Hanbali wife and son without an estate").rows.every((row) => row.amount === null));
+  const blocked = by("Father blocks the brother").rows[1];
+  assert.deepEqual([blocked.heirId, blocked.blocked, blocked.fraction, blocked.percent, blocked.kirat, blocked.amount], ["h2", true, null, null, null, null]);
+  // The remainder no heir takes: its share and, with an estate, its amount; rounding is separate.
+  assert.deepEqual(by("Wife alone leaves an unallocated remainder").unallocated, { fraction: "3/4", amount: "SAR750.00" });
+  assert.deepEqual(by("Grandfather and brother under Hanafi").rows.map((row) => row.blocked), [false, true]);
+  // Every row carries its translated relationship and the Arabic original, with language and direction.
+  const [wife] = by("Hanbali wife and son with an estate").rows;
+  assert.deepEqual(wife.relationship.translated, { text: "Wife", lang: "en", dir: "ltr" });
+  assert.deepEqual(wife.relationship.original, { text: "زوجة", lang: "ar", dir: "rtl" });
 });
 
-test("percentages round half up to one decimal without floats", () => {
-  assert.equal(percentOf(1, 8), "12.5");
-  assert.equal(percentOf(1, 16), "6.3");
-  assert.equal(percentOf(1, 3), "33.3");
-  assert.equal(percentOf(2, 3), "66.7");
-  assert.equal(percentOf(1, 1), "100.0");
-  assert.equal(percentOf(0, 1), "0.0");
-  assert.equal(percentOf(1, 2000), "0.1");
-  assert.equal(percentOf(1, 4000), "0.0");
-});
-
-test("kirat are the share times 24, 2 decimals, half up, with no floats", () => {
-  assert.equal(kiratOf(1, 8), "3.00");
-  assert.equal(kiratOf(1, 7), "3.43");
-  assert.equal(kiratOf(2, 3), "16.00");
-  assert.equal(kiratOf(1, 1), "24.00");
-  assert.equal(kiratOf(0, 1), "0.00");
-  assert.equal(kiratOf(1, 6), "4.00");
-  assert.equal(kiratOf(1, 1600), "0.02");
-  assert.equal(kiratOf(1, 4800), "0.01");
-  assert.equal(kiratOf(1, 9600), "0.00");
-  assert.equal(kiratOf(1, 9601), "0.00");
-  assert.equal(kiratOf(1, 12), "2.00");
-  assert.equal(kiratOf(5, 7), "17.14");
+test("a preview without its PresentedResult shows no rows at all", () => {
+  const preview = parsePreview(fixtures.find((fixture) => fixture.title === "Hanbali wife and son with an estate")?.response);
+  assert.equal(preview?.status, "available");
+  const bare = { ...(preview as Extract<Preview, { status: "available" }>), presented: undefined };
+  assert.deepEqual(previewRows(bare), { rows: [], unallocated: null, rounding: null });
 });
 
 test("the key follows what changes a share and ignores names", () => {
@@ -338,4 +326,17 @@ test("a refusal every school shares has no school and no choice", () => {
   const preview = parsePreview({ ...body, basis: { madhab: null, gender: "male", estate: "8000", heirs: body.basis.heirs } });
   assert.ok(preview && preview.status === "unavailable");
   assert.equal(preview.madhab, null);
+});
+
+test("a preview is kept only for the revision of the case on screen", () => {
+  const preview = { status: "not_ready" } as const;
+  assert.deepEqual(acceptRevision(4, { kind: "preview", preview, revision: 4 }), { kind: "preview", preview, revision: 4 });
+  assert.equal(acceptRevision(4, { kind: "preview", preview, revision: 3 }), null, "an older preview is discarded");
+  assert.deepEqual(acceptRevision(4, { kind: "preview", preview, revision: 5 }), { kind: "replaced" });
+  assert.deepEqual(acceptRevision(4, { kind: "preview", preview }), { kind: "preview", preview }, "no revision, nothing to compare");
+  assert.deepEqual(acceptRevision(4, { kind: "failed" }), { kind: "failed" });
+});
+
+test("every locale words the offline block", () => {
+  for (const locale of locales) assert.ok(messages[locale].interview.offlineEditing.length > 0, locale);
 });

@@ -1,0 +1,49 @@
+{
+  "default_locale": "ar",
+  "fallback_locale": "en",
+  "locales": [
+    {
+      "babel_locale": "ar",
+      "code": "ar",
+      "direction": "rtl",
+      "numbering_system": "latn",
+      "own_name": "العربية",
+      "pdf_font_stack": [
+        "Noto Naskh Arabic",
+        "Noto Sans"
+      ],
+      "published": true,
+      "review": "pending",
+      "default_currency": "SAR"
+    },
+    {
+      "babel_locale": "en",
+      "code": "en",
+      "direction": "ltr",
+      "numbering_system": "latn",
+      "own_name": "English",
+      "pdf_font_stack": [
+        "Noto Naskh Arabic",
+        "Noto Sans"
+      ],
+      "published": true,
+      "review": "pending",
+      "default_currency": "USD"
+    },
+    {
+      "babel_locale": "fr",
+      "code": "fr",
+      "direction": "ltr",
+      "numbering_system": "latn",
+      "own_name": "Français",
+      "pdf_font_stack": [
+        "Noto Naskh Arabic",
+        "Noto Sans"
+      ],
+      "published": true,
+      "review": "pending",
+      "default_currency": "EUR"
+    }
+  ],
+  "schema_version": 1
+}

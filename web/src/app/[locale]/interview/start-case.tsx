@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   addHeir,
@@ -75,6 +75,20 @@ import { RelativesQuestion } from "./relatives-question";
 import { OrderQuestion } from "./order-question";
 import { SharePreview } from "./share-preview";
 
+function subscribeOnline(notify: () => void) {
+  window.addEventListener("online", notify);
+  window.addEventListener("offline", notify);
+  return () => {
+    window.removeEventListener("online", notify);
+    window.removeEventListener("offline", notify);
+  };
+}
+
+/** Whether the browser believes it is online. Edits are blocked while it is not; nothing is queued. */
+function useOnline(): boolean {
+  return useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
+}
+
 const SEEN_KEY = "mawareeth.case-seen";
 
 // A remembered flag is the only way to tell "expired" from "never started". It is a
@@ -82,13 +96,14 @@ const SEEN_KEY = "mawareeth.case-seen";
 const deps: Deps = {
   fetchCase: (signal) => fetchCase(signal),
   startCase: (signal, options) => startCase(signal, options),
-  setMadhab: (signal, madhab, caseId) => setMadhab(signal, madhab, caseId),
-  saveDeceased: (signal, caseId, fields) => saveDeceased(signal, caseId, fields),
-  addHeir: (signal, caseId, fields) => addHeir(signal, caseId, fields),
-  updateHeir: (signal, caseId, heirId, fields) => updateHeir(signal, caseId, heirId, fields),
-  removeHeir: (signal, caseId, heirId) => removeHeir(signal, caseId, heirId),
-  markDeceased: (signal, caseId, heirId, first, answers) => markDeceased(signal, caseId, heirId, first, {}, answers),
-  unmarkDeceased: (signal, caseId, heirId) => unmarkDeceased(signal, caseId, heirId),
+  setMadhab: (signal, madhab, caseId, revision) => setMadhab(signal, madhab, caseId, revision),
+  saveDeceased: (signal, caseId, revision, fields) => saveDeceased(signal, caseId, revision, fields),
+  addHeir: (signal, caseId, revision, fields) => addHeir(signal, caseId, revision, fields),
+  updateHeir: (signal, caseId, revision, heirId, fields) => updateHeir(signal, caseId, revision, heirId, fields),
+  removeHeir: (signal, caseId, revision, heirId) => removeHeir(signal, caseId, revision, heirId),
+  markDeceased: (signal, caseId, revision, heirId, first, answers) =>
+    markDeceased(signal, caseId, revision, heirId, first, {}, answers),
+  unmarkDeceased: (signal, caseId, revision, heirId) => unmarkDeceased(signal, caseId, revision, heirId),
   selection: selectionStore(),
   forms: formStore(),
   seen: {
@@ -155,7 +170,7 @@ export function StartCase({
   const submit = useCallback(
     (make: (from: StartedView) => Answer) => {
       const current = latest.current;
-      if (current.name !== "started" || current.saving) return;
+      if (current.name !== "started" || current.saving || !navigator.onLine) return;
       const answer = make(current);
       const blocked = precheck(answer);
       if (blocked) {
@@ -204,6 +219,9 @@ export function StartCase({
 
   const screen = screenOf(view);
   const started = view.name === "started" ? view : null;
+  const online = useOnline();
+  // A save in flight or no connection: every edit control is disabled.
+  const frozen = started !== null && (started.saving || !online);
   const focusRequest = started?.focus ?? null;
 
   // A control inside a screen asked for focus: the first invalid field, the cleared form,
@@ -273,7 +291,7 @@ export function StartCase({
           messages={messages}
           selected={started.deathFirst}
           choices={ids.map((id) => ({ id, label: names[id] ?? id }))}
-          saving={started.saving}
+          saving={frozen}
           error={started.errors?.death ? errorText(messages, "death", started.errors) : null}
           onChoose={(first) => {
             if (started.relativeQuestions?.length) edit((current) => ({ ...current, deathFirst: first }));
@@ -284,9 +302,9 @@ export function StartCase({
         {!!started.relativeQuestions?.length && <>
           {started.errors?.relatives && <p role="alert">{errorText(messages, "relatives", started.errors)}</p>}
           <RelativesQuestion key={JSON.stringify(started.relativeQuestions)} questions={started.relativeQuestions}
-            messages={messages} labels={names} saving={started.saving} initial={started.deathAnswers}
+            messages={messages} labels={names} saving={frozen} initial={started.deathAnswers}
             onSubmit={(answers) => submit((from) => ({ kind: "markDeath", from, rowId: row.id, answers }))} />
-          <button type="button" className={buttonClass} data-focus="relativesCancel" disabled={started.saving}
+          <button type="button" className={buttonClass} data-focus="relativesCancel" disabled={frozen}
             onClick={() => edit((current) => cancelOrder(current))}>{messages.deathOrderCancel}</button>
         </>}
         </>
@@ -420,6 +438,10 @@ export function StartCase({
         />
       )}
 
+      {started && !online && (screen === "deceased" || screen === "heirs") && (
+        <p role="status" className="text-sm">{messages.offlineEditing}</p>
+      )}
+
       {started && screen === "deceased" && (
         <>
           {madhabBar}
@@ -435,7 +457,7 @@ export function StartCase({
             )}
             errors={started.errors}
             notice={started.notice}
-            saving={started.saving}
+            saving={frozen}
             editing={started.case.deceased !== null}
             onChange={(values, field) =>
               track((current) => remember(current, "deceased", values, field, deps.forms))
@@ -456,7 +478,7 @@ export function StartCase({
             messages={messages}
             locale={locale}
             deceased={started.case.deceased}
-            disabled={started.saving}
+            disabled={frozen}
             onEdit={() => edit((current) => startEditDeceased(current, deps))}
           />
           {layered && (
@@ -464,7 +486,7 @@ export function StartCase({
               messages={messages}
               crumbs={crumbs}
               active={layer?.id ?? null}
-              disabled={started.saving}
+              disabled={frozen}
               onOpen={(id) => edit((current) => openLayer(current, id, deps))}
             />
           )}
@@ -488,7 +510,7 @@ export function StartCase({
             )}
             errors={started.errors}
             notice={started.notice}
-            saving={started.saving}
+            saving={frozen}
             editing={started.editingHeir !== null}
             options={layer?.options ?? started.case.heir_options}
             deceasedGender={layer?.gender ?? started.case.deceased.gender}
@@ -512,7 +534,7 @@ export function StartCase({
             results={results}
             locale={locale}
             kase={started.case}
-            saving={started.saving}
+            saving={frozen}
             failed={choiceFailed && (started.notice === "failed" || started.notice === "throttled") ? started.notice : null}
             onChooseSchool={(madhab) => void perform("choose", { madhab, from: started })}
           />
@@ -522,7 +544,7 @@ export function StartCase({
             kase={started.case}
             heirs={layer?.heirs ?? started.case.heirs}
             editingId={started.editingHeir}
-            saving={started.saving}
+            saving={frozen}
             announcement={announcement}
             heading={
               activeCrumb && activeCrumb.label !== null

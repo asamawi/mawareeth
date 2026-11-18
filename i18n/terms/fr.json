@@ -1,0 +1,566 @@
+{
+  "locale": "fr",
+  "schema_version": 1,
+  "terms": {
+    "basis.compare": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Comparer les quatre écoles sunnites"
+    },
+    "basis.country": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Droit du pays"
+    },
+    "basis.school": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Une seule école"
+    },
+    "proof.blocked_by.brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par un frère germain"
+    },
+    "proof.blocked_by.daughters": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par au moins deux filles"
+    },
+    "proof.blocked_by.descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par un descendant"
+    },
+    "proof.blocked_by.father": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par le père"
+    },
+    "proof.blocked_by.grandfather": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par le grand-père"
+    },
+    "proof.blocked_by.male_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par un descendant masculin"
+    },
+    "proof.blocked_by.mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par la mère"
+    },
+    "proof.blocked_by.paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par un frère consanguin"
+    },
+    "proof.blocked_by.paternal_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par une sœur consanguine"
+    },
+    "proof.blocked_by.paternal_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par un oncle paternel consanguin"
+    },
+    "proof.blocked_by.sisters": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par les sœurs germaines"
+    },
+    "proof.blocked_by.son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par un fils"
+    },
+    "proof.blocked_by.son_of_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par un fils de frère germain"
+    },
+    "proof.blocked_by.son_of_paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par un fils de frère consanguin"
+    },
+    "proof.blocked_by.son_of_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par un fils d'oncle paternel germain"
+    },
+    "proof.blocked_by.uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu par un oncle paternel germain"
+    },
+    "proof.condition.descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Il y a un descendant"
+    },
+    "proof.condition.estate_exhausted": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Les parts fixes épuisent toute la succession"
+    },
+    "proof.condition.excluded_by_full_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Les frères et sœurs germains reçoivent tout ce qui reste"
+    },
+    "proof.condition.female_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Il y a une descendante et aucun descendant masculin"
+    },
+    "proof.condition.male_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Il y a un descendant masculin"
+    },
+    "proof.condition.no_descendant": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Il n'y a aucun descendant"
+    },
+    "proof.condition.no_descendant_or_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Il n'y a ni descendant ni deux frères et sœurs"
+    },
+    "proof.condition.no_mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Il n'y a pas de mère"
+    },
+    "proof.condition.several": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Plusieurs héritiers de ce type se partagent une même part fixe"
+    },
+    "proof.condition.siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Il y a au moins deux frères et sœurs"
+    },
+    "proof.condition.single": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Un seul héritier de ce type"
+    },
+    "proof.condition.spouse_and_father": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Un conjoint et le père sont présents, donc elle reçoit le tiers du reste"
+    },
+    "proof.condition.with_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Avec un frère germain"
+    },
+    "proof.condition.with_daughter": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Avec une seule fille"
+    },
+    "proof.condition.with_grandfather": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Avec le grand-père"
+    },
+    "proof.condition.with_maternal_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Les frères et sœurs utérins se partagent un tiers"
+    },
+    "proof.condition.with_paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Avec un frère consanguin"
+    },
+    "proof.condition.with_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Avec des frères et sœurs germains ou consanguins"
+    },
+    "proof.condition.with_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Avec une seule sœur germaine"
+    },
+    "proof.condition.with_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Avec un fils"
+    },
+    "proof.condition.with_son_of_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Avec un fils de fils"
+    },
+    "proof.option.muqasama": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Partage de la succession avec les frères et sœurs comme un frère de plus"
+    },
+    "proof.option.sixth_of_estate": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Un sixième de toute la succession"
+    },
+    "proof.option.third_of_remainder": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Le tiers de ce qui reste après les parts fixes"
+    },
+    "proof.rule.akdariyya": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Le grand-père et la sœur mettent leurs parts en commun et les partagent à raison de deux pour un"
+    },
+    "proof.rule.blocked": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Exclu de la succession"
+    },
+    "proof.rule.fixed": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Part fixe"
+    },
+    "proof.rule.fixed_and_residuary": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Part fixe plus le reste"
+    },
+    "proof.rule.grandfather_best_option": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Le grand-père prend la meilleure de ses options avec les frères et sœurs"
+    },
+    "proof.rule.mushtaraka": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Partage à parts égales le tiers des utérins"
+    },
+    "proof.rule.residuary": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Héritier résiduaire, qui reçoit ce qui reste"
+    },
+    "proof.school_rule.father_blocks_his_mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Écoles hanafite, malikite et chafiite : le père exclut sa propre mère, la grand-mère paternelle"
+    },
+    "proof.school_rule.grandfather_blocks_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "École hanafite : le grand-père exclut les frères et sœurs germains et consanguins"
+    },
+    "proof.school_rule.grandfather_shares_with_siblings": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Écoles hanbalite, malikite et chaféite : le grand-père partage la succession avec les frères et sœurs germains et consanguins"
+    },
+    "proof.school_rule.grandmother_inherits_with_her_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "École hanbalite : la grand-mère paternelle hérite même si son fils, le père, est vivant"
+    },
+    "proof.school_rule.mushtaraka": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Écoles malikite et chaféite : les frères et sœurs germains rejoignent les utérins dans leur tiers"
+    },
+    "proof.school_rule.no_mushtaraka": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Écoles hanafite et hanbalite : les frères et sœurs germains restent résiduaires et ne rejoignent pas le tiers des utérins"
+    },
+    "proof.school_rule.radd": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Le reste est rendu aux héritiers au prorata de leurs parts"
+    },
+    "proof.school_rule.radd_later_scholars": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Les savants malikites et chaféites tardifs : le reste est rendu aux héritiers autres que le conjoint, au prorata de leurs parts"
+    },
+    "proof.step.awl": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Awl : la base est augmentée car les parts fixes dépassent la succession"
+    },
+    "proof.step.base": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "La base commune des parts fixes"
+    },
+    "proof.step.correction": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Correction : la base est multipliée pour que chaque héritier reçoive des parts entières"
+    },
+    "proof.step.radd": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Radd : les parts sont recalculées pour que le reste revienne aux héritiers"
+    },
+    "proof.step.unallocated": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "La part de la succession qu'aucun héritier ne reçoit"
+    },
+    "proof.verse.quran_4_11": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Coran 4:11 (An-Nisa)"
+    },
+    "proof.verse.quran_4_12": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Coran 4:12 (An-Nisa)"
+    },
+    "proof.verse.quran_4_176": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Coran 4:176 (An-Nisa)"
+    },
+    "refusal.invalid_family": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Cette famille n'est pas possible (par exemple deux pères, ou un mari pour un défunt de sexe masculin), aucune part n'est donc affichée. Vérifiez les héritiers."
+    },
+    "refusal.malikiyya_disputed": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Les savants de l'école malikite divergent sur cette famille (le cas de la Malikiyya), aucune part n'est donc affichée."
+    },
+    "refusal.manasikhat_unsupported": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "L'aperçu des décès successifs n'est pas pris en charge pour ce cas. Vérifiez les informations et demandez un examen par une personne qualifiée en successions."
+    },
+    "refusal.school_not_supported": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "L'école jafarite n'est pas encore prise en charge, aucune part n'est donc affichée."
+    },
+    "relationship.brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Frère germain"
+    },
+    "relationship.daughter": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Fille"
+    },
+    "relationship.daughter_of_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Fille du fils"
+    },
+    "relationship.father": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Père"
+    },
+    "relationship.grandfather": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Grand-père"
+    },
+    "relationship.husband": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Époux"
+    },
+    "relationship.maternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Frère utérin"
+    },
+    "relationship.maternal_grandmother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Grand-mère maternelle"
+    },
+    "relationship.maternal_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Sœur utérine"
+    },
+    "relationship.mother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Mère"
+    },
+    "relationship.paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Frère consanguin"
+    },
+    "relationship.paternal_grandmother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Grand-mère paternelle"
+    },
+    "relationship.paternal_sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Sœur consanguine"
+    },
+    "relationship.paternal_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Oncle paternel consanguin"
+    },
+    "relationship.sister": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Sœur germaine"
+    },
+    "relationship.son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Fils"
+    },
+    "relationship.son_of_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Fils du frère germain"
+    },
+    "relationship.son_of_paternal_brother": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Fils du frère consanguin"
+    },
+    "relationship.son_of_paternal_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Fils de l'oncle consanguin"
+    },
+    "relationship.son_of_son": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Fils du fils"
+    },
+    "relationship.son_of_uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Fils de l'oncle germain"
+    },
+    "relationship.uncle": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Oncle paternel germain"
+    },
+    "relationship.wife": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Épouse"
+    },
+    "school.hanafi": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Hanafite"
+    },
+    "school.hanafi.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "École sunnite nommée d'après l'imam Abu Hanifa"
+    },
+    "school.hanbali": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Hanbalite"
+    },
+    "school.hanbali.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "École sunnite nommée d'après l'imam Ahmad ibn Hanbal"
+    },
+    "school.jafari": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Jaafarite"
+    },
+    "school.jafari.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "École chiite nommée d'après l'imam Jafar al-Sadiq"
+    },
+    "school.maliki": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Malikite"
+    },
+    "school.maliki.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "École sunnite nommée d'après l'imam Malik ibn Anas"
+    },
+    "school.shafii": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "Chaféite"
+    },
+    "school.shafii.description": {
+      "placeholders": {},
+      "review": "pending",
+      "text": "École sunnite nommée d'après l'imam al-Shafi'i"
+    },
+    "notice.disclaimer": {
+      "text": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique.",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "comparison.same_in_all_schools": {
+      "text": "Même résultat dans les quatre écoles sunnites",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.base": {
+      "text": "Parts",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.awl": {
+      "text": "Excès",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd": {
+      "text": "Pénurie",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.remainder": {
+      "text": "Reste",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd_calc": {
+      "text": "Pénurie calc",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.radd_union": {
+      "text": "Calc Union",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "table.column.correction": {
+      "text": "Correction",
+      "review": "pending",
+      "placeholders": {}
+    }
+  }
+}

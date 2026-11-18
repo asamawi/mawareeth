@@ -86,10 +86,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Decide whether a token record moving from a dated `expires_epoch` to `never` should be flagged, since a renamed or stripped GitHub expiry header would silently turn off the 30-day token alert.
   evidence: Review found that HTTP 200 without `github-authentication-token-expiration` overwrites a known expiry with `never`; the approved matrix treats a missing header as a never-expiring token, and treating the change as an error would also alert on a legitimate rotation to a non-expiring token.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
-  summary: Re-run `deploy/monitor.sh install` on the production host when this work ships, confirm `clear-sessions` runs in the real image, and consider a last-success metric for it.
-  evidence: The shell tests stub Docker, and a host that never re-runs `install` has no timer and raises no alert, so session rows would grow unnoticed. Release blocker.
-
 ## CI
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-origin-lock.md`
@@ -109,10 +105,6 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-authenticated-origin-pulls.md`
   summary: Give the operator a check of Cloudflare's side of per-hostname Authenticated Origin Pulls (both hostnames `enabled` and status `active` via the API, or a probe through Cloudflare), since release.sh's loopback probes present the client certificate themselves and pass even when Cloudflare does not.
   evidence: Review noted a deploy with `require` succeeds while Cloudflare lacks or has lost the hostname association, leaving visitors on 52x; only the manual enablement order protects against it.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-zero-signup-case-start.md`
-  summary: Confirm the real `X-Forwarded-For` value reaching Django behind Cloudflare before relying on the case-write throttle's `NUM_PROXIES = 2`.
-  evidence: A local Caddy run on 2026-11-06 confirmed Caddy appends the peer from a trusted proxy and replaces the header otherwise, but Cloudflare's own contribution can only be observed on the deployed stack. Release blocker.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-content-security-policy.md`
   summary: Exercise Facebook and LinkedIn social login live on the deployed stack under the new CSP `form-action`.
@@ -289,8 +281,8 @@ Completed and obsolete items are removed; their history is in git.
   evidence: Review the WhatsApp button, ready status, "Open WhatsApp" label and unavailable-fallback wording, including Arabic RTL readability.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-legacy-calculations-in-saved-cases.md`
-  summary: When `api.0004_import_legacy_calculations` runs on production, save its output and follow up every calculation it reports as not converted (pk, owner, reason).
-  evidence: The migration prints the report to the `migrate` output only. Converted cases are school Hanbali and lose their calculation title, deceased name and later estates, which the snapshot cannot hold. Release blocker.
+  summary: Run the production purge of the 1,146 empty legacy drafts `api.0004` did not convert, and record its date and deleted count here.
+  evidence: Release 02d3627 ran the import on 2026-11-13: converted=2053, reported=1146, ownerless=0, owners affected 965 (841 no deceased, 304 no heirs, and calculation 2402 of owner 1829 with more than one deceased). Owner decision 2026-11-18: all 1,146 are empty, including 2402, and are approved for purging. `purge_empty_legacy_drafts` (Story 8.12) does it; the procedure, with a fresh restic backup first and `--expect 1146`, is in `deploy/README.md`. No production purge has run yet. The full import report is in the host's root-only `deploy/runtime/logs/migrate-20261113T224032Z-3125246.log`.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-add-heir-picker.md`
   summary: Request native review of the two new add-heir picker strings in Arabic, English and French: "More relatives" (button) and "Other relationship" (select label).
@@ -331,3 +323,167 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-school-only-when-it-matters.md`
   summary: A case with no school costs four engine runs per preview request (and per save, shared view and draft PDF of such a case), because the preview compares the four Sunni schools. This extends the "move the preview off database writes" item above.
   evidence: Each run builds and rolls back its own rows inside a transaction. A school-set case still costs one run. Moving the engine to an in-memory path, or caching the comparison by the case's basis, would remove the multiplier.
+
+## Terms and Locale settings (Story 8.5)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: Native review of the new `basis.*` terms (all three Locales, `review: pending`).
+  evidence: Drafted new, no earlier text existed. en: compare "Compare the four Sunni schools", school "One school", country "Country law"; ar: compare "مقارنة المذاهب السنية الأربعة", school "مذهب واحد", country "قانون البلد"; fr: compare "Comparer les quatre écoles sunnites", school "Une seule école", country "Droit du pays".
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: Native review of the two empty `Cancel` msgstrs that were filled in `locale/{ar,fr}/LC_MESSAGES/django.po`.
+  evidence: ar "إلغاء", fr "Annuler" (en was already "Cancel").
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: Native and fiqh review of every server or PDF string that converged onto the web wording in `i18n/terms/<locale>.json` (all `review: pending`). Before is the old gettext text, after is the catalog text. Relationship names and the other school names already matched.
+  evidence: ar `refusal.school_not_supported`: "هذا المذهب غير مدعوم حتى الآن" -> "المذهب الجعفري غير مدعوم بعد، فلا تُعرض أنصبة." | ar `refusal.malikiyya_disputed`: "مسألة المالكية مختلف فيها داخل المذهب المالكي، لذلك لا تُعطى نتيجة" -> "اختلف علماء المذهب المالكي في هذه الحالة (المالكية)، فلا تُعرض أنصبة." | ar `refusal.manasikhat_unsupported`: "حالة المناسخات هذه غير مدعومة" -> "معاينة الوفيات المتعاقبة غير مدعومة لهذه الحالة. يرجى مراجعة البيانات وطلب مراجعة من مختص في المواريث." | en `refusal.school_not_supported`: "This school of law is not supported yet" -> "The Jafari school is not supported yet, so no shares are shown." | en `refusal.malikiyya_disputed`: "The Malikiyya case is disputed within the Maliki school, so no result is given" -> "Scholars of the Maliki school disagree about this family (the Malikiyya case), so no shares are shown." | en `refusal.manasikhat_unsupported`: "This successive inheritance case is not supported" -> "A preview for successive deaths is not supported for this case. Check the details and seek a qualified inheritance review." | en `school.shafii`: "Shafii" -> "Shafi'i" | fr `refusal.school_not_supported`: "Cette école juridique n'est pas encore prise en charge" -> "L'école jafarite n'est pas encore prise en charge, aucune part n'est donc affichée." | fr `refusal.malikiyya_disputed`: "Le cas de la Malikiyya est controversé au sein de l'école malikite, donc aucun résultat n'est donné" -> "Les savants de l'école malikite divergent sur cette famille (le cas de la Malikiyya), aucune part n'est donc affichée." | fr `refusal.manasikhat_unsupported`: "Ce cas de successions successives n'est pas pris en charge" -> "L'aperçu des décès successifs n'est pas pris en charge pour ce cas. Vérifiez les informations et demandez un examen par une personne qualifiée en successions." | fr `school.maliki`: "Malékite" -> "Malikite" | fr `school.jafari`: "Jafarite" -> "Jaafarite".
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: Fiqh copy still outside the catalog, left for Stories 8.6/8.7 and Epic 12: general UI copy in `messages.ts`, the legacy calc template heir-class msgids (`Mother`, `GrandFather`, ...), report `COMBINATION_RELATIONS`, and the results/table fiqh copy in `messages.ts` and `.po`.
+  evidence: These are not code-keyed in `engine/contracts/codes.py`, so the catalog has no key for them yet. `SAME_IN_ALL_SCHOOLS` stays a gettext msgid.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: The Locale `review` state for ar, en and fr in `i18n/locales.json` stays `pending` until Epic 12/18 decides how a Locale becomes reviewed.
+  evidence: Nothing in this story marks any Locale or term reviewed. `numbering_system` is `latn` for all three, matching today's Latin digits in the PDF.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-5-keep-terms-and-locale-settings-consistent-across-consumers.md`
+  summary: Confirm the PDF glyph check (`python -m i18n.glyphs`) passes on CI with `fonts-noto-core`.
+  evidence: The development host has no Noto fonts, so the check was only run locally to the "family not installed" failure (exit 1) and by unit tests with fake cmaps.
+
+## One presented answer (Story 8.6)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
+  summary: Native and fiqh review of the two new catalog keys (all three Locales, `review: pending`). Copied byte for byte from `messages.ts`; nothing was reworded.
+  evidence: `notice.disclaimer` = `footer.note` (en "Mawareeth is a calculation aid, not a fatwa or legal advice."; ar "مواريث أداة مساعدة على الحساب وليست فتوى ولا استشارة قانونية."; fr "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique."). `comparison.same_in_all_schools` = the `schoolsAgree` key (en "Same result in all four Sunni schools"; ar "النتيجة نفسها في المذاهب السنية الأربعة"; fr "Même résultat dans les quatre écoles sunnites").
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
+  summary: The new `default_currency` field of the Locale registry (`i18n/locales.json`, required by the validator) needs an owner re-check when a Locale is added.
+  evidence: ar SAR, en USD, fr EUR (owner decision 2026-11-16). `presentation.default_currency(locale, preset=None)` returns the preset's currency when a preset is given; no caller passes one until the Country extension.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
+  summary: Notice slots with no copy yet: `country_notice`, `citation`, `civil_law`, `obligatory_bequest_prompt` (FR-14) and `locale_beta`. They are selected by `presentation.select_notices` but disabled in `ENABLED_NOTICES`, which holds only `disclaimer`.
+  evidence: Copy and enabling belong to Epics 9-12. The predicates are tested with an `enabled` override so they are ready.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
+  summary: Display changes the consumers will show once they render PresentedResult strings (AD-19). The full labelled table is `presentation/tests/fixtures/display-changes.json`.
+  evidence: Amounts gain a currency in Babel's form (en "$125.00", fr "125,00 €", ar "‏125.00 ر.س.‏" with CLDR's own right-to-left marks around it) where preview showed a bare "125.00". fr percent gains the CLDR no-break space ("12,5 %", was "12.5%" in the PDF). Percent and kirat keep the PDF's half-up rounding. The Arabic amount text contains U+200F from CLDR itself; presentation injects no control characters. A family with no heirs yet raises `PresentationError("no_heirs")`: the legacy preview is "not ready" there. A person is `blocked` only with a zero final share (`presentation/compare.py` `answers`), as the legacy layered preview flagged it, so someone blocked in the first estate who inherits from a later death is not shown as blocked.
+
+## Existing consumers switched after full parity (Story 8.7)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: Native and fiqh review of the seven new column catalog keys (all three Locales, `review: pending`). Copied byte for byte from the existing `.po` msgstr of the legacy table captions; nothing was reworded.
+  evidence: `table.column.base` = "Shares", `awl` = "Excess", `radd` = "Shortage", `remainder` = "Remainder", `radd_calc` = "Shortage calc", `radd_union` = "Calc Union", `correction` = "Correction" (ar "السهام", "العول", "الرد", "الباقي تعصيبًا", "مسالة الرد", "الجامعة", "التصحيح"; fr "Parts", "Excès", "Pénurie", "Reste", "Pénurie calc", "Calc Union", "Correction"). The legacy gettext captions in `api/preview._column_labels` stay for the legacy `table` field until it is removed.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: The legacy Django results pages (`ResultsView`, `NewResultsView`) now look the way PresentedResult draws them: one table of presented rows (name, quote, percentage, relationship with its Arabic original, amount), an unallocated row and the scholars' table, instead of the per-class ORM column layout with its rowspan and JS cell merging. Product and visual review needed; Epic 12 decides whether the pages are retired.
+  evidence: `calc/templates/calc/_presented_result.html` is shared by both pages. Later deaths are still refused on these pages (the existing `manasikhat_unsupported` page). The pages render `percentage` and `blocked` with the existing msgids; `Unallocated remainder` is reused for the unallocated row.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: Still awaiting removal: `Calculation.legacy_compute` and `calc.manasikhat.compute_manasikhat` (parity reference only, Epic 12), the ORM derived columns, the legacy preview fields (`shares`, `unallocated`, `proof`, `table`, `schools`, `rules` beside `presented`; next release, once no cached bundle needs them), and the test-only `calc/legacy_preview_reference.py`.
+  evidence: No production path calls `legacy_compute` or the reference preview. `legacy_compute` still takes an unbounded `select_for_update` (it is no longer reachable from a request). `calc/test_switch_gate.py` compares the switched consumers with all of them.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: Amounts now carry a currency symbol everywhere they are rendered from `presented` (the legacy session estate is SAR explicit): en "SAR1,000.00", ar "‏1,000.00 ر.س.‏". The PDF, the web and the legacy pages show it; the legacy preview `amount` field is unchanged ("1000.00").
+  evidence: Owner decision 2026-11-16 for phase-1 bare decimals. The PDF "Estate" line and the web `formatEstate` still echo the typed estate.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: `formatEstate` in `web/src/interview/answers.ts` formats the visitor's typed estate (an input, not a result) with `Intl` and is left as it is.
+  evidence: The acceptance grep for `Intl.NumberFormat` is over the result renderers; `answers.ts` is the only remaining use.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: Small display differences of the switch for review: the web shows the unallocated share with its amount only (the percent beside it is not in PresentedResult); the "Death n" caption, the table's `span`, `group_span` and `order` stay plain integers (structural, not formatted leaves); the PDF's new Rounding line uses the untranslated msgid `Rounding` in ar and fr until a translator adds it (no gettext tools on the development host); a blocked heir's empty scholars'-table cell is empty in the PDF, where it printed "None".
+  evidence: v3 formats every numeric leaf of the table (`{value, text, dir}`) except those structural counts. The web proof panels take a fixed share's fraction from the table's own prescribed text. The step values on the Full results page are the table's column totals (`radd` reads the union column when there is one).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: A preview or results response from this release carries `presented` (v3). A web bundle from the release before parses the body without it; a bundle from this release treats an answer without a valid `presented` as a failed preview. `invalid_family` was added to `UnsupportedCase.message` so a core refusal of an impossible family has a sentence on the legacy pages.
+  evidence: The additive field is why the legacy fields stay for one release. A spouse of the deceased's own sex alone is still refused by the preview's consumer guard (the Family holds no gender for its root), through `presentation.refused_outcome`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: Two new gettext msgids have no ar or fr translation yet and show in English there. One is "The case is busy. Try again.", the retryable 503 body of a legacy write whose case lock wait passes 500 ms. The other is "Rounding", the PDF rounding line. Both need native translation and review.
+  evidence: Neither msgid is in `locale/{ar,fr}/LC_MESSAGES/django.po`. The other captions the legacy pages use already have translations: Name, Quote, Percentage, Relation, Amount, Unallocated remainder and blocked.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-7-switch-existing-calculation-consumers-only-after-full-parity.md`
+  summary: The copied column captions need a terminology review before they leave `pending`.
+  evidence: The ar `table.column.radd_calc` "مسالة الرد" is missing its hamza ("مسألة"). en "Excess"/"Shortage" for awl/radd are not the usual fiqh terms. fr "Pénurie" for radd and the English "Calc Union" / "Shortage calc" in fr need a translator. These are the legacy `.po` texts, copied unchanged per the no-rewording rule.
+
+## Story 8.8 follow-ups
+
+- The 8.10 writer switch must append its release image to `api/fixtures/snapshots/matrix.json`.
+- The schema 2 encoder raises above 2^53 minor units.
+- Alias row ids are regenerated when reading schema 2; person ids remain stable.
+- Unreadable rows are hidden from My cases rather than shown with an error.
+- The web displays typed snapshot errors as its generic failure.
+
+## Story 8.9 follow-ups
+
+- The new offline message (`offlineEditing`, ar and fr) needs native review.
+- Removals and un-marking a death send `confirm_cascade: true` until the Epic 9 impact dialog exists.
+- The currency, eligibility-answer, tree-drop and redeem commands plug into `api/case_commands.py` later.
+- An expired guest Case is not deleted from the session on read; it reads as no Case until replaced.
+- The limit stays 50 Heirs per layer (AD-26 says 50 Heirs).
+- A web bundle opened across the deploy gets 400 `invalid_revision` on writes until it reloads.
+- The case lock measurements are `mawareeth.case_lock` log records, not metrics yet.
+- A same-Case revision conflict (another tab edited first) uses the existing "replaced" path, so the web shows the existing-case screen and clears the unsent form. Epic 9's conflict outcome handling should refresh it in place instead.
+- A live guest session created before this release has no `changed_at`, so its expiry runs from `started_at`. A guest who started more than 24 hours ago and is still editing at deploy time sees the Case expire once.
+- The 503 `busy` response is shown as the generic failed notice. The web does not retry using `Retry-After`.
+- The results page's School choice (`results-view.tsx` `ChooseSchool`) is not blocked while offline. Only the interview screens are.
+
+## Story 8.10
+
+- Ops order: take a fresh restic backup, then flip `SNAPSHOT_WRITE_VERSION=2` and run the backfill only once every rollback-eligible image reads schema 2. Do not switch in the deploy that first ships 8.8.
+- The new name msgids need native review.
+- Backfill names use the site default Locale, not each user's.
+- Legacy `Calculation.name` is not carried into names.
+- Alias row ids are regenerated in v2.
+- Save-conflict UX belongs to Epic 9.
+
+## Story 8.11
+
+- Foundation counts are log-based; Prometheus export and alert rules remain deferred.
+- Network/render constants stand in for Story 9.12's real-device measurements.
+- Production capacity evidence comes from the first deploy log.
+- A production-backup restore rehearsal remains an operator step.
+
+## Epic 8 retrospective follow-ups
+
+Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md` (findings F13, F16, F17).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-reproduce-existing-single-estate-school-answers-in-memory.md`
+  summary: The engine cannot refuse a spouse of the deceased's own sex (a husband alone for a male deceased), because Family v1 has no gender for the root.
+  evidence: `engine/core.py` `is_impossible` is gender-free; `calc/test_engine_parity.py` pins that the engine calculates these. Production is protected by the preview's consumer guard (`presentation.refused_outcome`), not by the core. Settle with a Family version carrying the root's gender.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-reproduce-existing-single-estate-school-answers-in-memory.md`
+  summary: `evaluate` ignores Family gifts, bequests and eligibility answers, so a Family carrying a bequest gets a normal Result with no refusal.
+  evidence: `engine/core.py` `evaluate` reads only heirs and estate. No producer emits these yet; the bequest/gift stories must compute them or refuse a Family that carries them.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-reproduce-existing-single-estate-school-answers-in-memory.md`
+  summary: No corpus family exercises the cap on the full siblings' share in the grandfather branch; a mutation there went undetected.
+  evidence: Spec 8.2 residual risks. Add a known-answer family that hits the cap to the parity corpus.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-3-preserve-successive-death-answers-and-proof-inside-the-core.md`
+  summary: The engine accepts and calculates a person whose relationship contradicts their own gender (a female person entered as `father`), including in later deaths.
+  evidence: `engine/core.py` checks impossible relationship combinations and a later deceased's spouse sex, not every heir's gender. The session shell sets gender from the relationship, so no current producer sends this.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-4-give-every-family-action-one-engine-decision.md`
+  summary: Blocked labels and the answer disagree when the full sisters' cap exhausts the paternal siblings' pool beside a grandfather. The add-relative label says "not blocked" while the share is zero.
+  evidence: `engine/kinship.py` keeps the wave-1 label; `engine/single.py` gives the paternal sibling `excluded_by_full_siblings` and share 0. `engine/tests/test_queries.py` `test_solver_consistency` pins the exception. Needs a fiqh/UX decision on labelling that case.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-4-give-every-family-action-one-engine-decision.md`
+  summary: `relationship_options` and `change_impossible` can offer a replacing person a relationship that contradicts their gender or their relationship in another estate.
+  evidence: `engine/queries.py` uses only the estate's relationship counts. The web shell locks a linked person's gender (`api/anonymous_case.py` `gender_locked`), but the public query boundary does not check it. Same root as the 8.3 item.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
+  summary: A persisted currency that is not explicit is re-defaulted from the viewer's Locale at presentation time, so two viewers can see different currencies for one Case.
+  evidence: `presentation/present.py` uses `default_currency(fmt.locale)` unless `currency.explicit`. Unreachable today (phase-1 estates convert to SAR explicit); settle before the currency picker writes non-explicit currencies.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-10-upgrade-existing-saved-cases-without-losing-their-original-basis.md`
+  summary: No test renders a real PDF from a schema-2 Saved case; Stories 8.8–8.10 compared the inputs passed to a mocked renderer.
+  evidence: Spec 8.8, 8.9 and 8.10 residual risks. Add one end-to-end render of a schema-2 case (both layered and single) in the CI job that has the Noto fonts.
+
+- source_spec: none
+  summary: Country writes must wait until every rollback-eligible image reads schema 2.
+  evidence: Declared in `epic-8-context.md` (Cross-Story Dependencies) and carried by no story. Today Country Basis resolution is unavailable and `api/snapshots.py` rejects Country bases, so nothing writes them yet. The Country epic must check this before enabling writes.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert.md`
+  summary: Before the production purge, check that no row outside the purged trees references a heir inside them through `Heir.same_person` or `Deceased.heir`; both cascade on delete.
+  evidence: Legacy views only link heirs within one calculation tree, so none is expected. Run a read-only query on production that counts such cross-root references; if any exist, resolve them before `purge_empty_legacy_drafts` runs.

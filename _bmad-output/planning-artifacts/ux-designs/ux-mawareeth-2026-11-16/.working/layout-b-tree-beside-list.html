@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Layout B - Tree beside list</title>
+<style>
+/* Tokens copied from web/src/app/[locale]/globals.css (current identity, unchanged):
+   light:  --background #ffffff  --foreground #171717  --muted #4b5563  --surface #f2f7f5
+           --border #d3dfd9  --accent #0f766e  --accent-foreground #ffffff
+   dark (prefers-color-scheme: dark) values are defined in globals.css; these static mockups render light only.
+   Mockup-only additions: --line #9fb5ab (tree connectors, darker than --border), --danger #b42318 (delete), --accent-soft #e3f1ee (selected/drop tint). */
+:root{--background:#ffffff;--foreground:#171717;--muted:#4b5563;--surface:#f2f7f5;--border:#d3dfd9;--accent:#0f766e;--accent-foreground:#ffffff;--line:#9fb5ab;--danger:#b42318;--accent-soft:#e3f1ee}
+*{box-sizing:border-box}
+body{margin:0;background:var(--background);color:var(--foreground);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;line-height:1.45}
+[dir=rtl]{font-family:"Segoe UI",Tahoma,"Noto Naskh Arabic","Geeza Pro","Arabic Typesetting",system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.page{max-width:1360px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:1.6rem;margin:0 0 8px}
+.rationale{max-width:70ch;color:var(--muted);margin:0 0 16px}
+.sr{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin:0 0 28px}
+.sr section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px}
+.sr h2{font-size:1rem;margin:0 0 6px}.sr ul{margin:0;padding-inline-start:18px}.sr li{margin:3px 0}
+.frames{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.fw{max-width:100%}
+.fw>h2{font-size:.95rem;margin:0 0 8px;color:var(--muted);font-weight:600}
+.scroll{max-width:100%;overflow-x:auto;padding-bottom:6px}
+.frame{background:var(--background);border:2px solid var(--foreground);border-radius:22px;overflow:hidden;position:relative}
+.phone{width:375px}.phone.tall{height:812px}.phone.auto{height:auto}
+.desktop{width:1280px;border-radius:10px}
+.frame>.in{display:flex;flex-direction:column;height:100%}
+/* app chrome */
+.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--background)}
+.bar h3{font-size:1rem;margin:0;flex:1 1 auto}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--accent);color:var(--accent);border-radius:999px;padding:2px 10px;font-size:.78rem;font-weight:600;background:var(--background)}
+.beta{margin:0;padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);font-size:.8rem;color:var(--muted)}
+.beta b{color:var(--accent)}
+.estate{font-size:.82rem;color:var(--muted);padding:0 12px 8px;margin:0}
+/* tree */
+.canvas{position:relative;flex:1 1 auto;min-height:0;overflow:hidden;background-color:var(--surface);background-image:radial-gradient(var(--border) 1px,transparent 1px);background-size:18px 18px;padding:12px 8px}
+.tools{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.tools button{min-width:44px;min-height:44px;border:1px solid var(--border);background:var(--background);border-radius:8px;font-weight:700}
+.tools .hint{font-size:.72rem;color:var(--muted);flex:1}
+.tree{display:flex;flex-direction:column;align-items:center}
+.row{display:flex;gap:8px;justify-content:center;align-items:flex-start}
+.row.end{justify-content:flex-end;align-self:stretch;padding-inline-end:4px}
+.vl{width:2px;height:16px;background:var(--line)}
+.vl.end{align-self:flex-end;margin-inline-end:50px}
+.cell{display:flex;flex-direction:column;align-items:center;gap:4px;position:relative}
+.node{width:104px;min-height:64px;border:1.5px solid var(--border);background:var(--background);border-radius:10px;padding:6px 6px 6px;text-align:center;font-size:.8rem;line-height:1.25;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.node b{font-size:.84rem}
+.node small{color:var(--muted);font-size:.7rem}
+.node .grip{position:absolute;top:1px;inset-inline-start:5px;color:var(--muted);font-size:.7rem;letter-spacing:-1px}
+.node.dec{background:var(--accent);border-color:var(--accent);color:var(--accent-foreground)}
+.node.dec small,.node.dec .grip{color:#d7efeb}
+.node.ghost{border-style:dashed;border-color:var(--accent);color:var(--accent);background:transparent;font-weight:600}
+.node.gone{background:var(--surface);border-style:dashed;border-color:var(--line);color:var(--muted)}
+.node.gone b{text-decoration:line-through;text-decoration-thickness:1px}
+.marker{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:0 6px;font-size:.66rem;color:var(--muted);background:var(--background)}
+.node.sel{outline:3px solid var(--accent);outline-offset:2px;border-color:var(--accent)}
+.node.drop{border:2px dashed var(--accent);background:var(--accent-soft)}
+.dragchip{position:absolute;top:-14px;inset-inline-end:-18px;transform:rotate(6deg);background:var(--accent);color:var(--accent-foreground);border-radius:8px;padding:4px 10px;font-size:.78rem;font-weight:700;box-shadow:0 4px 10px rgba(0,0,0,.25);pointer-events:none;z-index:2}
+.drophint{font-size:.66rem;color:var(--accent);font-weight:600;max-width:120px;text-align:center}
+.tap{min-height:44px;border:1px solid var(--accent);background:var(--background);color:var(--accent);border-radius:8px;padding:4px 10px;font-size:.74rem;font-weight:600}
+.desktop .node{width:136px;min-height:72px;font-size:.88rem}
+.desktop .row{gap:16px}
+/* sheets / panels */
+.btn{min-height:44px;border-radius:8px;border:1px solid var(--border);background:var(--background);padding:8px 14px;font-weight:600}
+.btn.primary{background:var(--accent);color:var(--accent-foreground);border-color:var(--accent)}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.btn.block{width:100%}
+.share{padding:12px;background:var(--background)}
+.share h3{font-size:1rem;margin:0}
+.share .hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.illus{font-size:.72rem;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:1px 8px}
+.srow{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--border);font-size:.9rem}
+.srow .l{flex:1}
+.srow .v{font-weight:700;white-space:nowrap;text-align:end}
+.srow small{display:block;color:var(--muted);font-size:.74rem}
+.srow.ob{background:var(--surface);margin-inline:-12px;padding-inline:12px;border-inline-start:4px solid var(--accent)}
+.cap{display:inline-block;margin-top:2px;font-size:.72rem;color:var(--accent);font-weight:600}
+.cite{font-style:normal}
+.sheet{position:absolute;inset-inline:0;bottom:0;background:var(--background);border-top:2px solid var(--foreground);border-radius:18px 18px 0 0;box-shadow:0 -8px 24px rgba(0,0,0,.18);z-index:5}
+.sheet.peek{padding-bottom:10px}
+.handle{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;min-height:44px;background:none;border:0;padding:6px}
+.handle i{width:44px;height:5px;border-radius:3px;background:var(--line);display:block}
+.scrim{position:absolute;inset:0;background:rgba(23,23,23,.35);z-index:4}
+.panel{border:1px solid var(--border);border-radius:12px;background:var(--background);padding:14px}
+.panel h3{margin:0 0 10px;font-size:1rem}
+.field{display:flex;flex-direction:column;gap:3px;margin-bottom:10px;font-size:.84rem;color:var(--muted)}
+.field input,.field select{min-height:44px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--background);color:var(--foreground)}
+.check{display:flex;align-items:center;gap:10px;min-height:44px;font-size:.92rem;margin-bottom:8px}
+.check input{width:22px;height:22px;accent-color:var(--accent)}
+.acts{display:flex;gap:10px}.acts .btn{flex:1}
+.toast{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--foreground);color:var(--background);border-radius:10px;padding:6px 6px 6px 14px;box-shadow:0 6px 18px rgba(0,0,0,.3);margin:10px 12px;position:sticky;bottom:10px;z-index:6}
+[dir=rtl] .toast{padding:6px 14px 6px 6px}
+.toast .btn{min-height:44px;background:transparent;color:#7ee0d3;border-color:#7ee0d3}
+.toast.abs{position:absolute;inset-inline:auto;bottom:20px;left:50%;transform:translateX(-50%);margin:0;min-width:320px}
+/* B panels */
+.grp{margin-bottom:10px}
+.grp h4{margin:0 0 4px;font-size:.8rem;color:var(--muted);text-transform:none;letter-spacing:.02em}
+.rels{display:flex;flex-wrap:wrap;gap:8px}
+.rel{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:10px;padding:3px 4px;background:var(--background)}
+.rel .add{min-height:44px;border:0;background:var(--accent);color:var(--accent-foreground);border-radius:8px;padding:4px 12px;font-weight:700;font-size:.86rem}
+.step{display:inline-flex;align-items:center}
+.step button{width:44px;height:44px;border:1px solid var(--border);background:var(--surface);border-radius:8px;font-size:1.1rem;font-weight:700}
+.step output{min-width:24px;text-align:center;font-weight:700}
+.heirs{list-style:none;margin:0;padding:0}
+.heirs li{display:flex;align-items:center;gap:8px;border-top:1px solid var(--border);padding:4px 0;min-height:48px}
+.heirs .who{flex:1;font-size:.9rem}.heirs small{display:block;color:var(--muted);font-size:.74rem}
+.heirs li.gone .who{color:var(--muted)}
+.heirs .btn{min-height:44px;padding:4px 12px;font-size:.84rem}
+.sec{padding:12px;border-bottom:1px solid var(--border)}
+.sec>h3{margin:0 0 8px;font-size:1rem}
+/* desktop grids */
+.dgridA{display:grid;grid-template-columns:1fr 360px;min-height:720px}
+.dgridA .side{border-inline-start:1px solid var(--border);padding:14px;display:flex;flex-direction:column;gap:14px;background:var(--background)}
+.dgridB{display:grid;grid-template-columns:380px 1fr 340px;min-height:760px;position:relative}
+.dgridB>*{min-width:0}
+.dgridB .colL{border-inline-end:1px solid var(--border)}
+.dgridB .colR{border-inline-start:1px solid var(--border)}
+.dcanvas{min-height:620px}
+</style></head><body><div class="page">
+<h1>B. Tree beside a list</h1>
+<p class="rationale">A grouped panel of one-press relationship buttons (Spouse, Children, Parents, Siblings, More relatives) with count steppers sits next to the heir list, so the common case of adding many heirs is fast and does not depend on the drawing. The interactive tree sits beside or below it as confirmation and remains tappable and droppable, with the same Add relative here alternative. The share preview sits below on phone and becomes a third column on desktop.</p>
+<div class="sr"><section><h2>Strengths</h2><ul><li>Fastest path to enter many heirs: one press per heir and a stepper for counts.</li><li>The list gives a precise, screen-reader-friendly record of who is entered, in addition to the tree.</li><li>Tree is optional to use, so a crowded or tiny tree does not block progress.</li><li>Three clear columns on desktop: input, picture, result.</li></ul></section><section><h2>Risks</h2><ul><li>Phone is a long scroll; the tree and share preview are far from the buttons, so feedback is delayed.</li><li>Two representations of the same data (list and tree) can feel redundant and add maintenance cost.</li><li>Less discoverable for missing heirs than ghost cards on the tree.</li><li>Grouped relationship panel is dense in translation, with longer labels in French and other languages.</li></ul></section></div>
+<div class="frames"><div class="fw"><h2>Phone 375px · English (Undo toast after deleting a duplicate son)</h2><div class="scroll"><div class="frame phone auto" dir="ltr" lang="en"><div class="in"><div class="bar"><h3>Interview · Family</h3><span class="chip">Law of Egypt · Beta</span></div>
+<p class="beta"><b>Beta</b> · Egypt preset not yet scholar-reviewed</p>
+<section class="sec" aria-labelledby="rppen"><h3 id="rppen">Add relatives</h3><div class="grp" role="group" aria-labelledby="g0en"><h4 id="g0en">Spouse</h4><div class="rels"><div class="rel"><button class="add">Wife +</button><span class="step" role="group" aria-label="Wife count"><button aria-label="− Wife">−</button><output>1</output><button aria-label="+ Wife">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g1en"><h4 id="g1en">Children</h4><div class="rels"><div class="rel"><button class="add">Son +</button><span class="step" role="group" aria-label="Son count"><button aria-label="− Son">−</button><output>2</output><button aria-label="+ Son">+</button></span></div><div class="rel"><button class="add">Daughter +</button><span class="step" role="group" aria-label="Daughter count"><button aria-label="− Daughter">−</button><output>1</output><button aria-label="+ Daughter">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g2en"><h4 id="g2en">Parents</h4><div class="rels"><div class="rel"><button class="add">Father +</button><span class="step" role="group" aria-label="Father count"><button aria-label="− Father">−</button><output>0</output><button aria-label="+ Father">+</button></span></div><div class="rel"><button class="add">Mother +</button><span class="step" role="group" aria-label="Mother count"><button aria-label="− Mother">−</button><output>0</output><button aria-label="+ Mother">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g3en"><h4 id="g3en">Siblings</h4><div class="rels"><div class="rel"><button class="add">Brother +</button><span class="step" role="group" aria-label="Brother count"><button aria-label="− Brother">−</button><output>0</output><button aria-label="+ Brother">+</button></span></div><div class="rel"><button class="add">Sister +</button><span class="step" role="group" aria-label="Sister count"><button aria-label="− Sister">−</button><output>0</output><button aria-label="+ Sister">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g4en"><h4 id="g4en">More relatives</h4><div class="rels"><div class="rel"><button class="add">Son's son +</button><span class="step" role="group" aria-label="Son's son count"><button aria-label="− Son's son">−</button><output>1</output><button aria-label="+ Son's son">+</button></span></div><div class="rel"><button class="add">Son's daughter +</button><span class="step" role="group" aria-label="Son's daughter count"><button aria-label="− Son's daughter">−</button><output>1</output><button aria-label="+ Son's daughter">+</button></span></div></div></div></section>
+<section class="sec" aria-labelledby="hlpen"><h3 id="hlpen">Heirs</h3><ul class="heirs"><li><div class="who"><b>Wife</b><small>Mona's mother</small></div><button class="btn">Edit</button></li><li><div class="who"><b>Mona</b><small>Daughter</small></div><button class="btn">Edit</button></li><li><div class="who"><b>Hassan</b><small>Son</small></div><button class="btn">Edit</button></li><li class="gone"><div class="who"><b>Karim</b> <span class="marker">† died before</span><small>Son</small></div><button class="btn">Edit</button></li><li><div class="who"><b>Son of Karim</b><small>Son</small></div><button class="btn">Edit</button></li><li><div class="who"><b>Daughter of Karim</b><small>Daughter</small></div><button class="btn">Edit</button></li></ul></section>
+<section class="canvas" aria-label="Family tree"><div class="tools"><button aria-label="Zoom out">−</button><button aria-label="Zoom in">+</button><button aria-label="Fit tree" style="font-size:.74rem">Fit tree</button><span class="hint">Drag to pan · pinch or scroll to zoom</span></div><div class="tree" role="group" aria-label="Family tree">
+<div class="row"><button class="node ghost"><b>+ Add father</b></button><button class="node ghost"><b>+ Add mother</b></button></div>
+<div class="vl"></div>
+<div class="row"><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>Wife</b><small>Mona's mother</small></button><button class="node dec"><b>Father (deceased)</b><small>Male · <bdi>EGP 1,200,000</bdi></small></button><button class="node ghost"><b>+ Add wife</b></button></div>
+<div class="vl"></div>
+<div class="row"><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>Mona</b><small>Daughter</small></button><div class="cell"><span class="dragchip" aria-hidden="true">Son +</span><button class="node drop"><span class="grip" aria-hidden="true">⠿</span><b>Hassan</b><small>Son</small></button><span class="drophint">Drop to add as Hassan's child</span><button class="tap">Add relative here</button></div><div class="cell"><button class="node gone" aria-label="Karim, died before"><span class="grip" aria-hidden="true">⠿</span><b>Karim</b><span class="marker">† died before</span></button></div></div>
+<div class="vl end"></div>
+<div class="row end"><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>Son of Karim</b><small>Son</small></button><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>Daughter of Karim</b><small>Daughter</small></button></div>
+</div></section>
+<section class="share" aria-labelledby="bsen" style="border-top:1px solid var(--border)"><div class="hd"><h3 id="bsen">Share preview</h3><span class="illus">illustrative numbers</span></div><div class="srow ob"><div class="l"><b>Obligatory bequest — Karim's children</b><span class="cap">Capped at 1/3 of the estate</span><small><cite class="cite">Egypt, Wills Law 71/1946, art. 76</cite></small></div><div class="v"><bdi>1/3 cap</bdi><small><bdi>EGP 400,000 max</bdi></small></div></div>
+<div class="srow"><div class="l">Wife</div><div class="v"><bdi>1/8</bdi><small><bdi>EGP 150,000</bdi></small></div></div>
+<div class="srow"><div class="l">Hassan</div><div class="v">Residue, 2 parts</div></div>
+<div class="srow"><div class="l">Mona</div><div class="v">Residue, 1 part</div></div><button class="btn primary block" style="margin-top:8px">Full results →</button></section>
+<div class="toast " role="status"><span>Son deleted.</span><button class="btn">Undo</button></div></div></div></div></div><div class="fw"><h2>Phone 375px · Arabic RTL (Undo toast after deleting a duplicate son)</h2><div class="scroll"><div class="frame phone auto" dir="rtl" lang="ar"><div class="in"><div class="bar"><h3>المقابلة · العائلة</h3><span class="chip">قانون مصر · تجريبي</span></div>
+<p class="beta"><b>تجريبي</b> · إعداد مصر لم تتم مراجعته من العلماء بعد</p>
+<section class="sec" aria-labelledby="rppar"><h3 id="rppar">إضافة أقارب</h3><div class="grp" role="group" aria-labelledby="g0ar"><h4 id="g0ar">الزوجية</h4><div class="rels"><div class="rel"><button class="add">الزوجة +</button><span class="step" role="group" aria-label="الزوجة العدد"><button aria-label="− الزوجة">−</button><output>1</output><button aria-label="+ الزوجة">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g1ar"><h4 id="g1ar">الأبناء</h4><div class="rels"><div class="rel"><button class="add">ابن +</button><span class="step" role="group" aria-label="ابن العدد"><button aria-label="− ابن">−</button><output>2</output><button aria-label="+ ابن">+</button></span></div><div class="rel"><button class="add">ابنة +</button><span class="step" role="group" aria-label="ابنة العدد"><button aria-label="− ابنة">−</button><output>1</output><button aria-label="+ ابنة">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g2ar"><h4 id="g2ar">الوالدان</h4><div class="rels"><div class="rel"><button class="add">الأب +</button><span class="step" role="group" aria-label="الأب العدد"><button aria-label="− الأب">−</button><output>0</output><button aria-label="+ الأب">+</button></span></div><div class="rel"><button class="add">الأم +</button><span class="step" role="group" aria-label="الأم العدد"><button aria-label="− الأم">−</button><output>0</output><button aria-label="+ الأم">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g3ar"><h4 id="g3ar">الإخوة والأخوات</h4><div class="rels"><div class="rel"><button class="add">أخ +</button><span class="step" role="group" aria-label="أخ العدد"><button aria-label="− أخ">−</button><output>0</output><button aria-label="+ أخ">+</button></span></div><div class="rel"><button class="add">أخت +</button><span class="step" role="group" aria-label="أخت العدد"><button aria-label="− أخت">−</button><output>0</output><button aria-label="+ أخت">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g4ar"><h4 id="g4ar">أقارب آخرون</h4><div class="rels"><div class="rel"><button class="add">ابن الابن +</button><span class="step" role="group" aria-label="ابن الابن العدد"><button aria-label="− ابن الابن">−</button><output>1</output><button aria-label="+ ابن الابن">+</button></span></div><div class="rel"><button class="add">ابنة الابن +</button><span class="step" role="group" aria-label="ابنة الابن العدد"><button aria-label="− ابنة الابن">−</button><output>1</output><button aria-label="+ ابنة الابن">+</button></span></div></div></div></section>
+<section class="sec" aria-labelledby="hlpar"><h3 id="hlpar">الورثة</h3><ul class="heirs"><li><div class="who"><b>الزوجة</b><small>أم منى</small></div><button class="btn">تعديل</button></li><li><div class="who"><b>منى</b><small>ابنة</small></div><button class="btn">تعديل</button></li><li><div class="who"><b>حسن</b><small>ابن</small></div><button class="btn">تعديل</button></li><li class="gone"><div class="who"><b>كريم</b> <span class="marker">† توفي قبل أبيه</span><small>ابن</small></div><button class="btn">تعديل</button></li><li><div class="who"><b>ابن كريم</b><small>ابن</small></div><button class="btn">تعديل</button></li><li><div class="who"><b>ابنة كريم</b><small>ابنة</small></div><button class="btn">تعديل</button></li></ul></section>
+<section class="canvas" aria-label="شجرة العائلة"><div class="tools"><button aria-label="تصغير">−</button><button aria-label="تكبير">+</button><button aria-label="ملاءمة الشجرة" style="font-size:.74rem">ملاءمة الشجرة</button><span class="hint">اسحب للتحريك · اضغط بإصبعين أو مرّر للتقريب</span></div><div class="tree" role="group" aria-label="شجرة العائلة">
+<div class="row"><button class="node ghost"><b>+ إضافة أب</b></button><button class="node ghost"><b>+ إضافة أم</b></button></div>
+<div class="vl"></div>
+<div class="row"><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>الزوجة</b><small>أم منى</small></button><button class="node dec"><b>الأب (المتوفى)</b><small>ذكر · <bdi>1,200,000 جنيه مصري</bdi></small></button><button class="node ghost"><b>+ إضافة زوجة</b></button></div>
+<div class="vl"></div>
+<div class="row"><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>منى</b><small>ابنة</small></button><div class="cell"><span class="dragchip" aria-hidden="true">ابن +</span><button class="node drop"><span class="grip" aria-hidden="true">⠿</span><b>حسن</b><small>ابن</small></button><span class="drophint">أفلت لإضافته كابن لحسن</span><button class="tap">إضافة قريب هنا</button></div><div class="cell"><button class="node gone" aria-label="كريم, توفي قبل أبيه"><span class="grip" aria-hidden="true">⠿</span><b>كريم</b><span class="marker">† توفي قبل أبيه</span></button></div></div>
+<div class="vl end"></div>
+<div class="row end"><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>ابن كريم</b><small>ابن</small></button><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>ابنة كريم</b><small>ابنة</small></button></div>
+</div></section>
+<section class="share" aria-labelledby="bsar" style="border-top:1px solid var(--border)"><div class="hd"><h3 id="bsar">معاينة الحصص</h3><span class="illus">أرقام توضيحية</span></div><div class="srow ob"><div class="l"><b>وصية واجبة — أبناء كريم</b><span class="cap">بحد أقصى ثلث التركة</span><small><cite class="cite">مصر، قانون الوصية رقم 71 لسنة 1946، المادة 76</cite></small></div><div class="v"><bdi>سقف 1/3</bdi><small><bdi>الحد الأقصى 400,000 جنيه</bdi></small></div></div>
+<div class="srow"><div class="l">الزوجة</div><div class="v"><bdi>1/8</bdi><small><bdi>150,000 جنيه</bdi></small></div></div>
+<div class="srow"><div class="l">حسن</div><div class="v">الباقي، سهمان</div></div>
+<div class="srow"><div class="l">منى</div><div class="v">الباقي، سهم واحد</div></div><button class="btn primary block" style="margin-top:8px">النتائج الكاملة ←</button></section>
+<div class="toast " role="status"><span>تم حذف ابن.</span><button class="btn">تراجع</button></div></div></div></div></div><div class="fw"><h2>Desktop 1280px · English (Undo toast after deleting a duplicate son)</h2><div class="scroll"><div class="frame desktop" dir="ltr" lang="en"><div class="in"><div class="bar"><h3>Interview · Family</h3><span class="chip">Law of Egypt · Beta</span></div>
+<p class="beta"><b>Beta</b> · Egypt preset not yet scholar-reviewed</p>
+<div class="dgridB"><div class="colL"><section class="sec" aria-labelledby="rpd"><h3 id="rpd">Add relatives</h3><div class="grp" role="group" aria-labelledby="g0en"><h4 id="g0en">Spouse</h4><div class="rels"><div class="rel"><button class="add">Wife +</button><span class="step" role="group" aria-label="Wife count"><button aria-label="− Wife">−</button><output>1</output><button aria-label="+ Wife">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g1en"><h4 id="g1en">Children</h4><div class="rels"><div class="rel"><button class="add">Son +</button><span class="step" role="group" aria-label="Son count"><button aria-label="− Son">−</button><output>2</output><button aria-label="+ Son">+</button></span></div><div class="rel"><button class="add">Daughter +</button><span class="step" role="group" aria-label="Daughter count"><button aria-label="− Daughter">−</button><output>1</output><button aria-label="+ Daughter">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g2en"><h4 id="g2en">Parents</h4><div class="rels"><div class="rel"><button class="add">Father +</button><span class="step" role="group" aria-label="Father count"><button aria-label="− Father">−</button><output>0</output><button aria-label="+ Father">+</button></span></div><div class="rel"><button class="add">Mother +</button><span class="step" role="group" aria-label="Mother count"><button aria-label="− Mother">−</button><output>0</output><button aria-label="+ Mother">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g3en"><h4 id="g3en">Siblings</h4><div class="rels"><div class="rel"><button class="add">Brother +</button><span class="step" role="group" aria-label="Brother count"><button aria-label="− Brother">−</button><output>0</output><button aria-label="+ Brother">+</button></span></div><div class="rel"><button class="add">Sister +</button><span class="step" role="group" aria-label="Sister count"><button aria-label="− Sister">−</button><output>0</output><button aria-label="+ Sister">+</button></span></div></div></div><div class="grp" role="group" aria-labelledby="g4en"><h4 id="g4en">More relatives</h4><div class="rels"><div class="rel"><button class="add">Son's son +</button><span class="step" role="group" aria-label="Son's son count"><button aria-label="− Son's son">−</button><output>1</output><button aria-label="+ Son's son">+</button></span></div><div class="rel"><button class="add">Son's daughter +</button><span class="step" role="group" aria-label="Son's daughter count"><button aria-label="− Son's daughter">−</button><output>1</output><button aria-label="+ Son's daughter">+</button></span></div></div></div></section>
+<section class="sec" aria-labelledby="hld"><h3 id="hld">Heirs</h3><ul class="heirs"><li><div class="who"><b>Wife</b><small>Mona's mother</small></div><button class="btn">Edit</button></li><li><div class="who"><b>Mona</b><small>Daughter</small></div><button class="btn">Edit</button></li><li><div class="who"><b>Hassan</b><small>Son</small></div><button class="btn">Edit</button></li><li class="gone"><div class="who"><b>Karim</b> <span class="marker">† died before</span><small>Son</small></div><button class="btn">Edit</button></li><li><div class="who"><b>Son of Karim</b><small>Son</small></div><button class="btn">Edit</button></li><li><div class="who"><b>Daughter of Karim</b><small>Daughter</small></div><button class="btn">Edit</button></li></ul></section></div>
+<section class="canvas dcanvas" aria-label="Family tree"><div class="tools"><button aria-label="Zoom out">−</button><button aria-label="Zoom in">+</button><button aria-label="Fit tree" style="font-size:.74rem">Fit tree</button><span class="hint">Drag to pan · pinch or scroll to zoom</span></div><div class="tree" role="group" aria-label="Family tree">
+<div class="row"><button class="node ghost"><b>+ Add father</b></button><button class="node ghost"><b>+ Add mother</b></button></div>
+<div class="vl"></div>
+<div class="row"><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>Wife</b><small>Mona's mother</small></button><button class="node dec"><b>Father (deceased)</b><small>Male · <bdi>EGP 1,200,000</bdi></small></button><button class="node ghost"><b>+ Add wife</b></button></div>
+<div class="vl"></div>
+<div class="row"><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>Mona</b><small>Daughter</small></button><div class="cell"><span class="dragchip" aria-hidden="true">Son +</span><button class="node drop"><span class="grip" aria-hidden="true">⠿</span><b>Hassan</b><small>Son</small></button><span class="drophint">Drop to add as Hassan's child</span><button class="tap">Add relative here</button></div><div class="cell"><button class="node gone" aria-label="Karim, died before"><span class="grip" aria-hidden="true">⠿</span><b>Karim</b><span class="marker">† died before</span></button></div></div>
+<div class="vl end"></div>
+<div class="row end"><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>Son of Karim</b><small>Son</small></button><button class="node "><span class="grip" aria-hidden="true">⠿</span><b>Daughter of Karim</b><small>Daughter</small></button></div>
+</div></section>
+<aside class="colR share" aria-labelledby="bsd"><div class="hd"><h3 id="bsd">Share preview</h3><span class="illus">illustrative numbers</span></div><div class="srow ob"><div class="l"><b>Obligatory bequest — Karim's children</b><span class="cap">Capped at 1/3 of the estate</span><small><cite class="cite">Egypt, Wills Law 71/1946, art. 76</cite></small></div><div class="v"><bdi>1/3 cap</bdi><small><bdi>EGP 400,000 max</bdi></small></div></div>
+<div class="srow"><div class="l">Wife</div><div class="v"><bdi>1/8</bdi><small><bdi>EGP 150,000</bdi></small></div></div>
+<div class="srow"><div class="l">Hassan</div><div class="v">Residue, 2 parts</div></div>
+<div class="srow"><div class="l">Mona</div><div class="v">Residue, 1 part</div></div><button class="btn primary block" style="margin-top:8px">Full results →</button></aside>
+<div class="toast abs" role="status"><span>Son deleted.</span><button class="btn">Undo</button></div></div></div></div></div></div></div>
+</div></body></html>

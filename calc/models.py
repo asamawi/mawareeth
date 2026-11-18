@@ -921,7 +921,35 @@ class Calculation(models.Model):
             heir.clear()
         self.save()
 
-    def compute(self, madhab=schools.DEFAULT):
+    def compute(self, madhab=None):
+        """Every living heir's exact share under one school, from the pure core: {heir pk: Fraction}.
+
+        A thin adapter. It builds the Family from the stored rows, evaluates the core (later deaths
+        are composed by the core) and sets the transient `madhab`, `proof` and `table`, with Heir pks
+        in place of person ids. It performs no writes, no `select_for_update` and no savepoints:
+        the derived columns stay as they are on disk, and a blocked heir is told by a zero share.
+        With no school the result is the Hanbali one. An unknown id raises ValueError; a case the
+        core refuses raises UnsupportedCase with a stable `reason` code; a deleted case raises
+        Calculation.DoesNotExist. `legacy_compute` is the ORM reference it is proven against."""
+        import engine
+        from .adapters import family_from_calculation, legacy_evidence
+
+        madhab = schools.DEFAULT if madhab is None else madhab
+        self.proof = None
+        self.table = None
+        self._proof_steps = None
+        schools.check_school(madhab)
+        stored = Calculation.objects.get(pk=self.pk)
+        family, ids = family_from_calculation(stored)
+        evaluation = engine.evaluate(family, engine.school_rule_set(madhab))
+        if evaluation.result.status == 'refused':
+            raise UnsupportedCase(evaluation.result.refusal)
+        self.madhab = madhab
+        self.proof, self.table = legacy_evidence(evaluation, ids)
+        final = engine.final_shares(evaluation.result)
+        return {ids.person_to_heir[person]: share for person, share in final.items()}
+
+    def legacy_compute(self, madhab=schools.DEFAULT):
         """Work out every heir's share under one school: hanafi, maliki, shafii or
         hanbali. With no school the result is the Hanbali one, as before.
 

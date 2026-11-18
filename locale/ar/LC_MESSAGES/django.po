@@ -727,7 +727,7 @@ msgstr "هل انت متأكد من الحذف"
 
 #: .\calc\templates\calc\calculation_confirm_delete.html:21
 msgid "Cancel"
-msgstr ""
+msgstr "إلغاء"
 
 #: .\calc\templates\calc\deceased_confirm_delete.html:19
 msgid "All heirs will be deleted"
@@ -2302,260 +2302,8 @@ msgid "Paternal sister/s are blocked by sisters"
 msgstr "الأخت أو الأخوات لأب محجوبات بالأخوات الشقيقات"
 
 #: calc/schools.py
-msgid "This school of law is not supported yet"
-msgstr "هذا المذهب غير مدعوم حتى الآن"
-
-#: calc/schools.py
-msgid "The Malikiyya case is disputed within the Maliki school, so no result is given"
-msgstr "مسألة المالكية مختلف فيها داخل المذهب المالكي، لذلك لا تُعطى نتيجة"
-
-#: calc/schools.py
 msgid "Mushtaraka: the full siblings share the maternal siblings' third equally"
 msgstr "المشتركة: الأشقاء يشاركون الإخوة لأم في ثلثهم بالتساوي"
-
-#: calc/proof.py
-msgid "Fixed share"
-msgstr "فرض مقدّر"
-
-#: calc/proof.py
-msgid "Fixed share plus the remainder"
-msgstr "فرض مقدّر مع الباقي بالتعصيب"
-
-#: calc/proof.py
-msgid "Residuary heir, who takes what is left"
-msgstr "عاصب يأخذ ما بقي"
-
-#: calc/proof.py
-msgid "Blocked from inheriting"
-msgstr "محجوب من الميراث"
-
-#: calc/proof.py
-msgid "The grandfather takes the best of his options with the siblings"
-msgstr "الجدّ يأخذ الأفضل له من أحواله مع الإخوة"
-
-#: calc/proof.py
-msgid "Shares the maternal siblings' third equally"
-msgstr "يشارك الإخوة لأمّ في الثلث بالتساوي"
-
-#: calc/proof.py
-msgid "The grandfather and the sister pool their shares and split them two to one"
-msgstr "الجدّ والأخت يجمعان نصيبيهما ويقتسمان مجموعهما للذكر مثل حظ الأنثيين"
-
-#: calc/proof.py
-msgid "There is a male descendant"
-msgstr "لوجود فرع وارث مذكر"
-
-#: calc/proof.py
-msgid "There is a female descendant and no male descendant"
-msgstr "لوجود فرع وارث مؤنث وعدم وجود فرع وارث مذكر"
-
-#: calc/proof.py
-msgid "There is a descendant"
-msgstr "لوجود فرع وارث"
-
-#: calc/proof.py
-msgid "There is no descendant"
-msgstr "لعدم وجود فرع وارث"
-
-#: calc/proof.py
-msgid "There are two or more siblings"
-msgstr "لوجود اثنين فأكثر من الإخوة والأخوات"
-
-#: calc/proof.py
-msgid "There is no descendant and fewer than two siblings"
-msgstr "لعدم وجود فرع وارث ولا جمعٍ من الإخوة"
-
-#: calc/proof.py
-msgid "A spouse and the father are present, so she takes a third of the remainder"
-msgstr "لوجود أحد الزوجين والأب فتأخذ ثلث الباقي"
-
-#: calc/proof.py
-msgid "Together with a son"
-msgstr "مع الابن"
-
-#: calc/proof.py
-msgid "Together with a son of a son"
-msgstr "مع ابن الابن"
-
-#: calc/proof.py
-msgid "Together with one daughter"
-msgstr "مع بنت واحدة"
-
-#: calc/proof.py
-msgid "Together with a full brother"
-msgstr "مع الأخ الشقيق"
-
-#: calc/proof.py
-msgid "Together with a paternal brother"
-msgstr "مع الأخ لأب"
-
-#: calc/proof.py
-msgid "Together with the grandfather"
-msgstr "مع الجدّ"
-
-#: calc/proof.py
-msgid "Together with full or paternal siblings"
-msgstr "مع الإخوة الأشقاء أو لأب"
-
-#: calc/proof.py
-msgid "Together with one full sister"
-msgstr "مع أخت شقيقة واحدة"
-
-#: calc/proof.py
-msgid "Maternal brothers and sisters share one third"
-msgstr "الإخوة والأخوات لأمّ يشتركون في الثلث"
-
-#: calc/proof.py
-msgid "There is no mother"
-msgstr "لعدم وجود الأم"
-
-#: calc/proof.py
-msgid "Only one of this kind of heir"
-msgstr "وارث واحد من هذا النوع"
-
-#: calc/proof.py
-msgid "Several of this kind of heir share one fixed share"
-msgstr "عدّة ورثة من هذا النوع يشتركون في فرض واحد"
-
-#: calc/proof.py
-msgid "The fixed shares use up the whole estate"
-msgstr "استغرقت الفروض التركة كلها"
-
-#: calc/proof.py
-msgid "The full siblings take all that is left"
-msgstr "الإخوة الأشقاء يأخذون كل ما بقي"
-
-#: calc/proof.py
-msgid "Blocked by a male descendant"
-msgstr "محجوب بفرع وارث مذكر"
-
-#: calc/proof.py
-msgid "Blocked by a descendant"
-msgstr "محجوب بفرع وارث"
-
-#: calc/proof.py
-msgid "Blocked by the father"
-msgstr "محجوب بالأب"
-
-#: calc/proof.py
-msgid "Blocked by the grandfather"
-msgstr "محجوب بالجدّ"
-
-#: calc/proof.py
-msgid "Blocked by the mother"
-msgstr "محجوب بالأم"
-
-#: calc/proof.py
-msgid "Blocked by a son"
-msgstr "محجوب بالابن"
-
-#: calc/proof.py
-msgid "Blocked by two or more daughters"
-msgstr "محجوب ببنتين فأكثر"
-
-#: calc/proof.py
-msgid "Blocked by a full brother"
-msgstr "محجوب بالأخ الشقيق"
-
-#: calc/proof.py
-msgid "Blocked by the full sisters"
-msgstr "محجوب بالأخوات الشقيقات"
-
-#: calc/proof.py
-msgid "Blocked by a paternal brother"
-msgstr "محجوب بالأخ لأب"
-
-#: calc/proof.py
-msgid "Blocked by a paternal sister"
-msgstr "محجوب بالأخت لأب"
-
-#: calc/proof.py
-msgid "Blocked by a son of a full brother"
-msgstr "محجوب بابن الأخ الشقيق"
-
-#: calc/proof.py
-msgid "Blocked by a son of a paternal brother"
-msgstr "محجوب بابن الأخ لأب"
-
-#: calc/proof.py
-msgid "Blocked by a full uncle"
-msgstr "محجوب بالعم الشقيق"
-
-#: calc/proof.py
-msgid "Blocked by a paternal uncle"
-msgstr "محجوب بالعم لأب"
-
-#: calc/proof.py
-msgid "Blocked by a son of a full uncle"
-msgstr "محجوب بابن العم الشقيق"
-
-#: calc/proof.py
-msgid "Hanafi school: the grandfather blocks the full and paternal siblings"
-msgstr "المذهب الحنفي: الجدّ يحجب الإخوة الأشقاء والإخوة لأب"
-
-#: calc/proof.py
-msgid "Hanbali, Maliki and Shafi'i schools: the grandfather shares the estate with the full and paternal siblings"
-msgstr "المذاهب الحنبلي والمالكي والشافعي: الجدّ يقاسم الإخوة الأشقاء والإخوة لأب التركة"
-
-#: calc/proof.py
-msgid "Maliki and Shafi'i schools: the full siblings join the maternal siblings in their third"
-msgstr "المذهبان المالكي والشافعي: الإخوة الأشقاء يشاركون الإخوة لأمّ في ثلثهم"
-
-#: calc/proof.py
-msgid "Hanafi and Hanbali schools: the full siblings stay residuary heirs and do not join the maternal siblings' third"
-msgstr "المذهبان الحنفي والحنبلي: الإخوة الأشقاء يبقون عصبة ولا يشاركون الإخوة لأمّ في ثلثهم"
-
-#: calc/proof.py
-msgid "The remainder is returned to the heirs in proportion to their shares"
-msgstr "يُردّ الباقي على الورثة بنسبة أنصبتهم"
-
-#: calc/proof.py
-msgid "Later Maliki and Shafi'i scholars: the remainder is returned to the heirs other than a spouse, in proportion to their shares"
-msgstr "المتأخرون من المالكية والشافعية: يُردّ الباقي على الورثة من غير الزوجين بنسبة أنصبتهم"
-
-#: calc/proof.py
-msgid "Sharing the estate with the siblings as one more brother"
-msgstr "المقاسمة مع الإخوة كأخ واحد منهم"
-
-#: calc/proof.py
-msgid "A third of what is left after the fixed shares"
-msgstr "ثلث الباقي بعد الفروض"
-
-#: calc/proof.py
-msgid "A sixth of the whole estate"
-msgstr "سدس التركة كلها"
-
-#: calc/proof.py
-msgid "The common base of the fixed shares"
-msgstr "أصل المسألة المشترك للفروض"
-
-#: calc/proof.py
-msgid "Awl: the base is raised because the fixed shares exceed the estate"
-msgstr "العول: يُزاد الأصل لأن الفروض زادت على التركة"
-
-#: calc/proof.py
-msgid "Radd: the shares are recalculated so that the remainder returns to the heirs"
-msgstr "الردّ: تُعاد القسمة ليرجع الباقي على الورثة"
-
-#: calc/proof.py
-msgid "Correction: the base is multiplied so that every heir gets whole parts"
-msgstr "التصحيح: يُضرب الأصل ليأخذ كل وارث أجزاء صحيحة"
-
-#: calc/proof.py
-msgid "The part of the estate that no heir takes"
-msgstr "الجزء من التركة الذي لا يأخذه أي وارث"
-
-#: calc/proof.py
-msgid "Quran 4:11 (An-Nisa)"
-msgstr "القرآن الكريم، سورة النساء، الآية 11"
-
-#: calc/proof.py
-msgid "Quran 4:12 (An-Nisa)"
-msgstr "القرآن الكريم، سورة النساء، الآية 12"
-
-#: calc/proof.py
-msgid "Quran 4:176 (An-Nisa)"
-msgstr "القرآن الكريم، سورة النساء، الآية 176"
 
 #: calc/models.py
 msgid "Paternal grandmother is blocked by father"
@@ -2568,14 +2316,6 @@ msgstr "الجدة لأم محجوبة بالأم"
 #: calc/models.py
 msgid "Maternal grandmother gets 1/6 if no mother"
 msgstr "الجدة لأم تأخذ السدس في حال عدم وجود الأم"
-
-#: calc/proof.py
-msgid "Hanafi, Maliki and Shafi'i schools: the father blocks his own mother, the paternal grandmother"
-msgstr "المذاهب الحنفي والمالكي والشافعي: الأب يحجب أمه، وهي الجدة لأب"
-
-#: calc/proof.py
-msgid "Hanbali school: the paternal grandmother inherits although her son, the father, is alive"
-msgstr "المذهب الحنبلي: الجدة لأب ترث مع وجود ابنها، وهو الأب"
 
 #~ msgid "Son of paternal brother"
 #~ msgstr "ابن أخ لأب"
@@ -2609,10 +2349,6 @@ msgstr "المذهب الحنبلي: الجدة لأب ترث مع وجود اب
 
 #~ msgid "View this page in:"
 #~ msgstr "تصفح هذه الصفحة باللغات التالية:"
-
-#: calc/schools.py
-msgid "This successive inheritance case is not supported"
-msgstr "حالة المناسخات هذه غير مدعومة"
 
 #: api/preview.py
 msgid "Remainder"
@@ -2698,118 +2434,6 @@ msgstr "السهام الجامعة"
 msgid "Proof summary"
 msgstr "ملخص الأدلة"
 
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: father"
-msgstr "أب"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: mother"
-msgstr "أم"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: husband"
-msgstr "زوج"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: wife"
-msgstr "زوجة"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: son"
-msgstr "ابن"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: daughter"
-msgstr "بنت"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: son_of_son"
-msgstr "ابن الابن"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: daughter_of_son"
-msgstr "بنت الابن"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: grandfather"
-msgstr "جد"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: paternal_grandmother"
-msgstr "جدة لأب"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: maternal_grandmother"
-msgstr "جدة لأم"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: brother"
-msgstr "أخ شقيق"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: sister"
-msgstr "أخت شقيقة"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: paternal_brother"
-msgstr "أخ لأب"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: paternal_sister"
-msgstr "أخت لأب"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: maternal_brother"
-msgstr "أخ لأم"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: maternal_sister"
-msgstr "أخت لأم"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: son_of_brother"
-msgstr "ابن الأخ الشقيق"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: son_of_paternal_brother"
-msgstr "ابن الأخ لأب"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: uncle"
-msgstr "عم شقيق"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: paternal_uncle"
-msgstr "عم لأب"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: son_of_uncle"
-msgstr "ابن العم الشقيق"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report relationship: son_of_paternal_uncle"
-msgstr "ابن العم لأب"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report school: hanafi"
-msgstr "الحنفي"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report school: maliki"
-msgstr "المالكي"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report school: shafii"
-msgstr "الشافعي"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report school: hanbali"
-msgstr "الحنبلي"
-
-#: reports/templates/reports/draft.html reports/report.py
-msgid "Report school: jafari"
-msgstr "الجعفري"
-
 #: reports/report.py
 msgid "Same result in all four Sunni schools"
 msgstr "النتيجة نفسها في المذاهب السنية الأربعة"
@@ -2862,3 +2486,12 @@ msgstr "تمت دعوتك لعرض مسودة حالة"
 #, python-format
 msgid "Sign in or register to accept this invitation. The invitation expires in 30 days.\n\n%(link)s"
 msgstr "سجّل الدخول أو أنشئ حسابًا لقبول هذه الدعوة. تنتهي صلاحية الدعوة بعد 30 يومًا.\n\n%(link)s"
+
+
+#, python-format
+msgid "Estate of %(deceased)s, %(date)s"
+msgstr "تركة %(deceased)s، %(date)s"
+
+
+msgid "the deceased"
+msgstr "المتوفى"

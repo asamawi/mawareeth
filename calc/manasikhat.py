@@ -98,7 +98,7 @@ def compute_manasikhat(calc, madhab):
             estate = Fraction(1) if death.death_order == 1 else totals.pop(identity(by_pk[death.heir_id]), Fraction(0))
             layer._manasikhat_run = True
             try:
-                shares = layer.compute(madhab)
+                shares = layer.legacy_compute(madhab)
             finally:
                 del layer._manasikhat_run
             for pk, share in shares.items():

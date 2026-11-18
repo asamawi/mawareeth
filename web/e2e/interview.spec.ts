@@ -28,9 +28,25 @@ async function tabTo(page: Page, name: string, backwards = false): Promise<void>
 }
 
 type PreviewFixture = { title: string; case: Record<string, unknown>; response: Record<string, any> }; // eslint-disable-line @typescript-eslint/no-explicit-any
+const contracts = join(process.cwd(), "..", "api", "contracts");
+const served = JSON.parse(readFileSync(join(contracts, "preview-presented-fixtures.json"), "utf8")) as {
+  presented: Record<string, unknown>;
+  chosen: Record<string, Record<string, unknown>>;
+};
+// The shared preview fixtures as the server serves them: each legacy body with the PresentedResult beside it,
+// and each school's body in a choice with that school's own PresentedResult.
 const fixtures = (
-  JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: PreviewFixture[] }
-).fixtures;
+  JSON.parse(readFileSync(join(contracts, "preview-fixtures.json"), "utf8")) as { fixtures: PreviewFixture[] }
+).fixtures.map((fixture) => {
+  const response: PreviewFixture["response"] = { ...fixture.response, presented: served.presented[fixture.title] };
+  const chosen = served.chosen[fixture.title];
+  if (chosen) {
+    response.schools = Object.fromEntries(
+      Object.entries(response.schools as Record<string, Record<string, unknown>>).map(([school, body]) => [school, { ...body, presented: chosen[school] }]),
+    );
+  }
+  return { ...fixture, response };
+});
 const fixture = (title: string) => fixtures.find((item) => item.title === title)!;
 
 test.describe("hydration", () => {
@@ -73,7 +89,7 @@ test.describe("rendered states", () => {
     await page.getByRole("button", { name: en.startOverYes }).click();
     await expect(page.getByRole("heading", { name: en.started })).toBeVisible();
     expect(api.casePosts).toHaveLength(1);
-    expect(JSON.parse(api.casePosts[0].body)).toEqual({ replace: true, case_id: "0123456789abcdef" });
+    expect(JSON.parse(api.casePosts[0].body)).toEqual({ replace: true, case_id: "0123456789abcdef", expected_revision: 1 });
   });
 
   test("an expired case shows the notice and waits for the visitor", async ({ page, api }) => {
@@ -245,6 +261,13 @@ test.describe("the school of law, asked only when it matters", () => {
     await expect(choice.getByText(en.schoolsDiffer)).toBeVisible();
     await expect(choice.getByText(en.schoolsDifferBecause)).toBeVisible();
     for (const rule of differ.response.rules) await expect(choice.getByText(rule.label, { exact: true })).toBeVisible();
+    // Each school's summary is the presented comparison's own text.
+    for (const school of differ.response.presented.comparison.schools) {
+      await expect(choice.getByText(school.label, { exact: true }).first()).toBeVisible();
+      for (const share of school.shares.filter((item: { blocked: boolean }) => !item.blocked)) {
+        await expect(choice.getByText(share.share.text, { exact: false }).first()).toBeVisible();
+      }
+    }
     const group = page.getByRole("radiogroup", { name: en.chooseSchool });
     await expect(group.getByRole("radio")).toHaveCount(4);
     await expect(group.getByRole("radio", { name: en.madhabs.jafari.name })).toHaveCount(0);
@@ -258,7 +281,7 @@ test.describe("the school of law, asked only when it matters", () => {
     await expect(page.getByText(en.schoolsDiffer)).toHaveCount(0);
     await expect(page.getByText(`${en.madhabLabel}:`)).toBeVisible();
     expect(api.casePatches).toHaveLength(1);
-    expect(JSON.parse(api.casePatches[0].body)).toEqual({ madhab: "hanafi", case_id: differ.case.id });
+    expect(JSON.parse(api.casePatches[0].body)).toEqual({ madhab: "hanafi", case_id: differ.case.id, expected_revision: 1 });
   });
 
   test("a refusal in one school is shown in that school's summary", async ({ page, api }) => {
@@ -269,5 +292,45 @@ test.describe("the school of law, asked only when it matters", () => {
     const choice = page.locator("[data-school-choice]");
     await expect(choice.getByText(en.schoolsDiffer)).toBeVisible();
     await expect(choice.getByText(en.previewReasons.malikiyya_disputed).first()).toBeVisible();
+  });
+});
+
+test.describe("revisions and connection", () => {
+  test("a preview computed for an older revision is never shown", async ({ page, api }) => {
+    const agree = fixture("Agree: wife, son and daughter in every school");
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, { case: fullCase(agree.case, { revision: 2 }) }),
+      getPreview: json(200, { ...agree.response, revision: 1 }),
+    });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    await expect.poll(() => api.previewGets).toBeGreaterThan(0);
+    await expect(page.getByText(en.previewWaiting)).toBeVisible();
+    await expect(page.getByText(en.schoolsAgree)).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: en.previewHeading })).toBeVisible();
+    await expect(page.getByText(en.previewUpdated)).toHaveCount(0);
+  });
+
+  test("offline, editing is blocked with a notice and nothing is sent; online it comes back", async ({ page, context, api }) => {
+    const agree = fixture("Agree: wife, son and daughter in every school");
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: fullCase(agree.case) }), getPreview: json(200, agree.response) });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    const add = page.getByRole("button", { name: en.heirAdd, exact: true });
+    await expect(add).toHaveAttribute("aria-disabled", "false");
+    await expect(page.getByText(en.offlineEditing)).toHaveCount(0);
+
+    await context.setOffline(true);
+    await expect(page.getByText(en.offlineEditing)).toBeVisible();
+    await expect(add).toHaveAttribute("aria-disabled", "true");
+    await add.click({ force: true });
+    // The family and the last preview stay visible, and no write was attempted (an unstubbed request fails the test).
+    await expect(page.getByText(en.schoolsAgree)).toBeVisible();
+    expect(api.casePosts).toHaveLength(0);
+
+    await context.setOffline(false);
+    await expect(page.getByText(en.offlineEditing)).toHaveCount(0);
+    await expect(add).toHaveAttribute("aria-disabled", "false");
   });
 });

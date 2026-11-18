@@ -2,13 +2,14 @@
 
 import { useEffect, useRef } from "react";
 
+import { defaultLocale } from "@/i18n/catalog.generated";
 import { directionOf, isLocale, messages, type Locale } from "@/i18n/messages";
 
 import { reloadForChunkError } from "./chunk-recovery";
 
 function localeFromPath(): Locale {
   const first = typeof window === "undefined" ? "" : (window.location.pathname.split("/")[1] ?? "");
-  return isLocale(first) ? first : "ar";
+  return isLocale(first) ? first : defaultLocale;
 }
 
 const buttonStyle = {

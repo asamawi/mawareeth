@@ -6,6 +6,8 @@ from django.utils.translation import get_language
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_safe
 
+import i18n
+
 
 def _language_redirect(language, query):
     response = HttpResponseRedirect(f'/{language}/' + (f'?{query}' if query else ''))
@@ -51,8 +53,8 @@ def legacy_app_redirect(request, rest=''):
 @require_safe
 def auth_redirect(request, page='login', uidb64=None, token=None, lang=None):
     language = lang or get_language()
-    if language not in ('ar', 'en', 'fr'):
-        language = 'en'
+    if language not in i18n.published_codes():
+        language = i18n.fallback_locale()
     query = request.GET.copy()
     if uidb64 is not None:
         query['uid'] = uidb64

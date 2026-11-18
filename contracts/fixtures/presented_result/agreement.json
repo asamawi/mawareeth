@@ -1,0 +1,313 @@
+{
+  "version": 3,
+  "locale": "en",
+  "direction": "ltr",
+  "basis": {
+    "kind": "compare"
+  },
+  "state": "answer",
+  "comparison_outcome": "agreement",
+  "school_line": {
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
+  },
+  "rows": [
+    {
+      "person": "h0",
+      "name": {
+        "text": "Omar",
+        "dir": "auto"
+      },
+      "relationship": {
+        "translated": {
+          "text": "Son",
+          "lang": "en",
+          "dir": "ltr"
+        },
+        "original": {
+          "text": "ابن",
+          "lang": "ar",
+          "dir": "rtl"
+        }
+      },
+      "kind": "residue",
+      "blocked": false,
+      "share": {
+        "fraction": {
+          "numerator": 1,
+          "denominator": 3
+        },
+        "text": "1/3",
+        "dir": "ltr"
+      },
+      "percent": {
+        "text": "33.3%",
+        "dir": "ltr"
+      },
+      "kirat": {
+        "text": "8.00",
+        "dir": "ltr"
+      },
+      "amount": {
+        "amount_minor": 33333,
+        "currency": "SAR",
+        "text": "SAR333.33",
+        "dir": "auto"
+      }
+    },
+    {
+      "person": "h1",
+      "name": null,
+      "relationship": {
+        "translated": {
+          "text": "Son",
+          "lang": "en",
+          "dir": "ltr"
+        },
+        "original": {
+          "text": "ابن",
+          "lang": "ar",
+          "dir": "rtl"
+        }
+      },
+      "kind": "residue",
+      "blocked": false,
+      "share": {
+        "fraction": {
+          "numerator": 1,
+          "denominator": 3
+        },
+        "text": "1/3",
+        "dir": "ltr"
+      },
+      "percent": {
+        "text": "33.3%",
+        "dir": "ltr"
+      },
+      "kirat": {
+        "text": "8.00",
+        "dir": "ltr"
+      },
+      "amount": {
+        "amount_minor": 33333,
+        "currency": "SAR",
+        "text": "SAR333.33",
+        "dir": "auto"
+      }
+    },
+    {
+      "person": "h2",
+      "name": {
+        "text": "Sami",
+        "dir": "auto"
+      },
+      "relationship": {
+        "translated": {
+          "text": "Son",
+          "lang": "en",
+          "dir": "ltr"
+        },
+        "original": {
+          "text": "ابن",
+          "lang": "ar",
+          "dir": "rtl"
+        }
+      },
+      "kind": "residue",
+      "blocked": false,
+      "share": {
+        "fraction": {
+          "numerator": 1,
+          "denominator": 3
+        },
+        "text": "1/3",
+        "dir": "ltr"
+      },
+      "percent": {
+        "text": "33.3%",
+        "dir": "ltr"
+      },
+      "kirat": {
+        "text": "8.00",
+        "dir": "ltr"
+      },
+      "amount": {
+        "amount_minor": 33333,
+        "currency": "SAR",
+        "text": "SAR333.33",
+        "dir": "auto"
+      }
+    }
+  ],
+  "rounding": {
+    "amount_minor": 1,
+    "currency": "SAR",
+    "text": "SAR0.01",
+    "dir": "auto"
+  },
+  "unallocated": null,
+  "comparison": null,
+  "evidence": [
+    {
+      "order": 1,
+      "deceased": null,
+      "inherited": null,
+      "heirs": [
+        {
+          "person": "h0",
+          "stage": {
+            "step": "base",
+            "base": 3
+          },
+          "rule": {
+            "code": "residuary",
+            "text": "Residuary heir, who takes what is left"
+          },
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "verses": [
+            {
+              "code": "quran_4_11",
+              "text": "Quran 4:11 (An-Nisa)"
+            }
+          ]
+        },
+        {
+          "person": "h1",
+          "stage": {
+            "step": "base",
+            "base": 3
+          },
+          "rule": {
+            "code": "residuary",
+            "text": "Residuary heir, who takes what is left"
+          },
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "verses": [
+            {
+              "code": "quran_4_11",
+              "text": "Quran 4:11 (An-Nisa)"
+            }
+          ]
+        },
+        {
+          "person": "h2",
+          "stage": {
+            "step": "base",
+            "base": 3
+          },
+          "rule": {
+            "code": "residuary",
+            "text": "Residuary heir, who takes what is left"
+          },
+          "condition": null,
+          "blocked_by": null,
+          "school_rule": null,
+          "option": null,
+          "verses": [
+            {
+              "code": "quran_4_11",
+              "text": "Quran 4:11 (An-Nisa)"
+            }
+          ]
+        }
+      ],
+      "school_rules": [],
+      "steps": [
+        {
+          "step": "base",
+          "text": "The common base of the fixed shares",
+          "params": {
+            "base": {
+              "type": "int",
+              "value": 3
+            }
+          }
+        }
+      ],
+      "unallocated": {
+        "fraction": {
+          "numerator": 0,
+          "denominator": 1
+        },
+        "text": "0/1",
+        "dir": "ltr"
+      }
+    }
+  ],
+  "refusals": [],
+  "notices": [
+    {
+      "code": "disclaimer",
+      "text": "Mawareeth is a calculation aid, not a fatwa or legal advice."
+    }
+  ],
+  "table": {
+    "columns": [
+      {
+        "code": "base",
+        "label": "Shares",
+        "total": {
+          "value": 3,
+          "text": "3",
+          "dir": "ltr"
+        }
+      }
+    ],
+    "rows": [
+      {
+        "heir": "h0",
+        "blocked": false,
+        "group_span": 3,
+        "prescribed": null,
+        "cells": [
+          {
+            "value": {
+              "value": 1,
+              "text": "1",
+              "dir": "ltr"
+            },
+            "span": 1
+          }
+        ]
+      },
+      {
+        "heir": "h1",
+        "blocked": false,
+        "group_span": 0,
+        "prescribed": null,
+        "cells": [
+          {
+            "value": {
+              "value": 1,
+              "text": "1",
+              "dir": "ltr"
+            },
+            "span": 1
+          }
+        ]
+      },
+      {
+        "heir": "h2",
+        "blocked": false,
+        "group_span": 0,
+        "prescribed": null,
+        "cells": [
+          {
+            "value": {
+              "value": 1,
+              "text": "1",
+              "dir": "ltr"
+            },
+            "span": 1
+          }
+        ]
+      }
+    ]
+  }
+}

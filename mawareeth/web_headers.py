@@ -5,13 +5,15 @@ import hashlib
 import logging
 from html.parser import HTMLParser
 
+import i18n
+
 logger = logging.getLogger(__name__)
 
 STATIC_PREFIX = '/static/'
 WEB_HASHED_ASSET_PREFIX = '/_next/static/'
 ONE_YEAR_SECONDS = 31536000
 
-LANGUAGES = ('ar', 'en', 'fr')
+LANGUAGES = tuple(i18n.published_codes())
 PUBLIC_PAGES = ('', 'about/', 'terms/', 'privacy/')
 # Only these export files may be indexed. Everything else keeps noindex.
 PUBLIC_URLS = frozenset(

@@ -7,8 +7,8 @@ from urllib.parse import urlparse
 import dj_database_url
 from decouple import Csv, config
 from django.core.exceptions import ImproperlyConfigured
-from django.utils.translation import gettext_lazy as _
 
+import i18n
 from mawareeth.web_headers import add_web_headers
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -219,6 +219,8 @@ MIDDLEWARE = [
     'mawareeth.middleware.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Outside the case lock, so each logged foundation latency includes lock waits.
+    'mawareeth.middleware.FoundationOutcomeMiddleware',
     # Must stay directly before SessionMiddleware: it locks the visitor's session
     # row before the session is loaded and releases it after the session is saved,
     # so overlapping case writes run one after another.
@@ -290,7 +292,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
 
-LANGUAGE_CODE = config("LANGUAGE_CODE",default='ar')
+LANGUAGE_CODE = config("LANGUAGE_CODE", default=i18n.default_locale())
 USE_THOUSAND_SEPARATOR = True
 TIME_ZONE = 'Asia/Riyadh'
 
@@ -341,6 +343,17 @@ REST_FRAMEWORK = {
 # Anonymous interview cases live in the Django session and expire after this much idle time.
 # Logged-in sessions keep Django's default (SESSION_COOKIE_AGE).
 ANONYMOUS_CASE_IDLE_SECONDS = 24 * 60 * 60
+# Switch only after every rollback-eligible image reads schema 2.
+try:
+    SNAPSHOT_WRITE_VERSION = config('SNAPSHOT_WRITE_VERSION', default=1, cast=int)
+except ValueError as error:
+    raise ImproperlyConfigured('SNAPSHOT_WRITE_VERSION must be 1 or 2.') from error
+if SNAPSHOT_WRITE_VERSION not in (1, 2):
+    raise ImproperlyConfigured('SNAPSHOT_WRITE_VERSION must be 1 or 2.')
+# The longest a Case write waits for the session row lock before a retryable 503. AD-27 gives the
+# Share preview a 1 s p95 on 4G: about 300 ms of that is the network round trip and about 200 ms
+# the engine and presentation, which leaves 500 ms for any lock wait.
+CASE_LOCK_TIMEOUT_MS = 500
 
 
 SITE_ID = config("SITE_ID",default=1, cast=int)
@@ -351,12 +364,7 @@ LOCALE_PATHS = [
 
 prefix_default_language = False
 
-LANGUAGES = [
-  ('ar', _('Arabic')),
-  ('en', _('English')),
-  ('fr', _('French')),
-
-]
+LANGUAGES = i18n.django_languages()
 LOGIN_REDIRECT_URL = 'calc:index'
 LOGOUT_REDIRECT_URL = 'calc:index'
 # Production sends through Brevo's SMTP relay; anywhere else prints to the console.

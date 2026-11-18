@@ -5,16 +5,11 @@ import { submitAuth } from "@/api/auth";
 import { messages } from "@/i18n/messages";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { localeConfig } from "@/i18n/catalog.generated";
 import { locales, type Locale, type Messages } from "@/i18n/messages";
 import { authLinks, pathForLocale, casesPath } from "@/i18n/paths";
 
 import { useAuthState } from "./use-session";
-
-const languageNames: Record<Locale, string> = {
-  ar: "العربية",
-  en: "English",
-  fr: "Français",
-};
 
 const linkClass =
   "rounded px-1 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current";
@@ -62,7 +57,7 @@ export function SiteNav({ locale, nav }: { locale: Locale; nav: Messages["nav"] 
             <li key={target}>
               {target === locale ? (
                 <span aria-current="true" lang={target} className="font-semibold">
-                  {languageNames[target]}
+                  {localeConfig[target].ownName}
                 </span>
               ) : (
                 <Link
@@ -72,7 +67,7 @@ export function SiteNav({ locale, nav }: { locale: Locale; nav: Messages["nav"] 
                   hrefLang={target}
                   className={linkClass}
                 >
-                  {languageNames[target]}
+                  {localeConfig[target].ownName}
                 </Link>
               )}
             </li>

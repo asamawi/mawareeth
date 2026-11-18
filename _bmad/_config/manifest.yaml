@@ -1,26 +1,27 @@
 installation:
-  version: 6.11.0
+  version: 6.12.4
   installDate: 2026-03-03T01:39:51.006Z
-  lastUpdated: 2026-09-02T09:02:18.343Z
+  lastUpdated: 2026-11-15T21:23:24.224Z
+  installShims: false
 modules:
   - name: core
-    version: 6.11.0
+    version: 6.12.4
     installDate: 2026-03-03T01:39:49.159Z
-    lastUpdated: 2026-09-02T09:02:18.323Z
+    lastUpdated: 2026-11-15T21:23:24.213Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: bmm
-    version: 6.11.0
+    version: 6.12.4
     installDate: 2026-03-03T01:39:40.161Z
-    lastUpdated: 2026-09-02T09:02:18.326Z
+    lastUpdated: 2026-11-15T21:23:24.214Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: bmb
     version: v2.2.2
     installDate: 2026-03-03T01:39:42.574Z
-    lastUpdated: 2026-09-02T09:02:18.330Z
+    lastUpdated: 2026-11-15T21:23:24.218Z
     source: external
     npmPackage: bmad-builder
     repoUrl: https://github.com/bmad-code-org/bmad-builder
@@ -29,24 +30,24 @@ modules:
   - name: cis
     version: v0.3.2
     installDate: 2026-03-03T01:39:44.594Z
-    lastUpdated: 2026-09-02T09:02:18.336Z
+    lastUpdated: 2026-11-15T21:23:24.221Z
     source: external
     npmPackage: bmad-creative-intelligence-suite
     repoUrl: https://github.com/bmad-code-org/bmad-module-creative-intelligence-suite
-    channel: stable
+    channel: pinned
     sha: 97298b22fee1c7e482710d3a8414adb5cfccccd9
   - name: tea
-    version: v1.24.0
+    version: v1.27.2
     installDate: 2026-03-03T01:39:46.635Z
-    lastUpdated: 2026-09-02T09:02:18.343Z
+    lastUpdated: 2026-11-15T21:23:24.224Z
     source: external
     npmPackage: bmad-method-test-architecture-enterprise
     repoUrl: https://github.com/bmad-code-org/bmad-method-test-architecture-enterprise
-    channel: stable
-    sha: 7ba2130193c473b53d2e323b4da9a80697eef88e
+    channel: pinned
+    sha: d99ad29c62697c152e3393351406686d5bcd323c
 ides:
   - claude-code
   - codex
   - github-copilot
-  - antigravity
   - gemini
+  - antigravity

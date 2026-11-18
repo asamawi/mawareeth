@@ -1,110 +1,226 @@
-# generated: 2026-03-04 09:18
-# project: mawareeth
-# project_key: NOKEY
-# tracking_system: file-system
-# story_location: /home/ahmad/mawareeth/_bmad-output/implementation-artifacts
-
 # STATUS DEFINITIONS:
 # ==================
 # Epic Status:
 #   - backlog: Epic not yet started
 #   - in-progress: Epic actively being worked on
 #   - done: All stories in epic completed
-#
-# Epic Status Transitions:
-#   - backlog -> in-progress: Automatically when first story is created (via create-story)
-#   - in-progress -> done: Manually when all stories reach 'done' status
-#
+
 # Story Status:
 #   - backlog: Story only exists in epic file
-#   - ready-for-dev: Story file created in stories folder
+#   - ready-for-dev: Story file created, ready for development
 #   - in-progress: Developer actively working on implementation
-#   - review: Ready for code review (via Dev's code-review workflow)
+#   - review: Implementation complete, ready for review
 #   - done: Story completed
-#
+
 # Retrospective Status:
 #   - optional: Can be completed but not required
 #   - done: Retrospective has been completed
-#
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
 # WORKFLOW NOTES:
 # ===============
-# - Epic transitions to 'in-progress' automatically when first story is created
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
 # - Stories can be worked in parallel if team capacity allows
-# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
-
-generated: '2026-03-04 09:18'
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 11-16-2026 21:00
+last_updated: 11-18-2026 20:02
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
-
 development_status:
-  epic-0: done
-  0-1-capture-and-verify-the-heroku-inventory: done
-  0-2-make-django-production-ready: done
-  0-3-build-immutable-ci-artifacts: done
-  0-4-create-the-secured-hetzner-host-baseline: done
-  0-5-build-the-private-compose-runtime: done
-  0-6-implement-safe-blue-green-deployment: done
-  0-7-implement-encrypted-backup-and-restore: done
-  0-8-add-monitoring-and-operational-controls: done
-  0-9-rehearse-capacity-restore-and-cutover: done
-  0-10-execute-production-cutover-and-retire-heroku: done
-  epic-0-retrospective: optional
+  epic-8: done
+  8-1-preserve-case-meaning-through-versioned-shared-contracts: done
+  8-2-reproduce-existing-single-estate-school-answers-in-memory: done
+  8-3-preserve-successive-death-answers-and-proof-inside-the-core: done
+  8-4-give-every-family-action-one-engine-decision: done
+  8-5-keep-terms-and-locale-settings-consistent-across-consumers: done
+  8-6-produce-one-presented-answer-for-every-renderer: done
+  8-7-switch-existing-calculation-consumers-only-after-full-parity: done
+  8-8-let-every-reader-open-both-savedcase-snapshot-versions: done
+  8-9-apply-case-changes-atomically-against-one-revision: done
+  8-10-upgrade-existing-saved-cases-without-losing-their-original-b: done
+  8-11-prove-the-foundation-meets-wave-1-release-budgets: done
+  8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert: done
+  epic-8-retrospective: done
 
-  epic-1: done
-  1-1-zero-signup-case-start: done
-  1-2-start-interview-madhab-selection: done
-  1-3-deceased-info-add-heirs-via-guided-interview-form: done
-  1-4-family-tree-visualization-basic-render-updates: done
-  1-5-real-time-share-preview-from-supported-engine-cases: done
-  1-6-fiqh-aware-validation-hajb-blocking-heirs: done
-  1-7-successive-deaths-manasikhat-in-the-interview: done
-  epic-1-retrospective: optional
+  epic-9: backlog
+  9-1-establish-the-interview-shell-and-accessible-tree-tokens: backlog
+  9-2-render-the-family-as-lineage-cards-on-a-navigable-canvas: backlog
+  9-3-add-one-relative-with-one-press: backlog
+  9-4-edit-and-remove-relatives-from-the-tree: backlog
+  9-5-add-a-group-of-relatives-with-a-count-stepper: backlog
+  9-6-undo-family-changes-throughout-the-page-visit: backlog
+  9-7-add-relatives-at-a-chosen-node-by-touch-keyboard-or-drag: backlog
+  9-8-open-and-edit-later-death-estates-with-a-breadcrumb: backlog
+  9-9-complete-keyboard-navigation-and-the-screen-reader-outline: backlog
+  9-10-coordinate-interview-announcements-and-updating-states: backlog
+  9-11-verify-responsive-rtl-and-reduced-motion-tree-interactions: backlog
+  9-12-prove-the-complete-family-entry-journey-meets-capacity-and-s: backlog
+  epic-9-retrospective: optional
 
-  epic-2: done
-  2-1-standard-share-calculation-across-all-required-schools: done
-  2-2-deterministic-proof-output-for-multi-school-results: done
-  2-3-expanded-multi-school-coverage-beyond-standard-cases: done
-  2-4-full-recursive-manasikhat-calculation: done
-  epic-2-retrospective: optional
+  epic-10: backlog
+  10-1-name-a-case-and-show-whether-saving-succeeded: backlog
+  10-2-find-and-rename-named-cases-in-my-cases: backlog
+  10-3-open-saved-cases-directly-and-keep-guest-recovery-separate: backlog
+  10-4-preserve-received-invitations-and-label-shared-cases-as-read: backlog
+  epic-10-retrospective: optional
 
-  epic-3: done
-  3-1-results-view-for-eligible-heirs: done
-  3-2-draft-pdf-report-generation-with-certification-disclaimer: done
-  epic-3-retrospective: optional
+  epic-11: backlog
+  11-1-show-school-agreement-and-ask-for-a-school-only-when-shares: backlog
+  11-2-present-one-readable-share-preview-in-the-desktop-slot: backlog
+  11-3-open-the-full-preview-from-a-sticky-summary-bar-and-modal-sh: backlog
+  11-4-keep-summary-controls-reachable-at-narrow-widths-and-high-zo: backlog
+  11-5-preserve-the-results-table-and-make-result-actions-clear: backlog
+  11-6-explain-the-estate-input-and-identify-user-supplied-facts: backlog
+  11-7-make-rounding-adjustments-visible-and-reconcile-displayed-to: backlog
+  epic-11-retrospective: optional
 
-  epic-4: in-progress
-  4-1-account-creation-gate-for-save-and-sharing: review
-  4-2-save-draft-report-to-registered-account: review
-  4-3-private-link-sharing-with-explicit-public-consent: review
-  4-4-share-report-with-registered-users-or-email-invitees: backlog
-  4-5-whatsapp-share-for-registered-users: backlog
-  epic-4-retrospective: optional
+  epic-12: backlog
+  12-1-replace-outdated-legal-claims-and-record-legacy-retirement-d: backlog
+  12-2-reconcile-the-arabic-and-french-copy-backlog-with-owner-revi: backlog
+  12-3-clarify-proof-and-refusal-wording-without-implying-scholarly: backlog
+  12-4-count-product-outcomes-in-privacy-safe-server-aggregates: backlog
+  12-5-expose-daily-counts-and-document-metric-interpretation: backlog
+  12-6-give-the-owner-a-repeatable-five-heir-usability-test: backlog
+  epic-12-retrospective: optional
 
-  epic-5: backlog
-  5-0-marketplace-validation-gate-and-private-package-bootstrap: backlog
-  5-1-public-lawyer-application: backlog
-  5-2-internal-lawyer-approval-workflow: backlog
-  5-3-certification-access-control-by-lawyer-status: backlog
-  epic-5-retrospective: optional
+  epic-13: backlog
+  13-1-accept-a-question-and-email-its-ticket-number-reliably: backlog
+  13-2-ask-for-help-from-contact-or-whatsapp-and-see-the-real-outco: backlog
+  13-3-answer-and-manage-tickets-in-one-admin-queue: backlog
+  13-4-attach-visitor-email-replies-to-the-correct-ticket: backlog
+  13-5-delete-support-data-on-schedule-and-on-request: backlog
+  13-6-verify-support-delivery-alerts-and-recovery-on-the-shared-ho: backlog
+  epic-13-retrospective: optional
 
-  epic-6: backlog
-  6-1-default-free-membership-with-commission-rules: backlog
-  6-2-membership-upgrade-to-internal-tiers: backlog
-  6-3-lawyer-defined-certification-pricing-model: backlog
-  6-4-sponsored-fixed-position-management: backlog
-  6-5-earned-badge-eligibility-rules: backlog
-  epic-6-retrospective: optional
+  epic-14: backlog
+  14-1-register-immutable-presets-behind-the-owner-go-live-gate: backlog
+  14-2-apply-country-rule-settings-through-the-shared-engine: backlog
+  14-3-add-the-relationships-reached-by-descendants-and-distant-kin: backlog
+  14-4-change-the-basis-from-share-preview-and-full-results: backlog
+  14-5-cite-country-rules-in-proof-and-draft-pdf: backlog
+  14-6-preserve-pinned-versions-and-offer-explicit-recalculation: backlog
+  14-7-ask-required-country-facts-and-refuse-uncovered-rules: backlog
+  14-8-deliver-the-saudi-arabia-preset-with-statute-backed-tests: backlog
+  14-9-deliver-the-lebanon-sunni-preset-with-a-sect-boundary: backlog
+  epic-14-retrospective: optional
 
-  epic-7: backlog
-  7-1-bequest-amount-gate-for-lawyer-pricing: backlog
-  7-2-lawyer-marketplace-listing-with-sponsored-and-earned-signals: backlog
-  7-3-verified-review-and-rating-generation: backlog
-  7-4-certification-purchase-and-lawyer-selection: backlog
-  7-5-certify-draft-report-as-approved-lawyer: backlog
-  7-6-audit-trail-for-certification-actions: backlog
-  7-7-certification-registry-and-qr-verification: backlog
-  epic-7-retrospective: optional
-last_updated: 2026-11-12
+  epic-15: backlog
+  15-1-calculate-a-shared-preset-driven-obligatory-bequest-before-i: backlog
+  15-2-record-the-facts-needed-to-apply-bequest-offsets: backlog
+  15-3-show-bequests-separately-with-cited-calculation-steps: backlog
+  15-4-add-the-egypt-preset-with-verified-bequest-examples: backlog
+  15-5-add-the-morocco-preset-with-its-two-phase-worked-example: backlog
+  15-6-offer-live-bequest-laws-when-a-school-result-omits-eligible: backlog
+  epic-15-retrospective: optional
+
+  epic-16: backlog
+  16-1-choose-and-retain-the-estate-currency: backlog
+  16-2-read-matching-locale-numbers-and-dates-on-screen-and-pdf: backlog
+  16-3-show-the-selected-country-law-s-notice-in-every-locale: backlog
+  16-4-explain-civil-law-limits-under-every-school-in-every-locale: backlog
+  epic-16-retrospective: optional
+
+  epic-17: backlog
+  17-1-add-the-radd-distant-kin-and-parent-s-share-settings-jordan: backlog
+  17-2-deliver-the-jordan-preset-with-statute-backed-tests: backlog
+  17-3-deliver-the-uae-preset-with-statute-backed-tests: backlog
+  17-4-deliver-the-algeria-preset-with-a-configurable-daughters-lin: backlog
+  epic-17-retrospective: optional
+
+  epic-18: backlog
+  18-1-publish-a-locale-through-the-registry-with-beta-label-switch: backlog
+  18-2-use-mawareeth-in-urdu-right-to-left: backlog
+  18-3-use-mawareeth-in-hindi: backlog
+  18-4-use-mawareeth-in-indonesian-and-malay: backlog
+  18-5-use-mawareeth-in-turkish: backlog
+  epic-18-retrospective: optional
+
+  epic-19: backlog
+  19-1-publish-mawareeth-in-german: backlog
+  19-2-publish-mawareeth-in-spanish: backlog
+  19-3-publish-mawareeth-in-italian: backlog
+  19-4-publish-mawareeth-in-simplified-chinese: backlog
+  epic-19-retrospective: optional
+
+  epic-20: backlog
+  20-1-calculate-a-family-through-the-public-endpoint: backlog
+  20-2-publish-the-openapi-document-and-code-lists: backlog
+  20-3-limit-keyless-use-fairly-and-explain-the-limit: backlog
+  20-4-link-every-result-to-a-prefilled-interview: backlog
+  20-5-let-assistants-connect-through-the-mcp-server: backlog
+  20-6-issue-meter-and-revoke-billable-api-keys: backlog
+  20-7-explain-the-api-mcp-setup-and-terms-on-one-page: backlog
+  20-8-prove-the-public-surface-meets-capacity-and-observability-ga: backlog
+  epic-20-retrospective: optional
+action_items:
+  - id: "epic-8-retro-item-1-accept-revision-on-choose_school-preview"
+    epic: 8
+    action: "Accept revision on choose_school preview bodies in web/src/api/case.ts
+      parseChoice and add a disagreeing-School preview test carrying revision; must
+      land before any master merge of Epic 8 (F1)"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-2-make-api-capacity-py-validate-the-previe"
+    epic: 8
+    action: "Make api/capacity.py validate the preview body (status, presented, revision)
+      before counting a sample, add a disagreeing-School workload and an unusable-200
+      test (F3)"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-3-before-enabling-snapshot_write_version-2"
+    epic: 8
+    action: "Before enabling SNAPSHOT_WRITE_VERSION=2 or the backfill, base the snapshot
+      release gate on the real rollback target image instead of the adjacent matrix,
+      and note in the runbook that 02d3627 cannot read schema 2 (F2)"
+    owner: "dev + Ahmad"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-4-fix-stale-deferred-work-md-entries-at-li"
+    epic: 8
+    action: "Fix stale deferred-work.md entries at lines 367 and 373 (scholars table
+      now presented; blocked means zero final share) (F14)"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-5-add-untracked-deferrals-to-deferred-work"
+    epic: 8
+    action: "Add untracked deferrals to deferred-work.md: engine core gaps, Country-writes-wait-on-schema-2
+      prerequisite, 8.12 cross-tree same_person/Deceased.heir query before the production
+      purge (F13, F16, F17)"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-6-reconcile-epic-8-acceptance-criteria-in"
+    epic: 8
+    action: "Reconcile Epic 8 acceptance criteria in epics.md to the as-built (8.12
+      1,146 and 2402 purged, 8.11 modelled 4G, 8.9 per-layer limit and partial commands,
+      8.8/8.11 matrix evidence, 8.5 catalog narrowing, 8.10 tolerant decode, 8.1 lineage
+      scope) (F15)"
+    owner: "Ahmad"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-7-make-the-auto-dev-driver-set-each-story"
+    epic: 8
+    action: "Make the auto-dev driver set each story key in sprint-status.yaml to
+      done when its spec is done (F18)"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-8-add-a-cross-story-contract-check-to-the"
+    epic: 8
+    action: "Add a cross-story contract check to the build review: a changed server
+      response field requires a fixture or test through every strict web parser of
+      that response (F19)"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"

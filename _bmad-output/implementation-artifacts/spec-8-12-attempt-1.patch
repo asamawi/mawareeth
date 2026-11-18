@@ -1,0 +1,263 @@
+diff --git a/_bmad-output/implementation-artifacts/deferred-work.md b/_bmad-output/implementation-artifacts/deferred-work.md
+index 4a14f9a..17fa1c9 100644
+--- a/_bmad-output/implementation-artifacts/deferred-work.md
++++ b/_bmad-output/implementation-artifacts/deferred-work.md
+@@ -281,8 +281,8 @@ Completed and obsolete items are removed; their history is in git.
+   evidence: Review the WhatsApp button, ready status, "Open WhatsApp" label and unavailable-fallback wording, including Arabic RTL readability.
+ 
+ - source_spec: `_bmad-output/implementation-artifacts/spec-legacy-calculations-in-saved-cases.md`
+-  summary: Decide what to do with the 1,146 legacy calculations `api.0004` did not convert on production (841 with no deceased, 304 with no heirs, and calculation 2402 of owner 1829 with more than one deceased).
+-  evidence: Release 02d3627 ran the import on 2026-11-13: converted=2053, reported=1146, ownerless=0, owners affected 965. The 1,145 incomplete ones are empty drafts with nothing to compute; only 2402 is a data anomaly. The originals stay in the `calc` tables, and the full report is in the host's root-only `deploy/runtime/logs/migrate-20261113T224032Z-3125246.log`.
++  summary: Decide what to do with legacy calculation 2402 (owner 1829, more than one deceased), which `api.0004` could not convert; run the production purge of the 1,145 empty drafts and record it here.
++  evidence: Release 02d3627 ran the import on 2026-11-13: converted=2053, reported=1146, ownerless=0, owners affected 965 (841 no deceased, 304 no heirs, 2402 multiple deceased). The 1,145 empty drafts are removed by `purge_empty_legacy_drafts` (Story 8.12; production procedure, including a fresh restic backup first, in `deploy/README.md`). The command never selects 2402, so it is kept. No production purge has run yet; when it does, record its date and deleted count in this entry. The full import report is in the host's root-only `deploy/runtime/logs/migrate-20261113T224032Z-3125246.log`.
+ 
+ - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-add-heir-picker.md`
+   summary: Request native review of the two new add-heir picker strings in Arabic, English and French: "More relatives" (button) and "Other relationship" (select label).
+diff --git a/api/management/commands/purge_empty_legacy_drafts.py b/api/management/commands/purge_empty_legacy_drafts.py
+new file mode 100644
+index 0000000..6d34c1d
+--- /dev/null
++++ b/api/management/commands/purge_empty_legacy_drafts.py
+@@ -0,0 +1,52 @@
++from django.contrib.contenttypes.models import ContentType
++from django.core.management.base import BaseCommand, CommandError
++from django.db import transaction
++
++from api.legacy_cases import Unconvertible, convert
++from calc.models import Calculation, Deceased, Heir
++
++
++def select_drafts(roots):
++    selected = {'no_deceased': [], 'no_heirs': []}
++    for calc in roots:
++        try:
++            convert(calc, ContentType, Heir, Deceased)
++        except Unconvertible as error:
++            if str(error) in ('no deceased', 'no heirs'):
++                selected[str(error).replace(' ', '_')].append(calc.pk)
++    return selected
++
++
++class Command(BaseCommand):
++    help = 'Purge owned root legacy drafts classified as no deceased or no heirs.'
++
++    def add_arguments(self, parser):
++        parser.add_argument('--dry-run', action='store_true')
++        parser.add_argument('--expect', type=int)
++
++    def report(self, selected, expected):
++        total = sum(map(len, selected.values()))
++        self.stdout.write(
++            f"no_deceased={len(selected['no_deceased'])} "
++            f"no_heirs={len(selected['no_heirs'])} total={total}")
++        for reason, ids in selected.items():
++            self.stdout.write(f'{reason}_ids=' + ','.join(map(str, ids)))
++        if expected is not None and total != expected:
++            raise CommandError(f'expected={expected} actual={total}')
++        return total
++
++    def handle(self, *args, **options):
++        roots = Calculation.objects.filter(parent_id=None, user_id__isnull=False).order_by('pk')
++        selected = select_drafts(roots)
++        if options['dry_run']:
++            self.report(selected, options['expect'])
++            return
++        candidate_ids = [pk for ids in selected.values() for pk in ids]
++        with transaction.atomic():
++            # Legacy edits lock the same root; classify again after acquiring it.
++            locked = list(roots.filter(pk__in=candidate_ids).select_for_update())
++            selected = select_drafts(locked)
++            total = self.report(selected, options['expect'])
++            ids = [pk for group in selected.values() for pk in group]
++            Calculation.objects.filter(pk__in=ids).delete()
++        self.stdout.write(f'deleted={total}')
+diff --git a/api/test_legacy_purge.py b/api/test_legacy_purge.py
+new file mode 100644
+index 0000000..9785683
+--- /dev/null
++++ b/api/test_legacy_purge.py
+@@ -0,0 +1,144 @@
++from io import StringIO
++from unittest.mock import patch
++
++from django.contrib.auth import get_user_model
++from django.core.management import call_command
++from django.core.management.base import CommandError
++from django.db import connection
++from django.test import TestCase
++from django.test.utils import CaptureQueriesContext
++from django.utils import timezone
++
++from api.legacy_cases import convert
++from api.models import SavedCase, ShareInvite, ShareLink
++from calc.models import Calculation, Deceased, Heir, Person, Son
++from calc.tests import build_case, build_layer
++
++
++class LegacyPurgeTests(TestCase):
++    def setUp(self):
++        self.good, (son,) = build_case('M', [Son])
++        self.user = self.good.user
++        self.empty = Calculation.objects.create(user=self.user, name='Secret')
++        Son.objects.create(calc=self.empty, first_name='Layla', sex='M')
++        self.layer, _ = build_layer(self.empty, son, 'M', [Son])
++        self.empty2 = Calculation.objects.create(user=self.user, name='Secret')
++        self.no_heirs, _ = build_case('M', [])
++        self.anomaly, _ = build_case('M', [Son])
++        Deceased.objects.create(calc=self.anomaly, sex='M', estate=1)
++        self.ownerless = Calculation.objects.create(name='Secret')
++        # Empty child layers are not independently selected.
++        self.child = Calculation.objects.create(parent=self.anomaly, user=self.user, name='Secret')
++        build_case('', [Son])
++        unknown, _ = build_case('M', [])
++        Heir.objects.create(calc=unknown)
++        invalid_name, (heir,) = build_case('M', [Son])
++        heir.first_name = 'bad\u202ename'
++        heir.save()
++        build_case('M', [Son] * 51)  # Not representable.
++        saved = SavedCase.objects.create(owner=self.user, snapshot={'private': 'Secret'})
++        ShareLink.objects.create(saved_case=saved, token_hash='link', expires_at=timezone.now())
++        ShareInvite.objects.create(saved_case=saved, email='private@example.com',
++                                   token_hash='invite', expires_at=timezone.now())
++
++    def rows(self):
++        result = {}
++        for model in (Calculation, Person, Heir, Deceased, Son, SavedCase,
++                      ShareLink, ShareInvite, get_user_model()):
++            rows = model.objects.all()
++            if hasattr(rows, 'non_polymorphic'):
++                rows = rows.non_polymorphic()
++            result[model.__name__] = list(rows.order_by('pk').values())
++        return result
++
++    def run_command(self, *args):
++        output = StringIO()
++        call_command('purge_empty_legacy_drafts', *args, stdout=output)
++        return output.getvalue().splitlines()
++
++    def expected(self):
++        return ['no_deceased=2 no_heirs=1 total=3',
++                f'no_deceased_ids={self.empty.pk},{self.empty2.pk}',
++                f'no_heirs_ids={self.no_heirs.pk}']
++
++    def test_dry_run_and_expect(self):
++        before = self.rows()
++        output = self.run_command('--dry-run', '--expect', '3')
++        self.assertEqual(output, self.expected())
++        for name in ('Secret', 'Layla'):
++            self.assertNotIn(name, '\n'.join(output))
++        self.assertEqual(self.rows(), before)
++
++    def test_delete_cascades_preserves_everything_else_and_rerun(self):
++        before = self.rows()
++        calcs = {self.empty.pk, self.empty2.pk, self.no_heirs.pk, self.layer.pk}
++        people = {row['person_ptr_id'] for kind in ('Heir', 'Deceased')
++                  for row in before[kind] if row['calc_id'] in calcs}
++        expected = {}
++        for kind, rows in before.items():
++            if kind == 'Calculation':
++                rows = [row for row in rows if row['id'] not in calcs]
++            elif kind == 'Person':
++                rows = [row for row in rows if row['id'] not in people]
++            elif kind in ('Heir', 'Deceased'):
++                rows = [row for row in rows if row['person_ptr_id'] not in people]
++            elif kind == 'Son':
++                rows = [row for row in rows if row['heir_ptr_id'] not in people]
++            expected[kind] = rows
++        self.assertEqual(self.run_command('--expect', '3'), self.expected() + ['deleted=3'])
++        self.assertEqual(self.rows(), expected)
++        self.assertEqual(self.run_command(), ['no_deceased=0 no_heirs=0 total=0',
++                                             'no_deceased_ids=', 'no_heirs_ids=', 'deleted=0'])
++
++    def test_expect_mismatch_prints_counts_and_changes_nothing(self):
++        before = self.rows()
++        for args in ((), ('--dry-run',)):
++            output = StringIO()
++            with self.assertRaisesRegex(CommandError, '^expected=5 actual=3$'):
++                call_command('purge_empty_legacy_drafts', *args, expect=5, stdout=output)
++            self.assertEqual(output.getvalue().splitlines(), self.expected())
++            self.assertEqual(self.rows(), before)
++
++    def test_later_layer_reason_matches_import(self):
++        layer = Calculation.objects.create(parent=self.good, user=self.user, name='Secret')
++        output = self.run_command('--dry-run')
++        self.assertEqual(output[0], 'no_deceased=3 no_heirs=1 total=4')
++        self.assertEqual(output[1], 'no_deceased_ids=' + ','.join(
++            map(str, sorted([self.good.pk, self.empty.pk, self.empty2.pk]))))
++        self.run_command()
++        self.assertFalse(Calculation.objects.filter(pk=layer.pk).exists())
++
++    def test_reclassification_under_lock_excludes_changed_candidate(self):
++        calls = 0
++
++        def classify(calc, *args):
++            nonlocal calls
++            if calc.pk == self.empty2.pk:
++                calls += 1
++                if calls == 2:
++                    self.assertTrue(connection.in_atomic_block)
++                    return {}  # Became convertible while waiting for the lock.
++            return convert(calc, *args)
++
++        with CaptureQueriesContext(connection) as queries, patch(
++                'api.management.commands.purge_empty_legacy_drafts.convert', classify):
++            output = self.run_command()
++        self.assertTrue(any('FOR UPDATE' in query['sql'] for query in queries))
++        self.assertEqual(output[0], 'no_deceased=1 no_heirs=1 total=2')
++        self.assertEqual(output[-1], 'deleted=2')
++        self.assertTrue(Calculation.objects.filter(pk=self.empty2.pk).exists())
++
++    def test_delete_failure_rolls_back(self):
++        from django.db.models.query import QuerySet
++
++        original = QuerySet.delete
++        before = self.rows()
++
++        def fail_after_delete(rows):
++            original(rows)
++            raise RuntimeError('delete failed')
++
++        with patch.object(QuerySet, 'delete', fail_after_delete):
++            with self.assertRaisesRegex(RuntimeError, 'delete failed'):
++                self.run_command()
++        self.assertEqual(self.rows(), before)
+diff --git a/deploy/README.md b/deploy/README.md
+index a54d4e3..5d04a0e 100644
+--- a/deploy/README.md
++++ b/deploy/README.md
+@@ -1124,3 +1124,35 @@ even on failure, and never modifies Saved cases, shares or invitations.
+ 
+ Epic 8 adds no tables: its schema additions are `api_savedcase.revision` and
+ `api_savedcase.name`. No Ticket, API-key, counter or prefill table exists yet.
++
++## Legacy draft purge
++
++Take a fresh restic backup and confirm that it succeeded before purging:
++
++```console
++sudo deploy/backup.sh backup
++```
++
++Use the active slot in the same Compose/runtime environment as deployment
++(replace `app-blue` below with `app-green` if green is active):
++
++```console
++docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --dry-run --expect 1145
++```
++
++Check `no_deceased=841 no_heirs=304 total=1145` and the ascending ids.
++Output contains only reason keys, counts and integer ids; no family data.
++If the expected count differs, the command fails without deleting anything;
++resolve the difference before proceeding (legacy pages can still create drafts).
++After confirming the backup and dry-run counts, run:
++
++```console
++docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --expect 1145
++```
++
++Check `deleted=1145`. The command reclassifies candidates under root-row locks
++and deletes matching roots and their dependent legacy rows in one transaction.
++Calculation 2402 is never selected and is kept for a separate owner decision;
++Saved cases, shares, invites and users are untouched. Record the production purge
++date and deleted count in the legacy-import entry in
++`_bmad-output/implementation-artifacts/deferred-work.md`.

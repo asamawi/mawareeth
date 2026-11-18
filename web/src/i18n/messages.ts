@@ -1,15 +1,37 @@
 import type { MadhabId, PreviewReason, RelationshipId } from "../api/case.ts";
 
-export const locales = ["ar", "en", "fr"] as const;
+import { localeConfig, locales, terms, type Locale, type TermKey } from "./catalog.generated.ts";
 
-export type Locale = (typeof locales)[number];
+export { locales, type Locale };
 
 export function isLocale(value: string): value is Locale {
   return (locales as readonly string[]).includes(value);
 }
 
-export function directionOf(locale: Locale): "rtl" | "ltr" {
-  return locale === "ar" ? "rtl" : "ltr";
+/** The reading direction of a Locale; a string that is no Locale reads left to right. */
+export function directionOf(locale: string): "rtl" | "ltr" {
+  return isLocale(locale) ? localeConfig[locale].direction : "ltr";
+}
+
+// The ids in the order the screens list them. The catalog owns the text of every one.
+const RELATIONSHIPS = ["father", "mother", "husband", "wife", "son", "daughter", "son_of_son", "daughter_of_son", "grandfather", "paternal_grandmother", "maternal_grandmother", "brother", "sister", "paternal_brother", "paternal_sister", "maternal_brother", "maternal_sister", "son_of_brother", "son_of_paternal_brother", "uncle", "paternal_uncle", "son_of_uncle", "son_of_paternal_uncle"] as const satisfies readonly RelationshipId[];
+const MADHABS = ["hanafi", "maliki", "shafii", "hanbali", "jafari"] as const satisfies readonly MadhabId[];
+const REASONS = ["manasikhat_unsupported", "school_not_supported", "malikiyya_disputed", "invalid_family"] as const satisfies readonly PreviewReason[];
+
+const term = (locale: Locale, key: string): string => terms[locale][key as TermKey];
+
+function relationshipTerms(locale: Locale): Record<RelationshipId, string> {
+  return Object.fromEntries(RELATIONSHIPS.map((id) => [id, term(locale, `relationship.${id}`)])) as Record<RelationshipId, string>;
+}
+
+function madhabTerms(locale: Locale): Record<MadhabId, { name: string; description: string }> {
+  return Object.fromEntries(
+    MADHABS.map((id) => [id, { name: term(locale, `school.${id}`), description: term(locale, `school.${id}.description`) }]),
+  ) as Record<MadhabId, { name: string; description: string }>;
+}
+
+function refusalTerms(locale: Locale): Record<PreviewReason, string> {
+  return Object.fromEntries(REASONS.map((id) => [id, term(locale, `refusal.${id}`)])) as Record<PreviewReason, string>;
 }
 
 export type Messages = {
@@ -158,6 +180,8 @@ export type Messages = {
     /** Shown while the case has no heir yet. */
     previewPrompt: string;
     previewWaiting: string;
+    /** Shown while the browser is offline and every edit is disabled. */
+    offlineEditing: string;
     /** `{school}` is the school's name. */
     previewSchool: string;
     /** Shown instead of a school name while the case has no school and all four Sunni schools agree. */
@@ -380,31 +404,7 @@ export const messages: Record<Locale, Messages> = {
       startOverConfirm: "سيؤدي البدء من جديد إلى حذف المتوفى والورثة المدخلين في هذه الحالة. هل تريد المتابعة؟",
       startOverYes: "نعم، ابدأ من جديد",
       startOverNo: "لا، أبقِ حالتي",
-      relationships: {
-        father: "أب",
-        mother: "أم",
-        husband: "زوج",
-        wife: "زوجة",
-        son: "ابن",
-        daughter: "بنت",
-        son_of_son: "ابن الابن",
-        daughter_of_son: "بنت الابن",
-        grandfather: "جد",
-        paternal_grandmother: "جدة لأب",
-        maternal_grandmother: "جدة لأم",
-        brother: "أخ شقيق",
-        sister: "أخت شقيقة",
-        paternal_brother: "أخ لأب",
-        paternal_sister: "أخت لأب",
-        maternal_brother: "أخ لأم",
-        maternal_sister: "أخت لأم",
-        son_of_brother: "ابن الأخ الشقيق",
-        son_of_paternal_brother: "ابن الأخ لأب",
-        uncle: "عم شقيق",
-        paternal_uncle: "عم لأب",
-        son_of_uncle: "ابن العم الشقيق",
-        son_of_paternal_uncle: "ابن العم لأب",
-      },
+      relationships: relationshipTerms("ar"),
       fieldErrors: {
         gender: {
           required: "اختر جنس المتوفى.",
@@ -460,13 +460,7 @@ export const messages: Record<Locale, Messages> = {
       madhabContinue: "متابعة",
       madhabCancel: "إبقاء الاختيار الحالي",
       madhabSaving: "جارٍ الحفظ…",
-      madhabs: {
-        hanafi: { name: "الحنفي", description: "مذهب سني ينتسب إلى الإمام أبي حنيفة" },
-        maliki: { name: "المالكي", description: "مذهب سني ينتسب إلى الإمام مالك بن أنس" },
-        shafii: { name: "الشافعي", description: "مذهب سني ينتسب إلى الإمام الشافعي" },
-        hanbali: { name: "الحنبلي", description: "مذهب سني ينتسب إلى الإمام أحمد بن حنبل" },
-        jafari: { name: "الجعفري", description: "مذهب شيعي ينتسب إلى الإمام جعفر الصادق" },
-      },
+      madhabs: madhabTerms("ar"),
       existing: "لديك حالة قائمة. هل تريد المتابعة أم البدء من جديد؟",
       resume: "متابعة حالتي",
       startOver: "البدء من جديد",
@@ -478,6 +472,7 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "معاينة الأنصبة",
       previewPrompt: "أضف وارثًا لتظهر الأنصبة هنا.",
       previewWaiting: "جارٍ تحديث المعاينة…",
+      offlineEditing: "أنت غير متصل بالإنترنت. أعد الاتصال لمتابعة التعديل.",
       previewSchool: "محسوبة وفق المذهب {school}. هذه معاينة وليست حكمًا نهائيًا.",
       schoolsAgree: "النتيجة نفسها في المذاهب السنية الأربعة",
       schoolsDiffer: "تختلف المذاهب في هذه الحالة",
@@ -489,13 +484,7 @@ export const messages: Record<Locale, Messages> = {
       previewNoShare: "لا نصيب له في هذه الحالة.",
       previewUnallocated: "الباقي غير الموزع على أي وارث",
       previewUnavailable: "المعاينة غير متاحة لهذه الحالة. يمكنك متابعة إضافة الورثة.",
-      previewReasons: {
-        // Native-language review pending.
-        manasikhat_unsupported: "معاينة الوفيات المتعاقبة غير مدعومة لهذه الحالة. يرجى مراجعة البيانات وطلب مراجعة من مختص في المواريث.",
-        school_not_supported: "المذهب الجعفري غير مدعوم بعد، فلا تُعرض أنصبة.",
-        malikiyya_disputed: "اختلف علماء المذهب المالكي في هذه الحالة (المالكية)، فلا تُعرض أنصبة.",
-        invalid_family: "هذه الأسرة غير ممكنة (مثل أكثر من أب واحد، أو زوج لمتوفى ذكر)، فلا تُعرض أنصبة. يرجى مراجعة الورثة.",
-      },
+      previewReasons: refusalTerms("ar"),
       previewFailed: "تعذّر تحميل المعاينة. بيانات الأسرة محفوظة، ويمكنك المتابعة.",
       previewThrottled: "طلبات المعاينة كثيرة الآن. ستُجرَّب المعاينة مجددًا عند الحفظ التالي، ويمكنك المتابعة.",
       previewGone: "لا معاينة لهذه الحالة لأنها تغيّرت في نافذة أخرى.",
@@ -696,31 +685,7 @@ export const messages: Record<Locale, Messages> = {
       startOverConfirm: "Starting over deletes the deceased and the heirs entered in this case. Do you want to continue?",
       startOverYes: "Yes, start over",
       startOverNo: "No, keep my case",
-      relationships: {
-        father: "Father",
-        mother: "Mother",
-        husband: "Husband",
-        wife: "Wife",
-        son: "Son",
-        daughter: "Daughter",
-        son_of_son: "Son's son",
-        daughter_of_son: "Son's daughter",
-        grandfather: "Grandfather",
-        paternal_grandmother: "Paternal grandmother",
-        maternal_grandmother: "Maternal grandmother",
-        brother: "Full brother",
-        sister: "Full sister",
-        paternal_brother: "Half-brother (same father)",
-        paternal_sister: "Half-sister (same father)",
-        maternal_brother: "Half-brother (same mother)",
-        maternal_sister: "Half-sister (same mother)",
-        son_of_brother: "Full brother's son",
-        son_of_paternal_brother: "Half-brother's son (same father)",
-        uncle: "Paternal uncle (father's full brother)",
-        paternal_uncle: "Paternal uncle (father's half-brother)",
-        son_of_uncle: "Son of father's full brother",
-        son_of_paternal_uncle: "Son of father's half-brother",
-      },
+      relationships: relationshipTerms("en"),
       fieldErrors: {
         gender: {
           required: "Choose the gender of the deceased.",
@@ -777,13 +742,7 @@ export const messages: Record<Locale, Messages> = {
       madhabContinue: "Continue",
       madhabCancel: "Keep current choice",
       madhabSaving: "Saving…",
-      madhabs: {
-        hanafi: { name: "Hanafi", description: "Sunni school named after Imam Abu Hanifa" },
-        maliki: { name: "Maliki", description: "Sunni school named after Imam Malik ibn Anas" },
-        shafii: { name: "Shafi'i", description: "Sunni school named after Imam al-Shafi'i" },
-        hanbali: { name: "Hanbali", description: "Sunni school named after Imam Ahmad ibn Hanbal" },
-        jafari: { name: "Jafari", description: "Shia school named after Imam Jafar al-Sadiq" },
-      },
+      madhabs: madhabTerms("en"),
       existing: "You already have a case in progress. Would you like to resume it or start over?",
       resume: "Resume my case",
       startOver: "Start over",
@@ -795,6 +754,7 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "Share preview",
       previewPrompt: "Add an heir to see the shares here.",
       previewWaiting: "Updating the preview…",
+      offlineEditing: "You're offline. Reconnect to keep editing.",
       previewSchool: "Calculated under the {school} school. This is a preview, not a final ruling.",
       schoolsAgree: "Same result in all four Sunni schools",
       schoolsDiffer: "The schools of law differ for this family",
@@ -806,12 +766,7 @@ export const messages: Record<Locale, Messages> = {
       previewNoShare: "Receives no share in this case.",
       previewUnallocated: "Remainder not allocated to any heir",
       previewUnavailable: "A preview is not available for this case. You can keep adding heirs.",
-      previewReasons: {
-        manasikhat_unsupported: "A preview for successive deaths is not supported for this case. Check the details and seek a qualified inheritance review.",
-        school_not_supported: "The Jafari school is not supported yet, so no shares are shown.",
-        malikiyya_disputed: "Scholars of the Maliki school disagree about this family (the Malikiyya case), so no shares are shown.",
-        invalid_family: "This family is not possible (for example two fathers, or a husband for a male deceased), so no shares are shown. Please check the heirs.",
-      },
+      previewReasons: refusalTerms("en"),
       previewFailed: "The preview could not be loaded. Your family details are saved, and you can continue.",
       previewThrottled: "There are too many preview requests right now. The preview will try again at your next save, and you can continue.",
       previewGone: "There is no preview for this case because it changed in another tab.",
@@ -1012,31 +967,7 @@ export const messages: Record<Locale, Messages> = {
       startOverConfirm: "Recommencer supprime le défunt et les héritiers saisis dans ce dossier. Voulez-vous continuer ?",
       startOverYes: "Oui, recommencer",
       startOverNo: "Non, garder mon dossier",
-      relationships: {
-        father: "Père",
-        mother: "Mère",
-        husband: "Époux",
-        wife: "Épouse",
-        son: "Fils",
-        daughter: "Fille",
-        son_of_son: "Fils du fils",
-        daughter_of_son: "Fille du fils",
-        grandfather: "Grand-père",
-        paternal_grandmother: "Grand-mère paternelle",
-        maternal_grandmother: "Grand-mère maternelle",
-        brother: "Frère germain",
-        sister: "Sœur germaine",
-        paternal_brother: "Frère consanguin",
-        paternal_sister: "Sœur consanguine",
-        maternal_brother: "Frère utérin",
-        maternal_sister: "Sœur utérine",
-        son_of_brother: "Fils du frère germain",
-        son_of_paternal_brother: "Fils du frère consanguin",
-        uncle: "Oncle paternel germain",
-        paternal_uncle: "Oncle paternel consanguin",
-        son_of_uncle: "Fils de l'oncle germain",
-        son_of_paternal_uncle: "Fils de l'oncle consanguin",
-      },
+      relationships: relationshipTerms("fr"),
       fieldErrors: {
         gender: {
           required: "Choisissez le sexe du défunt.",
@@ -1095,13 +1026,7 @@ export const messages: Record<Locale, Messages> = {
       madhabContinue: "Continuer",
       madhabCancel: "Garder le choix actuel",
       madhabSaving: "Enregistrement…",
-      madhabs: {
-        hanafi: { name: "Hanafite", description: "École sunnite nommée d'après l'imam Abu Hanifa" },
-        maliki: { name: "Malikite", description: "École sunnite nommée d'après l'imam Malik ibn Anas" },
-        shafii: { name: "Chaféite", description: "École sunnite nommée d'après l'imam al-Shafi'i" },
-        hanbali: { name: "Hanbalite", description: "École sunnite nommée d'après l'imam Ahmad ibn Hanbal" },
-        jafari: { name: "Jaafarite", description: "École chiite nommée d'après l'imam Jafar al-Sadiq" },
-      },
+      madhabs: madhabTerms("fr"),
       existing: "Vous avez déjà un dossier en cours. Souhaitez-vous le reprendre ou recommencer ?",
       resume: "Reprendre mon dossier",
       startOver: "Recommencer",
@@ -1113,6 +1038,7 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "Aperçu des parts",
       previewPrompt: "Ajoutez un héritier pour voir les parts ici.",
       previewWaiting: "Mise à jour de l'aperçu…",
+      offlineEditing: "Vous êtes hors ligne. Reconnectez-vous pour continuer à modifier.",
       previewSchool: "Calculé selon l'école {school}. Il s'agit d'un aperçu, pas d'une décision définitive.",
       schoolsAgree: "Même résultat dans les quatre écoles sunnites",
       schoolsDiffer: "Les écoles juridiques divergent pour cette famille",
@@ -1124,13 +1050,7 @@ export const messages: Record<Locale, Messages> = {
       previewNoShare: "Ne reçoit aucune part dans ce cas.",
       previewUnallocated: "Reste non attribué à un héritier",
       previewUnavailable: "Aucun aperçu n'est disponible pour ce cas. Vous pouvez continuer à ajouter des héritiers.",
-      previewReasons: {
-        // Native-language review pending.
-        manasikhat_unsupported: "L'aperçu des décès successifs n'est pas pris en charge pour ce cas. Vérifiez les informations et demandez un examen par une personne qualifiée en successions.",
-        school_not_supported: "L'école jafarite n'est pas encore prise en charge, aucune part n'est donc affichée.",
-        malikiyya_disputed: "Les savants de l'école malikite divergent sur cette famille (le cas de la Malikiyya), aucune part n'est donc affichée.",
-        invalid_family: "Cette famille n'est pas possible (par exemple deux pères, ou un mari pour un défunt de sexe masculin), aucune part n'est donc affichée. Vérifiez les héritiers.",
-      },
+      previewReasons: refusalTerms("fr"),
       previewFailed: "L'aperçu n'a pas pu être chargé. Les informations de la famille sont enregistrées et vous pouvez continuer.",
       previewThrottled: "Il y a trop de demandes d'aperçu en ce moment. L'aperçu sera réessayé à votre prochain enregistrement, et vous pouvez continuer.",
       previewGone: "Il n'y a pas d'aperçu pour ce cas, car il a changé dans un autre onglet.",

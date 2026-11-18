@@ -1,0 +1,650 @@
+[
+  {
+    "locale": "ar",
+    "kind": "fraction",
+    "value": "1/8",
+    "estate_minor": null,
+    "legacy": "1/8",
+    "presented": "1/8",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "percent",
+    "value": "1/8",
+    "estate_minor": null,
+    "legacy": "12.5%",
+    "presented": "12.5%",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "kirat",
+    "value": "1/8",
+    "estate_minor": null,
+    "legacy": "3.00",
+    "presented": "3.00",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "amount",
+    "value": "1/8",
+    "estate_minor": 100001,
+    "legacy": "125.00",
+    "presented": "‏125.00 ر.س.‏",
+    "display_change": true
+  },
+  {
+    "locale": "ar",
+    "kind": "fraction",
+    "value": "1/3",
+    "estate_minor": null,
+    "legacy": "1/3",
+    "presented": "1/3",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "percent",
+    "value": "1/3",
+    "estate_minor": null,
+    "legacy": "33.3%",
+    "presented": "33.3%",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "kirat",
+    "value": "1/3",
+    "estate_minor": null,
+    "legacy": "8.00",
+    "presented": "8.00",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "amount",
+    "value": "1/3",
+    "estate_minor": 100001,
+    "legacy": "333.34",
+    "presented": "‏333.34 ر.س.‏",
+    "display_change": true
+  },
+  {
+    "locale": "ar",
+    "kind": "fraction",
+    "value": "7/40",
+    "estate_minor": null,
+    "legacy": "7/40",
+    "presented": "7/40",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "percent",
+    "value": "7/40",
+    "estate_minor": null,
+    "legacy": "17.5%",
+    "presented": "17.5%",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "kirat",
+    "value": "7/40",
+    "estate_minor": null,
+    "legacy": "4.20",
+    "presented": "4.20",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "amount",
+    "value": "7/40",
+    "estate_minor": 100001,
+    "legacy": "175.00",
+    "presented": "‏175.00 ر.س.‏",
+    "display_change": true
+  },
+  {
+    "locale": "ar",
+    "kind": "fraction",
+    "value": "1/16",
+    "estate_minor": null,
+    "legacy": "1/16",
+    "presented": "1/16",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "percent",
+    "value": "1/16",
+    "estate_minor": null,
+    "legacy": "6.3%",
+    "presented": "6.3%",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "kirat",
+    "value": "1/16",
+    "estate_minor": null,
+    "legacy": "1.50",
+    "presented": "1.50",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "amount",
+    "value": "1/16",
+    "estate_minor": 100001,
+    "legacy": "62.50",
+    "presented": "‏62.50 ر.س.‏",
+    "display_change": true
+  },
+  {
+    "locale": "ar",
+    "kind": "fraction",
+    "value": "17/48",
+    "estate_minor": null,
+    "legacy": "17/48",
+    "presented": "17/48",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "percent",
+    "value": "17/48",
+    "estate_minor": null,
+    "legacy": "35.4%",
+    "presented": "35.4%",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "kirat",
+    "value": "17/48",
+    "estate_minor": null,
+    "legacy": "8.50",
+    "presented": "8.50",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "amount",
+    "value": "17/48",
+    "estate_minor": 100001,
+    "legacy": "354.17",
+    "presented": "‏354.17 ر.س.‏",
+    "display_change": true
+  },
+  {
+    "locale": "ar",
+    "kind": "fraction",
+    "value": "1/960",
+    "estate_minor": null,
+    "legacy": "1/960",
+    "presented": "1/960",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "percent",
+    "value": "1/960",
+    "estate_minor": null,
+    "legacy": "0.1%",
+    "presented": "0.1%",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "kirat",
+    "value": "1/960",
+    "estate_minor": null,
+    "legacy": "0.03",
+    "presented": "0.03",
+    "display_change": false
+  },
+  {
+    "locale": "ar",
+    "kind": "amount",
+    "value": "1/960",
+    "estate_minor": 100001,
+    "legacy": "1.04",
+    "presented": "‏1.04 ر.س.‏",
+    "display_change": true
+  },
+  {
+    "locale": "en",
+    "kind": "fraction",
+    "value": "1/8",
+    "estate_minor": null,
+    "legacy": "1/8",
+    "presented": "1/8",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "percent",
+    "value": "1/8",
+    "estate_minor": null,
+    "legacy": "12.5%",
+    "presented": "12.5%",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "kirat",
+    "value": "1/8",
+    "estate_minor": null,
+    "legacy": "3.00",
+    "presented": "3.00",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "amount",
+    "value": "1/8",
+    "estate_minor": 100001,
+    "legacy": "125.00",
+    "presented": "$125.00",
+    "display_change": true
+  },
+  {
+    "locale": "en",
+    "kind": "fraction",
+    "value": "1/3",
+    "estate_minor": null,
+    "legacy": "1/3",
+    "presented": "1/3",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "percent",
+    "value": "1/3",
+    "estate_minor": null,
+    "legacy": "33.3%",
+    "presented": "33.3%",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "kirat",
+    "value": "1/3",
+    "estate_minor": null,
+    "legacy": "8.00",
+    "presented": "8.00",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "amount",
+    "value": "1/3",
+    "estate_minor": 100001,
+    "legacy": "333.34",
+    "presented": "$333.34",
+    "display_change": true
+  },
+  {
+    "locale": "en",
+    "kind": "fraction",
+    "value": "7/40",
+    "estate_minor": null,
+    "legacy": "7/40",
+    "presented": "7/40",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "percent",
+    "value": "7/40",
+    "estate_minor": null,
+    "legacy": "17.5%",
+    "presented": "17.5%",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "kirat",
+    "value": "7/40",
+    "estate_minor": null,
+    "legacy": "4.20",
+    "presented": "4.20",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "amount",
+    "value": "7/40",
+    "estate_minor": 100001,
+    "legacy": "175.00",
+    "presented": "$175.00",
+    "display_change": true
+  },
+  {
+    "locale": "en",
+    "kind": "fraction",
+    "value": "1/16",
+    "estate_minor": null,
+    "legacy": "1/16",
+    "presented": "1/16",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "percent",
+    "value": "1/16",
+    "estate_minor": null,
+    "legacy": "6.3%",
+    "presented": "6.3%",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "kirat",
+    "value": "1/16",
+    "estate_minor": null,
+    "legacy": "1.50",
+    "presented": "1.50",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "amount",
+    "value": "1/16",
+    "estate_minor": 100001,
+    "legacy": "62.50",
+    "presented": "$62.50",
+    "display_change": true
+  },
+  {
+    "locale": "en",
+    "kind": "fraction",
+    "value": "17/48",
+    "estate_minor": null,
+    "legacy": "17/48",
+    "presented": "17/48",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "percent",
+    "value": "17/48",
+    "estate_minor": null,
+    "legacy": "35.4%",
+    "presented": "35.4%",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "kirat",
+    "value": "17/48",
+    "estate_minor": null,
+    "legacy": "8.50",
+    "presented": "8.50",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "amount",
+    "value": "17/48",
+    "estate_minor": 100001,
+    "legacy": "354.17",
+    "presented": "$354.17",
+    "display_change": true
+  },
+  {
+    "locale": "en",
+    "kind": "fraction",
+    "value": "1/960",
+    "estate_minor": null,
+    "legacy": "1/960",
+    "presented": "1/960",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "percent",
+    "value": "1/960",
+    "estate_minor": null,
+    "legacy": "0.1%",
+    "presented": "0.1%",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "kirat",
+    "value": "1/960",
+    "estate_minor": null,
+    "legacy": "0.03",
+    "presented": "0.03",
+    "display_change": false
+  },
+  {
+    "locale": "en",
+    "kind": "amount",
+    "value": "1/960",
+    "estate_minor": 100001,
+    "legacy": "1.04",
+    "presented": "$1.04",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "fraction",
+    "value": "1/8",
+    "estate_minor": null,
+    "legacy": "1/8",
+    "presented": "1/8",
+    "display_change": false
+  },
+  {
+    "locale": "fr",
+    "kind": "percent",
+    "value": "1/8",
+    "estate_minor": null,
+    "legacy": "12.5%",
+    "presented": "12,5 %",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "kirat",
+    "value": "1/8",
+    "estate_minor": null,
+    "legacy": "3.00",
+    "presented": "3,00",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "amount",
+    "value": "1/8",
+    "estate_minor": 100001,
+    "legacy": "125.00",
+    "presented": "125,00 €",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "fraction",
+    "value": "1/3",
+    "estate_minor": null,
+    "legacy": "1/3",
+    "presented": "1/3",
+    "display_change": false
+  },
+  {
+    "locale": "fr",
+    "kind": "percent",
+    "value": "1/3",
+    "estate_minor": null,
+    "legacy": "33.3%",
+    "presented": "33,3 %",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "kirat",
+    "value": "1/3",
+    "estate_minor": null,
+    "legacy": "8.00",
+    "presented": "8,00",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "amount",
+    "value": "1/3",
+    "estate_minor": 100001,
+    "legacy": "333.34",
+    "presented": "333,34 €",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "fraction",
+    "value": "7/40",
+    "estate_minor": null,
+    "legacy": "7/40",
+    "presented": "7/40",
+    "display_change": false
+  },
+  {
+    "locale": "fr",
+    "kind": "percent",
+    "value": "7/40",
+    "estate_minor": null,
+    "legacy": "17.5%",
+    "presented": "17,5 %",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "kirat",
+    "value": "7/40",
+    "estate_minor": null,
+    "legacy": "4.20",
+    "presented": "4,20",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "amount",
+    "value": "7/40",
+    "estate_minor": 100001,
+    "legacy": "175.00",
+    "presented": "175,00 €",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "fraction",
+    "value": "1/16",
+    "estate_minor": null,
+    "legacy": "1/16",
+    "presented": "1/16",
+    "display_change": false
+  },
+  {
+    "locale": "fr",
+    "kind": "percent",
+    "value": "1/16",
+    "estate_minor": null,
+    "legacy": "6.3%",
+    "presented": "6,3 %",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "kirat",
+    "value": "1/16",
+    "estate_minor": null,
+    "legacy": "1.50",
+    "presented": "1,50",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "amount",
+    "value": "1/16",
+    "estate_minor": 100001,
+    "legacy": "62.50",
+    "presented": "62,50 €",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "fraction",
+    "value": "17/48",
+    "estate_minor": null,
+    "legacy": "17/48",
+    "presented": "17/48",
+    "display_change": false
+  },
+  {
+    "locale": "fr",
+    "kind": "percent",
+    "value": "17/48",
+    "estate_minor": null,
+    "legacy": "35.4%",
+    "presented": "35,4 %",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "kirat",
+    "value": "17/48",
+    "estate_minor": null,
+    "legacy": "8.50",
+    "presented": "8,50",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "amount",
+    "value": "17/48",
+    "estate_minor": 100001,
+    "legacy": "354.17",
+    "presented": "354,17 €",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "fraction",
+    "value": "1/960",
+    "estate_minor": null,
+    "legacy": "1/960",
+    "presented": "1/960",
+    "display_change": false
+  },
+  {
+    "locale": "fr",
+    "kind": "percent",
+    "value": "1/960",
+    "estate_minor": null,
+    "legacy": "0.1%",
+    "presented": "0,1 %",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "kirat",
+    "value": "1/960",
+    "estate_minor": null,
+    "legacy": "0.03",
+    "presented": "0,03",
+    "display_change": true
+  },
+  {
+    "locale": "fr",
+    "kind": "amount",
+    "value": "1/960",
+    "estate_minor": 100001,
+    "legacy": "1.04",
+    "presented": "1,04 €",
+    "display_change": true
+  }
+]

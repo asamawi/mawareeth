@@ -1,0 +1,30 @@
+# Reconcile: archived phase-1 PRD (Mawareeth V3) vs phase-2 PRD + addendum
+
+Excluded as deliberate: paid reviewed calculations / marketplace / QR-verify / certification registry (private project), Ja'fari, outside scholar review.
+
+## Vision and tone
+
+- [contradiction] "Scholarly-validated Source of Truth", "definitive universal protocol", "Mawareeth-Certified" PDFs, the "Silent Advocate" for courts. → Phase 2 is a humble "calculation aid, not a fatwa" for grieving families, with AI-drafted content and owner review (§1, §9). That shift is not acknowledged. Addendum D records only the Lebanon and Ja'fari narrowing, so the authority tone is silently dropped, and the shipped public copy should be checked for leftover phase-1 claims. (Phase-1 Executive Summary, Success Criteria; PRD §1, §9, addendum D)
+- [gap] Audience: heirs, lawyers and courts, with Layla (lawyer, 4-generation cascade) and Mustafa (court clerk, Hasr al-Irth decrees) as co-equal personas. → Lawyers are secondary, the court clerk persona is gone, and court filing is mentioned only as a risk in §6.2. (Phase-1 User Journeys; PRD §2)
+- [gap] Lebanon and the Lebanese diaspora as the home market, with Lebanese terminology ("Hasr al-Irth") and multi-faith Lebanese law. → Lebanon is one of seven presets, Sunni only (non-goals state the exclusion). The Hasr al-Irth PDF format (FR-08) and court-standard terminology are never dropped or deferred explicitly. (Phase-1 FR-08, Compliance; PRD §4.4, §5)
+
+## Promised but silently dropped
+
+- [gap] FR-09: PDF reports with exact fiqh citations and visual kinship graphs. → Phase 2 adds statute citations (FR-13) but nothing about a kinship graph in the PDF, and no fiqh (school) citations for rules that have no verse. (Phase-1 FR-09; PRD FR-13)
+- [gap] FR-08: reports "formatted to Lebanese Hasr al-Irth standards". → Not carried, not deferred. (Phase-1 FR-08; PRD §6.2)
+- [gap] FR-18, FR-19: privacy-first calculation without persisting PII, and anonymising financial data. → NFR-4 says "no new personal data" but does not take on persisting nothing before an explicit save, nor anonymisation. Deferred-work confirms both are unimplemented. (Phase-1 FR-18/19, NFR-04; PRD NFR-4)
+- [gap] Ecosystem promises: public OpenAPI plus SDKs, self-hosting the public engine, a versioned rule set and the known-answer corpus as a conformance suite, Contributor License Agreement for outside contributions. → FR-32 gives an OpenAPI document and the MCP server, but no SDKs, no self-host or data-residency path, no conformance suite, and no CLA in NFR-5. (Phase-1 Phase 3, Product Model; PRD §4.9, NFR-5)
+- [gap] Accuracy: "100% pass on a 1,000+ scholarly-validated test suite", a published known-answer corpus. → PRD names about six example cases as tests (FR-11, FR-12). No corpus size, no public corpus, no per-preset coverage target. (Phase-1 Technical Success; PRD FR-11, FR-12)
+- [gap] Business goals: formal endorsement from a recognised Lebanese Islamic Council; 500 calculations in 30 days; #1 search ranking for Islamic inheritance calculators. → None appears in §7. Lebanon appears only as an open question about Council decisions. No SEO goal beyond hreflang (FR-23). (Phase-1 Business Success; PRD §7, FR-23)
+- [gap] Multi-generation promise: "3-generation Manasikhat in under 5 minutes", a 4-generation cascade for Layla. → SM-1 measures a five-heir family only. The engine's cap of two later deaths is not stated anywhere. (Phase-1 User Success, Journey 2; PRD SM-1)
+- [gap] Interview "adapts questions dynamically to the selected Madhab/Sect" (FR-06). → Phase 2 adds a Country law Basis (FR-10) but does not say the interview changes with it (for example, hiding relationships a preset ignores, or asking about lifetime gifts for the bequest offset). (Phase-1 FR-06; PRD FR-10, FR-11)
+
+## Contradictions and weakening of NFRs
+
+- [contradiction] NFR-01: standard calculations under 200 ms, complex Manasikhat under 1 s. → PRD NFR-3 and the API NFR give p95 under 1 s for everything, including a single standard case. The 200 ms standard target is silently relaxed. (Phase-1 NFR-01; PRD §4.9 NFRs, NFR-3)
+- [contradiction] NFR-08: optimised for 3G/4G Lebanese networks; Success: SSG for fast load. → PRD NFR-3 says mid-range phone over 4G only. 3G is dropped. (Phase-1 NFR-08; PRD NFR-3)
+- [gap] NFR-07: high-legibility Arabic typography and high contrast. → NFR-1 says WCAG 2.1 AA and RTL but nothing about Arabic/Urdu typography, which matters more with Urdu (Nastaliq-style script) added. (Phase-1 NFR-07; PRD NFR-1, FR-20)
+- [gap] NFR-04/05: ephemeral sessions by default, persistent encrypted records only when saved; AES-256 at rest, TLS 1.3. → NFR-4 states data minimisation only. No encryption statement for saved cases or Tickets. (Phase-1 NFR-04/05; PRD NFR-4)
+- [contradiction] Phase 3 "Professional Arabic, English and French UI", and "Logic-as-Code: forbids manual overrides, all fixes at the engine level". → Phase 2 ships AI-drafted translations with Beta labels, and rule behaviour moves into versioned preset data (addendum B). Neither is flagged as a change from the phase-1 stance. (Phase-1 Phase 3, Novel Patterns; PRD §4.6, addendum B)
+- [gap] Mandatory non-removable disclaimers, "Preliminary vs Verified" watermarks (FR-10), and an audit log of engine discrepancies (FR-17). → PRD keeps the disclaimer (§9, SM-C4) but has no watermark or draft-state marker on PDFs beyond "draft", and no discrepancy log or user path to report an engine error. (Phase-1 FR-10, FR-17, Compliance; PRD §9)
+- [misstatement] Phase numbering: the phase-1 PRD's own "Phase 2" is Core Product Delivery, and its Phase 3 is Universal Expansion (OpenAPI, localisation, multi-faith). → The new PRD calls itself "phase 2" following a "phase 1" that is the 2026-11-13 release (which includes what the old PRD called Phase 2). It then takes API and localisation work from the old Phase 3 without saying so, which will confuse anyone tracing requirement IDs. (Phase-1 Project Scoping; PRD §0, §4.5, §4.9)

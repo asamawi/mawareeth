@@ -1,5 +1,6 @@
 import copy
 import json
+from decimal import Decimal
 from fractions import Fraction
 from html.parser import HTMLParser
 from pathlib import Path
@@ -8,19 +9,28 @@ import subprocess
 import tempfile
 from unittest import mock
 
+import i18n
 from django.conf import settings
 from django.core.cache import cache
 from django.test import SimpleTestCase, TransactionTestCase, override_settings
 from django.urls import reverse
-from django.utils import translation
+from django.utils import timezone, translation
 from rest_framework.test import APIClient
 
 from api import anonymous_case
-from reports.report import build_context, kirat_of, percent_of, render_html, render_pdf
+from reports import report
+from reports.report import build_context, render_html, render_pdf
 from reports.status import report_status
 
 FIXTURES = json.loads((Path(settings.BASE_DIR) / 'api/contracts/preview-fixtures.json').read_text())['fixtures']
 AVAILABLE = [f for f in FIXTURES if f['response']['status'] == 'available']
+
+
+def served(fixture, language='en'):
+    """The fixture's legacy body with the `presented` result the preview now serves beside it."""
+    from api import preview
+    with translation.override(language):
+        return {**copy.deepcopy(fixture['response']), 'presented': preview.preview(fixture['case'])['presented']}
 
 
 class RenderedReport(HTMLParser):
@@ -73,22 +83,22 @@ class ReportContentTests(SimpleTestCase):
 
     def test_rounding_matches_integer_half_up_for_all_fixtures(self):
         for f in AVAILABLE:
-            context = build_context(f['case'], f['response'])
+            context = build_context(f['case'], served(f))
             for row, share in zip(context['shares'], f['response']['shares']):
                 n, d = share['numerator'], share['denominator']
                 tenths = int(Fraction(n * 1000, d) + Fraction(1, 2))
                 hundredths = int(Fraction(n * 2400, d) + Fraction(1, 2))
-                self.assertEqual(row['percent'], f'{tenths // 10}.{tenths % 10}')
-                self.assertEqual(row['kirat'], f'{hundredths // 100}.{hundredths % 100:02}')
-                self.assertEqual(row['amount'], share['amount'])
-        self.assertEqual(percent_of(1, 16), '6.3')
-        self.assertEqual(kirat_of(1, 64), '0.38')
+                self.assertEqual(row['percent']['text'], f'{tenths // 10}.{tenths % 10}%')
+                self.assertEqual(row['kirat']['text'], f'{hundredths // 100}.{hundredths % 100:02}')
+                self.assertEqual(None if row['amount'] is None else f"{Decimal(row['amount']['amount_minor']).scaleb(-2):.2f}",
+                                 share['amount'])
+        self.assertFalse(hasattr(report, 'percent_of') or hasattr(report, 'kirat_of'))
 
     def test_sections_tables_and_proofs_for_every_available_fixture(self):
         with translation.override('en'):
             for fixture in AVAILABLE:
                 with self.subTest(fixture['title']):
-                    case, body = fixture['case'], fixture['response']
+                    case, body = fixture['case'], served(fixture)
                     html = render_html(case, body)
                     self.assertIn('Heirs and shares', html)
                     self.assertIn('Proof summary', html)
@@ -118,7 +128,7 @@ class ReportContentTests(SimpleTestCase):
         self.assertTrue(fixtures)
         for fixture in fixtures:
             with self.subTest(fixture['title']), translation.override('en'):
-                case, body = fixture['case'], copy.deepcopy(fixture['response'])
+                case, body = fixture['case'], served(fixture)
                 with_estate = render_html(case, body)
                 def deceased_line(html):
                     return html.split('</h2>', 2)[1].split('</p>')[0]
@@ -145,16 +155,16 @@ class ReportContentTests(SimpleTestCase):
         fixtures = [f for f in AVAILABLE if f['response'].get('table')]
         for fixture in fixtures:
             with self.subTest(fixture['title']), translation.override('en'):
-                case, body = fixture['case'], fixture['response']
+                case, body = fixture['case'], served(fixture)
                 parsed = RenderedReport(render_html(case, body))
                 names = anonymous_case._rows({**case, 'deaths': case.get('deaths', [])})
                 def name(key):
                     row = names[key]
-                    from reports.report import RELATIONSHIPS
-                    from django.utils.translation import gettext
-                    return row.get('name') or gettext(RELATIONSHIPS[row['relationship']])
+                    import i18n
+                    from django.utils.translation import get_language
+                    return row.get('name') or i18n.term(f"relationship.{row['relationship']}", get_language())
                 with_amount = body['basis']['estate'] is not None
-                for cells, share in zip(parsed.tables[0][1:], body['shares'], strict=True):
+                for cells, share in zip(parsed.tables[0][1:1 + len(body['shares'])], body['shares'], strict=True):
                     self.assertEqual(cells[0][1], name(share['heir_id']))
                     if share['blocked']:
                         self.assertEqual(cells[2:], [[{'colspan': '4' if with_amount else '3'}, 'Blocked']])
@@ -162,24 +172,27 @@ class ReportContentTests(SimpleTestCase):
                         n, d = share['numerator'], share['denominator']
                         percent = int(Fraction(n * 1000, d) + Fraction(1, 2))
                         kirat = int(Fraction(n * 2400, d) + Fraction(1, 2))
+                        row = next(r for r in body['presented']['rows'] if r['person'] == share['heir_id'])
                         self.assertEqual([c[1] for c in cells[2:]], [
                             f'{n}/{d}', f'{percent // 10}.{percent % 10}%',
                             f'{kirat // 100}.{kirat % 100:02}',
-                            *([share['amount'] or '\u2014'] if with_amount else [])])
+                            *([row['amount']['text'] if row['amount'] else '\u2014'] if with_amount else [])])
                 layered = 'layers' in body['table']
                 layers = body['table']['layers'] if layered else [{'table': body['table']}]
                 for index, layer in enumerate(layers):
                     rendered = parsed.tables[1 if index == 0 else index * 2]
                     source = layer['table']
+                    shown = body['presented']['table']
+                    shown = shown['layers'][index]['table'] if layered else shown
                     self.assertEqual([c[1].strip() for c in rendered[0][2:]],
-                                     [f"{c['label']}{c['total']}" for c in source['columns']])
+                                     [f"{c['label']}{c['total']['text']}" for c in shown['columns']])
                     for actual, row in zip(rendered[1:1 + len(source['rows'])], source['rows'], strict=True):
                         expected = [[{}, name(row['heir'])]]
                         if row['group_span']:
                             value = ('Blocked' if row['blocked'] else
                                      f"{row['prescribed']['numerator']}/{row['prescribed']['denominator']}" if row['prescribed'] else '\u2014')
                             expected.append([{'rowspan': str(row['group_span'])}, value])
-                        expected.extend([{'rowspan': str(c['span'])}, str(c['value'])] for c in row['cells'] if c['span'])
+                        expected.extend([{'rowspan': str(c['span'])}, '' if c['value'] is None else str(c['value'])] for c in row['cells'] if c['span'])
                         self.assertEqual(actual, expected)
                     if layered:
                         self.assertEqual(len(rendered), 1 + len(source['rows']) + bool(layer['unallocated']))
@@ -199,6 +212,30 @@ class ReportContentTests(SimpleTestCase):
                             ['dt', 'New problem multiplier'], ['dd', str(layer['new_multiplier'])],
                             ['dt', "New jami'a"], ['dd', str(layer['jamia'])]])
 
+    def test_the_pdf_draws_the_presented_strings_and_its_stamp_comes_from_format_datetime(self):
+        import datetime
+        from presentation import format_datetime
+        fixture = next(f for f in AVAILABLE if f['response']['basis']['estate'] and not f['case'].get('deaths'))
+        for lang in ('en', 'fr', 'ar'):
+            with self.subTest(lang=lang), translation.override(lang):
+                body = served(fixture, lang)
+                presented = body['presented']
+                stamp = datetime.datetime(2026, 11, 17, 9, 5, tzinfo=datetime.timezone.utc)
+                with mock.patch('reports.report.timezone.now', return_value=stamp):
+                    context = build_context(fixture['case'], body)
+                    html = render_html(fixture['case'], body)
+                self.assertEqual(context['generated'], format_datetime(stamp, lang))
+                self.assertIn(context['generated'], html)
+                self.assertEqual(context['school'], presented['school_line']['text'])
+                from django.utils.html import escape
+                for row in presented['rows']:
+                    for text in (row['share']['text'], row['percent']['text'], row['kirat']['text']):
+                        self.assertIn(escape(text), html)
+                    if row['amount']:
+                        self.assertIn(escape(row['amount']['text']), html)
+                    self.assertIn(escape(row['relationship']['translated']['text']), html)
+                self.assertIn('dir="auto"', html)
+
     def test_the_school_line_says_all_four_agree_when_the_case_has_no_school(self):
         fixture = next(f for f in AVAILABLE if f['response'].get('agreement') == 'all')
         self.assertIsNone(fixture['case']['madhab'])
@@ -206,21 +243,23 @@ class ReportContentTests(SimpleTestCase):
                            ('fr', 'Même résultat dans les quatre écoles sunnites'),
                            ('ar', 'النتيجة نفسها في المذاهب السنية الأربعة')]:
             with translation.override(lang):
-                self.assertEqual(build_context(fixture['case'], fixture['response'])['school'], line)
-                self.assertIn(line, render_html(fixture['case'], fixture['response']))
+                self.assertEqual(build_context(fixture['case'], served(fixture, lang))['school'], line)
+                self.assertIn(line, render_html(fixture['case'], served(fixture, lang)))
         with translation.override('en'):
             hanafi = next(f for f in AVAILABLE if f['case']['madhab'] == 'hanafi')
-            self.assertEqual(build_context(hanafi['case'], hanafi['response'])['school'], 'Hanafi')
+            self.assertEqual(build_context(hanafi['case'], served(hanafi))['school'], 'Hanafi')
 
     def test_locales_rtl_and_escaping(self):
         f = copy.deepcopy(AVAILABLE[0])
         f['case']['heirs'][0]['name'] = '<script>secret</script>'
         for lang, disclaimer in [('ar', 'مسودة / غير معتمدة'), ('en', 'Draft / not certified'), ('fr', 'Brouillon / non certifié')]:
             with translation.override(lang):
-                html = render_html(f['case'], f['response'])
+                html = render_html(f['case'], served(f, lang))
                 self.assertIn(f'dir="{"rtl" if lang == "ar" else "ltr"}"', html)
+                stack = ', '.join([f'"{family}"' for family in i18n.locale_config(lang)['pdf_font_stack']] + ['sans-serif'])
+                self.assertIn(f'font-family: {stack};', html)
                 self.assertIn(disclaimer, html)
-                self.assertIn('<bdi>', html)
+                self.assertIn('<bdi dir="auto">', html)
                 self.assertIn('&lt;script&gt;', html)
                 self.assertNotIn('<script>', html)
                 self.assertNotIn('Report relationship:', html)
@@ -233,9 +272,9 @@ class ReportContentTests(SimpleTestCase):
             self.skipTest(type(error).__name__ + ': WeasyPrint native libraries unavailable')
         f = AVAILABLE[0]
         # A long name per row forces several pages without changing any numbers.
-        case, body = copy.deepcopy(f['case']), copy.deepcopy(f['response'])
+        case, body = copy.deepcopy(f['case']), served(f)
         case['heirs'][0]['name'] = 'Long heir name ' * 40
-        body['shares'] *= 40
+        body['presented']['rows'] = body['presented']['rows'] * 40
         with translation.override('en'):
             pdf = render_pdf(case, body)
         self.assertTrue(pdf.startswith(b'%PDF'))
@@ -260,6 +299,8 @@ class DraftEndpointTests(TransactionTestCase):
         self.fixture = copy.deepcopy(AVAILABLE[0])
         self.case = self.fixture['case']
         session = self.client.session
+        # The fixtures carry old dates; a guest case idle for a day is expired.
+        self.case['changed_at'] = timezone.now().isoformat()
         session[anonymous_case.SESSION_KEY] = self.case
         session.save()
 
@@ -293,7 +334,7 @@ class DraftEndpointTests(TransactionTestCase):
     def test_successive_deaths_use_final_shares_and_per_death_proof(self):
         for count in (1, 2):
             fixture = next(f for f in AVAILABLE if len(f['case'].get('deaths', [])) == count)
-            case = fixture['case']
+            case = {**fixture['case'], 'changed_at': timezone.now().isoformat()}
             session = self.client.session
             session[anonymous_case.SESSION_KEY] = case
             session.save()
@@ -317,6 +358,7 @@ class DraftEndpointTests(TransactionTestCase):
 
     def plant_fixture(self, title):
         case = copy.deepcopy(next(f for f in FIXTURES if f['title'] == title)['case'])
+        case['changed_at'] = timezone.now().isoformat()
         session = self.client.session
         session[anonymous_case.SESSION_KEY] = case
         session.save()

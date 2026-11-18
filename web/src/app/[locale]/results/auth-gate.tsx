@@ -11,6 +11,7 @@ import { authorizedAction, decide, parseResume, type Action } from "./auth-gate-
 import { InvitePanel } from "./invite-panel";
 import { WhatsappPanel } from "./whatsapp-panel";
 import { SharePanel } from "./share-panel";
+import { directionOf } from "@/i18n/messages";
 
 export function AuthGate({ locale, text, share: shareText, caseId, onSchoolRequired }: { caseId: string; locale: string; text: Messages["results"]; share: Messages["share"]; onSchoolRequired?: () => void }) {
   const auth = useAuthState();
@@ -106,7 +107,7 @@ export function AuthGate({ locale, text, share: shareText, caseId, onSchoolRequi
 
   const path = resultsResumePath(locale, action ?? "save");
   return (
-    <div className="flex flex-col gap-3" dir={locale === "ar" ? "rtl" : "ltr"}>
+    <div className="flex flex-col gap-3" dir={directionOf(locale)}>
       <div className="flex flex-wrap gap-3">
         <button ref={save} disabled={saveState === "saving"} type="button" className={buttonClass} onClick={(event) => activate("save", event.currentTarget)}>{saveState === "saving" ? text.saving : text.save}</button>
         <button ref={share} type="button" disabled={shareState?.status === "creating"} className={buttonClass} onClick={(event) => activate("share", event.currentTarget)}>{text.shareAction}</button>

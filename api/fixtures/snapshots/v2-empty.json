@@ -1,0 +1,27 @@
+{
+  "deceased": null,
+  "family": {
+    "version": 1,
+    "root": "root",
+    "persons": [],
+    "edges": [],
+    "estates": [
+      {
+        "order": 1,
+        "deceased": "root",
+        "heirs": []
+      }
+    ],
+    "answers": [],
+    "gifts": [],
+    "bequests": [],
+    "estate": {
+      "amount_minor": null,
+      "currency": null
+    }
+  },
+  "basis": {
+    "kind": "school",
+    "school": "hanbali"
+  }
+}

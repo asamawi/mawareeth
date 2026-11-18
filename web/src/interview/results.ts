@@ -1,8 +1,9 @@
-import type { Case, Preview, PreviewProofHeir, PreviewResult } from "../api/case.ts";
+import type { Case, Preview, PreviewResult } from "../api/case.ts";
 import { previewReady, previewRows, type PreviewRow, type PreviewRows } from "./preview.ts";
+import { evidenceNotes, type ProofText } from "./table.ts";
 
-/** One heir of the results: the server's share and, for a single-death case, the server's proof. */
-export type ResultEntry = { row: PreviewRow; proof: PreviewProofHeir | null };
+/** One heir of the results: the server's presented share and, for a single-death case, the server's worded evidence. */
+export type ResultEntry = { row: PreviewRow; proof: ProofText | null };
 
 export type AvailablePreview = Extract<Preview, { status: "available" }>;
 export type ChoosePreview = Extract<Preview, { status: "choose_school" }>;
@@ -46,8 +47,9 @@ export function resultEntries(preview: AvailablePreview): {
   unallocated: PreviewRows["unallocated"];
 } {
   const { rows, unallocated } = previewRows(preview);
-  const proofs = new Map((preview.proof?.version === 1 ? preview.proof.heirs : []).map((heir) => [heir.heir, heir]));
-  return { entries: rows.map((row) => ({ row, proof: proofs.get(row.heirId) ?? null })), unallocated };
+  const notes = evidenceNotes(preview);
+  const single = preview.presented?.evidence.length === 1;
+  return { entries: rows.map((row) => ({ row, proof: single ? notes[row.heirId]?.[0]?.proof ?? null : null })), unallocated };
 }
 
 /** Identify successive deaths from the calculation basis, including fallback results. */

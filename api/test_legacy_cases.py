@@ -59,7 +59,7 @@ class LegacyCaseTests(InterviewHelpers, TestCase):
         self.assertEqual(anonymous_case.export_snapshot(case), expected)
         preview = self.client.get(f'/api/v1/case/preview/?case_id={case["id"]}', secure=True)
         self.assertEqual(preview.status_code, 200)
-        final = calc.compute(madhab='hanbali')
+        final = calc.legacy_compute(madhab='hanbali')
         for share, heir in zip(preview.json()['shares'], heirs):
             self.assertEqual((share['numerator'], share['denominator']),
                              (final[heir.pk].numerator, final[heir.pk].denominator))
@@ -149,8 +149,9 @@ class LegacyCaseTests(InterviewHelpers, TestCase):
 
     def test_migration_historical_models_and_output(self):
         migration = import_module('api.migrations.0004_import_legacy_calculations')
+        # The table already has the revision column, so the historical model must know it.
         apps = MigrationExecutor(connection).loader.project_state([
-            ('api', '0003_invites'), ('calc', '0028_manasikhat')]).apps
+            ('api', '0005_savedcase_revision'), ('calc', '0028_manasikhat')]).apps
         output = StringIO()
         with redirect_stdout(output):
             migration.forwards(apps, SimpleNamespace(connection=connection))

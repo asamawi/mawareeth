@@ -17,6 +17,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
+import i18n
 from api.permissions import CsrfProtectedWrites
 from api.throttling import AuthThrottle
 from api.views import ApiView
@@ -34,7 +35,7 @@ def safe_next(request, value=None):
 
 def locale():
     language = translation.get_language()
-    return language if language in ('ar', 'en', 'fr') else 'en'
+    return language if language in i18n.published_codes() else i18n.fallback_locale()
 
 
 @method_decorator(never_cache, name='dispatch')

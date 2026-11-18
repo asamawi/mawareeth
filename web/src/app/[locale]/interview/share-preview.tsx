@@ -5,11 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { fetchPreview, type Case, type PreviewResult, type SunniId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
-import { formatEstate } from "@/interview/answers";
-import { localFraction, localPercent } from "@/interview/format";
 import { rowLabels } from "@/interview/layers";
-import { hasTable, tableView } from "@/interview/table";
+import { evidenceNotes, relationsOf, tableOf, tableView } from "@/interview/table";
 import {
+  acceptRevision,
   previewKey,
   previewReady,
   previewRows,
@@ -20,6 +19,7 @@ import {
 
 import { InheritanceTable } from "../results/inheritance-table";
 import { buttonClass } from "./form-bits";
+import { RelationshipText } from "./relationship-text";
 import { SchoolChoice } from "./school-choice";
 
 /**
@@ -54,16 +54,20 @@ export function SharePreview({
   const [attempt, setAttempt] = useState(0);
   const [settled, setSettled] = useState<Settled<PreviewResult> | null>(null);
   const caseId = kase.id;
+  const revision = kase.revision;
 
   useEffect(() => {
     if (!ready) return;
     const own = new AbortController();
-    void fetchPreview(own.signal, caseId, { locale }).then((outcome) => {
-      if (!own.signal.aborted) setSettled({ key, attempt, outcome: reconcile(key, caseId, outcome) });
+    void fetchPreview(own.signal, caseId, { locale }).then((fetched) => {
+      if (own.signal.aborted) return;
+      // A preview computed for an older revision is never shown.
+      const outcome = acceptRevision(revision, fetched);
+      if (outcome !== null) setSettled({ key, attempt, outcome: reconcile(key, caseId, outcome) });
     });
     // A change or leaving drops the request in flight.
     return () => own.abort();
-  }, [key, attempt, ready, caseId, locale]);
+  }, [key, attempt, ready, caseId, locale, revision]);
 
   const outcome = ready ? shown({ key, attempt }, settled) : null;
   const preview = outcome?.kind === "preview" ? outcome.preview : null;
@@ -82,9 +86,9 @@ export function SharePreview({
   } else if (outcome.kind === "preview" && preview?.status === "available") {
     status = messages.previewUpdated;
     const { rows, unallocated } = previewRows(preview);
-    const proof = preview.proof?.version === 1 ? preview.proof : null;
-    const proofs = Object.fromEntries((proof?.heirs ?? []).map((entry) => [entry.heir, entry]));
-    const relations = Object.fromEntries((proof?.heirs ?? []).map((entry) => [entry.heir, entry.relationship]));
+    const proofs = Object.fromEntries(Object.entries(evidenceNotes(preview)).map(([id, notes]) => [id, notes[0].proof]));
+    const relations = relationsOf(kase);
+    const data = tableOf(preview);
     const list = (
         <ul aria-label={messages.previewHeading} className="flex flex-col gap-2">
           {rows.map((row) => (
@@ -94,18 +98,20 @@ export function SharePreview({
             >
               <strong>
                 <bdi>{labels[row.heirId] ?? row.heirId}</bdi>
+                {" "}
+                <small className="font-normal"><RelationshipText relationship={row.relationship} /></small>
               </strong>
               {row.blocked || row.fraction === null || row.percent === null ? (
                 <span>{messages.previewNoShare}</span>
               ) : (
                 <span className="flex flex-wrap gap-x-3">
                   <span>
-                    {messages.previewShare}: <bdi dir="ltr">{localFraction(row.fraction, locale)}</bdi>{" "}
-                    (<bdi dir="ltr">{localPercent(row.percent, locale)}</bdi>)
+                    {messages.previewShare}: <bdi dir="ltr">{row.fraction}</bdi>{" "}
+                    (<bdi dir="ltr">{row.percent}</bdi>)
                   </span>
                   {row.amount !== null && (
                     <span>
-                      {messages.previewAmount}: <bdi dir="ltr">{formatEstate(row.amount, locale)}</bdi>
+                      {messages.previewAmount}: <bdi dir="auto">{row.amount}</bdi>
                     </span>
                   )}
                 </span>
@@ -116,14 +122,14 @@ export function SharePreview({
     );
     body = (
       <>
-        {hasTable(preview) ? (
+        {data ? (
           <InheritanceTable
             text={results}
             relationships={messages.relationships}
-            locale={locale}
-            view={tableView(preview.table, preview)}
+            view={tableView(data, preview)}
             labels={labels}
             relations={relations}
+            segments={Object.fromEntries(rows.map((row) => [row.heirId, row.relationship]))}
             proofs={proofs}
           />
         ) : (
@@ -131,14 +137,14 @@ export function SharePreview({
         )}
         {unallocated && (
           <p>
-            {messages.previewUnallocated}: <bdi dir="ltr">{localFraction(unallocated.fraction, locale)}</bdi>{" "}
-            (<bdi dir="ltr">{localPercent(unallocated.percent, locale)}</bdi>)
+            {messages.previewUnallocated}: <bdi dir="ltr">{unallocated.fraction}</bdi>
+            {unallocated.amount !== null && <>{" "}(<bdi dir="auto">{unallocated.amount}</bdi>)</>}
           </p>
         )}
         <p className="text-sm">
-          {preview.madhab === null
-            ? messages.schoolsAgree
-            : messages.previewSchool.split("{school}").join(messages.madhabs[preview.madhab].name)}
+          {preview.presented?.school_line?.code === "school"
+            ? messages.previewSchool.split("{school}").join(preview.presented.school_line.text)
+            : preview.presented?.school_line?.text}
         </p>
         <p>
           <Link href={`/${locale}/results/`} prefetch={false} className="underline underline-offset-4">
@@ -152,7 +158,6 @@ export function SharePreview({
     body = (
       <SchoolChoice
         messages={messages}
-        locale={locale}
         preview={preview}
         labels={labels}
         disabled={saving}
