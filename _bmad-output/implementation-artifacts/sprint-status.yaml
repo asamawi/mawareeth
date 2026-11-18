@@ -35,19 +35,19 @@ project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-8: backlog
-  8-1-preserve-case-meaning-through-versioned-shared-contracts: backlog
-  8-2-reproduce-existing-single-estate-school-answers-in-memory: backlog
-  8-3-preserve-successive-death-answers-and-proof-inside-the-core: backlog
-  8-4-give-every-family-action-one-engine-decision: backlog
-  8-5-keep-terms-and-locale-settings-consistent-across-consumers: backlog
-  8-6-produce-one-presented-answer-for-every-renderer: backlog
-  8-7-switch-existing-calculation-consumers-only-after-full-parity: backlog
-  8-8-let-every-reader-open-both-savedcase-snapshot-versions: backlog
-  8-9-apply-case-changes-atomically-against-one-revision: backlog
-  8-10-upgrade-existing-saved-cases-without-losing-their-original-b: backlog
-  8-11-prove-the-foundation-meets-wave-1-release-budgets: backlog
-  8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert: backlog
+  epic-8: done
+  8-1-preserve-case-meaning-through-versioned-shared-contracts: done
+  8-2-reproduce-existing-single-estate-school-answers-in-memory: done
+  8-3-preserve-successive-death-answers-and-proof-inside-the-core: done
+  8-4-give-every-family-action-one-engine-decision: done
+  8-5-keep-terms-and-locale-settings-consistent-across-consumers: done
+  8-6-produce-one-presented-answer-for-every-renderer: done
+  8-7-switch-existing-calculation-consumers-only-after-full-parity: done
+  8-8-let-every-reader-open-both-savedcase-snapshot-versions: done
+  8-9-apply-case-changes-atomically-against-one-revision: done
+  8-10-upgrade-existing-saved-cases-without-losing-their-original-b: done
+  8-11-prove-the-foundation-meets-wave-1-release-budgets: done
+  8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert: done
   epic-8-retrospective: done
 
   epic-9: backlog
