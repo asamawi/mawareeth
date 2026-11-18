@@ -1399,9 +1399,11 @@ export async function fetchPreview(
     if (response.status === 409) return { kind: "replaced" };
     if (!response.ok) return { kind: "failed" };
     const body: unknown = await response.json();
-    const preview = parseServedPreview(body);
+    // `revision` belongs to the response, not to the preview: the strict parsers never see it.
+    const { revision: served, ...rest } = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+    const preview = parseServedPreview(typeof body === "object" && body !== null ? rest : body);
     if (!preview) return { kind: "failed" };
-    const revision = parseRevision(typeof body === "object" && body !== null ? (body as { revision?: unknown }).revision : undefined);
+    const revision = parseRevision(served);
     return { kind: "preview", preview, ...(revision === null ? {} : { revision }) };
   } catch {
     return { kind: "failed" };

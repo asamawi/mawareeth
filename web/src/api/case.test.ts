@@ -464,6 +464,21 @@ test("fetchPreview makes one read with the case id and returns the typed preview
   assert.equal(header(calls[0], "Accept-Language"), undefined);
 });
 
+test("the case revision the server sends beside every preview is read, a School choice included", async () => {
+  // The schools differ here, so the answer is the School choice: its strict shape must not see the revision.
+  const titles = ["Hanbali wife and son with an estate", "Differ: grandfather and full brother", "Refusal: Malikiyya makes the schools differ"];
+  const statuses = [];
+  for (const title of titles) {
+    const served = previewFixture(title).response as Record<string, unknown>;
+    stubFetch(async () => Response.json({ ...served, revision: 7 }));
+    const result = await fetchPreview(signal(), "abc");
+    assert.ok(result.kind === "preview", title);
+    assert.equal(result.revision, 7, title);
+    statuses.push(result.preview.status);
+  }
+  assert.deepEqual(statuses, ["available", "choose_school", "choose_school"]);
+});
+
 test("an answer with no valid PresentedResult for its status and heirs is a failure, never numbers", async () => {
   const presented = SERVED.presented as Record<string, unknown>;
   const bad: unknown[] = [
