@@ -768,7 +768,7 @@ So that later changes cannot silently reinterpret a family's inputs or shares.
 **Given** the existing session, preview, proof and SavedCase contracts
 **When** the foundation schemas are committed
 **Then** Family, Basis, Result, Comparison, PresentedResult, preset and catalog schemas have explicit versions and Python/TypeScript boundary fixtures (AD-25)
-**And** Family retains stable opaque person ids, lineage edges, root-relative relationship codes, alive/died-before-or-with/died-later status and order, eligibility answers, branch gifts and voluntary bequests, estate and currency without enabling later-wave features.
+**And** Family retains stable opaque person ids, lineage edges, root-relative relationship codes, alive/died-before-or-with/died-later status and order, eligibility answers, branch gifts and voluntary bequests, estate and currency without enabling later-wave features; parsing validates structure only, and whether a family's relationships and edges make sense is decided by the engine queries of Story 8.4 (reconciled 2026-11-18).
 
 **Given** a Result containing blocked people, a refusal or later-death layers
 **When** it is serialized and parsed again
@@ -885,7 +885,7 @@ So that screen, proof, email and PDF text cannot silently diverge or become blan
 **Given** existing ar/en/fr terms in calc/proof.py, calc/schools.py, web/src/i18n/messages.ts and locale/*/LC_MESSAGES/django.po
 **When** their ownership is consolidated
 **Then** fiqh terms, Basis/School labels, refusal reasons and typed proof templates live under stable codes in i18n/terms/<locale>.json as {text, review} (AD-21)
-**And** general UI copy stays in messages.ts and .po, Arabic originals are referenced by code, and existing unreviewed text is not marked reviewed.
+**And** general UI copy stays in messages.ts and .po, Arabic originals are referenced by code, and existing unreviewed text is not marked reviewed; the legacy heir-class msgids, report combination labels and the results/table fiqh copy in messages.ts and .po stay outside the catalog until Epic 12 (reconciled 2026-11-18; tracked in deferred-work).
 
 **Given** i18n/locales.json
 **When** Django, Next.js, PDF and SEO consumers obtain Locale configuration
@@ -998,7 +998,7 @@ So that a release cannot hide it from My cases or break an existing invitation o
 
 **Given** active and rollback-eligible release images
 **When** the schema-1/schema-2 reader/writer round-trip matrix is checked
-**Then** release evidence demonstrates each permitted writer's data remains interpretable by all eligible readers before progressing to the writer switch (AD-5, AD-6, AD-20)
+**Then** release evidence demonstrates each permitted writer's data remains interpretable by all eligible readers before progressing to the writer switch (AD-5, AD-6, AD-20). As built, this evidence is a declared image matrix (`api/fixtures/snapshots/matrix.json`) checked between neighbouring rows by the release gate; before the writer switch it must be checked against the actual rollback target image, because production goes straight from the schema-1-only phase-1 image (reconciled 2026-11-18; Epic 8 retro F2)
 **And** schema-1 readers are retained until AD-6 eligibility permits removal, irrespective of release count.
 
 ### Story 8.9: Apply Case changes atomically against one revision
@@ -1016,8 +1016,8 @@ So that concurrent tabs, slow previews or a stale restore cannot overwrite my fa
 
 **Given** current add/edit/remove, School, deceased and later-death mutations plus foundation bulk-add/drop/cascade/Basis/currency/answers/restore operations
 **When** commands execute
-**Then** shared engine queries decide validity and impact, with server enforcement of 50 Heirs and two later deaths (AD-16, AD-20)
-**And** an impossible edit, over-capacity bulk add, third later death or unconfirmed cascade makes no partial mutation or revision bump; future redeem plugs into this command boundary without creating a prefill table now.
+**Then** shared engine queries decide validity and impact, with server enforcement of 50 Heirs per estate layer and two later deaths (AD-16, AD-20)
+**And** an impossible edit, over-capacity bulk add, third later death or unconfirmed cascade makes no partial mutation or revision bump; future redeem plugs into this command boundary without creating a prefill table now. As built, bulk add, cascade and restore exist; the drop, Basis, currency and eligibility-answer commands plug into the same boundary in the epics that introduce them (reconciled 2026-11-18; tracked in deferred-work).
 
 **Given** a stale expected_revision or competing changes
 **When** the command checks its revision under the server lock
@@ -1065,7 +1065,7 @@ So that I can keep opening and saving them after phase 2 arrives.
 **Given** a live guest schema-1 snapshot at release
 **When** it is read before expiry
 **Then** it converts losslessly on read and stays usable until its existing expiry, with no forced restart (FR-9, AD-20)
-**And** malformed current data is reported without destructive normalization or resetting lifetime.
+**And** malformed current data is reported without destructive normalization or resetting lifetime. As built, the read is tolerant: a malformed legacy piece is left out of the returned Case and logged as a redacted normalization warning, while the stored snapshot is unchanged (reconciled 2026-11-18).
 
 **Given** a working copy opened from a SavedCase
 **When** the registered user saves it
@@ -1087,8 +1087,8 @@ So that wave 1 can ship without losing Cases or tying up the shared host.
 
 **Given** both deployment slots running
 **When** the repeatable wave-1 capacity scenario measures the pure engine and end-to-end preview
-**Then** the engine stays under 200 ms for a standard family and Share preview p95 stays under 1 s for up to 50 Heirs on a mid-range phone over 4G (NFR-3, AD-27)
-**And** evidence covers School and four-School comparison paths plus supported two-later-death workloads, with bounded lock waits included rather than subtracted.
+**Then** the engine stays under 200 ms for a standard family and Share preview p95 stays under 1 s for up to 50 Heirs on a mid-range phone over 4G (NFR-3, AD-27). As built, the phone and 4G are modelled (in-process requests plus fixed RTT, bandwidth and render constants); the real-device measurement belongs to Story 9.12 (reconciled 2026-11-18)
+**And** evidence covers School and four-School comparison paths, including a family whose Schools disagree, plus supported two-later-death workloads, with bounded lock waits included rather than subtracted; a sample counts only when the preview body is usable (expected status, valid PresentedResult, current revision).
 
 **Given** contention, refusals, invalid commands and preview failures
 **When** the foundation endpoints are exercised
@@ -1109,24 +1109,26 @@ So that wave 1 can ship without losing Cases or tying up the shared host.
 
 As the owner/maintainer,
 I want the empty legacy calculations that the `api.0004` import reported as unconvertible removed,
-So that the database holds no dead drafts with nothing to compute, and the one real anomaly stays visible.
+So that the database holds no dead drafts with nothing to compute.
+
+(Reconciled 2026-11-18: the owner decided that calculation 2402 is also an empty draft and is purged, so the expected total is 1,146; later-death layers only exist since v3, so emptiness is judged on the calculation's own rows.)
 
 **Acceptance Criteria:**
 
-**Given** the legacy calculations reported but not converted by `api.0004` on production (841 with no deceased, 304 with no heirs)
-**When** the owner runs the purge management command with `--dry-run`
-**Then** it lists the count per reason and the affected calculation ids, deletes nothing, and the counts match the deferred-work evidence (1,145 empty drafts)
-**And** it selects only calculations that have no SavedCase conversion and either no deceased or no heirs.
+**Given** the legacy calculations reported but not converted by `api.0004` on production (841 with no deceased, 304 with no heirs, and 2402 with more than one deceased and no heirs)
+**When** the owner runs the purge management command with `--dry-run --expect 1146`
+**Then** it lists the count per reason and the affected calculation ids, deletes nothing, and the counts match (`no_deceased=841 no_heirs=305 total=1146`, with 2402 among the no-heirs ids)
+**And** it selects only owned root calculations that cannot be converted and whose own rows have no deceased or no heirs.
 
 **Given** the same selection
 **When** the owner runs the command without `--dry-run`
-**Then** those calculations and only their dependent legacy rows are deleted in one transaction, and the command reports the number deleted
-**And** rerunning it deletes nothing further.
+**Then** those calculations and only their dependent legacy rows are deleted in one transaction, after each candidate is locked and re-checked, and the command reports the number deleted
+**And** rerunning it deletes nothing further, and a count that differs from `--expect` deletes nothing.
 
-**Given** calculation 2402 (owner 1829, more than one deceased) or any converted calculation
+**Given** any converted calculation, or an unconvertible one whose own rows have both a deceased and an heir
 **When** the purge runs
-**Then** it is never deleted or modified; 2402 remains for a separate owner decision in deferred-work
-**And** the deferred-work entry is updated to record the purge date, count and that 2402 was kept.
+**Then** it is never deleted or modified
+**And** the deferred-work entry records the procedure and, after the production run, its date and deleted count.
 
 **Given** the production purge
 **When** it is about to run
