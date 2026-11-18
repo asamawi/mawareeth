@@ -97,6 +97,9 @@ jobs:
         run: python -m i18n.glyphs
 
       - name: Release gate
+        # release_check never opens a connection, but production settings need a URL to load.
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
         run: python manage.py release_check
 
       - name: Verify committed migrations
