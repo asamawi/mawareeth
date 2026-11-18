@@ -7,9 +7,11 @@
   and checks the resulting spec status. Stops on the first story that does not reach `done`.
   It never pushes or merges; you review the local commits and push `development` yourself.
 
-  Spec files under _bmad-output/implementation-artifacts are the source of truth for completion
-  (sprint-status.yaml lags behind). A finished story is marked `review` in sprint-status.yaml,
-  meaning it was built and agent-reviewed and is waiting for your checkpoint.
+  Spec files under _bmad-output/implementation-artifacts are the source of truth for completion.
+  Every run first marks each story whose spec is `done` as done in sprint-status.yaml (catching up
+  stories built by running /bmad-build-auto directly), and marks each story it builds the same way;
+  an epic moves to in-progress, then done when all its stories are. Your checkpoint is reviewing
+  the local commits before you push.
 
 .EXAMPLE
   ./scripts/auto-dev.ps1 -DryRun            # show what would run
@@ -73,7 +75,7 @@ function Find-Spec([string]$key) {
 
 function Get-Stories {
     foreach ($line in Get-Content $SprintFile) {
-        if ($line -match '^\s+(\d+-\d+[a-z]?-[\w-]+):\s*([\w-]+)\s*$') {
+        if ($line -match '^\s+(\d+-\d+[a-z]?-[\w-]+):\s*["'']?([\w-]+)["'']?\s*$') {
             [pscustomobject]@{ Key = $Matches[1]; Sprint = $Matches[2] }
         }
     }
@@ -93,8 +95,48 @@ function Pick-Next {
 
 function Set-SprintStatus([string]$key, [string]$status) {
     $text = [IO.File]::ReadAllText($SprintFile)
-    $new = [regex]::Replace($text, "(?m)^(\s+$([regex]::Escape($key)):\s*)[\w-]+", "`${1}$status")
+    $new = [regex]::Replace($text, "(?m)^(\s+$([regex]::Escape($key)):\s*)[`"]?[\w-]+[`"]?", "`${1}$status")
     [IO.File]::WriteAllText($SprintFile, $new, (New-Object Text.UTF8Encoding $false))
+}
+
+function Get-SprintStatus([string]$key) {
+    $text = [IO.File]::ReadAllText($SprintFile)
+    $m = [regex]::Match($text, "(?m)^\s+$([regex]::Escape($key)):\s*[`"]?([\w-]+)")
+    if ($m.Success) { return $m.Groups[1].Value } else { return $null }
+}
+
+# Marks every story whose spec is `done` as done in sprint-status.yaml, and moves each epic to
+# in-progress (some stories done) or done (all done). Stories built by running /bmad-build-auto
+# directly, outside this loop, are caught up here. Commits only sprint-status.yaml, and only if
+# something changed. Returns the story keys it marked.
+function Sync-SprintStatus([string]$reason) {
+    $marked = @()
+    foreach ($s in Get-Stories) {
+        if ($s.Sprint -eq 'done') { continue }
+        $spec = Find-Spec $s.Key
+        if ($spec -and (Get-SpecStatus $spec.FullName) -eq 'done') {
+            Set-SprintStatus $s.Key 'done'
+            $marked += $s.Key
+        }
+    }
+    $epics = @{}
+    foreach ($s in Get-Stories) {
+        $epic = ($s.Key -split '-')[0]
+        if (-not $epics.ContainsKey($epic)) { $epics[$epic] = @() }
+        $epics[$epic] += $s.Sprint
+    }
+    foreach ($epic in $epics.Keys) {
+        $states = $epics[$epic]
+        $want = if (-not ($states | Where-Object { $_ -ne 'done' })) { 'done' }
+                elseif ($states -contains 'done') { 'in-progress' } else { $null }
+        $have = Get-SprintStatus "epic-$epic"
+        if ($want -and $have -and $have -ne $want -and $have -ne 'done') { Set-SprintStatus "epic-$epic" $want }
+    }
+    if (Git-Out @('status', '--porcelain', '--', $SprintFile)) {
+        Git-Out @('add', '--', $SprintFile) | Out-Null
+        Git-Out @('commit', '-q', '-m', "chore(sprint): $reason") | Out-Null
+    }
+    return $marked
 }
 
 function Assert-Clean {
@@ -144,7 +186,12 @@ function Write-RunSettings([string]$path) {
 $current = (Git-Out @('branch', '--show-current')) | Select-Object -First 1
 if ($current -ne $Branch) { Fail "on branch '$current', expected '$Branch'" }
 if (-not (Get-Command claude -ErrorAction SilentlyContinue)) { Fail 'claude CLI not found on PATH' }
-if (-not $DryRun) { Assert-Clean; Ensure-Postgres }
+if (-not $DryRun) {
+    Assert-Clean
+    $caught = Sync-SprintStatus 'mark stories whose spec is done'
+    if ($caught) { Say "marked done from their specs: $($caught -join ', ')" 'Green' }
+    Ensure-Postgres
+}
 
 $originRef = "origin/$Branch"
 $originBefore = & git rev-parse --verify --quiet $originRef
@@ -179,6 +226,8 @@ if ($Intent) {
     $headAfter = (Git-Out @('rev-parse', 'HEAD')) | Select-Object -First 1
     if ($headAfter -eq $headBefore) { Fail "reports done but made no commit; log: $($r.Log)" }
     Assert-Clean
+    # An intent that was a sprint story (e.g. "8-12") gets its key marked like the loop does.
+    Sync-SprintStatus "mark story built by auto-dev intent $Intent done" | Out-Null
     Say "done: $($spec.Name) ($headBefore..$headAfter)" 'Green'
     exit 0
 }
@@ -217,9 +266,7 @@ for ($n = 1; $n -le $Max; $n++) {
     if ($headAfter -eq $headBefore) { Fail "$($next.Key) reports done but made no commit; log: $log" }
     Assert-Clean
 
-    Set-SprintStatus $next.Key 'review'
-    Git-Out @('add', '--', $SprintFile) | Out-Null
-    Git-Out @('commit', '-q', '-m', "chore: mark story $(Get-StoryNum $next.Key) built by auto-dev, awaiting review") | Out-Null
+    Sync-SprintStatus "mark story $(Get-StoryNum $next.Key) done" | Out-Null
     $built += $next.Key
     Say "$($next.Key) done ($headBefore..$headAfter)" 'Green'
 }
