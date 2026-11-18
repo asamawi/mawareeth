@@ -1172,7 +1172,8 @@ Calculation 2402 (owner 1829) is not selected: it has heirs (a mother and three
 daughters). Its second, unlinked deceased row (11034) was deleted on 2026-11-19 by
 owner decision, keeping the deceased the family is attached to (11033); the
 removed row is kept root-only in
-`deploy/runtime/backup/calc-2402-deceased-11034-20261119.txt`. 2402 now converts.
+`deploy/runtime/backup/calc-2402-deceased-11034-20261119.txt`. 2402 now converts
+and was turned into Saved case 2055 for its owner the same day.
 
 Record the production purge date and deleted count in the legacy-import entry in
 `_bmad-output/implementation-artifacts/deferred-work.md`.
