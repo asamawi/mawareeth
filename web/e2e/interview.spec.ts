@@ -4,6 +4,7 @@ import { messages, locales, directionOf } from "../src/i18n/messages";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { openHeirsScreen } from "./family";
 import { abort, expect, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors } from "./api";
 
 const en = messages.en.interview;
@@ -332,5 +333,159 @@ test.describe("revisions and connection", () => {
     await context.setOffline(false);
     await expect(page.getByText(en.offlineEditing)).toHaveCount(0);
     await expect(add).toHaveAttribute("aria-disabled", "false");
+  });
+});
+
+test.describe("interview shell", () => {
+  const regions = (page: Page) => ({
+    add: page.locator("section[aria-labelledby='heir-form-heading']"),
+    tree: page.locator("section[data-tree]"),
+    list: page.locator("section[aria-labelledby='heirs-heading']"),
+  });
+  const box = async (locator: ReturnType<Page["locator"]>) => (await locator.boundingBox())!;
+
+  test("regions are named and in order, stacked on a phone with 16px gutters", async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await openHeirsScreen(page, api, "en");
+    const { add, tree, list } = regions(page);
+    await expect(page.getByRole("region", { name: en.heirAddHeading })).toBeVisible();
+    await expect(page.getByRole("region", { name: en.treeHeading })).toBeVisible();
+    const [a, t, l] = [await box(add), await box(tree), await box(list)];
+    expect(a.y).toBeLessThan(t.y);
+    expect(t.y).toBeLessThan(l.y);
+    expect(a.x).toBeCloseTo(16, 0);
+    expect(a.x + a.width).toBeCloseTo(375 - 16, 0);
+    const order = await page.evaluate(() => {
+      const sel = ["section[aria-labelledby='heir-form-heading']", "section[data-tree]", "section[aria-labelledby='heirs-heading']"];
+      const nodes = sel.map((s) => document.querySelector(s)!);
+      return nodes.every((n, i) => i === 0 || !!(nodes[i - 1].compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING));
+    });
+    expect(order).toBe(true);
+  });
+
+  test("at 1100px a 380px column sits beside the tree; the preview spans below", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await openHeirsScreen(page, api, "en");
+    const { add, tree, list } = regions(page);
+    const [a, t, l] = [await box(add), await box(tree), await box(list)];
+    expect(a.width).toBeCloseTo(380, 0);
+    expect(l.width).toBeCloseTo(380, 0);
+    expect(t.x).toBeGreaterThan(a.x + a.width - 1);
+    expect(l.y).toBeGreaterThan(a.y);
+    expect(Math.abs(l.x - a.x)).toBeLessThan(1);
+    const pv = await box(page.locator("section[aria-labelledby='preview-heading']"));
+    expect(Math.abs(pv.x - a.x)).toBeLessThan(1);
+    expect(pv.x + pv.width).toBeCloseTo(t.x + t.width, 0);
+    expect(pv.y).toBeGreaterThanOrEqual(l.y + l.height - 1);
+    expect(pv.y).toBeGreaterThanOrEqual(t.y + t.height - 1);
+  });
+
+  test("at 1366px the shell is at most 1360px with a 340px preview column", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await openHeirsScreen(page, api, "en");
+    const { add, tree } = regions(page);
+    const grid = await box(page.locator("[data-wide]").filter({ has: add }).first());
+    expect(grid.width).toBeLessThanOrEqual(1360);
+    const [a, t] = [await box(add), await box(tree)];
+    expect(a.width).toBeCloseTo(380, 0);
+    expect(grid.x + grid.width - (t.x + t.width)).toBeGreaterThanOrEqual(340);
+    const pv = await box(page.locator("section[aria-labelledby='preview-heading']"));
+    expect(pv.width).toBeCloseTo(340, 0);
+    expect(pv.x).toBeGreaterThanOrEqual(t.x + t.width - 1);
+    expect(Math.abs(pv.y - t.y)).toBeLessThan(2);
+  });
+
+  test("in Arabic the 380px column is at the inline-start (right) side", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await openHeirsScreen(page, api, "ar");
+    const { add, tree } = regions(page);
+    const [a, t] = [await box(add), await box(tree)];
+    expect(a.width).toBeCloseTo(380, 0);
+    expect(a.x).toBeGreaterThan(t.x);
+    const font = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+    expect(font).toContain("Noto Naskh Arabic");
+  });
+
+  for (const scheme of ["light", "dark"] as const) {
+    test(`phase-2 tokens resolve in ${scheme} mode`, async ({ page, api }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await openHeirsScreen(page, api, "en");
+      const tokens = await page.evaluate(() => {
+        const style = getComputedStyle(document.documentElement);
+        return ["graphic", "accent-soft", "blocked-stripe", "toast-focus"].map((name) => style.getPropertyValue(`--${name}`).trim());
+      });
+      const full = tokens.map((hex) => (hex.length === 4 ? `#${[...hex.slice(1)].map((c) => c + c).join("")}` : hex));
+      expect(full).toEqual(scheme === "light" ? ["#76887f", "#e3f1ee", "#e8efec", "#ffffff"] : ["#5f7a6e", "#0f2a26", "#16231f", "#0a0a0a"]);
+    });
+
+    test(`controls are 44px and focus is a 2px outline in ${scheme} mode`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 1366, height: 900 });
+      await page.emulateMedia({ colorScheme: scheme });
+      await openHeirsScreen(page, api, "en");
+      const small = await page.evaluate(() => {
+        const root = document.querySelector("[data-js-only]")!;
+        const controls = [...root.querySelectorAll<HTMLElement>("button, input:not([type=radio]):not([type=hidden]), select, textarea, label:has(input[type=radio])")];
+        return controls
+          .filter((el) => el.getClientRects().length > 0 && !el.closest("[data-tree-area]") && !el.closest("table"))
+          .map((el) => ({ text: (el.textContent ?? el.tagName).trim().slice(0, 30), height: el.getBoundingClientRect().height }))
+          .filter((item) => item.height < 43.5);
+      });
+      expect(small).toEqual([]);
+      let reached = false;
+      for (let step = 0; step < 60 && !reached; step += 1) {
+        await page.keyboard.press("Tab");
+        reached = await page.evaluate(() => document.activeElement?.tagName === "BUTTON" && !!document.activeElement.closest("[data-js-only]"));
+      }
+      expect(reached).toBe(true);
+      const ring = await page.evaluate(() => {
+        const style = getComputedStyle(document.activeElement!);
+        return [style.outlineStyle, style.outlineWidth, style.outlineOffset, style.boxShadow];
+      });
+      expect(ring).toEqual(["solid", "2px", "2px", "none"]);
+    });
+  }
+
+  test("a layered case keeps the breadcrumb above the grid, before Add relatives", async ({ page, api }) => {
+    const layered = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as {
+      fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[];
+    }).fixtures.find((item) => item.title === "Agree layered: wife and two sons, a son dies")!;
+    const served = JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-presented-fixtures.json"), "utf8")) as {
+      presented: Record<string, unknown>;
+    };
+    await page.setViewportSize({ width: 1100, height: 900 });
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, {
+        case: fullCase(layered.case, {
+          deaths: (layered.case.deaths as { heirs: Record<string, unknown>[] }[]).map((death) => ({
+            ...death,
+            heir_options: { blocked: [], invalid: {} },
+            heirs: death.heirs.map((heir) => ({ ...heir, edit_options: { blocked: [], invalid: {} } })),
+          })),
+        }),
+      }),
+      getPreview: json(200, { ...layered.response, presented: served.presented[layered.title] }),
+    });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    const nav = page.getByRole("navigation", { name: en.deathsNavLabel });
+    await expect(nav).toBeVisible();
+    const gap = await page.evaluate(() => {
+      const crumb = document.querySelector("nav[data-focus='breadcrumb']")!.getBoundingClientRect();
+      const grid = document.querySelector("section[aria-labelledby='heir-form-heading']")!.closest("[data-wide]")!.getBoundingClientRect();
+      return grid.top - crumb.bottom;
+    });
+    expect(gap).toBeGreaterThanOrEqual(0);
+    const precedes = await page.evaluate(() => {
+      const crumb = document.querySelector("nav[data-focus='breadcrumb']")!;
+      const form = document.querySelector("section[aria-labelledby='heir-form-heading']")!;
+      return !!(crumb.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    expect(precedes).toBe(true);
+    await page.locator("[data-focus^='openLayer:']").first().click();
+    const first = page.locator("button[data-focus='layer:first']");
+    await expect(first).toBeVisible();
+    await first.click();
+    await expect(page.locator("span[data-focus='layer:first'][aria-current]")).toBeVisible();
   });
 });

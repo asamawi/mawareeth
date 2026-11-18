@@ -490,78 +490,94 @@ export function StartCase({
               onOpen={(id) => edit((current) => openLayer(current, id, deps))}
             />
           )}
-          <FamilyTree
-            messages={messages}
-            gender={layer?.gender ?? started.case.deceased.gender}
-            rootText={layerText}
-            heirs={layer?.heirs ?? started.case.heirs}
-            editingId={started.editingHeir}
-          />
-          {started.notice === "heirGone" && <p role="alert">{messages.heirGone}</p>}
-          <HeirForm
-            key={heirFormKey(started)}
-            messages={messages}
-            initial={valuesFor(
-              deps.forms.get(),
-              started.case.id,
-              "heir",
-              started.editingHeir,
-              heirValues(editingHeir),
-            )}
-            errors={started.errors}
-            notice={started.notice}
-            saving={frozen}
-            editing={started.editingHeir !== null}
-            options={layer?.options ?? started.case.heir_options}
-            deceasedGender={layer?.gender ?? started.case.deceased.gender}
-            candidates={candidates}
-            linked={linkedRow}
-            onChange={(values, field) =>
-              track((current) => remember(current, "heir", values, field, deps.forms))
-            }
-            onBlur={(field, values) => track((current) => blurField(current, "heir", field, values))}
-            onSubmit={(values: HeirValues) =>
-              submit((from) =>
-                from.editingHeir
-                  ? { kind: "saveHeir", from, heirId: from.editingHeir, values }
-                  : { kind: "addHeir", from, values },
-              )
-            }
-            onCancel={() => edit((current) => cancelEditHeir(current, deps))}
-          />
-          <SharePreview
-            messages={messages}
-            results={results}
-            locale={locale}
-            kase={started.case}
-            saving={frozen}
-            failed={choiceFailed && (started.notice === "failed" || started.notice === "throttled") ? started.notice : null}
-            onChooseSchool={(madhab) => void perform("choose", { madhab, from: started })}
-          />
-          <HeirList
-            key={layer?.id ?? "first"}
-            messages={messages}
-            kase={started.case}
-            heirs={layer?.heirs ?? started.case.heirs}
-            editingId={started.editingHeir}
-            saving={frozen}
-            announcement={announcement}
-            heading={
-              activeCrumb && activeCrumb.label !== null
-                ? messages.heirsOfHeading.split("{heir}").join(activeCrumb.label)
-                : undefined
-            }
-            deceasedIds={deceasedIds}
-            deathError={deathError}
-            asking={orderQuestion}
-            onEdit={(heirId) => edit((current) => startEditHeir(current, heirId, deps))}
-            onRemove={(heirId) => submit((from) => ({ kind: "removeHeir", from, heirId }))}
-            onAlsoDied={(rowId) => submit((from) => ({ kind: "markDeath", from, rowId }))}
-            onOpenLayer={(personId) => edit((current) => openLayer(current, personId, deps))}
-            onDidNotDie={(personId, rowId) =>
-              submit((from) => ({ kind: "unmarkDeath", from, heirId: personId, rowId }))
-            }
-          />
+          <div
+            data-wide
+            className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)_340px]"
+          >
+            <section
+              aria-labelledby="heir-form-heading"
+              className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1"
+            >
+              {started.notice === "heirGone" && <p role="alert">{messages.heirGone}</p>}
+              <HeirForm
+                key={heirFormKey(started)}
+                messages={messages}
+                initial={valuesFor(
+                  deps.forms.get(),
+                  started.case.id,
+                  "heir",
+                  started.editingHeir,
+                  heirValues(editingHeir),
+                )}
+                errors={started.errors}
+                notice={started.notice}
+                saving={frozen}
+                editing={started.editingHeir !== null}
+                options={layer?.options ?? started.case.heir_options}
+                deceasedGender={layer?.gender ?? started.case.deceased.gender}
+                candidates={candidates}
+                linked={linkedRow}
+                onChange={(values, field) =>
+                  track((current) => remember(current, "heir", values, field, deps.forms))
+                }
+                onBlur={(field, values) => track((current) => blurField(current, "heir", field, values))}
+                onSubmit={(values: HeirValues) =>
+                  submit((from) =>
+                    from.editingHeir
+                      ? { kind: "saveHeir", from, heirId: from.editingHeir, values }
+                      : { kind: "addHeir", from, values },
+                  )
+                }
+                onCancel={() => edit((current) => cancelEditHeir(current, deps))}
+              />
+            </section>
+            <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+              <FamilyTree
+                messages={messages}
+                gender={layer?.gender ?? started.case.deceased.gender}
+                rootText={layerText}
+                heirs={layer?.heirs ?? started.case.heirs}
+                editingId={started.editingHeir}
+              />
+            </div>
+            <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+              <HeirList
+                key={layer?.id ?? "first"}
+                messages={messages}
+                kase={started.case}
+                heirs={layer?.heirs ?? started.case.heirs}
+                editingId={started.editingHeir}
+                saving={frozen}
+                announcement={announcement}
+                heading={
+                  activeCrumb && activeCrumb.label !== null
+                    ? messages.heirsOfHeading.split("{heir}").join(activeCrumb.label)
+                    : undefined
+                }
+                deceasedIds={deceasedIds}
+                deathError={deathError}
+                asking={orderQuestion}
+                onEdit={(heirId) => edit((current) => startEditHeir(current, heirId, deps))}
+                onRemove={(heirId) => submit((from) => ({ kind: "removeHeir", from, heirId }))}
+                onAlsoDied={(rowId) => submit((from) => ({ kind: "markDeath", from, rowId }))}
+                onOpenLayer={(personId) => edit((current) => openLayer(current, personId, deps))}
+                onDidNotDie={(personId, rowId) =>
+                  submit((from) => ({ kind: "unmarkDeath", from, heirId: personId, rowId }))
+                }
+              />
+            </div>
+            <div className="min-w-0 lg:col-span-2 lg:col-start-1 lg:row-start-3 xl:col-span-1 xl:col-start-3 xl:row-span-2 xl:row-start-1">
+              <SharePreview
+                messages={messages}
+                results={results}
+                locale={locale}
+                kase={started.case}
+                saving={frozen}
+                failed={choiceFailed && (started.notice === "failed" || started.notice === "throttled") ? started.notice : null}
+                onChooseSchool={(madhab) => void perform("choose", { madhab, from: started })}
+              />
+            </div>
+          </div>
         </>
       )}
 

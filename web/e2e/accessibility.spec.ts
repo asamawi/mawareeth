@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { messages } from "../src/i18n/messages";
+import { openHeirsScreen } from "./family";
 import { expect, noCase, sessionAnonymous, startedCase, test } from "./api";
 
 async function serious(page: Page) {
@@ -26,5 +27,13 @@ test.describe("axe", () => {
       await expect(page.getByRole("heading", { name: messages[locale].interview.started })).toBeVisible();
       expect(await serious(page)).toEqual([]);
     });
+
+    for (const scheme of ["light", "dark"] as const) {
+      test(`heirs screen /${locale}/ in ${scheme} mode has no serious or critical violations`, async ({ page, api }) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await openHeirsScreen(page, api, locale);
+        expect(await serious(page)).toEqual([]);
+      });
+    }
   }
 });

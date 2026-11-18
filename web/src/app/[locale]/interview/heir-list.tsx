@@ -148,7 +148,7 @@ export function HeirList({
                   aria-current={editingId === heir.id ? "true" : undefined}
                   className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-current/60 p-3 aria-[current=true]:border-2 aria-[current=true]:border-current"
                 >
-                  <span className="flex flex-col">
+                  <span className="flex min-w-0 flex-col [overflow-wrap:anywhere]">
                     <strong>
                       <bdi>{label}</bdi>
                     </strong>

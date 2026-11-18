@@ -8,6 +8,11 @@
   --border: #d3dfd9;
   --accent: #0f766e;
   --accent-foreground: #ffffff;
+  --graphic: #76887f;
+  --accent-soft: #e3f1ee;
+  --blocked-stripe: #e8efec;
+  --scrim: rgb(23 23 23 / 0.4);
+  --toast-focus: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,6 +24,12 @@
     --border: #25352f;
     --accent: #5eead4;
     --accent-foreground: #042f2e;
+    /* [ASSUMPTION] derived dark pairs for the phase-2 tokens; graphic is computed (3.80 on surface). */
+    --graphic: #5f7a6e;
+    --accent-soft: #0f2a26;
+    --blocked-stripe: #16231f;
+    --scrim: rgb(0 0 0 / 0.6);
+    --toast-focus: #0a0a0a;
   }
 }
 
@@ -28,6 +39,20 @@
   --color-line: var(--border);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-graphic: var(--graphic);
+  --color-accent-soft: var(--accent-soft);
+  --color-blocked-stripe: var(--blocked-stripe);
+  --color-scrim: var(--scrim);
+  --color-toast-focus: var(--toast-focus);
+  --text-node-name: 0.84rem;
+  --text-node-name--font-weight: 700;
+  --text-node-meta: 0.72rem;
+  --text-badge: 0.68rem;
+  --text-badge--line-height: 1.3;
+  --text-badge--font-weight: 600;
+  --radius-node: 10px;
+  --radius-sheet: 18px;
+  --radius-full: 9999px;
 }
 
 html {
@@ -44,4 +69,12 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: system-ui, sans-serif;
+}
+
+/*
+ * [ASSUMPTION] Arabic and Urdu share the body-rtl stack. Urdu needs a Nastaliq or
+ * Naskh-capable fallback and a line height of about 1.7; neither is chosen, so neither is set.
+ */
+[dir="rtl"] body {
+  font-family: "Segoe UI", Tahoma, "Noto Naskh Arabic", "Geeza Pro", system-ui, sans-serif;
 }

@@ -16,7 +16,7 @@ export default async function InterviewPage({
   const text = messages[locale].interview;
 
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10">
+    <main className="mx-auto flex max-w-[1360px] flex-col gap-4 px-4 py-10 lg:px-6">
       <h1 className="mx-auto w-full max-w-xl text-3xl font-semibold">{text.heading}</h1>
       <noscript>
         {/* Without JavaScript the loading text would sit next to the explanation. */}

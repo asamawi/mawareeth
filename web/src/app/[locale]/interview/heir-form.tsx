@@ -103,8 +103,8 @@ export function HeirForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="mx-auto flex w-full max-w-xl flex-col gap-4">
-      <h3 className="text-lg font-semibold">{editing ? messages.heirEditHeading : messages.heirAddHeading}</h3>
+    <form onSubmit={submit} noValidate className="flex w-full flex-col gap-4">
+      <h3 id="heir-form-heading" className="text-lg font-semibold">{editing ? messages.heirEditHeading : messages.heirAddHeading}</h3>
 
       <fieldset
         className="flex min-w-0 flex-col gap-2"
@@ -185,7 +185,7 @@ export function HeirForm({
       {canLink && (
         <fieldset className="flex flex-col gap-2" data-focus="link">
           <legend className="font-medium">{messages.heirLinkLegend}</legend>
-          <label className="flex items-center gap-2">
+          <label className="flex min-h-11 items-center gap-2">
             <input
               type="radio"
               name="heir-link"
@@ -195,7 +195,7 @@ export function HeirForm({
             />
             {messages.heirLinkNew}
           </label>
-          <label className="flex items-center gap-2">
+          <label className="flex min-h-11 items-center gap-2">
             <input
               type="radio"
               name="heir-link"

@@ -3,10 +3,10 @@ import { templateParts, type Errors } from "@/interview/answers";
 import type { Notice } from "@/interview/flow";
 
 export const buttonClass =
-  "rounded-md border border-current px-4 py-2 text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-disabled:opacity-60";
+  "min-h-11 rounded-md border border-current px-4 py-2 text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-disabled:opacity-60";
 
 export const inputClass =
-  "w-full rounded-md border-2 border-current/60 bg-transparent px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-[invalid=true]:border-current aria-[invalid=true]:border-dashed read-only:opacity-70";
+  "min-h-11 w-full rounded-md border-2 border-current/60 bg-transparent px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-[invalid=true]:border-current aria-[invalid=true]:border-dashed read-only:opacity-70";
 
 /** The message for a field's error code; an unknown code falls back to the generic failure. */
 export function errorText(
