@@ -8,6 +8,7 @@ import type { Messages } from "@/i18n/messages";
 import { rowLabels } from "@/interview/layers";
 import { evidenceNotes, relationsOf, tableOf, tableView } from "@/interview/table";
 import {
+  acceptRevision,
   previewKey,
   previewReady,
   previewRows,
@@ -53,16 +54,20 @@ export function SharePreview({
   const [attempt, setAttempt] = useState(0);
   const [settled, setSettled] = useState<Settled<PreviewResult> | null>(null);
   const caseId = kase.id;
+  const revision = kase.revision;
 
   useEffect(() => {
     if (!ready) return;
     const own = new AbortController();
-    void fetchPreview(own.signal, caseId, { locale }).then((outcome) => {
-      if (!own.signal.aborted) setSettled({ key, attempt, outcome: reconcile(key, caseId, outcome) });
+    void fetchPreview(own.signal, caseId, { locale }).then((fetched) => {
+      if (own.signal.aborted) return;
+      // A preview computed for an older revision is never shown.
+      const outcome = acceptRevision(revision, fetched);
+      if (outcome !== null) setSettled({ key, attempt, outcome: reconcile(key, caseId, outcome) });
     });
     // A change or leaving drops the request in flight.
     return () => own.abort();
-  }, [key, attempt, ready, caseId, locale]);
+  }, [key, attempt, ready, caseId, locale, revision]);
 
   const outcome = ready ? shown({ key, attempt }, settled) : null;
   const preview = outcome?.kind === "preview" ? outcome.preview : null;

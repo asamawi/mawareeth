@@ -341,6 +341,10 @@ REST_FRAMEWORK = {
 # Anonymous interview cases live in the Django session and expire after this much idle time.
 # Logged-in sessions keep Django's default (SESSION_COOKIE_AGE).
 ANONYMOUS_CASE_IDLE_SECONDS = 24 * 60 * 60
+# The longest a Case write waits for the session row lock before a retryable 503. AD-27 gives the
+# Share preview a 1 s p95 on 4G: about 300 ms of that is the network round trip and about 200 ms
+# the engine and presentation, which leaves 500 ms for any lock wait.
+CASE_LOCK_TIMEOUT_MS = 500
 
 
 SITE_ID = config("SITE_ID",default=1, cast=int)

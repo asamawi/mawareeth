@@ -180,6 +180,8 @@ export type Messages = {
     /** Shown while the case has no heir yet. */
     previewPrompt: string;
     previewWaiting: string;
+    /** Shown while the browser is offline and every edit is disabled. */
+    offlineEditing: string;
     /** `{school}` is the school's name. */
     previewSchool: string;
     /** Shown instead of a school name while the case has no school and all four Sunni schools agree. */
@@ -470,6 +472,7 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "معاينة الأنصبة",
       previewPrompt: "أضف وارثًا لتظهر الأنصبة هنا.",
       previewWaiting: "جارٍ تحديث المعاينة…",
+      offlineEditing: "أنت غير متصل بالإنترنت. أعد الاتصال لمتابعة التعديل.",
       previewSchool: "محسوبة وفق المذهب {school}. هذه معاينة وليست حكمًا نهائيًا.",
       schoolsAgree: "النتيجة نفسها في المذاهب السنية الأربعة",
       schoolsDiffer: "تختلف المذاهب في هذه الحالة",
@@ -751,6 +754,7 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "Share preview",
       previewPrompt: "Add an heir to see the shares here.",
       previewWaiting: "Updating the preview…",
+      offlineEditing: "You're offline. Reconnect to keep editing.",
       previewSchool: "Calculated under the {school} school. This is a preview, not a final ruling.",
       schoolsAgree: "Same result in all four Sunni schools",
       schoolsDiffer: "The schools of law differ for this family",
@@ -1034,6 +1038,7 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "Aperçu des parts",
       previewPrompt: "Ajoutez un héritier pour voir les parts ici.",
       previewWaiting: "Mise à jour de l'aperçu…",
+      offlineEditing: "Vous êtes hors ligne. Reconnectez-vous pour continuer à modifier.",
       previewSchool: "Calculé selon l'école {school}. Il s'agit d'un aperçu, pas d'une décision définitive.",
       schoolsAgree: "Même résultat dans les quatre écoles sunnites",
       schoolsDiffer: "Les écoles juridiques divergent pour cette famille",

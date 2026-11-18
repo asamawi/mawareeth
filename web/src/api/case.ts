@@ -116,6 +116,8 @@ export const noHeirOptions = (): HeirOptions => ({ blocked: [], invalid: {} });
 
 export type Case = {
   id: string;
+  /** The server's revision of the case; null for a shared or received body, which has none. */
+  revision: number | null;
   started_at: string;
   /** Null until the visitor continues from the selector. */
   madhab: MadhabId | null;
@@ -193,6 +195,7 @@ const CASE_URL = "/api/v1/case/";
 type CaseBody = {
   id: string;
   started_at: string;
+  revision?: unknown;
   madhab?: unknown;
   deceased?: unknown;
   heirs?: unknown;
@@ -304,6 +307,11 @@ export function parseHeirOptions(value: unknown): HeirOptions {
   return { blocked: [...new Set(blocked)], invalid: codes };
 }
 
+/** A revision is an integer of at least 1; anything else reads as none. */
+export function parseRevision(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 ? value : null;
+}
+
 export function parseCase(body: unknown): Case | null {
   const value =
     typeof body === "object" && body !== null ? (body as { case?: unknown }).case : undefined;
@@ -313,6 +321,7 @@ export function parseCase(body: unknown): Case | null {
   const heirs = parseHeirs(value.heirs);
   return {
     id: value.id,
+    revision: parseRevision(value.revision),
     started_at: value.started_at,
     madhab: isMadhabId(value.madhab) ? value.madhab : null,
     deceased: parseDeceased(value.deceased),
@@ -405,14 +414,23 @@ export async function write<T>(
 
 export async function startCase(
   signal: AbortSignal,
-  /** `caseId` is the case the visitor is replacing: the server refuses when another is live. */
-  options: WriteOptions & { replace?: boolean; caseId?: string } = {},
+  /**
+   * `caseId` is the case the visitor is replacing: the server refuses when another is live.
+   * `revision` is the revision of that case this tab shows.
+   */
+  options: WriteOptions & { replace?: boolean; caseId?: string; revision?: number | null } = {},
 ): Promise<StartResult> {
   const result = await write<StartResult>(
     signal,
     options,
     { method: "POST", body: JSON.stringify(
-        options.replace ? { replace: true, ...(options.caseId ? { case_id: options.caseId } : {}) } : {},
+        options.replace
+          ? {
+              replace: true,
+              ...(options.caseId ? { case_id: options.caseId } : {}),
+              ...(options.caseId && options.revision != null ? { expected_revision: options.revision } : {}),
+            }
+          : {},
       ),
     },
     async (response) => {
@@ -435,12 +453,14 @@ export async function setMadhab(
   madhab: MadhabId,
   /** Required: it is what lets the server refuse a write from a tab on a replaced case. */
   caseId: string,
+  /** The revision of that case this tab shows: the server refuses a write made on an older one. */
+  revision: number | null,
   options: WriteOptions = {},
 ): Promise<MadhabResult> {
   const result = await write<MadhabResult>(
     signal,
     options,
-    { method: "PATCH", body: JSON.stringify({ madhab, case_id: caseId }) },
+    { method: "PATCH", body: JSON.stringify({ madhab, case_id: caseId, expected_revision: revision }) },
     async (response) => {
       if (response.status === 429) return { kind: "throttled" };
       if (response.status === 404) return { kind: "gone" };
@@ -474,13 +494,14 @@ async function answer(
   method: string,
   url: string,
   caseId: string,
+  revision: number | null,
   /** Null for a write with no body: a DELETE carries the case id in the URL instead. */
   fields: Record<string, unknown> | null,
 ): Promise<AnswerResult> {
   const result = await write<AnswerResult>(
     signal,
     options,
-    { method, url, body: fields ? JSON.stringify({ ...fields, case_id: caseId }) : undefined },
+    { method, url, body: fields ? JSON.stringify({ ...fields, case_id: caseId, expected_revision: revision }) : undefined },
     async (response) => {
       if (response.status === 429) return { kind: "throttled" };
       if (response.status === 400) {
@@ -524,44 +545,55 @@ const DECEASED_URL = "/api/v1/case/deceased/";
 const HEIRS_URL = "/api/v1/case/heirs/";
 const DEATHS_URL = "/api/v1/case/deaths/";
 
+/** The query of a DELETE: the case, its revision and the cascade confirmation (Epic 9 adds the dialog). */
+function deleteQuery(caseId: string, revision: number | null): string {
+  const revisionPart = revision === null ? "" : `&expected_revision=${revision}`;
+  return `case_id=${encodeURIComponent(caseId)}${revisionPart}&confirm_cascade=true`;
+}
+
 /** Stores the deceased, replacing the earlier one. One attempt; never throws. */
 export function saveDeceased(
   signal: AbortSignal,
   caseId: string,
+  revision: number | null,
   fields: DeceasedFields,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  return answer(signal, options, "PUT", DECEASED_URL, caseId, fields);
+  return answer(signal, options, "PUT", DECEASED_URL, caseId, revision, fields);
 }
 
 export function addHeir(
   signal: AbortSignal,
   caseId: string,
+  revision: number | null,
   fields: HeirFields,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  return answer(signal, options, "POST", HEIRS_URL, caseId, fields);
+  return answer(signal, options, "POST", HEIRS_URL, caseId, revision, fields);
 }
 
 export function updateHeir(
   signal: AbortSignal,
   caseId: string,
+  revision: number | null,
   heirId: string,
   fields: HeirFields,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  return answer(signal, options, "PUT", `${HEIRS_URL}${encodeURIComponent(heirId)}/`, caseId, fields);
+  return answer(signal, options, "PUT", `${HEIRS_URL}${encodeURIComponent(heirId)}/`, caseId, revision, fields);
 }
 
 export function removeHeir(
   signal: AbortSignal,
   caseId: string,
+  revision: number | null,
   heirId: string,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  // Intermediaries may drop a DELETE body, so the case id is in the query string.
-  const url = `${HEIRS_URL}${encodeURIComponent(heirId)}/?case_id=${encodeURIComponent(caseId)}`;
-  return answer(signal, options, "DELETE", url, caseId, null);
+  // Intermediaries may drop a DELETE body, so the case id is in the query string. The cascade is
+  // confirmed up front until the impact dialog exists (Epic 9).
+  const url = `${HEIRS_URL}${encodeURIComponent(heirId)}/?${deleteQuery(caseId, revision)}`;
+  return answer(signal, options, "DELETE", url, caseId, revision, null);
 }
 
 /**
@@ -571,6 +603,7 @@ export function removeHeir(
 export function markDeceased(
   signal: AbortSignal,
   caseId: string,
+  revision: number | null,
   heirId: string,
   first?: string,
   options: WriteOptions = {},
@@ -582,6 +615,7 @@ export function markDeceased(
     "POST",
     DEATHS_URL,
     caseId,
+    revision,
     { heir_id: heirId, ...(first === undefined ? {} : { first }), ...answers },
   );
 }
@@ -590,11 +624,12 @@ export function markDeceased(
 export function unmarkDeceased(
   signal: AbortSignal,
   caseId: string,
+  revision: number | null,
   heirId: string,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  const url = `${DEATHS_URL}${encodeURIComponent(heirId)}/?case_id=${encodeURIComponent(caseId)}`;
-  return answer(signal, options, "DELETE", url, caseId, null);
+  const url = `${DEATHS_URL}${encodeURIComponent(heirId)}/?${deleteQuery(caseId, revision)}`;
+  return answer(signal, options, "DELETE", url, caseId, revision, null);
 }
 
 /** The reasons the engine refuses a case, which the dictionary has a sentence for. */
@@ -764,7 +799,8 @@ export type Preview =
     };
 
 export type PreviewResult =
-  | { kind: "preview"; preview: Preview }
+  /** `revision` is the revision of the case the server computed it from, when it said. */
+  | { kind: "preview"; preview: Preview; revision?: number }
   /** The case this tab meant was replaced (409): no numbers for it. */
   | { kind: "replaced" }
   /** There is no live case any more (404, such as an expired session). */
@@ -1362,8 +1398,11 @@ export async function fetchPreview(
     if (response.status === 404) return { kind: "gone" };
     if (response.status === 409) return { kind: "replaced" };
     if (!response.ok) return { kind: "failed" };
-    const preview = parseServedPreview(await response.json());
-    return preview ? { kind: "preview", preview } : { kind: "failed" };
+    const body: unknown = await response.json();
+    const preview = parseServedPreview(body);
+    if (!preview) return { kind: "failed" };
+    const revision = parseRevision(typeof body === "object" && body !== null ? (body as { revision?: unknown }).revision : undefined);
+    return { kind: "preview", preview, ...(revision === null ? {} : { revision }) };
   } catch {
     return { kind: "failed" };
   } finally {

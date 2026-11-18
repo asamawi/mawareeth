@@ -417,3 +417,17 @@ Completed and obsolete items are removed; their history is in git.
 - Alias row ids are regenerated when reading schema 2; person ids remain stable.
 - Unreadable rows are hidden from My cases rather than shown with an error.
 - The web displays typed snapshot errors as its generic failure.
+
+## Story 8.9 follow-ups
+
+- The new offline message (`offlineEditing`, ar and fr) needs native review.
+- Removals and un-marking a death send `confirm_cascade: true` until the Epic 9 impact dialog exists.
+- The currency, eligibility-answer, tree-drop and redeem commands plug into `api/case_commands.py` later.
+- An expired guest Case is not deleted from the session on read; it reads as no Case until replaced.
+- The limit stays 50 Heirs per layer (AD-26 says 50 Heirs).
+- A web bundle opened across the deploy gets 400 `invalid_revision` on writes until it reloads.
+- The case lock measurements are `mawareeth.case_lock` log records, not metrics yet.
+- A same-Case revision conflict (another tab edited first) uses the existing "replaced" path, so the web shows the existing-case screen and clears the unsent form. Epic 9's conflict outcome handling should refresh it in place instead.
+- A live guest session created before this release has no `changed_at`, so its expiry runs from `started_at`. A guest who started more than 24 hours ago and is still editing at deploy time sees the Case expire once.
+- The 503 `busy` response is shown as the generic failed notice. The web does not retry using `Retry-After`.
+- The results page's School choice (`results-view.tsx` `ChooseSchool`) is not blocked while offline. Only the interview screens are.

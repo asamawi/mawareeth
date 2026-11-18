@@ -1,0 +1,500 @@
+"""Story 8.9: Case commands apply atomically against one revision."""
+import json
+import threading
+import time
+import traceback
+from datetime import timedelta
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.sessions.backends.db import SessionStore
+from django.contrib.sessions.models import Session
+from django.db import connection, connections, transaction
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TransactionTestCase
+from django.utils import timezone
+from rest_framework.test import APIClient
+
+from api import anonymous_case
+from api.models import SavedCase
+from api.tests import (
+    CASE_URL, DEATHS_URL, HEIRS_URL, InterviewDeathsHelpers, InterviewHelpers,
+)
+
+BULK_URL = '/api/v1/case/heirs/bulk/'
+RESTORE_URL = '/api/v1/case/restore/'
+PREVIEW_URL = '/api/v1/case/preview/'
+DRAFT_URL = '/api/v1/reports/draft/'
+SAVED_URL = '/api/v1/saved-cases/'
+
+
+class CommandBase(InterviewDeathsHelpers, InterviewHelpers, TransactionTestCase):
+    def raw_session(self):
+        return Session.objects.get().session_data
+
+    def revision(self):
+        return self.live()['revision']
+
+    def age(self, seconds):
+        """Make the stored case's last change `seconds` old."""
+        moment = (timezone.now() - timedelta(seconds=seconds)).isoformat()
+        self.plant(changed_at=moment)
+
+    def assert_untouched(self, response, status, before_raw, before):
+        self.assertEqual(response.status_code, status, response.content)
+        self.assertEqual(self.raw_session(), before_raw, 'the session was written')
+        self.assertEqual(self.stored(), before)
+
+
+class RevisionTests(CommandBase):
+    def test_start_is_revision_one_and_each_success_adds_exactly_one(self):
+        case = self.start()
+        self.assertEqual(case['revision'], 1)
+        self.assertEqual(self.deceased(case).json()['case']['revision'], 2)
+        heir = self.heir(case)
+        self.assertEqual((heir.status_code, heir.json()['case']['revision']), (201, 3))
+        row = heir.json()['case']['heirs'][0]['id']
+        edit = self.send('put', f'{HEIRS_URL}{row}/', {'case_id': case['id'], 'relationship': 'daughter'})
+        self.assertEqual(edit.json()['case']['revision'], 4)
+        basis = self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'})
+        self.assertEqual(basis.json()['case']['revision'], 5)
+        gone = self.send('delete', f'{HEIRS_URL}{row}/', {'case_id': case['id']})
+        self.assertEqual(gone.json()['case']['revision'], 6)
+        self.assertEqual(self.revision(), 6)
+        self.assertEqual(self.stored()['revision'], 6)
+        self.assertIn('changed_at', self.stored())
+
+    def test_a_stored_case_without_a_revision_reads_as_one(self):
+        case = self.ready()
+        row = Session.objects.get()
+        data = row.get_decoded()
+        data[anonymous_case.SESSION_KEY].pop('revision')
+        row.session_data = SessionStore().encode(data)
+        row.save()
+        self.assertEqual(self.revision(), 1)
+        self.assertEqual(self.heir(case, expected_revision=1).json()['case']['revision'], 2)
+
+    def test_edit_at_the_current_revision_returns_the_whole_case(self):
+        case = self.ready()
+        before = self.revision()
+        response = self.heir(case, expected_revision=before)
+        self.assertEqual(response.status_code, 201)
+        body = response.json()['case']
+        self.assertEqual(body['revision'], before + 1)
+        self.assertEqual(body, self.live())
+
+    def test_a_stale_tab_gets_a_conflict_with_the_current_case(self):
+        case = self.ready()
+        self.heir(case)
+        raw, stored = self.raw_session(), self.stored()
+        response = self.heir(case, expected_revision=self.revision() - 1)
+        self.assert_untouched(response, 409, raw, stored)
+        body = response.json()
+        self.assertEqual(body['error'], 'conflict')
+        self.assertEqual(body['detail'], 'That case is no longer the current one.')
+        self.assertEqual(body['case'], self.live())
+
+    def test_another_case_id_is_a_conflict_too(self):
+        case = self.ready()
+        raw, stored = self.raw_session(), self.stored()
+        response = self.send('post', HEIRS_URL, {'case_id': 'f' * 32, 'relationship': 'son',
+                                                 'expected_revision': case['revision']})
+        self.assert_untouched(response, 409, raw, stored)
+        self.assertEqual(response.json()['error'], 'conflict')
+
+    def test_a_missing_or_malformed_revision_is_a_typed_400(self):
+        case = self.ready()
+        raw, stored = self.raw_session(), self.stored()
+        for value in (None, 'two', 2.5, True, False):
+            with self.subTest(value=value):
+                response = self.send('post', HEIRS_URL, {
+                    'case_id': case['id'], 'relationship': 'son', 'expected_revision': value})
+                self.assert_untouched(response, 400, raw, stored)
+                self.assertEqual(response.json()['error'], 'invalid_revision')
+        response = self.send('delete', f'{HEIRS_URL}x/', {'case_id': case['id'], 'expected_revision': None})
+        self.assert_untouched(response, 400, raw, stored)
+        self.assertEqual(response.json()['error'], 'invalid_revision')
+
+    def test_starting_over_with_a_wrong_revision_is_a_conflict(self):
+        case = self.ready()
+        raw, stored = self.raw_session(), self.stored()
+        response = self.send('post', CASE_URL, {'replace': True, 'case_id': case['id'],
+                                                'expected_revision': case['revision'] + 5})
+        self.assert_untouched(response, 409, raw, stored)
+        self.assertEqual(response.json()['error'], 'conflict')
+        fresh = self.send('post', CASE_URL, {'replace': True, 'case_id': case['id'],
+                                             'expected_revision': self.revision()})
+        self.assertEqual((fresh.status_code, fresh.json()['case']['revision']), (201, 1))
+
+    def test_starting_over_with_a_malformed_revision_is_a_typed_400(self):
+        case = self.ready()
+        raw, stored = self.raw_session(), self.stored()
+        for value in (True, 'two'):
+            with self.subTest(value=value):
+                response = self.send('post', CASE_URL, {'replace': True, 'case_id': case['id'],
+                                                        'expected_revision': value})
+                self.assert_untouched(response, 400, raw, stored)
+                self.assertEqual(response.json()['error'], 'invalid_revision')
+
+    def test_an_impossible_edit_changes_nothing(self):
+        case = self.ready()
+        self.heir(case, 'father')
+        heirs = self.heir(case, 'brother').json()['case']['heirs']
+        raw, stored = self.raw_session(), self.stored()
+        response = self.send('put', f'{HEIRS_URL}{heirs[1]["id"]}/',
+                             {'case_id': case['id'], 'relationship': 'father'})
+        self.assert_untouched(response, 400, raw, stored)
+        self.assertIn('relationship', response.json()['errors'])
+        second = self.heir(case, 'father')
+        self.assert_untouched(second, 400, raw, stored)
+
+    def test_a_failed_write_never_raises_the_revision(self):
+        case = self.ready()
+        raw, stored = self.raw_session(), self.stored()
+        before = self.revision()
+        for body in ({'relationship': 'nobody'}, {'relationship': 'son', 'name': 5}):
+            self.assert_untouched(self.heir(case, **body), 400, raw, stored)
+        self.assertEqual(self.revision(), before)
+
+    def test_the_case_endpoint_reads_back_the_revision(self):
+        case = self.start()
+        self.assertEqual(self.client.get(CASE_URL, secure=True).json()['case']['revision'], case['revision'])
+
+
+class BulkTests(CommandBase):
+    def bulk(self, case, heirs, **extra):
+        return self.send('post', BULK_URL, {'case_id': case['id'], 'heirs': heirs, **extra})
+
+    def test_three_valid_items_add_three_heirs_and_one_revision(self):
+        case = self.ready()
+        before = self.revision()
+        response = self.bulk(case, [{'relationship': 'son', 'name': 'A'}, {'relationship': 'daughter'},
+                                    {'relationship': 'wife'}])
+        self.assertEqual(response.status_code, 201)
+        body = response.json()['case']
+        self.assertEqual(len(body['heirs']), 3)
+        self.assertEqual(body['revision'], before + 1)
+
+    def test_one_bad_item_adds_nothing(self):
+        case = self.ready()
+        raw, stored = self.raw_session(), self.stored()
+        response = self.bulk(case, [{'relationship': 'son'}, {'relationship': 'cousin'}, {'relationship': 'daughter'}])
+        self.assert_untouched(response, 400, raw, stored)
+        self.assertEqual(response.json()['error'], 'invalid_input')
+        self.assertEqual(list(response.json()['errors']), ['1'])
+
+    def test_a_second_father_inside_one_bulk_is_refused_whole(self):
+        case = self.ready()
+        raw, stored = self.raw_session(), self.stored()
+        response = self.bulk(case, [{'relationship': 'father'}, {'relationship': 'father'}])
+        self.assert_untouched(response, 400, raw, stored)
+        self.assertEqual(list(response.json()['errors']), ['1'])
+
+    def test_over_capacity_is_checked_before_anything_is_added(self):
+        case = self.ready()
+        self.assertEqual(self.bulk(case, [{'relationship': 'son'}] * 48).status_code, 201)
+        raw, stored = self.raw_session(), self.stored()
+        response = self.bulk(case, [{'relationship': 'son'}] * 3)
+        self.assert_untouched(response, 400, raw, stored)
+        self.assertEqual(response.json()['error'], 'over_capacity')
+        self.assertEqual(len(self.live()['heirs']), 48)
+
+    def test_the_item_count_is_between_one_and_fifty(self):
+        case = self.ready()
+        raw, stored = self.raw_session(), self.stored()
+        self.assert_untouched(self.bulk(case, []), 400, raw, stored)
+        over = self.bulk(case, [{'relationship': 'son'}] * 51)
+        self.assert_untouched(over, 400, raw, stored)
+        self.assertEqual(over.json()['error'], 'over_capacity')
+
+    def test_a_later_death_layer_can_be_filled_in_bulk(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        before = self.live()
+        response = self.bulk({'id': self.case_id}, [{'relationship': 'son'}, {'relationship': 'daughter'}],
+                             layer=self.s1)
+        self.assertEqual(response.status_code, 201)
+        layer = response.json()['case']['deaths'][0]['heirs']
+        self.assertEqual(len(layer), len(before['deaths'][0]['heirs']) + 2)
+
+
+class LimitTests(CommandBase):
+    def test_a_third_later_death_keeps_its_400_and_the_revision(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        self.assertEqual(self.mark(self.w).status_code, 201)
+        raw, stored = self.raw_session(), self.stored()
+        response = self.mark(self.s2)
+        self.assert_untouched(response, 400, raw, stored)
+        self.assertEqual(response.json()['errors'], {'death': 'limit'})
+
+
+class CascadeTests(CommandBase):
+    def test_removing_a_heir_with_a_later_death_layer_needs_confirmation(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        raw, stored = self.raw_session(), self.stored()
+        url = f'{HEIRS_URL}{self.s1}/'
+        response = self.send('delete', url, {'case_id': self.case_id})
+        self.assert_untouched(response, 409, raw, stored)
+        body = response.json()
+        self.assertEqual(body['error'], 'cascade_unconfirmed')
+        self.assertEqual(body['impact']['estates'], [2])
+        self.assertEqual(body['case'], self.live())
+
+    def test_confirming_the_cascade_removes_the_layer(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        before = self.revision()
+        response = self.send('delete', f'{HEIRS_URL}{self.s1}/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
+        self.assertEqual(response.status_code, 200)
+        case = response.json()['case']
+        self.assertEqual(case['deaths'], [])
+        self.assertEqual(case['revision'], before + 1)
+
+    def test_a_simple_removal_needs_no_confirmation(self):
+        self.setup_family()
+        before = self.revision()
+        response = self.send('delete', f'{HEIRS_URL}{self.s2}/', {'case_id': self.case_id})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['case']['revision'], before + 1)
+
+    def test_unmarking_a_death_that_drops_people_needs_confirmation(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        self.assertEqual(self.add_layer(self.s1, 'wife', name='New').status_code, 201)
+        raw, stored = self.raw_session(), self.stored()
+        url = f'{DEATHS_URL}{self.s1}/'
+        response = self.send('delete', url, {'case_id': self.case_id})
+        self.assert_untouched(response, 409, raw, stored)
+        self.assertEqual(response.json()['error'], 'cascade_unconfirmed')
+        self.assertEqual(len(response.json()['impact']['persons']), 1)
+        done = self.send('delete', url, {'case_id': self.case_id, 'confirm_cascade': 'true'})
+        self.assertEqual(done.status_code, 200)
+        self.assertEqual(done.json()['case']['deaths'], [])
+
+
+class RestoreTests(CommandBase):
+    def snapshot(self):
+        return anonymous_case.export_snapshot(anonymous_case.read_snapshot(
+            {key: value for key, value in self.stored().items()}, 'x', 'y'))
+
+    def test_a_restore_keeps_ids_and_moves_the_revision_forward(self):
+        self.setup_family()
+        old = self.snapshot()
+        old_ids = [row['id'] for row in old['heirs']]
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        self.send('patch', CASE_URL, {'case_id': self.case_id, 'madhab': 'hanafi'})
+        before = self.live()
+        response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot': old})
+        self.assertEqual(response.status_code, 200)
+        case = response.json()['case']
+        self.assertEqual(case['revision'], before['revision'] + 1)
+        self.assertEqual([row['id'] for row in case['heirs']], old_ids)
+        self.assertEqual((case['id'], case['started_at']), (before['id'], before['started_at']))
+        self.assertEqual(case['deaths'], [])
+        self.assertEqual(case['madhab'], 'hanbali')
+
+    def test_an_invalid_snapshot_is_refused_whole(self):
+        self.setup_family()
+        good = self.snapshot()
+        heirs = good['heirs']
+        too_many = {**good, 'heirs': [{**heirs[1], 'id': f'h{i}'} for i in range(51)]}
+        unknown = {**good, 'heirs': [{**heirs[0], 'relationship': 'cousin'}]}
+        extra = {**good, 'surprise': 1}
+        for snapshot in (too_many, unknown, extra, 'text', None, {}):
+            with self.subTest(snapshot=str(snapshot)[:40]):
+                raw, stored = self.raw_session(), self.stored()
+                response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot': snapshot})
+                self.assert_untouched(response, 400, raw, stored)
+                self.assertEqual(response.json()['error'], 'invalid_snapshot')
+
+
+class ExpiryTests(CommandBase):
+    LIMIT = settings.ANONYMOUS_CASE_IDLE_SECONDS
+
+    def test_an_expired_guest_case_reads_as_none_with_a_code(self):
+        case = self.ready()
+        self.age(self.LIMIT + 1)
+        self.assertEqual(self.client.get(CASE_URL, secure=True).json(), {'case': None, 'code': 'expired'})
+        for response in (self.heir(case, expected_revision=case['revision']),
+                         self.client.get(f'{PREVIEW_URL}?case_id={case["id"]}', secure=True),
+                         self.client.get(f'{DRAFT_URL}?case_id={case["id"]}', secure=True)):
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.json(), {'detail': 'There is no current case.', 'case': None, 'code': 'expired'})
+
+    def test_a_case_just_inside_the_limit_still_works(self):
+        case = self.ready()
+        self.age(self.LIMIT - 60)
+        self.assertEqual(self.heir(case).status_code, 201)
+
+    def test_without_changed_at_started_at_decides(self):
+        case = self.ready()
+        row = Session.objects.get()
+        data = row.get_decoded()
+        stored = data[anonymous_case.SESSION_KEY]
+        stored.pop('changed_at')
+        stored['started_at'] = (timezone.now() - timedelta(seconds=self.LIMIT + 5)).isoformat()
+        row.session_data = SessionStore().encode(data)
+        row.save()
+        self.assertEqual(self.client.get(CASE_URL, secure=True).json()['code'], 'expired')
+
+    def test_starting_without_replace_after_expiry_makes_a_fresh_case(self):
+        case = self.ready()
+        self.age(self.LIMIT + 1)
+        response = self.send('post', CASE_URL, {})
+        self.assertEqual(response.status_code, 201)
+        self.assertNotEqual(response.json()['case']['id'], case['id'])
+
+    def test_reads_and_previews_never_refresh_changed_at(self):
+        case = self.ready()
+        self.heir(case)
+        changed = self.stored()['changed_at']
+        self.client.get(CASE_URL, secure=True)
+        self.client.get(f'{PREVIEW_URL}?case_id={case["id"]}', secure=True)
+        self.assertEqual(self.stored()['changed_at'], changed)
+        self.heir(case)
+        self.assertGreater(self.stored()['changed_at'], changed)
+
+    def test_saving_an_expired_guest_case_is_a_404_with_the_code(self):
+        user = get_user_model().objects.create_user('saver3', password='pw-12345-abc')
+        self.client.force_login(user)
+        case = self.ready()
+        self.heir(case)
+        self.age(self.LIMIT + 1)
+        response = self.send('post', SAVED_URL, {'case_id': case['id']})
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()['code'], 'expired')
+        self.assertEqual(SavedCase.objects.count(), 0)
+
+    def test_a_saved_working_copy_never_expires_here(self):
+        user = get_user_model().objects.create_user('saver', password='pw-12345-abc')
+        self.client.force_login(user)
+        case = self.ready()
+        self.heir(case)
+        self.assertEqual(self.send('post', SAVED_URL, {'case_id': case['id']}).status_code, 201)
+        self.age(self.LIMIT * 3)
+        live = self.client.get(CASE_URL, secure=True).json()['case']
+        self.assertIsNotNone(live)
+        self.assertEqual(self.heir(live, 'daughter').status_code, 201)
+
+
+class SavedCaseRevisionTests(CommandBase):
+    def test_each_save_adds_one_and_writes_schema_one(self):
+        user = get_user_model().objects.create_user('saver2', password='pw-12345-abc')
+        self.client.force_login(user)
+        case = self.ready()
+        self.heir(case)
+        first = self.send('post', SAVED_URL, {'case_id': case['id']})
+        self.assertEqual((first.status_code, first.json()['revision']), (201, 1))
+        self.heir(case, 'daughter')
+        second = self.send('post', SAVED_URL, {'case_id': case['id']})
+        self.assertEqual((second.status_code, second.json()['revision']), (200, 2))
+        row = SavedCase.objects.get()
+        self.assertEqual((row.revision, row.schema_version), (2, 1))
+        self.assertNotIn('revision', row.snapshot)
+
+    def test_existing_rows_read_revision_one_after_the_migration(self):
+        executor = MigrationExecutor(connection)
+        target = executor.loader.graph.leaf_nodes('api')[0]
+        before = [('api', '0004_import_legacy_calculations')]
+        executor.migrate(before)
+        try:
+            old = MigrationExecutor(connection).loader.project_state(before).apps
+            owner = get_user_model().objects.create_user('old-owner')
+            row = old.get_model('api', 'SavedCase').objects.create(owner_id=owner.pk, snapshot={})
+        finally:
+            MigrationExecutor(connection).migrate([target])
+        self.assertEqual(SavedCase.objects.get(pk=row.pk).revision, 1)
+
+
+class LockBudgetTests(CommandBase):
+    def hold(self, key, locked, release, failures):
+        def run():
+            try:
+                with transaction.atomic():
+                    list(Session.objects.select_for_update().filter(session_key=key).values_list('pk', flat=True))
+                    locked.set()
+                    release.wait(30)
+            except BaseException:
+                failures.append(traceback.format_exc())
+                locked.set()
+            finally:
+                connections.close_all()
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        return thread
+
+    def test_a_held_session_row_gives_a_retryable_503_and_a_redacted_log(self):
+        case = self.ready()
+        key = self.client.cookies[settings.SESSION_COOKIE_NAME].value
+        raw, stored = self.raw_session(), self.stored()
+        locked, release, failures = threading.Event(), threading.Event(), []
+        thread = self.hold(key, locked, release, failures)
+        self.assertTrue(locked.wait(10))
+        try:
+            started = time.monotonic()
+            with self.assertLogs('mawareeth.case_lock', level='INFO') as logs:
+                response = self.heir(case, expected_revision=case['revision'] + 1)
+            elapsed_ms = (time.monotonic() - started) * 1000
+        finally:
+            release.set()
+            thread.join(30)
+        self.assertEqual(failures, [])
+        self.assertEqual(response.status_code, 503, response.content)
+        self.assertEqual(response.json(), {'error': 'busy', 'detail': 'The case is busy. Try again.',
+                                           'retryable': True})
+        self.assertEqual(response['Retry-After'], '1')
+        self.assertLess(elapsed_ms, settings.CASE_LOCK_TIMEOUT_MS + 1500)
+        self.assertEqual(self.raw_session(), raw)
+        self.assertEqual(self.stored(), stored)
+        records = [r for r in logs.records if r.name == 'mawareeth.case_lock']
+        self.assertTrue(any(r.outcome == 'timeout' and type(r.wait_ms) is int for r in records))
+        text = ' '.join(r.getMessage() + json.dumps(r.__dict__, default=str) for r in records)
+        self.assertNotIn(key, text)
+        self.assertNotIn(case['id'], text)
+
+    def test_an_acquired_lock_is_logged_with_its_wait(self):
+        case = self.ready()
+        with self.assertLogs('mawareeth.case_lock', level='INFO') as logs:
+            self.assertEqual(self.heir(case).status_code, 201)
+        self.assertTrue(any(r.outcome == 'acquired' and type(r.wait_ms) is int for r in logs.records))
+
+    def test_two_edits_at_the_same_revision_let_exactly_one_win(self):
+        case = self.ready()
+        revision = self.revision()
+        headers = self.csrf(self.client)
+        results, failures = [], []
+
+        def send():
+            try:
+                client = APIClient(enforce_csrf_checks=True)
+                client.cookies = self.client.cookies
+                results.append(client.post(
+                    HEIRS_URL, {'case_id': case['id'], 'relationship': 'son', 'expected_revision': revision},
+                    format='json', secure=True, headers=headers).status_code)
+            except BaseException:
+                failures.append(traceback.format_exc())
+            finally:
+                connections.close_all()
+
+        threads = [threading.Thread(target=send, daemon=True) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(60)
+        self.assertEqual(failures, [])
+        self.assertEqual(sorted(results), [201, 409])
+        self.assertEqual(self.revision(), revision + 1)
+        self.assertEqual(len(self.live()['heirs']), 1)
+
+
+class PreviewRevisionTests(CommandBase):
+    def test_a_preview_names_the_revision_it_was_computed_from(self):
+        case = self.ready()
+        self.heir(case)
+        live = self.live()
+        body = self.preview(live['id']).json()
+        self.assertEqual(body['revision'], live['revision'])
+        self.heir(case, 'daughter')
+        self.assertEqual(self.preview(live['id']).json()['revision'], live['revision'] + 1)

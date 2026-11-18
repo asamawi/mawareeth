@@ -1,6 +1,10 @@
+import logging
+import time
+
 from django.conf import settings
 from django.contrib.sessions.models import Session
-from django.db import transaction
+from django.db import OperationalError, connection, transaction
+from django.http import JsonResponse
 from django.middleware.security import SecurityMiddleware
 from django.urls import NoReverseMatch, reverse
 
@@ -40,6 +44,8 @@ class HealthCheckMiddleware:
         return self.get_response(request)
 
 
+logger = logging.getLogger("mawareeth.case_lock")
+LOCK_NOT_AVAILABLE = "55P03"
 _case_prefix = None
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
@@ -82,10 +88,52 @@ class CaseWriteLockMiddleware:
         key = request.COOKIES.get(settings.SESSION_COOKIE_NAME)
         if not key:
             return self.get_response(request)
-        with transaction.atomic():
-            self.lock(key)
-            return self.get_response(request)
+        try:
+            with transaction.atomic():
+                self.lock(key)
+                return self.get_response(request)
+        except OperationalError as error:
+            if is_lock_timeout(error):
+                return busy_response()
+            raise
 
     def lock(self, key):
-        # Evaluate the query: a lazy queryset would take no lock.
-        list(Session.objects.select_for_update().filter(session_key=key).values_list("pk", flat=True))
+        """Take the session row lock, waiting at most CASE_LOCK_TIMEOUT_MS.
+
+        The wait limit is local to the transaction, so it also bounds the saved-case row lock
+        taken later in the same request. Only the outcome and the wait are logged: never the
+        session key, the case or the body.
+        """
+        if connection.vendor == "postgresql":
+            with connection.cursor() as cursor:
+                cursor.execute(f"SET LOCAL lock_timeout = '{int(settings.CASE_LOCK_TIMEOUT_MS)}ms'")
+        started = time.monotonic()
+        outcome = "acquired"
+        try:
+            # Evaluate the query: a lazy queryset would take no lock.
+            list(Session.objects.select_for_update().filter(session_key=key).values_list("pk", flat=True))
+        except OperationalError as error:
+            if is_lock_timeout(error):
+                outcome = "timeout"
+            raise
+        finally:
+            wait_ms = int((time.monotonic() - started) * 1000)
+            logger.log(
+                logging.WARNING if outcome == "timeout" else logging.INFO,
+                "case lock outcome=%s wait_ms=%d", outcome, wait_ms,
+                extra={"outcome": outcome, "wait_ms": wait_ms})
+
+
+def is_lock_timeout(error):
+    """True when the database gave up waiting for a lock (SQLSTATE 55P03)."""
+    cause = error.__cause__
+    code = getattr(cause, "pgcode", None) or getattr(cause, "sqlstate", None)
+    return code == LOCK_NOT_AVAILABLE
+
+
+def busy_response():
+    """A retryable 503: another request holds the case, and nothing was changed."""
+    response = JsonResponse(
+        {"error": "busy", "detail": "The case is busy. Try again.", "retryable": True}, status=503)
+    response["Retry-After"] = "1"
+    return response

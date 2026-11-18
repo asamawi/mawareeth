@@ -171,6 +171,10 @@ class CaseTests(TestCase):
             return client.generic(
                 'PATCH', CASE_URL, raw, content_type='application/json', secure=True,
                 headers=self.csrf(client))
+        if isinstance(body, dict) and 'expected_revision' not in body and Session.objects.count() == 1:
+            stored = self.stored()
+            if isinstance(stored, dict):
+                body = {**body, 'expected_revision': anonymous_case.revision_of(stored)}
         return client.patch(CASE_URL, body, format='json', secure=True, headers=self.csrf(client))
 
     def stored(self):
@@ -198,7 +202,8 @@ class CaseTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         case = response.json()['case']
-        self.assertEqual(set(case), {'id', 'started_at', 'madhab', 'deceased', 'heirs', 'heir_options', 'deaths'})
+        self.assertEqual(
+            set(case), {'id', 'revision', 'started_at', 'madhab', 'deceased', 'heirs', 'heir_options', 'deaths'})
         self.assertIsNone(case['madhab'])
         self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
         self.assertEqual(self.client.get(CASE_URL, secure=True).json(), {'case': case})
@@ -342,7 +347,9 @@ class CaseTests(TestCase):
             with self.subTest(madhab=madhab):
                 response = self.patch({'madhab': madhab})
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.json()['case'], {**case, 'madhab': madhab})
+                expected = case['revision'] + 1 + anonymous_case.MADHABS.index(madhab)
+                self.assertEqual(response.json()['case'], {**case, 'madhab': madhab, 'revision': expected})
+                self.assertEqual(self.stored()['revision'], expected)
                 self.assertEqual(self.client.get(CASE_URL, secure=True).json()['case']['madhab'], madhab)
         self.assertEqual(Calculation.objects.count(), 0)
         self.assertEqual(Person.objects.count(), 0)
@@ -444,7 +451,7 @@ class CaseTests(TestCase):
         response = self.patch({'madhab': 'jafari', 'case_id': old['id']})
 
         self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.json()['case'], {**live, 'madhab': 'maliki'})
+        self.assertEqual(response.json()['case'], {**live, 'madhab': 'maliki', 'revision': live['revision'] + 1})
         self.assertEqual(self.stored()['madhab'], 'maliki')
 
     def test_the_matching_case_id_is_accepted(self):
@@ -544,8 +551,18 @@ class InterviewHelpers:
         token = client.get(SESSION_URL, secure=True).cookies[settings.CSRF_COOKIE_NAME].value
         return {'X-CSRFToken': token, 'Referer': 'https://testserver/app/en/interview/'}
 
+    def current_revision(self, client):
+        morsel = client.cookies.get(settings.SESSION_COOKIE_NAME)
+        row = Session.objects.filter(session_key=morsel.value).first() if morsel else None
+        stored = row.get_decoded().get(anonymous_case.SESSION_KEY) if row else None
+        return anonymous_case.revision_of(stored) if isinstance(stored, dict) else None
+
     def send(self, method, url, body, client=None):
         client = client or self.client
+        if isinstance(body, dict) and body.get('case_id') and 'expected_revision' not in body:
+            revision = self.current_revision(client)
+            if revision is not None:
+                body = {**body, 'expected_revision': revision}
         if method == 'delete':
             # DELETE carries the case id in the query string; a body may be dropped on the way.
             query = urlencode({k: v for k, v in body.items() if v is not None}) if isinstance(body, dict) else ''
@@ -960,7 +977,7 @@ class InterviewAnswerTests(InterviewBase):
         response = self.send('patch', CASE_URL, {'madhab': 'jafari', 'case_id': case['id']})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['case'], {**before, 'madhab': 'jafari'})
+        self.assertEqual(response.json()['case'], {**before, 'madhab': 'jafari', 'revision': before['revision'] + 1})
 
     def test_start_over_clears_the_answers(self):
         case = self.ready()
@@ -1091,7 +1108,8 @@ class InterviewReviewTests(InterviewBase):
     def test_a_lone_surrogate_in_a_name_is_a_json_400(self):
         case = self.ready()
         heirs = self.heir(case).json()['case']['heirs']
-        body = '{"case_id": "%s", "relationship": "son", "name": "a%sud800"}' % (case['id'], BACKSLASH)
+        body = '{"case_id": "%s", "expected_revision": %d, "relationship": "son", "name": "a%sud800"}' % (
+            case['id'], self.live()['revision'], BACKSLASH)
 
         for method, url in (('post', HEIRS_URL), ('put', f'{HEIRS_URL}{heirs[0]["id"]}/')):
             with self.subTest(method=method):
@@ -1169,7 +1187,8 @@ class InterviewReviewTests(InterviewBase):
         stale = self.client.delete(f'{url}?case_id={"b" * 32}', secure=True, headers=headers)
         self.assertEqual(stale.status_code, 409)
         self.assertEqual(self.live()['heirs'], heirs)
-        gone = self.client.delete(f'{url}?case_id={case["id"]}', secure=True, headers=headers)
+        gone = self.client.delete(
+            f'{url}?case_id={case["id"]}&expected_revision={self.live()["revision"]}', secure=True, headers=headers)
         self.assertEqual(gone.status_code, 200)
 
     def test_editing_an_heir_with_50_stored_succeeds(self):
@@ -1272,8 +1291,8 @@ def calc_sequences():
 
 
 def legacy_fields(body):
-    """A preview body without `presented`: the additive PresentedResult beside the unchanged legacy fields."""
-    return {k: v for k, v in body.items() if k != 'presented'}
+    """A preview body without the additive `presented` and `revision`: the unchanged legacy fields."""
+    return {k: v for k, v in body.items() if k not in ('presented', 'revision')}
 
 
 PREVIEW_FIXTURES = json.loads(
@@ -1283,6 +1302,14 @@ PREVIEW_FIXTURES = json.loads(
 # Engine-heavy tests are TransactionTestCase: inside TestCase's per-test transaction every
 # compute() and case write is a savepoint, and past 64 subtransactions PostgreSQL slows every query sharply.
 class PreviewTests(InterviewHelpers, TransactionTestCase):
+    def without_revision(self, body):
+        """The body minus its integer `revision`; any other key, such as `presented`, is kept."""
+        self.assertIs(type(body.get('revision')), int)
+        return {k: v for k, v in body.items() if k != 'revision'}
+
+    def not_ready_body(self, case_id):
+        return self.without_revision(self.preview(case_id).json())
+
     def preview(self, case_id, client=None, **extra):
         client = client or self.client
         url = f'{PREVIEW_URL}?{urlencode({"case_id": case_id})}' if case_id is not None else PREVIEW_URL
@@ -1603,18 +1630,18 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
 
     def test_not_ready_until_the_case_has_a_deceased_and_an_heir(self):
         case = self.start()
-        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.assertEqual(self.not_ready_body(case['id']), {'status': 'not_ready'})
         self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': 'hanbali'})
-        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.assertEqual(self.not_ready_body(case['id']), {'status': 'not_ready'})
         self.deceased(case)
-        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.assertEqual(self.not_ready_body(case['id']), {'status': 'not_ready'})
         self.heir(case, 'son')
         self.assertEqual(self.preview(case['id']).json()['status'], 'available')
 
     def test_a_case_with_no_school_is_ready_without_one(self):
         case = self.start()
         self.deceased(case)
-        self.assertEqual(self.preview(case['id']).json(), {'status': 'not_ready'})
+        self.assertEqual(self.not_ready_body(case['id']), {'status': 'not_ready'})
         self.heir(case, 'son')
         body = self.preview(case['id']).json()
         self.assertEqual((body['status'], body['madhab'], body['agreement']), ('available', None, 'all'))
@@ -1722,7 +1749,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                 body = self.preview(live['id']).json()
                 body.pop('basis')
                 self.assertEqual(body.pop('presented')['state'], 'refused')
-                self.assertEqual(body, {'status': 'unavailable', 'madhab': 'hanbali', 'reason': 'invalid_family'})
+                self.assertEqual(legacy_fields(body), {'status': 'unavailable', 'madhab': 'hanbali', 'reason': 'invalid_family'})
         # The edge of each rule still calculates.
         for gender, relationships in [('male', ['wife'] * 4), ('female', ['husband'])]:
             with self.subTest(ok=relationships):
@@ -2447,7 +2474,7 @@ class CaseWriteLockTests(TransactionTestCase):
     def with_deceased(self, headers):
         case = self.start(headers)
         response = self.client.put(
-            DECEASED_URL, {'case_id': case['id'], 'gender': 'male'}, format='json', secure=True, headers=headers)
+            DECEASED_URL, {'case_id': case['id'], 'gender': 'male', 'expected_revision': 1}, format='json', secure=True, headers=headers)
         self.assertEqual(response.status_code, 200)
         return case
 
@@ -2531,30 +2558,36 @@ class CaseWriteLockTests(TransactionTestCase):
         case = self.with_deceased(headers)
         other = self.twin()
 
-        def add(client, relationship):
+        revision = self.stored()['revision']
+
+        def add(client, relationship, expected):
+            # The second tab names the revision the first one's save will produce.
             return lambda: client.post(
-                HEIRS_URL, {'case_id': case['id'], 'relationship': relationship}, format='json',
-                secure=True, headers=headers)
+                HEIRS_URL, {'case_id': case['id'], 'relationship': relationship, 'expected_revision': expected},
+                format='json', secure=True, headers=headers)
 
         with self.hold_first():
-            first, second = self.run_pair(add(self.client, 'son'), add(other, 'daughter'))
+            first, second = self.run_pair(add(self.client, 'son', revision), add(other, 'daughter', revision + 1))
 
         self.assertEqual((first.status_code, second.status_code), (201, 201))
         self.assertEqual(
             sorted(heir['relationship'] for heir in self.stored()['heirs']), ['daughter', 'son'])
+        self.assertEqual(self.stored()['revision'], revision + 2)
 
     def test_heir_add_and_madhab_change_both_persist(self):
         headers = self.headers()
         case = self.with_deceased(headers)
         other = self.twin()
+        revision = self.stored()['revision']
 
         with self.hold_first():
             first, second = self.run_pair(
                 lambda: self.client.post(
-                    HEIRS_URL, {'case_id': case['id'], 'relationship': 'son'}, format='json',
-                    secure=True, headers=headers),
+                    HEIRS_URL, {'case_id': case['id'], 'relationship': 'son', 'expected_revision': revision},
+                    format='json', secure=True, headers=headers),
                 lambda: other.patch(
-                    CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'}, format='json',
+                    CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi', 'expected_revision': revision + 1},
+                    format='json',
                     secure=True, headers=headers))
 
         self.assertEqual((first.status_code, second.status_code), (201, 200))
@@ -2570,8 +2603,8 @@ class CaseWriteLockTests(TransactionTestCase):
         with self.hold_first():
             first, second = self.run_pair(
                 lambda: self.client.put(
-                    DECEASED_URL, {'case_id': case['id'], 'gender': 'male'}, format='json',
-                    secure=True, headers=headers),
+                    DECEASED_URL, {'case_id': case['id'], 'gender': 'male', 'expected_revision': 1},
+                    format='json', secure=True, headers=headers),
                 lambda: other.post(
                     CASE_URL, {'replace': True, 'case_id': case['id']}, format='json',
                     secure=True, headers=headers))
@@ -2593,8 +2626,8 @@ class CaseWriteLockTests(TransactionTestCase):
             self.spawn(
                 'first',
                 lambda: self.client.patch(
-                    CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'}, format='json',
-                    secure=True, headers=headers),
+                    CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi', 'expected_revision': 1},
+                    format='json', secure=True, headers=headers),
                 results)
             self.assertTrue(self.entered.wait(self.WAIT), 'The write never reached the view.')
             # The write is still held: the preview must answer anyway.
@@ -2647,7 +2680,8 @@ class CaseWriteLockTests(TransactionTestCase):
         self.assertEqual(refused.status_code, 400)
         # The lock was released: a later write goes through.
         again = self.client.patch(
-            CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'}, format='json', secure=True, headers=headers)
+            CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi', 'expected_revision': 1}, format='json',
+            secure=True, headers=headers)
         self.assertEqual(again.status_code, 200)
 
         # A stale tab is refused with the live case, and the lock is released after it too.
@@ -2659,7 +2693,8 @@ class CaseWriteLockTests(TransactionTestCase):
         self.assertEqual(stale.status_code, 409)
         self.assertEqual(stale.json()['case']['id'], fresh.json()['case']['id'])
         after = self.client.put(
-            DECEASED_URL, {'case_id': fresh.json()['case']['id'], 'gender': 'male'}, format='json',
+            DECEASED_URL, {'case_id': fresh.json()['case']['id'], 'gender': 'male', 'expected_revision': 1},
+            format='json',
             secure=True, headers=headers)
         self.assertEqual(after.status_code, 200)
 
@@ -2771,11 +2806,11 @@ class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, Transaction
         self.assertEqual(case['deaths'][0]['heirs'][0]['name'], 'W')
         self.assertNotIn('same_as', case['deaths'][0]['heirs'][0])
         self.assertEqual(self.preview(self.case_id).status_code, 200)
-        self.send('delete', DEATHS_URL + self.s1 + '/', {'case_id': self.case_id})
+        self.send('delete', DEATHS_URL + self.s1 + '/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
         self.assertEqual(self.live()['deaths'], [])
         self.two()
         self.mark(self.w)
-        self.send('delete', HEIRS_URL + self.s1 + '/', {'case_id': self.case_id})
+        self.send('delete', HEIRS_URL + self.s1 + '/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
         self.assertEqual(len(self.live()['deaths']), 1)
         self.assertEqual(self.live()['deaths'][0]['order'], 2)
         self.assertEqual(self.live()['deaths'][0]['heir_id'], self.w)
@@ -2876,7 +2911,7 @@ class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, Transaction
         self.assertEqual(body['status'], 'available')
         self.assertEqual({r['heir_id']: (r['numerator'], r['denominator']) for r in body['shares']},
                          {self.w: (13, 48), self.s2: (119, 192), son: (7, 64)})
-        self.send('delete', HEIRS_URL + self.s1 + '/', {'case_id': self.case_id})
+        self.send('delete', HEIRS_URL + self.s1 + '/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
         self.assertEqual(self.live()['deaths'], [])
 
     def test_layered_engine_reason_is_preserved_without_numbers(self):
@@ -3140,7 +3175,9 @@ class AutomaticRelativesTests(InterviewDeathsHelpers, InterviewHelpers, Transact
         self.assertEqual(self.mark(s1).status_code, 201)
         self.assertEqual(self.live()['deaths'][0]['heirs'], [])
         response = self.preview(self.case_id)
-        self.assertEqual(response.json(), {'status': 'not_ready'})
+        body = response.json()
+        self.assertIs(type(body.pop('revision')), int)
+        self.assertEqual(body, {'status': 'not_ready'})
 
     def test_same_as_gender_mismatch_in_a_later_layer(self):
         s1, s2 = self.family('male', ['son', 'son'])

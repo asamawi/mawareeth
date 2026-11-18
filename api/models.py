@@ -6,6 +6,7 @@ class SavedCase(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     snapshot = models.JSONField()
     schema_version = models.PositiveIntegerField(default=1)
+    revision = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

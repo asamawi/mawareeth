@@ -14,7 +14,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.test import SimpleTestCase, TransactionTestCase, override_settings
 from django.urls import reverse
-from django.utils import translation
+from django.utils import timezone, translation
 from rest_framework.test import APIClient
 
 from api import anonymous_case
@@ -299,6 +299,8 @@ class DraftEndpointTests(TransactionTestCase):
         self.fixture = copy.deepcopy(AVAILABLE[0])
         self.case = self.fixture['case']
         session = self.client.session
+        # The fixtures carry old dates; a guest case idle for a day is expired.
+        self.case['changed_at'] = timezone.now().isoformat()
         session[anonymous_case.SESSION_KEY] = self.case
         session.save()
 
@@ -332,7 +334,7 @@ class DraftEndpointTests(TransactionTestCase):
     def test_successive_deaths_use_final_shares_and_per_death_proof(self):
         for count in (1, 2):
             fixture = next(f for f in AVAILABLE if len(f['case'].get('deaths', [])) == count)
-            case = fixture['case']
+            case = {**fixture['case'], 'changed_at': timezone.now().isoformat()}
             session = self.client.session
             session[anonymous_case.SESSION_KEY] = case
             session.save()
@@ -356,6 +358,7 @@ class DraftEndpointTests(TransactionTestCase):
 
     def plant_fixture(self, title):
         case = copy.deepcopy(next(f for f in FIXTURES if f['title'] == title)['case'])
+        case['changed_at'] = timezone.now().isoformat()
         session = self.client.session
         session[anonymous_case.SESSION_KEY] = case
         session.save()

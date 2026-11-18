@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { noHeirOptions, parsePreview, PREVIEW_REASONS, type Case, type Preview } from "../api/case.ts";
 import { locales, messages } from "../i18n/messages.ts";
 import { previewFixtures } from "../test/preview-fixtures.ts";
-import { basisKey, previewKey, previewReady, previewRows, reconcile, shown } from "./preview.ts";
+import { acceptRevision, basisKey, previewKey, previewReady, previewRows, reconcile, shown } from "./preview.ts";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const read = (name: string) => JSON.parse(readFileSync(join(dir, "..", "..", "..", "api", "contracts", name), "utf8"));
@@ -36,6 +36,7 @@ const contract = read("interview.json") as { previewReasons: string[] };
 
 const BASE: Case = {
   id: "c1",
+  revision: 5,
   started_at: "2026-11-07T10:00:00Z",
   madhab: "hanbali",
   deceased: { gender: "male", estate: "8000" },
@@ -325,4 +326,17 @@ test("a refusal every school shares has no school and no choice", () => {
   const preview = parsePreview({ ...body, basis: { madhab: null, gender: "male", estate: "8000", heirs: body.basis.heirs } });
   assert.ok(preview && preview.status === "unavailable");
   assert.equal(preview.madhab, null);
+});
+
+test("a preview is kept only for the revision of the case on screen", () => {
+  const preview = { status: "not_ready" } as const;
+  assert.deepEqual(acceptRevision(4, { kind: "preview", preview, revision: 4 }), { kind: "preview", preview, revision: 4 });
+  assert.equal(acceptRevision(4, { kind: "preview", preview, revision: 3 }), null, "an older preview is discarded");
+  assert.deepEqual(acceptRevision(4, { kind: "preview", preview, revision: 5 }), { kind: "replaced" });
+  assert.deepEqual(acceptRevision(4, { kind: "preview", preview }), { kind: "preview", preview }, "no revision, nothing to compare");
+  assert.deepEqual(acceptRevision(4, { kind: "failed" }), { kind: "failed" });
+});
+
+test("every locale words the offline block", () => {
+  for (const locale of locales) assert.ok(messages[locale].interview.offlineEditing.length > 0, locale);
 });

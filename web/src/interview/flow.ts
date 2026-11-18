@@ -134,20 +134,21 @@ export type Deps = {
   fetchCase: (signal: AbortSignal) => Promise<Case | null>;
   startCase: (
     signal: AbortSignal,
-    options: { replace: boolean; caseId?: string },
+    options: { replace: boolean; caseId?: string; revision?: number | null },
   ) => Promise<StartResult>;
-  setMadhab: (signal: AbortSignal, madhab: MadhabId, caseId: string) => Promise<MadhabResult>;
-  saveDeceased: (signal: AbortSignal, caseId: string, fields: DeceasedFields) => Promise<AnswerResult>;
-  addHeir: (signal: AbortSignal, caseId: string, fields: HeirFields) => Promise<AnswerResult>;
+  setMadhab: (signal: AbortSignal, madhab: MadhabId, caseId: string, revision: number | null) => Promise<MadhabResult>;
+  saveDeceased: (signal: AbortSignal, caseId: string, revision: number | null, fields: DeceasedFields) => Promise<AnswerResult>;
+  addHeir: (signal: AbortSignal, caseId: string, revision: number | null, fields: HeirFields) => Promise<AnswerResult>;
   updateHeir: (
     signal: AbortSignal,
     caseId: string,
+    revision: number | null,
     heirId: string,
     fields: HeirFields,
   ) => Promise<AnswerResult>;
-  removeHeir: (signal: AbortSignal, caseId: string, heirId: string) => Promise<AnswerResult>;
-  markDeceased: (signal: AbortSignal, caseId: string, heirId: string, first?: string, answers?: RelativeAnswers) => Promise<AnswerResult>;
-  unmarkDeceased: (signal: AbortSignal, caseId: string, heirId: string) => Promise<AnswerResult>;
+  removeHeir: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string) => Promise<AnswerResult>;
+  markDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, first?: string, answers?: RelativeAnswers) => Promise<AnswerResult>;
+  unmarkDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string) => Promise<AnswerResult>;
   /** Whether this browser has seen a case before; the only way to tell expired from new. */
   seen: { get: () => boolean; set: (value: boolean) => void };
   /** The selection in progress in this tab. */
@@ -620,7 +621,7 @@ export async function runAction(
   const replacing = action === "startOver";
   const result = await deps.startCase(signal, {
     replace: replacing,
-    ...(replacing && existing ? { caseId: existing.id } : {}),
+    ...(replacing && existing ? { caseId: existing.id, revision: existing.revision } : {}),
   });
   switch (result.kind) {
     case "started":
@@ -649,7 +650,7 @@ async function choose(
     deps.selection.set(null);
     return { ...from, changing: false, notice: null, saving: false };
   }
-  const result = await deps.setMadhab(signal, madhab, from.case.id);
+  const result = await deps.setMadhab(signal, madhab, from.case.id, from.case.revision);
   switch (result.kind) {
     case "updated":
       deps.selection.set(null);
@@ -683,25 +684,26 @@ async function choose(
 
 function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerResult> {
   const caseId = answer.from.case.id;
+  const revision = answer.from.case.revision;
   switch (answer.kind) {
     case "saveDeceased":
-      return deps.saveDeceased(signal, caseId, validateDeceased(answer.values).fields as DeceasedFields);
+      return deps.saveDeceased(signal, caseId, revision, validateDeceased(answer.values).fields as DeceasedFields);
     case "addHeir": {
       const fields = validateHeir(answer.values).fields as HeirFields;
-      return deps.addHeir(signal, caseId, answer.from.layer === null ? fields : { ...fields, layer: answer.from.layer });
+      return deps.addHeir(signal, caseId, revision, answer.from.layer === null ? fields : { ...fields, layer: answer.from.layer });
     }
     case "saveHeir":
-      return deps.updateHeir(signal, caseId, answer.heirId, validateHeir(answer.values).fields as HeirFields);
+      return deps.updateHeir(signal, caseId, revision, answer.heirId, validateHeir(answer.values).fields as HeirFields);
     case "removeHeir":
-      return deps.removeHeir(signal, caseId, answer.heirId);
+      return deps.removeHeir(signal, caseId, revision, answer.heirId);
     case "markDeath": {
       const pending = answer.from.ordering === answer.rowId;
-      return deps.markDeceased(signal, caseId, answer.rowId,
+      return deps.markDeceased(signal, caseId, revision, answer.rowId,
         answer.first ?? (pending ? answer.from.deathFirst : undefined),
         { ...(pending ? openAnswers(answer.from) : {}), ...answer.answers });
     }
     case "unmarkDeath":
-      return deps.unmarkDeceased(signal, caseId, answer.heirId);
+      return deps.unmarkDeceased(signal, caseId, revision, answer.heirId);
   }
 }
 

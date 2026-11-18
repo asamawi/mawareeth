@@ -38,9 +38,10 @@ import {
 } from "./flow.ts";
 import type { Selection } from "./madhabs.ts";
 
-const CASE: Case = { id: "abc12345", started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} }, deaths: [] };
+const CASE: Case = { id: "abc12345", revision: 3, started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} }, deaths: [] };
 const NEW_CASE: Case = {
   id: "def67890",
+  revision: 1,
   started_at: "2026-11-06T11:00:00Z",
   madhab: null,
   deceased: null,
@@ -86,11 +87,14 @@ function deps(options: {
     seen: options.seen ?? false,
     chooses: [] as string[],
     chooseCaseIds: [] as string[],
+    revisions: [] as (number | null)[],
+    startRevisions: [] as (number | null | undefined)[],
     selection: options.selection ?? (null as Selection | null),
     form: options.form ?? (null as FormRecord | null),
     answers: [] as { call: string; caseId: string; fields?: unknown; heirId?: string }[],
   };
-  const answerWith = (call: string, caseId: string, extra: { fields?: unknown; heirId?: string }) => {
+  const answerWith = (call: string, caseId: string, extra: { fields?: unknown; heirId?: string }, revision: number | null) => {
+    log.revisions.push(revision);
     log.answers.push({ call, caseId, ...extra });
     return (options.answer ?? (() => ({ kind: "failed" }) as AnswerResult))(call);
   };
@@ -99,24 +103,26 @@ function deps(options: {
       log.reads += 1;
       return (options.read ?? (async () => null))();
     },
-    startCase: async (_signal, { replace, caseId }) => {
+    startCase: async (_signal, { replace, caseId, revision }) => {
+      log.startRevisions.push(revision);
       log.starts.push(replace);
       log.startCaseIds.push(caseId);
       return (options.start ?? (() => ({ kind: "failed" }) as StartResult))(replace);
     },
-    setMadhab: async (_signal, madhab, caseId) => {
+    setMadhab: async (_signal, madhab, caseId, revision) => {
       log.chooses.push(madhab);
       log.chooseCaseIds.push(caseId);
+      log.revisions.push(revision);
       return (options.choose ?? (() => ({ kind: "failed" }) as MadhabResult))(madhab, caseId);
     },
-    saveDeceased: async (_signal, caseId, fields) => answerWith("saveDeceased", caseId, { fields }),
-    addHeir: async (_signal, caseId, fields) => answerWith("addHeir", caseId, { fields }),
-    updateHeir: async (_signal, caseId, heirId, fields) =>
-      answerWith("updateHeir", caseId, { heirId, fields }),
-    removeHeir: async (_signal, caseId, heirId) => answerWith("removeHeir", caseId, { heirId }),
-    markDeceased: async (_signal, caseId, heirId, first) =>
-      answerWith("markDeceased", caseId, { heirId, ...(first === undefined ? {} : { fields: { first } }) }),
-    unmarkDeceased: async (_signal, caseId, heirId) => answerWith("unmarkDeceased", caseId, { heirId }),
+    saveDeceased: async (_signal, caseId, revision, fields) => answerWith("saveDeceased", caseId, { fields }, revision),
+    addHeir: async (_signal, caseId, revision, fields) => answerWith("addHeir", caseId, { fields }, revision),
+    updateHeir: async (_signal, caseId, revision, heirId, fields) =>
+      answerWith("updateHeir", caseId, { heirId, fields }, revision),
+    removeHeir: async (_signal, caseId, revision, heirId) => answerWith("removeHeir", caseId, { heirId }, revision),
+    markDeceased: async (_signal, caseId, revision, heirId, first) =>
+      answerWith("markDeceased", caseId, { heirId, ...(first === undefined ? {} : { fields: { first } }) }, revision),
+    unmarkDeceased: async (_signal, caseId, revision, heirId) => answerWith("unmarkDeceased", caseId, { heirId }, revision),
     seen: { get: () => log.seen, set: (next) => (log.seen = next) },
     selection: { get: () => log.selection, set: (next) => (log.selection = next) },
     forms: { get: () => log.form, set: (next) => (log.form = next) },
@@ -1776,7 +1782,7 @@ test("relative and order questions stay together and a single resend carries bot
   assert.deepEqual(refused.case, from.case);
   assert.equal(refused.focus?.target, "death-order");
   let sent: unknown;
-  value.markDeceased = async (_signal, _caseId, _heirId, first, answers) => {
+  value.markDeceased = async (_signal, _caseId, _revision, _heirId, first, answers) => {
     sent = { first, answers };
     return { kind: "saved", case: TWO_LAYERS };
   };
@@ -1803,7 +1809,7 @@ test("a relatives-only refusal focuses the questions, retaining choices on failu
 test("the per-row female answers retain the shared-father answer from the earlier question", async () => {
   const { value } = deps({});
   let sent: unknown;
-  value.markDeceased = async (_signal, _caseId, _heirId, _first, answers) => {
+  value.markDeceased = async (_signal, _caseId, _revision, _heirId, _first, answers) => {
     sent = answers;
     return { kind: "saved", case: TWO_LAYERS };
   };
@@ -1822,7 +1828,7 @@ test("the per-row female answers retain the shared-father answer from the earlie
 test("a resend drops stored answers for questions that are no longer open", async () => {
   const { value } = deps({});
   let sent: unknown;
-  value.markDeceased = async (_signal, _caseId, _heirId, _first, answers) => {
+  value.markDeceased = async (_signal, _caseId, _revision, _heirId, _first, answers) => {
     sent = answers;
     return { kind: "saved", case: TWO_LAYERS };
   };
@@ -1838,11 +1844,34 @@ test("a resend drops stored answers for questions that are no longer open", asyn
 test("questions for one death never supply answers to a different person's death", async () => {
   const { value } = deps({});
   let sent: unknown;
-  value.markDeceased = async (_signal, _caseId, heirId, first, answers) => {
+  value.markDeceased = async (_signal, _caseId, _revision, heirId, first, answers) => {
     sent = { heirId, first, answers };
     return { kind: "saved", case: TWO_LAYERS };
   };
   const from = startedOf(FAMILY, true, { ordering: "s2", deathFirst: "s2", deathAnswers: { relatives: { w: "none" } } });
   await runAction("markDeath", signal, value, FAMILY, undefined, { kind: "markDeath", from, rowId: "s1" });
   assert.deepEqual(sent, { heirId: "s1", first: undefined, answers: {} });
+});
+
+test("every write and the start over carry the revision of the case the page shows", async () => {
+  const shown: Case = { ...TWO_LAYERS, revision: 3 };
+  const answers: Answer[] = [
+    { kind: "saveDeceased", from: startedOf(shown, true), values: { gender: "male", estate: "" } },
+    { kind: "addHeir", from: startedOf(shown, true), values: { relationship: "son", name: "Amal" } },
+    { kind: "saveHeir", from: startedOf(shown, true), heirId: "w", values: { relationship: "wife", name: "Amal" } },
+    { kind: "removeHeir", from: startedOf(shown, true), heirId: "s2" },
+    { kind: "markDeath", from: startedOf(shown, true), rowId: "s2" },
+    { kind: "unmarkDeath", from: startedOf(shown, true), heirId: "s1", rowId: "s1" },
+  ];
+  for (const answer of answers) {
+    const { value, log } = deps({ answer: () => ({ kind: "failed" }) });
+    await runAction(answer.kind, signal, value, shown, undefined, answer);
+    assert.deepEqual(log.revisions, [3], answer.kind);
+  }
+  const choosing = deps({ choose: () => ({ kind: "failed" }) });
+  await runAction("choose", signal, choosing.value, shown, { madhab: "jafari", from: startedOf(shown, true) });
+  assert.deepEqual(choosing.log.revisions, [3], "choose");
+  const starting = deps({ start: () => ({ kind: "failed" }) });
+  await runAction("startOver", signal, starting.value, shown);
+  assert.deepEqual(starting.log.startRevisions, [3], "startOver");
 });

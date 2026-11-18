@@ -1,8 +1,8 @@
 import { expect, test as base, type Page, type Route } from "@playwright/test";
 
-export type CaseBody = { id: string; started_at: string };
+export type CaseBody = { id: string; revision: number; started_at: string };
 
-export const CASE: CaseBody = { id: "0123456789abcdef", started_at: "2026-11-13T00:00:00Z" };
+export const CASE: CaseBody = { id: "0123456789abcdef", revision: 1, started_at: "2026-11-13T00:00:00Z" };
 
 type Answer = (route: Route) => Promise<void> | void;
 
@@ -31,7 +31,7 @@ export const startedCase = (id = CASE.id) => json(201, { case: { ...CASE, id } }
 export function fullCase(fixtureCase: Record<string, unknown>, changes: Record<string, unknown> = {}) {
   const options = { blocked: [], invalid: {} };
   const heirs = fixtureCase.heirs as Record<string, unknown>[];
-  return { ...fixtureCase, heir_options: options, heirs: heirs.map((heir) => ({ ...heir, edit_options: options })), deaths: [], ...changes };
+  return { revision: 1, ...fixtureCase, heir_options: options, heirs: heirs.map((heir) => ({ ...heir, edit_options: options })), deaths: [], ...changes };
 }
 
 export class Api {

@@ -74,6 +74,17 @@ export function reconcile(key: string, caseId: string, outcome: PreviewResult): 
 }
 
 /**
+ * Keeps a preview only when it was computed from the revision of the case on screen. An older
+ * one is discarded (null: never displayed, never stored); a newer one means this tab's case is
+ * stale, which reads like a 409. A body with no revision (shared or legacy) is kept.
+ */
+export function acceptRevision(revision: number | null, outcome: PreviewResult): PreviewResult | null {
+  if (outcome.kind !== "preview" || outcome.revision === undefined || revision === null) return outcome;
+  if (outcome.revision < revision) return null;
+  return outcome.revision > revision ? { kind: "replaced" } : outcome;
+}
+
+/**
  * Whether the case has what the engine needs: a deceased and at least one heir, and every person
  * who died has heirs of their own. A school is not needed: without one the server compares the four.
  */

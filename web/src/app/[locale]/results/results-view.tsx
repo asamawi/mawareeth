@@ -186,7 +186,7 @@ function ChooseSchool({
     request.current = own;
     setSaving(true);
     setFailed(null);
-    const result = await setMadhab(own.signal, madhab, kase.id);
+    const result = await setMadhab(own.signal, madhab, kase.id, kase.revision);
     if (!mounted.current || own.signal.aborted) return;
     if (result.kind === "updated" || result.kind === "replaced" || result.kind === "gone") onChosen();
     else setFailed(result.kind);

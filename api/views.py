@@ -3,6 +3,8 @@ import traceback
 
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+from django.db import OperationalError, transaction
+from django.db.models import F
 from django.contrib.auth.decorators import login_not_required
 from django.shortcuts import get_object_or_404
 from django.utils import timezone, translation
@@ -15,11 +17,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api import anonymous_case, invites, preview, sharing
+from api import anonymous_case, case_commands, invites, preview, sharing
 from api.snapshots import READ_VERSIONS, SnapshotError, decode
 from api.models import SavedCase, ShareInvite, ShareLink
 from api.permissions import CsrfProtectedWrites
 from api.throttling import CasePreviewThrottle, CaseWriteThrottle, ShareInviteThrottle, ShareViewThrottle
+from mawareeth.middleware import busy_response, is_lock_timeout
 from reports.status import report_status
 
 logger = logging.getLogger(__name__)
@@ -58,7 +61,10 @@ class CaseView(ApiView):
     throttle_classes = [CaseWriteThrottle]
 
     def get(self, request):
-        return Response({'case': anonymous_case.get(request)})
+        case = anonymous_case.get(request)
+        if case is None and anonymous_case.is_expired(request):
+            return Response({'case': None, 'code': 'expired'})
+        return Response({'case': case})
 
     def post(self, request):
         data = request.data if isinstance(request.data, dict) else {}
@@ -79,9 +85,14 @@ class CaseView(ApiView):
         # A tab confirming "start over" names the case it showed; replacing a newer one is refused.
         meant = data.get('case_id')
         if existing and replace and isinstance(meant, str) and meant != existing['id']:
+            return conflict_response(existing)
+        # A tab that names the revision it showed must still be looking at that revision.
+        if 'expected_revision' in data and not case_commands.valid_revision(data['expected_revision']):
             return Response(
-                {'detail': 'That case is no longer the current one.', 'case': existing},
-                status=status.HTTP_409_CONFLICT)
+                {'error': 'invalid_revision', 'detail': 'expected_revision must be an integer.'},
+                status=status.HTTP_400_BAD_REQUEST)
+        if existing and 'expected_revision' in data and data['expected_revision'] != existing['revision']:
+            return conflict_response(existing)
         if existing and not replace:
             return Response({'detail': 'A case already exists.', 'case': existing}, status=status.HTTP_409_CONFLICT)
         return Response({'case': anonymous_case.start(request)}, status=status.HTTP_201_CREATED)
@@ -93,17 +104,12 @@ class CaseView(ApiView):
         case_id = data.get('case_id')
         if case_id is not None and not isinstance(case_id, str):
             return Response({'detail': 'case_id must be a string.'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            case = anonymous_case.set_madhab(request, data.get('madhab'), case_id)
-        except ValueError:
+        madhab = data.get('madhab')
+        if not isinstance(madhab, str) or madhab not in anonymous_case.MADHABS:
             return Response({'detail': 'Unknown madhab.'}, status=status.HTTP_400_BAD_REQUEST)
-        except anonymous_case.StaleCase as stale:
-            return Response(
-                {'detail': 'That case is no longer the current one.', 'case': stale.case},
-                status=status.HTTP_409_CONFLICT)
-        if case is None:
-            raise NotFound()
-        return Response({'case': case})
+        return respond_to_command(
+            request, 'set_basis', data, case_id,
+            lambda: anonymous_case.set_madhab(request, madhab, case_id))
 
 
 @method_decorator(never_cache, name='dispatch')
@@ -113,10 +119,11 @@ class CaseWriteView(ApiView):
     permission_classes = [CsrfProtectedWrites]
     throttle_classes = [CaseWriteThrottle]
 
-    def write(self, request, action, success=status.HTTP_200_OK, data=None):
-        """Run `action(data, case_id)`, which returns the case or None when there is none.
+    def write(self, request, command, action, success=status.HTTP_200_OK, data=None, impact=None):
+        """Run `action(data, case_id)` as the command `command` and answer with the whole case.
 
-        `data` replaces the request body for a write that carries its input elsewhere.
+        `data` replaces the request body for a write that carries its input elsewhere. `impact`
+        is `impact(case, data)` for a command that can drop other people.
         """
         data = request.data if data is None else data
         if not isinstance(data, dict):
@@ -124,30 +131,89 @@ class CaseWriteView(ApiView):
         case_id = data.get('case_id')
         if not isinstance(case_id, str) or not case_id:
             return Response({'detail': 'case_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            case = action(data, case_id)
-        except anonymous_case.FieldErrors as invalid:
-            return Response(
-                {'detail': 'Invalid input.', 'errors': invalid.errors,
-                 **({'questions': invalid.questions} if invalid.questions is not None else {})}, status=status.HTTP_400_BAD_REQUEST)
-        except anonymous_case.StaleCase as stale:
-            return Response(
-                {'detail': 'That case is no longer the current one.', 'case': stale.case},
-                status=status.HTTP_409_CONFLICT)
-        except anonymous_case.HeirNotFound as missing:
-            return Response(
-                {'detail': 'That heir no longer exists.', 'case': missing.case},
-                status=status.HTTP_404_NOT_FOUND)
-        if case is None:
-            return Response({'detail': 'There is no current case.', 'case': None}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'case': case}, status=success)
+        return respond_to_command(
+            request, command, data, case_id, lambda: action(data, case_id), success=success,
+            impact=None if impact is None else (lambda case: impact(case, data)))
+
+
+def conflict_response(case):
+    return Response(
+        {'error': 'conflict', 'detail': 'That case is no longer the current one.', 'case': case},
+        status=status.HTTP_409_CONFLICT)
+
+
+def respond_to_command(request, command, data, case_id, run, success=status.HTTP_200_OK, impact=None):
+    """Run one case command through the service and map its outcomes to responses."""
+    try:
+        case = case_commands.execute(
+            request, command, case_id=case_id, expected_revision=data.get('expected_revision'),
+            run=run, impact=impact, confirm=data.get('confirm_cascade') is True)
+    except anonymous_case.FieldErrors as invalid:
+        return Response(
+            {'detail': 'Invalid input.', 'errors': invalid.errors,
+             **({'questions': invalid.questions} if invalid.questions is not None else {})},
+            status=status.HTTP_400_BAD_REQUEST)
+    except anonymous_case.StaleCase as stale:
+        return conflict_response(stale.case)
+    except case_commands.Conflict as conflict:
+        return conflict_response(conflict.case)
+    except case_commands.InvalidRevision:
+        return Response(
+            {'error': 'invalid_revision', 'detail': 'expected_revision must be an integer.'},
+            status=status.HTTP_400_BAD_REQUEST)
+    except case_commands.CascadeUnconfirmed as unconfirmed:
+        return Response(
+            {'error': 'cascade_unconfirmed', 'detail': 'This change needs confirmation.',
+             'impact': unconfirmed.impact, 'case': unconfirmed.case},
+            status=status.HTTP_409_CONFLICT)
+    except case_commands.OverCapacity:
+        return Response(
+            {'error': 'over_capacity',
+             'detail': f'A layer holds at most {anonymous_case.MAX_HEIRS} heirs.'},
+            status=status.HTTP_400_BAD_REQUEST)
+    except case_commands.InvalidInput as invalid:
+        return Response(
+            {'error': 'invalid_input', 'detail': 'Invalid input.', 'errors': invalid.errors},
+            status=status.HTTP_400_BAD_REQUEST)
+    except case_commands.InvalidSnapshot:
+        return Response(
+            {'error': 'invalid_snapshot', 'detail': 'That snapshot cannot be restored.'},
+            status=status.HTTP_400_BAD_REQUEST)
+    except anonymous_case.HeirNotFound as missing:
+        return Response(
+            {'detail': 'That heir no longer exists.', 'case': missing.case},
+            status=status.HTTP_404_NOT_FOUND)
+    if case is None:
+        return no_case_response(request)
+    return Response({'case': case}, status=success)
+
+
+def no_case_response(request):
+    body = {'detail': 'There is no current case.', 'case': None}
+    if anonymous_case.is_expired(request):
+        body['code'] = 'expired'
+    return Response(body, status=status.HTTP_404_NOT_FOUND)
+
+
+def _query_data(request):
+    """The body of a DELETE, which carries its input in the query string."""
+    params = request.query_params
+    revision = params.get('expected_revision')
+    if revision is not None and revision.isascii() and revision.isdigit():
+        revision = int(revision)
+    return {
+        'case_id': params.get('case_id'),
+        'expected_revision': revision,
+        'confirm_cascade': params.get('confirm_cascade') == 'true',
+    }
 
 
 class DeceasedView(CaseWriteView):
     """Store the deceased on the visitor's case."""
 
     def put(self, request):
-        return self.write(request, lambda data, case_id: anonymous_case.set_deceased(request, data, case_id))
+        return self.write(
+            request, 'set_deceased', lambda data, case_id: anonymous_case.set_deceased(request, data, case_id))
 
 
 class HeirsView(CaseWriteView):
@@ -155,8 +221,26 @@ class HeirsView(CaseWriteView):
 
     def post(self, request):
         return self.write(
-            request, lambda data, case_id: anonymous_case.add_heir(request, data, case_id),
+            request, 'add_heir', lambda data, case_id: anonymous_case.add_heir(request, data, case_id),
             success=status.HTTP_201_CREATED)
+
+
+class BulkHeirsView(CaseWriteView):
+    """Add many heirs to one layer, all or nothing."""
+
+    def post(self, request):
+        return self.write(
+            request, 'bulk_add', lambda data, case_id: case_commands.bulk_add(
+                request, data.get('heirs'), case_id, data.get('layer')),
+            success=status.HTTP_201_CREATED)
+
+
+class RestoreView(CaseWriteView):
+    """Replace the inputs with a snapshot the case exported."""
+
+    def post(self, request):
+        return self.write(
+            request, 'restore', lambda data, case_id: case_commands.restore(request, data.get('snapshot'), case_id))
 
 
 class HeirView(CaseWriteView):
@@ -164,13 +248,13 @@ class HeirView(CaseWriteView):
 
     def put(self, request, heir_id):
         return self.write(
-            request, lambda data, case_id: anonymous_case.update_heir(request, heir_id, data, case_id))
+            request, 'edit_heir', lambda data, case_id: anonymous_case.update_heir(request, heir_id, data, case_id))
 
     def delete(self, request, heir_id):
         # Intermediaries may drop a DELETE body, so the case id travels in the query string.
         return self.write(
-            request, lambda data, case_id: anonymous_case.remove_heir(request, heir_id, case_id),
-            data={'case_id': request.query_params.get('case_id')})
+            request, 'remove_heir', lambda data, case_id: anonymous_case.remove_heir(request, heir_id, case_id),
+            data=_query_data(request), impact=lambda case, data: case_commands.remove_impact(case, heir_id))
 
 
 class NotFoundView(ApiView):
@@ -213,14 +297,14 @@ class PreviewView(ApiView):
             return Response({'detail': 'case_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
         case = anonymous_case.get(request)
         if case is None:
-            return Response({'detail': 'There is no current case.', 'case': None}, status=status.HTTP_404_NOT_FOUND)
+            return no_case_response(request)
         if case['id'] != case_id:
             return Response(
                 {'detail': 'That case is no longer the current one.', 'case': case},
                 status=status.HTTP_409_CONFLICT)
         try:
             with translation.override(_asked_language(request)):
-                body = preview.preview(case)
+                body = {**preview.preview(case), 'revision': case['revision']}
         except Exception as error:
             # The kind of error and where it came from, never its message or locals: the case
             # holds names and amounts.
@@ -233,15 +317,16 @@ class PreviewView(ApiView):
 
 class DeathsView(CaseWriteView):
     def post(self, request):
-        return self.write(request, lambda data, case_id: anonymous_case.mark_deceased(
+        return self.write(request, 'mark_death', lambda data, case_id: anonymous_case.mark_deceased(
             request, data.get('heir_id'), data.get('first'), case_id,
             relatives=data.get('relatives'), shared_father=data.get('shared_father')), success=status.HTTP_201_CREATED)
 
 
 class DeathView(CaseWriteView):
     def delete(self, request, heir_id):
-        return self.write(request, lambda data, case_id: anonymous_case.unmark_deceased(
-            request, heir_id, case_id), data={'case_id': request.query_params.get('case_id')})
+        return self.write(request, 'unmark_death', lambda data, case_id: anonymous_case.unmark_deceased(
+            request, heir_id, case_id), data=_query_data(request),
+            impact=lambda case, data: case_commands.unmark_impact(case, heir_id))
 
 
 @method_decorator(never_cache, name='dispatch')
@@ -266,6 +351,8 @@ class SavedCasesView(ApiView):
         case = anonymous_case.get(request)
         if case is not None and case['id'] != data['case_id']:
             return Response({'detail': 'That case is no longer the current one.'}, status=409)
+        if case is None and anonymous_case.is_expired(request):
+            return no_case_response(request)
         if case is None or not case['deceased'] or not case['heirs']:
             return Response({'detail': 'Complete the case before saving.'}, status=400)
         if not case['madhab']:
@@ -279,15 +366,29 @@ class SavedCasesView(ApiView):
             if needs_school:
                 return Response({'detail': 'Choose a school of law before saving.', 'code': 'school_required'},
                                 status=400)
-        row = SavedCase.objects.filter(owner=request.user, pk=anonymous_case.get_saved_link(request, case['id'])).first()
-        created = row is None
-        if created:
-            row = SavedCase(owner=request.user)
-        row.snapshot = anonymous_case.export_snapshot(case)
-        row.schema_version = 1
-        row.save()
+        try:
+            # A savepoint: a lock timeout must not leave the request's transaction aborted.
+            with transaction.atomic():
+                row = (SavedCase.objects.select_for_update()
+                       .filter(owner=request.user, pk=anonymous_case.get_saved_link(request, case['id'])).first())
+                created = row is None
+                if created:
+                    row = SavedCase(owner=request.user)
+                row.snapshot = anonymous_case.export_snapshot(case)
+                row.schema_version = 1
+                if not created:
+                    # Atomic under the row lock, in the same save.
+                    row.revision = F('revision') + 1
+                row.save()
+                if not created:
+                    row.refresh_from_db(fields=['revision'])
+        except OperationalError as error:
+            if is_lock_timeout(error):
+                return busy_response()
+            raise
         anonymous_case.set_saved_link(request, case['id'], row.pk)
-        return Response({'id': row.pk, 'updated_at': row.updated_at}, status=201 if created else 200)
+        return Response({'id': row.pk, 'updated_at': row.updated_at, 'revision': row.revision},
+                        status=201 if created else 200)
 
 
 @method_decorator(never_cache, name='dispatch')

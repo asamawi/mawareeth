@@ -43,7 +43,10 @@ class DraftReportView(ApiView):
             return Response({'detail': 'case_id is required.'}, status=400)
         case = anonymous_case.get(request)
         if case is None:
-            return Response({'detail': 'There is no current case.', 'case': None}, status=404)
+            body = {'detail': 'There is no current case.', 'case': None}
+            if anonymous_case.is_expired(request):
+                body['code'] = 'expired'
+            return Response(body, status=404)
         if case['id'] != case_id:
             return Response({'detail': 'That case is no longer the current one.', 'case': case}, status=409)
         return draft_pdf_response(request, case)

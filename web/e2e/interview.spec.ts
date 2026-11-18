@@ -89,7 +89,7 @@ test.describe("rendered states", () => {
     await page.getByRole("button", { name: en.startOverYes }).click();
     await expect(page.getByRole("heading", { name: en.started })).toBeVisible();
     expect(api.casePosts).toHaveLength(1);
-    expect(JSON.parse(api.casePosts[0].body)).toEqual({ replace: true, case_id: "0123456789abcdef" });
+    expect(JSON.parse(api.casePosts[0].body)).toEqual({ replace: true, case_id: "0123456789abcdef", expected_revision: 1 });
   });
 
   test("an expired case shows the notice and waits for the visitor", async ({ page, api }) => {
@@ -281,7 +281,7 @@ test.describe("the school of law, asked only when it matters", () => {
     await expect(page.getByText(en.schoolsDiffer)).toHaveCount(0);
     await expect(page.getByText(`${en.madhabLabel}:`)).toBeVisible();
     expect(api.casePatches).toHaveLength(1);
-    expect(JSON.parse(api.casePatches[0].body)).toEqual({ madhab: "hanafi", case_id: differ.case.id });
+    expect(JSON.parse(api.casePatches[0].body)).toEqual({ madhab: "hanafi", case_id: differ.case.id, expected_revision: 1 });
   });
 
   test("a refusal in one school is shown in that school's summary", async ({ page, api }) => {
@@ -292,5 +292,45 @@ test.describe("the school of law, asked only when it matters", () => {
     const choice = page.locator("[data-school-choice]");
     await expect(choice.getByText(en.schoolsDiffer)).toBeVisible();
     await expect(choice.getByText(en.previewReasons.malikiyya_disputed).first()).toBeVisible();
+  });
+});
+
+test.describe("revisions and connection", () => {
+  test("a preview computed for an older revision is never shown", async ({ page, api }) => {
+    const agree = fixture("Agree: wife, son and daughter in every school");
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, { case: fullCase(agree.case, { revision: 2 }) }),
+      getPreview: json(200, { ...agree.response, revision: 1 }),
+    });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    await expect.poll(() => api.previewGets).toBeGreaterThan(0);
+    await expect(page.getByText(en.previewWaiting)).toBeVisible();
+    await expect(page.getByText(en.schoolsAgree)).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: en.previewHeading })).toBeVisible();
+    await expect(page.getByText(en.previewUpdated)).toHaveCount(0);
+  });
+
+  test("offline, editing is blocked with a notice and nothing is sent; online it comes back", async ({ page, context, api }) => {
+    const agree = fixture("Agree: wife, son and daughter in every school");
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: fullCase(agree.case) }), getPreview: json(200, agree.response) });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    const add = page.getByRole("button", { name: en.heirAdd, exact: true });
+    await expect(add).toHaveAttribute("aria-disabled", "false");
+    await expect(page.getByText(en.offlineEditing)).toHaveCount(0);
+
+    await context.setOffline(true);
+    await expect(page.getByText(en.offlineEditing)).toBeVisible();
+    await expect(add).toHaveAttribute("aria-disabled", "true");
+    await add.click({ force: true });
+    // The family and the last preview stay visible, and no write was attempted (an unstubbed request fails the test).
+    await expect(page.getByText(en.schoolsAgree)).toBeVisible();
+    expect(api.casePosts).toHaveLength(0);
+
+    await context.setOffline(false);
+    await expect(page.getByText(en.offlineEditing)).toHaveCount(0);
+    await expect(add).toHaveAttribute("aria-disabled", "false");
   });
 });

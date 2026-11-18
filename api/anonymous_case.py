@@ -4,6 +4,7 @@ Reads never touch the session, so a visitor without a case gets no session row.
 The deceased and the heirs live here too. This module owns their rules; names and
 amounts are never logged.
 """
+import datetime
 import re
 import unicodedata
 import uuid
@@ -233,22 +234,71 @@ def heir_options(madhab, deceased, heirs):
     }
 
 
-def get(request):
-    """The current case as {'id', 'started_at', 'madhab', 'deceased', 'heirs', 'heir_options'}, or None.
+def revision_of(stored):
+    """The revision of a stored session case: an int of at least 1, and 1 when it has none."""
+    value = stored.get('revision') if isinstance(stored, dict) else None
+    return value if type(value) is int and value >= 1 else 1
 
-    A stored madhab that is not one of MADHABS reads as None, an invalid deceased as None,
-    and invalid heirs are left out. `heir_options` is worked out here and never stored.
-    """
+
+def _stored(request):
     case = request.session.get(SESSION_KEY)
     if not isinstance(case, dict) or 'id' not in case or 'started_at' not in case:
+        return None
+    return case
+
+
+def _moment(value):
+    if not isinstance(value, str):
+        return None
+    try:
+        moment = datetime.datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=datetime.timezone.utc)
+    return moment
+
+
+def is_expired(request):
+    """True when the session holds a guest case that has been idle for ANONYMOUS_CASE_IDLE_SECONDS.
+
+    A case with a saved link is a working copy and never expires here. The idle time runs from
+    `changed_at`, or from `started_at` when the case has none.
+    """
+    case = _stored(request)
+    if case is None or get_saved_link(request, case['id']) is not None:
+        return False
+    moment = _moment(case.get('changed_at')) or _moment(case['started_at'])
+    if moment is None:
+        return False
+    return (timezone.now() - moment).total_seconds() >= settings.ANONYMOUS_CASE_IDLE_SECONDS
+
+
+def _decode(request):
+    case = _stored(request)
+    if case is None:
         return None
     from api.snapshots import decode, session_version
     version = session_version(case)
     snapshot = case
     if version == 2:
         snapshot = {key: value for key, value in case.items()
-                    if key not in ('id', 'started_at', 'schema_version')}
-    return decode(version, snapshot, case['id'], case['started_at'])
+                    if key not in ('id', 'started_at', 'schema_version', 'revision', 'changed_at')}
+    result = decode(version, snapshot, case['id'], case['started_at'])
+    result['revision'] = revision_of(case)
+    return result
+
+
+def get(request):
+    """The current case as {'id', 'revision', 'started_at', 'madhab', 'deceased', 'heirs', 'heir_options'}, or None.
+
+    A stored madhab that is not one of MADHABS reads as None, an invalid deceased as None,
+    and invalid heirs are left out. `heir_options` is worked out here and never stored. An expired
+    guest case reads as None (it is not deleted).
+    """
+    if is_expired(request):
+        return None
+    return _decode(request)
 
 
 def read_snapshot(snapshot, case_id, started_at):
@@ -279,7 +329,8 @@ def read_snapshot(snapshot, case_id, started_at):
 def start(request):
     """Create a case, replacing any existing one, and return it."""
     clear_saved_link(request)
-    case = {'id': uuid.uuid4().hex, 'started_at': timezone.now().isoformat()}
+    now = timezone.now().isoformat()
+    case = {'id': uuid.uuid4().hex, 'started_at': now, 'revision': 1, 'changed_at': now}
     request.session[SESSION_KEY] = case
     touch(request)
     return get(request)
@@ -296,8 +347,12 @@ def _live(request, case_id):
 
 
 def _save(request, **changes):
-    stored = get(request)
+    raw = _stored(request)
+    stored = _decode(request)
     stored.update(changes)
+    if isinstance(raw.get('changed_at'), str):
+        stored['changed_at'] = raw['changed_at']
+    stored['revision'] = revision_of(raw)
     stored.pop('heir_options', None)
     for heir in stored.get('heirs', []):
         heir.pop('edit_options', None)
@@ -308,7 +363,7 @@ def _save(request, **changes):
     # Reassign: changing the nested dict would not mark the session modified.
     request.session[SESSION_KEY] = stored
     touch(request)
-    return get(request)
+    return _decode(request)
 
 
 def set_madhab(request, madhab, case_id=None):
