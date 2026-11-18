@@ -1124,3 +1124,38 @@ even on failure, and never modifies Saved cases, shares or invitations.
 
 Epic 8 adds no tables: its schema additions are `api_savedcase.revision` and
 `api_savedcase.name`. No Ticket, API-key, counter or prefill table exists yet.
+
+## Legacy draft purge
+
+Take a fresh restic backup and confirm that it succeeded before purging:
+
+```console
+sudo deploy/backup.sh backup
+```
+
+Use the active slot in the same Compose/runtime environment as deployment
+(replace `app-blue` below with `app-green` if green is active):
+
+```console
+docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --dry-run --expect 1146
+```
+
+Check `no_deceased=841 no_heirs=305 total=1146`, the ascending ids, and that
+2402 appears in `no_heirs_ids`.
+Output contains only reason keys, counts and integer ids; no family data.
+If the expected count differs, the command fails without deleting anything;
+resolve the difference before proceeding (legacy pages can still create drafts).
+After confirming the backup and dry-run counts, run:
+
+```console
+docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --expect 1146
+```
+
+Check `deleted=1146`. The command reclassifies candidates under root-row locks
+and deletes matching roots and their dependent legacy rows in one transaction.
+Selection requires an unconvertible root with no root Deceased or no root Heir.
+Populated roots are kept even if a later layer is broken. Calculation 2402 is
+an empty draft and is included (owner decision 2026-11-18);
+Saved cases, shares, invites and users are untouched. Record the production purge
+date and deleted count in the legacy-import entry in
+`_bmad-output/implementation-artifacts/deferred-work.md`.

@@ -281,8 +281,8 @@ Completed and obsolete items are removed; their history is in git.
   evidence: Review the WhatsApp button, ready status, "Open WhatsApp" label and unavailable-fallback wording, including Arabic RTL readability.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-legacy-calculations-in-saved-cases.md`
-  summary: Decide what to do with the 1,146 legacy calculations `api.0004` did not convert on production (841 with no deceased, 304 with no heirs, and calculation 2402 of owner 1829 with more than one deceased).
-  evidence: Release 02d3627 ran the import on 2026-11-13: converted=2053, reported=1146, ownerless=0, owners affected 965. The 1,145 incomplete ones are empty drafts with nothing to compute; only 2402 is a data anomaly. The originals stay in the `calc` tables, and the full report is in the host's root-only `deploy/runtime/logs/migrate-20261113T224032Z-3125246.log`.
+  summary: Run the production purge of the 1,146 empty legacy drafts `api.0004` did not convert, and record its date and deleted count here.
+  evidence: Release 02d3627 ran the import on 2026-11-13: converted=2053, reported=1146, ownerless=0, owners affected 965 (841 no deceased, 304 no heirs, and calculation 2402 of owner 1829 with more than one deceased). Owner decision 2026-11-18: all 1,146 are empty, including 2402, and are approved for purging. `purge_empty_legacy_drafts` (Story 8.12) does it; the procedure, with a fresh restic backup first and `--expect 1146`, is in `deploy/README.md`. No production purge has run yet. The full import report is in the host's root-only `deploy/runtime/logs/migrate-20261113T224032Z-3125246.log`.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-add-heir-picker.md`
   summary: Request native review of the two new add-heir picker strings in Arabic, English and French: "More relatives" (button) and "Other relationship" (select label).
