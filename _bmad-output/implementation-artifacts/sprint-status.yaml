@@ -52,7 +52,7 @@ development_status:
 
   epic-9: in-progress
   9-1-establish-the-interview-shell-and-accessible-tree-tokens: done
-  9-1b-carry-lineage-and-status-in-the-interview-case: backlog
+  9-1b-carry-lineage-and-status-in-the-interview-case: done
   9-2-render-the-family-as-lineage-cards-on-a-navigable-canvas: backlog
   9-3-add-one-relative-with-one-press: backlog
   9-4-edit-and-remove-relatives-from-the-tree: backlog
