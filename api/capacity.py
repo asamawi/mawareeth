@@ -16,11 +16,13 @@ from django.test import Client
 from api.throttling import CaseWriteThrottle, CasePreviewThrottle
 from calc.adapters import family_from_session, basis_from_madhab
 from presentation import outcome as evaluate_outcome
+from engine.contracts.errors import ContractError
+from engine.contracts.presented import parse_presented_result
 
 NETWORK = dict(rtt_ms=150, down_kbps=1600, up_kbps=750, render_ms=100)
 ENGINE_BUDGET_MS = 200
 TOTAL_BUDGET_MS = 1000
-WORKLOADS = ("standard_school", "standard_compare", "fifty_compare", "later_deaths_compare")
+WORKLOADS = ("standard_school", "standard_compare", "fifty_compare", "later_deaths_compare", "disagree_compare")
 # Only the harness's Clients can bypass throttles while the patch is installed.
 marker = secrets.token_hex(24)
 
@@ -82,6 +84,7 @@ class Harness:
             case = self.write(client, case, "PATCH", "", dict(madhab="hanbali"))
         relationships = (["wife"] + ["son"]*25 + ["daughter"]*24 if name == "fifty_compare" else
                          ["wife", "son"] if name == "later_deaths_compare" else
+                         ["grandfather", "brother"] if name == "disagree_compare" else
                          ["wife", "father", "mother", "son", "daughter"])
         for relationship in relationships:
             case = self.write(client, case, "POST", "heirs/", dict(relationship=relationship))
@@ -94,7 +97,7 @@ class Harness:
             case = self.write(client, case, "POST", "heirs/", dict(relationship="son", layer=grandson))
         return client, case
 
-    def sample(self, client, case, value):
+    def sample(self, client, case, value, expected_status="available"):
         started = time.perf_counter()
         counts = dict(busy=0, conflicts=0)
         up = down = 0
@@ -118,6 +121,18 @@ class Harness:
             response, sent, received = self.request(client, "GET", "/api/v1/case/preview/?case_id=" + case["id"])
             up += sent; down += received
             if response.status_code == 200:
+                try:
+                    body = response.json()
+                    if not isinstance(body, dict) or body.get("status") != expected_status:
+                        raise SetupError()
+                    revision = body.get("revision")
+                    # The contention writer edits the same case, so a newer revision is a real
+                    # answer; an older one would be stale numbers.
+                    if type(revision) is not int or revision < max(1, case["revision"]):
+                        raise SetupError()
+                    parse_presented_result(body.get("presented"))
+                except (ValueError, ContractError):
+                    raise SetupError() from None
                 break
             if response.status_code == 409:
                 counts["conflicts"] += 1
@@ -144,6 +159,7 @@ class Harness:
                         True if request.META.get("HTTP_X_CAPACITY_CHECK") == marker else original(throttle, request, view)))
                 for name in WORKLOADS:
                     client, case = self.build(name)
+                    expected_status = "choose_school" if name == "disagree_compare" else "available"
                     family, _ = family_from_session(case, names=False)
                     basis = basis_from_madhab(case["madhab"])
                     durations = []
@@ -158,7 +174,7 @@ class Harness:
                         current = case
                         try:
                             while not stop.is_set():
-                                current, _, _ = self.sample(writer, current, 120002)
+                                current, _, _ = self.sample(writer, current, 120002, expected_status)
                                 stop.wait(.002)
                         except Exception:
                             errors.append(True)
@@ -170,7 +186,7 @@ class Harness:
                         thread.start()
                     try:
                         for index in range(samples):
-                            case, duration, counts = self.sample(client, case, 120000 + index%2)
+                            case, duration, counts = self.sample(client, case, 120000 + index%2, expected_status)
                             values.append(duration); busy += counts["busy"]; conflicts += counts["conflicts"]
                     finally:
                         stop.set()

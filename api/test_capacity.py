@@ -6,7 +6,7 @@ from django.contrib.sessions.models import Session
 from django.core.management import call_command
 from django.db import connection
 from django.test import TransactionTestCase
-from api.capacity import Harness, WORKLOADS, stats
+from api.capacity import Harness, SetupError, WORKLOADS, stats
 from api.models import SavedCase
 
 @skipUnless(connection.vendor == "postgresql", "requires PostgreSQL")
@@ -28,6 +28,58 @@ class CapacityTests(TransactionTestCase):
                 self.assertEqual(phase["n"], 2)
                 self.assertIn("conflicts", phase)
                 self.assertIn("busy", phase)
+
+    def test_unusable_preview_fails(self):
+        faults = (
+            {"status": "choose_school"},
+            {"presented": None},
+            {"presented": {}},
+            {"revision": None},
+            {"revision": 1},
+            {"revision": 0},
+            {"revision": True},
+            {"revision": "1"},
+        )
+        original = Harness.request
+        before = Session.objects.count()
+        for fault in faults:
+            with self.subTest(field=next(iter(fault)), value_type=type(next(iter(fault.values()))).__name__):
+                def request(harness, client, method, path, data=None):
+                    response, sent, received = original(harness, client, method, path, data)
+                    if method == "GET" and path.startswith("/api/v1/case/preview/"):
+                        self.assertEqual(response.status_code, 200)
+                        body = response.json()
+                        body.update(fault)
+                        # None exercises an absent field, rather than just JSON null.
+                        for key, value in fault.items():
+                            if value is None:
+                                body.pop(key)
+                        response.content = json.dumps(body).encode()
+                        response.json = lambda: body
+                    return response, sent, received
+                with patch.object(Harness, "request", request):
+                    with self.assertRaises(SetupError):
+                        Harness().run(1, False)
+                self.assertEqual(Session.objects.count(), before)
+
+    def test_disagree_workload(self):
+        self.assertIn("disagree_compare", WORKLOADS)
+        original = Harness.request
+        statuses = []
+
+        def request(harness, client, method, path, data=None):
+            response, sent, received = original(harness, client, method, path, data)
+            if method == "GET" and path.startswith("/api/v1/case/preview/"):
+                self.assertEqual(response.status_code, 200)
+                statuses.append(response.json()["status"])
+            return response, sent, received
+
+        with patch("api.capacity.WORKLOADS", ("disagree_compare",)), patch.object(
+                Harness, "request", request), patch("api.capacity.TOTAL_BUDGET_MS", 100000):
+            result = Harness().run(1, False)
+        self.assertEqual(statuses, ["choose_school"])
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["workloads"]["disagree_compare"]["end_to_end"]["n"], 1)
 
     def test_failure_cleanup(self):
         before = Session.objects.count()

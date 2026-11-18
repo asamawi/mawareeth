@@ -1104,7 +1104,8 @@ Either failure aborts the candidate while the prior slot remains serving. Output
 kept in the root-only deploy log. Both slots are running during this measurement.
 
 The capacity log contains a JSON object with the image commit, network model and
-four workloads. Each phase reports n, p50, p95, max (milliseconds), busy/conflict
+five workloads: `standard_school`, `standard_compare`, `fifty_compare`,
+`later_deaths_compare` and `disagree_compare`. Each phase reports n, p50, p95, max (milliseconds), busy/conflict
 counts and `passed`. Standard engine p95 must be below 200 ms; every end-to-end
 p95 (server plus modeled client time) must be below 1000 ms. Other engine timings
 are informational. Retries and session lock waits remain in measured samples.

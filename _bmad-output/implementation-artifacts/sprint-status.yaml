@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 21:00
-last_updated: 11-18-2026 18:08
+last_updated: 11-18-2026 18:14
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
@@ -167,7 +167,7 @@ action_items:
       parseChoice and add a disagreeing-School preview test carrying revision; must
       land before any master merge of Epic 8 (F1)"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
   - id: "epic-8-retro-item-2-make-api-capacity-py-validate-the-previe"
     epic: 8
