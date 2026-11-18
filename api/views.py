@@ -18,7 +18,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api import anonymous_case, case_commands, invites, preview, sharing
-from api.snapshots import READ_VERSIONS, SnapshotError, decode
+from api.snapshots import READ_VERSIONS, SnapshotError, decode, default_name, encode_v2, write_version
+from engine.contracts import ContractError
+from presentation.money import PresentationError
 from api.models import SavedCase, ShareInvite, ShareLink
 from api.permissions import CsrfProtectedWrites
 from api.throttling import CasePreviewThrottle, CaseWriteThrottle, ShareInviteThrottle, ShareViewThrottle
@@ -340,7 +342,7 @@ class SavedCasesView(ApiView):
                 case = decode(row.schema_version, row.snapshot, str(row.pk), row.updated_at.isoformat())
             except SnapshotError:
                 continue
-            cases.append({'id': row.pk, 'updated_at': row.updated_at, 'madhab': case['madhab'],
+            cases.append({'id': row.pk, 'name': row.name, 'updated_at': row.updated_at, 'madhab': case['madhab'],
                           'heir_count': len(case['heirs']), 'status': report_status(case)})
         return Response({'cases': cases})
 
@@ -355,6 +357,14 @@ class SavedCasesView(ApiView):
             return no_case_response(request)
         if case is None or not case['deceased'] or not case['heirs']:
             return Response({'detail': 'Complete the case before saving.'}, status=400)
+        version = write_version()
+        snapshot = anonymous_case.export_snapshot(case)
+        try:
+            if version == 2:
+                snapshot = encode_v2(snapshot)
+                decode(2, snapshot, 'snapshot', '')
+        except (PresentationError, ContractError, SnapshotError, ValueError, KeyError):
+            return Response({'detail': 'The case cannot be saved.', 'code': 'unsupported_content'}, status=400)
         if not case['madhab']:
             # No school is saveable only while all four Sunni schools give the same result.
             try:
@@ -374,19 +384,26 @@ class SavedCasesView(ApiView):
                 created = row is None
                 if created:
                     row = SavedCase(owner=request.user)
-                row.snapshot = anonymous_case.export_snapshot(case)
-                row.schema_version = 1
+                elif row.revision != anonymous_case.get_saved_base_revision(request, case['id']):
+                    return Response({'error': 'conflict', 'code': 'saved_case_conflict',
+                                     'detail': 'This saved case changed since it was opened.',
+                                     'revision': row.revision}, status=409)
+                row.snapshot = snapshot
+                row.schema_version = version
                 if not created:
                     # Atomic under the row lock, in the same save.
                     row.revision = F('revision') + 1
                 row.save()
+                if created:
+                    row.name = default_name(row.created_at)
+                    SavedCase.objects.filter(pk=row.pk).update(name=row.name)
                 if not created:
                     row.refresh_from_db(fields=['revision'])
         except OperationalError as error:
             if is_lock_timeout(error):
                 return busy_response()
             raise
-        anonymous_case.set_saved_link(request, case['id'], row.pk)
+        anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision)
         return Response({'id': row.pk, 'updated_at': row.updated_at, 'revision': row.revision},
                         status=201 if created else 200)
 
@@ -400,7 +417,7 @@ class OpenSavedCaseView(ApiView):
         except SnapshotError as error:
             return Response({'detail': 'This saved case version is unsupported.', 'code': error.code}, status=400)
         case = anonymous_case.load_snapshot(request, anonymous_case.export_snapshot(decoded))
-        anonymous_case.set_saved_link(request, case['id'], row.pk)
+        anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision)
         return Response({'case': case})
 
 

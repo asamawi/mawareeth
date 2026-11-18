@@ -5,6 +5,7 @@ The deceased and the heirs live here too. This module owns their rules; names an
 amounts are never logged.
 """
 import datetime
+import logging
 import re
 import unicodedata
 import uuid
@@ -285,6 +286,13 @@ def _decode(request):
         snapshot = {key: value for key, value in case.items()
                     if key not in ('id', 'started_at', 'schema_version', 'revision', 'changed_at')}
     result = decode(version, snapshot, case['id'], case['started_at'])
+    if version == 1:
+        inputs = {key: value for key, value in case.items()
+                  if key not in ('id', 'started_at', 'schema_version', 'revision', 'changed_at')}
+        normalized = export_snapshot(result)
+        if any(key not in normalized or normalized[key] != value for key, value in inputs.items()):
+            logging.getLogger('mawareeth.snapshots').warning(
+                'normalized_on_read', extra={'code': 'normalized_on_read'})
     result['revision'] = revision_of(case)
     return result
 
@@ -753,8 +761,15 @@ def get_saved_link(request, case_id):
     return None
 
 
-def set_saved_link(request, case_id, saved_id):
-    request.session[SAVED_LINK_KEY] = {'case_id': case_id, 'saved_id': saved_id}
+def get_saved_base_revision(request, case_id):
+    if get_saved_link(request, case_id) is not None:
+        return request.session[SAVED_LINK_KEY].get('base_revision', 1)
+    return None
+
+
+def set_saved_link(request, case_id, saved_id, base_revision):
+    request.session[SAVED_LINK_KEY] = {
+        'case_id': case_id, 'saved_id': saved_id, 'base_revision': base_revision}
 
 
 def load_snapshot(request, snapshot):

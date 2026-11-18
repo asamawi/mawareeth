@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from api import anonymous_case, sharing
@@ -187,20 +187,23 @@ class SnapshotTests(InterviewHelpers, TestCase):
         session.save()
         return stored
 
-    def test_session_decode_edit_and_writer_remains_v1(self):
-        stored = self.put_session(2, fixture('estate',2))
-        case = self.live()
-        self.assertEqual(normalized(anonymous_case.export_snapshot(case)), normalized(fixture('estate')))
-        self.assertEqual(self.client.session[anonymous_case.SESSION_KEY], stored)
-        with patch('reports.views.render_pdf', return_value=b'%PDF-test'):
-            response = self.client.get(f'/api/v1/reports/draft/?case_id={case["id"]}', secure=True)
-            self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.client.session[anonymous_case.SESSION_KEY], stored)
-        response = self.send('patch', '/api/v1/case/', {'case_id':case['id'],'madhab':'hanafi'})
-        self.assertEqual(response.status_code,200)
-        self.assertNotIn('schema_version', self.client.session[anonymous_case.SESSION_KEY])
-        self.assertEqual(self.send('post','/api/v1/saved-cases/',{'case_id':case['id']}).status_code,201)
-        self.assertEqual(SavedCase.objects.get().schema_version,1)
+    def test_session_decode_edit_and_writer_follows_setting(self):
+        for version in (1, 2):
+            with self.subTest(version=version), override_settings(SNAPSHOT_WRITE_VERSION=version):
+                self.send('post', '/api/v1/case/', {'replace': True})
+                stored = self.put_session(2, fixture('estate',2))
+                case = self.live()
+                self.assertEqual(normalized(anonymous_case.export_snapshot(case)), normalized(fixture('estate')))
+                self.assertEqual(self.client.session[anonymous_case.SESSION_KEY], stored)
+                with patch('reports.views.render_pdf', return_value=b'%PDF-test'):
+                    response = self.client.get(f'/api/v1/reports/draft/?case_id={case["id"]}', secure=True)
+                    self.assertEqual(response.status_code, 200)
+                self.assertEqual(self.client.session[anonymous_case.SESSION_KEY], stored)
+                response = self.send('patch', '/api/v1/case/', {'case_id':case['id'],'madhab':'hanafi'})
+                self.assertEqual(response.status_code,200)
+                self.assertNotIn('schema_version', self.client.session[anonymous_case.SESSION_KEY])
+                self.assertEqual(self.send('post','/api/v1/saved-cases/',{'case_id':case['id']}).status_code,201)
+                self.assertEqual(SavedCase.objects.latest('pk').schema_version, version)
 
     def test_open_v2_edit_and_save_updates_linked_row(self):
         row = SavedCase.objects.create(owner=self.owner, snapshot=fixture('estate', 2), schema_version=2)

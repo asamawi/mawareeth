@@ -13,5 +13,13 @@
       2
     ],
     "writes": 1
+  },
+  {
+    "image": "8.10 schema-2 writer",
+    "reads": [
+      1,
+      2
+    ],
+    "writes": 2
   }
 ]

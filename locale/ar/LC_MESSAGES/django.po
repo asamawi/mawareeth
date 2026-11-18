@@ -2486,3 +2486,12 @@ msgstr "تمت دعوتك لعرض مسودة حالة"
 #, python-format
 msgid "Sign in or register to accept this invitation. The invitation expires in 30 days.\n\n%(link)s"
 msgstr "سجّل الدخول أو أنشئ حسابًا لقبول هذه الدعوة. تنتهي صلاحية الدعوة بعد 30 يومًا.\n\n%(link)s"
+
+
+#, python-format
+msgid "Estate of %(deceased)s, %(date)s"
+msgstr "تركة %(deceased)s، %(date)s"
+
+
+msgid "the deceased"
+msgstr "المتوفى"

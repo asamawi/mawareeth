@@ -3382,6 +3382,8 @@ class SavedCaseTests(InterviewBase):
         opened = self.send('post', f'{self.url}{saved_id}/open/', {}, device)
         self.assertEqual(opened.status_code, 200)
         loaded = opened.json()['case']
+        self.assertEqual(device.session[anonymous_case.SAVED_LINK_KEY], {
+            'case_id': loaded['id'], 'saved_id': row.pk, 'base_revision': row.revision})
         self.assertNotEqual(loaded['id'], case['id'])
         self.assertEqual(anonymous_case.export_snapshot(loaded), row.snapshot)
         regenerated = device.get(

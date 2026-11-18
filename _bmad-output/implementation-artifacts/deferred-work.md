@@ -431,3 +431,12 @@ Completed and obsolete items are removed; their history is in git.
 - A live guest session created before this release has no `changed_at`, so its expiry runs from `started_at`. A guest who started more than 24 hours ago and is still editing at deploy time sees the Case expire once.
 - The 503 `busy` response is shown as the generic failed notice. The web does not retry using `Retry-After`.
 - The results page's School choice (`results-view.tsx` `ChooseSchool`) is not blocked while offline. Only the interview screens are.
+
+## Story 8.10
+
+- Ops order: take a fresh restic backup, then flip `SNAPSHOT_WRITE_VERSION=2` and run the backfill only once every rollback-eligible image reads schema 2. Do not switch in the deploy that first ships 8.8.
+- The new name msgids need native review.
+- Backfill names use the site default Locale, not each user's.
+- Legacy `Calculation.name` is not carried into names.
+- Alias row ids are regenerated in v2.
+- Save-conflict UX belongs to Epic 9.

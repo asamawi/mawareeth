@@ -2576,3 +2576,12 @@ msgstr "Invitation à consulter un brouillon de cas"
 #, python-format
 msgid "Sign in or register to accept this invitation. The invitation expires in 30 days.\n\n%(link)s"
 msgstr "Connectez-vous ou inscrivez-vous pour accepter cette invitation. Elle expire dans 30 jours.\n\n%(link)s"
+
+
+#, python-format
+msgid "Estate of %(deceased)s, %(date)s"
+msgstr "Succession de %(deceased)s, %(date)s"
+
+
+msgid "the deceased"
+msgstr "la personne décédée"

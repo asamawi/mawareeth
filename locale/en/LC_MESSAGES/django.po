@@ -2506,3 +2506,12 @@ msgstr "You have been invited to view a draft case"
 #, python-format
 msgid "Sign in or register to accept this invitation. The invitation expires in 30 days.\n\n%(link)s"
 msgstr "Sign in or register to accept this invitation. The invitation expires in 30 days.\n\n%(link)s"
+
+
+#, python-format
+msgid "Estate of %(deceased)s, %(date)s"
+msgstr "Estate of %(deceased)s, %(date)s"
+
+
+msgid "the deceased"
+msgstr "the deceased"

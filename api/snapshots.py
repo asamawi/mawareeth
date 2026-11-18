@@ -1,11 +1,49 @@
-"""Versioned, read-only snapshot bridges. Writers continue to emit schema 1."""
+"""Versioned snapshot bridges with an operator-controlled writer switch."""
 from decimal import Decimal
 
 from engine.contracts import (ContractError, basis_for_snapshot, dump_basis, dump_family,
                               parse_family, resolve_basis)
 
 READ_VERSIONS = (1, 2)
-WRITE_VERSION = 1
+WRITE_VERSION = 2
+
+
+def write_version():
+    from django.conf import settings
+    return settings.SNAPSHOT_WRITE_VERSION
+
+
+def default_name(created_at):
+    from zoneinfo import ZoneInfo
+    from babel.dates import format_date
+    from django.conf import settings
+    from django.utils import timezone, translation
+    from django.utils.translation import gettext
+    from i18n import locale_config
+    with translation.override(settings.LANGUAGE_CODE):
+        date = format_date(timezone.localtime(created_at, ZoneInfo(settings.TIME_ZONE)).date(), format='long',
+                           locale=locale_config(settings.LANGUAGE_CODE)['babel_locale'])
+        return (gettext('Estate of %(deceased)s, %(date)s') % {
+            'deceased': gettext('the deceased'), 'date': date})[:100]
+
+
+def lossless_v1(snapshot):
+    import json
+    from api import anonymous_case
+    from presentation.money import PresentationError
+    try:
+        resolved = basis_for_snapshot(snapshot, {})
+        original = {**snapshot, 'madhab': resolved.school}
+        exported = anonymous_case.export_snapshot(decode(1, snapshot, 'snapshot', ''))
+        canonical = lambda value: json.dumps(value, sort_keys=True, separators=(',', ':'))
+        if canonical(exported) != canonical(original):
+            return None
+        encoded = encode_v2(exported)
+        decode(2, encoded, 'snapshot', '')
+        return encoded
+    except (SnapshotError, ContractError, PresentationError, anonymous_case.FieldErrors,
+            ValueError, TypeError, KeyError, AttributeError):
+        return None
 
 
 class SnapshotError(Exception):

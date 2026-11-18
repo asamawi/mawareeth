@@ -49,6 +49,14 @@ def load_settings_module(extra_env):
 
 
 class ProductionSettingsTests(SimpleTestCase):
+    def test_snapshot_write_version_defaults_to_one(self):
+        self.assertEqual(load_settings_module({}).SNAPSHOT_WRITE_VERSION, 1)
+
+    def test_invalid_snapshot_write_version_raises(self):
+        for value in ("3", "0", "abc"):
+            with self.subTest(value=value), self.assertRaises(ImproperlyConfigured):
+                load_settings_module({"SNAPSHOT_WRITE_VERSION": value})
+
     def test_next_dev_origins_are_trusted_outside_production_only(self):
         dev_origins = {"http://localhost:3000", "http://127.0.0.1:3000"}
         production = load_settings_module({})
