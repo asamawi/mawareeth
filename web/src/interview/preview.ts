@@ -85,6 +85,17 @@ export function acceptRevision(revision: number | null, outcome: PreviewResult):
 }
 
 /**
+ * What a page that read `kase` once shows for the preview it then fetched (the results page). The
+ * preview must be for that same revision: a newer one means another tab changed the case in
+ * between, perhaps only a name, which reads like a 409; an older one is never shown and can be
+ * retried. Then, as everywhere, it must be for the same family.
+ */
+export function previewForCase(kase: Case, fetched: PreviewResult): PreviewResult {
+  const accepted = acceptRevision(kase.revision, fetched) ?? { kind: "failed" };
+  return reconcile(previewKey(kase), kase.id, accepted);
+}
+
+/**
  * Whether the case has what the engine needs: a deceased and at least one heir, and every person
  * who died has heirs of their own. A school is not needed: without one the server compares the four.
  */

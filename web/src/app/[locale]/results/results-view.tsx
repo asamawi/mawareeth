@@ -6,7 +6,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { downloadDraftReport, fetchCase, fetchPreview, setMadhab, type Case, type DraftReportResult, type PreviewResult, type SunniId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import { breadcrumb, layersOf, rowLabels } from "@/interview/layers";
-import { previewKey, previewReady, reconcile } from "@/interview/preview";
+import { previewForCase, previewReady } from "@/interview/preview";
 import { evidenceNotes, relationsOf, tableOf, tableView } from "@/interview/table";
 import {
   isLayeredPreview,
@@ -50,8 +50,7 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
         const kase = await fetchCase(own.signal);
         let outcome: PreviewResult | null = null;
         if (kase !== null && previewReady(kase)) {
-          const key = previewKey(kase);
-          outcome = reconcile(key, kase.id, await fetchPreview(own.signal, kase.id, { locale }));
+          outcome = previewForCase(kase, await fetchPreview(own.signal, kase.id, { locale }));
         }
         value = { kind: "case", kase, outcome };
       } catch {

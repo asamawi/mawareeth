@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { parsePreview, type Case, type Preview } from "../api/case.ts";
+import { parsePreview, type Case, type Preview, type PreviewResult } from "../api/case.ts";
 import { previewFixtures as fixtures } from "../test/preview-fixtures.ts";
-import { previewKey, reconcile } from "./preview.ts";
+import { previewForCase, previewKey, reconcile } from "./preview.ts";
 import { isLayeredPreview, presentationOf, resultEntries, resultsState } from "./results.ts";
 const by = (title: string) => {
   const fixture = fixtures.find((item) => item.title === title);
@@ -45,6 +45,21 @@ test("an answer for another family is never shown as numbers", () => {
   const changed = { ...kase, heirs: kase.heirs.slice(0, 1) };
   const state = resultsState(changed, reconcile(previewKey(changed), changed.id, { kind: "preview", preview }));
   assert.deepEqual(state, { kind: "error", error: "replaced" });
+});
+
+test("the results page shows a preview only for the revision of the case it read", () => {
+  const { kase, preview } = by("Hanbali wife and son with an estate");
+  const read = { ...kase, revision: 4 };
+  const at = (revision?: number): PreviewResult => ({ kind: "preview", preview, ...(revision === undefined ? {} : { revision }) });
+  assert.equal(resultsState(read, previewForCase(read, at(4))).kind, "available");
+  // Another tab renamed an heir in between: same family, newer revision. The old names never get the new numbers.
+  assert.deepEqual(resultsState(read, previewForCase(read, at(5))), { kind: "error", error: "replaced" });
+  // An answer from before the case read is never shown; it can be retried.
+  assert.deepEqual(resultsState(read, previewForCase(read, at(3))), { kind: "error", error: "failed" });
+  // A body with no revision (an older server) is still checked against the family.
+  assert.equal(resultsState(read, previewForCase(read, at())).kind, "available");
+  const changed = { ...read, heirs: read.heirs.slice(0, 1) };
+  assert.deepEqual(resultsState(changed, previewForCase(changed, at(4))), { kind: "error", error: "replaced" });
 });
 
 test("every available fixture joins each heir to its proof by heir id, layered ones to none", () => {

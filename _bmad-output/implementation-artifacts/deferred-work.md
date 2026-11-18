@@ -487,7 +487,3 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert.md`
   summary: Before the production purge, check that no row outside the purged trees references a heir inside them through `Heir.same_person` or `Deceased.heir`; both cascade on delete.
   evidence: Legacy views only link heirs within one calculation tree, so none is expected. Run a read-only query on production that counts such cross-root references; if any exist, resolve them before `purge_empty_legacy_drafts` runs.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-9-apply-case-changes-atomically-against-one-revision.md`
-  summary: The results page does not compare the preview's revision with the Case it read, so another tab that renames an heir between the two requests can make it show the newer preview beside the older names.
-  evidence: `web/src/app/[locale]/results/results-view.tsx` fetches the Case, then the preview, and passes the preview only to `reconcile`, which compares the family structure (`previewKey`) but not names or revision. The Interview preview uses `acceptRevision` (`web/src/app/[locale]/interview/share-preview.tsx`); results does not. Found by the new cross-story contract review layer when it was run against Story 8.9's commit `6dbda1b`. Fix: apply `acceptRevision(kase.revision, fetched)` on the results page and refetch on `replaced`.
