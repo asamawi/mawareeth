@@ -1171,6 +1171,34 @@ So that I can find family entry, the tree and the Heirs list on my device.
 **Then** the shipped colour properties (background, foreground, muted, surface, line, accent, accent-foreground and dark pairs), typography and spacing scales, button-primary, button-secondary and choice-card (resting, checked, focus-visible; 44px minimum) are reused unchanged and verified in light and dark modes (UX-DR1, UX-DR3, UX-DR5, UX-DR6, UX-DR9)
 **And** no new web font is loaded and no existing token value changes.
 
+### Story 9.1b: Carry lineage and status in the Interview Case
+
+As a family member building a Case,
+I want the server to keep who belongs to whom and who died before the deceased,
+So that the tree can show the real family and only offer additions that fit it.
+
+**Acceptance Criteria:**
+
+**Given** Epic 8's Family contract, engine queries and Case command service (8.1, 8.4, 8.9) and the existing session Case
+**When** any Case read or command response is returned
+**Then** the Case carries every person once with a stable id (earliest row id, `same_as` aliases resolved), its status (alive, died before or with the deceased, died later with order) and its `parent_of`/`spouse_of` edges, and `family_from_session()` builds the Family from them instead of emitting empty edges (AD-20, AD-25)
+**And** existing Cases with no recorded edges or died-before statuses read unchanged, with no migration, and their shares, proofs and previews are byte-identical to before.
+
+**Given** a family with persons and edges for the active estate
+**When** the new pure engine query for placement (relationships allowed at a person, taking the rule set and estate) runs
+**Then** the Case response carries, per person and for the deceased, the allowed relationships at that position (including the parent and spouse slots), computed only by the engine (AD-16)
+**And** no shell or browser module derives them, the query is covered by engine unit tests including a second father and a fifth wife being disallowed, and its time for 50 Heirs fits inside the NFR-3 engine budget.
+
+**Given** the snapshot writer version
+**When** a Case with edges or a died-before status is stored
+**Then** schema 2 stores and reads them losslessly in the session, the SavedCase, share, invite and received views; the v1 writer keeps refusing them as `unsupported_content`; and the reader/writer round-trip matrix covers both (AD-20 expand → switch → contract)
+**And** `web/src/api/case.ts` parses the new fields with a test-fixture round trip, treating them as absent when a server sends none.
+
+**Given** this story
+**When** it ships
+**Then** it adds no new command and no UI; creating links is Story 9.7's positioned add and setting died-before is Story 9.4's edit, both through the existing command service
+**And** a relative with no recorded parent stays attached to the deceased by relationship, as today (owner decision, 2026-11-19).
+
 ### Story 9.2: Render the family as lineage cards on a navigable canvas
 
 As a family member reviewing an existing Case,
@@ -1179,9 +1207,9 @@ So that I can understand the family before changing it.
 
 **Acceptance Criteria:**
 
-**Given** Story 9.1 and Epic 8 Family/PresentedResult data for the active estate
+**Given** Stories 9.1–9.1b and the Case's persons, statuses and lineage edges plus PresentedResult data for the active estate
 **When** `family-tree.tsx` and `web/src/interview/tree.ts` render an existing Case
-**Then** cards and connectors follow stable person ids and lineage edges rather than attaching all relatives to the old shared spine, showing one estate level at a time (AD-19, AD-20, UX-DR13, UX-DR14)
+**Then** cards and connectors follow stable person ids and lineage edges rather than attaching all relatives to the old shared spine, showing one estate level at a time (AD-19, AD-20, UX-DR13, UX-DR14); a person with no recorded parent hangs from the deceased on their generation line, as in the shipped tree
 **And** the canvas has a surface/dotted line grid at 18px spacing, 1px top/bottom decorative lines, 2px graphic connectors and >=6px logical padding in a labelled 2D scroll region; only the connector layer is mirrored in RTL.
 
 **Given** normal, died-before, blocked and died-later people in a read-only family fixture
@@ -1194,7 +1222,7 @@ So that I can understand the family before changing it.
 **Then** the deceased is labelled only “The deceased” / “المتوفى”, and the canonical Heirs outline includes the deceased and every entered person with relationships, state badges and no-share status (UX-DR17, UX-DR32, UX-DR72)
 **And** the Family tree is one labelled role=group of native card buttons with a roving tab stop and visible-text accessible names, never role=tree/application or the shipped role=img; rows are >=52px with 44px Edit targets, with actions connected in subsequent stories.
 
-**Given** an empty active estate and engine query results supplied through the Epic 8 command-service boundary
+**Given** an empty active estate and Story 9.1b's per-person placement options in the Case response
 **When** the tree and list render
 **Then** only the deceased and engine-allowed parent/spouse placeholders appear, with dashed accent edges and labels such as “+ Add parent” (AD-16, UX-DR21, UX-DR54)
 **And** the list says “No heirs yet. Press a relationship to add one.” and the existing preview remains blank; the empty-state contract exposes no shares for Epic 11's future sticky bar.
@@ -1212,7 +1240,7 @@ So that I can build my family quickly.
 
 **Acceptance Criteria:**
 
-**Given** Stories 9.1–9.2 and allowed relationships from Epic 8.4 queries through 8.9's command service
+**Given** Stories 9.1–9.2 and the allowed relationships for the deceased from Story 9.1b's placement options in the Case response
 **When** the Add relatives panel renders
 **Then** wrapping relationship-button wrappers use graphic borders and 44px accent add actions grouped Spouse, Parents, Children, Siblings and More relatives (FR-1, AD-16, UX-DR27)
 **And** impossible relationships such as a second father are not offered, blocked-but-valid relatives remain addable, and display grouping contains no independent browser fiqh rules.
@@ -1245,7 +1273,7 @@ So that I can fix a relationship or name without losing related people unexpecte
 **Then** `heir-form.tsx`/`form-bits.tsx` supply labelled >=44px name, relationship and Alive at death/Died before the deceased fields in a phone modal bottom sheet or desktop non-modal panel (FR-3, UX-DR16, UX-DR18, UX-DR20, UX-DR22, UX-DR33)
 **And** the edited card retains a 3px inset currentColor selected outline and aria-current="true"; the later-death creation/status extension is delivered by Story 9.8.
 
-**Given** an open edit surface and Epic 8's edit-validity query/command interfaces
+**Given** an open edit surface, Epic 8's edit-validity query/command interfaces, and a command-service edit that sets a person's died-before status on Story 9.1b's Case (persisted only when the snapshot writer is schema 2, otherwise refused with a localised reason and no mutation)
 **When** I change a name, relationship or died-before status
 **Then** saves occur on change against the current revision, and only a successful command's whole Case updates tree, list and preview together (FR-3, AD-16, AD-20, UJ-2)
 **And** a refused relationship/status change shows the localized engine reason and leaves the accepted family unchanged, with no browser fiqh decision or focus loss; a name is never required.
@@ -1334,7 +1362,7 @@ So that the tree places the relative in the right lineage without requiring a dr
 
 **Acceptance Criteria:**
 
-**Given** Stories 9.2–9.6 and the allowed-at-position query from Epic 8.4 through the command-service boundary
+**Given** Stories 9.2–9.6 and Story 9.1b's per-person placement options, and an add command that records a `parent_of` or `spouse_of` link to the chosen person (persisted only when the snapshot writer is schema 2, otherwise refused with a localised reason and no mutation)
 **When** I focus a card or open its edit surface
 **Then** the same 44px accent “Add relative here” action appears in the card action row and all edit states, listing only engine-allowed relationships for that position (FR-2, AD-16, UX-DR29, UX-DR33)
 **And** tapping or using Space/Enter to choose a relationship adds one through the command service with the same lineage and history result as a drop, including on the deceased; touch never requires press-and-hold dragging.

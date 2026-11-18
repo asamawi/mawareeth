@@ -197,7 +197,7 @@ All of the parent spine's AD-1 to AD-14 stay binding. These are the ones that sh
   - **Conversion (expand → switch → contract).**
     1. Release N makes every reader accept snapshot schema 1 and 2 and still writes 1. "Every reader" means session, SavedCase list and load, share, invite and received views.
     2. Release N+1 writes 2 and backfills SavedCases and their default names (FR-8, FR-9). Live guest sessions convert on read.
-    3. Country-Basis writes are enabled only when every active and rollback-eligible image reads schema 2.
+    3. Country-Basis writes are enabled only when every active and rollback-eligible image reads schema 2. Lineage edges and died-before statuses (FR-2, FR-3) are likewise persisted only then; until that point the commands that create them are refused without mutation (sprint change 2026-11-19).
     4. Schema-1 readers are removed only by AD-6 eligibility, never by release count.
   - **Proof.** A reader/writer round-trip matrix across active and rollback images is a release gate.
 
