@@ -96,6 +96,9 @@ jobs:
       - name: PDF glyph check
         run: python -m i18n.glyphs
 
+      - name: Release gate
+        run: python manage.py release_check
+
       - name: Verify committed migrations
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test

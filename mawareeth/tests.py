@@ -240,7 +240,7 @@ class OpsEndpointTests(TestCase):
     def test_readiness_endpoint_returns_ok(self):
         response = self.client.get(reverse("ops-ready"), secure=True)
         self.assertEqual(response.status_code, 200)
-        self.assertJSONEqual(response.content, {"status": "ok", "database": "ok", "schema": "ok"})
+        self.assertJSONEqual(response.content, {"status": "ok", "database": "ok", "schema": "ok", "foundation": "ok"})
 
     def test_readiness_endpoint_returns_503_without_diagnostics(self):
         with patch("mawareeth.ops_views._database_ready", return_value=False):
@@ -277,7 +277,7 @@ class OpsEndpointTests(TestCase):
         MigrationRecorder(connection).record_applied("calc", "9999_applied_by_newer_release")
         response = self.client.get(reverse("ops-ready"), secure=True)
         self.assertEqual(response.status_code, 200)
-        self.assertJSONEqual(response.content, {"status": "ok", "database": "ok", "schema": "ok"})
+        self.assertJSONEqual(response.content, {"status": "ok", "database": "ok", "schema": "ok", "foundation": "ok"})
 
     @override_settings(APP_VERSION="3.0.7", RELEASE_VERSION="build-2026-09-02", RELEASE_COMMIT_SHA="abc1234")
     def test_release_identity_endpoint_returns_expected_markers(self):
@@ -1088,3 +1088,24 @@ class WorkflowContractTests(SimpleTestCase):
             for reference in action_references:
                 with self.subTest(workflow=name, reference=reference):
                     self.assertRegex(reference, r"^[^@]+@[0-9a-f]{40}$")
+
+
+class FoundationReadinessTests(SimpleTestCase):
+    def test_catalog_failure_and_success_cache(self):
+        from mawareeth import ops_views
+        with patch.object(ops_views, "_foundation_ok", False), patch("i18n.catalog", side_effect=RuntimeError("broken")):
+            with self.assertRaises(RuntimeError):
+                ops_views.foundation_ready()
+            self.assertFalse(ops_views._foundation_ok)
+        with patch.object(ops_views, "_foundation_ok", False):
+            self.assertTrue(ops_views.foundation_ready())
+            with patch("i18n.catalog", side_effect=RuntimeError("broken")):
+                self.assertTrue(ops_views.foundation_ready())
+
+    def test_public_failure(self):
+        from mawareeth import ops_views
+        from django.test import RequestFactory
+        with patch.object(ops_views, "_readiness_checks", side_effect=RuntimeError("broken")), self.assertLogs("mawareeth.ops_views"):
+            response = ops_views.ready(RequestFactory().get("/health/ready/"))
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.content, b'{"status": "error"}')

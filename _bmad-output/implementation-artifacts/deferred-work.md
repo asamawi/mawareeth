@@ -440,3 +440,10 @@ Completed and obsolete items are removed; their history is in git.
 - Legacy `Calculation.name` is not carried into names.
 - Alias row ids are regenerated in v2.
 - Save-conflict UX belongs to Epic 9.
+
+## Story 8.11
+
+- Foundation counts are log-based; Prometheus export and alert rules remain deferred.
+- Network/render constants stand in for Story 9.12's real-device measurements.
+- Production capacity evidence comes from the first deploy log.
+- A production-backup restore rehearsal remains an operator step.

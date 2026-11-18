@@ -581,7 +581,14 @@ For a real recovery (a rebuilt host, or a deliberate data rollback), run as root
    **Roles and globals.** `globals.sql` is never restored automatically. The restore above uses `--no-owner --no-acl`, so the application needs only the `POSTGRES_USER` role that the PostgreSQL image creates. If the old cluster had extra roles, role settings, or tablespaces, read the file without writing it to disk (it holds role password hashes) and recreate only what is missing, by hand, after review: `restic dump GLOBALS_ID /globals.sql | less`. Do not pipe it into `psql` wholesale: it also re-creates the existing superuser and would fail or overwrite its password.
 
 8. Deploy the matching release with `release.sh deploy` and verify the edge.
-9. Re-enable the timers (`systemctl start mawareeth-backup.timer mawareeth-restore-check.timer`), then run `backup.sh backup` and `backup.sh verify-restore` and confirm `backup.sh gate` before reopening writes. Keep the retained volume until the restored data has been accepted, then remove it in a separately approved step.
+9. Before reopening writes, run the application restore check in the routed slot (replace `blue` with the routed slot):
+
+   ```console
+   docker compose -p mawareeth exec -T app-blue python manage.py restore_check
+   ```
+
+   Require exit 0. Compare snapshot-version and share/invite state counts with the source database. The check is read-only: it checks migrations, snapshot decoding, names, revisions, owners, references and the image's locale catalogs. Failed Saved cases are identified only by primary key.
+10. Re-enable the timers (`systemctl start mawareeth-backup.timer mawareeth-restore-check.timer`), then run `backup.sh backup` and `backup.sh verify-restore` and confirm `backup.sh gate` before reopening writes. Keep the retained volume until the restored data has been accepted, then remove it in a separately approved step.
 
 ### Known limits (deferred)
 
@@ -1086,3 +1093,34 @@ Also confirm the Docker-port backstop is active and in effect: `systemctl is-act
 Production moved from Heroku to this host on 2026-11-01, and Heroku is destroyed. See `_bmad-output/archive/phase-1/implementation-artifacts/spec-0-10-execute-production-cutover-and-retire-heroku.md` for timings and findings. The rehearsal and inventory tooling and their runbooks were removed afterwards; the last commit that has them is `e61f4dd`.
 
 The final state of the Heroku database is kept in the restic repository as snapshot tag `heroku-final` (`heroku-final-20261101.dump`, a `pg_dump -Fc --schema=public` archive). Nightly retention never prunes it, because it lacks the `complete` tag. To inspect it, run Restic with the same repository settings as `backup.sh`, then `dump latest /heroku-final-20261101.dump --tag heroku-final` into `pg_restore -l` (or `pg_restore` into a scratch database, never into production).
+
+
+## Capacity evidence
+
+After candidate readiness and identity checks, `release.sh deploy` runs `release_check`
+and `capacity_check --json /tmp/capacity.json` with `exec -T`, before switching the route.
+Each check is bounded by `MAWAREETH_DEPLOY_CHECK_TIMEOUT` (default 600 seconds).
+Either failure aborts the candidate while the prior slot remains serving. Output is
+kept in the root-only deploy log. Both slots are running during this measurement.
+
+The capacity log contains a JSON object with the image commit, network model and
+four workloads. Each phase reports n, p50, p95, max (milliseconds), busy/conflict
+counts and `passed`. Standard engine p95 must be below 200 ms; every end-to-end
+p95 (server plus modeled client time) must be below 1000 ms. Other engine timings
+are informational. Retries and session lock waits remain in measured samples.
+The model uses 150 ms RTT, 1600 kbps down, 750 kbps up and 100 ms rendering.
+Response bodies are counted gzip-compressed (level 5), as Caddy's `encode zstd gzip`
+sends them; Story 9.12 measures the real device.
+
+To repeat in a slot, using the same Compose/runtime environment as the deployment:
+
+```console
+docker compose -p mawareeth exec -T app-blue python manage.py capacity_check --samples 20 --json /tmp/capacity.json
+docker compose -p mawareeth exec -T app-blue cat /tmp/capacity.json
+```
+
+`--no-contention` is diagnostic only. The harness deletes its own Session rows,
+even on failure, and never modifies Saved cases, shares or invitations.
+
+Epic 8 adds no tables: its schema additions are `api_savedcase.revision` and
+`api_savedcase.name`. No Ticket, API-key, counter or prefill table exists yet.

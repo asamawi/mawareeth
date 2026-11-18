@@ -44,6 +44,7 @@ live_timeout="${MAWAREETH_DEPLOY_LIVE_TIMEOUT:-120}"
 ready_timeout="${MAWAREETH_DEPLOY_READY_TIMEOUT:-180}"
 migrate_timeout="${MAWAREETH_DEPLOY_MIGRATE_TIMEOUT:-900}"
 verify_timeout="${MAWAREETH_DEPLOY_VERIFY_TIMEOUT:-60}"
+check_timeout="${MAWAREETH_DEPLOY_CHECK_TIMEOUT:-600}"
 poll_interval="${MAWAREETH_DEPLOY_POLL_INTERVAL:-2}"
 command_timeout=60
 probe_timeout=15
@@ -434,6 +435,7 @@ deploy() {
   bounded_seconds "$live_timeout" MAWAREETH_DEPLOY_LIVE_TIMEOUT
   bounded_seconds "$ready_timeout" MAWAREETH_DEPLOY_READY_TIMEOUT
   bounded_seconds "$migrate_timeout" MAWAREETH_DEPLOY_MIGRATE_TIMEOUT
+  bounded_seconds "$check_timeout" MAWAREETH_DEPLOY_CHECK_TIMEOUT
   bounded_seconds "$verify_timeout" MAWAREETH_DEPLOY_VERIFY_TIMEOUT
   bounded_seconds "$poll_interval" MAWAREETH_DEPLOY_POLL_INTERVAL
   bounded_seconds "$startup_timeout" MAWAREETH_RUNTIME_WAIT_TIMEOUT
@@ -533,6 +535,10 @@ deploy() {
       || abort_candidate "active app-$prior_slot stopped being ready after the migration; the migration may not be backward compatible (keep it serving and investigate)"
   fi
   journal candidate-ready || abort_candidate "cannot write $journal_file"
+  compose_bounded "$check_timeout" exec -T "app-$candidate_slot" python manage.py release_check >>"$deploy_log" 2>&1 \
+    || abort_candidate "release_check failed; see root-only deploy log"
+  compose_bounded "$check_timeout" exec -T "app-$candidate_slot" python manage.py capacity_check --json /tmp/capacity.json >>"$deploy_log" 2>&1 \
+    || abort_candidate "capacity_check failed; see root-only deploy log"
 
   journal switching || abort_candidate "cannot write $journal_file"
   stage=switched

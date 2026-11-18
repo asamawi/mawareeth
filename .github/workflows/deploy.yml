@@ -104,6 +104,7 @@ jobs:
             --env BREVO_SMTP_KEY=build-only \
             --env BREVO_SMTP_LOGIN=build@example.invalid \
             "$IMAGE_TAG"
+          docker exec "$container" python manage.py release_check
           port="$(docker port "$container" 8000/tcp | head -n 1 | sed 's/.*://')"
           for attempt in {1..30}; do
             if [ "$(docker inspect --format '{{.State.Running}}' "$container")" != "true" ]; then

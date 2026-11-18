@@ -41,6 +41,7 @@ def _checks_pass():
     if not _schema_ready():
         logger.warning("Readiness check failed: unapplied migrations for this release.")
         return False
+    foundation_ready()
     return True
 
 
@@ -75,7 +76,7 @@ def live(request):
 def ready(request):
     try:
         if _readiness_checks():
-            return JsonResponse({"status": "ok", "database": "ok", "schema": "ok"})
+            return JsonResponse({"status": "ok", "database": "ok", "schema": "ok", "foundation": "ok"})
     except Exception:
         # Readiness must remain safe for public probes: do not expose driver,
         # database, or configuration details when its dependency is unavailable.
@@ -95,3 +96,20 @@ def release(request):
     if settings.RELEASE_COMMIT_SHA:
         payload["commit"] = settings.RELEASE_COMMIT_SHA
     return JsonResponse(payload)
+
+
+_foundation_ok = False
+
+
+def foundation_ready():
+    global _foundation_ok
+    if not _foundation_ok:
+        import engine
+        import presentation
+        from api import snapshots
+        from mawareeth.release_gates import catalogs
+        catalogs()
+        if snapshots.write_version() not in snapshots.READ_VERSIONS:
+            raise ValueError("snapshot writer unsupported")
+        _foundation_ok = True
+    return True

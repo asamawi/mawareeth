@@ -155,6 +155,11 @@ if [[ "${1:-}" == compose ]]; then
         [[ ! -e "$S/plan-output" ]] || cat "$S/plan-output"
         exit 0
       fi
+      if [[ "$*" == 'python manage.py release_check' || "$*" == 'python manage.py capacity_check --json /tmp/capacity.json' ]]; then
+        printf '%s %s\n' "$service" "$*" >> "$S/checks"
+        [[ ! -e "$S/fail-$3" ]] || exit 1
+        exit 0
+      fi
       if [[ "$1 $2" == 'python manage.py' ]]; then
         printf '%s %s\n' "$service" "$*" >> "$S/migrations"
         if [[ -e "$S/prior-unready-after-migrate" ]]; then touch "$S/fail-ready-$(< "$S/prior-unready-after-migrate")"; rm -f "$S/prior-unready-after-migrate"; fi
@@ -568,6 +573,13 @@ route_is green; caddy_is green
 [[ "$(< "$S/running-app-green")" == "$image_b" ]] || fail 'green does not run the manifest image'
 ! running blue || fail 'old slot was not drained'
 [[ "$(migrations)" == $((before_migrations + 1)) ]] || fail 'migrations did not run exactly once'
+[[ "$(tail -n 2 "$S/checks")" == $'app-green python manage.py release_check\napp-green python manage.py capacity_check --json /tmp/capacity.json' ]] \
+  || fail 'release_check and capacity_check did not run in the candidate, in that order'
+check_line="$(line_of 'exec -T app-green python manage.py release_check$')"
+capacity_line="$(line_of 'exec -T app-green python manage.py capacity_check --json /tmp/capacity.json$')"
+[[ -n "$check_line" && "$(line_of 'exec -T app-green python manage.py migrate --noinput$')" -lt "$check_line" \
+  && "$check_line" -lt "$capacity_line" && "$capacity_line" -lt "$(line_of 'caddy reload')" ]] \
+  || fail 'the release checks did not run after the migration and before the switch'
 [[ "$(tail -n 1 "$S/migrations")" == 'app-green python manage.py migrate --noinput' ]] || fail 'migration did not run in the candidate'
 first_curl="$(grep -nE '^curl ' "$S/calls.log" | head -n 1 | cut -d: -f1)"
 last_curl="$(line_of '^curl ')"; blue_stop="$(line_of '^docker compose .* stop -t 35 app-blue$')"
@@ -800,7 +812,13 @@ assert_candidate_failure 'journal failure before migrating'
 printf 'app-green\n' > "$S/prior-unready-after-migrate"; run_release manifest-a; rm -f "$S/fail-ready-app-green"
 assert_candidate_failure 'active slot unready after migration'
 need "$tmp/out" 'may not be backward compatible'
+for check in release_check capacity_check; do
+  touch "$S/fail-$check"; run_release manifest-a; rm -f "$S/fail-$check"
+  assert_candidate_failure "$check failure"
+  need "$tmp/out" "$check failed"
+done
 before_migrations="$(migrations)"
+
 touch "$S/fail-migrate"; run_release manifest-a; rm -f "$S/fail-migrate"
 assert_candidate_failure 'migration failure'
 need "$tmp/out" 'migration failed'
