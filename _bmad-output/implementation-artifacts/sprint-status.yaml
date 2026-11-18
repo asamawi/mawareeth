@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 21:00
-last_updated: 11-16-2026 21:00
+last_updated: 11-18-2026 18:08
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
@@ -48,7 +48,7 @@ development_status:
   8-10-upgrade-existing-saved-cases-without-losing-their-original-b: backlog
   8-11-prove-the-foundation-meets-wave-1-release-budgets: backlog
   8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert: backlog
-  epic-8-retrospective: optional
+  epic-8-retrospective: done
 
   epic-9: backlog
   9-1-establish-the-interview-shell-and-accessible-tree-tokens: backlog
@@ -160,3 +160,67 @@ development_status:
   20-7-explain-the-api-mcp-setup-and-terms-on-one-page: backlog
   20-8-prove-the-public-surface-meets-capacity-and-observability-ga: backlog
   epic-20-retrospective: optional
+action_items:
+  - id: "epic-8-retro-item-1-accept-revision-on-choose_school-preview"
+    epic: 8
+    action: "Accept revision on choose_school preview bodies in web/src/api/case.ts
+      parseChoice and add a disagreeing-School preview test carrying revision; must
+      land before any master merge of Epic 8 (F1)"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-2-make-api-capacity-py-validate-the-previe"
+    epic: 8
+    action: "Make api/capacity.py validate the preview body (status, presented, revision)
+      before counting a sample, add a disagreeing-School workload and an unusable-200
+      test (F3)"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-3-before-enabling-snapshot_write_version-2"
+    epic: 8
+    action: "Before enabling SNAPSHOT_WRITE_VERSION=2 or the backfill, base the snapshot
+      release gate on the real rollback target image instead of the adjacent matrix,
+      and note in the runbook that 02d3627 cannot read schema 2 (F2)"
+    owner: "dev + Ahmad"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-4-fix-stale-deferred-work-md-entries-at-li"
+    epic: 8
+    action: "Fix stale deferred-work.md entries at lines 367 and 373 (scholars table
+      now presented; blocked means zero final share) (F14)"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-5-add-untracked-deferrals-to-deferred-work"
+    epic: 8
+    action: "Add untracked deferrals to deferred-work.md: engine core gaps, Country-writes-wait-on-schema-2
+      prerequisite, 8.12 cross-tree same_person/Deceased.heir query before the production
+      purge (F13, F16, F17)"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-6-reconcile-epic-8-acceptance-criteria-in"
+    epic: 8
+    action: "Reconcile Epic 8 acceptance criteria in epics.md to the as-built (8.12
+      1,146 and 2402 purged, 8.11 modelled 4G, 8.9 per-layer limit and partial commands,
+      8.8/8.11 matrix evidence, 8.5 catalog narrowing, 8.10 tolerant decode, 8.1 lineage
+      scope) (F15)"
+    owner: "Ahmad"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-7-make-the-auto-dev-driver-set-each-story"
+    epic: 8
+    action: "Make the auto-dev driver set each story key in sprint-status.yaml to
+      done when its spec is done (F18)"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-8-retro-item-8-add-a-cross-story-contract-check-to-the"
+    epic: 8
+    action: "Add a cross-story contract check to the build review: a changed server
+      response field requires a fixture or test through every strict web parser of
+      that response (F19)"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
