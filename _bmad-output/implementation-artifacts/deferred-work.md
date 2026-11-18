@@ -365,12 +365,8 @@ Completed and obsolete items are removed; their history is in git.
   evidence: Copy and enabling belong to Epics 9-12. The predicates are tested with an `enabled` override so they are ready.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
-  summary: The scholars' table is not part of PresentedResult v2. Story 8.7 must add it (or keep rendering it from the evaluation's `table`) before the results page and the PDF switch.
-  evidence: `Evaluation.table` carries it; `present` never reads it.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
   summary: Display changes the consumers will show once they render PresentedResult strings (AD-19). The full labelled table is `presentation/tests/fixtures/display-changes.json`.
-  evidence: Amounts gain a currency in Babel's form (en "$125.00", fr "125,00 €", ar "‏125.00 ر.س.‏" with CLDR's own right-to-left marks around it) where preview showed a bare "125.00". fr percent gains the CLDR no-break space ("12,5 %", was "12.5%" in the PDF). Percent and kirat keep the PDF's half-up rounding. The Arabic amount text contains U+200F from CLDR itself; presentation injects no control characters. A family with no heirs yet raises `PresentationError("no_heirs")`: the legacy preview is "not ready" there. A person blocked in the first estate but who inherits from a later death has `blocked: true` (kind `blocked`), where the legacy layered preview flagged only a zero final share.
+  evidence: Amounts gain a currency in Babel's form (en "$125.00", fr "125,00 €", ar "‏125.00 ر.س.‏" with CLDR's own right-to-left marks around it) where preview showed a bare "125.00". fr percent gains the CLDR no-break space ("12,5 %", was "12.5%" in the PDF). Percent and kirat keep the PDF's half-up rounding. The Arabic amount text contains U+200F from CLDR itself; presentation injects no control characters. A family with no heirs yet raises `PresentationError("no_heirs")`: the legacy preview is "not ready" there. A person is `blocked` only with a zero final share (`presentation/compare.py` `answers`), as the legacy layered preview flagged it, so someone blocked in the first estate who inherits from a later death is not shown as blocked.
 
 ## Existing consumers switched after full parity (Story 8.7)
 
@@ -447,3 +443,47 @@ Completed and obsolete items are removed; their history is in git.
 - Network/render constants stand in for Story 9.12's real-device measurements.
 - Production capacity evidence comes from the first deploy log.
 - A production-backup restore rehearsal remains an operator step.
+
+## Epic 8 retrospective follow-ups
+
+Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md` (findings F13, F16, F17).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-reproduce-existing-single-estate-school-answers-in-memory.md`
+  summary: The engine cannot refuse a spouse of the deceased's own sex (a husband alone for a male deceased), because Family v1 has no gender for the root.
+  evidence: `engine/core.py` `is_impossible` is gender-free; `calc/test_engine_parity.py` pins that the engine calculates these. Production is protected by the preview's consumer guard (`presentation.refused_outcome`), not by the core. Settle with a Family version carrying the root's gender.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-reproduce-existing-single-estate-school-answers-in-memory.md`
+  summary: `evaluate` ignores Family gifts, bequests and eligibility answers, so a Family carrying a bequest gets a normal Result with no refusal.
+  evidence: `engine/core.py` `evaluate` reads only heirs and estate. No producer emits these yet; the bequest/gift stories must compute them or refuse a Family that carries them.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-reproduce-existing-single-estate-school-answers-in-memory.md`
+  summary: No corpus family exercises the cap on the full siblings' share in the grandfather branch; a mutation there went undetected.
+  evidence: Spec 8.2 residual risks. Add a known-answer family that hits the cap to the parity corpus.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-3-preserve-successive-death-answers-and-proof-inside-the-core.md`
+  summary: The engine accepts and calculates a person whose relationship contradicts their own gender (a female person entered as `father`), including in later deaths.
+  evidence: `engine/core.py` checks impossible relationship combinations and a later deceased's spouse sex, not every heir's gender. The session shell sets gender from the relationship, so no current producer sends this.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-4-give-every-family-action-one-engine-decision.md`
+  summary: Blocked labels and the answer disagree when the full sisters' cap exhausts the paternal siblings' pool beside a grandfather. The add-relative label says "not blocked" while the share is zero.
+  evidence: `engine/kinship.py` keeps the wave-1 label; `engine/single.py` gives the paternal sibling `excluded_by_full_siblings` and share 0. `engine/tests/test_queries.py` `test_solver_consistency` pins the exception. Needs a fiqh/UX decision on labelling that case.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-4-give-every-family-action-one-engine-decision.md`
+  summary: `relationship_options` and `change_impossible` can offer a replacing person a relationship that contradicts their gender or their relationship in another estate.
+  evidence: `engine/queries.py` uses only the estate's relationship counts. The web shell locks a linked person's gender (`api/anonymous_case.py` `gender_locked`), but the public query boundary does not check it. Same root as the 8.3 item.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
+  summary: A persisted currency that is not explicit is re-defaulted from the viewer's Locale at presentation time, so two viewers can see different currencies for one Case.
+  evidence: `presentation/present.py` uses `default_currency(fmt.locale)` unless `currency.explicit`. Unreachable today (phase-1 estates convert to SAR explicit); settle before the currency picker writes non-explicit currencies.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-10-upgrade-existing-saved-cases-without-losing-their-original-basis.md`
+  summary: No test renders a real PDF from a schema-2 Saved case; Stories 8.8–8.10 compared the inputs passed to a mocked renderer.
+  evidence: Spec 8.8, 8.9 and 8.10 residual risks. Add one end-to-end render of a schema-2 case (both layered and single) in the CI job that has the Noto fonts.
+
+- source_spec: none
+  summary: Country writes must wait until every rollback-eligible image reads schema 2.
+  evidence: Declared in `epic-8-context.md` (Cross-Story Dependencies) and carried by no story. Today Country Basis resolution is unavailable and `api/snapshots.py` rejects Country bases, so nothing writes them yet. The Country epic must check this before enabling writes.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert.md`
+  summary: Before the production purge, check that no row outside the purged trees references a heir inside them through `Heir.same_person` or `Deceased.heir`; both cascade on delete.
+  evidence: Legacy views only link heirs within one calculation tree, so none is expected. Run a read-only query on production that counts such cross-root references; if any exist, resolve them before `purge_empty_legacy_drafts` runs.
