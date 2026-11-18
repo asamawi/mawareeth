@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 21:00
-last_updated: 11-18-2026 18:28
+last_updated: 11-18-2026 18:30
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
@@ -207,7 +207,7 @@ action_items:
       8.8/8.11 matrix evidence, 8.5 catalog narrowing, 8.10 tolerant decode, 8.1 lineage
       scope) (F15)"
     owner: "Ahmad"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
   - id: "epic-8-retro-item-7-make-the-auto-dev-driver-set-each-story"
     epic: 8
