@@ -6,7 +6,7 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.db.backends.base.base import BaseDatabaseWrapper
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from api.models import SavedCase, ShareLink, ShareInvite
 
@@ -23,7 +23,39 @@ class ReleaseTests(SimpleTestCase):
             with self.assertRaises(SystemExit) as error:
                 call_command("release_check", stdout=out)
         self.assertEqual(error.exception.code, 1)
-        self.assertEqual(out.getvalue(), "failed: purity\n")
+        self.assertEqual(out.getvalue(), "rollback reader check skipped: --rollback-reads not provided\nfailed: purity\n")
+
+    def run_gates(self, *args):
+        out = io.StringIO()
+        with patch("api.management.commands.release_check.gates", return_value={}):
+            call_command("release_check", *args, stdout=out)
+        return out.getvalue()
+
+    def test_rollback_reader_check_skipped_without_a_rollback_target(self):
+        self.assertEqual(self.run_gates(), "rollback reader check skipped: --rollback-reads not provided\nrelease checks passed\n")
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=1)
+    def test_schema_1_writer_passes_any_rollback_target(self):
+        for reads in ("1", "1,2"):
+            with self.subTest(reads=reads):
+                self.assertEqual(self.run_gates("--rollback-reads", reads), "release checks passed\n")
+
+    def test_schema_2_writer_needs_a_rollback_target_that_reads_it(self):
+        with override_settings(SNAPSHOT_WRITE_VERSION=2):
+            self.assertEqual(self.run_gates("--rollback-reads", "1,2"), "release checks passed\n")
+            # The phase-1 image reads schema 1 only: a rollback to it could not open converted cases.
+            with self.assertRaises(SystemExit) as error:
+                self.run_gates("--rollback-reads", "1")
+        self.assertEqual(error.exception.code, 1)
+
+    def test_malformed_rollback_reads_fail(self):
+        for reads in ("x", "", "1,,2", "1.5"):
+            out = io.StringIO()
+            with self.subTest(reads=reads), patch("api.management.commands.release_check.gates", return_value={}):
+                with self.assertRaises(SystemExit) as error:
+                    call_command("release_check", "--rollback-reads", reads, stdout=out)
+                self.assertEqual(error.exception.code, 1)
+                self.assertEqual(out.getvalue(), "failed: rollback\n")
 
 class RestoreTests(TestCase):
     def setUp(self):

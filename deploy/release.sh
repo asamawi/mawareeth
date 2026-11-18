@@ -166,6 +166,20 @@ except ValueError:
     print("")' | tr -d '\r'
 }
 
+# The Saved-case snapshot versions a slot's image reads, from its /health/release/
+# body, as "1" or "1,2". An image that does not report them (phase-1) or an
+# unreadable body reads as schema 1 only.
+json_snapshot_reads() {
+  python3 -I -c 'import json, sys
+try:
+    value = json.loads(sys.stdin.read())
+    reads = value.get("snapshot_reads") if isinstance(value, dict) else None
+    ok = isinstance(reads, list) and reads and all(type(v) is int and v >= 1 for v in reads)
+    print(",".join(str(v) for v in sorted(set(reads))) if ok else "1")
+except ValueError:
+    print("1")' | tr -d '\r'
+}
+
 slot_ready() { probe "$1" /health/ready/ >/dev/null; }
 prior_ready() { slot_ready "$prior_slot"; }
 candidate_live() { probe "$candidate_slot" /health/live/ >/dev/null; }
@@ -535,7 +549,16 @@ deploy() {
       || abort_candidate "active app-$prior_slot stopped being ready after the migration; the migration may not be backward compatible (keep it serving and investigate)"
   fi
   journal candidate-ready || abort_candidate "cannot write $journal_file"
-  compose_bounded "$check_timeout" exec -T "app-$candidate_slot" python manage.py release_check >>"$deploy_log" 2>&1 \
+  # The candidate's snapshot writer must be readable by the slot a rollback returns to.
+  check_args=(python manage.py release_check)
+  if [[ "$mode" == normal ]]; then
+    prior_body="$(probe "$prior_slot" /health/release/)" || prior_body=''
+    rollback_reads="$(json_snapshot_reads <<<"$prior_body")"
+    printf 'release: rollback target app-%s reads snapshot versions %s\n' "$prior_slot" "$rollback_reads" >> "$deploy_log" \
+      || abort_candidate "cannot write $deploy_log"
+    check_args+=(--rollback-reads "$rollback_reads")
+  fi
+  compose_bounded "$check_timeout" exec -T "app-$candidate_slot" "${check_args[@]}" >>"$deploy_log" 2>&1 \
     || abort_candidate "release_check failed; see root-only deploy log"
   compose_bounded "$check_timeout" exec -T "app-$candidate_slot" python manage.py capacity_check --json /tmp/capacity.json >>"$deploy_log" 2>&1 \
     || abort_candidate "capacity_check failed; see root-only deploy log"

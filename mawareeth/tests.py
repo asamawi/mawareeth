@@ -288,6 +288,13 @@ class OpsEndpointTests(TestCase):
         self.assertEqual(response.json()["release"], "build-2026-09-02")
         self.assertEqual(response.json()["commit"], "abc1234")
 
+    @override_settings(SNAPSHOT_WRITE_VERSION=1)
+    def test_release_identity_reports_the_snapshot_versions_this_image_reads_and_writes(self):
+        # release.sh reads these from the active slot to decide whether the candidate's writer is safe.
+        body = self.client.get(reverse("ops-release"), secure=True).json()
+        self.assertEqual(body["snapshot_reads"], [1, 2])
+        self.assertEqual(body["snapshot_writes"], 1)
+
     def test_health_responses_are_not_cacheable(self):
         for name in ("ops-live", "ops-ready", "ops-release"):
             with self.subTest(name=name):

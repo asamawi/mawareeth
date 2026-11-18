@@ -88,10 +88,14 @@ def ready(request):
 @login_not_required
 @never_cache
 def release(request):
+    from api.snapshots import READ_VERSIONS, write_version
+
     payload = {
         "status": "ok",
         "version": settings.APP_VERSION,
         "release": settings.RELEASE_VERSION,
+        "snapshot_reads": sorted(READ_VERSIONS),
+        "snapshot_writes": write_version(),
     }
     if settings.RELEASE_COMMIT_SHA:
         payload["commit"] = settings.RELEASE_COMMIT_SHA

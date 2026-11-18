@@ -1103,6 +1103,16 @@ Each check is bounded by `MAWAREETH_DEPLOY_CHECK_TIMEOUT` (default 600 seconds).
 Either failure aborts the candidate while the prior slot remains serving. Output is
 kept in the root-only deploy log. Both slots are running during this measurement.
 
+`release_check` also refuses a candidate whose Saved-case snapshot writer
+(`SNAPSHOT_WRITE_VERSION`) the rollback target cannot read. Before running it,
+`release.sh deploy` asks the active slot's `/health/release/` for `snapshot_reads`
+and passes them as `--rollback-reads`; an image that does not report them (the
+phase-1 image `02d3627`) counts as reading schema 1 only, and so does a slot whose
+answer cannot be read. So switching the writer to 2 (and then running
+`backfill_saved_cases`) needs one deploy of a schema-2-reading image with writer 1
+first; a deploy that sets writer 2 over a schema-1-only slot aborts before the route
+moves. A first (bootstrap) deploy has no rollback target and skips this check.
+
 The capacity log contains a JSON object with the image commit, network model and
 five workloads: `standard_school`, `standard_compare`, `fifty_compare`,
 `later_deaths_compare` and `disagree_compare`. Each phase reports n, p50, p95, max (milliseconds), busy/conflict

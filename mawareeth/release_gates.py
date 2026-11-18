@@ -48,6 +48,13 @@ def snapshots():
             decode(version, json.loads(path.with_name(f"v{version}-" + path.name[3:]).read_text(encoding="utf-8")), "id", "time")
 
 
+def rollback(reads):
+    from api.snapshots import write_version
+    versions = [int(value) for value in reads.split(",")]
+    if write_version() not in versions:
+        raise ValueError("snapshot writer unsupported by rollback target")
+
+
 def glyphs():
     from i18n.glyphs import main
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):

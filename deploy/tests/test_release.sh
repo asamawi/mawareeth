@@ -155,7 +155,8 @@ if [[ "${1:-}" == compose ]]; then
         [[ ! -e "$S/plan-output" ]] || cat "$S/plan-output"
         exit 0
       fi
-      if [[ "$*" == 'python manage.py release_check' || "$*" == 'python manage.py capacity_check --json /tmp/capacity.json' ]]; then
+      if [[ "$*" == 'python manage.py release_check' || "$*" == 'python manage.py release_check --rollback-reads '* \
+            || "$*" == 'python manage.py capacity_check --json /tmp/capacity.json' ]]; then
         printf '%s %s\n' "$service" "$*" >> "$S/checks"
         [[ ! -e "$S/fail-$3" ]] || exit 1
         exit 0
@@ -180,7 +181,10 @@ if [[ "${1:-}" == compose ]]; then
         /health/release/)
           commit="$(commit_of "$(< "$S/running-$service")")"
           [[ ! -e "$S/wrong-commit-$service" ]] || commit=0000000000000000000000000000000000000000
-          printf '{"status":"ok","commit":"%s"}' "$commit" ;;
+          # $S/snapshot-reads-SERVICE holds the JSON list the image reports; absent, it reports none (phase-1).
+          if [[ -e "$S/snapshot-reads-$service" ]]; then
+            printf '{"status":"ok","commit":"%s","snapshot_reads":%s}' "$commit" "$(< "$S/snapshot-reads-$service")"
+          else printf '{"status":"ok","commit":"%s"}' "$commit"; fi ;;
         *) exit 1 ;;
       esac
       exit $? ;;
@@ -533,6 +537,8 @@ route_is blue; caddy_is blue
 [[ -e "$S/running-postgres" ]] || fail 'bootstrap did not start PostgreSQL'
 [[ "$(< "$S/running-app-blue")" == "$image_a" ]] || fail 'bootstrap does not run the manifest image'
 [[ "$(migrations)" == $((before_migrations + 1)) ]] || fail 'bootstrap did not migrate exactly once'
+[[ "$(grep 'release_check' "$S/checks" | tail -n 1)" == 'app-blue python manage.py release_check' ]] \
+  || fail 'bootstrap has no rollback target, so release_check must run without --rollback-reads'
 need "$state/slots/blue.env" "IMAGE=$image_a"
 need "$state/slots/blue.env" "COMMIT=$commit_a"
 [[ ! -e "$state/slots/blue.env.prev" ]] || fail 'bootstrap kept a stale .prev for a slot with no previous record'
@@ -573,9 +579,11 @@ route_is green; caddy_is green
 [[ "$(< "$S/running-app-green")" == "$image_b" ]] || fail 'green does not run the manifest image'
 ! running blue || fail 'old slot was not drained'
 [[ "$(migrations)" == $((before_migrations + 1)) ]] || fail 'migrations did not run exactly once'
-[[ "$(tail -n 2 "$S/checks")" == $'app-green python manage.py release_check\napp-green python manage.py capacity_check --json /tmp/capacity.json' ]] \
+# The active slot (blue) reports no snapshot_reads, as the phase-1 image does: it reads schema 1 only.
+[[ "$(tail -n 2 "$S/checks")" == $'app-green python manage.py release_check --rollback-reads 1\napp-green python manage.py capacity_check --json /tmp/capacity.json' ]] \
   || fail 'release_check and capacity_check did not run in the candidate, in that order'
-check_line="$(line_of 'exec -T app-green python manage.py release_check$')"
+grep -Fq 'release: rollback target app-blue reads snapshot versions 1' "$(journal_field deploy_log)" || fail 'the rollback target reads were not logged'
+check_line="$(line_of 'exec -T app-green python manage.py release_check --rollback-reads 1$')"
 capacity_line="$(line_of 'exec -T app-green python manage.py capacity_check --json /tmp/capacity.json$')"
 [[ -n "$check_line" && "$(line_of 'exec -T app-green python manage.py migrate --noinput$')" -lt "$check_line" \
   && "$check_line" -lt "$capacity_line" && "$capacity_line" -lt "$(line_of 'caddy reload')" ]] \
@@ -816,6 +824,16 @@ for check in release_check capacity_check; do
   touch "$S/fail-$check"; run_release manifest-a; rm -f "$S/fail-$check"
   assert_candidate_failure "$check failure"
   need "$tmp/out" "$check failed"
+done
+# The active slot (green) reports the snapshot versions it reads; they reach the
+# candidate's release_check, and a malformed report reads as schema 1 only. Each
+# run stops at capacity_check, so the slots stay as they are.
+for reads in '[2, 1]:1,2' '["2"]:1' '[]:1'; do
+  printf '%s\n' "${reads%%:*}" > "$S/snapshot-reads-app-green"; touch "$S/fail-capacity_check"
+  run_release manifest-a; rm -f "$S/fail-capacity_check" "$S/snapshot-reads-app-green"
+  assert_candidate_failure "capacity failure with rollback reads ${reads%%:*}"
+  [[ "$(grep 'release_check' "$S/checks" | tail -n 1)" == "app-blue python manage.py release_check --rollback-reads ${reads##*:}" ]] \
+    || fail "rollback reads ${reads%%:*} were not passed as ${reads##*:}"
 done
 before_migrations="$(migrations)"
 
