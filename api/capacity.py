@@ -17,6 +17,8 @@ from api.throttling import CaseWriteThrottle, CasePreviewThrottle
 from calc.adapters import family_from_session, basis_from_madhab
 from presentation import outcome as evaluate_outcome
 from engine.contracts.errors import ContractError
+from engine.queries import placement_options
+from engine.rule_set import school_rule_set
 from engine.contracts.presented import parse_presented_result
 
 NETWORK = dict(rtt_ms=150, down_kbps=1600, up_kbps=750, render_ms=100)
@@ -167,6 +169,14 @@ class Harness:
                         start = time.perf_counter(); evaluate_outcome(family, basis)
                         durations.append((time.perf_counter()-start)*1000)
                     engine = stats(durations, budget=ENGINE_BUDGET_MS if name.startswith("standard_") else None)
+                    # The Interview's per-person placement query, on the same family and under the same budget.
+                    rules = school_rule_set(case["madhab"] or "hanbali")
+                    durations = []
+                    for _ in range(samples):
+                        start = time.perf_counter()
+                        placement_options(family, rules, estate=1, deceased_gender=case["deceased"]["gender"])
+                        durations.append((time.perf_counter()-start)*1000)
+                    placement = stats(durations, budget=ENGINE_BUDGET_MS)
                     stop = threading.Event()
                     errors = []
                     writer = self.client(); writer.cookies = client.cookies.copy()
@@ -196,7 +206,7 @@ class Harness:
                                 raise SetupError()
                     if errors:
                         raise SetupError()
-                    result["workloads"][name] = dict(engine=engine, end_to_end=stats(values, busy, conflicts, TOTAL_BUDGET_MS))
+                    result["workloads"][name] = dict(engine=engine, placement=placement, end_to_end=stats(values, busy, conflicts, TOTAL_BUDGET_MS))
             result["passed"] = all(phase["passed"] for workload in result["workloads"].values() for phase in workload.values())
             return result
         finally:

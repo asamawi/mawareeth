@@ -39,6 +39,10 @@ def snapshots():
     for index, image in enumerate(matrix):
         for neighbour in matrix[max(0, index-1):index+2]:
             assert image["writes"] in neighbour["reads"]
+    for path in root.glob("v2-*.json"):
+        if not path.with_name("v1-" + path.name[3:]).exists():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            assert encode_v2(export_snapshot(decode(2, data, "id", "time"))) == data
     for path in root.glob("v1-*.json"):
         original = json.loads(path.read_text(encoding="utf-8"))
         encoded = encode_v2(original)

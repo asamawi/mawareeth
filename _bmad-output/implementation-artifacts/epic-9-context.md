@@ -9,6 +9,7 @@ Make the Interview a fast, editable family workspace where users add relatives w
 ## Stories
 
 - Story 9.1: Establish the Interview shell and accessible tree tokens
+- Story 9.1b: Carry lineage and status in the Interview Case
 - Story 9.2: Render the family as lineage cards on a navigable canvas
 - Story 9.3: Add one relative with one press
 - Story 9.4: Edit and remove relatives from the tree
@@ -30,6 +31,7 @@ Make the Interview a fast, editable family workspace where users add relatives w
 
 ## Technical Decisions
 
+- The Case response (read and every command) must carry each person once with a stable id (earliest row id, `same_as` aliases resolved), status (alive, died before/with, died later with order), `parent_of`/`spouse_of` edges, and engine-computed allowed relationships per person and for the deceased (including parent/spouse slots). `family_from_session()` builds the Family from these. Existing Cases without edges or died-before statuses read unchanged (no migration; shares/proofs/previews byte-identical). The v2 snapshot writer stores edges/died-before losslessly across session, saved, share, invite and received views; the v1 writer keeps refusing them as `unsupported_content`. `web/src/api/case.ts` treats the new fields as absent when missing. Relatives with no recorded parent hang from the deceased on their generation line; links are created only by positioned add (9.7) or edit (9.4), never guessed.
 - The server owns Case inputs. Every mutation uses one atomic command service with `expected_revision`; success advances the revision and returns the whole Case. Conflicts return the current Case without silent overwrite. Reject invalid batches/cascades without partial mutation. Offline edits and Undo are disabled; retain family/last preview without an edit queue.
 - Engine queries alone determine allowed relationships/positions, edit validity, deletion impact and refusal reasons. The command service enforces capacity. Do not duplicate fiqh or cascade tables in the browser.
 - Render stable person ids and lineage edges, with alive, died-before/with and ordered died-later statuses. Show one active estate at a time. Tree and canonical Heirs outline share `treeDescription`; preview renders server `PresentedResult` without browser share arithmetic/number formatting. Discard older-revision previews.
@@ -48,4 +50,4 @@ Make the Interview a fast, editable family workspace where users add relatives w
 
 ## Cross-Story Dependencies
 
-Epic 8 supplies contracts, lineage queries, catalog/registry, revision commands, successive-death composition, presentation and the capacity harness. Establish shell/tokens and lineage rendering before mutation surfaces; integrate shared history, focus and announcements before final accessibility/responsive/capacity verification. Epic 10 owns saved-case naming; Epic 11 owns sticky summary/sheet and results redesign, consuming this epic's preview slot and obstruction contract. New relationship classes and Country rules belong to later scope.
+Story 9.1b is backend-only (no new command, no UI) and must land before 9.2; 9.2, 9.3, 9.4 and 9.7 consume its persons/edges/statuses and placement options (9.4 sets died-before through the command service, persisted only under the schema 2 writer; 9.7 creates links). Epic 8 supplies contracts, lineage queries, catalog/registry, revision commands, successive-death composition, presentation and the capacity harness. Establish shell/tokens and lineage rendering before mutation surfaces; integrate shared history, focus and announcements before final accessibility/responsive/capacity verification. Epic 10 owns saved-case naming; Epic 11 owns sticky summary/sheet and results redesign, consuming this epic's preview slot and obstruction contract. New relationship classes and Country rules belong to later scope.

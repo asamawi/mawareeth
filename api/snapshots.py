@@ -53,6 +53,14 @@ class SnapshotError(Exception):
         self.detail = detail
 
 
+def ensure_writable(case):
+    """Refuse lineage (edges or died-before persons) while the snapshot writer is 1, which cannot store it.
+
+    Takes a session case, an exported snapshot or a Case; raises `unsupported_content` and writes nothing."""
+    if write_version() == 1 and (case.get('edges') or case.get('died_before')):
+        raise SnapshotError('unsupported_content', 'Snapshot cannot be represented losslessly.')
+
+
 def session_version(stored):
     return stored.get('schema_version', 1)
 
@@ -101,8 +109,7 @@ def decode(version, snapshot, case_id, started_at):
     def unsupported():
         raise SnapshotError('unsupported_content', 'Snapshot cannot be represented losslessly.')
 
-    if (family.edges or family.answers or family.gifts or family.bequests or
-            any(p.status == 'died_before_or_with' for p in family.persons)):
+    if family.answers or family.gifts or family.bequests:
         unsupported()
     amount, currency = family.estate.amount_minor, family.estate.currency
     if currency is not None and (currency.code != 'SAR' or not currency.explicit):
@@ -124,6 +131,12 @@ def decode(version, snapshot, case_id, started_at):
         return result
 
     value = {'madhab': resolved.school, 'deceased': None, 'heirs': rows(family.estates[0]), 'deaths': []}
+    died_before = [{'id': p.id, 'gender': p.gender, 'name': p.name, 'relationship': p.relationship}
+                   for p in family.persons if p.status == 'died_before_or_with']
+    if died_before:
+        value['died_before'] = died_before
+    if family.edges:
+        value['edges'] = [{'kind': e.kind, 'from': e.from_, 'to': e.to} for e in family.edges]
     if deceased is not None:
         estate_text = None
         if amount is not None:

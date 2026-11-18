@@ -18,6 +18,25 @@ from engine.tests.test_layered import layered_cases
 H = school_rule_set('hanafi')
 
 
+def family_document_with_died_before():
+    from engine.tests.test_core import person
+    document = {
+        'version': 1, 'root': 'root',
+        'persons': [person('wife', 'wife'), person('dead', 'son', 'died_before_or_with'),
+                    person('father', 'father', 'died_before_or_with')],
+        'edges': [{'kind': 'parent_of', 'from': 'dead', 'to': 'grandson'}],
+        'estates': [{'order': 1, 'deceased': 'root', 'heirs': [{'person': 'wife', 'relationship': 'wife'}]}],
+        'answers': [], 'gifts': [], 'bequests': [], 'estate': {'amount_minor': None, 'currency': None}}
+    document['persons'].append(person('grandson', 'son_of_son'))
+    document['estates'][0]['heirs'].append({'person': 'grandson', 'relationship': 'son_of_son'})
+    return document
+
+
+def later_estate_document():
+    from engine.tests.test_core import later_deaths_document
+    return later_deaths_document()
+
+
 class QueryTests(unittest.TestCase):
     def test_kinship_matrix(self):
         for rel, code in SECOND_OF.items():
@@ -113,6 +132,96 @@ class QueryTests(unittest.TestCase):
     def test_vocabulary(self):
         self.assertEqual(tuple(RELATIONSHIP_GENDERS), codes.RELATIONSHIPS)
         self.assertTrue(set(RELATIONSHIP_GENDERS.values()) <= set(codes.GENDERS))
+
+    def test_placement_table_and_kinship(self):
+        from engine.placement import ANCHORS
+        from dataclasses import FrozenInstanceError
+        f = family(['wife', 'son', 'son'])
+        found = q.placement_options(f, H, deceased_gender='male')
+        self.assertEqual(set(found), {'root', 'h0', 'h1', 'h2'})
+        names = lambda anchor, link=None: [p.relationship for p in found[anchor] if link in (None, p.link)]
+        self.assertEqual(names('root', 'parent'), ['father', 'mother'])
+        self.assertEqual(names('root', 'spouse'), ['wife'])
+        self.assertEqual(names('root', 'child'), ['son', 'daughter'])
+        self.assertEqual(names('h1'), ['son_of_son', 'daughter_of_son'])
+        self.assertEqual(names('h0'), [])
+        mother = q.placement_options(family(['mother']), H, deceased_gender='male')['h0']
+        self.assertEqual([(p.relationship, p.link, p.blocked) for p in mother], [
+            ('maternal_grandmother', 'parent', True), ('brother', 'child', False), ('sister', 'child', False),
+            ('maternal_brother', 'child', False), ('maternal_sister', 'child', False)])
+        # every candidate comes from the table and the table covers only known relationships
+        for entries in ANCHORS.values():
+            for link, relationship in entries:
+                self.assertIn(relationship, codes.RELATIONSHIPS)
+                self.assertIn(link, ('parent', 'child', 'spouse'))
+        # the deceased woman may have a husband but no wife
+        female = q.placement_options(family([]), H, deceased_gender='female')
+        self.assertEqual([p.relationship for p in female['root'] if p.link == 'spouse'], ['husband'])
+        # unknown gender offers both
+        either = q.placement_options(family([]), H)
+        self.assertEqual([p.relationship for p in either['root'] if p.link == 'spouse'], ['husband', 'wife'])
+        with self.assertRaises(TypeError):
+            found['h0'] = ()
+        with self.assertRaises(FrozenInstanceError):
+            found['root'][0].blocked = True
+
+    def test_placement_excludes_second_and_fifth(self):
+        found = q.placement_options(family(['father', 'wife', 'wife', 'wife', 'wife']), H, deceased_gender='male')
+        root = [p.relationship for p in found['root']]
+        self.assertNotIn('father', root)
+        self.assertIn('mother', root)
+        self.assertNotIn('wife', root)
+        self.assertNotIn('husband', root)
+        self.assertEqual([p.relationship for p in found['h0']],
+                         ['grandfather', 'paternal_grandmother', 'brother', 'sister',
+                          'paternal_brother', 'paternal_sister'])
+
+    def test_placement_blocked_flag_and_rule_set(self):
+        found = q.placement_options(family(['son', 'brother']), H, deceased_gender='male')
+        entry = next(p for p in found['h1'] if p.relationship == 'son_of_brother')
+        self.assertTrue(entry.blocked)
+        self.assertFalse(next(p for p in found['root'] if p.relationship == 'daughter').blocked)
+        # the same candidates under another rule set: the grandfather blocks brothers only for the Hanafis
+        for school in ('hanafi', 'shafii'):
+            found = q.placement_options(family(['grandfather', 'father']), school_rule_set(school), deceased_gender='male')
+            brother = next(p for p in found['h1'] if p.relationship == 'brother')
+            self.assertTrue(brother.blocked, school)  # a father blocks brothers under every school
+        found = q.placement_options(family(['grandfather', 'mother']), school_rule_set('shafii'), deceased_gender='male')
+        self.assertFalse(next(p for p in found['h1'] if p.relationship == 'brother').blocked)
+        found = q.placement_options(family(['grandfather', 'mother']), H, deceased_gender='male')
+        self.assertTrue(next(p for p in found['h1'] if p.relationship == 'brother').blocked)
+
+    def test_placement_died_before_anchor_and_cardinality(self):
+        document = family_document_with_died_before()
+        f = parse_family(document)
+        found = q.placement_options(f, H, deceased_gender='male')
+        self.assertEqual([(p.relationship, p.link) for p in found['dead']],
+                         [('son_of_son', 'child'), ('daughter_of_son', 'child')])
+        self.assertNotIn('father', [p.relationship for p in found['root']])
+        self.assertEqual(found['wife'], ())
+        # died-before persons are not heirs: they never block anyone
+        self.assertFalse(any(p.blocked for p in found['root']))
+        with_wives = copy.deepcopy(document)
+        for i in range(4):
+            with_wives['persons'].append({'id': f'w{i}', 'gender': 'female', 'name': None, 'relationship': 'wife',
+                                          'status': 'died_before_or_with', 'death_order': None})
+        found = q.placement_options(parse_family(with_wives), H, deceased_gender='male')
+        self.assertNotIn('wife', [p.relationship for p in found['root']])
+
+    def test_placement_later_estate_and_errors(self):
+        f = parse_family(later_estate_document())
+        found = q.placement_options(f, H, estate=2)
+        self.assertEqual([p.relationship for p in found['root'] if p.link == 'spouse'], ['wife'])
+        self.assertEqual([p.relationship for p in found['root'] if p.link == 'parent'], ['father', 'mother'])
+        # a wife, who is no anchor in the table, and an heir of the earlier estate only
+        self.assertEqual(found['h2'], ())
+        self.assertEqual(found['h1'], ())
+        for bad in (lambda: q.placement_options(f, H, estate=9), lambda: q.placement_options(f, H, estate='1'),
+                    lambda: q.placement_options(f, H, estate=2, deceased_gender='male'),
+                    lambda: q.placement_options(f, H, deceased_gender='x'),
+                    lambda: q.placement_options('family', H), lambda: q.placement_options(f, 'rules')):
+            with self.assertRaises(ContractError):
+                bad()
 
     def test_solver_consistency(self):
         rng = random.Random(84)

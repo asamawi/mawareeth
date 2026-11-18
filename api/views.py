@@ -18,7 +18,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api import anonymous_case, case_commands, invites, preview, sharing
-from api.snapshots import READ_VERSIONS, SnapshotError, decode, default_name, encode_v2, write_version
+from api.snapshots import READ_VERSIONS, SnapshotError, decode, default_name, encode_v2, ensure_writable, write_version
 from engine.contracts import ContractError
 from presentation.money import PresentationError
 from api.models import SavedCase, ShareInvite, ShareLink
@@ -360,6 +360,7 @@ class SavedCasesView(ApiView):
         version = write_version()
         snapshot = anonymous_case.export_snapshot(case)
         try:
+            ensure_writable(snapshot)
             if version == 2:
                 snapshot = encode_v2(snapshot)
                 decode(2, snapshot, 'snapshot', '')
@@ -416,7 +417,10 @@ class OpenSavedCaseView(ApiView):
             decoded = decode(row.schema_version, row.snapshot, str(row.pk), row.updated_at.isoformat())
         except SnapshotError as error:
             return Response({'detail': 'This saved case version is unsupported.', 'code': error.code}, status=400)
-        case = anonymous_case.load_snapshot(request, anonymous_case.export_snapshot(decoded))
+        try:
+            case = anonymous_case.load_snapshot(request, anonymous_case.export_snapshot(decoded))
+        except SnapshotError as error:
+            return Response({'detail': 'This saved case version is unsupported.', 'code': error.code}, status=400)
         anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision)
         return Response({'case': case})
 

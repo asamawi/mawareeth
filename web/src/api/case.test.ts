@@ -41,7 +41,7 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-const CASE = { id: "abc123", revision: 4, started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} }, deaths: [] };
+const CASE = { id: "abc123", revision: 4, started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} }, deaths: [], persons: [], edges: [], placement: {} };
 const signal = () => new AbortController().signal;
 const withToken = { cookie: () => "other=1; csrftoken=tok%3D1" };
 const header = (call: Call, name: string) => (call.init?.headers as Record<string, string>)[name];
@@ -301,6 +301,9 @@ test("parseCase reads deceased and heirs, and tolerates the older shape", async 
     heirs: [],
     heir_options: { blocked: [], invalid: {} },
     deaths: [],
+    persons: [],
+    edges: [],
+    placement: {},
   });
   stubFetch(async () =>
     Response.json({
@@ -1066,4 +1069,89 @@ test("startCase names the revision of the case it replaces", async () => {
   const calls = stubFetch(async () => Response.json({ case: CASE }, { status: 201 }));
   await startCase(signal(), { ...withToken, replace: true, caseId: "abc123", revision: 4 });
   assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { replace: true, case_id: "abc123", expected_revision: 4 });
+});
+
+// Story 9.1b: lineage, statuses and placement
+
+const LINEAGE = {
+  ...FULL_CASE,
+  persons: [
+    { id: "w", gender: "female", name: null, relationship: "wife", status: "alive", death_order: null },
+    { id: "s1", gender: "male", name: "Ali", relationship: "son", status: "died_later", death_order: 2 },
+    { id: "omar", gender: "male", name: "Omar", relationship: "son", status: "died_before_or_with", death_order: null },
+    { id: "g", gender: "male", name: null, relationship: null, status: "alive", death_order: null },
+  ],
+  edges: [
+    { kind: "parent_of", from: "root", to: "omar" },
+    { kind: "parent_of", from: "omar", to: "g" },
+    { kind: "spouse_of", from: "root", to: "w" },
+  ],
+  placement: {
+    root: [
+      { relationship: "father", link: "parent", blocked: false },
+      { relationship: "son", link: "child", blocked: false },
+    ],
+    omar: [{ relationship: "son_of_son", link: "child", blocked: true }],
+    w: [],
+  },
+};
+
+test("parseCase round-trips persons, edges and placement and reads them as absent when missing", async () => {
+  const placement = { root: [{ relationship: "husband", link: "spouse", blocked: false }] };
+  const kase = await parsed({ ...LAYERED, persons: LINEAGE.persons, edges: LINEAGE.edges, placement: LINEAGE.placement, deaths: [{ ...LAYERED.deaths[0], placement }] });
+  assert.deepEqual(kase?.persons, LINEAGE.persons);
+  assert.deepEqual(kase?.edges, LINEAGE.edges);
+  assert.deepEqual(kase?.placement, LINEAGE.placement);
+  assert.deepEqual(kase?.deaths[0]?.placement, placement);
+  const bare = await parsed({ id: "a", started_at: "t" });
+  assert.deepEqual([bare?.persons, bare?.edges, bare?.placement], [[], [], {}]);
+  const older = await parsed({ ...LAYERED });
+  assert.deepEqual(older?.deaths[0].placement, {});
+});
+
+test("parseCase keeps a __proto__ placement anchor as an own entry", async () => {
+  const body = JSON.parse(JSON.stringify({ ...LINEAGE, placement: {} }).replace('"placement":{}', '"placement":{"__proto__":[{"relationship":"son","link":"child","blocked":false}]}'));
+  const kase = await parsed(body);
+  assert.deepEqual(Object.keys(kase?.placement ?? {}), ["__proto__"]);
+  assert.equal(Object.getPrototypeOf(kase?.placement), Object.prototype);
+});
+
+test("parseCase rejects malformed persons, edges and placement like the other fields", async () => {
+  const kase = await parsed({
+    ...LINEAGE,
+    persons: [
+      ...LINEAGE.persons,
+      { id: "w", gender: "female", name: null, relationship: "wife", status: "alive", death_order: null },
+      { id: "x", gender: "other", name: null, relationship: "son", status: "alive", death_order: null },
+      { id: "y", gender: "male", name: null, relationship: "cousin", status: "alive", death_order: null },
+      { id: "z", gender: "male", name: null, relationship: "son", status: "gone", death_order: null },
+      { id: "late", gender: "male", name: null, relationship: "son", status: "died_later", death_order: null },
+      { id: "early", gender: "male", name: null, relationship: "son", status: "alive", death_order: 2 },
+      { id: "root", gender: "male", name: null, relationship: null, status: "alive", death_order: null },
+      { id: "extra", gender: "male", name: null, relationship: null, status: "alive", death_order: null, more: 1 },
+      "text",
+    ],
+    edges: [
+      ...LINEAGE.edges,
+      { kind: "friend_of", from: "root", to: "w" },
+      { kind: "parent_of", from: "w", to: "w" },
+      { kind: "parent_of", from: "ghost", to: "w" },
+      { kind: "parent_of", from: "root", to: "w", extra: 1 },
+      { kind: "parent_of", from: 1, to: "w" },
+    ],
+    placement: {
+      ...LINEAGE.placement,
+      bad: [{ relationship: "cousin", link: "child", blocked: false }],
+      worse: [{ relationship: "son", link: "sideways", blocked: false }],
+      flag: [{ relationship: "son", link: "child", blocked: "no" }],
+      notAList: { relationship: "son" },
+    },
+  });
+  assert.deepEqual(kase?.persons, LINEAGE.persons);
+  assert.deepEqual(kase?.edges, LINEAGE.edges);
+  assert.deepEqual(kase?.placement, { ...LINEAGE.placement, bad: [], worse: [], flag: [], notAList: [] });
+  for (const bad of [null, [], "x", 3]) {
+    const none = await parsed({ ...LINEAGE, persons: bad, edges: bad, placement: bad });
+    assert.deepEqual([none?.persons, none?.edges, none?.placement], [[], [], {}]);
+  }
 });

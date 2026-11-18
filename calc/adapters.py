@@ -39,10 +39,13 @@ def family_from_session(case, names=True):
             heirs.append({'person': pid, 'relationship': row['relationship']})
         estates.append({'order': order, 'deceased': 'root' if deceased is None else identity(deceased),
                         'heirs': heirs})
+    for row in case.get('died_before') or ():
+        people[row['id']] = {'id': row['id'], 'gender': row['gender'], 'name': (row.get('name') or None) if names else None,
+                             'relationship': row['relationship'], 'status': 'died_before_or_with', 'death_order': None}
     estate = case['deceased'].get('estate')
     currency = Currency('SAR', explicit=True) if estate is not None else None
     return parse_family({'version': 1, 'root': 'root', 'persons': list(people.values()),
-                         'edges': [], 'estates': estates, 'answers': [], 'gifts': [], 'bequests': [],
+                         'edges': [dict(edge) for edge in case.get('edges') or ()], 'estates': estates, 'answers': [], 'gifts': [], 'bequests': [],
                          'estate': {'amount_minor': None if estate is None else minor_units(str(estate), 'SAR'),
                                     'currency': None if currency is None else {'code': 'SAR', 'explicit': True}}}), currency
 

@@ -1,0 +1,82 @@
+{
+  "deceased": {
+    "gender": "male"
+  },
+  "family": {
+    "version": 1,
+    "root": "root",
+    "persons": [
+      {
+        "id": "wife",
+        "gender": "female",
+        "name": null,
+        "relationship": "wife",
+        "status": "alive",
+        "death_order": null
+      },
+      {
+        "id": "grandson",
+        "gender": "male",
+        "name": "Ali",
+        "relationship": "son_of_son",
+        "status": "alive",
+        "death_order": null
+      },
+      {
+        "id": "omar",
+        "gender": "male",
+        "name": "Omar",
+        "relationship": "son",
+        "status": "died_before_or_with",
+        "death_order": null
+      }
+    ],
+    "edges": [
+      {
+        "kind": "parent_of",
+        "from": "root",
+        "to": "omar"
+      },
+      {
+        "kind": "parent_of",
+        "from": "omar",
+        "to": "grandson"
+      },
+      {
+        "kind": "spouse_of",
+        "from": "root",
+        "to": "wife"
+      }
+    ],
+    "estates": [
+      {
+        "order": 1,
+        "deceased": "root",
+        "heirs": [
+          {
+            "person": "wife",
+            "relationship": "wife"
+          },
+          {
+            "person": "grandson",
+            "relationship": "son_of_son"
+          }
+        ]
+      }
+    ],
+    "answers": [],
+    "gifts": [],
+    "bequests": [],
+    "estate": {
+      "amount_minor": 120050,
+      "currency": {
+        "code": "SAR",
+        "explicit": true
+      }
+    }
+  },
+  "basis": {
+    "kind": "school",
+    "school": "hanbali"
+  }
+}
