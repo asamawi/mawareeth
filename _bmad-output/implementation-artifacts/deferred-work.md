@@ -431,6 +431,7 @@ Completed and obsolete items are removed; their history is in git.
 ## Story 8.10
 
 - Ops order: take a fresh restic backup, then flip `SNAPSHOT_WRITE_VERSION=2` and run the backfill only once every rollback-eligible image reads schema 2. Do not switch in the deploy that first ships 8.8.
+- **Switch the writer to schema 2 once Epic 9 is merged to master and deployed** (owner decision 2026-11-19). The live image (`8b5d91b`, deployed 2026-11-18) already reads schema 2, but production cannot set the key until a release carries the `deploy/runtime.sh` allow-list entry for `SNAPSHOT_WRITE_VERSION` (on `development` since 2026-11-19), so the switch waits for the Epic 9 release. On the host, after that deploy: copy `/etc/mawareeth/runtime.env` to a root-only file, add `SNAPSHOT_WRITE_VERSION=2`, run `deploy/runtime.sh prepare`, then `deploy/release.sh deploy --rotate-config` (its `release_check --rollback-reads` must pass), confirm a new save is stored with `schema_version=2`, then take a fresh restic backup and run `backfill_saved_cases` (dry run first). Procedure: `deploy/README.md`, "Rotating runtime configuration" and the `SNAPSHOT_WRITE_VERSION` optional key.
 - The new name msgids need native review.
 - Backfill names use the site default Locale, not each user's.
 - Legacy `Calculation.name` is not carried into names.

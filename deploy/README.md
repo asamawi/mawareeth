@@ -8,13 +8,14 @@ The release image also contains the Next.js static export (`web-dist/`, built fr
 
 Run runtime operations as root with `sudo`; Docker-group access is root-equivalent and is not the supported operator boundary. Copy the directly installable `runtime.env.example` to `/etc/mawareeth/runtime.env`, keep it `root:root` mode `0600`, and edit it with `sudoedit`. Values use a strict raw `KEY=VALUE` schema: no comments, blank lines, control characters, shell expansion, or extra keys. Compose consumes the generated app snapshot with `env_file.format: raw`, so values are passed literally rather than interpolated. PostgreSQL passwords must contain only URL-safe unreserved characters (`A-Z`, `a-z`, `0-9`, `.`, `_`, `~`, `-`) because the same value is embedded in `DATABASE_URL` without lossy transformation. Keep `DOMAIN` lowercase and within DNS label/total-length limits; `BREVO_SMTP_LOGIN` must also be a valid hostname.
 
-Five optional keys carry the sites-framework ID and social-login credentials. They are left out of `runtime.env.example` so the example stays directly installable without fake OAuth credentials. Any that are present are appended to the app snapshot under the same names, after the standard lines, in this order:
+Six optional keys carry the sites-framework ID, social-login credentials and the Saved-case snapshot writer version. They are left out of `runtime.env.example` so the example stays directly installable without fake OAuth credentials. Any that are present are appended to the app snapshot under the same names, after the standard lines, in this order:
 
 - `SITE_ID`: a positive integer without leading zeros (`^[1-9][0-9]{0,9}$`) and at most `2147483647`, because Django's `Site.id` is a PostgreSQL `integer`. `mawareeth/settings.py` falls back to `1` when it is absent.
 - `FACEBOOK_KEY`: the Facebook **App ID**, 1–32 digits (`^[0-9]{1,32}$`), because settings cast it to `int`.
 - `FACEBOOK_SECRET`: the Facebook **App Secret**.
 - `LINKEDIN_KEY`: the LinkedIn OpenID Connect **Client ID**.
 - `LINKEDIN_SECRET`: the LinkedIn OpenID Connect **Client Secret**.
+- `SNAPSHOT_WRITE_VERSION`: `1` or `2`, the SavedCase snapshot schema new saves are written in. Absent, settings use `1`. Set `2` only with a `--rotate-config` deploy whose rollback slot reads schema 2; `release_check` refuses otherwise (see [Capacity evidence](#capacity-evidence)). Then run `backfill_saved_cases`.
 
 `FACEBOOK_SECRET`, `LINKEDIN_KEY` and `LINKEDIN_SECRET` must each be at most 256 characters with no whitespace (an empty value is refused for every key). `FACEBOOK_KEY` and `FACEBOOK_SECRET` must both be set or both be absent, and so must `LINKEDIN_KEY` and `LINKEDIN_SECRET`. Errors name only the key, never the value. `settings.py` reads them as `SITE_ID`, `SOCIAL_AUTH_FACEBOOK_KEY`/`SOCIAL_AUTH_FACEBOOK_SECRET` and `SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_KEY`/`SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_SECRET`, and without them falls back to placeholder credentials that break social login.
 

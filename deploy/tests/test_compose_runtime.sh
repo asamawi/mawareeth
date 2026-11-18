@@ -418,6 +418,13 @@ expect_optional_snapshot optional-max "$tmp/expected-max.snapshot.env" SITE_ID=2
 for bad in 0 -1 abc 01 12345678901 2147483648; do
   expect_optional_refused "SITE_ID=$bad" 'SITE_ID' "$bad" "SITE_ID=$bad"
 done
+# The snapshot writer version is appended last, after the social-login keys.
+{ cat "$tmp/expected-eight.snapshot.env"; printf '%s
+' SITE_ID=2 SNAPSHOT_WRITE_VERSION=2; } > "$tmp/expected-writer.snapshot.env"
+expect_optional_snapshot optional-writer "$tmp/expected-writer.snapshot.env" SNAPSHOT_WRITE_VERSION=2 SITE_ID=2
+for bad in 0 3 02 x; do
+  expect_optional_refused "SNAPSHOT_WRITE_VERSION=$bad" 'SNAPSHOT_WRITE_VERSION must be 1 or 2' "=$bad" "SNAPSHOT_WRITE_VERSION=$bad"
+done
 for bad in abc 12a -5 "$(printf '1%.0s' {1..33})"; do
   expect_optional_refused "FACEBOOK_KEY=$bad" 'FACEBOOK_KEY' "$bad" "FACEBOOK_KEY=$bad" "FACEBOOK_SECRET=$fb_secret"
 done
