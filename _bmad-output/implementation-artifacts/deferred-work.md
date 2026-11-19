@@ -488,3 +488,19 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert.md`
   summary: Before the production purge, check that no row outside the purged trees references a heir inside them through `Heir.same_person` or `Deceased.heir`; both cascade on delete.
   evidence: Legacy views only link heirs within one calculation tree, so none is expected. Run a read-only query on production that counts such cross-root references; if any exist, resolve them before `purge_empty_legacy_drafts` runs.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-2-render-the-family-as-lineage-cards-on-a-navigable-canvas.md`
+  summary: Story 9.2 added or changed Interview tree and Heirs-list copy in ar, en and fr; every string needs native review before release.
+  evidence: |-
+    Keys in `web/src/i18n/messages.ts` (interview), en / ar / fr:
+    - `treeDeceased`: "The deceased" / "المتوفى" / "La personne décédée" (one label for any gender is the owner decision; the female Arabic form is still open per EXPERIENCE.md).
+    - `treeDiedBefore` male/female: "Died before" / "توفي قبله", "توفيت قبله" / "Décédé avant", "Décédée avant".
+    - `treeDiedLater` male/female: "Died later · own estate" / "توفي لاحقاً · تركة مستقلة", "توفيت لاحقاً · تركة مستقلة" / "Décédé plus tard · succession propre", "Décédée plus tard · succession propre".
+    - `treeNoShare`: "No share in this case" / "لا نصيب في هذه الحالة" / "Aucune part dans ce cas".
+    - `treeAddParent`: "+ Add parent" / "+ إضافة أحد الوالدين" / "+ Ajouter un parent".
+    - `treeAddSpouse` (new draft, not in the mock): "+ Add spouse" / "+ إضافة الزوج أو الزوجة" / "+ Ajouter un conjoint".
+    - `treeFit`: "Fit tree" / "ملاءمة الشجرة" / "Ajuster l'arbre".
+    - `treeZoomIn` / `treeZoomOut`: "Zoom in" / "Zoom out", "تكبير" / "تصغير", "Zoom avant" / "Zoom arrière".
+    - `treeZoomStatus`: "Zoom {percent}" / "التكبير {percent}" / "Zoom {percent}".
+    - `treeHint`: "Drag to move around the tree. Use the buttons to zoom." / "اسحب للتنقل في الشجرة. استخدم الأزرار للتكبير والتصغير." / "Faites glisser pour parcourir l'arbre. Utilisez les boutons pour zoomer."
+    - `heirsEmpty` (changed): "No heirs yet. Press a relationship to add one." / "لا يوجد ورثة بعد. اضغط على صلة قرابة لإضافة وارث." / "Aucun héritier pour l'instant. Appuyez sur une relation pour en ajouter un."

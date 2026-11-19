@@ -79,14 +79,17 @@ export type Messages = {
     heirsEmpty: string;
     heirsListLabel: string;
     treeHeading: string;
-    treeDeceasedMale: string;
-    treeDeceasedFemale: string;
-    /** Shown under a tree that has only the deceased. */
-    treePrompt: string;
-    /** `{deceased}` is the deceased text and `{heirs}` the counts, such as " Son: 2. Wife: 1.". */
-    treeSummary: string;
-    /** `{relationship}` and `{n}`: one entry of the description, such as "Son: 2.". */
-    treeCount: string;
+    treeDeceased: string;
+    treeDiedBefore: Record<"male" | "female", string>;
+    treeDiedLater: Record<"male" | "female", string>;
+    treeNoShare: string;
+    treeAddParent: string;
+    treeAddSpouse: string;
+    treeFit: string;
+    treeZoomIn: string;
+    treeZoomOut: string;
+    treeZoomStatus: string;
+    treeHint: string;
     heirRelationshipLabel: string;
     heirRelationshipPlaceholder: string;
     /** An option the server says would inherit nothing with the family so far; {relationship} is its name. */
@@ -335,14 +338,20 @@ export const messages: Record<Locale, Messages> = {
       estateSummary: "التركة",
       estateNone: "لم تُدخل بعد",
       heirsHeading: "الورثة",
-      heirsEmpty: "لم تضف أي وارث بعد.",
+      heirsEmpty: "لا يوجد ورثة بعد. اضغط على صلة قرابة لإضافة وارث.",
       heirsListLabel: "الورثة المضافون",
       treeHeading: "شجرة العائلة",
-      treeDeceasedMale: "المتوفى (ذكر)",
-      treeDeceasedFemale: "المتوفاة (أنثى)",
-      treePrompt: "أضف أول وارث ليظهر في الشجرة.",
-      treeSummary: "شجرة العائلة. {deceased}.{heirs}",
-      treeCount: "{relationship}: {n}.",
+      treeDeceased: "المتوفى",
+      treeDiedBefore: {"male": "توفي قبله", "female": "توفيت قبله"},
+      treeDiedLater: {"male": "توفي لاحقاً · تركة مستقلة", "female": "توفيت لاحقاً · تركة مستقلة"},
+      treeNoShare: "لا نصيب في هذه الحالة",
+      treeAddParent: "+ إضافة أحد الوالدين",
+      treeAddSpouse: "+ إضافة الزوج أو الزوجة",
+      treeFit: "ملاءمة الشجرة",
+      treeZoomIn: "تكبير",
+      treeZoomOut: "تصغير",
+      treeZoomStatus: "التكبير {percent}",
+      treeHint: "اسحب للتنقل في الشجرة. استخدم الأزرار للتكبير والتصغير.",
       heirRelationshipLabel: "صلة القرابة بالمتوفى",
       heirRelationshipPlaceholder: "اختر صلة القرابة",
       heirRelationshipBlocked: "{relationship} (لا نصيب في الإرث مع الأسرة المسجّلة حتى الآن)",
@@ -616,14 +625,20 @@ export const messages: Record<Locale, Messages> = {
       estateSummary: "Estate to divide",
       estateNone: "Not entered yet",
       heirsHeading: "Heirs",
-      heirsEmpty: "You have not added any heirs yet.",
+      heirsEmpty: "No heirs yet. Press a relationship to add one.",
       heirsListLabel: "Heirs added",
       treeHeading: "Family tree",
-      treeDeceasedMale: "The deceased, male",
-      treeDeceasedFemale: "The deceased, female",
-      treePrompt: "Add the first heir to see them in the tree.",
-      treeSummary: "Family tree. {deceased}.{heirs}",
-      treeCount: "{relationship}: {n}.",
+      treeDeceased: "The deceased",
+      treeDiedBefore: {"male": "Died before", "female": "Died before"},
+      treeDiedLater: {"male": "Died later · own estate", "female": "Died later · own estate"},
+      treeNoShare: "No share in this case",
+      treeAddParent: "+ Add parent",
+      treeAddSpouse: "+ Add spouse",
+      treeFit: "Fit tree",
+      treeZoomIn: "Zoom in",
+      treeZoomOut: "Zoom out",
+      treeZoomStatus: "Zoom {percent}",
+      treeHint: "Drag to move around the tree. Use the buttons to zoom.",
       heirRelationshipLabel: "Relationship to the deceased",
       heirRelationshipPlaceholder: "Choose a relationship",
       heirRelationshipBlocked: "{relationship} (does not inherit with the family so far)",
@@ -898,14 +913,20 @@ export const messages: Record<Locale, Messages> = {
       estateSummary: "Succession",
       estateNone: "Pas encore renseigné",
       heirsHeading: "Héritiers",
-      heirsEmpty: "Vous n'avez pas encore ajouté d'héritier.",
+      heirsEmpty: "Aucun héritier pour l'instant. Appuyez sur une relation pour en ajouter un.",
       heirsListLabel: "Héritiers ajoutés",
       treeHeading: "Arbre généalogique",
-      treeDeceasedMale: "Le défunt, homme",
-      treeDeceasedFemale: "La défunte, femme",
-      treePrompt: "Ajoutez le premier héritier pour le voir dans l'arbre.",
-      treeSummary: "Arbre généalogique. {deceased}.{heirs}",
-      treeCount: "{relationship} : {n}.",
+      treeDeceased: "La personne décédée",
+      treeDiedBefore: {"male": "Décédé avant", "female": "Décédée avant"},
+      treeDiedLater: {"male": "Décédé plus tard · succession propre", "female": "Décédée plus tard · succession propre"},
+      treeNoShare: "Aucune part dans ce cas",
+      treeAddParent: "+ Ajouter un parent",
+      treeAddSpouse: "+ Ajouter un conjoint",
+      treeFit: "Ajuster l'arbre",
+      treeZoomIn: "Zoom avant",
+      treeZoomOut: "Zoom arrière",
+      treeZoomStatus: "Zoom {percent}",
+      treeHint: "Faites glisser pour parcourir l'arbre. Utilisez les boutons pour zoomer.",
       heirRelationshipLabel: "Lien avec le défunt",
       heirRelationshipPlaceholder: "Choisissez un lien de parenté",
       heirRelationshipBlocked: "{relationship} (n'hérite pas avec la famille saisie jusqu'ici)",

@@ -1,4 +1,5 @@
 "use client";
+import type { PresentedResult } from "@/contracts/presented";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
@@ -62,7 +63,8 @@ import {
   rowsOf,
 } from "@/interview/layers";
 import { initialPick, selectionStore } from "@/interview/madhabs";
-import { scrollTopFor } from "@/interview/tree";
+import { estateModel, scrollDelta, treeDescription } from "@/interview/tree";
+import { previewKey } from "@/interview/preview";
 
 import { DeathBreadcrumb, crumbTextOf } from "./death-breadcrumb";
 import { DeceasedForm } from "./deceased-form";
@@ -133,6 +135,8 @@ export function StartCase({
   locale: string;
 }) {
   const [view, setView] = useState<View>({ name: "loading" });
+  const [presented, setPresented] = useState<{ key: string; value: PresentedResult | null } | null>(null);
+  const [zoomNote, setZoomNote] = useState<{ text: string; announcement: unknown } | null>(null);
   const [choiceFailed, setChoiceFailed] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const live = useRef(true);
@@ -248,26 +252,29 @@ export function StartCase({
     if (!section || !area || !node) return;
     const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const behavior: ScrollBehavior = calm ? "instant" : "smooth";
-    // The node may still be gliding, so its final place is read from its style.
-    const top = scrollTopFor(
-      parseFloat(node.style.top) || 0,
-      parseFloat(node.style.height) || 0,
-      area.scrollTop,
-      area.clientHeight,
-    );
-    if (top !== area.scrollTop) area.scrollTo({ top, behavior });
+    // Only the canvas scrolls, by the least amount on each axis; browser geometry includes the
+    // canvas scale. `scrollIntoView` on the node would also scroll the page.
+    const a = area.getBoundingClientRect();
+    const n = node.getBoundingClientRect();
+    const top = scrollDelta(n.top, n.bottom, a.top, a.top + area.clientHeight);
+    const left = scrollDelta(n.left, n.right, a.left, a.left + area.clientWidth);
+    if (top !== 0 || left !== 0) area.scrollBy({ top, left, behavior });
     section.scrollIntoView({ block: "nearest", behavior });
   }, [view]);
 
   const resumable = view.name === "throttled" || view.name === "failed" ? view.resumable : null;
 
   // Every part of the heirs screen works on the active layer.
+  const currentPreviewKey = started ? previewKey(started.case) : "";
+  const reportPresented = useCallback((value: PresentedResult | null) => setPresented({ key: currentPreviewKey, value }), [currentPreviewKey]);
   const layer = started ? layerAt(started.case, started.layer) : null;
   const editingHeir = layer?.heirs.find((heir) => heir.id === started?.editingHeir);
   const layered = started ? hasDeaths(started.case) : false;
   const crumbs = started && layered ? breadcrumb(started.case, messages.relationships, messages.heirNumbered) : [];
   const activeCrumb = crumbs.find((crumb) => crumb.id === (layer?.id ?? null));
   const layerText = activeCrumb && activeCrumb.id !== null ? crumbTextOf(messages, activeCrumb) : undefined;
+  const model = started ? estateModel(started.case, layer?.id ?? null, presented?.key === previewKey(started.case) ? presented.value : null) : { people: [], placement: {} };
+  const description = treeDescription(messages, model, layerText);
   const deceasedIds = new Set(started?.case.deaths.map((death) => death.heir_id) ?? []);
   const candidates =
     started && layer && layer.id !== null
@@ -534,9 +541,10 @@ export function StartCase({
             <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
               <FamilyTree
                 messages={messages}
-                gender={layer?.gender ?? started.case.deceased.gender}
+                model={model}
+                locale={locale}
+                onAnnounce={text => setZoomNote({ text, announcement: started.announcement })}
                 rootText={layerText}
-                heirs={layer?.heirs ?? started.case.heirs}
                 editingId={started.editingHeir}
               />
             </div>
@@ -548,6 +556,8 @@ export function StartCase({
                 heirs={layer?.heirs ?? started.case.heirs}
                 editingId={started.editingHeir}
                 saving={frozen}
+                description={description}
+                zoomNote={zoomNote?.announcement === started.announcement ? zoomNote.text : null}
                 announcement={announcement}
                 heading={
                   activeCrumb && activeCrumb.label !== null
@@ -571,6 +581,7 @@ export function StartCase({
                 messages={messages}
                 results={results}
                 locale={locale}
+                onPresented={reportPresented}
                 kase={started.case}
                 saving={frozen}
                 failed={choiceFailed && (started.notice === "failed" || started.notice === "throttled") ? started.notice : null}

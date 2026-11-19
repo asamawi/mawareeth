@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 
 import type { Case, Deceased, Heir } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
-import { formatEstate, heirLabels } from "@/interview/answers";
+import { formatEstate } from "@/interview/answers";
+import type { treeDescription } from "@/interview/tree";
 import { personOf, removesDeath } from "@/interview/layers";
 
 import { buttonClass, WithHeir } from "./form-bits";
@@ -55,6 +56,8 @@ export function DeceasedSummary({
 }
 
 type ListProps = {
+  description: ReturnType<typeof treeDescription>;
+  zoomNote?: string | null;
   messages: Messages["interview"];
   heirs: Heir[];
   kase: Case;
@@ -84,6 +87,8 @@ type Confirm = { kind: "remove" | "unmark"; id: string };
 
 /** The heirs of the active layer. Removal asks on the row, and every change is announced. */
 export function HeirList({
+  description,
+  zoomNote,
   messages,
   heirs,
   kase,
@@ -103,7 +108,6 @@ export function HeirList({
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const container = useRef<HTMLElement>(null);
   const askedFor = useRef<Confirm | null>(null);
-  const labels = heirLabels(heirs, messages.relationships, messages.heirNumbered);
 
   // Opening the question puts focus on the safe answer; cancelling returns it to the button.
   useEffect(() => {
@@ -125,20 +129,21 @@ export function HeirList({
       </h3>
       {/* Present before its text changes, so screen readers announce the change. */}
       <p role="status" aria-live="polite" className="sr-only">
-        {announcement && (
+        {zoomNote ?? (announcement && (
           <span key={announcement.seq}>
             <WithHeir template={announcement.template} heir={announcement.heir} />
           </span>
-        )}
+        ))}
       </p>
       {deathError !== null && <p role="alert">{deathError}</p>}
       <div data-focus="list" tabIndex={-1} className="outline-none">
-        {heirs.length === 0 ? (
-          <p>{messages.heirsEmpty}</p>
-        ) : (
-          <ul aria-label={messages.heirsListLabel} className="flex flex-col gap-2">
-            {heirs.map((heir) => {
-              const label = labels[heir.id];
+        {heirs.length === 0 && <p>{messages.heirsEmpty}</p>}
+        <ul aria-label={messages.heirsListLabel} className="flex flex-col gap-2">
+          <li className="flex min-h-[52px] items-center border-t border-line p-3"><strong><bdi>{description.deceased}</bdi></strong></li>
+          {description.people.map(words => {
+              const heir = heirs.find(h => h.id === words.id);
+              if (!heir || words.state === "died_before") return <li key={words.id} className="min-h-[52px] border-t border-line p-3"><strong>{words.relationship}</strong>{words.secondary && <div><bdi>{words.secondary}</bdi></div>}{words.badge && <div className="text-badge">{words.badge}</div>}</li>;
+              const label = words.label;
               const person = personOf(heir);
               const dead = deceasedIds?.has(person) ?? false;
               const confirming = confirm?.id === heir.id ? confirm.kind : null;
@@ -146,15 +151,12 @@ export function HeirList({
                 <li
                   key={heir.id}
                   aria-current={editingId === heir.id ? "true" : undefined}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-current/60 p-3 aria-[current=true]:border-2 aria-[current=true]:border-current"
+                  className="flex min-h-[52px] flex-wrap items-center justify-between gap-3 rounded-md border border-current/60 p-3 aria-[current=true]:border-2 aria-[current=true]:border-current"
                 >
                   <span className="flex min-w-0 flex-col [overflow-wrap:anywhere]">
-                    <strong>
-                      <bdi>{label}</bdi>
-                    </strong>
-                    {heir.name !== null && (
-                      <span className="text-sm">{messages.relationships[heir.relationship]}</span>
-                    )}
+                    <strong>{words.relationship}</strong>
+                    {words.secondary && <span className="text-sm"><bdi>{words.secondary}</bdi></span>}
+                    {words.badge && <span className="text-badge">{words.badge}</span>}
                   </span>
                   {confirming !== null ? (
                     <div
@@ -262,7 +264,6 @@ export function HeirList({
               );
             })}
           </ul>
-        )}
       </div>
     </section>
   );

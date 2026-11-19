@@ -1,4 +1,7 @@
-import type { Deceased, Heir, RelationshipId } from "../api/case.ts";
+import type { Case, Gender, Placement, RelationshipId } from "../api/case.ts";
+import { layerAt, personOf } from "./layers.ts";
+import { heirLabels } from "./answers.ts";
+import type { PresentedResult } from "../contracts/presented.ts";
 import type { Messages } from "../i18n/messages.ts";
 
 /**
@@ -37,21 +40,9 @@ export function lineOf(relationship: RelationshipId): number {
   return LINES.findIndex((line) => line.includes(relationship)) + 1;
 }
 
-/** The count of heirs per relationship, in table order, leaving out relationships with none. */
-export function treeSummary(
-  heirs: readonly Pick<Heir, "relationship">[],
-): { relationship: RelationshipId; count: number }[] {
-  const counts = new Map<RelationshipId, number>();
-  for (const heir of heirs) counts.set(heir.relationship, (counts.get(heir.relationship) ?? 0) + 1);
-  return TABLE_ORDER.filter((id) => counts.has(id)).map((id) => ({
-    relationship: id,
-    count: counts.get(id) ?? 0,
-  }));
-}
-
-export const NODE_HEIGHT = 80;
-export const DECEASED_HEIGHT = 64;
-export const NODE_WIDTH = 128;
+export const NODE_HEIGHT = 112;
+export const DECEASED_HEIGHT = 112;
+export const NODE_WIDTH = 108;
 export const COLUMN_GAP = 8;
 export const SPINE_GAP = 24;
 export const ROW_GAP = 32;
@@ -93,11 +84,12 @@ export type TreeLayout = {
  * layout depends only on the heirs of the same line, so adding an heir never moves the heirs
  * of another line sideways.
  */
-export function layoutTree(heirs: readonly Pick<Heir, "id" | "relationship">[], width: number): TreeLayout {
+export function layoutTree(model: EstateModel, width: number, cardWidth = NODE_WIDTH): TreeLayout {
+  const heirs = readingOrder(model.people);
   const total = Math.max(2 * SPINE_GAP, Math.floor(width));
   const spineX = Math.floor(total / 2);
   const usable = spineX * 2;
-  const nodeWidth = Math.max(1, Math.min(NODE_WIDTH, Math.floor((usable - SPINE_GAP) / 2)));
+  const nodeWidth = cardWidth;
   const perSide = Math.max(
     1,
     Math.floor((usable - SPINE_GAP + COLUMN_GAP) / (2 * (nodeWidth + COLUMN_GAP))),
@@ -105,16 +97,7 @@ export function layoutTree(heirs: readonly Pick<Heir, "id" | "relationship">[], 
   const capacity = perSide * 2;
   const half = SPINE_GAP / 2;
 
-  const order = new Map<RelationshipId, number>(TABLE_ORDER.map((id, index) => [id, index]));
-  const byLine: Pick<Heir, "id" | "relationship">[][] = LINES.map(() => []);
-  for (const heir of heirs) {
-    const line = lineOf(heir.relationship);
-    if (line > 0) byLine[line - 1].push(heir);
-  }
-  for (const members of byLine) {
-    // Array sort is stable, so equal relationships keep the order added.
-    members.sort((a, b) => (order.get(a.relationship) ?? 0) - (order.get(b.relationship) ?? 0));
-  }
+  const byLine = LINES.map(line => heirs.filter(person => line.includes(person.relationship)));
 
   const nodes: TreeNode[] = [];
   const edges: TreeEdge[] = [];
@@ -158,7 +141,7 @@ export function layoutTree(heirs: readonly Pick<Heir, "id" | "relationship">[], 
 
   for (let line = 0; line < LINES_ABOVE; line += 1) placeLine(line);
   const deceasedY = y;
-  const deceasedWidth = Math.min(usable, 200);
+  const deceasedWidth = cardWidth;
   const deceased = {
     x: spineX - Math.floor(deceasedWidth / 2),
     y: deceasedY,
@@ -168,6 +151,19 @@ export function layoutTree(heirs: readonly Pick<Heir, "id" | "relationship">[], 
   y = deceasedY + DECEASED_HEIGHT;
   for (let line = LINES_ABOVE; line < LINES.length; line += 1) placeLine(line);
 
+  for (const node of nodes) {
+    const person = model.people.find(p => p.id === node.id);
+    const parent = nodes.find(n => model.people.find(p => p.id === n.id)?.personId === person?.parentId);
+    if (parent) {
+      const desired = parent.x;
+      if (!nodes.some(n => n.id !== node.id && n.y === node.y && desired < n.x + n.width + COLUMN_GAP && desired + node.width + COLUMN_GAP > n.x)) {
+        node.x = desired;
+        node.side = desired < spineX ? "start" : "end";
+      }
+      const edge = edges.find(e => e.id === node.id)!;
+      edge.path = `M${parent.x + parent.width / 2} ${parent.y + parent.height}V${node.y - 16}H${node.x + node.width / 2}V${node.y}`;
+    }
+  }
   return {
     width: usable,
     height: y,
@@ -183,34 +179,84 @@ export function layoutTree(heirs: readonly Pick<Heir, "id" | "relationship">[], 
   };
 }
 
-/** The one text description of the tree: structure by relationship and count, never names. */
-export function treeDescription(
-  messages: Messages["interview"],
-  deceased: Pick<Deceased, "gender"> & Partial<Deceased>,
-  heirs: readonly Pick<Heir, "relationship">[],
-  /** A later layer's root, such as "Son (2nd death)", instead of the first deceased's text. */
-  rootText?: string,
-): string {
-  const who =
-    rootText ?? (deceased.gender === "male" ? messages.treeDeceasedMale : messages.treeDeceasedFemale);
-  const counts = treeSummary(heirs)
-    .map((item) =>
-      messages.treeCount.replace(/\{relationship\}|\{n\}/g, (token) =>
-        token === "{relationship}" ? messages.relationships[item.relationship] : String(item.count),
-      ),
-    )
-    .join(" ");
-  return messages.treeSummary.replace(/\{deceased\}|\{heirs\}/g, (token) =>
-    token === "{deceased}" ? who : counts ? ` ${counts}` : "",
-  );
+export type TreePerson = {
+  id: string; personId: string; relationship: RelationshipId; gender: Gender;
+  name: string | null; state: "normal" | "died_before" | "died_later" | "blocked";
+  parentId: string | null;
+};
+export type EstateModel = { people: TreePerson[]; placement: Placement };
+
+/** Presented evidence is supplied only by the current available preview. */
+export function estateModel(kase: Case, layerId: string | null, presented: PresentedResult | null): EstateModel {
+  const layer = layerAt(kase, layerId);
+  const death = kase.deaths.find(d => d.heir_id === layer.id);
+  const blocked = new Set(presented?.evidence.find(e => e.order === layer.order)?.heirs.filter(h => h.rule.code === "blocked").map(h => h.person));
+  const people: TreePerson[] = layer.heirs.map(h => {
+    const personId = personOf(h);
+    const person = kase.persons?.find(p => p.id === personId);
+    return { id: h.id, personId, relationship: h.relationship, gender: h.gender, name: h.name,
+      state: person?.status === "died_before_or_with" ? "died_before" : kase.deaths.some(d => d.heir_id === personId && d.heir_id !== layer.id) ? "died_later" : blocked.has(personId) ? "blocked" : "normal", parentId: null };
+  });
+  if (layer.id === null) for (const p of kase.persons ?? []) {
+    if (p.status === "died_before_or_with" && p.relationship && !people.some(h => h.personId === p.id))
+      people.push({ id: p.id, personId: p.id, relationship: p.relationship, gender: p.gender, name: p.name, state: "died_before", parentId: null });
+  }
+  for (const edge of kase.edges ?? []) {
+    const from = edge.from === layer.id ? "root" : edge.from;
+    const to = edge.to === layer.id ? "root" : edge.to;
+    if (edge.kind !== "parent_of" || from === "root" || to === "root") continue;
+    const child = people.find(p => p.personId === to);
+    if (child && people.some(p => p.personId === from)) child.parentId = from;
+  }
+  return { people: readingOrder(people), placement: death?.placement ?? (layer.id === null ? kase.placement : undefined) ?? {} };
+}
+
+/** One stable reading order for the canvas, keyboard and canonical outline. */
+function readingOrder(input: readonly TreePerson[]): TreePerson[] {
+  const people = [...input].sort((a,b) => TABLE_ORDER.indexOf(a.relationship) - TABLE_ORDER.indexOf(b.relationship));
+  // Stable generation order, with linked children following their parent's inline order.
+  for (const line of LINES) {
+    const indices = people.map((p,i) => line.includes(p.relationship) ? i : -1).filter(i => i >= 0);
+    const sorted = indices.map(i => people[i]).sort((a,b) => {
+      const rank = (p: TreePerson) => p.parentId ? people.findIndex(q => q.personId === p.parentId) : Infinity;
+      return rank(a) - rank(b);
+    });
+    indices.forEach((i,j) => { people[i] = sorted[j]; });
+  }
+  return people;
+}
+export function treeDescription(messages: Messages["interview"], model: EstateModel, rootText?: string) {
+  const people = readingOrder(model.people);
+  const labels = heirLabels(people.map(p => ({ ...p, edit_options: { blocked: [], invalid: {} } })), messages.relationships, messages.heirNumbered);
+  return { deceased: rootText ?? messages.treeDeceased, people: people.map(p => {
+    const relationship = messages.relationships[p.relationship];
+    return { id: p.id, state: p.state, label: labels[p.id], relationship, secondary: p.name ?? (labels[p.id] !== relationship ? labels[p.id] : null),
+      badge: p.state === "died_before" ? messages.treeDiedBefore[p.gender] : p.state === "died_later" ? messages.treeDiedLater[p.gender] : p.state === "blocked" ? messages.treeNoShare : null,
+      noShare: p.state === "blocked" };
+  }) };
+}
+export function placeholders(model: EstateModel): ("parent" | "spouse")[] {
+  return model.people.length ? [] : (["parent", "spouse"] as const).filter(link => model.placement.root?.some(o => o.link === link));
+}
+export const ZOOM_LEVELS = [0.6, 0.8, 1, 1.25, 1.5] as const;
+export type Box = { x: number; y: number; width: number; height: number };
+export type Viewport = { width: number; height: number; scrollLeft: number; scrollTop: number };
+export function pinBox(box: Box, view: Viewport, zoom: number, pad = 6, rtl = false): Box {
+  const inline = rtl ? -view.scrollLeft : view.scrollLeft;
+  const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(n, max));
+  return { ...box, x: clamp(box.x, (inline + pad) / zoom, (inline + view.width - pad) / zoom - box.width), y: clamp(box.y, (view.scrollTop + pad) / zoom, (view.scrollTop + view.height - pad) / zoom - box.height) };
+}
+export function fitZoom(layout: Pick<TreeLayout, "width" | "height">, view: Pick<Viewport, "width" | "height">): number {
+  return [...ZOOM_LEVELS].reverse().find(z => z <= 1 && layout.width * z <= view.width - 12 && layout.height * z <= view.height - 12) ?? 0.6;
 }
 
 /**
- * The smallest scroll position that shows a node in full: unchanged when it already shows,
- * and the node's top when it is taller than the view.
+ * How far to scroll along one axis so a node shows in full, with the least movement: 0 when it
+ * already shows, and to its start when it is larger than the view. All four values are on-screen
+ * coordinates, so they already include the canvas zoom.
  */
-export function scrollTopFor(nodeTop: number, nodeHeight: number, scrollTop: number, viewHeight: number): number {
-  if (nodeTop < scrollTop || nodeHeight >= viewHeight) return Math.max(0, nodeTop);
-  if (nodeTop + nodeHeight > scrollTop + viewHeight) return Math.max(0, nodeTop + nodeHeight - viewHeight);
-  return Math.max(0, scrollTop);
+export function scrollDelta(start: number, end: number, viewStart: number, viewEnd: number): number {
+  if (start < viewStart || end - start >= viewEnd - viewStart) return start - viewStart;
+  if (end > viewEnd) return end - viewEnd;
+  return 0;
 }

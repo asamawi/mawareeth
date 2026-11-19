@@ -18,6 +18,7 @@ import {
   type ResultEntry,
 } from "@/interview/results";
 
+import { estateModel } from "@/interview/tree";
 import { FamilyTree } from "../interview/family-tree";
 import { crumbTextOf } from "../interview/death-breadcrumb";
 import { buttonClass } from "../interview/form-bits";
@@ -331,9 +332,10 @@ export function Available({
             <FamilyTree
               key={layer.id ?? "first"}
               messages={interview}
-              gender={layer.gender ?? kase.deceased?.gender ?? "male"}
+              model={estateModel(kase, layer.id, presented ?? null)}
+              locale={locale}
+              onAnnounce={() => {}}
               rootText={crumb && crumb.id !== null ? crumbTextOf(interview, crumb) : undefined}
-              heirs={layer.heirs}
               editingId={null}
             />
           );

@@ -4,7 +4,7 @@ import { messages, locales, directionOf } from "../src/i18n/messages";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { openHeirsScreen } from "./family";
+import { openCanvasFixture, openHeirsScreen } from "./family";
 import { abort, expect, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors } from "./api";
 
 const en = messages.en.interview;
@@ -392,7 +392,9 @@ test.describe("interview shell", () => {
     const pv = await box(page.locator("section[aria-labelledby='preview-heading']"));
     expect(pv.width).toBeCloseTo(340, 0);
     expect(pv.x).toBeGreaterThanOrEqual(t.x + t.width - 1);
-    expect(Math.abs(pv.y - t.y)).toBeLessThan(2);
+    // Read both tops in one frame: the page may still be finishing its smooth focus scroll.
+    const tops = await page.evaluate(() => ["section[data-tree]", "section[aria-labelledby='preview-heading']"].map((s) => document.querySelector(s)!.getBoundingClientRect().y));
+    expect(Math.abs(tops[1] - tops[0])).toBeLessThan(2);
   });
 
   test("in Arabic the 380px column is at the inline-start (right) side", async ({ page, api }) => {
@@ -426,7 +428,7 @@ test.describe("interview shell", () => {
         const root = document.querySelector("[data-js-only]")!;
         const controls = [...root.querySelectorAll<HTMLElement>("button, input:not([type=radio]):not([type=hidden]), select, textarea, label:has(input[type=radio])")];
         return controls
-          .filter((el) => el.getClientRects().length > 0 && !el.closest("[data-tree-area]") && !el.closest("table"))
+          .filter((el) => el.getClientRects().length > 0 && !el.closest("table"))
           .map((el) => ({ text: (el.textContent ?? el.tagName).trim().slice(0, 30), height: el.getBoundingClientRect().height }))
           .filter((item) => item.height < 43.5);
       });
@@ -488,4 +490,102 @@ test.describe("interview shell", () => {
     await first.click();
     await expect(page.locator("span[data-focus='layer:first'][aria-current]")).toBeVisible();
   });
+});
+
+test.describe("lineage canvas", () => {
+  for (const width of [375, 1280]) test(`legacy cards retain normal styles at ${width}`, async ({ page, api }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openHeirsScreen(page, api, "en");
+    const card = page.locator('[data-state="normal"]').first();
+    // Chromium snaps a computed 1.5px border to whole device pixels, so the declaration is checked.
+    expect(await card.evaluate(el => (el as HTMLElement).style.border)).toBe("1.5px solid var(--graphic)");
+    await expect(card).toHaveCSS("border-style", "solid");
+    const b = (await card.boundingBox())!;
+    expect(b.width).toBeCloseTo(width === 375 ? 108 : 136, 0);
+    expect(b.height).toBeGreaterThanOrEqual(76);
+    // Matrix "legacy case": the list is the deceased row, then one row per heir.
+    const rows = page.locator("section[aria-labelledby='heirs-heading'] ul > li");
+    await expect(rows).toHaveCount(4);
+    await expect(rows.first()).toHaveText(en.treeDeceased);
+    expect(await card.evaluate(el => {
+      const plate = document.createElement("span"); plate.style.backgroundColor = "var(--background)"; el.append(plate);
+      const equal = getComputedStyle(el).backgroundColor === getComputedStyle(plate).backgroundColor; plate.remove(); return equal;
+    })).toBe(true);
+  });
+
+  for (const locale of ["en", "ar"] as const) for (const width of [375, 1280]) {
+    test(`card states and canvas in ${locale} at ${width}`, async ({ page, api }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openCanvasFixture(page, api, locale);
+      const t = messages[locale].interview;
+      const group = page.getByRole("group", { name: t.treeHeading });
+      await expect(group).toHaveCSS("touch-action", "pan-y pinch-zoom");
+      const canvas = await group.evaluate(el => { const s = getComputedStyle(el); return { background: s.backgroundImage, padding: s.paddingInlineStart }; });
+      expect(canvas.background).toContain("radial-gradient"); expect(parseFloat(canvas.padding)).toBeGreaterThanOrEqual(6);
+      const cards = group.locator("button");
+      for (const card of await cards.all()) {
+        const b = (await card.boundingBox())!;
+        expect(b.width).toBeCloseTo(width === 375 ? 108 : 136, 0); expect(b.height).toBeGreaterThanOrEqual(76);
+        expect(await card.evaluate(el => getComputedStyle(el).transform)).toBe("none");
+      }
+      await expect(group.locator('[data-state="blocked"]')).toContainText(t.treeNoShare);
+      await expect(group.locator('[data-node="w"]')).toContainText(t.treeDiedLater.female);
+      await expect(group.locator('[data-state="died_before"]')).toContainText(t.treeDiedBefore.male);
+      await expect(group.locator('[data-state="died_later"]').first()).toHaveCSS("border-width", "2px");
+      await expect(group.locator('[data-state="died_later"]').first()).toHaveCSS("border-style", "solid");
+      expect(await group.locator('[data-state="blocked"]').evaluate(el => (el as HTMLElement).style.border)).toBe("1.5px solid var(--graphic)");
+      await expect(group.locator('[data-state="blocked"]')).toHaveCSS("border-style", "solid");
+      expect(await group.locator('[data-state="blocked"]').evaluate(el => getComputedStyle(el).backgroundImage)).toContain("repeating-linear-gradient");
+      await expect(group.locator('[data-state="died_before"] rect')).toHaveAttribute("stroke-dasharray", "4 3");
+      await expect(group.locator('[data-state="died_before"] rect')).toHaveAttribute("stroke-width", "2");
+      // Tailwind's -scale-x-100 sets the `scale` property; only the connector layer is mirrored.
+      expect(await group.locator("svg").first().evaluate(el => getComputedStyle(el).scale)).toBe(locale === "ar" ? "-1 1" : "none");
+      for (const card of await cards.all()) expect(await card.evaluate(el => getComputedStyle(el).scale)).toBe("none");
+      await expect(page.locator("#heirs-heading").locator("..")).toContainText(t.treeNoShare);
+      // Matrix "lineage": the died-before person has a list row with its badge and no actions.
+      const before = page.locator("section[aria-labelledby='heirs-heading'] ul > li").filter({ hasText: t.treeDiedBefore.male });
+      await expect(before).toHaveCount(1);
+      await expect(before.locator("button")).toHaveCount(0);
+      await page.getByRole("button", { name: t.treeZoomIn, exact: true }).click();
+      await expect(page.locator("section[aria-labelledby='heirs-heading'] [role='status']")).toHaveText(t.treeZoomStatus.replace("{percent}", new Intl.NumberFormat(locale, { style: "percent" }).format(1.25)));
+    });
+  }
+  for (const locale of ["en", "ar"] as const) {
+    test(`empty estate placeholders in ${locale}`, async ({ page, api }) => {
+      await openCanvasFixture(page, api, locale, "empty"); const t = messages[locale].interview;
+      const group = page.getByRole("group", { name: t.treeHeading });
+      await expect(group.getByText(t.treeAddParent, { exact: true })).toBeVisible();
+      await expect(group.getByText(t.treeAddSpouse, { exact: true })).toBeVisible();
+      await expect(group.locator("button")).toHaveCount(1);
+      await expect(page.getByText(t.heirsEmpty, { exact: true })).toBeVisible();
+      // Matrix "empty estate": the preview shows its prompt and no share rows.
+      const preview = page.locator("section[aria-labelledby='preview-heading']");
+      await expect(preview).toContainText(t.previewPrompt);
+      await expect(preview.locator("ul li, table")).toHaveCount(0);
+    });
+    for (const width of [375, 1280]) test(`50 heirs stay reachable and deceased stays inside in ${locale} at ${width}`, async ({ page, api }) => {
+      await page.setViewportSize({ width, height: 900 }); await openCanvasFixture(page, api, locale, "many");
+      const t = messages[locale].interview, canvas = page.getByRole("group", { name: t.treeHeading });
+      await canvas.scrollIntoViewIfNeeded();
+      const pinned = async () => {
+        const outer = (await canvas.boundingBox())!, root = (await canvas.locator('[data-node="root"]').boundingBox())!;
+        expect(root.x).toBeGreaterThanOrEqual(outer.x + 5); expect(root.y).toBeGreaterThanOrEqual(outer.y + 5);
+        expect(root.x + root.width).toBeLessThanOrEqual(outer.x + outer.width - 5);
+        expect(root.y + root.height).toBeLessThanOrEqual(outer.y + outer.height - 5);
+      };
+      await pinned();
+      for (const name of [t.treeZoomIn, t.treeZoomIn, t.treeZoomOut, t.treeZoomOut, t.treeZoomOut, t.treeZoomOut, t.treeFit]) {
+        await page.getByRole("button", { name, exact: true }).click(); await pinned();
+        await canvas.scrollIntoViewIfNeeded();
+        const b = (await canvas.boundingBox())!;
+        for (const direction of [-1, 1]) {
+          await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+          await page.mouse.move(b.x + b.width / 2 + direction * 10000, b.y + b.height / 2 + direction * 10000, { steps: 5 }); await page.mouse.up();
+          await pinned();
+        }
+      }
+      await canvas.evaluate(el => { el.scrollTop = el.scrollHeight; });
+      await expect(canvas.locator('[data-node="many49"]')).toBeInViewport(); await pinned();
+    });
+  }
 });

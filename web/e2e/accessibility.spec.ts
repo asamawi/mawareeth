@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { messages } from "../src/i18n/messages";
-import { openHeirsScreen } from "./family";
+import { openCanvasFixture, openHeirsScreen } from "./family";
 import { expect, noCase, sessionAnonymous, startedCase, test } from "./api";
 
 async function serious(page: Page) {
@@ -37,3 +37,10 @@ test.describe("axe", () => {
     }
   }
 });
+
+for (const locale of ["en", "ar"] as const) for (const kind of ["lineage", "empty"] as const) {
+  test(`${kind} canvas in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+    await openCanvasFixture(page, api, locale, kind);
+    expect(await serious(page)).toEqual([]);
+  });
+}

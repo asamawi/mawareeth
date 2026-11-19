@@ -185,19 +185,19 @@ test("every locale has its own interview text", () => {
     const translatable = /\p{L}/u.test(String(texts[0]).replace(/\{[^}]*\}/g, ""));
     for (let i = 0; translatable && i < locales.length; i++) {
       for (let j = i + 1; j < locales.length; j++) {
+        // The spec deliberately uses the same Zoom status sentence in English and French.
+        if (path === "interview.treeZoomStatus" && locales[i] === "en" && locales[j] === "fr") {
+          assert.equal(byLocale[i].get(path), "Zoom {percent}");
+          assert.equal(byLocale[j].get(path), "Zoom {percent}");
+          continue;
+        }
         assert.notEqual(byLocale[i].get(path), byLocale[j].get(path), `${path} [${locales[i]} vs ${locales[j]}]`);
       }
     }
   }
   assert.ok(byLocale[0].has("interview.madhabs.hanbali.name"));
-  for (const key of ["treeHeading", "treeDeceasedMale", "treeDeceasedFemale", "treePrompt", "treeSummary", "treeCount"]) {
+  for (const key of ["treeHeading", "treeDeceased", "treeNoShare", "treeFit", "treeZoomStatus"]) {
     assert.ok(byLocale[0].has(`interview.${key}`), key);
-  }
-  for (const locale of locales) {
-    const template = messages[locale].interview.treeSummary;
-    assert.ok(template.includes("{deceased}") && template.includes("{heirs}"), locale);
-    const count = messages[locale].interview.treeCount;
-    assert.ok(count.includes("{relationship}") && count.includes("{n}"), locale);
   }
   assert.deepEqual(
     byLocale.map((map) => [...map.keys()].sort()),

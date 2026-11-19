@@ -1,5 +1,6 @@
 "use client";
 
+import type { PresentedResult } from "@/contracts/presented";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -35,6 +36,7 @@ export function SharePreview({
   saving = false,
   failed = null,
   onChooseSchool,
+  onPresented,
 }: {
   messages: Messages["interview"];
   /** The results dictionary: the table's captions and the side note's. */
@@ -46,6 +48,8 @@ export function SharePreview({
   saving?: boolean;
   /** The last choice of a school could not be saved. */
   failed?: "failed" | "throttled" | null;
+  /** Receives the shown PresentedResult of an available preview for the current case, or null. */
+  onPresented?: (p: PresentedResult | null) => void;
   /** Saves the school the visitor chose when the schools differ for this family. */
   onChooseSchool?: (madhab: SunniId) => void;
 }) {
@@ -71,6 +75,8 @@ export function SharePreview({
 
   const outcome = ready ? shown({ key, attempt }, settled) : null;
   const preview = outcome?.kind === "preview" ? outcome.preview : null;
+  const presented = preview?.status === "available" ? preview.presented ?? null : null;
+  useEffect(() => { onPresented?.(presented); }, [onPresented, presented]);
   // Every layer's rows are labelled, so a share never reads as a raw id.
   const labels = useMemo(
     () => rowLabels(kase, messages.relationships, messages.heirNumbered, messages.previewOf),
