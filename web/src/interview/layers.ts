@@ -175,14 +175,6 @@ export function deceasedLabel(
   return breadcrumb(kase, relationships, numbered).find((crumb) => crumb.id === layerId)?.label ?? null;
 }
 
-/** Whether removing this row also removes its person's death and heirs. */
-export function removesDeath(kase: Case, rowId: string): boolean {
-  const rows = [...rowsOf(kase).values()].map(({ row }) => row);
-  const row = rows.find((row) => row.id === rowId);
-  return row !== undefined && deathOf(kase, personOf(row)) !== undefined &&
-    rows.filter((other) => personOf(other) === personOf(row)).length === 1;
-}
-
 /** Substitute a layer label without interpreting names as placeholders or replacement patterns. */
 export function deathLayerText(template: string, label: string, order: string): string {
   return template.replace(/\{label\}|\{order\}/g, (token) => token === "{label}" ? label : order);

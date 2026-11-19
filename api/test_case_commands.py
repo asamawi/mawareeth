@@ -11,11 +11,11 @@ from django.contrib.sessions.backends.db import SessionStore
 from django.contrib.sessions.models import Session
 from django.db import connection, connections, transaction
 from django.db.migrations.executor import MigrationExecutor
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from api import anonymous_case
+from api import anonymous_case, case_commands
 from api.models import SavedCase
 from api.tests import (
     CASE_URL, DEATHS_URL, HEIRS_URL, InterviewDeathsHelpers, InterviewHelpers,
@@ -159,6 +159,81 @@ class RevisionTests(CommandBase):
     def test_the_case_endpoint_reads_back_the_revision(self):
         case = self.start()
         self.assertEqual(self.client.get(CASE_URL, secure=True).json()['case']['revision'], case['revision'])
+
+
+@override_settings(SNAPSHOT_WRITE_VERSION=2)
+class HeirStatusTests(CommandBase):
+    def edit(self, person, relationship='son', **fields):
+        return self.send('put', f'{HEIRS_URL}{person}/', {
+            'case_id': self.case_id, 'relationship': relationship, **fields})
+
+    def refused_edit(self, person, expected, **fields):
+        raw, stored = self.raw_session(), self.stored()
+        response = self.edit(person, **fields)
+        self.assert_untouched(response, 400, raw, stored)
+        self.assertEqual(response.json()['errors'], expected)
+
+    def test_status_round_trip_and_rename_keep_identity_and_edges(self):
+        self.setup_family()
+        edge = {'kind': 'parent_of', 'from': self.s1, 'to': self.s2}
+        self.plant(edges=[edge])
+        changed = self.edit(self.s1, status='died_before_or_with', name='S1').json()['case']
+        self.assertNotIn(self.s1, [row['id'] for row in changed['heirs']])
+        self.assertEqual(changed['died_before'], [
+            {'id': self.s1, 'relationship': 'son', 'name': 'S1', 'gender': 'male'}])
+        renamed = self.edit(self.s1, name='Ali').json()['case']
+        self.assertEqual(renamed['died_before'][0]['name'], 'Ali')
+        self.assertEqual(renamed['edges'], [edge])
+        restored = self.edit(self.s1, status='alive', name='Ali').json()['case']
+        self.assertNotIn('died_before', restored)
+        self.assertEqual(restored['heirs'][-1]['id'], self.s1)
+        self.assertEqual(restored['edges'], [edge])
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=1)
+    def test_old_writer_refuses_status_before_storing(self):
+        self.setup_family()
+        self.refused_edit(self.s1, {'status': 'schema_unsupported'}, status='died_before_or_with')
+
+    def test_later_estates_and_linked_rows(self):
+        self.two()
+        alias = self.live()['deaths'][0]['heirs'][0]
+        for person in (self.s1, self.w, alias['id']):
+            self.refused_edit(person, {'status': 'status_locked'}, status='died_before_or_with')
+        new = self.add_layer(self.s1, 'son').json()['case']['deaths'][0]['heirs'][-1]
+        self.refused_edit(new['id'], {'status': 'first_estate_only'}, status='died_before_or_with')
+
+    def test_relationship_and_capacity_are_checked_on_return(self):
+        self.setup_family()
+        self.edit(self.s1, relationship='father', status='died_before_or_with')
+        self.heir({'id': self.case_id}, 'father')
+        self.refused_edit(self.s1, {'relationship': 'second_father'}, relationship='father', status='alive')
+        self.assertEqual(self.edit(self.s1, relationship='father', name='Ali').status_code, 200)
+        self.assertEqual(self.edit(self.s1, relationship='son').status_code, 200)
+        self.refused_edit(self.s1, {'relationship': 'second_father'}, relationship='father')
+        self.send('post', BULK_URL, {'case_id': self.case_id, 'heirs': [{'relationship': 'son'}] * 47})
+        self.refused_edit(self.s1, {'heirs': 'limit'}, status='alive')
+
+    def test_unknown_status_is_refused_and_nothing_is_stored(self):
+        self.setup_family()
+        self.refused_edit(self.s1, {'status': 'invalid'}, status='gone')
+
+    def test_died_before_list_at_capacity_refuses_one_more(self):
+        self.setup_family()
+        self.plant(died_before=[{'id': f'p{i}', 'gender': 'male', 'name': None, 'relationship': 'son'}
+                                for i in range(anonymous_case.MAX_HEIRS)])
+        self.refused_edit(self.s1, {'heirs': 'limit'}, status='died_before_or_with')
+
+    def test_died_before_removal_drops_only_the_person_and_incident_edges(self):
+        self.setup_family()
+        edge = {'kind': 'parent_of', 'from': self.s1, 'to': self.s2}
+        self.plant(edges=[edge])
+        before = self.edit(self.s1, status='died_before_or_with').json()['case']
+        self.assertEqual(case_commands.remove_impact(before, self.s1), {'persons': [], 'estates': []})
+        removed = self.send('delete', f'{HEIRS_URL}{self.s1}/', {'case_id': self.case_id}).json()['case']
+        self.assertNotIn(self.s1, [p['id'] for p in removed['persons']])
+        self.assertEqual(removed['heirs'], before['heirs'])
+        self.assertEqual(removed['edges'], [])
+        self.assertNotIn('died_before', removed)
 
 
 class BulkTests(CommandBase):

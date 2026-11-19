@@ -405,12 +405,97 @@ test.describe("add relatives", () => {
     expect(api.heirPosts).toHaveLength(1);
   });
 
-  test("the heir form shows only while an heir is being edited", async ({ page, api }) => {
+  test("row Edit opens the edit sheet and Close restores focus", async ({ page, api }) => {
     await open(page, api, base());
-    const form = page.locator("section[aria-labelledby='add-relatives-heading'] #heir-form-heading");
+    const form = page.locator("[data-edit-sheet]");
     await expect(page.locator("#heir-form-heading")).toHaveCount(0);
     await page.locator("[data-focus^='editHeir:']").first().click();
     await expect(form).toBeVisible();
+    await expect(form.getByLabel(en.heirNameLabel)).toBeFocused();
+    await form.getByRole("button", { name: en.editClose }).click();
+    await expect(page.locator("[data-focus^='editHeir:']").first()).toBeFocused();
+  });
+
+  test("desktop card Enter opens a panel, blur renames once, and Tab leaves the panel", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = { ...base(), heirs: [son("a"), son("b")] };
+    await open(page, api, kase);
+    api.set({ putHeir: json(200, { case: { ...kase, revision: 2, heirs: [{ ...son("a"), name: "Ali" }, son("b")] } }) });
+    const card = page.locator('[data-node="a"]');
+    await card.focus();
+    await card.press("Enter");
+    const panel = page.locator("section[data-edit-sheet]");
+    const name = panel.getByLabel(en.heirNameLabel);
+    await expect(name).toBeFocused();
+    await name.fill("  Ali  ");
+    await name.press("Tab");
+    await expect(card).toContainText("Ali");
+    await expect(name).toBeFocused();
+    await expect(name).toHaveValue("Ali");
+    await panel.getByRole("button", { name: "Remove Ali" }).focus();
+    await page.keyboard.press("Tab");
+    expect(await panel.evaluate(el => el.contains(document.activeElement))).toBe(false);
+    expect(api.heirPuts.map(body => JSON.parse(body))).toEqual([
+      { case_id: agree.case.id, expected_revision: 1, relationship: "son", name: "Ali" },
+    ]);
+  });
+
+  test("phone sheet is modal and Escape returns focus to the opening card", async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await open(page, api, { ...base(), heirs: [son("a")] });
+    const card = page.locator('[data-node="a"]');
+    await card.click();
+    const sheet = page.locator("dialog[data-edit-sheet]:modal");
+    await expect(sheet.getByLabel(en.heirNameLabel)).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+    await expect(card).toBeFocused();
+    expect(api.heirPuts).toHaveLength(0);
+  });
+
+  test("row Remove lists the returned impact and Yes confirms its revision", async ({ page, api }) => {
+    const row = { ...son("owner"), name: "Ali" };
+    const child = { ...son("child"), name: "Omar" };
+    const kase = { ...base(), heirs: [row], deaths: [
+      { heir_id: row.id, order: 2, gender: "male", heir_options: row.edit_options, heirs: [child] },
+    ] };
+    await open(page, api, kase);
+    api.set({ deleteHeir: json(409, { error: "cascade_unconfirmed", impact: { persons: ["child"], estates: [2] },
+      case: { ...kase, revision: 3 } }) });
+    const remove = page.locator('[data-focus="remove:owner"]');
+    await remove.click();
+    const sheet = page.locator("[data-edit-sheet]");
+    await expect(sheet.locator("li")).toHaveText(["Son · Omar", "The estate of Son · Ali"]);
+    const keep = sheet.getByRole("button", { name: en.heirRemoveNo });
+    await expect(keep).toBeFocused();
+    await keep.click();
+    await expect(remove).toBeFocused();
+    expect(api.heirDeletes).toHaveLength(1);
+    expect(api.heirDeletes[0].searchParams.has("confirm_cascade")).toBe(false);
+    await remove.click();
+    await expect(keep).toBeFocused();
+    api.set({ deleteHeir: json(200, { case: { ...kase, revision: 4, heirs: [], deaths: [] } }) });
+    await sheet.getByRole("button", { name: en.heirRemoveYes }).click();
+    await expect(page.locator('[data-node="root"]')).toBeFocused();
+    expect(api.heirDeletes).toHaveLength(3);
+    expect(api.heirDeletes[2].searchParams.get("confirm_cascade")).toBe("true");
+    expect(api.heirDeletes[2].searchParams.get("expected_revision")).toBe("3");
+  });
+
+  test("Delete asks before sending and simple Remove focuses the next sibling", async ({ page, api }) => {
+    const kase = { ...base(), heirs: [son("a"), son("b"), son("c")] };
+    await open(page, api, kase);
+    await page.locator('[data-node="b"]').press("Delete");
+    const sheet = page.locator("[data-edit-sheet]");
+    await expect(sheet.getByRole("button", { name: en.heirRemoveNo })).toBeFocused();
+    await expect(sheet.locator("li")).toHaveCount(0);
+    expect(api.heirDeletes).toHaveLength(0);
+    await page.keyboard.press("Escape");
+    api.set({ deleteHeir: json(200, { case: { ...kase, revision: 2, heirs: [son("a"), son("c")] } }) });
+    await sheet.getByRole("button", { name: "Remove Son 2" }).click();
+    await expect(page.locator('[data-node="c"]')).toBeFocused();
+    expect(api.heirDeletes).toHaveLength(1);
+    expect(api.heirDeletes[0].searchParams.has("confirm_cascade")).toBe(false);
   });
 
   test("no Father button when the case already has a father", async ({ page, api }) => {
@@ -627,10 +712,10 @@ test.describe("lineage canvas", () => {
       expect(await group.locator("svg").first().evaluate(el => getComputedStyle(el).scale)).toBe(locale === "ar" ? "-1 1" : "none");
       for (const card of await cards.all()) expect(await card.evaluate(el => getComputedStyle(el).scale)).toBe("none");
       await expect(page.locator("#heirs-heading").locator("..")).toContainText(t.treeNoShare);
-      // Matrix "lineage": the died-before person has a list row with its badge and no actions.
+      // Matrix "lineage": the died-before person has a list row with its badge and edit/remove actions.
       const before = page.locator("section[aria-labelledby='heirs-heading'] ul > li").filter({ hasText: t.treeDiedBefore.male });
       await expect(before).toHaveCount(1);
-      await expect(before.locator("button")).toHaveCount(0);
+      await expect(before.locator("button")).toHaveCount(2);
       await page.getByRole("button", { name: t.treeZoomIn, exact: true }).click();
       await expect(page.locator("section[aria-labelledby='heirs-heading'] [role='status']")).toHaveText(t.treeZoomStatus.replace("{percent}", new Intl.NumberFormat(locale, { style: "percent" }).format(1.25)));
     });

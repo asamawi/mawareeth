@@ -12,6 +12,7 @@ import {
   blurField,
   cancelChange,
   cancelEditDeceased,
+  requestCardRemoval,
   cancelEditHeir,
   cancelStartOver,
   caseOf,
@@ -81,6 +82,7 @@ function deps(options: {
   answer?: (call: string) => AnswerResult;
 }) {
   const log = {
+    confirmations: [] as boolean[],
     reads: 0,
     starts: [] as boolean[],
     startCaseIds: [] as (string | undefined)[],
@@ -119,7 +121,10 @@ function deps(options: {
     addHeir: async (_signal, caseId, revision, fields) => answerWith("addHeir", caseId, { fields }, revision),
     updateHeir: async (_signal, caseId, revision, heirId, fields) =>
       answerWith("updateHeir", caseId, { heirId, fields }, revision),
-    removeHeir: async (_signal, caseId, revision, heirId) => answerWith("removeHeir", caseId, { heirId }, revision),
+    removeHeir: async (_signal, caseId, revision, heirId, confirm) => {
+      log.confirmations.push(confirm);
+      return answerWith("removeHeir", caseId, { heirId }, revision);
+    },
     markDeceased: async (_signal, caseId, revision, heirId, first) =>
       answerWith("markDeceased", caseId, { heirId, ...(first === undefined ? {} : { fields: { first } }) }, revision),
     unmarkDeceased: async (_signal, caseId, revision, heirId) => answerWith("unmarkDeceased", caseId, { heirId }, revision),
@@ -593,7 +598,7 @@ test("The server limit answer is shown the same way", async () => {
   assert.deepEqual(view, { ...from, errors: { heirs: "limit" }, focus: { target: "form-error", seq: 1 } });
 });
 
-test("Edit heir: filled in, saving announces and returns focus to the row", async () => {
+test("Edit heir: opening focuses name, saving keeps the editor and focuses the changed field", async () => {
   const { value, log } = deps({ answer: () => ({ kind: "saved", case: WITH_TWO }) });
   const editing = startEditHeir(startedOf(WITH_TWO, true), "h2", value);
   assert.equal(editing.editingHeir, "h2");
@@ -603,10 +608,11 @@ test("Edit heir: filled in, saving announces and returns focus to the row", asyn
     heirId: "h2",
     values: { relationship: "daughter", name: "Amal" },
   });
-  assert.deepEqual(editing.focus, { target: "relationship", seq: 1 });
+  assert.deepEqual(editing.focus, { target: "name", seq: 1 });
   const view = (await runAction("saveHeir", signal, value, WITH_TWO, undefined, {
     kind: "saveHeir",
     from: editing,
+    field: "editRelationship:sister",
     heirId: "h2",
     values: { relationship: "sister", name: "Amal" },
   })) as StartedView;
@@ -616,10 +622,53 @@ test("Edit heir: filled in, saving announces and returns focus to the row", asyn
     heirId: "h2",
     fields: { relationship: "sister", name: "Amal" },
   });
-  assert.equal(view.editingHeir, null);
+  assert.equal(view.editingHeir, "h2");
   assert.equal(view.announcement?.kind, "updated");
-  assert.deepEqual(view.focus, { target: "relationship", seq: 2 });
-  assert.deepEqual(log.form, BLANK_RECORD(WITH_TWO.id));
+  assert.deepEqual(view.focus, { target: "editRelationship:sister", seq: 2 });
+  assert.equal(log.form?.heirId, "h2");
+});
+
+test("saveHeir with a status passes it to updateHeir, and close:true closes onto the opener", async () => {
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: WITH_TWO }) });
+  const editing = startEditHeir(startedOf(WITH_TWO, true), "h2", value, "card:h2");
+  const view = (await runAction("saveHeir", signal, value, WITH_TWO, undefined, {
+    kind: "saveHeir", from: editing, heirId: "h2", field: "editStatus:died_before_or_with",
+    status: "died_before_or_with", values: { relationship: "daughter", name: "Amal" },
+  })) as StartedView;
+  assert.deepEqual(log.answers[0].fields, { relationship: "daughter", name: "Amal", status: "died_before_or_with" });
+  assert.equal(view.editingHeir, "h2");
+  const closed = (await runAction("saveHeir", signal, value, WITH_TWO, undefined, {
+    kind: "saveHeir", from: editing, heirId: "h2", field: "name", close: true,
+    values: { relationship: "daughter", name: "Noor" },
+  })) as StartedView;
+  assert.equal(closed.editingHeir, null);
+  assert.equal(closed.focus?.target, "card:h2");
+});
+
+test("a status_locked refusal keeps the editor on the status radio with the family unchanged", async () => {
+  const { value } = deps({ answer: () => ({ kind: "invalid", errors: { status: "status_locked" } }) });
+  const editing = startEditHeir(startedOf(WITH_TWO, true), "h2", value);
+  const view = (await runAction("saveHeir", signal, value, WITH_TWO, undefined, {
+    kind: "saveHeir", from: editing, heirId: "h2", field: "editStatus:died_before_or_with",
+    status: "died_before_or_with", values: { relationship: "daughter", name: "Amal" },
+  })) as StartedView;
+  assert.equal(view.editingHeir, "h2");
+  assert.equal(view.focus?.target, "editStatus:died_before_or_with");
+  assert.deepEqual(view.errors, { status: "status_locked" });
+  assert.equal(view.case, editing.case);
+});
+
+test("a card removal request confirmed unconfirmed-first and answered by cascade shows that impact", async () => {
+  const live = { ...WITH_TWO, revision: 8 };
+  const impact = { persons: ["h1"], estates: [] as number[] };
+  const { value, log } = deps({ answer: () => ({ kind: "cascade", case: live, impact }) });
+  const asked = requestCardRemoval(startedOf(WITH_TWO, true), "h2", value);
+  const view = (await runAction("removeHeir", signal, value, null, undefined,
+    { kind: "removeHeir", from: asked, heirId: "h2", confirm: false })) as StartedView;
+  assert.deepEqual(log.confirmations, [false]);
+  assert.equal(view.case, live);
+  assert.deepEqual(view.confirming?.impact, impact);
+  assert.equal(view.editingHeir, "h2");
 });
 
 test("Edit heir: an unknown heir changes nothing, and cancel clears the form without writing", () => {
@@ -650,7 +699,7 @@ test("Edit deceased: opens the form filled in; cancel returns to the heirs and w
   assert.deepEqual(log.answers, []);
 });
 
-test("Remove heir: gone from the list, announced, focus on the list", async () => {
+test("Remove heir: gone from the list, announced, focus on its surviving sibling", async () => {
   const { value, log } = deps({ answer: () => ({ kind: "saved", case: WITH_SON }) });
   const from = startedOf(WITH_TWO, true);
   const view = (await runAction("removeHeir", signal, value, WITH_TWO, undefined, {
@@ -667,7 +716,7 @@ test("Remove heir: gone from the list, announced, focus on the list", async () =
     ordinal: null,
     seq: 1,
   });
-  assert.deepEqual(view.focus, { target: "list", seq: 1 });
+  assert.deepEqual(view.focus, { target: "card:h1", seq: 1 });
 });
 
 test("Remove heir: failure keeps the heir and returns focus to its button", async () => {
@@ -679,6 +728,42 @@ test("Remove heir: failure keeps the heir and returns focus to its button", asyn
     heirId: "h2",
   });
   assert.deepEqual(view, { ...from, notice: "failed", focus: { target: "remove:h2", seq: 1 } });
+});
+
+test("row removal adopts impact, Keep closes, and a stale Yes reconciles without resending", async () => {
+  const from = startedOf(WITH_TWO, true);
+  const live = { ...WITH_TWO, revision: 8 };
+  const newer = { ...WITH_TWO, revision: 9 };
+  const impact = { persons: ["h1"], estates: [2] };
+  let result: AnswerResult = { kind: "cascade", case: live, impact };
+  const { value, log } = deps({ answer: () => result });
+  const remove = async (view: StartedView, confirm: boolean) => await runAction("removeHeir", signal, value, null, undefined,
+    { kind: "removeHeir", from: view, heirId: "h2", confirm, fromRow: true }) as StartedView;
+  const asked = await remove(from, false);
+  assert.equal(asked.case, live);
+  assert.deepEqual(asked.confirming, { heirId: "h2", impact, fromRow: true });
+  const kept = cancelEditHeir(asked, value);
+  assert.equal(kept.editingHeir, null);
+  assert.equal(kept.focus?.target, "remove:h2");
+  result = { kind: "replaced", case: newer };
+  const stale = await remove(asked, true);
+  assert.equal(stale.case, newer);
+  assert.equal(stale.editingHeir, "h2");
+  assert.equal(stale.conflict, true);
+  assert.equal(stale.confirming, undefined);
+  assert.deepEqual(log.confirmations, [false, true]);
+  assert.deepEqual(log.revisions, [from.case.revision, 8]);
+});
+
+test("Delete opens a confirmation locally and Escape restores edit then the card", () => {
+  const { value, log } = deps({});
+  const asked = requestCardRemoval(startedOf(WITH_TWO, true), "h2", value);
+  assert.equal(asked.confirming?.impact, null);
+  const edit = cancelEditHeir(asked, value);
+  assert.equal(edit.editingHeir, "h2");
+  assert.equal(edit.confirming, undefined);
+  assert.equal(cancelEditHeir(edit, value).focus?.target, "card:h2");
+  assert.deepEqual(log.answers, []);
 });
 
 test("An heir that no longer exists: the list is refreshed from the response, with a notice", async () => {
@@ -1065,18 +1150,20 @@ test("A half-typed new heir is parked when an heir edit starts, and comes back o
   assert.equal(cancelled.editingHeir, null);
 });
 
-test("The parked draft comes back when the heir edit is saved", async () => {
+test("The parked draft survives an immediate save until the editor closes", async () => {
   const { value, log } = deps({
     answer: () => ({ kind: "saved", case: WITH_TWO }),
     form: { caseId: WITH_TWO.id, form: "heir", layer: null, heirId: null, values: { relationship: "wife", name: "Draft" } },
   });
   const editing = startEditHeir(startedOf(WITH_TWO, true), "h1", value);
-  await runAction("saveHeir", signal, value, WITH_TWO, undefined, {
+  const saved = await runAction("saveHeir", signal, value, WITH_TWO, undefined, {
     kind: "saveHeir",
     from: editing,
     heirId: "h1",
     values: { relationship: "son", name: "" },
   });
+  assert.deepEqual(log.form?.parked, { relationship: "wife", name: "Draft" });
+  cancelEditHeir(saved as StartedView, value);
   assert.deepEqual(log.form?.values, { relationship: "wife", name: "Draft" });
   assert.equal(log.form?.parked, undefined);
 });
@@ -1166,19 +1253,19 @@ test("Removing the heir being edited ends the edit; removing another keeps it an
 
 test("every focus target flow.ts can emit is a data-focus value in the components", () => {
   const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "app", "[locale]", "interview");
-  const source = ["deceased-form.tsx", "heir-form.tsx", "add-relatives.tsx", "heir-list.tsx", "form-bits.tsx", "order-question.tsx", "relatives-question.tsx", "death-breadcrumb.tsx"]
+  const source = ["family-tree.tsx", "edit-sheet.tsx", "deceased-form.tsx", "heir-form.tsx", "add-relatives.tsx", "heir-list.tsx", "form-bits.tsx", "order-question.tsx", "relatives-question.tsx", "death-breadcrumb.tsx"]
     .map((file) => readFileSync(join(dir, file), "utf8"))
     .join("\n");
   for (const target of FOCUS_TARGETS) {
     assert.ok(new RegExp(`data-focus=(\{[^}]*)?"${target}"`).test(source), target);
   }
   for (const prefix of FOCUS_PREFIXES) {
-    assert.ok(source.includes("data-focus={`" + prefix + ":${"), prefix);
+    assert.ok(source.split("data-focus=").some(part => part.split("}")[0].includes("`" + prefix + ":${")), prefix);
   }
   // The rest of flow.ts only builds targets from these, which the FocusTarget type enforces.
   const flowSource = readFileSync(join(dir, "..", "..", "..", "interview", "flow.ts"), "utf8");
   for (const [, target] of flowSource.matchAll(/nextFocus\([^,]+,\s*"([^"]+)"\)/g)) {
-    assert.ok((FOCUS_TARGETS as readonly string[]).includes(target), target);
+    assert.ok((FOCUS_TARGETS as readonly string[]).includes(target) || FOCUS_PREFIXES.some(p => target.startsWith(p + ":")), target);
   }
 });
 
@@ -1343,7 +1430,7 @@ test("a refused gender fetches the case again, so a spouse the tab never saw sho
   assert.deepEqual(result.case, live);
 });
 
-test("an edit of an heir removed elsewhere closes when the refusal refreshes the case", async () => {
+test("an edit refusal keeps focus on the attempted relationship and preserves the accepted family", async () => {
   const editing = startedOf(WITH_FATHER_OPTIONS, true, { editingHeir: "h9" });
   const live: Case = { ...WITH_DECEASED, heirs: [] };
   const { value } = deps({
@@ -1352,13 +1439,14 @@ test("an edit of an heir removed elsewhere closes when the refusal refreshes the
   });
   const result = (await runAction("saveHeir", signal, value, WITH_FATHER_OPTIONS, undefined, {
     kind: "saveHeir",
-    from: editing,
+    from: editing, field: "editRelationship:father",
     heirId: "h9",
     values: { relationship: "father", name: "Keep" },
   })) as StartedView;
-  assert.equal(result.editingHeir, null);
+  assert.equal(result.editingHeir, "h9");
+  assert.equal(result.focus?.target, "editRelationship:father");
   assert.deepEqual(result.errors, { relationship: "second_father" });
-  assert.deepEqual(result.case, live);
+  assert.deepEqual(result.case, editing.case);
 });
 
 test("a failed or aborted read after a refusal still shows the refusal and throws nothing", async () => {

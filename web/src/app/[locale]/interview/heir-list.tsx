@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { Case, Deceased, Heir } from "@/api/case";
+import type { Deceased, Heir } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import { formatEstate } from "@/interview/answers";
 import type { treeDescription } from "@/interview/tree";
-import { personOf, removesDeath } from "@/interview/layers";
+import { personOf } from "@/interview/layers";
 
 import { buttonClass, WithHeir } from "./form-bits";
 
@@ -60,7 +60,6 @@ type ListProps = {
   zoomNote?: string | null;
   messages: Messages["interview"];
   heirs: Heir[];
-  kase: Case;
   /** The heir whose details are in the form, if any. */
   editingId: string | null;
   saving: boolean;
@@ -83,7 +82,7 @@ type ListProps = {
 };
 
 /** What a row's inline question is about: removing the row, or taking back the person's death. */
-type Confirm = { kind: "remove" | "unmark"; id: string };
+type Confirm = { id: string };
 
 /** The heirs of the active layer. Removal asks on the row, and every change is announced. */
 export function HeirList({
@@ -91,7 +90,6 @@ export function HeirList({
   zoomNote,
   messages,
   heirs,
-  kase,
   editingId,
   saving,
   announcement,
@@ -115,9 +113,8 @@ export function HeirList({
       askedFor.current = confirm;
       container.current?.querySelector<HTMLElement>("[data-keep]")?.focus();
     } else if (askedFor.current !== null) {
-      const { kind, id } = askedFor.current;
-      const prefix = kind === "remove" ? "remove" : "didNotDie";
-      container.current?.querySelector<HTMLElement>(`[data-focus="${prefix}:${id}"]`)?.focus();
+      const { id } = askedFor.current;
+      container.current?.querySelector<HTMLElement>(`[data-focus="didNotDie:${id}"]`)?.focus();
       askedFor.current = null;
     }
   }, [confirm]);
@@ -142,15 +139,15 @@ export function HeirList({
           <li className="flex min-h-[52px] items-center border-t border-line p-3"><strong><bdi>{description.deceased}</bdi></strong></li>
           {description.people.map(words => {
               const heir = heirs.find(h => h.id === words.id);
-              if (!heir || words.state === "died_before") return <li key={words.id} className="min-h-[52px] border-t border-line p-3"><strong>{words.relationship}</strong>{words.secondary && <div><bdi>{words.secondary}</bdi></div>}{words.badge && <div className="text-badge">{words.badge}</div>}</li>;
+              const id = words.id;
               const label = words.label;
-              const person = personOf(heir);
+              const person = heir ? personOf(heir) : id;
               const dead = deceasedIds?.has(person) ?? false;
-              const confirming = confirm?.id === heir.id ? confirm.kind : null;
+              const confirming = confirm?.id === id;
               return (
                 <li
-                  key={heir.id}
-                  aria-current={editingId === heir.id ? "true" : undefined}
+                  key={id}
+                  aria-current={editingId === id ? "true" : undefined}
                   className="flex min-h-[52px] flex-wrap items-center justify-between gap-3 rounded-md border border-current/60 p-3 aria-[current=true]:border-2 aria-[current=true]:border-current"
                 >
                   <span className="flex min-w-0 flex-col [overflow-wrap:anywhere]">
@@ -158,21 +155,15 @@ export function HeirList({
                     {words.secondary && <span className="text-sm"><bdi>{words.secondary}</bdi></span>}
                     {words.badge && <span className="text-badge">{words.badge}</span>}
                   </span>
-                  {confirming !== null ? (
+                  {confirming ? (
                     <div
                       role="group"
-                      aria-labelledby={`confirm-question-${heir.id}`}
+                      aria-labelledby={`confirm-question-${id}`}
                       className="flex flex-wrap items-center gap-3"
                     >
-                      <span id={`confirm-question-${heir.id}`}>
+                      <span id={`confirm-question-${id}`}>
                         <WithHeir
-                          template={
-                            confirming === "unmark"
-                              ? messages.heirDidNotDieConfirm
-                              : removesDeath(kase, heir.id)
-                                ? messages.heirRemoveConfirmDeceased
-                                : messages.heirRemoveConfirm
-                          }
+                          template={messages.heirDidNotDieConfirm}
                           heir={label}
                         />
                       </span>
@@ -184,13 +175,12 @@ export function HeirList({
                           if (saving) return;
                           setConfirm(null);
                           askedFor.current = null;
-                          if (confirming === "unmark") onDidNotDie?.(person, heir.id);
-                          else onRemove(heir.id);
+                          onDidNotDie?.(person, id);
                         }}
                       >
-                        {confirming === "unmark" ? messages.heirDidNotDieYes : messages.heirRemoveYes}
+                        {messages.heirDidNotDieYes}
                       </button>
-                      <button type="button" data-keep className={buttonClass} onClick={() => setConfirm(null)}>
+                      <button type="button" data-keep className={buttonClass} aria-disabled={saving} onClick={() => { if (!saving) setConfirm(null); }}>
                         {messages.heirRemoveNo}
                       </button>
                     </div>
@@ -199,22 +189,22 @@ export function HeirList({
                       <button
                         type="button"
                         className={buttonClass}
-                        data-focus={`editHeir:${heir.id}`}
+                        data-focus={`editHeir:${id}`}
                         aria-disabled={saving}
                         onClick={() => {
-                          if (!saving) onEdit(heir.id);
+                          if (!saving) onEdit(id);
                         }}
                       >
                         <WithHeir template={messages.heirEdit} heir={label} />
                       </button>
-                      {onAlsoDied && !dead && (
+                      {onAlsoDied && heir && !dead && (
                         <button
                           type="button"
                           className={buttonClass}
-                          data-focus={`alsoDied:${heir.id}`}
+                          data-focus={`alsoDied:${id}`}
                           aria-disabled={saving}
                           onClick={() => {
-                            if (!saving) onAlsoDied(heir.id);
+                            if (!saving) onAlsoDied(id);
                           }}
                         >
                           <WithHeir template={messages.heirAlsoDied} heir={label} />
@@ -224,7 +214,7 @@ export function HeirList({
                         <button
                           type="button"
                           className={buttonClass}
-                          data-focus={`openLayer:${heir.id}`}
+                          data-focus={`openLayer:${id}`}
                           aria-disabled={saving}
                           onClick={() => {
                             if (!saving) onOpenLayer(person);
@@ -237,10 +227,10 @@ export function HeirList({
                         <button
                           type="button"
                           className={buttonClass}
-                          data-focus={`didNotDie:${heir.id}`}
+                          data-focus={`didNotDie:${id}`}
                           aria-disabled={saving}
                           onClick={() => {
-                            if (!saving) setConfirm({ kind: "unmark", id: heir.id });
+                            if (!saving) setConfirm({ id });
                           }}
                         >
                           <WithHeir template={messages.heirDidNotDie} heir={label} />
@@ -249,17 +239,17 @@ export function HeirList({
                       <button
                         type="button"
                         className={buttonClass}
-                        data-focus={`remove:${heir.id}`}
+                        data-focus={`remove:${id}`}
                         aria-disabled={saving}
                         onClick={() => {
-                          if (!saving) setConfirm({ kind: "remove", id: heir.id });
+                          if (!saving) onRemove(id);
                         }}
                       >
                         <WithHeir template={messages.heirRemove} heir={label} />
                       </button>
                     </div>
                   )}
-                  {asking?.rowId === heir.id && asking.node}
+                  {asking?.rowId === id && asking.node}
                 </li>
               );
             })}

@@ -112,9 +112,10 @@ def remove_impact(case, heir_id):
     """What removing this row would drop besides the row's own person, from the engine."""
     rows = anonymous_case._rows(case)
     row = rows.get(heir_id)
-    if row is None or case['deceased'] is None:
+    if case['deceased'] is None or (row is None and not any(
+            p['id'] == heir_id for p in case.get('died_before', []))):
         return None
-    person = anonymous_case._person(row)
+    person = anonymous_case._person(row) if row else heir_id
     # Removing a row drops its edges and nothing linked through them, so the impact ignores edges.
     family, _ = family_from_session({**case, 'edges': []})
     found = delete_impact(family, person, estate=_layer_order(case, heir_id))

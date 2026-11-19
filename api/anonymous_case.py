@@ -801,9 +801,32 @@ def update_heir(request, heir_id, data, case_id):
     if case is None:
         return None
     rows = _rows(case)
-    if heir_id not in rows:
+    before = case.get('died_before') or []
+    row = rows.get(heir_id) or next((p for p in before if p['id'] == heir_id), None)
+    if row is None:
         raise HeirNotFound(case)
-    row = rows[heir_id]
+    was_before = heir_id not in rows
+    status = data.get('status', 'died_before_or_with' if was_before else 'alive')
+    if status not in ('alive', 'died_before_or_with'):
+        raise FieldErrors({'status': 'invalid'})
+    person = _person(row)
+    locked = (any(_person(r) == person and r['id'] != heir_id for r in rows.values())
+              or any(d['heir_id'] == person for d in case['deaths']))
+    moving_before = not was_before and status == 'died_before_or_with'
+    returning = was_before and status == 'alive'
+    if moving_before:
+        from api.snapshots import write_version
+        if write_version() == 1:
+            raise FieldErrors({'status': 'schema_unsupported'})
+        if locked:
+            raise FieldErrors({'status': 'status_locked'})
+        if row not in case['heirs']:
+            raise FieldErrors({'status': 'first_estate_only'})
+        if len(case.get('died_before') or []) >= MAX_HEIRS:
+            raise FieldErrors({'heirs': 'limit'})
+    if returning and len(case['heirs']) >= MAX_HEIRS:
+        raise FieldErrors({'heirs': 'limit'})
+    # Every field issue is reported together, as before this command took a status.
     errors = {}
     try:
         fields = clean_heir(data)
@@ -811,13 +834,12 @@ def update_heir(request, heir_id, data, case_id):
         errors.update(error.errors)
     rel = canonical(data.get('relationship'))
     if isinstance(rel, str) and rel in RELATIONSHIPS:
-        person = _person(row)
-        locked = (any(_person(r) == person and r['id'] != row['id'] for r in rows.values())
-                  or any(d['heir_id'] == person for d in case['deaths']))
         if locked and RELATIONSHIPS[rel] != row['gender']:
             errors['relationship'] = 'gender_locked'
-        elif rel != row['relationship']:
-            _, deceased, heirs = next(e for e in _layers(case) if row in e[2])
+        elif returning or rel != row['relationship']:
+            deceased, heirs = case['deceased'], case['heirs']
+            if not was_before:
+                _, deceased, heirs = next(e for e in _layers(case) if row in e[2])
             if deceased is None:
                 errors['case'] = 'deceased_required'
             else:
@@ -827,9 +849,15 @@ def update_heir(request, heir_id, data, case_id):
                     errors['relationship'] = issue
     if errors:
         raise FieldErrors(errors)
-    rows[_person(row)]['name'] = fields['name']
-    row['relationship'] = rel
-    row['gender'] = RELATIONSHIPS[rel]
+    rows.get(person, row)['name'] = fields['name']
+    row.update(relationship=rel, gender=RELATIONSHIPS[rel])
+    if moving_before:
+        case['heirs'].remove(row)
+        row.pop('edit_options', None)
+        case['died_before'] = before + [row]
+    elif returning:
+        before.remove(row)
+        case['heirs'].append(row)
     return _store_case(request, case)
 
 
@@ -838,9 +866,15 @@ def remove_heir(request, heir_id, case_id):
     case = _live(request, case_id)
     if case is None:
         return None
-    if heir_id not in _rows(case):
+    before = case.get('died_before', [])
+    person = next((p for p in before if p['id'] == heir_id), None)
+    if person:
+        before.remove(person)
+        case['edges'] = [e for e in case['edges'] if heir_id not in (e['from'], e['to'])]
+    elif heir_id in _rows(case):
+        _remove_rows(case, {heir_id})
+    else:
         raise HeirNotFound(case)
-    _remove_rows(case, {heir_id})
     return _store_case(request, case)
 
 

@@ -19,6 +19,8 @@ export type Stubs = {
   postCase?: Answer;
   patchCase?: Answer;
   postHeir?: Answer;
+  putHeir?: Answer;
+  deleteHeir?: Answer;
   getPreview?: Answer;
 };
 
@@ -43,6 +45,8 @@ export class Api {
   casePosts: { body: string; csrf: string | undefined }[] = [];
   casePatches: { body: string; csrf: string | undefined }[] = [];
   heirPosts: { body: string; csrf: string | undefined }[] = [];
+  heirPuts: string[] = [];
+  heirDeletes: URL[] = [];
   previewGets = 0;
 
   set(stubs: Stubs): void {
@@ -73,6 +77,16 @@ export class Api {
       if (pathname === "/api/v1/case/heirs/" && method === "POST") {
         this.heirPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
         return this.answer(route, this.stubs.postHeir, "post heir");
+      }
+      if (/^\/api\/v1\/case\/heirs\/[^/]+\/$/.test(pathname)) {
+        if (method === "PUT") {
+          this.heirPuts.push(request.postData() ?? "");
+          return this.answer(route, this.stubs.putHeir, "put heir");
+        }
+        if (method === "DELETE") {
+          this.heirDeletes.push(new URL(request.url()));
+          return this.answer(route, this.stubs.deleteHeir, "delete heir");
+        }
       }
       if (pathname === "/api/v1/case/preview/" && method === "GET") {
         this.previewGets += 1;

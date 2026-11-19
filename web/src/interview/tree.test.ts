@@ -13,7 +13,7 @@ import {
   NODE_HEIGHT,
   scrollDelta,
   treeDescription,
-  estateModel, fitZoom, pinBox, placeholders, type EstateModel,
+  estateModel, fitZoom, focusAfterRemoval, pinBox, placeholders, type EstateModel,
   type TreeLayout,
 } from "./tree.ts";
 
@@ -287,4 +287,16 @@ test("card widths are parameters and every fifty-person box stays reachable", ()
     const layout = layoutModel(model, width, cardWidth);
     assert.ok([layout.deceased, ...layout.nodes].every(n => n.width === cardWidth && n.height >= 76 && n.x >= 0 && n.x + n.width <= layout.width));
   }
+});
+
+test("removal focus follows surviving siblings with the same parent and generation", () => {
+  const people: EstateModel["people"] = ["first", "removed", "other-parent", "last"].map(id => ({
+    id, personId: id, relationship: "son", gender: "male", name: null, state: "normal",
+    parentId: id === "other-parent" ? "b" : "a",
+  }));
+  const model = { people, placement: {} };
+  assert.equal(focusAfterRemoval(model, "removed"), "last");
+  assert.equal(focusAfterRemoval(model, "last"), "removed");
+  assert.equal(focusAfterRemoval(model, "removed", new Set(["first"])), "first");
+  assert.equal(focusAfterRemoval(model, "other-parent"), "root");
 });

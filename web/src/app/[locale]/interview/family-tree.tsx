@@ -5,8 +5,9 @@ import type { Messages } from "@/i18n/messages";
 import { fitZoom, layoutTree, pinBox, placeholders, treeDescription, ZOOM_LEVELS, type EstateModel } from "@/interview/tree";
 import { focusRing, focusRingOnAccent, secondaryButton } from "../ui";
 
-export function FamilyTree({ messages, model, rootText, editingId, locale, onAnnounce }: {
+export function FamilyTree({ messages, model, rootText, editingId, locale, onAnnounce, frozen = false, onEdit, onRemoveRequest }: {
   messages: Messages["interview"]; model: EstateModel; rootText?: string;
+  frozen?: boolean; onEdit?: (id: string) => void; onRemoveRequest?: (id: string) => void;
   editingId: string | null; locale: string; onAnnounce: (note: string) => void;
 }) {
   const heading = useId();
@@ -48,14 +49,20 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
     const person = model.people.find(p => p.id === id);
     const words = text.people.find(p => p.id === id);
     const state = person?.state ?? "deceased";
-    return <button key={id} type="button" data-node={id} data-state={state}
+    const editable = state !== "deceased" && state !== "died_later";
+    return <button key={id} data-focus={`card:${id}`} aria-disabled={editable && frozen} type="button" data-node={id} data-state={state}
       ref={el => { if (el) buttons.current.set(id, el); else buttons.current.delete(id); }}
-      tabIndex={current === id ? 0 : -1} aria-current={selected === id || editingId === id ? "true" : undefined}
-      onClick={() => setSelected(id)}
-      onFocus={event => { if (id !== "root") event.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }}
+      tabIndex={current === id ? 0 : -1} aria-current={(editingId ?? selected) === id ? "true" : undefined}
+      onClick={() => { if (editable && frozen) return; setSelected(id); if (editable) onEdit?.(id); }}
+      onFocus={event => { setSelected(id); if (id !== "root") event.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }}
       onKeyDown={event => {
         // Modified arrows keep their browser meaning, such as Alt+Left for back.
         if (event.altKey || event.ctrlKey || event.metaKey) return;
+        if (event.key === "Delete" && editable) {
+          event.preventDefault();
+          if (!frozen) onRemoveRequest?.(id);
+          return;
+        }
         let index = ids.indexOf(id);
         if (event.key === "Home") index = 0;
         else if (event.key === "End") index = ids.length - 1;
@@ -66,7 +73,7 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
         const next = ids[Math.max(0, Math.min(ids.length - 1, index))];
         setSelected(next); buttons.current.get(next)?.focus();
       }}
-      className={`absolute flex flex-col items-center justify-center gap-1 rounded-node p-2 text-center [overflow-wrap:anywhere] aria-[current=true]:outline aria-[current=true]:outline-offset-2 aria-[current=true]:outline-accent ${state === "deceased" ? `bg-accent text-accent-foreground ${focusRingOnAccent}` : focusRing} ${state === "normal" || state === "died_later" ? "bg-[var(--background)]" : ""} ${state === "died_before" || state === "blocked" ? "bg-surface" : ""}`}
+      className={`absolute flex flex-col items-center justify-center gap-1 rounded-node p-2 text-center [overflow-wrap:anywhere] ${editingId === id ? "outline-3 -outline-offset-3 outline-current" : "aria-[current=true]:outline aria-[current=true]:outline-offset-2 aria-[current=true]:outline-accent"} ${state === "deceased" ? `bg-accent text-accent-foreground ${focusRingOnAccent}` : focusRing} ${state === "normal" || state === "died_later" ? "bg-[var(--background)]" : ""} ${state === "died_before" || state === "blocked" ? "bg-surface" : ""}`}
       style={{ insetInlineStart: box.x, top: box.y, width: box.width, height: box.height,
         border: state === "deceased" || state === "died_before" ? "none" : state === "died_later" ? "2px solid var(--accent)" : "1.5px solid var(--graphic)",
         backgroundImage: state === "blocked" ? "repeating-linear-gradient(135deg, var(--surface) 0 6px, var(--blocked-stripe) 6px 12px)" : undefined }}>

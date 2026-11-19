@@ -201,7 +201,10 @@ export function parseQuestions(value: unknown): RelativeQuestion[] | null {
   return result;
 }
 
+export type RemoveImpact = { persons: string[]; estates: number[] };
+
 export type AnswerResult =
+  | { kind: "cascade"; impact: RemoveImpact; case: Case }
   | { kind: "saved"; case: Case }
   /** The server refused the input; nothing was stored. */
   | { kind: "invalid"; errors: FieldErrorCodes; questions?: RelativeQuestion[] }
@@ -638,8 +641,14 @@ async function answer(
         return live ? { kind: "missing", case: live } : { kind: "gone" };
       }
       if (response.status === 409) {
-        const live = parseCase(await response.json());
-        return live ? { kind: "replaced", case: live } : null;
+        const body = await response.json();
+        const live = parseCase(body);
+        if (!live) return null;
+        if (body.error !== "cascade_unconfirmed") return { kind: "replaced", case: live };
+        const impact = body.impact;
+        if (!Array.isArray(impact?.persons) || !impact.persons.every((id: unknown) => typeof id === "string" && id.length > 0)
+          || !Array.isArray(impact.estates) || !impact.estates.every((order: unknown) => typeof order === "number" && Number.isSafeInteger(order) && order > 0)) return null;
+        return { kind: "cascade", impact: { persons: impact.persons, estates: impact.estates }, case: live };
       }
       if (!response.ok) return null;
       const saved = parseCase(await response.json());
@@ -651,6 +660,7 @@ async function answer(
 
 export type DeceasedFields = { gender: Gender; estate: string | null };
 export type HeirFields = {
+  status?: "alive" | "died_before_or_with";
   relationship: RelationshipId;
   name: string | null;
   /** The death (a person's heir id) whose heirs this row joins; left out for the first deceased. */
@@ -663,10 +673,10 @@ const DECEASED_URL = "/api/v1/case/deceased/";
 const HEIRS_URL = "/api/v1/case/heirs/";
 const DEATHS_URL = "/api/v1/case/deaths/";
 
-/** The query of a DELETE: the case, its revision and the cascade confirmation (Epic 9 adds the dialog). */
-function deleteQuery(caseId: string, revision: number | null): string {
+/** The query of a DELETE: the case, its revision and the cascade confirmation, which each call opts into. */
+function deleteQuery(caseId: string, revision: number | null, confirm: boolean): string {
   const revisionPart = revision === null ? "" : `&expected_revision=${revision}`;
-  return `case_id=${encodeURIComponent(caseId)}${revisionPart}&confirm_cascade=true`;
+  return `case_id=${encodeURIComponent(caseId)}${revisionPart}${confirm ? "&confirm_cascade=true" : ""}`;
 }
 
 /** Stores the deceased, replacing the earlier one. One attempt; never throws. */
@@ -706,11 +716,10 @@ export function removeHeir(
   caseId: string,
   revision: number | null,
   heirId: string,
+  confirm: boolean,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  // Intermediaries may drop a DELETE body, so the case id is in the query string. The cascade is
-  // confirmed up front until the impact dialog exists (Epic 9).
-  const url = `${HEIRS_URL}${encodeURIComponent(heirId)}/?${deleteQuery(caseId, revision)}`;
+  const url = `${HEIRS_URL}${encodeURIComponent(heirId)}/?${deleteQuery(caseId, revision, confirm)}`;
   return answer(signal, options, "DELETE", url, caseId, revision, null);
 }
 
@@ -746,7 +755,7 @@ export function unmarkDeceased(
   heirId: string,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  const url = `${DEATHS_URL}${encodeURIComponent(heirId)}/?${deleteQuery(caseId, revision)}`;
+  const url = `${DEATHS_URL}${encodeURIComponent(heirId)}/?${deleteQuery(caseId, revision, true)}`;
   return answer(signal, options, "DELETE", url, caseId, revision, null);
 }
 

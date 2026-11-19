@@ -28,6 +28,14 @@ test.describe("axe", () => {
       expect(await serious(page)).toEqual([]);
     });
 
+    test(`edit surface in ${locale} has no serious or critical violations`, async ({ page, api }) => {
+      await page.setViewportSize({ width: locale === "ar" ? 375 : 1280, height: 800 });
+      await openHeirsScreen(page, api, locale);
+      await page.locator('[data-state="normal"]').first().click();
+      await expect(page.locator("[data-edit-sheet] input[name='edit-status']").first()).toBeVisible();
+      expect(await serious(page)).toEqual([]);
+    });
+
     for (const scheme of ["light", "dark"] as const) {
       test(`heirs screen /${locale}/ in ${scheme} mode has no serious or critical violations`, async ({ page, api }) => {
         await page.emulateMedia({ colorScheme: scheme });

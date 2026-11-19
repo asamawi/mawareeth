@@ -344,18 +344,31 @@ test("addHeir posts, updateHeir puts and removeHeir deletes, each with the case 
   const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
   await addHeir(signal(), "abc123", 4, { relationship: "son", name: "A" }, withToken);
   await updateHeir(signal(), "abc123", 4, "h 1", { relationship: "wife", name: null }, withToken);
-  await removeHeir(signal(), "abc123", 4, "h1", withToken);
+  await removeHeir(signal(), "abc123", 4, "h1", false, withToken);
   assert.deepEqual(
     calls.map((call) => [call.init?.method, call.url]),
     [
       ["POST", "/api/v1/case/heirs/"],
       ["PUT", "/api/v1/case/heirs/h%201/"],
-      ["DELETE", "/api/v1/case/heirs/h1/?case_id=abc123&expected_revision=4&confirm_cascade=true"],
+      ["DELETE", "/api/v1/case/heirs/h1/?case_id=abc123&expected_revision=4"],
     ],
   );
   assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { relationship: "son", name: "A", case_id: "abc123", expected_revision: 4 });
   assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { relationship: "wife", name: null, case_id: "abc123", expected_revision: 4 });
   assert.equal(calls[2].init?.body, undefined, "a DELETE body may be dropped on the way, so there is none");
+});
+
+test("confirmed removal uses the impact revision and validates a cascade response", async () => {
+  const impact = { persons: ["h2"], estates: [2] };
+  const cascade = { error: "cascade_unconfirmed", impact, case: FULL_CASE };
+  const calls = stubFetch(async () => Response.json(cascade, { status: 409 }));
+  const remove = () => removeHeir(signal(), "abc123", 5, "h1", true, withToken);
+  assert.deepEqual(await remove(), { kind: "cascade", impact, case: FULL_CASE });
+  assert.match(String(calls[0].url), /expected_revision=5&confirm_cascade=true$/);
+  for (const bad of [{ persons: [1], estates: [] }, { persons: [], estates: ["2"] }, null]) {
+    stubFetch(async () => Response.json({ ...cascade, impact: bad }, { status: 409 }));
+    assert.deepEqual(await remove(), { kind: "failed" });
+  }
 });
 
 test("answer writes map 400, 404, 409 and 429", async () => {
@@ -380,7 +393,7 @@ test("answer writes make exactly one attempt and report failure", async () => {
   const calls = stubFetch(async () => {
     throw new TypeError("fetch failed");
   });
-  assert.deepEqual(await removeHeir(signal(), "abc123", 4, "h1", withToken), { kind: "failed" });
+  assert.deepEqual(await removeHeir(signal(), "abc123", 4, "h1", false, withToken), { kind: "failed" });
   assert.equal(calls.length, 1);
   stubFetch(
     ({ init }) =>

@@ -121,6 +121,12 @@ export type Messages = {
     heirNumbered: string;
     heirAddHeading: string;
     heirEditHeading: string;
+    editClose: string;
+    statusLegend: string;
+    statusAlive: string;
+    statusDiedBefore: string;
+    removeImpactIntro: string;
+    removeImpactEstate: string;
     heirAdded: string;
     heirUpdated: string;
     heirRemoved: string;
@@ -167,7 +173,7 @@ export type Messages = {
     relationships: Record<RelationshipId, string>;
     /** Field name, then the error code the form or the server reports. */
     fieldErrors: Record<string, Record<string, string>> & Record<
-      "gender" | "estate" | "relationship" | "name" | "heirs" | "case" | "same_as" | "death",
+      "gender" | "estate" | "relationship" | "name" | "heirs" | "case" | "same_as" | "death" | "status",
       Record<string, string>
     >;
     madhabLabel: string;
@@ -383,6 +389,12 @@ export const messages: Record<Locale, Messages> = {
       heirRemoveNo: "إبقاء",
       heirNumbered: "{heir} رقم {n}",
       heirAddHeading: "إضافة وارث جديد",
+      editClose: "إغلاق",
+      statusLegend: "الحالة عند الوفاة",
+      statusAlive: "على قيد الحياة عند الوفاة",
+      statusDiedBefore: "توفي قبل المتوفى",
+      removeImpactIntro: "سيُحذف معه أيضًا:",
+      removeImpactEstate: "تركة {heir}",
       heirEditHeading: "تعديل بيانات الوارث",
       heirAdded: "تمت إضافة {heir}.",
       heirUpdated: "تم تعديل {heir}.",
@@ -429,6 +441,12 @@ export const messages: Record<Locale, Messages> = {
       startOverNo: "لا، أبقِ حالتي",
       relationships: relationshipTerms("ar"),
       fieldErrors: {
+        status: {
+          invalid: "اختر حالة صحيحة.",
+          schema_unsupported: "لا يمكن لهذه الحالة تسجيل وفاة قبل المتوفى بعد.",
+          first_estate_only: "لا يمكن تسجيل الوفاة قبل المتوفى إلا في التركة الأولى.",
+          status_locked: "لا يمكن تغيير حالة هذا الشخص ما دام مرتبطًا أو له تركة خاصة.",
+        },
         gender: {
           required: "اختر جنس المتوفى.",
           invalid: "اختر ذكرًا أو أنثى.",
@@ -677,6 +695,12 @@ export const messages: Record<Locale, Messages> = {
       heirRemoveNo: "Keep",
       heirNumbered: "{heir} {n}",
       heirAddHeading: "Add an heir",
+      editClose: "Close",
+      statusLegend: "Status at the death",
+      statusAlive: "Alive at death",
+      statusDiedBefore: "Died before the deceased",
+      removeImpactIntro: "This also removes:",
+      removeImpactEstate: "The estate of {heir}",
       heirEditHeading: "Edit heir",
       heirAdded: "{heir} added.",
       heirUpdated: "{heir} updated.",
@@ -723,6 +747,12 @@ export const messages: Record<Locale, Messages> = {
       startOverNo: "No, keep my case",
       relationships: relationshipTerms("en"),
       fieldErrors: {
+        status: {
+          invalid: "Choose a valid status.",
+          schema_unsupported: "This case cannot record a death before the deceased yet.",
+          first_estate_only: "A death before the deceased can be set only in the first estate.",
+          status_locked: "This person's status cannot change while they are linked or have their own estate.",
+        },
         gender: {
           required: "Choose the gender of the deceased.",
           invalid: "Choose male or female.",
@@ -972,6 +1002,12 @@ export const messages: Record<Locale, Messages> = {
       heirRemoveNo: "Garder",
       heirNumbered: "{heir} n° {n}",
       heirAddHeading: "Ajouter un héritier",
+      editClose: "Fermer",
+      statusLegend: "Situation au décès",
+      statusAlive: "En vie au décès",
+      statusDiedBefore: "Décédé avant le défunt",
+      removeImpactIntro: "Cela supprime aussi :",
+      removeImpactEstate: "La succession de {heir}",
       heirEditHeading: "Modifier l'héritier",
       heirAdded: "Héritier ajouté : {heir}",
       heirUpdated: "Héritier modifié : {heir}",
@@ -1018,6 +1054,12 @@ export const messages: Record<Locale, Messages> = {
       startOverNo: "Non, garder mon dossier",
       relationships: relationshipTerms("fr"),
       fieldErrors: {
+        status: {
+          invalid: "Choisissez une situation valide.",
+          schema_unsupported: "Ce dossier ne peut pas encore enregistrer un décès antérieur au défunt.",
+          first_estate_only: "Un décès antérieur au défunt ne peut être indiqué que dans la première succession.",
+          status_locked: "La situation de cette personne ne peut pas changer tant qu'elle est liée ou a sa propre succession.",
+        },
         gender: {
           required: "Choisissez le sexe du défunt.",
           invalid: "Choisissez homme ou femme.",

@@ -516,3 +516,11 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
     - `addGroupSiblings`: "Siblings" / "الإخوة والأخوات" / "Frères et sœurs".
     - `addRelative`: "Add {relationship}" / "إضافة {relationship}" / "Ajouter {relationship}".
     - `conflictNotice`: "This case changed in another tab. The latest version is shown, and your last change was not saved." / "تغيّرت هذه الحالة في نافذة أخرى. تُعرض الآن أحدث نسخة، ولم يُحفظ تغييرك الأخير." / "Ce dossier a été modifié dans un autre onglet. La dernière version est affichée et votre dernière modification n'a pas été enregistrée."
+
+## Story 9.4
+
+Native review pending for the following Arabic, English and French interview strings in `web/src/i18n/messages.ts`.
+
+- `editClose`, `statusLegend`, `statusAlive`, `statusDiedBefore`
+- `removeImpactIntro`, `removeImpactEstate`
+- `fieldErrors.status.invalid`, `fieldErrors.status.schema_unsupported`, `fieldErrors.status.first_estate_only`, `fieldErrors.status.status_locked`

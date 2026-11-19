@@ -225,6 +225,16 @@ function readingOrder(input: readonly TreePerson[]): TreePerson[] {
   }
   return people;
 }
+/** Choose a surviving sibling using the order and parentage before the removal. */
+export function focusAfterRemoval(model: EstateModel, id: string, surviving?: ReadonlySet<string>): string {
+  const ordered = readingOrder(model.people);
+  const person = ordered.find(p => p.id === id);
+  if (!person) return "root";
+  const siblings = ordered.filter(p => p.parentId === person.parentId && lineOf(p.relationship) === lineOf(person.relationship));
+  const index = siblings.findIndex(p => p.id === id);
+  const candidates = [...siblings.slice(index + 1), ...siblings.slice(0, index).reverse()];
+  return candidates.find(p => !surviving || surviving.has(p.id))?.id ?? "root";
+}
 export function treeDescription(messages: Messages["interview"], model: EstateModel, rootText?: string) {
   const people = readingOrder(model.people);
   const labels = heirLabels(people.map(p => ({ ...p, edit_options: { blocked: [], invalid: {} } })), messages.relationships, messages.heirNumbered);

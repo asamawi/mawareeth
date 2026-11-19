@@ -263,20 +263,6 @@ test("names cannot inject placeholders or replacement patterns", async () => {
   assert.equal(deathLayerText("{label} ({order})", "{order} $&", "second"), "{order} $& (second)");
 });
 
-test("removing a death warns only for the person's last row across all layers", async () => {
-  const { removesDeath } = await import("./layers.ts");
-  assert.equal(removesDeath(CASE, "w"), false);
-  assert.equal(removesDeath(CASE, "r1"), false);
-  assert.equal(removesDeath(CASE, "s1"), true);
-  assert.equal(removesDeath(CASE, "s2"), false);
-  assert.equal(removesDeath(CASE, "missing"), false);
-  const onlyLater = { ...CASE, heirs: CASE.heirs.filter((row) => row.id !== "w"), deaths: [
-    { ...CASE.deaths[0], heirs: CASE.deaths[0].heirs.map((row) => row.id === "r1" ? { ...row, same_as: undefined } : row) },
-    { ...CASE.deaths[1], heir_id: "r1" },
-  ] };
-  assert.equal(removesDeath(onlyLater, "r1"), true);
-});
-
 test("placementRootOf: the first deceased, a later death, an unknown layer and an absent placement", () => {
   const root = [{ relationship: "mother" as const, link: "parent" as const, blocked: false }];
   const deathRoot = [{ relationship: "wife" as const, link: "spouse" as const, blocked: false }];

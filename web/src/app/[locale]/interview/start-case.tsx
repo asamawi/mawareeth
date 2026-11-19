@@ -39,6 +39,7 @@ import {
   openChange,
   openLayer,
   revealOf,
+  requestCardRemoval,
   pick,
   pendingView,
   precheck,
@@ -72,6 +73,7 @@ import { addGroups } from "@/interview/relatives";
 import { AddRelatives } from "./add-relatives";
 import { DeathBreadcrumb, crumbTextOf } from "./death-breadcrumb";
 import { DeceasedForm } from "./deceased-form";
+import { EditSheet } from "./edit-sheet";
 import { FamilyTree } from "./family-tree";
 import { buttonClass, errorText, SaveNotice } from "./form-bits";
 import { DeceasedSummary, HeirList } from "./heir-list";
@@ -106,7 +108,7 @@ const deps: Deps = {
   saveDeceased: (signal, caseId, revision, fields) => saveDeceased(signal, caseId, revision, fields),
   addHeir: (signal, caseId, revision, fields) => addHeir(signal, caseId, revision, fields),
   updateHeir: (signal, caseId, revision, heirId, fields) => updateHeir(signal, caseId, revision, heirId, fields),
-  removeHeir: (signal, caseId, revision, heirId) => removeHeir(signal, caseId, revision, heirId),
+  removeHeir,
   markDeceased: (signal, caseId, revision, heirId, first, answers) =>
     markDeceased(signal, caseId, revision, heirId, first, {}, answers),
   unmarkDeceased: (signal, caseId, revision, heirId) => unmarkDeceased(signal, caseId, revision, heirId),
@@ -163,7 +165,8 @@ export function StartCase({
       const own = new AbortController();
       controller.current = own;
       const existing = caseOf(latest.current);
-      setView(pendingView(action, latest.current));
+      latest.current = pendingView(action, latest.current);
+      setView(latest.current);
       const next = await runAction(action, own.signal, deps, existing, choice, answer);
       if (live.current && controller.current === own) {
         // A failure notice belongs to the school choice only when the choice made it.
@@ -237,7 +240,7 @@ export function StartCase({
   useEffect(() => {
     if (!focusRequest) return;
     // The control may be gone (an open question whose row went away): the screen takes focus.
-    const control = target.current?.querySelector<HTMLElement>(`[data-focus="${focusRequest.target}"]`);
+    const control = target.current?.querySelector<HTMLElement>(`[data-focus="${CSS.escape(focusRequest.target)}"]`);
     // An add button that is gone (a father was just added) hands focus to the panel's heading.
     const fallback = focusRequest.target.startsWith("add:")
       ? target.current?.querySelector<HTMLElement>("#add-relatives-heading")
@@ -276,7 +279,6 @@ export function StartCase({
   const currentPreviewKey = started ? previewKey(started.case) : "";
   const reportPresented = useCallback((value: PresentedResult | null) => setPresented({ key: currentPreviewKey, value }), [currentPreviewKey]);
   const layer = started ? layerAt(started.case, started.layer) : null;
-  const editingHeir = layer?.heirs.find((heir) => heir.id === started?.editingHeir);
   const layered = started ? hasDeaths(started.case) : false;
   const crumbs = started && layered ? breadcrumb(started.case, messages.relationships, messages.heirNumbered) : [];
   const activeCrumb = crumbs.find((crumb) => crumb.id === (layer?.id ?? null));
@@ -291,11 +293,11 @@ export function StartCase({
           return linkCandidates(started.case, layer.id).map((row) => ({ id: row.id, label: names[row.id] ?? row.id }));
         })()
       : [];
-  const linkedRow = editingHeir?.same_as !== undefined;
+  const editingPerson = model.people.find(p => p.id === started?.editingHeir);
   const relativeGroups = started && layer ? addGroups(placementRootOf(started.case, layer.id), layer.options) : [];
   const atLimit = layer ? heirLimitReached(layer.heirs) : false;
   // The heir form is for an edit, and for linking a later death's heir to someone already in the case.
-  const showHeirForm = started !== null && (started.editingHeir !== null || (layer?.id != null && candidates.length > 0));
+  const showHeirForm = started?.editingHeir === null && layer?.id != null && candidates.length > 0;
   const orderQuestion = (() => {
     if (!started || !layer || started.ordering === null) return null;
     const row = rowsOf(started.case).get(started.ordering)?.row;
@@ -533,7 +535,8 @@ export function StartCase({
                   }))
                 }
               />
-              {!showHeirForm && <SaveNotice messages={messages} notice={started.notice} saving={frozen} />}
+              {started.conflict && !editingPerson && <p role="alert">{messages.conflictNotice}</p>}
+              {!editingPerson && !showHeirForm && <SaveNotice messages={messages} notice={started.notice} saving={frozen} />}
               {showHeirForm && <HeirForm
                 key={heirFormKey(started)}
                 messages={messages}
@@ -542,26 +545,21 @@ export function StartCase({
                   started.case.id,
                   "heir",
                   started.editingHeir,
-                  heirValues(editingHeir),
+                  heirValues(undefined),
                 )}
                 errors={started.errors}
                 notice={started.notice}
                 saving={frozen}
-                editing={started.editingHeir !== null}
+                editing={false}
                 options={layer?.options ?? started.case.heir_options}
                 deceasedGender={layer?.gender ?? started.case.deceased.gender}
                 candidates={candidates}
-                linked={linkedRow}
                 onChange={(values, field) =>
                   track((current) => remember(current, "heir", values, field, deps.forms))
                 }
                 onBlur={(field, values) => track((current) => blurField(current, "heir", field, values))}
                 onSubmit={(values: HeirValues) =>
-                  submit((from) =>
-                    from.editingHeir
-                      ? { kind: "saveHeir", from, heirId: from.editingHeir, values }
-                      : { kind: "addHeir", from, values },
-                  )
+                  submit((from) => ({ kind: "addHeir", from, values }))
                 }
                 onCancel={() => edit((current) => cancelEditHeir(current, deps))}
               />}
@@ -574,13 +572,22 @@ export function StartCase({
                 onAnnounce={text => setZoomNote({ text, announcement: started.announcement })}
                 rootText={layerText}
                 editingId={started.editingHeir}
+                frozen={frozen}
+                onEdit={id => edit(current => startEditHeir(current, id, deps, `card:${id}`))}
+                onRemoveRequest={id => edit(current => requestCardRemoval(current, id, deps))}
               />
+              {editingPerson && <EditSheet key={editingPerson.id} messages={messages} view={started}
+                person={editingPerson} label={description.people.find(p => p.id === editingPerson.id)!.label}
+                frozen={frozen} onClose={() => edit(current => cancelEditHeir(current, deps))}
+                onSave={(fields, field, close) => submit(from => ({ kind: "saveHeir", from, heirId: editingPerson.id,
+                  values: { relationship: fields.relationship, name: fields.name ?? "" }, status: fields.status, field, close }))}
+                onRemove={confirm => submit(from => ({ kind: "removeHeir", from, heirId: editingPerson.id, confirm }))}
+              />}
             </div>
             <div className="min-w-0 lg:col-start-1 lg:row-start-2">
               <HeirList
                 key={layer?.id ?? "first"}
                 messages={messages}
-                kase={started.case}
                 heirs={layer?.heirs ?? started.case.heirs}
                 editingId={started.editingHeir}
                 saving={frozen}
@@ -596,7 +603,7 @@ export function StartCase({
                 deathError={deathError}
                 asking={orderQuestion}
                 onEdit={(heirId) => edit((current) => startEditHeir(current, heirId, deps))}
-                onRemove={(heirId) => submit((from) => ({ kind: "removeHeir", from, heirId }))}
+                onRemove={(heirId) => submit((from) => ({ kind: "removeHeir", from, heirId, fromRow: true, confirm: false }))}
                 onAlsoDied={(rowId) => submit((from) => ({ kind: "markDeath", from, rowId }))}
                 onOpenLayer={(personId) => edit((current) => openLayer(current, personId, deps))}
                 onDidNotDie={(personId, rowId) =>
