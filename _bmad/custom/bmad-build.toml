@@ -1,6 +1,10 @@
 [workflow]
+persistent_facts = [
+  "Subagents for implementation, review, investigation and test diagnosis use the `codex` agent (Agent subagent_type `codex`), the owner's standing preference (~/.claude/CLAUDE.md). It overrides any model a step names (`sonnet`, `same model capability as the current session`). Say in each prompt whether Codex may edit files: yes for implementation and patches, read-only for reviewers. Codex cannot read `_bmad/render/`, so first copy any file a prompt points at there (review-prompt files, the claims file) into a new folder under the system temp directory, and pass those paths. Codex cannot run npm build or test, so the parent runs the spec's Verification commands. Fall back to a Claude subagent for one launch only when codex fails to start, stalls with no codex process, or reports a usage limit, and record that in the spec.",
+]
+
 implementation_handoff = """
-Launch a subagent with no prior conversation context, using model `sonnet`, with this prompt:
+Launch the `codex` agent (Agent subagent_type `codex`) with no prior conversation context. Codex may edit files. Use this prompt:
 
 > Read {spec_file} fully and implement it — the spec is the sole source of truth. Load every file listed in its frontmatter `context:` before you start.
 >
