@@ -56,7 +56,7 @@ development_status:
   9-2-render-the-family-as-lineage-cards-on-a-navigable-canvas: done
   9-3-add-one-relative-with-one-press: done
   9-4-edit-and-remove-relatives-from-the-tree: done
-  9-5-add-a-group-of-relatives-with-a-count-stepper: backlog
+  9-5-add-a-group-of-relatives-with-a-count-stepper: done
   9-6-undo-family-changes-throughout-the-page-visit: backlog
   9-7-add-relatives-at-a-chosen-node-by-touch-keyboard-or-drag: backlog
   9-8-open-and-edit-later-death-estates-with-a-breadcrumb: backlog
