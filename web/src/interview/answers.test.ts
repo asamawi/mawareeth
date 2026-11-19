@@ -17,7 +17,6 @@ import {
   formStore,
   heirLabel,
   heirLabels,
-  heirLimitReached,
   heirValues,
   normalizeDigits,
   templateParts,
@@ -144,12 +143,6 @@ test("the first invalid field follows screen order", () => {
   assert.equal(firstInvalid("deceased", { estate: "invalid", gender: "required" }), "gender");
   assert.equal(firstInvalid("heir", { name: "too_long", relationship: "required" }), "relationship");
   assert.equal(firstInvalid("heir", { heirs: "limit" }), null);
-});
-
-test("the 50th heir is the last", () => {
-  const heir = { id: "a", relationship: "son", gender: "male", name: null } as const;
-  assert.equal(heirLimitReached(Array(49).fill(heir)), false);
-  assert.equal(heirLimitReached(Array(50).fill(heir)), true);
 });
 
 test("estate formatting is an amount for the language: no currency, percentage or kirat", () => {

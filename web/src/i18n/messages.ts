@@ -128,6 +128,10 @@ export type Messages = {
     removeImpactIntro: string;
     removeImpactEstate: string;
     heirAdded: string;
+    heirsAdded: string;
+    stepperFewer: string;
+    stepperMore: string;
+    stepperCount: string;
     heirUpdated: string;
     heirRemoved: string;
     deathMarked: string;
@@ -397,6 +401,10 @@ export const messages: Record<Locale, Messages> = {
       removeImpactEstate: "تركة {heir}",
       heirEditHeading: "تعديل بيانات الوارث",
       heirAdded: "تمت إضافة {heir}.",
+      heirsAdded: "تمت إضافة {count} × {relationship}.",
+      stepperFewer: "إنقاص عدد {relationship}",
+      stepperMore: "زيادة عدد {relationship}",
+      stepperCount: "عدد من سيُضاف ({relationship})",
       heirUpdated: "تم تعديل {heir}.",
       heirRemoved: "تم حذف {heir}.",
       heirGone: "هذا الوارث لم يعد موجودًا. تم تحديث القائمة.",
@@ -703,6 +711,10 @@ export const messages: Record<Locale, Messages> = {
       removeImpactEstate: "The estate of {heir}",
       heirEditHeading: "Edit heir",
       heirAdded: "{heir} added.",
+      heirsAdded: "{count} × {relationship} added.",
+      stepperFewer: "One fewer {relationship}",
+      stepperMore: "One more {relationship}",
+      stepperCount: "Number of {relationship} to add",
       heirUpdated: "{heir} updated.",
       heirRemoved: "{heir} removed.",
       heirGone: "That heir no longer exists. The list has been refreshed.",
@@ -1010,6 +1022,10 @@ export const messages: Record<Locale, Messages> = {
       removeImpactEstate: "La succession de {heir}",
       heirEditHeading: "Modifier l'héritier",
       heirAdded: "Héritier ajouté : {heir}",
+      heirsAdded: "{count} × {relationship} ajoutés.",
+      stepperFewer: "Diminuer le nombre ({relationship})",
+      stepperMore: "Augmenter le nombre ({relationship})",
+      stepperCount: "Nombre à ajouter ({relationship})",
       heirUpdated: "Héritier modifié : {heir}",
       heirRemoved: "Héritier supprimé : {heir}",
       heirGone: "Cet héritier n'existe plus. La liste a été actualisée.",

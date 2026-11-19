@@ -5,6 +5,7 @@ import { locales, messages } from "../i18n/messages.ts";
 import { previewFixture } from "../test/preview-fixtures.ts";
 import {
   addHeir,
+  addHeirs,
   fetchCase,
   fetchPreview,
   markDeceased,
@@ -356,6 +357,44 @@ test("addHeir posts, updateHeir puts and removeHeir deletes, each with the case 
   assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { relationship: "son", name: "A", case_id: "abc123", expected_revision: 4 });
   assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { relationship: "wife", name: null, case_id: "abc123", expected_revision: 4 });
   assert.equal(calls[2].init?.body, undefined, "a DELETE body may be dropped on the way, so there is none");
+});
+
+test("bulk add sends one revision-checked POST of unnamed rows to the active layer", async () => {
+  for (const layer of [undefined, "h1"]) {
+    const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
+    const result = await addHeirs(signal(), "abc123", 4, "daughter", 4, layer, withToken);
+    assert.deepEqual(result, { kind: "saved", case: FULL_CASE });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "/api/v1/case/heirs/bulk/");
+    assert.equal(calls[0].init?.method, "POST");
+    assert.equal(header(calls[0], "X-CSRFToken"), "tok=1");
+    assert.deepEqual(JSON.parse(String(calls[0].init?.body)), {
+      case_id: "abc123", expected_revision: 4, ...(layer ? { layer } : {}),
+      heirs: Array(4).fill({ relationship: "daughter", name: null }),
+    });
+  }
+});
+
+test("bulk add maps capacity and the lowest indexed refusal, and rejects malformed bodies", async () => {
+  const send = () => addHeirs(signal(), "abc123", 4, "father", 12, undefined, withToken);
+  for (const [status, body, expected] of [
+    [400, { error: "over_capacity" }, { kind: "invalid", errors: { heirs: "limit" } }],
+    [400, { error: "invalid_input", errors: { "10": { heirs: "limit" }, "2": { relationship: "second_father" } } },
+      { kind: "invalid", errors: { relationship: "second_father" } }],
+    [404, { case: null }, { kind: "gone" }],
+    [404, { case: FULL_CASE }, { kind: "missing", case: FULL_CASE }],
+    [409, { case: FULL_CASE }, { kind: "replaced", case: FULL_CASE }],
+    [429, {}, { kind: "throttled" }],
+    [201, {}, { kind: "failed" }],
+    [409, {}, { kind: "failed" }],
+  ] as const) {
+    stubFetch(async () => Response.json(body, { status }));
+    assert.deepEqual(await send(), expected);
+  }
+  for (const errors of [null, [], {}, { relationship: "invalid" }, { "1": {} }, { "0": { name: 5 } }]) {
+    stubFetch(async () => Response.json({ error: "invalid_input", errors }, { status: 400 }));
+    assert.deepEqual(await send(), { kind: "failed" });
+  }
 });
 
 test("confirmed removal uses the impact revision and validates a cascade response", async () => {

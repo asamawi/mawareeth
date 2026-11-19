@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 
 import {
   addHeir,
+  addHeirs,
+  MAX_HEIRS,
   fetchCase,
   markDeceased,
   removeHeir,
@@ -20,7 +22,6 @@ import {
   deceasedValues,
   formStore,
   heirLabel,
-  heirLimitReached,
   heirValues,
   valuesFor,
   type DeceasedValues,
@@ -107,6 +108,7 @@ const deps: Deps = {
   setMadhab: (signal, madhab, caseId, revision) => setMadhab(signal, madhab, caseId, revision),
   saveDeceased: (signal, caseId, revision, fields) => saveDeceased(signal, caseId, revision, fields),
   addHeir: (signal, caseId, revision, fields) => addHeir(signal, caseId, revision, fields),
+  addHeirs,
   updateHeir: (signal, caseId, revision, heirId, fields) => updateHeir(signal, caseId, revision, heirId, fields),
   removeHeir,
   markDeceased: (signal, caseId, revision, heirId, first, answers) =>
@@ -295,7 +297,7 @@ export function StartCase({
       : [];
   const editingPerson = model.people.find(p => p.id === started?.editingHeir);
   const relativeGroups = started && layer ? addGroups(placementRootOf(started.case, layer.id), layer.options) : [];
-  const atLimit = layer ? heirLimitReached(layer.heirs) : false;
+  const remaining = MAX_HEIRS - (layer?.heirs.length ?? 0);
   // The heir form is for an edit, and for linking a later death's heir to someone already in the case.
   const showHeirForm = started?.editingHeir === null && layer?.id != null && candidates.length > 0;
   const orderQuestion = (() => {
@@ -337,6 +339,7 @@ export function StartCase({
     : null;
 
   const announced = started?.announcement ?? null;
+  const groupCount = announced?.panelCount ?? 1;
   const announcementTemplates = {
     added: "heirAdded",
     updated: "heirUpdated",
@@ -347,8 +350,12 @@ export function StartCase({
   const announcement = announced
     ? {
         seq: announced.seq,
-        template: messages[announcementTemplates[announced.kind]],
-        heir: heirLabel(announced.heir, messages.relationships, messages.heirNumbered, announced.ordinal),
+        template: groupCount > 1
+          ? messages.heirsAdded.replace("{count}", String(groupCount)).replace("{relationship}", "{heir}")
+          : messages[announcementTemplates[announced.kind]],
+        heir: groupCount > 1
+          ? messages.relationships[announced.heir.relationship]
+          : heirLabel(announced.heir, messages.relationships, messages.heirNumbered, announced.ordinal),
       }
     : null;
 
@@ -521,14 +528,18 @@ export function StartCase({
             >
               {started.notice === "heirGone" && <p role="alert">{messages.heirGone}</p>}
               <AddRelatives
+                key={layer?.id ?? "first"}
                 messages={messages}
                 groups={relativeGroups}
-                atLimit={atLimit}
+                remaining={remaining}
+                atLimit={remaining <= 0}
+                completed={announced?.panelCount ? announced : null}
                 disabled={frozen}
                 outcome={started.panel}
-                onAdd={(relationship) =>
+                onAdd={(relationship, count) =>
                   submit((from) => ({
                     kind: "addHeir",
+                    count,
                     from,
                     values: { relationship, name: "", same_as: "" },
                     origin: "panel",

@@ -5,16 +5,16 @@ import { createRoot } from "react-dom/client";
 
 import type { RelationshipId } from "@/api/case";
 import { messages, type Locale } from "@/i18n/messages";
-import type { PanelOutcome } from "@/interview/flow";
+import type { Announcement, PanelOutcome } from "@/interview/flow";
 import { addGroups } from "@/interview/relatives";
 import { installDom, teardownDom } from "@/test/dom";
 
 import { AddRelatives } from "./add-relatives";
 
-async function mount(props: { locale?: Locale; atLimit?: boolean; disabled?: boolean; outcome?: PanelOutcome; blocked?: RelationshipId[] } = {}) {
+async function mount(props: { locale?: Locale; atLimit?: boolean; outcome?: PanelOutcome; blocked?: RelationshipId[] } = {}) {
   const dom = installDom("https://localhost/en/interview/");
   const locale = props.locale ?? "en";
-  const pressed: string[] = [];
+  const pressed: [RelationshipId, number][] = [];
   const node = document.createElement("div");
   document.body.append(node);
   const root = createRoot(node);
@@ -27,21 +27,28 @@ async function mount(props: { locale?: Locale; atLimit?: boolean; disabled?: boo
     ],
     { blocked: props.blocked ?? [], invalid: {} },
   );
-  await act(async () => {
-    root.render(
-      <AddRelatives
-        messages={messages[locale].interview}
-        groups={groups}
-        atLimit={props.atLimit ?? false}
-        disabled={props.disabled ?? false}
-        outcome={props.outcome}
-        onAdd={(relationship) => pressed.push(relationship)}
-      />,
-    );
-  });
+  async function render(remaining = 50, completed?: Announcement, outcome = props.outcome, disabled = false) {
+    await act(async () => {
+      root.render(
+        <AddRelatives
+          messages={messages[locale].interview}
+          groups={groups}
+          remaining={remaining}
+          completed={completed}
+          atLimit={props.atLimit ?? false}
+          disabled={disabled}
+          outcome={outcome}
+          onAdd={(relationship, count) => pressed.push([relationship, count])}
+        />,
+      );
+    });
+  }
+  await render();
   return {
     node,
     pressed,
+    render,
+    labelled: (label: string) => node.querySelector<HTMLElement>(`[aria-label="${label}"]`)!,
     button: (id: string) => node.querySelector<HTMLButtonElement>(`[data-focus="add:${id}"]`)!,
     async click(el: Element) {
       await act(async () => { el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); });
@@ -73,20 +80,32 @@ test("a button's text holds its visible label, the plus is aria-hidden, and a pr
     assert.equal(son.hasAttribute("aria-label"), false);
     assert.equal(son.getAttribute("aria-disabled"), "false");
     await ui.click(son);
-    assert.deepEqual(ui.pressed, ["son"]);
+    assert.deepEqual(ui.pressed, [["son", 1]]);
   } finally { await ui.close(); }
 });
 
 test("at the limit or while frozen every button is aria-disabled and a press does nothing", async () => {
-  for (const props of [{ atLimit: true }, { disabled: true }]) {
-    const ui = await mount(props);
+  for (const atLimit of [true, false]) {
+    const ui = await mount({ atLimit });
     try {
+      const plus = ui.labelled("One more Son");
+      const minus = ui.labelled("One fewer Son");
+      const count = ui.labelled("Number of Son to add");
+      if (!atLimit) {
+        await ui.click(plus);
+        assert.equal(count.textContent, "2");
+        await ui.render(50, undefined, undefined, true);
+      }
       const buttons = [...ui.node.querySelectorAll("button")];
       assert.ok(buttons.length > 4);
       assert.ok(buttons.every((b) => b.getAttribute("aria-disabled") === "true" && !b.disabled));
+      await ui.click(minus);
+      assert.equal(count.textContent, atLimit ? "1" : "2");
+      await ui.click(plus);
+      assert.equal(count.textContent, atLimit ? "1" : "2");
       await ui.click(ui.button("son"));
       assert.deepEqual(ui.pressed, []);
-      if (props.atLimit) assert.ok(ui.node.textContent?.includes(messages.en.interview.fieldErrors.heirs.limit));
+      if (atLimit) assert.ok(ui.node.textContent?.includes(messages.en.interview.fieldErrors.heirs.limit));
     } finally { await ui.close(); }
   }
 });
@@ -96,7 +115,67 @@ test("a blocked relative carries the blocked wording and stays addable", async (
   try {
     assert.ok(ui.button("brother").textContent?.includes("does not inherit"));
     await ui.click(ui.button("brother"));
-    assert.deepEqual(ui.pressed, ["brother"]);
+    assert.deepEqual(ui.pressed, [["brother", 1]]);
+  } finally { await ui.close(); }
+});
+
+test("steppers have localized names and silent counts, including blocked relatives", async () => {
+  for (const locale of ["en", "ar", "fr"] as const) {
+    const ui = await mount({ locale, blocked: ["brother"] });
+    try {
+      const copy = messages[locale].interview;
+      const label = (template: string) => template.replace("{relationship}", copy.relationships.brother);
+      const minus = ui.labelled(label(copy.stepperFewer));
+      const plus = ui.labelled(label(copy.stepperMore));
+      const count = ui.labelled(label(copy.stepperCount));
+      assert.equal(minus.querySelector('[aria-hidden="true"]')?.textContent, "−");
+      assert.equal(plus.querySelector('[aria-hidden="true"]')?.textContent, "+");
+      assert.equal(count.tagName, "OUTPUT");
+      assert.equal(count.getAttribute("aria-live"), "off");
+      assert.equal(minus.getAttribute("aria-disabled"), "true");
+      assert.equal(minus.hasAttribute("disabled"), false);
+      await ui.click(minus);
+      assert.equal(count.textContent, "1");
+      await ui.click(plus);
+      assert.equal(count.textContent, "2");
+      const [descriptionId, valueId] = ui.button("brother").getAttribute("aria-describedby")?.split(" ") ?? [];
+      assert.equal(document.getElementById(descriptionId), count);
+      assert.equal(count.querySelector(`[id="${valueId}"]`)?.textContent, "2");
+      await ui.click(minus);
+      assert.equal(count.textContent, "1");
+      assert.deepEqual(ui.pressed, []);
+    } finally { await ui.close(); }
+  }
+});
+
+test("counts clamp to remaining room, survive refusals and reset only the accepted relationship", async () => {
+  const ui = await mount();
+  try {
+    const son = ui.labelled("Number of Son to add");
+    const more = ui.labelled("One more Son");
+    await ui.click(ui.labelled("One more Mother"));
+    for (let press = 0; press < 4; press++) await ui.click(more);
+    assert.equal(son.textContent, "5");
+    await ui.render(3);
+    assert.equal(son.textContent, "3");
+    assert.equal(more.getAttribute("aria-disabled"), "true");
+    assert.equal(more.hasAttribute("disabled"), false);
+    await ui.click(more);
+    await ui.click(ui.button("son"));
+    assert.deepEqual(ui.pressed, [["son", 3]]);
+    for (const outcome of [{ notice: "failed" }, { notice: "conflict" }, { errors: { heirs: "limit" } }] as const) {
+      await ui.render(3, undefined, { relationship: "son", ...outcome });
+      assert.equal(son.textContent, "3");
+    }
+    const completed: Announcement = { kind: "added", seq: 1, id: "s3", heir: { relationship: "son", name: null }, ordinal: 3, panelCount: 3 };
+    await ui.render(3, completed);
+    assert.equal(son.textContent, "1");
+    assert.equal(ui.labelled("Number of Mother to add").textContent, "2");
+    await ui.click(more);
+    await ui.render(3, completed);
+    assert.equal(son.textContent, "2");
+    await ui.render(3, { ...completed });
+    assert.equal(son.textContent, "2");
   } finally { await ui.close(); }
 });
 

@@ -13,14 +13,13 @@ import type {
   RelationshipId,
   StartResult,
 } from "../api/case.ts";
-import { noHeirOptions } from "../api/case.ts";
+import { MAX_HEIRS, noHeirOptions } from "../api/case.ts";
 import {
   BLANK_HEIR,
   unnamedOrdinal,
   deceasedValues,
   firstInvalid,
   formFor,
-  heirLimitReached,
   heirValues,
   relationshipIssue,
   validateDeceased,
@@ -60,6 +59,8 @@ export type Announcement = {
   heir: { name: string | null; relationship: RelationshipId };
   /** The heir number among unnamed heirs of the same relationship, when there are several. */
   ordinal: number | null;
+  /** Present on a successful panel add, including a one-press add. */
+  panelCount?: number;
   seq: number;
 };
 
@@ -156,6 +157,7 @@ export type Deps = {
   setMadhab: (signal: AbortSignal, madhab: MadhabId, caseId: string, revision: number | null) => Promise<MadhabResult>;
   saveDeceased: (signal: AbortSignal, caseId: string, revision: number | null, fields: DeceasedFields) => Promise<AnswerResult>;
   addHeir: (signal: AbortSignal, caseId: string, revision: number | null, fields: HeirFields) => Promise<AnswerResult>;
+  addHeirs: (signal: AbortSignal, caseId: string, revision: number | null, relationship: RelationshipId, count: number, layer?: string) => Promise<AnswerResult>;
   updateHeir: (
     signal: AbortSignal,
     caseId: string,
@@ -562,7 +564,7 @@ function startedFor(found: Case, resumed: boolean, deps: Deps): StartedView {
 export type Answer =
   | { kind: "saveDeceased"; from: StartedView; values: DeceasedValues }
   /** `origin: "panel"` is one press in the Add relatives panel: it keeps the heir form as it was. */
-  | { kind: "addHeir"; from: StartedView; values: HeirValues; origin?: "panel" }
+  | { kind: "addHeir"; from: StartedView; values: HeirValues; origin?: "panel"; count?: number }
   | { kind: "saveHeir"; from: StartedView; heirId: string; values: HeirValues; status?: HeirFields["status"]; field?: FocusTarget; close?: boolean }
   | { kind: "removeHeir"; from: StartedView; heirId: string; confirm?: boolean; fromRow?: boolean }
   /** `rowId` is the row whose person died; `first` answers the order question. */
@@ -618,7 +620,7 @@ export function precheck(answer: Answer): StartedView | null {
   }
   // The options are advice for blur only: the server decides every save.
   const { errors } = validateHeir(answer.values);
-  if (answer.kind === "addHeir" && heirLimitReached(layerAt(answer.from.case, answer.from.layer).heirs)) {
+  if ((answer.count ?? 1) > MAX_HEIRS - layerAt(answer.from.case, answer.from.layer).heirs.length) {
     errors.heirs = "limit";
   }
   if (Object.keys(errors).length === 0) return null;
@@ -754,6 +756,9 @@ function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerRe
       return deps.saveDeceased(signal, caseId, revision, validateDeceased(answer.values).fields as DeceasedFields);
     case "addHeir": {
       const fields = validateHeir(answer.values).fields as HeirFields;
+      if (isPanel(answer) && answer.count !== undefined && answer.count >= 2) {
+        return deps.addHeirs(signal, caseId, revision, fields.relationship, answer.count, answer.from.layer ?? undefined);
+      }
       return deps.addHeir(signal, caseId, revision, answer.from.layer === null ? fields : { ...fields, layer: answer.from.layer });
     }
     case "saveHeir":
@@ -802,6 +807,7 @@ function announce(
   kind: Announcement["kind"],
   heirs: readonly Pick<Heir, "id" | "relationship" | "name">[],
   heirId: string,
+  panelCount?: number,
 ): Announcement | null {
   const heir = heirs.find((item) => item.id === heirId);
   if (!heir) return from.announcement;
@@ -810,6 +816,7 @@ function announce(
     id: heirId,
     heir: { name: heir.name, relationship: heir.relationship },
     ordinal: unnamedOrdinal(heirs, heirId),
+    ...(panelCount === undefined ? {} : { panelCount }),
     seq: (from.announcement?.seq ?? 0) + 1,
   };
 }
@@ -863,7 +870,7 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
             ...base,
             editingHeir: from.editingHeir,
             opener: from.opener,
-            announcement: announce(from, "added", layerHeirs(kase, from.layer), added),
+            announcement: announce(from, "added", layerHeirs(kase, from.layer), added, answer.count ?? 1),
             focus: nextFocus(from, `add:${answer.values.relationship}`),
           },
           deps,

@@ -1,7 +1,6 @@
 import {
   isGender,
   isRelationshipId,
-  MAX_HEIRS,
   RELATIONSHIP_IDS,
   type RelationshipId,
   type DeceasedFields,
@@ -193,11 +192,6 @@ export function heirOptionLabels(
 export function firstInvalid(form: FormName, errors: Errors): string | null {
   const order: readonly string[] = form === "deceased" ? DECEASED_FIELDS : HEIR_FOCUS_ORDER;
   return order.find((field) => errors[field] !== undefined) ?? null;
-}
-
-/** Whether another heir would break the per-case limit. */
-export function heirLimitReached(heirs: readonly Heir[]): boolean {
-  return heirs.length >= MAX_HEIRS;
 }
 
 /**

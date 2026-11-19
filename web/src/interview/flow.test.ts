@@ -119,6 +119,8 @@ function deps(options: {
     },
     saveDeceased: async (_signal, caseId, revision, fields) => answerWith("saveDeceased", caseId, { fields }, revision),
     addHeir: async (_signal, caseId, revision, fields) => answerWith("addHeir", caseId, { fields }, revision),
+    addHeirs: async (_signal, caseId, revision, relationship, count, layer) =>
+      answerWith("addHeirs", caseId, { fields: { relationship, count, layer } }, revision),
     updateHeir: async (_signal, caseId, revision, heirId, fields) =>
       answerWith("updateHeir", caseId, { heirId, fields }, revision),
     removeHeir: async (_signal, caseId, revision, heirId, confirm) => {
@@ -1964,11 +1966,45 @@ test("every write and the start over carry the revision of the case the page sho
   assert.deepEqual(starting.log.startRevisions, [3], "startOver");
 });
 
-const PANEL_SON = (from: StartedView): Answer => ({
+const PANEL_SON = (from: StartedView, count = 1): Answer => ({
   kind: "addHeir",
   from,
   values: { relationship: "son", name: "", same_as: "" },
   origin: "panel",
+  count,
+});
+
+test("bulk add keeps the form, adopts the returned case and announces the group once", async () => {
+  const record: FormRecord = { caseId: WITH_SON.id, form: "heir", layer: null, heirId: SON.id, values: { relationship: "son", name: "Typed" } };
+  const returned = { ...WITH_SON, revision: 4, heirs: [SON, { ...SON, id: "new1" }, { ...SON, id: "new2" }] };
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: returned }), form: record });
+  const from = startedOf(WITH_SON, true, { editingHeir: SON.id, formEpoch: 2 });
+  const view = await runAction("addHeir", signal, value, WITH_SON, undefined, PANEL_SON(from, 2)) as StartedView;
+  assert.deepEqual(log.answers, [{ call: "addHeirs", caseId: WITH_SON.id, fields: { relationship: "son", count: 2, layer: undefined } }]);
+  assert.deepEqual(log.revisions, [3]);
+  assert.equal(view.case, returned);
+  assert.equal(view.editingHeir, SON.id);
+  assert.equal(view.formEpoch, 2);
+  assert.deepEqual(log.form, record);
+  assert.equal(view.focus?.target, "add:son");
+  assert.equal(view.announcement?.panelCount, 2);
+  assert.equal(view.announcement?.seq, 1);
+});
+
+test("bulk add checks remaining room in the selected layer before sending", async () => {
+  const layer = { ...S1_DEATH, heirs: Array.from({ length: 48 }, (_, i) => ({ ...SON, id: `row${i}` })) };
+  const kase = { ...FAMILY, deaths: [layer] };
+  const from = startedOf(kase, true, { layer: layer.heir_id });
+  const { value, log } = deps({ answer: () => ({ kind: "invalid", errors: { heirs: "limit" } }) });
+  for (const count of [3, 2]) {
+    const view = await runAction("addHeir", signal, value, kase, undefined, PANEL_SON(from, count)) as StartedView;
+    assert.deepEqual(view.panel, { relationship: "son", errors: { heirs: "limit" } });
+    assert.equal(view.case, kase);
+    assert.equal(view.focus?.target, "add:son");
+    assert.equal(log.answers.length, count === 3 ? 0 : 1);
+  }
+  assert.deepEqual(log.answers[0].fields, { relationship: "son", count: 2, layer: layer.heir_id });
+  assert.equal(log.reads, 0);
 });
 
 test("panel add: one command at the current revision, no name, focus on the button, form kept", async () => {
@@ -2035,6 +2071,18 @@ test("panel add: throttled shows the notice in the panel and keeps focus on the 
   assert.equal(view.notice, null);
   assert.deepEqual(view.panel, { relationship: "son", notice: "throttled" });
   assert.equal(view.focus?.target, "add:son");
+});
+
+test("a bulk conflict adopts the returned family without resending or announcing an add", async () => {
+  const live = { ...WITH_SON, revision: 5, heirs: [SON, AMAL] };
+  const { value, log } = deps({ answer: () => ({ kind: "replaced", case: live }) });
+  const from = startedOf(WITH_SON, true);
+  const view = await runAction("addHeir", signal, value, WITH_SON, undefined, PANEL_SON(from, 2)) as StartedView;
+  assert.deepEqual(log.answers.map(call => call.call), ["addHeirs"]);
+  assert.equal(view.case, live);
+  assert.deepEqual(view.panel, { relationship: "son", notice: "conflict" });
+  assert.equal(view.focus?.target, "add:son");
+  assert.equal(view.announcement, null);
 });
 
 test("panel add at 50 heirs: the precheck refuses and sends nothing", async () => {

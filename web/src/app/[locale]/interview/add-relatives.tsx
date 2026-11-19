@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
+
 import type { RelationshipId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import { heirOptionLabels } from "@/interview/answers";
-import type { PanelOutcome } from "@/interview/flow";
+import type { Announcement, PanelOutcome } from "@/interview/flow";
 import type { AddGroup, AddGroupKey } from "@/interview/relatives";
 
-import { focusRingOnAccent } from "../ui";
+import { focusRing, focusRingOnAccent } from "../ui";
 import { errorText } from "./form-bits";
 
 type Props = {
@@ -14,11 +16,13 @@ type Props = {
   groups: AddGroup[];
   /** The active layer has the most heirs a case may hold: every add is unavailable. */
   atLimit: boolean;
+  remaining: number;
+  completed?: Announcement | null;
   /** A save is in flight or the browser is offline: a press does nothing. */
   disabled: boolean;
   /** What the last press left behind: a refusal, a conflict or a failure. */
   outcome?: PanelOutcome;
-  onAdd: (relationship: RelationshipId) => void;
+  onAdd: (relationship: RelationshipId, count: number) => void;
 };
 
 /** Splits "Add {relationship}" around the placeholder, so the label can sit between its two halves. */
@@ -41,11 +45,16 @@ function outcomeText(messages: Messages["interview"], outcome: PanelOutcome | un
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
-/**
- * The Add relatives panel: one button per relationship the server allows. A press sends one add
- * with no name. Buttons are never natively disabled, so the focused one keeps focus.
- */
-export function AddRelatives({ messages, groups, atLimit, disabled, outcome, onAdd }: Props) {
+const stepperButton = `size-11 shrink-0 rounded-lg border border-graphic bg-surface aria-disabled:opacity-60 ${focusRing}`;
+
+export function AddRelatives({ messages, groups, remaining, atLimit, disabled, completed, outcome, onAdd }: Props) {
+  const [counts, setCounts] = useState<Partial<Record<RelationshipId, number>>>({});
+  const [lastCompletedSeq, setLastCompletedSeq] = useState(completed?.seq);
+  if (completed?.seq !== lastCompletedSeq) {
+    setLastCompletedSeq(completed?.seq);
+    if (completed) setCounts({ ...counts, [completed.heir.relationship]: 1 });
+  }
+  const maximum = Math.max(1, remaining);
   const labels = heirOptionLabels(
     { blocked: groups.flatMap((group) => group.entries.filter((entry) => entry.blocked).map((entry) => entry.id)), invalid: {} },
     true,
@@ -77,24 +86,48 @@ export function AddRelatives({ messages, groups, atLimit, disabled, outcome, onA
             {headings[group.key]}
           </h4>
           <div className="flex flex-wrap gap-2">
-            {group.entries.map((entry) => (
-              <div key={entry.id} className="flex min-h-11 items-center rounded-node border border-graphic bg-[var(--background)]">
-                <button
-                  type="button"
-                  className={`min-h-11 rounded-lg bg-accent px-3 py-2 text-base font-medium text-accent-foreground aria-disabled:opacity-60 ${focusRingOnAccent}`}
-                  aria-disabled={unavailable}
-                  data-focus={`add:${entry.id}`}
-                  onClick={() => {
-                    if (!unavailable) onAdd(entry.id);
-                  }}
-                >
-                  {before !== "" && <span className="sr-only">{before}</span>}
-                  <span>{labelOf.get(entry.id) ?? entry.id}</span>
-                  {after !== "" && <span className="sr-only">{after}</span>}
-                  <span aria-hidden="true"> +</span>
-                </button>
-              </div>
-            ))}
+            {group.entries.map((entry) => {
+              const term = messages.relationships[entry.id];
+              const countId = `add-count-${entry.id}`;
+              const count = Math.min(counts[entry.id] ?? 1, maximum);
+              const fewerDisabled = unavailable || count <= 1;
+              const moreDisabled = unavailable || count >= maximum;
+              const setCount = (value: number) => setCounts(current => ({ ...current, [entry.id]: value }));
+              return (
+                <div key={entry.id} className="flex min-h-11 max-w-full flex-wrap items-center gap-1 rounded-node border border-graphic bg-[var(--background)]">
+                  <button
+                    type="button"
+                    className={`min-h-11 rounded-lg bg-accent px-3 py-2 text-base font-medium text-accent-foreground aria-disabled:opacity-60 ${focusRingOnAccent}`}
+                    aria-disabled={unavailable}
+                    aria-describedby={`${countId} ${countId}-value`}
+                    data-focus={`add:${entry.id}`}
+                    onClick={() => {
+                      if (!unavailable) onAdd(entry.id, count);
+                    }}
+                  >
+                    {before !== "" && <span className="sr-only">{before}</span>}
+                    <span>{labelOf.get(entry.id) ?? entry.id}</span>
+                    {after !== "" && <span className="sr-only">{after}</span>}
+                    <span aria-hidden="true"> +</span>
+                  </button>
+                  <div className="flex items-center gap-1">
+                    <button type="button" className={stepperButton} aria-disabled={fewerDisabled}
+                      aria-label={messages.stepperFewer.replace("{relationship}", term)}
+                      onClick={() => { if (!fewerDisabled) setCount(count - 1); }}>
+                      <span aria-hidden="true">−</span>
+                    </button>
+                    <output id={countId} aria-live="off" className="font-bold" aria-label={messages.stepperCount.replace("{relationship}", term)}>
+                      <span id={`${countId}-value`}>{count}</span>
+                    </output>
+                    <button type="button" className={stepperButton} aria-disabled={moreDisabled}
+                      aria-label={messages.stepperMore.replace("{relationship}", term)}
+                      onClick={() => { if (!moreDisabled) setCount(count + 1); }}>
+                      <span aria-hidden="true">+</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}

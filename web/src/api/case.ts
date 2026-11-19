@@ -608,6 +608,27 @@ function parseErrors(body: unknown): FieldErrorCodes | null {
   return Object.keys(codes).length > 0 ? codes : null;
 }
 
+function bulkErrors(body: unknown): FieldErrorCodes | null {
+  if (!body || typeof body !== "object" || !("error" in body)) return null;
+  if (body.error === "over_capacity") return { heirs: "limit" };
+  if (body.error !== "invalid_input" || !("errors" in body)) return null;
+  const indexed = body.errors;
+  if (!indexed || typeof indexed !== "object" || Array.isArray(indexed)) return null;
+
+  let first = Infinity;
+  let errors: FieldErrorCodes | null = null;
+  for (const [index, fields] of Object.entries(indexed)) {
+    if (!/^(0|[1-9]\d*)$/.test(index) || !fields || typeof fields !== "object" || Array.isArray(fields)) return null;
+    const codes = Object.values(fields);
+    if (!codes.length || !codes.every(code => typeof code === "string" && code.length > 0)) return null;
+    if (Number(index) < first) {
+      first = Number(index);
+      errors = fields as FieldErrorCodes;
+    }
+  }
+  return errors;
+}
+
 /** One write to the interview answers; every one needs the case id it was made for. */
 async function answer(
   signal: AbortSignal,
@@ -627,6 +648,10 @@ async function answer(
       if (response.status === 429) return { kind: "throttled" };
       if (response.status === 400) {
         const body = await response.json();
+        if (url === BULK_HEIRS_URL) {
+          const errors = bulkErrors(body);
+          return errors ? { kind: "invalid", errors } : null;
+        }
         const errors = parseErrors(body);
         const raw =
           typeof body === "object" && body !== null && !Array.isArray(body)
@@ -650,7 +675,7 @@ async function answer(
           || !Array.isArray(impact.estates) || !impact.estates.every((order: unknown) => typeof order === "number" && Number.isSafeInteger(order) && order > 0)) return null;
         return { kind: "cascade", impact: { persons: impact.persons, estates: impact.estates }, case: live };
       }
-      if (!response.ok) return null;
+      if (!response.ok || (url === BULK_HEIRS_URL && response.status !== 201)) return null;
       const saved = parseCase(await response.json());
       return saved ? { kind: "saved", case: saved } : null;
     },
@@ -671,6 +696,7 @@ export type HeirFields = {
 
 const DECEASED_URL = "/api/v1/case/deceased/";
 const HEIRS_URL = "/api/v1/case/heirs/";
+const BULK_HEIRS_URL = `${HEIRS_URL}bulk/`;
 const DEATHS_URL = "/api/v1/case/deaths/";
 
 /** The query of a DELETE: the case, its revision and the cascade confirmation, which each call opts into. */
@@ -698,6 +724,19 @@ export function addHeir(
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
   return answer(signal, options, "POST", HEIRS_URL, caseId, revision, fields);
+}
+
+export function addHeirs(
+  signal: AbortSignal,
+  caseId: string,
+  revision: number | null,
+  relationship: RelationshipId,
+  count: number,
+  layer?: string,
+  options: WriteOptions = {},
+): Promise<AnswerResult> {
+  const heirs = Array.from({ length: count }, () => ({ relationship, name: null }));
+  return answer(signal, options, "POST", BULK_HEIRS_URL, caseId, revision, { heirs, layer });
 }
 
 export function updateHeir(

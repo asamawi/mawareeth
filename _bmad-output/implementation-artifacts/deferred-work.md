@@ -524,3 +524,14 @@ Native review pending for the following Arabic, English and French interview str
 - `editClose`, `statusLegend`, `statusAlive`, `statusDiedBefore`
 - `removeImpactIntro`, `removeImpactEstate`
 - `fieldErrors.status.invalid`, `fieldErrors.status.schema_unsupported`, `fieldErrors.status.first_estate_only`, `fieldErrors.status.status_locked`
+
+## Story 9.5
+
+Native review is pending for these interview strings in `web/src/i18n/messages.ts`.
+
+| Key | English | Arabic | French |
+| --- | --- | --- | --- |
+| `stepperFewer` | One fewer {relationship} | إنقاص عدد {relationship} | Diminuer le nombre ({relationship}) |
+| `stepperMore` | One more {relationship} | زيادة عدد {relationship} | Augmenter le nombre ({relationship}) |
+| `stepperCount` | Number of {relationship} to add | عدد من سيُضاف ({relationship}) | Nombre à ajouter ({relationship}) |
+| `heirsAdded` | {count} × {relationship} added. | تمت إضافة {count} × {relationship}. | {count} × {relationship} ajoutés. |

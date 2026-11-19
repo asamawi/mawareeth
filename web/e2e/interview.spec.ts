@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { openCanvasFixture, openHeirsScreen } from "./family";
-import { abort, expect, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors } from "./api";
+import { abort, expect, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors, type Stubs } from "./api";
 
 const en = messages.en.interview;
 
@@ -339,8 +339,8 @@ test.describe("revisions and connection", () => {
 test.describe("add relatives", () => {
   const agree = fixture("Agree: wife, son and daughter in every school");
   const base = () => fullCase(agree.case) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const open = async (page: Page, api: Parameters<typeof openHeirsScreen>[1], kase: Record<string, unknown>) => {
-    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, agree.response) });
+  const open = async (page: Page, api: Parameters<typeof openHeirsScreen>[1], kase: Record<string, unknown>, getPreview: Stubs["getPreview"] = json(200, agree.response)) => {
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview });
     await page.goto("/en/interview/");
     await page.getByRole("button", { name: en.resume }).click();
     await page.locator("#add-relatives-heading").waitFor();
@@ -365,6 +365,146 @@ test.describe("add relatives", () => {
     expect(body.expected_revision).toBe(kase.revision);
     await expect(button).toBeFocused();
     await expect(page.locator("[aria-live='polite'], [role='status']").filter({ hasText: "Son 2 added." }).first()).toBeAttached();
+  });
+
+  test("adding four daughters sends one bulk command, updates the tree, list and preview, and announces the group", async ({ page, api }) => {
+    const kase = base();
+    kase.deceased = { ...kase.deceased, estate: null };
+    kase.heirs = kase.heirs.filter((h: { relationship: string }) => h.relationship !== "daughter");
+    const daughters = Array.from({ length: 4 }, (_, i) => ({
+      ...son(`daughter-${i + 1}`), relationship: "daughter", gender: "female",
+    }));
+    const returned = { ...kase, revision: kase.revision + 1, heirs: [...kase.heirs, ...daughters] };
+    const previewFor = (revision: number, heirs: { id: string; relationship: string }[], total: number, fractions: [number, number][]) => {
+      const { response } = agree;
+      const rows = heirs.map(({ id, relationship }, index) => {
+        const template = ["wife", "son", "daughter"].indexOf(relationship);
+        const [numerator, denominator] = fractions[index];
+        const fraction = { numerator, denominator };
+        const value = total * numerator / denominator;
+        const presented = response.presented.rows[template];
+        return {
+          share: { heir_id: id, ...fraction, blocked: false, amount: null },
+          proof: { ...response.proof.heirs.find((entry: { heir: string }) => entry.heir === presented.person), heir: id, share: fraction },
+          cell: { heir: id, blocked: false, prescribed: relationship === "wife" ? fraction : null, group_span: 1, cells: [{ value, span: 1 }] },
+          presented: {
+            ...presented, person: id, amount: null,
+            share: { fraction, text: `${fraction.numerator}/${fraction.denominator}`, dir: "ltr" },
+            percent: { ...presented.percent, text: `${(100 * value / total).toFixed(1)}%` },
+            kirat: { ...presented.kirat, text: (24 * value / total).toFixed(2) },
+          },
+        };
+      });
+      return json(200, {
+        ...response, revision,
+        basis: { ...response.basis, estate: null, heirs: heirs.map(({ id, relationship }) => ({ id, relationship })) },
+        shares: rows.map((row) => row.share),
+        proof: { ...response.proof, heirs: rows.map((row) => row.proof), steps: [{ ...response.proof.steps[0], value: total }] },
+        table: { columns: [{ ...response.table.columns[0], total }], rows: rows.map((row) => row.cell) },
+        presented: { ...response.presented, rows: rows.map((row) => row.presented), evidence: [], table: null },
+      });
+    };
+    let revision = kase.revision;
+    const before = previewFor(kase.revision, kase.heirs, 8, [[1, 8], [7, 8]]);
+    const after = previewFor(returned.revision, returned.heirs, 48, [[1, 8], [7, 24], ...daughters.map((): [number, number] => [7, 48])]);
+    api.set({ postBulk: (route) => {
+      revision = returned.revision;
+      return json(201, { case: returned })(route);
+    } });
+    await open(page, api, kase, (route) => (revision === returned.revision ? after : before)(route));
+    const preview = page.locator("section[aria-labelledby='preview-heading']");
+    await expect(preview.getByText("7/8", { exact: true })).toBeVisible();
+    const more = page.getByRole("button", { name: "One more Daughter", exact: true });
+    const count = page.getByLabel("Number of Daughter to add", { exact: true });
+    const list = page.locator("section[aria-labelledby='heirs-heading']");
+    for (let press = 0; press < 3; press++) await more.click();
+    await expect(count).toHaveText("4");
+    await expect(list.getByRole("status")).toBeEmpty();
+    expect(api.bulkPosts).toHaveLength(0);
+    const add = page.getByRole("button", { name: "Add Daughter", exact: true });
+    await expect(add).toHaveAccessibleDescription(/\b4$/);
+    await add.click();
+    await expect(list.getByRole("status")).toHaveText("4 × Daughter added.");
+    for (const [index, daughter] of daughters.entries()) {
+      const label = `Daughter ${index + 1}`;
+      await expect(list.getByText(label, { exact: true }).first()).toBeVisible();
+      await expect(page.locator(`[data-node="${daughter.id}"]`)).toContainText(label);
+    }
+    await expect(preview.getByRole("listitem").filter({ hasText: "Daughter 4" }).getByText("7/48", { exact: true })).toBeVisible();
+    await expect(preview.getByText("7/8", { exact: true })).toHaveCount(0);
+    await expect(count).toHaveText("1");
+    await expect(add).toBeFocused();
+    expect(api.bulkPosts).toHaveLength(1);
+    expect(JSON.parse(api.bulkPosts[0].body)).toEqual({
+      case_id: kase.id, expected_revision: kase.revision,
+      heirs: Array(4).fill({ relationship: "daughter", name: null }),
+    });
+    expect(api.heirPosts).toHaveLength(0);
+  });
+
+  test("a refused pair of fathers keeps the count, focus and accepted family", async ({ page, api }) => {
+    const kase = base();
+    await open(page, api, kase);
+    const nodes = page.locator("[data-node]");
+    const rows = page.locator("section[aria-labelledby='heirs-heading'] ul > li:visible");
+    await expect(nodes).toHaveCount(kase.heirs.length + 1);
+    await expect(rows).toHaveCount(kase.heirs.length + 1);
+    const nodeIds = () => nodes.evaluateAll((cards) => cards.map((card) => card.getAttribute("data-node")));
+    const beforeNodes = await nodeIds();
+    const beforeRows = await rows.allInnerTexts();
+    const reads = api.caseGets;
+    api.set({ postBulk: json(400, { error: "invalid_input", errors: { "1": { relationship: "second_father" } } }) });
+    await page.getByRole("button", { name: "One more Father", exact: true }).click();
+    const add = page.getByRole("button", { name: "Add Father", exact: true });
+    await add.click();
+    await expect(page.getByRole("alert").filter({ hasText: en.fieldErrors.relationship.second_father })).toHaveText(en.fieldErrors.relationship.second_father);
+    await expect(page.getByLabel("Number of Father to add")).toHaveText("2");
+    await expect(add).toBeFocused();
+    expect(await nodeIds()).toEqual(beforeNodes);
+    expect(await rows.allInnerTexts()).toEqual(beforeRows);
+    expect(api.bulkPosts).toHaveLength(1);
+    expect(api.heirPosts).toHaveLength(0);
+    expect(api.caseGets).toBe(reads + 1);
+  });
+
+  test("the plus button stays focused at remaining capacity", async ({ page, api }) => {
+    const kase = { ...base(), heirs: Array.from({ length: 47 }, (_, i) => son(`son${i}`)) };
+    await open(page, api, kase);
+    const more = page.getByRole("button", { name: "One more Son", exact: true });
+    await more.click();
+    await more.click();
+    await expect(more).toHaveAttribute("aria-disabled", "true");
+    await more.press("Enter");
+    await expect(more).toBeFocused();
+    await expect(page.getByLabel("Number of Son to add")).toHaveText("3");
+    expect(api.bulkPosts).toHaveLength(0);
+    expect(api.heirPosts).toHaveLength(0);
+  });
+
+  test("switching estates resets the count and uses the active estate's remaining capacity", async ({ page, api }) => {
+    const heirs = Array.from({ length: 47 }, (_, i) => son(`first-son-${i}`));
+    const kase = {
+      ...base(),
+      heirs,
+      deaths: [{
+        heir_id: heirs[0].id, order: 2, gender: "male", heir_options: { blocked: [], invalid: {} },
+        heirs: Array.from({ length: 48 }, (_, i) => son(`later-son-${i}`)),
+      }],
+    };
+    await open(page, api, kase, json(200, { status: "not_ready" }));
+    const more = page.getByRole("button", { name: "One more Son", exact: true });
+    const count = page.getByLabel("Number of Son to add", { exact: true });
+    await more.click();
+    await more.click();
+    await expect(count).toHaveText("3");
+    await expect(more).toHaveAttribute("aria-disabled", "true");
+
+    await page.locator(`[data-focus="openLayer:${heirs[0].id}"]`).click();
+    await expect(count).toHaveText("1");
+    await expect(more).toHaveAttribute("aria-disabled", "false");
+    await more.click();
+    await expect(count).toHaveText("2");
+    await expect(more).toHaveAttribute("aria-disabled", "true");
   });
 
   test("a stale revision with the same case id shows the returned case and an alert", async ({ page, api }) => {
