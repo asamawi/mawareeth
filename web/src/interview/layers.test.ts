@@ -16,6 +16,7 @@ import {
   layersOf,
   linkCandidates,
   personOf,
+  placementRootOf,
   rowLabels,
   rowsOf,
 } from "./layers.ts";
@@ -274,4 +275,18 @@ test("removing a death warns only for the person's last row across all layers", 
     { ...CASE.deaths[1], heir_id: "r1" },
   ] };
   assert.equal(removesDeath(onlyLater, "r1"), true);
+});
+
+test("placementRootOf: the first deceased, a later death, an unknown layer and an absent placement", () => {
+  const root = [{ relationship: "mother" as const, link: "parent" as const, blocked: false }];
+  const deathRoot = [{ relationship: "wife" as const, link: "spouse" as const, blocked: false }];
+  const kase = {
+    placement: { root },
+    deaths: [{ ...CASE.deaths[0], placement: { root: deathRoot } }],
+  };
+  assert.equal(placementRootOf(kase, null), root);
+  assert.equal(placementRootOf(kase, CASE.deaths[0].heir_id), deathRoot);
+  assert.equal(placementRootOf(kase, "nobody"), undefined);
+  assert.equal(placementRootOf({ deaths: [{ ...CASE.deaths[0] }] }, null), undefined);
+  assert.equal(placementRootOf({ deaths: [{ ...CASE.deaths[0] }] }, CASE.deaths[0].heir_id), undefined);
 });

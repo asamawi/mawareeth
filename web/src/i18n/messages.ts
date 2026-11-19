@@ -98,6 +98,13 @@ export type Messages = {
     heirMoreRelatives: string;
     /** Label of that select. */
     heirMoreRelativesLabel: string;
+    addRelativesHeading: string;
+    addGroupSpouse: string;
+    addGroupParents: string;
+    addGroupChildren: string;
+    addGroupSiblings: string;
+    addRelative: string;
+    conflictNotice: string;
     /** Under the add form's list, when an option is labelled. */
     heirNameLabel: string;
     heirNameHint: string;
@@ -357,6 +364,13 @@ export const messages: Record<Locale, Messages> = {
       heirRelationshipBlocked: "{relationship} (لا نصيب في الإرث مع الأسرة المسجّلة حتى الآن)",
       heirMoreRelatives: "أقارب آخرون",
       heirMoreRelativesLabel: "صلة قرابة أخرى",
+      addRelativesHeading: "إضافة أقارب",
+      addGroupSpouse: "الزوجية",
+      addGroupParents: "الوالدان",
+      addGroupChildren: "الأبناء",
+      addGroupSiblings: "الإخوة والأخوات",
+      addRelative: "إضافة {relationship}",
+      conflictNotice: "تغيّرت هذه الحالة في نافذة أخرى. تُعرض الآن أحدث نسخة، ولم يُحفظ تغييرك الأخير.",
       heirNameLabel: "الاسم (اختياري)",
       heirNameHint: "يمكنك ترك الاسم فارغًا، وسيظهر الوارث بصلة القرابة.",
       heirAdd: "إضافة وارث",
@@ -644,6 +658,13 @@ export const messages: Record<Locale, Messages> = {
       heirRelationshipBlocked: "{relationship} (does not inherit with the family so far)",
       heirMoreRelatives: "More relatives",
       heirMoreRelativesLabel: "Other relationship",
+      addRelativesHeading: "Add relatives",
+      addGroupSpouse: "Spouse",
+      addGroupParents: "Parents",
+      addGroupChildren: "Children",
+      addGroupSiblings: "Siblings",
+      addRelative: "Add {relationship}",
+      conflictNotice: "This case changed in another tab. The latest version is shown, and your last change was not saved.",
       heirNameLabel: "Name (optional)",
       heirNameHint: "You can leave the name empty. The heir will be shown by relationship.",
       heirAdd: "Add heir",
@@ -932,6 +953,13 @@ export const messages: Record<Locale, Messages> = {
       heirRelationshipBlocked: "{relationship} (n'hérite pas avec la famille saisie jusqu'ici)",
       heirMoreRelatives: "Autres proches",
       heirMoreRelativesLabel: "Autre lien de parenté",
+      addRelativesHeading: "Ajouter des proches",
+      addGroupSpouse: "Conjoint",
+      addGroupParents: "Parents",
+      addGroupChildren: "Enfants",
+      addGroupSiblings: "Frères et sœurs",
+      addRelative: "Ajouter {relationship}",
+      conflictNotice: "Ce dossier a été modifié dans un autre onglet. La dernière version est affichée et votre dernière modification n'a pas été enregistrée.",
       heirNameLabel: "Nom (facultatif)",
       heirNameHint: "Vous pouvez laisser le nom vide. L'héritier sera affiché par son lien de parenté.",
       heirAdd: "Ajouter l'héritier",

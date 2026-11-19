@@ -1,4 +1,4 @@
-import type { Case, Death, Gender, Heir, HeirOptions } from "../api/case.ts";
+import type { Case, Death, Gender, Heir, HeirOptions, PlacementOption } from "../api/case.ts";
 import { heirLabels } from "./answers.ts";
 
 /**
@@ -51,6 +51,15 @@ export function personOf(row: Pick<Heir, "id" | "same_as">): string {
 export function layerAt(kase: Pick<Case, "deceased" | "heirs" | "heir_options" | "deaths">, id: string | null): Layer {
   const layers = layersOf(kase);
   return layers.find((layer) => layer.id === id) ?? layers[0];
+}
+
+/** The engine's placement for the active estate's deceased; undefined when the server sent none. */
+export function placementRootOf(
+  kase: Pick<Case, "placement" | "deaths">,
+  layerId: string | null,
+): PlacementOption[] | undefined {
+  const placement = layerId === null ? kase.placement : kase.deaths.find((death) => death.heir_id === layerId)?.placement;
+  return placement?.root;
 }
 
 /** After a write: the active layer stays only while its death still exists. */

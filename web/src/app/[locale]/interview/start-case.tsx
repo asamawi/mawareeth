@@ -20,6 +20,7 @@ import {
   deceasedValues,
   formStore,
   heirLabel,
+  heirLimitReached,
   heirValues,
   valuesFor,
   type DeceasedValues,
@@ -59,17 +60,20 @@ import {
   layerAt,
   linkCandidates,
   personOf,
+  placementRootOf,
   rowLabels,
   rowsOf,
 } from "@/interview/layers";
 import { initialPick, selectionStore } from "@/interview/madhabs";
 import { estateModel, scrollDelta, treeDescription } from "@/interview/tree";
 import { previewKey } from "@/interview/preview";
+import { addGroups } from "@/interview/relatives";
 
+import { AddRelatives } from "./add-relatives";
 import { DeathBreadcrumb, crumbTextOf } from "./death-breadcrumb";
 import { DeceasedForm } from "./deceased-form";
 import { FamilyTree } from "./family-tree";
-import { buttonClass, errorText } from "./form-bits";
+import { buttonClass, errorText, SaveNotice } from "./form-bits";
 import { DeceasedSummary, HeirList } from "./heir-list";
 import { HeirForm } from "./heir-form";
 import { MadhabSelector } from "./madhab-selector";
@@ -234,7 +238,11 @@ export function StartCase({
     if (!focusRequest) return;
     // The control may be gone (an open question whose row went away): the screen takes focus.
     const control = target.current?.querySelector<HTMLElement>(`[data-focus="${focusRequest.target}"]`);
-    (control ?? target.current)?.focus();
+    // An add button that is gone (a father was just added) hands focus to the panel's heading.
+    const fallback = focusRequest.target.startsWith("add:")
+      ? target.current?.querySelector<HTMLElement>("#add-relatives-heading")
+      : null;
+    (control ?? fallback ?? target.current)?.focus();
   }, [focusRequest]);
 
   // After a successful add or edit the tree and the heir's node come into view, once. It runs
@@ -284,6 +292,10 @@ export function StartCase({
         })()
       : [];
   const linkedRow = editingHeir?.same_as !== undefined;
+  const relativeGroups = started && layer ? addGroups(placementRootOf(started.case, layer.id), layer.options) : [];
+  const atLimit = layer ? heirLimitReached(layer.heirs) : false;
+  // The heir form is for an edit, and for linking a later death's heir to someone already in the case.
+  const showHeirForm = started !== null && (started.editingHeir !== null || (layer?.id != null && candidates.length > 0));
   const orderQuestion = (() => {
     if (!started || !layer || started.ordering === null) return null;
     const row = rowsOf(started.case).get(started.ordering)?.row;
@@ -502,11 +514,27 @@ export function StartCase({
             className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)_340px]"
           >
             <section
-              aria-labelledby="heir-form-heading"
+              aria-labelledby="add-relatives-heading"
               className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1"
             >
               {started.notice === "heirGone" && <p role="alert">{messages.heirGone}</p>}
-              <HeirForm
+              <AddRelatives
+                messages={messages}
+                groups={relativeGroups}
+                atLimit={atLimit}
+                disabled={frozen}
+                outcome={started.panel}
+                onAdd={(relationship) =>
+                  submit((from) => ({
+                    kind: "addHeir",
+                    from,
+                    values: { relationship, name: "", same_as: "" },
+                    origin: "panel",
+                  }))
+                }
+              />
+              {!showHeirForm && <SaveNotice messages={messages} notice={started.notice} saving={frozen} />}
+              {showHeirForm && <HeirForm
                 key={heirFormKey(started)}
                 messages={messages}
                 initial={valuesFor(
@@ -536,7 +564,7 @@ export function StartCase({
                   )
                 }
                 onCancel={() => edit((current) => cancelEditHeir(current, deps))}
-              />
+              />}
             </section>
             <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
               <FamilyTree

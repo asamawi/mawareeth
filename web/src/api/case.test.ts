@@ -191,12 +191,17 @@ test("every locale has its own interview text", () => {
           assert.equal(byLocale[j].get(path), "Zoom {percent}");
           continue;
         }
+        // "Parents" is the same word in English and French.
+        if (path === "interview.addGroupParents" && locales[i] === "en" && locales[j] === "fr") {
+          assert.equal(byLocale[i].get(path), byLocale[j].get(path));
+          continue;
+        }
         assert.notEqual(byLocale[i].get(path), byLocale[j].get(path), `${path} [${locales[i]} vs ${locales[j]}]`);
       }
     }
   }
   assert.ok(byLocale[0].has("interview.madhabs.hanbali.name"));
-  for (const key of ["treeHeading", "treeDeceased", "treeNoShare", "treeFit", "treeZoomStatus"]) {
+  for (const key of ["treeHeading", "treeDeceased", "treeNoShare", "treeFit", "treeZoomStatus", "addRelativesHeading", "addGroupSpouse", "addGroupParents", "addGroupChildren", "addGroupSiblings", "addRelative", "conflictNotice"]) {
     assert.ok(byLocale[0].has(`interview.${key}`), key);
   }
   assert.deepEqual(

@@ -318,7 +318,7 @@ test.describe("revisions and connection", () => {
     api.set({ session: sessionAnonymous, getCase: json(200, { case: fullCase(agree.case) }), getPreview: json(200, agree.response) });
     await page.goto("/en/interview/");
     await page.getByRole("button", { name: en.resume }).click();
-    const add = page.getByRole("button", { name: en.heirAdd, exact: true });
+    const add = page.getByRole("button", { name: "Add Son", exact: true });
     await expect(add).toHaveAttribute("aria-disabled", "false");
     await expect(page.getByText(en.offlineEditing)).toHaveCount(0);
 
@@ -336,9 +336,94 @@ test.describe("revisions and connection", () => {
   });
 });
 
+test.describe("add relatives", () => {
+  const agree = fixture("Agree: wife, son and daughter in every school");
+  const base = () => fullCase(agree.case) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const open = async (page: Page, api: Parameters<typeof openHeirsScreen>[1], kase: Record<string, unknown>) => {
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, agree.response) });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    await page.locator("#add-relatives-heading").waitFor();
+  };
+  const son = (id: string) => ({ id, relationship: "son", gender: "male", name: null, edit_options: { blocked: [], invalid: {} } });
+
+  test("one press posts one add with no name, shows the returned case and keeps focus on the button", async ({ page, api }) => {
+    const kase = base();
+    const sons = kase.heirs.filter((h: { relationship: string }) => h.relationship === "son");
+    expect(sons).toHaveLength(1);
+    await open(page, api, kase);
+    const returned = { ...kase, revision: (kase.revision as number) + 1, heirs: [...kase.heirs, son("new-son")] };
+    api.set({ postHeir: json(201, { case: returned }) });
+    const button = page.getByRole("button", { name: "Add Son", exact: true });
+    await button.click();
+    await expect(page.locator("section[aria-labelledby='heirs-heading']").getByText("Son 2", { exact: true }).first()).toBeVisible();
+    await expect(page.locator("section[data-tree]").getByText("Son 2", { exact: true }).first()).toBeVisible();
+    expect(api.heirPosts).toHaveLength(1);
+    const body = JSON.parse(api.heirPosts[0].body);
+    expect(body.relationship).toBe("son");
+    expect(body.name ?? null).toBeNull();
+    expect(body.expected_revision).toBe(kase.revision);
+    await expect(button).toBeFocused();
+    await expect(page.locator("[aria-live='polite'], [role='status']").filter({ hasText: "Son 2 added." }).first()).toBeAttached();
+  });
+
+  test("a stale revision with the same case id shows the returned case and an alert", async ({ page, api }) => {
+    const kase = base();
+    await open(page, api, kase);
+    const live = { ...kase, revision: (kase.revision as number) + 4, heirs: [...kase.heirs, son("other-tab")] };
+    api.set({ postHeir: json(409, { case: live }) });
+    const button = page.getByRole("button", { name: "Add Son", exact: true });
+    await button.click();
+    await expect(page.getByRole("alert").filter({ hasText: en.conflictNotice })).toBeVisible();
+    await expect(page.locator("#add-relatives-heading")).toBeVisible();
+    await expect(button).toBeFocused();
+    expect(api.heirPosts).toHaveLength(1);
+  });
+
+  test("at 50 heirs the limit shows and every add button is aria-disabled", async ({ page, api }) => {
+    const kase = { ...base(), heirs: Array.from({ length: 50 }, (_, i) => son(`m${i}`)) };
+    await open(page, api, kase);
+    await expect(page.getByText(en.fieldErrors.heirs.limit)).toBeVisible();
+    const buttons = page.locator("section[aria-labelledby='add-relatives-heading'] button[data-focus^='add:']");
+    expect(await buttons.count()).toBeGreaterThan(4);
+    for (const button of await buttons.all()) await expect(button).toHaveAttribute("aria-disabled", "true");
+    await buttons.first().click({ force: true });
+    expect(api.heirPosts).toHaveLength(0);
+  });
+
+  test("after adding a father his button is gone and focus lands on the panel heading", async ({ page, api }) => {
+    const parents = [{ relationship: "father", link: "parent", blocked: false }, { relationship: "mother", link: "parent", blocked: false }];
+    const kase = base();
+    kase.placement = { root: parents };
+    await open(page, api, kase);
+    const father = { id: "new-father", relationship: "father", gender: "male", name: null, edit_options: { blocked: [], invalid: {} } };
+    const returned = { ...kase, revision: (kase.revision as number) + 1, heirs: [...kase.heirs, father], placement: { root: parents.slice(1) } };
+    api.set({ postHeir: json(201, { case: returned }) });
+    await page.getByRole("button", { name: "Add Father", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Add Father", exact: true })).toHaveCount(0);
+    await expect(page.locator("#add-relatives-heading")).toBeFocused();
+    expect(api.heirPosts).toHaveLength(1);
+  });
+
+  test("the heir form shows only while an heir is being edited", async ({ page, api }) => {
+    await open(page, api, base());
+    const form = page.locator("section[aria-labelledby='add-relatives-heading'] #heir-form-heading");
+    await expect(page.locator("#heir-form-heading")).toHaveCount(0);
+    await page.locator("[data-focus^='editHeir:']").first().click();
+    await expect(form).toBeVisible();
+  });
+
+  test("no Father button when the case already has a father", async ({ page, api }) => {
+    const kase = { ...base(), placement: { root: [{ relationship: "mother", link: "parent", blocked: false }, { relationship: "wife", link: "spouse", blocked: false }] } };
+    await open(page, api, kase);
+    await expect(page.getByRole("button", { name: "Add Mother", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add Father", exact: true })).toHaveCount(0);
+  });
+});
+
 test.describe("interview shell", () => {
   const regions = (page: Page) => ({
-    add: page.locator("section[aria-labelledby='heir-form-heading']"),
+    add: page.locator("section[aria-labelledby='add-relatives-heading']"),
     tree: page.locator("section[data-tree]"),
     list: page.locator("section[aria-labelledby='heirs-heading']"),
   });
@@ -348,7 +433,7 @@ test.describe("interview shell", () => {
     await page.setViewportSize({ width: 375, height: 800 });
     await openHeirsScreen(page, api, "en");
     const { add, tree, list } = regions(page);
-    await expect(page.getByRole("region", { name: en.heirAddHeading })).toBeVisible();
+    await expect(page.getByRole("region", { name: en.addRelativesHeading })).toBeVisible();
     await expect(page.getByRole("region", { name: en.treeHeading })).toBeVisible();
     const [a, t, l] = [await box(add), await box(tree), await box(list)];
     expect(a.y).toBeLessThan(t.y);
@@ -356,7 +441,7 @@ test.describe("interview shell", () => {
     expect(a.x).toBeCloseTo(16, 0);
     expect(a.x + a.width).toBeCloseTo(375 - 16, 0);
     const order = await page.evaluate(() => {
-      const sel = ["section[aria-labelledby='heir-form-heading']", "section[data-tree]", "section[aria-labelledby='heirs-heading']"];
+      const sel = ["section[aria-labelledby='add-relatives-heading']", "section[data-tree]", "section[aria-labelledby='heirs-heading']"];
       const nodes = sel.map((s) => document.querySelector(s)!);
       return nodes.every((n, i) => i === 0 || !!(nodes[i - 1].compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING));
     });
@@ -474,13 +559,13 @@ test.describe("interview shell", () => {
     await expect(nav).toBeVisible();
     const gap = await page.evaluate(() => {
       const crumb = document.querySelector("nav[data-focus='breadcrumb']")!.getBoundingClientRect();
-      const grid = document.querySelector("section[aria-labelledby='heir-form-heading']")!.closest("[data-wide]")!.getBoundingClientRect();
+      const grid = document.querySelector("section[aria-labelledby='add-relatives-heading']")!.closest("[data-wide]")!.getBoundingClientRect();
       return grid.top - crumb.bottom;
     });
     expect(gap).toBeGreaterThanOrEqual(0);
     const precedes = await page.evaluate(() => {
       const crumb = document.querySelector("nav[data-focus='breadcrumb']")!;
-      const form = document.querySelector("section[aria-labelledby='heir-form-heading']")!;
+      const form = document.querySelector("section[aria-labelledby='add-relatives-heading']")!;
       return !!(crumb.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
     expect(precedes).toBe(true);

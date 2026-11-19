@@ -25,7 +25,7 @@ export async function openHeirsScreen(page: Page, api: Api, locale: "en" | "ar")
   });
   await page.goto(`/${locale}/interview/`);
   await page.getByRole("button", { name: messages[locale].interview.resume }).click();
-  await page.locator("section[aria-labelledby='heir-form-heading']").waitFor();
+  await page.locator("section[aria-labelledby='add-relatives-heading']").waitFor();
   await page.locator("section[aria-labelledby='preview-heading']").locator("table, ul").first().waitFor();
 }
 

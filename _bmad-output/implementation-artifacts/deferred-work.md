@@ -504,3 +504,15 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
     - `treeZoomStatus`: "Zoom {percent}" / "التكبير {percent}" / "Zoom {percent}".
     - `treeHint`: "Drag to move around the tree. Use the buttons to zoom." / "اسحب للتنقل في الشجرة. استخدم الأزرار للتكبير والتصغير." / "Faites glisser pour parcourir l'arbre. Utilisez les boutons pour zoomer."
     - `heirsEmpty` (changed): "No heirs yet. Press a relationship to add one." / "لا يوجد ورثة بعد. اضغط على صلة قرابة لإضافة وارث." / "Aucun héritier pour l'instant. Appuyez sur une relation pour en ajouter un."
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-3-add-one-relative-with-one-press.md`
+  summary: Story 9.3 added Add relatives panel copy in ar, en and fr; every string needs native review before release.
+  evidence: |-
+    Keys in `web/src/i18n/messages.ts` (interview), en / ar / fr ("More relatives" reuses `heirMoreRelatives`):
+    - `addRelativesHeading`: "Add relatives" / "إضافة أقارب" / "Ajouter des proches".
+    - `addGroupSpouse`: "Spouse" / "الزوجية" / "Conjoint".
+    - `addGroupParents`: "Parents" / "الوالدان" / "Parents".
+    - `addGroupChildren`: "Children" / "الأبناء" / "Enfants".
+    - `addGroupSiblings`: "Siblings" / "الإخوة والأخوات" / "Frères et sœurs".
+    - `addRelative`: "Add {relationship}" / "إضافة {relationship}" / "Ajouter {relationship}".
+    - `conflictNotice`: "This case changed in another tab. The latest version is shown, and your last change was not saved." / "تغيّرت هذه الحالة في نافذة أخرى. تُعرض الآن أحدث نسخة، ولم يُحفظ تغييرك الأخير." / "Ce dossier a été modifié dans un autre onglet. La dernière version est affichée et votre dernière modification n'a pas été enregistrée."

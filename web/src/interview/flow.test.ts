@@ -1166,7 +1166,7 @@ test("Removing the heir being edited ends the edit; removing another keeps it an
 
 test("every focus target flow.ts can emit is a data-focus value in the components", () => {
   const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "app", "[locale]", "interview");
-  const source = ["deceased-form.tsx", "heir-form.tsx", "heir-list.tsx", "form-bits.tsx", "order-question.tsx", "relatives-question.tsx", "death-breadcrumb.tsx"]
+  const source = ["deceased-form.tsx", "heir-form.tsx", "add-relatives.tsx", "heir-list.tsx", "form-bits.tsx", "order-question.tsx", "relatives-question.tsx", "death-breadcrumb.tsx"]
     .map((file) => readFileSync(join(dir, file), "utf8"))
     .join("\n");
   for (const target of FOCUS_TARGETS) {
@@ -1874,4 +1874,120 @@ test("every write and the start over carry the revision of the case the page sho
   const starting = deps({ start: () => ({ kind: "failed" }) });
   await runAction("startOver", signal, starting.value, shown);
   assert.deepEqual(starting.log.startRevisions, [3], "startOver");
+});
+
+const PANEL_SON = (from: StartedView): Answer => ({
+  kind: "addHeir",
+  from,
+  values: { relationship: "son", name: "", same_as: "" },
+  origin: "panel",
+});
+
+test("panel add: one command at the current revision, no name, focus on the button, form kept", async () => {
+  const record: FormRecord = { caseId: WITH_SON.id, form: "heir", layer: null, heirId: "h1", values: { relationship: "son", name: "Typed" } };
+  const added = { ...SON, id: "h3" };
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: { ...WITH_SON, revision: 4, heirs: [SON, added] } }), form: record });
+  const from = startedOf(WITH_SON, true, { editingHeir: "h1", formEpoch: 2 });
+  const view = (await runAction("addHeir", signal, value, WITH_SON, undefined, PANEL_SON(from))) as StartedView;
+  assert.equal(log.answers.length, 1);
+  assert.deepEqual(log.answers[0].fields, { relationship: "son", name: null });
+  assert.deepEqual(log.revisions, [3]);
+  assert.equal(view.case.heirs.length, 2);
+  assert.equal(view.editingHeir, "h1");
+  assert.equal(view.formEpoch, 2);
+  assert.equal(view.focus?.target, "add:son");
+  assert.equal(view.announcement?.kind, "added");
+  assert.equal(view.announcement?.ordinal, 2);
+  assert.deepEqual(log.form, record, "the typed text is untouched");
+});
+
+test("a form add still resets the form and focuses the relationship", async () => {
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: { ...WITH_SON, heirs: [SON, { ...SON, id: "h3" }] } }) });
+  const view = (await runAction("addHeir", signal, value, WITH_SON, undefined, {
+    kind: "addHeir",
+    from: startedOf(WITH_SON, true),
+    values: { relationship: "son", name: "" },
+  })) as StartedView;
+  assert.equal(view.formEpoch, 1);
+  assert.equal(view.focus?.target, "relationship");
+  assert.deepEqual(log.form, BLANK_RECORD(WITH_SON.id));
+});
+
+test("panel add refused: the case is re-read, the refusal shows in the panel, not the form", async () => {
+  const { value, log } = deps({
+    answer: () => ({ kind: "invalid", errors: { relationship: "second_father" } }),
+    read: async () => WITH_SON,
+  });
+  const view = (await runAction("addHeir", signal, value, WITH_SON, undefined, PANEL_SON(startedOf(WITH_SON, true)))) as StartedView;
+  assert.equal(log.reads, 1);
+  assert.equal(view.errors, null);
+  assert.deepEqual(view.panel, { relationship: "son", errors: { relationship: "second_father" } });
+  assert.equal(view.focus?.target, "add:son");
+  assert.equal(view.case.heirs.length, 1);
+});
+
+test("panel add: a stale revision with the same case id stays started on the returned case, no resend", async () => {
+  const live: Case = { ...WITH_SON, revision: 5, heirs: [SON, AMAL] };
+  const { value, log } = deps({ answer: () => ({ kind: "replaced", case: live }) });
+  const view = (await runAction("addHeir", signal, value, WITH_SON, undefined, PANEL_SON(startedOf(WITH_SON, true)))) as StartedView;
+  assert.equal(view.name, "started");
+  assert.equal(view.case.revision, 5);
+  assert.deepEqual(view.panel, { relationship: "son", notice: "conflict" });
+  assert.equal(view.focus?.target, "add:son");
+  assert.equal(log.answers.length, 1);
+  // A different case id keeps the existing-case screen.
+  const other = deps({ answer: () => ({ kind: "replaced", case: NEW_CASE }) });
+  const away = await runAction("addHeir", signal, other.value, WITH_SON, undefined, PANEL_SON(startedOf(WITH_SON, true)));
+  assert.deepEqual(away, { name: "existing", case: NEW_CASE });
+});
+
+test("panel add: throttled shows the notice in the panel and keeps focus on the button", async () => {
+  const { value } = deps({ answer: () => ({ kind: "throttled" }) });
+  const view = (await runAction("addHeir", signal, value, WITH_SON, undefined, PANEL_SON(startedOf(WITH_SON, true)))) as StartedView;
+  assert.equal(view.notice, null);
+  assert.deepEqual(view.panel, { relationship: "son", notice: "throttled" });
+  assert.equal(view.focus?.target, "add:son");
+});
+
+test("panel add at 50 heirs: the precheck refuses and sends nothing", async () => {
+  const many = Array.from({ length: 50 }, (_, i) => ({ ...SON, id: `m${i}` }));
+  const full: Case = { ...WITH_DECEASED, heirs: many };
+  const { value, log } = deps({});
+  const view = (await runAction("addHeir", signal, value, full, undefined, PANEL_SON(startedOf(full, true)))) as StartedView;
+  assert.equal(log.answers.length, 0);
+  assert.deepEqual(view.panel, { relationship: "son", errors: { heirs: "limit" } });
+  assert.equal(view.errors, null);
+});
+
+test("pending view clears the panel outcome", () => {
+  const current = startedOf(WITH_SON, true, { panel: { relationship: "son", notice: "conflict" } });
+  assert.equal((pendingView("addHeir", current) as StartedView).panel, undefined);
+});
+
+test("panel add on a later death: announcement from that layer, layer kept, focus on the button", async () => {
+  const r0 = { id: "r0", relationship: "brother" as const, gender: "male" as const, name: null, edit_options: noHeirOptions() };
+  const r2 = { ...r0, id: "r2" };
+  const before: Case = { ...FAMILY, deaths: [{ ...S1_DEATH, heirs: [r0] }] };
+  const after: Case = { ...FAMILY, revision: 4, deaths: [{ ...S1_DEATH, heirs: [r0, r2] }] };
+  const { value } = deps({ answer: () => ({ kind: "saved", case: after }) });
+  const from = startedOf(before, true, { layer: "s1" });
+  const view = (await runAction("addHeir", signal, value, before, undefined, {
+    kind: "addHeir",
+    from,
+    values: { relationship: "brother", name: "", same_as: "" },
+    origin: "panel",
+  })) as StartedView;
+  assert.equal(view.layer, "s1");
+  assert.equal(view.focus?.target, "add:brother");
+  assert.equal(view.announcement?.id, "r2");
+  assert.deepEqual(view.announcement?.heir, { name: null, relationship: "brother" });
+  assert.equal(view.announcement?.ordinal, 2);
+});
+
+test("openLayer clears the panel outcome", () => {
+  const { value } = deps({});
+  const view = startedOf(TWO_LAYERS, true, { panel: { relationship: "son", notice: "conflict" } });
+  const next = openLayer(view, "s1", value);
+  assert.equal(next.layer, "s1");
+  assert.equal("panel" in next, false);
 });
