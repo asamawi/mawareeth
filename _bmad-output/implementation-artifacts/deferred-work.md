@@ -535,3 +535,14 @@ Native review is pending for these interview strings in `web/src/i18n/messages.t
 | `stepperMore` | One more {relationship} | زيادة عدد {relationship} | Augmenter le nombre ({relationship}) |
 | `stepperCount` | Number of {relationship} to add | عدد من سيُضاف ({relationship}) | Nombre à ajouter ({relationship}) |
 | `heirsAdded` | {count} × {relationship} added. | تمت إضافة {count} × {relationship}. | {count} × {relationship} ajoutés. |
+
+## Story 9.6
+
+Native review is pending for these interview strings in `web/src/i18n/messages.ts`.
+
+| Key | English | Arabic | French |
+| --- | --- | --- | --- |
+| `undoLastChange` | Undo last change | تراجع عن آخر تغيير | Annuler la dernière modification |
+| `undoAction` | Undo | تراجع | Annuler |
+| `undoDone` | Last change undone. | تم التراجع عن آخر تغيير. | Dernière modification annulée. |
+| `undoFailed` | That change could not be undone. Try again. | تعذّر التراجع عن هذا التغيير. حاول مرة أخرى. | Impossible d’annuler cette modification. Réessayez. |

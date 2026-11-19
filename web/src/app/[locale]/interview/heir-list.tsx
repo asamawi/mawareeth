@@ -9,6 +9,7 @@ import type { treeDescription } from "@/interview/tree";
 import { personOf } from "@/interview/layers";
 
 import { buttonClass, WithHeir } from "./form-bits";
+import { UndoButton } from "./undo-toast";
 
 /** The saved deceased, with the amount for the language and a button to correct it. */
 export function DeceasedSummary({
@@ -79,6 +80,8 @@ type ListProps = {
   onOpenLayer?: (personId: string) => void;
   /** `personId` is the death to take back, `rowId` the row the button was on. */
   onDidNotDie?: (personId: string, rowId: string) => void;
+  /** The persistent Undo control, present while there is something to undo. */
+  undo?: { disabled: boolean; onUndo: () => void };
 };
 
 /** What a row's inline question is about: removing the row, or taking back the person's death. */
@@ -102,6 +105,7 @@ export function HeirList({
   onAlsoDied,
   onOpenLayer,
   onDidNotDie,
+  undo,
 }: ListProps) {
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const container = useRef<HTMLElement>(null);
@@ -121,9 +125,12 @@ export function HeirList({
 
   return (
     <section ref={container} aria-labelledby="heirs-heading" className="flex flex-col gap-3">
-      <h3 id="heirs-heading" className="text-lg font-semibold">
-        {heading ?? messages.heirsHeading} ({heirs.length})
-      </h3>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 id="heirs-heading" className="text-lg font-semibold">
+          {heading ?? messages.heirsHeading} ({heirs.length})
+        </h3>
+        {undo && <UndoButton messages={messages} disabled={undo.disabled} onUndo={undo.onUndo} />}
+      </div>
       {/* Present before its text changes, so screen readers announce the change. */}
       <p role="status" aria-live="polite" className="sr-only">
         {zoomNote ?? (announcement && (

@@ -46,14 +46,15 @@ export type Action =
   | "saveHeir"
   | "removeHeir"
   | "markDeath"
-  | "unmarkDeath";
+  | "unmarkDeath"
+  | "undo";
 
 /** A write that did not go through, or a list that changed under the visitor. */
 export type Notice = "throttled" | "failed" | "heirGone";
 
 /** What the screen-reader live region says; `seq` makes a repeat count as new. */
 export type Announcement = {
-  kind: "added" | "updated" | "removed" | "deathMarked" | "deathUnmarked";
+  kind: "added" | "updated" | "removed" | "deathMarked" | "deathUnmarked" | "undone";
   /** The id of the heir the change was about. */
   id: string;
   heir: { name: string | null; relationship: RelationshipId };
@@ -99,6 +100,12 @@ export type PanelOutcome = {
   notice?: Notice | "conflict";
 };
 
+/** One accepted family change that Undo can take back: the Case as it was, and who it touched. */
+export type UndoEntry = { snapshot: Record<string, unknown>; person?: string };
+
+/** The toast after a change that pushed an entry; `key` restarts its timer for each change. */
+export type UndoToast = { key: number; announcement: Announcement };
+
 export type StartedView = {
   name: "started";
   case: Case;
@@ -133,6 +140,12 @@ export type StartedView = {
   focus: FocusRequest | null;
   announcement: Announcement | null;
   saving: boolean;
+  /** Prior accepted snapshots, oldest first, for this page visit only. Absent reads as empty. */
+  history?: UndoEntry[];
+  /** Shown after a change that pushed an entry; cleared when the history is. */
+  undoToast?: UndoToast;
+  /** The last Undo could not be sent or was refused; the history is untouched. */
+  undoFailed?: boolean;
 };
 
 export type View =
@@ -168,6 +181,7 @@ export type Deps = {
   removeHeir: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, confirm: boolean) => Promise<AnswerResult>;
   markDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, first?: string, answers?: RelativeAnswers) => Promise<AnswerResult>;
   unmarkDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string) => Promise<AnswerResult>;
+  restoreCase: (signal: AbortSignal, caseId: string, revision: number | null, snapshot: Record<string, unknown>) => Promise<AnswerResult>;
   /** Whether this browser has seen a case before; the only way to tell expired from new. */
   seen: { get: () => boolean; set: (value: boolean) => void };
   /** The selection in progress in this tab. */
@@ -269,6 +283,7 @@ export function pendingView(action: Action, current?: View): View {
   const rest = { ...current };
   delete rest.panel;
   delete rest.conflict;
+  delete rest.undoFailed;
   return { ...rest, notice: null, errors: null, saving: true };
 }
 
@@ -569,7 +584,14 @@ export type Answer =
   | { kind: "removeHeir"; from: StartedView; heirId: string; confirm?: boolean; fromRow?: boolean }
   /** `rowId` is the row whose person died; `first` answers the order question. */
   | { kind: "markDeath"; from: StartedView; rowId: string; first?: string; answers?: RelativeAnswers }
-  | { kind: "unmarkDeath"; from: StartedView; heirId: string; rowId: string };
+  | { kind: "unmarkDeath"; from: StartedView; heirId: string; rowId: string }
+  /** Takes back the latest family change with one restore at the current revision. */
+  | { kind: "undo"; from: StartedView };
+
+/** The history of a view; a view that never had one reads as empty. */
+export function historyOf(view: StartedView): readonly UndoEntry[] {
+  return view.history ?? [];
+}
 
 function formOf(answer: Answer): FormName {
   return answer.kind === "saveDeceased" ? "deceased" : "heir";
@@ -613,7 +635,7 @@ function refusedView(answer: Answer, from: StartedView, errors: Errors): Started
  * rule (focus on the first invalid field), or null when it can go to the server.
  */
 export function precheck(answer: Answer): StartedView | null {
-  if (answer.kind === "saveHeir" || answer.kind === "removeHeir" || answer.kind === "markDeath" || answer.kind === "unmarkDeath") return null;
+  if (answer.kind === "saveHeir" || answer.kind === "removeHeir" || answer.kind === "markDeath" || answer.kind === "unmarkDeath" || answer.kind === "undo") return null;
   if (answer.kind === "saveDeceased") {
     const { errors } = validateDeceased(answer.values);
     return Object.keys(errors).length > 0 ? invalidView(answer.from, "deceased", errors) : null;
@@ -652,7 +674,8 @@ export async function runAction(
     action === "saveHeir" ||
     action === "removeHeir" ||
     action === "markDeath" ||
-    action === "unmarkDeath"
+    action === "unmarkDeath" ||
+    action === "undo"
   ) {
     if (!answer || answer.kind !== action) return { name: "failed", retry: "load", resumable: existing };
     return save(answer, signal, deps);
@@ -776,6 +799,10 @@ function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerRe
     }
     case "unmarkDeath":
       return deps.unmarkDeceased(signal, caseId, revision, answer.heirId);
+    case "undo": {
+      const top = historyOf(answer.from).at(-1);
+      return top ? deps.restoreCase(signal, caseId, revision, top.snapshot) : Promise.resolve({ kind: "failed" });
+    }
   }
 }
 
@@ -859,6 +886,25 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
         },
         deps,
       );
+    case "undo": {
+      // The restored family replaces the screen's; an edit in progress is closed rather than left showing old text.
+      const entry = historyOf(from).at(-1);
+      restoreHeirForm(deps, kase.id);
+      const people = estateModel(kase, layer, null).people;
+      return settle(
+        {
+          ...base,
+          formEpoch: from.formEpoch + 1,
+          history: historyOf(from).slice(0, -1),
+          announcement: {
+            kind: "undone", id: "", heir: { name: null, relationship: "son" }, ordinal: null,
+            seq: (from.announcement?.seq ?? 0) + 1,
+          },
+          focus: nextFocus(from, entry?.person && people.some((p) => p.id === entry.person) ? `card:${entry.person}` : "card:root"),
+        },
+        deps,
+      );
+    }
     case "saveDeceased":
       return settle({ ...base, announcement: from.announcement, focus: from.focus }, deps);
     case "addHeir": {
@@ -977,14 +1023,94 @@ function reconcileFresh(view: StartedView, from: StartedView, fresh: Case, deps:
   };
 }
 
+/** The view after an Undo that did not restore: nothing changed, or the Case moved under it. */
+function undone(
+  answer: Extract<Answer, { kind: "undo" }>,
+  result: Exclude<AnswerResult, { kind: "saved" }>,
+  deps: Deps,
+): View {
+  const from = answer.from;
+  switch (result.kind) {
+    case "gone":
+      deps.selection.set(null);
+      deps.forms.set(null);
+      deps.seen.set(false);
+      return { name: "none", expired: true };
+    case "replaced": {
+      if (result.case.id !== from.case.id) {
+        deps.selection.set(null);
+        deps.forms.set(null);
+        deps.seen.set(true);
+        return { name: "existing", case: result.case };
+      }
+      // The same case at a newer revision: show it, say so, and never resend.
+      const fresh = result.case;
+      const gone = from.editingHeir !== null && !estateModel(fresh, from.layer, null).people.some((p) => p.id === from.editingHeir);
+      if (gone) restoreHeirForm(deps, fresh.id);
+      return reconcileFresh({
+        ...from, case: fresh, layer: keepLayer(from.layer, fresh), confirming: undefined, notice: null, errors: null,
+        saving: false, conflict: true, history: [], undoToast: undefined,
+        ...(gone ? { editingHeir: null, formEpoch: from.formEpoch + 1 } : {}),
+      }, from, fresh, deps);
+    }
+    default:
+      // The entry and the family stay; the visitor can try again.
+      return { ...from, notice: null, errors: null, saving: false, undoFailed: true };
+  }
+}
+
+/**
+ * What a settled answer does to the history. A saved family change pushes one entry (the prior
+ * Case's own snapshot) and shows the toast; a saved non-family change clears it, because a later
+ * restore would silently revert it. Any other result keeps it only while the Case on screen is
+ * still the one this tab produced: another revision or case was adopted, not made.
+ */
+function recorded(answer: Answer, result: AnswerResult, shown: View): View {
+  if (shown.name !== "started") return shown;
+  const from = answer.from;
+  const kept = historyOf(from);
+  // An empty history and no toast are left off the view, so views without Undo keep their shape.
+  const finish = (history: readonly UndoEntry[], toast?: UndoToast, failed = false): StartedView => {
+    const out: StartedView = { ...shown };
+    delete out.history;
+    delete out.undoToast;
+    delete out.undoFailed;
+    if (history.length > 0) out.history = [...history];
+    if (toast) out.undoToast = toast;
+    if (failed) out.undoFailed = true;
+    return out;
+  };
+  if (result.kind === "saved" && answer.kind === "undo") return finish(shown.history ?? []);
+  if (result.kind === "saved") {
+    const person =
+      answer.kind === "saveHeir" || answer.kind === "removeHeir" || answer.kind === "unmarkDeath" ? answer.heirId
+      : answer.kind === "markDeath" ? answer.rowId : undefined;
+    const family = answer.kind !== "saveDeceased";
+    const snapshot = from.case.snapshot;
+    if (!family || !snapshot || result.case.id !== from.case.id) return finish([]);
+    const announcement = shown.announcement;
+    return finish(
+      [...kept, { snapshot, ...(person === undefined ? {} : { person }) }],
+      announcement ? { key: (from.undoToast?.key ?? 0) + 1, announcement } : undefined,
+    );
+  }
+  const same = shown.case.id === from.case.id && shown.case.revision === from.case.revision;
+  if (!same) return finish([]);
+  return finish(kept, from.undoToast, answer.kind === "undo" && shown.undoFailed === true);
+}
+
 async function save(answer: Answer, signal: AbortSignal, deps: Deps): Promise<View> {
   const blocked = precheck(answer);
   if (blocked) return blocked;
-  const from = answer.from;
   const result = await send(answer, signal, deps);
+  const view = result.kind === "saved" ? saved(answer, result.case, deps) : await settled(answer, result, signal, deps);
+  return recorded(answer, result, view);
+}
+
+async function settled(answer: Answer, result: Exclude<AnswerResult, { kind: "saved" }>, signal: AbortSignal, deps: Deps): Promise<View> {
+  const from = answer.from;
+  if (answer.kind === "undo") return undone(answer, result, deps);
   switch (result.kind) {
-    case "saved":
-      return saved(answer, result.case, deps);
     case "cascade": {
       if (answer.kind !== "removeHeir" || result.case.id !== from.case.id) {
         return { ...from, notice: "failed", saving: false };

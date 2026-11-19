@@ -129,6 +129,10 @@ export type Messages = {
     removeImpactEstate: string;
     heirAdded: string;
     heirsAdded: string;
+    undoLastChange: string;
+    undoAction: string;
+    undoDone: string;
+    undoFailed: string;
     stepperFewer: string;
     stepperMore: string;
     stepperCount: string;
@@ -402,6 +406,10 @@ export const messages: Record<Locale, Messages> = {
       heirEditHeading: "تعديل بيانات الوارث",
       heirAdded: "تمت إضافة {heir}.",
       heirsAdded: "تمت إضافة {count} × {relationship}.",
+      undoLastChange: "تراجع عن آخر تغيير",
+      undoAction: "تراجع",
+      undoDone: "تم التراجع عن آخر تغيير.",
+      undoFailed: "تعذّر التراجع عن هذا التغيير. حاول مرة أخرى.",
       stepperFewer: "إنقاص عدد {relationship}",
       stepperMore: "زيادة عدد {relationship}",
       stepperCount: "عدد من سيُضاف ({relationship})",
@@ -712,6 +720,10 @@ export const messages: Record<Locale, Messages> = {
       heirEditHeading: "Edit heir",
       heirAdded: "{heir} added.",
       heirsAdded: "{count} × {relationship} added.",
+      undoLastChange: "Undo last change",
+      undoAction: "Undo",
+      undoDone: "Last change undone.",
+      undoFailed: "That change could not be undone. Try again.",
       stepperFewer: "One fewer {relationship}",
       stepperMore: "One more {relationship}",
       stepperCount: "Number of {relationship} to add",
@@ -1023,6 +1035,10 @@ export const messages: Record<Locale, Messages> = {
       heirEditHeading: "Modifier l'héritier",
       heirAdded: "Héritier ajouté : {heir}",
       heirsAdded: "{count} × {relationship} ajoutés.",
+      undoLastChange: "Annuler la dernière modification",
+      undoAction: "Annuler",
+      undoDone: "Dernière modification annulée.",
+      undoFailed: "Impossible d’annuler cette modification. Réessayez.",
       stepperFewer: "Diminuer le nombre ({relationship})",
       stepperMore: "Augmenter le nombre ({relationship})",
       stepperCount: "Nombre à ajouter ({relationship})",

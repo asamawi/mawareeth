@@ -20,6 +20,7 @@ export type Stubs = {
   patchCase?: Answer;
   postHeir?: Answer;
   postBulk?: Answer;
+  postRestore?: Answer;
   putHeir?: Answer;
   deleteHeir?: Answer;
   getPreview?: Answer;
@@ -47,6 +48,7 @@ export class Api {
   casePatches: { body: string; csrf: string | undefined }[] = [];
   heirPosts: { body: string; csrf: string | undefined }[] = [];
   bulkPosts: { body: string; csrf: string | undefined }[] = [];
+  restorePosts: { body: string; csrf: string | undefined }[] = [];
   heirPuts: string[] = [];
   heirDeletes: URL[] = [];
   previewGets = 0;
@@ -83,6 +85,10 @@ export class Api {
       if (pathname === "/api/v1/case/heirs/bulk/" && method === "POST") {
         this.bulkPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
         return this.answer(route, this.stubs.postBulk, "bulk add");
+      }
+      if (pathname === "/api/v1/case/restore/" && method === "POST") {
+        this.restorePosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.postRestore, "restore");
       }
       if (/^\/api\/v1\/case\/heirs\/[^/]+\/$/.test(pathname)) {
         if (method === "PUT") {

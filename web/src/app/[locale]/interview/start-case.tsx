@@ -10,6 +10,7 @@ import {
   fetchCase,
   markDeceased,
   removeHeir,
+  restoreCase,
   saveDeceased,
   setMadhab,
   startCase,
@@ -37,6 +38,7 @@ import {
   cancelOrder,
   cancelStartOver,
   heirFormKey,
+  historyOf,
   openChange,
   openLayer,
   revealOf,
@@ -76,13 +78,14 @@ import { DeathBreadcrumb, crumbTextOf } from "./death-breadcrumb";
 import { DeceasedForm } from "./deceased-form";
 import { EditSheet } from "./edit-sheet";
 import { FamilyTree } from "./family-tree";
-import { buttonClass, errorText, SaveNotice } from "./form-bits";
+import { buttonClass, errorText, SaveNotice, WithHeir } from "./form-bits";
 import { DeceasedSummary, HeirList } from "./heir-list";
 import { HeirForm } from "./heir-form";
 import { MadhabSelector } from "./madhab-selector";
 import { RelativesQuestion } from "./relatives-question";
 import { OrderQuestion } from "./order-question";
 import { SharePreview } from "./share-preview";
+import { isUndoShortcut, UndoButton, UndoToast } from "./undo-toast";
 
 function subscribeOnline(notify: () => void) {
   window.addEventListener("online", notify);
@@ -114,6 +117,7 @@ const deps: Deps = {
   markDeceased: (signal, caseId, revision, heirId, first, answers) =>
     markDeceased(signal, caseId, revision, heirId, first, {}, answers),
   unmarkDeceased: (signal, caseId, revision, heirId) => unmarkDeceased(signal, caseId, revision, heirId),
+  restoreCase,
   selection: selectionStore(),
   forms: formStore(),
   seen: {
@@ -194,6 +198,28 @@ export function StartCase({
     },
     [perform],
   );
+
+  // Undo takes back the latest family change; it does nothing while saving, offline or with no history.
+  const undo = useCallback(() => {
+    const current = latest.current;
+    if (current.name !== "started" || current.saving || !navigator.onLine || historyOf(current).length === 0) return;
+    void perform("undo", undefined, { kind: "undo", from: current });
+  }, [perform]);
+
+  // Ctrl/Cmd+Z outside text fields; inside them the browser's own undo keeps working.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!isUndoShortcut(event)) return;
+      const current = latest.current;
+      if (current.name !== "started" || current.saving || !navigator.onLine || historyOf(current).length === 0) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest("input, textarea, select, [contenteditable]:not([contenteditable=false])")) return;
+      event.preventDefault();
+      undo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo]);
 
   // Changes that touch only the view, never the server. Navigating is refused mid-save. Typing
   // is not routed here while saving, because the inputs are read-only then, so a save that
@@ -346,18 +372,24 @@ export function StartCase({
     removed: "heirRemoved",
     deathMarked: "deathMarked",
     deathUnmarked: "deathUnmarked",
+    undone: "undoDone",
   } as const;
   const announcement = announced
     ? {
         seq: announced.seq,
-        template: groupCount > 1
+        template: groupCount > 1 && announced.kind === "added"
           ? messages.heirsAdded.replace("{count}", String(groupCount)).replace("{relationship}", "{heir}")
           : messages[announcementTemplates[announced.kind]],
-        heir: groupCount > 1
+        heir: announced.kind === "undone" ? "" : groupCount > 1 && announced.kind === "added"
           ? messages.relationships[announced.heir.relationship]
           : heirLabel(announced.heir, messages.relationships, messages.heirNumbered, announced.ordinal),
       }
     : null;
+
+  const undoOffer = started !== null && historyOf(started).length > 0;
+  const undoDisabled = started !== null && (started.saving || !online);
+  const toast = started?.undoToast ?? null;
+  const toastCount = toast && toast.announcement.kind === "added" ? (toast.announcement.panelCount ?? 1) : 1;
 
   const madhabBar = started?.case.madhab ? (
     <div className="flex flex-wrap items-center gap-3">
@@ -445,7 +477,9 @@ export function StartCase({
             >
               {messages.startOver}
             </button>
+            {undoOffer && <span className="ms-3"><UndoButton messages={messages} disabled={undoDisabled} onUndo={undo} /></span>}
           </div>
+          {started.undoFailed && <p role="alert">{messages.undoFailed}</p>}
         </>
       )}
 
@@ -620,7 +654,20 @@ export function StartCase({
                 onDidNotDie={(personId, rowId) =>
                   submit((from) => ({ kind: "unmarkDeath", from, heirId: personId, rowId }))
                 }
+                undo={undoOffer ? { disabled: undoDisabled, onUndo: undo } : undefined}
               />
+              {toast && (
+                <UndoToast key={toast.key} messages={messages} disabled={undoDisabled} onUndo={undo}>
+                  <WithHeir
+                    template={toastCount > 1
+                      ? messages.heirsAdded.replace("{count}", String(toastCount)).replace("{relationship}", "{heir}")
+                      : messages[announcementTemplates[toast.announcement.kind]]}
+                    heir={toastCount > 1
+                      ? messages.relationships[toast.announcement.heir.relationship]
+                      : heirLabel(toast.announcement.heir, messages.relationships, messages.heirNumbered, toast.announcement.ordinal)}
+                  />
+                </UndoToast>
+              )}
             </div>
             <div className="min-w-0 lg:col-span-2 lg:col-start-1 lg:row-start-3 xl:col-span-1 xl:col-start-3 xl:row-span-2 xl:row-start-1">
               <SharePreview

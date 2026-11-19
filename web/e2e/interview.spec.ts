@@ -646,6 +646,165 @@ test.describe("add relatives", () => {
   });
 });
 
+test.describe("undo", () => {
+  const agree = fixture("Agree: wife, son and daughter in every school");
+  const stamp = (kase: Record<string, any>, revision: number): Record<string, any> => ({ ...kase, revision, snapshot: { at: revision } }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const start = () => stamp(fullCase(agree.case) as Record<string, any>, 5); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const son = (id: string) => ({ id, relationship: "son", gender: "male", name: null, edit_options: { blocked: [], invalid: {} } });
+  const open = async (page: Page, api: Parameters<typeof openHeirsScreen>[1], kase: Record<string, unknown>) => {
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, agree.response) });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    await page.locator("#add-relatives-heading").waitFor();
+  };
+  const added = (kase: Record<string, any>) => stamp({ ...kase, heirs: [...kase.heirs, son("new-son")] }, kase.revision + 1); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const headerUndo = (page: Page) => page.getByRole("button", { name: en.undoLastChange, exact: true });
+
+  test("no Undo control before a change, and none after a reload", async ({ page, api }) => {
+    const kase = start();
+    await open(page, api, kase);
+    await expect(headerUndo(page)).toHaveCount(0);
+    const after = added(kase);
+    api.set({ getCase: json(200, { case: after }), postHeir: json(201, { case: after }) });
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(headerUndo(page)).toHaveCount(2);
+    await page.reload();
+    await page.locator("#add-relatives-heading").waitFor();
+    await expect(headerUndo(page)).toHaveCount(0);
+  });
+
+  test("header Undo sends one restore with the prior snapshot at the current revision", async ({ page, api }) => {
+    const kase = start();
+    await open(page, api, kase);
+    const after = added(kase);
+    api.set({ postHeir: json(201, { case: after }) });
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(page.locator("[data-node='new-son']")).toBeVisible();
+    api.set({ postRestore: json(200, { case: stamp(kase, after.revision + 1) }) });
+    await headerUndo(page).first().click();
+    await expect(page.locator("[data-node='new-son']")).toHaveCount(0);
+    expect(api.restorePosts).toHaveLength(1);
+    expect(JSON.parse(api.restorePosts[0].body)).toEqual({
+      case_id: kase.id, expected_revision: after.revision, snapshot: kase.snapshot,
+    });
+    await expect(page.locator("[data-focus='card:root']")).toBeFocused();
+    await expect(headerUndo(page)).toHaveCount(0);
+  });
+
+  test("two changes then two Ctrl+Z presses outside inputs walk back both", async ({ page, api }) => {
+    const kase = start();
+    await open(page, api, kase);
+    const one = added(kase);
+    const two = stamp({ ...one, heirs: [...one.heirs, son("second-son")] }, one.revision + 1);
+    api.set({ postHeir: json(201, { case: one }) });
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(page.locator("[data-node='new-son']")).toBeVisible();
+    api.set({ postHeir: json(201, { case: two }) });
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(page.locator("[data-node='second-son']")).toBeVisible();
+    api.set({ postRestore: json(200, { case: stamp(one, two.revision + 1) }) });
+    await page.locator("body").click({ position: { x: 1, y: 1 } });
+    await page.keyboard.press("Control+z");
+    await expect(page.locator("[data-node='second-son']")).toHaveCount(0);
+    api.set({ postRestore: json(200, { case: stamp(kase, two.revision + 2) }) });
+    await page.keyboard.press("Control+z");
+    await expect(page.locator("[data-node='new-son']")).toHaveCount(0);
+    expect(api.restorePosts.map((post) => JSON.parse(post.body).snapshot)).toEqual([one.snapshot, kase.snapshot]);
+    await expect(headerUndo(page)).toHaveCount(0);
+  });
+
+  test("Ctrl+Z inside a text input is the browser's own undo and sends no restore", async ({ page, api }) => {
+    const kase = start();
+    await open(page, api, kase);
+    api.set({ postHeir: json(201, { case: added(kase) }) });
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(headerUndo(page).first()).toBeVisible();
+    await page.locator("[data-focus^='editHeir:']").first().click();
+    const sheet = page.locator("[data-edit-sheet]");
+    await expect(sheet).toBeVisible();
+    await sheet.getByLabel(en.heirNameLabel).focus();
+    await page.keyboard.press("Control+z");
+    expect(api.restorePosts).toHaveLength(0);
+    await expect(headerUndo(page)).toHaveCount(2);
+  });
+
+  test("a failed restore keeps Undo and shows the alert", async ({ page, api }) => {
+    const kase = start();
+    await open(page, api, kase);
+    api.set({ postHeir: json(201, { case: added(kase) }), postRestore: json(400, { error: "invalid_snapshot" }) });
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await headerUndo(page).first().click();
+    await expect(page.getByRole("alert").filter({ hasText: en.undoFailed })).toBeVisible();
+    await expect(headerUndo(page)).toHaveCount(2);
+    await expect(page.locator("[data-node='new-son']")).toBeVisible();
+  });
+
+  test("a restore conflict shows the notice, adopts the live case and hides Undo", async ({ page, api }) => {
+    const kase = start();
+    await open(page, api, kase);
+    const live = stamp({ ...kase, heirs: [son("other")] }, 20);
+    api.set({ postHeir: json(201, { case: added(kase) }), postRestore: json(409, { error: "conflict", case: live }) });
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await headerUndo(page).first().click();
+    await expect(page.getByRole("alert").filter({ hasText: en.conflictNotice })).toBeVisible();
+    await expect(page.locator("[data-node='other']")).toBeVisible();
+    await expect(headerUndo(page)).toHaveCount(0);
+    expect(api.restorePosts).toHaveLength(1);
+  });
+
+  test("offline, both Undo controls and Ctrl+Z do nothing and the offline line shows", async ({ page, context, api }) => {
+    const kase = start();
+    await open(page, api, kase);
+    api.set({ postHeir: json(201, { case: added(kase) }) });
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(headerUndo(page)).toHaveCount(2);
+    await context.setOffline(true);
+    await expect(page.getByText(en.offlineEditing)).toBeVisible();
+    for (const button of await headerUndo(page).all()) await expect(button).toHaveAttribute("aria-disabled", "true");
+    await headerUndo(page).first().click({ force: true });
+    await page.locator("body").click({ position: { x: 1, y: 1 } });
+    await page.keyboard.press("Control+z");
+    expect(api.restorePosts).toHaveLength(0);
+    await expect(headerUndo(page)).toHaveCount(2);
+  });
+
+  test("undoing a removal restores the heir, focuses its card and announces it politely", async ({ page, api }) => {
+    const kase = stamp({ ...start(), heirs: [son("a"), son("b"), son("c")] }, 5);
+    await open(page, api, kase);
+    const removed = stamp({ ...kase, heirs: [son("a"), son("c")] }, 6);
+    api.set({ deleteHeir: json(200, { case: removed }) });
+    await page.locator('[data-node="b"]').press("Delete");
+    await page.locator("[data-edit-sheet]").getByRole("button", { name: en.heirRemoveYes }).click();
+    await expect(page.locator("[data-node='b']")).toHaveCount(0);
+    api.set({ postRestore: json(200, { case: stamp(kase, 7) }) });
+    await headerUndo(page).first().click();
+    await expect(page.locator("[data-node='b']")).toBeVisible();
+    expect(api.restorePosts).toHaveLength(1);
+    expect(JSON.parse(api.restorePosts[0].body)).toEqual({ case_id: kase.id, expected_revision: 6, snapshot: kase.snapshot });
+    await expect(page.locator("[data-focus='card:b']")).toBeFocused();
+    await expect(page.locator("section[aria-labelledby='heirs-heading'] [role='status']")).toHaveText(en.undoDone);
+  });
+
+  test("the toast follows the Heirs list, is not a live region, and Undo outlives it", async ({ page, api }) => {
+    await page.clock.install();
+    const kase = start();
+    await open(page, api, kase);
+    api.set({ postHeir: json(201, { case: added(kase) }) });
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    const toast = page.locator("[data-undo-toast]");
+    await expect(toast).toBeVisible();
+    await expect(toast.getByRole("button", { name: en.undoAction, exact: true })).toBeVisible();
+    expect(await toast.evaluate((el) => !el.closest("[role],[aria-live]") && !el.querySelector("[role],[aria-live]"))).toBe(true);
+    expect(await toast.evaluate((el) => {
+      const list = document.querySelector("section[aria-labelledby='heirs-heading']")!;
+      return !!(list.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+    })).toBe(true);
+    await page.clock.fastForward(10_500);
+    await expect(toast).toHaveCount(0);
+    await expect(headerUndo(page)).toHaveCount(2);
+  });
+});
+
 test.describe("interview shell", () => {
   const regions = (page: Page) => ({
     add: page.locator("section[aria-labelledby='add-relatives-heading']"),
@@ -851,7 +1010,7 @@ test.describe("lineage canvas", () => {
       // Tailwind's -scale-x-100 sets the `scale` property; only the connector layer is mirrored.
       expect(await group.locator("svg").first().evaluate(el => getComputedStyle(el).scale)).toBe(locale === "ar" ? "-1 1" : "none");
       for (const card of await cards.all()) expect(await card.evaluate(el => getComputedStyle(el).scale)).toBe("none");
-      await expect(page.locator("#heirs-heading").locator("..")).toContainText(t.treeNoShare);
+      await expect(page.locator("section[aria-labelledby='heirs-heading']")).toContainText(t.treeNoShare);
       // Matrix "lineage": the died-before person has a list row with its badge and edit/remove actions.
       const before = page.locator("section[aria-labelledby='heirs-heading'] ul > li").filter({ hasText: t.treeDiedBefore.male });
       await expect(before).toHaveCount(1);

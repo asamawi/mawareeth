@@ -130,6 +130,7 @@ function deps(options: {
     markDeceased: async (_signal, caseId, revision, heirId, first) =>
       answerWith("markDeceased", caseId, { heirId, ...(first === undefined ? {} : { fields: { first } }) }, revision),
     unmarkDeceased: async (_signal, caseId, revision, heirId) => answerWith("unmarkDeceased", caseId, { heirId }, revision),
+    restoreCase: async (_signal, caseId, revision, snapshot) => answerWith("restoreCase", caseId, { fields: snapshot }, revision),
     seen: { get: () => log.seen, set: (next) => (log.seen = next) },
     selection: { get: () => log.selection, set: (next) => (log.selection = next) },
     forms: { get: () => log.form, set: (next) => (log.form = next) },
@@ -2126,4 +2127,136 @@ test("openLayer clears the panel outcome", () => {
   const next = openLayer(view, "s1", value);
   assert.equal(next.layer, "s1");
   assert.equal("panel" in next, false);
+});
+
+// Story 9.6: Undo
+const snap = (tag: string) => ({ tag });
+const rev = (kase: Case, revision: number, tag: string): Case => ({ ...kase, revision, snapshot: snap(tag) });
+const U0 = rev(WITH_SON, 5, "u0");
+const U1 = rev(WITH_TWO, 6, "u1");
+
+test("Undo history: a saved add pushes one entry holding the prior snapshot, with a toast", async () => {
+  const { value } = deps({ answer: () => ({ kind: "saved", case: U1 }) });
+  const view = (await runAction("addHeir", signal, value, U0, undefined, {
+    kind: "addHeir", from: startedOf(U0, true), values: { relationship: "daughter", name: "Amal" },
+  })) as StartedView;
+  assert.deepEqual(view.history, [{ snapshot: snap("u0") }]);
+  assert.equal(view.undoToast?.key, 1);
+  assert.equal(view.undoToast?.announcement.kind, "added");
+});
+
+test("Undo history: a saved bulk add pushes exactly one entry and one toast", async () => {
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: rev(WITH_TWO, 6, "u1") }) });
+  const view = (await runAction("addHeir", signal, value, U0, undefined, {
+    kind: "addHeir", from: startedOf(U0, true), origin: "panel", count: 4, values: { relationship: "daughter", name: "", same_as: "" },
+  })) as StartedView;
+  assert.equal(log.answers[0].call, "addHeirs");
+  assert.deepEqual(view.history, [{ snapshot: snap("u0") }]);
+  assert.equal(view.undoToast?.key, 1);
+});
+
+test("Undo history: edits and removals record the person; deaths record the heir", async () => {
+  const { value } = deps({ answer: () => ({ kind: "saved", case: U1 }) });
+  const edited = (await runAction("saveHeir", signal, value, U0, undefined, {
+    kind: "saveHeir", from: startedOf(U0, true), heirId: "h1", values: { relationship: "son", name: "Ali" },
+  })) as StartedView;
+  assert.deepEqual(edited.history, [{ snapshot: snap("u0"), person: "h1" }]);
+  const removed = (await runAction("removeHeir", signal, value, U0, undefined, {
+    kind: "removeHeir", from: startedOf(U0, true, { history: edited.history }), heirId: "h1", confirm: true,
+  })) as StartedView;
+  assert.equal(removed.history?.length, 2);
+  assert.equal(removed.history?.[1].person, "h1");
+});
+
+test("Undo history: a prior case without a snapshot pushes nothing", async () => {
+  const { value } = deps({ answer: () => ({ kind: "saved", case: U1 }) });
+  const view = (await runAction("addHeir", signal, value, WITH_SON, undefined, {
+    kind: "addHeir", from: startedOf(WITH_SON, true), values: { relationship: "daughter", name: "" },
+  })) as StartedView;
+  assert.deepEqual(view.history ?? [], []);
+});
+
+test("Undo history: refusals, impact answers and failures push nothing and keep the history", async () => {
+  const kept = [{ snapshot: snap("old") }];
+  for (const result of [
+    { kind: "invalid", errors: { relationship: "x" } },
+    { kind: "cascade", impact: { persons: ["h1"], estates: [] }, case: U0 },
+    { kind: "failed" },
+    { kind: "throttled" },
+  ] as AnswerResult[]) {
+    const { value } = deps({ answer: () => result, read: async () => U0 });
+    const view = (await runAction("removeHeir", signal, value, U0, undefined, {
+      kind: "removeHeir", from: startedOf(U0, true, { history: kept }), heirId: "h1",
+    })) as StartedView;
+    assert.deepEqual(view.history, kept, result.kind);
+  }
+});
+
+test("Undo history: a conflict, a saved non-family change and the school clear it", async () => {
+  const kept = [{ snapshot: snap("old") }];
+  const from = startedOf(U0, true, { history: kept });
+  const conflict = deps({ answer: () => ({ kind: "replaced", case: rev(WITH_TWO, 9, "x") }) });
+  const replaced = (await runAction("saveHeir", signal, conflict.value, U0, undefined, {
+    kind: "saveHeir", from, heirId: "h1", values: { relationship: "son", name: "Z" },
+  })) as StartedView;
+  assert.deepEqual(replaced.history ?? [], []);
+  const plain = deps({ answer: () => ({ kind: "saved", case: U1 }) });
+  const deceased = (await runAction("saveDeceased", signal, plain.value, U0, undefined, {
+    kind: "saveDeceased", from, values: { gender: "male", estate: "10" },
+  })) as StartedView;
+  assert.deepEqual(deceased.history ?? [], []);
+  assert.equal(deceased.undoToast, undefined);
+});
+
+test("Undo: one restore at the current revision with the top snapshot; success pops and focuses the person", async () => {
+  const entries = [{ snapshot: snap("a") }, { snapshot: snap("u0"), person: "h1" }];
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: rev(WITH_SON, 7, "after") }) });
+  const from = startedOf(U1, true, { history: entries, undoToast: { key: 2, announcement: { kind: "added", id: "h2", heir: { name: null, relationship: "son" }, ordinal: null, seq: 1 } } });
+  const view = (await runAction("undo", signal, value, U1, undefined, { kind: "undo", from })) as StartedView;
+  assert.deepEqual(log.answers, [{ call: "restoreCase", caseId: U1.id, fields: snap("u0") }]);
+  assert.deepEqual(log.revisions, [6]);
+  assert.deepEqual(view.history, [{ snapshot: snap("a") }]);
+  assert.equal(view.undoToast, undefined);
+  assert.equal(view.announcement?.kind, "undone");
+  assert.equal(view.focus?.target, "card:h1");
+  assert.equal(view.case.revision, 7);
+});
+
+test("Undo: focus goes to the deceased when the person is not in the restored family", async () => {
+  const { value } = deps({ answer: () => ({ kind: "saved", case: rev(WITH_SON, 7, "after") }) });
+  const from = startedOf(U1, true, { history: [{ snapshot: snap("u0"), person: "gone" }] });
+  const view = (await runAction("undo", signal, value, U1, undefined, { kind: "undo", from })) as StartedView;
+  assert.equal(view.focus?.target, "card:root");
+});
+
+test("Undo with an empty history sends nothing", async () => {
+  const { value, log } = deps({});
+  const view = (await runAction("undo", signal, value, U1, undefined, { kind: "undo", from: startedOf(U1, true) })) as StartedView;
+  assert.deepEqual(log.answers, []);
+  assert.deepEqual(view.history ?? [], []);
+});
+
+test("Undo that fails or is throttled keeps the entry and the family and shows the failure", async () => {
+  const entries = [{ snapshot: snap("u0") }];
+  for (const kind of ["failed", "throttled"] as const) {
+    const { value, log } = deps({ answer: () => ({ kind }) });
+    const from = startedOf(U1, true, { history: entries });
+    const view = (await runAction("undo", signal, value, U1, undefined, { kind: "undo", from })) as StartedView;
+    assert.equal(log.answers.length, 1);
+    assert.deepEqual(view.history, entries);
+    assert.equal(view.undoFailed, true);
+    assert.equal(view.case, U1);
+  }
+});
+
+test("Undo that meets a conflict adopts the live case, says so, clears the history and never resends", async () => {
+  const live = rev(WITH_TWO, 9, "live");
+  const { value, log } = deps({ answer: () => ({ kind: "replaced", case: live }) });
+  const from = startedOf(U1, true, { history: [{ snapshot: snap("u0") }] });
+  const view = (await runAction("undo", signal, value, U1, undefined, { kind: "undo", from })) as StartedView;
+  assert.equal(log.answers.length, 1);
+  assert.equal(view.case, live);
+  assert.equal(view.conflict, true);
+  assert.deepEqual(view.history ?? [], []);
+  assert.equal(view.undoToast, undefined);
 });

@@ -18,6 +18,7 @@ import {
   MADHAB_IDS,
   readCsrfToken,
   removeHeir,
+  restoreCase,
   saveDeceased,
   setMadhab,
   startCase,
@@ -395,6 +396,41 @@ test("bulk add maps capacity and the lowest indexed refusal, and rejects malform
     stubFetch(async () => Response.json({ error: "invalid_input", errors }, { status: 400 }));
     assert.deepEqual(await send(), { kind: "failed" });
   }
+});
+
+test("parseCase keeps a plain-object snapshot opaque and drops anything else", () => {
+  const snapshot = { madhab: "hanbali", heirs: [{ id: "h1" }] };
+  assert.deepEqual(parseCase({ case: { ...CASE, snapshot } })?.snapshot, snapshot);
+  for (const bad of [null, [], "x", 5]) {
+    assert.equal("snapshot" in (parseCase({ case: { ...CASE, snapshot: bad } }) ?? {}), false);
+  }
+  assert.equal("snapshot" in (parseCase({ case: CASE }) ?? {}), false);
+});
+
+test("restoreCase posts the snapshot at the revision and maps its outcomes", async () => {
+  const snapshot = { madhab: "hanbali", heirs: [] };
+  const calls = stubFetch(async () => Response.json({ case: FULL_CASE }));
+  assert.deepEqual(await restoreCase(signal(), "abc123", 7, snapshot, withToken), { kind: "saved", case: FULL_CASE });
+  assert.equal(calls[0].url, "/api/v1/case/restore/");
+  assert.equal(calls[0].init?.method, "POST");
+  assert.equal(header(calls[0], "X-CSRFToken"), "tok=1");
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { snapshot, case_id: "abc123", expected_revision: 7 });
+  const send = () => restoreCase(signal(), "abc123", 7, snapshot, withToken);
+  for (const [status, body, expected] of [
+    [409, { error: "conflict", case: FULL_CASE }, { kind: "replaced", case: FULL_CASE }],
+    [404, { case: null }, { kind: "gone" }],
+    [400, { error: "invalid_snapshot" }, { kind: "failed" }],
+    [400, { error: "invalid_revision" }, { kind: "failed" }],
+    [429, {}, { kind: "throttled" }],
+    [200, {}, { kind: "failed" }],
+  ] as const) {
+    stubFetch(async () => Response.json(body, { status }));
+    assert.deepEqual(await send(), expected);
+  }
+  stubFetch(async () => {
+    throw new TypeError("fetch failed");
+  });
+  assert.deepEqual(await send(), { kind: "failed" });
 });
 
 test("confirmed removal uses the impact revision and validates a cascade response", async () => {

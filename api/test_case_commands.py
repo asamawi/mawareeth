@@ -370,6 +370,49 @@ class RestoreTests(CommandBase):
         self.assertEqual(case['deaths'], [])
         self.assertEqual(case['madhab'], 'hanbali')
 
+    def test_every_live_case_response_carries_the_servers_own_snapshot(self):
+        case = self.setup_family()
+        self.assertIn('snapshot', case)
+        read = self.live()
+        self.assertEqual(read['snapshot'], anonymous_case.export_snapshot(self.stored_case()))
+        added = self.send('post', HEIRS_URL, {'case_id': self.case_id, 'relationship': 'daughter'})
+        self.assertEqual(added.status_code, 201)
+        body = added.json()['case']
+        self.assertEqual(body['snapshot'], anonymous_case.export_snapshot(self.stored_case()))
+        stale = self.send('post', HEIRS_URL, {'case_id': self.case_id, 'relationship': 'son',
+                                              'expected_revision': 1})
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(stale.json()['case']['snapshot'], self.live()['snapshot'])
+        self.assertNotIn('snapshot', self.stored())
+
+    def test_posting_the_snapshot_from_before_an_add_restores_that_family(self):
+        self.setup_family()
+        before = self.live()
+        self.assertEqual(self.send('post', HEIRS_URL, {'case_id': self.case_id,
+                                                       'relationship': 'daughter'}).status_code, 201)
+        response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot': before['snapshot']})
+        self.assertEqual(response.status_code, 200)
+        case = response.json()['case']
+        self.assertEqual([row['id'] for row in case['heirs']], [row['id'] for row in before['heirs']])
+        self.assertEqual(case['revision'], before['revision'] + 2)
+
+    def stored_case(self):
+        return anonymous_case.read_snapshot(dict(self.stored()), 'x', 'y')
+
+    def test_a_restore_at_a_stale_revision_is_a_conflict_that_changes_nothing(self):
+        self.setup_family()
+        before = self.live()
+        self.assertEqual(self.send('post', HEIRS_URL, {'case_id': self.case_id,
+                                                       'relationship': 'daughter'}).status_code, 201)
+        raw, stored = self.raw_session(), self.stored()
+        response = self.send('post', RESTORE_URL, {
+            'case_id': self.case_id, 'snapshot': before['snapshot'], 'expected_revision': before['revision']})
+        self.assert_untouched(response, 409, raw, stored)
+        body = response.json()
+        self.assertEqual(body['error'], 'conflict')
+        self.assertEqual(body['case'], self.live())
+        self.assertIn('snapshot', body['case'])
+
     def test_an_invalid_snapshot_is_refused_whole(self):
         self.setup_family()
         good = self.snapshot()

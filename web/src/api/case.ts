@@ -135,6 +135,8 @@ export type Case = {
   edges?: Edge[];
   /** Where each person of the first estate can have a relative added; `root` is the deceased. */
   placement?: Placement;
+  /** The server's own export of this case, kept opaque: it is what a restore sends back. Absent when not sent. */
+  snapshot?: Record<string, unknown>;
 };
 
 export type PersonStatus = "alive" | "died_before_or_with" | "died_later";
@@ -249,6 +251,7 @@ type CaseBody = {
   persons?: unknown;
   edges?: unknown;
   placement?: unknown;
+  snapshot?: unknown;
 };
 
 function isCaseBody(value: unknown): value is CaseBody {
@@ -449,7 +452,12 @@ export function parseCase(body: unknown): Case | null {
     persons,
     edges: parseEdges(value.edges, persons),
     placement: parsePlacement(value.placement),
+    ...(isPlainObject(value.snapshot) ? { snapshot: value.snapshot } : {}),
   };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function readCsrfToken(cookie: string = document.cookie): string | undefined {
@@ -698,6 +706,7 @@ const DECEASED_URL = "/api/v1/case/deceased/";
 const HEIRS_URL = "/api/v1/case/heirs/";
 const BULK_HEIRS_URL = `${HEIRS_URL}bulk/`;
 const DEATHS_URL = "/api/v1/case/deaths/";
+const RESTORE_URL = "/api/v1/case/restore/";
 
 /** The query of a DELETE: the case, its revision and the cascade confirmation, which each call opts into. */
 function deleteQuery(caseId: string, revision: number | null, confirm: boolean): string {
@@ -724,6 +733,17 @@ export function addHeir(
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
   return answer(signal, options, "POST", HEIRS_URL, caseId, revision, fields);
+}
+
+/** Replaces the case's inputs with a snapshot the server exported. One attempt; never throws. */
+export function restoreCase(
+  signal: AbortSignal,
+  caseId: string,
+  revision: number | null,
+  snapshot: Record<string, unknown>,
+  options: WriteOptions = {},
+): Promise<AnswerResult> {
+  return answer(signal, options, "POST", RESTORE_URL, caseId, revision, { snapshot });
 }
 
 export function addHeirs(

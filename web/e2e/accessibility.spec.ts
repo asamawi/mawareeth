@@ -3,7 +3,12 @@ import type { Page } from "@playwright/test";
 
 import { messages } from "../src/i18n/messages";
 import { openCanvasFixture, openHeirsScreen } from "./family";
-import { expect, noCase, sessionAnonymous, startedCase, test } from "./api";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { expect, fullCase, json, noCase, sessionAnonymous, startedCase, test } from "./api";
+
+const agree = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[] })
+  .fixtures.find((item) => item.title === "Agree: wife, son and daughter in every school")!;
 
 async function serious(page: Page) {
   const { violations } = await new AxeBuilder({ page }).analyze();
@@ -49,6 +54,27 @@ test.describe("axe", () => {
 for (const locale of ["en", "ar"] as const) for (const kind of ["lineage", "empty"] as const) {
   test(`${kind} canvas in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
     await openCanvasFixture(page, api, locale, kind);
+    expect(await serious(page)).toEqual([]);
+  });
+}
+
+for (const locale of ["en", "ar"] as const) {
+  test(`undo controls and toast in ${locale} have no serious or critical axe violations`, async ({ page, api }) => {
+    const kase = fullCase(agree.case, { revision: 5, snapshot: { at: 5 } }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const options = { blocked: [], invalid: {} };
+    const returned = { ...kase, revision: 6, snapshot: { at: 6 }, heirs: [...kase.heirs, { id: "new-son", relationship: "son", gender: "male", name: null, edit_options: options }] };
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, { case: kase }),
+      getPreview: json(200, agree.response),
+      postHeir: json(201, { case: returned }),
+    });
+    await page.goto(`/${locale}/interview/`);
+    await page.getByRole("button", { name: messages[locale].interview.resume }).click();
+    await page.locator("section[aria-labelledby='add-relatives-heading']").waitFor();
+    await page.locator("[data-focus='add:son']").click();
+    await expect(page.locator("[data-undo-toast]")).toBeVisible();
+    await expect(page.getByRole("button", { name: messages[locale].interview.undoLastChange, exact: true })).toHaveCount(2);
     expect(await serious(page)).toEqual([]);
   });
 }
