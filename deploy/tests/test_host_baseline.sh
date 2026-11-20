@@ -8,7 +8,7 @@ example="$root/deploy/host-baseline.env.example"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 need() { grep -Fq -- "$2" "$1" || fail "missing $2 in $1"; }
 
-bash -n "$provision" "$bootstrap" "$0"
+for f in "$provision" "$bootstrap" "$0"; do bash -n "$f" || fail "bash -n failed for ${f##*/} (syntax error or unreadable file)"; done
 need "$provision" '--type cx33'
 need "$provision" '--location nbg1'
 need "$provision" '--image ubuntu-24.04'
@@ -103,17 +103,6 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 ssh-keygen -q -t ed25519 -N '' -C baseline@test -f "$tmp/idpair" >/dev/null || fail 'ssh-keygen could not create the sample admin key'
 { cut -d' ' -f1,2 "$tmp/idpair.pub" | tr -d '\n'; printf ' baseline@test\n'; } > "$tmp/id.pub"
-printf 'placeholder\n' > "$tmp/id"
-cat > "$tmp/config" <<EOF
-HETZNER_TOKEN=redacted
-SERVER_NAME=baseline-test
-HETZNER_SSH_KEY_NAME=baseline-test-key
-SSH_PUBLIC_KEY=$tmp/id.pub
-ADMIN_SSH_PRIVATE_KEY=$tmp/id
-SSH_ALLOWED_CIDRS=not-a-cidr
-EOF
-chmod 600 "$tmp/config"
-if HOST_BASELINE_CONFIG="$tmp/config" bash "$provision" >/dev/null 2>&1; then fail 'malformed CIDR was accepted'; fi
 printf '%s\n' 'host baseline offline checks passed'
 
 # PUBLIC_WEB_SOURCES on the guest: bootstrap's public-web block, exercised with
@@ -592,7 +581,7 @@ provision_refuses() { # expected-name config [provision script]
 { cat "$tmp/valid-config"; printf 'PUBLIC_WEB_SOURCES=other\n'; } > "$tmp/bad-mode-config"
 chmod 600 "$tmp/bad-mode-config"
 provision_refuses PUBLIC_WEB_SOURCES "$tmp/bad-mode-config"
-for bad in '203.0.113.0/24,:contains an empty CIDR' ',203.0.113.0/24:contains an empty CIDR' $'203.0.113.0/24\n198.51.100.0/24:without spaces or newlines' '203.0.113.0/24, 198.51.100.0/24:without spaces or newlines'; do
+for bad in 'not-a-cidr:invalid or excessively broad CIDR' '203.0.113.0/24,:contains an empty CIDR' ',203.0.113.0/24:contains an empty CIDR' $'203.0.113.0/24\n198.51.100.0/24:without spaces or newlines' '203.0.113.0/24, 198.51.100.0/24:without spaces or newlines'; do
   { sed '/^SSH_ALLOWED_CIDRS=/d' "$tmp/valid-config"; printf 'SSH_ALLOWED_CIDRS=%q\n' "${bad%:*}"; } > "$tmp/bad-cidr-config"
   chmod 600 "$tmp/bad-cidr-config"
   provision_refuses "${bad##*:}" "$tmp/bad-cidr-config"

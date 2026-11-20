@@ -22,9 +22,9 @@ Completed and obsolete items are removed; their history is in git.
   summary: Parse each admin key type's fields in `bootstrap-host.sh` `validate_admin` (as OpenSSH's `sshkey.c` does), so a key with a matching type header but an incomplete body (e.g. a one-byte ed25519 key) is refused.
   evidence: The guest check now requires strict, canonical base64, the full type header and at least one key byte, but no type-specific structure; `provision-host.sh` sends an `ssh-keygen -y` key, so only a direct guest run with a hand-made key could install a key OpenSSH cannot load.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-bootstrap-guest-input-tightening.md`
-  summary: Move the offline `SSH_ALLOWED_CIDRS=not-a-cidr` provision run in `test_host_baseline.sh` onto `provision_refuses`, and split the suite's `bash -n "$provision" "$bootstrap" "$0"` into one `bash -n` per file.
-  evidence: The not-a-cidr run discards output and accepts any nonzero exit; `bash -n a b c` parses only the first file and treats the rest as positional arguments, so bootstrap and the suite itself are not syntax-checked there. Both pre-existing.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-host-baseline-suite-tightening.md`
+  summary: Fix ShellCheck SC2258 in `deploy/tests/test_host_baseline.sh` (`for cidrs in 203.0.113.0/24, ,203.0.113.0/24; do`, added in 83b889a) by quoting the two values, before the next push: CI runs ShellCheck 0.11.0 on `deploy/tests/*.sh`.
+  evidence: ShellCheck 0.9.0 in an Ubuntu 24.04 container reports SC2258 (warning) at that line on HEAD 83b889a, independent of this story's diff; the trailing comma is part of the word, so the test values are probably still as intended, but the lint step fails on warnings.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-host-baseline-validation-tests.md`
   summary: Add a sandboxed run of `bootstrap-host.sh` itself (stubbed EUID, `/etc/os-release`, `apt-get` and a mutation log) that proves a bad guest input is refused before the first host change.
