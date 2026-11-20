@@ -62,6 +62,32 @@ deferred: []
 - Given the existing engine and API test suites, when they run, then they pass unchanged (no existing assertion edited).
 - Given `api.heir_rules.blocked_relationships` for any school and counts, when called, then its result is the same as before the change.
 
+## Spec Change Log
+
+## Review Triage Log
+
+### 2026-11-20 — Review pass
+- verdicts: 18 findings — high 0, medium 0, low 12, false 6, maybe-false 0
+- findings:
+  - `[false]` `[reject]` blind-hunter: cross-estate rule beyond gender has no disposition — `evaluate` performs no cross-estate role check other than gender (`engine/core.py:108-140`), so there is nothing else for the queries to agree with.
+  - `[low]` `[reject]` blind-hunter: `next()` lookup can raise `StopIteration` if `family.persons` lacks the replaced heir — the parser rejects heir ids missing from persons; only a hand-built inconsistent `Family` reaches it, the only direct builder (`api/heir_rules.py`) is consistent, and the same pattern pre-exists for the later-estate deceased lookup. Fix would add a guard.
+  - `[low]` `[patch]` blind-hunter: disjointness never tested on a candidate both blocked and gender-locked — added `family(['son','brother'])`, replacing `h1`: `daughter_of_son` is `gender_locked` and not in `blocked`.
+  - `[low]` `[reject]` blind-hunter: sweeps skip candidates with another code — those codes are covered by the existing kinship matrix tests; not a defect.
+  - `[low]` `[patch]` blind-hunter: cardinality precedence untested on replacement — added `second_father` assertion (father kept, daughter replaced by father).
+  - `[low]` `[reject]` edge-case-hunter: `StopIteration` for a missing Person — same claim as the blind-hunter row, rejected for the same reason.
+  - `[low]` `[reject]` edge-case-hunter: hand-built Person with null/unknown gender — the parser validates gender; unreachable from any producer, fix adds a guard.
+  - `[false]` `[reject]` edge-case-hunter: an earlier-estate gender conflict still makes `evaluate` refuse — that conflict is the Family's existing state, not created by any option the query offers; whole-family validation stays in `evaluate`.
+  - `[low]` `[patch]` edge-case-hunter: `brother` parity in the aliased test only checked "not gender_locked" — now asserts equality with `options.impossible.get('brother')`.
+  - `[low]` `[patch]` edge-case-hunter: new backlog entry wrongly named died-before people — confirmed `api/anonymous_case.py:846` locks linked people and later deceased only, and died-before rows carry no `edit_options`; entry reworded.
+  - `[low]` `[patch]` verification-gap: blocked-and-locked disjointness — same fix as the blind-hunter row.
+  - `[low]` `[patch]` verification-gap: no fixture separates recorded gender from current role — added a parsed family with a male person in a `daughter` row (`son` not locked, `daughter` locked); made strict (no skip).
+  - `[low]` `[patch]` verification-gap: cardinality precedence — same fix as the blind-hunter row.
+  - `[low]` `[patch]` verification-gap other: backlog entry died-before wording — same fix as the edge-case row.
+  - `[false]` `[reject]` intent-alignment reading 1 (engine query parity) — implemented by the diff; descriptive, no defect.
+  - `[false]` `[reject]` intent-alignment reading 2 (broader cross-estate consistency) — the intent names no conflicting role combination and `evaluate` enforces none.
+  - `[false]` `[reject]` intent-alignment reading 3 (case API `edit_options` parity) — the deferred item locates the gap at "the public query boundary"; the API surface is recorded as a new deferred-work entry.
+  - `[false]` `[reject]` cross-story-contract: no contract shape changed.
+
 ## Verification
 
 **Commands:**
