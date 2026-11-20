@@ -453,10 +453,6 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
   summary: `evaluate` ignores Family gifts, bequests and eligibility answers, so a Family carrying a bequest gets a normal Result with no refusal.
   evidence: `engine/core.py` `evaluate` reads only heirs and estate. No producer emits these yet; the bequest/gift stories must compute them or refuse a Family that carries them.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-reproduce-existing-single-estate-school-answers-in-memory.md`
-  summary: No corpus family exercises the cap on the full siblings' share in the grandfather branch; a mutation there went undetected.
-  evidence: Spec 8.2 residual risks. Add a known-answer family that hits the cap to the parity corpus.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-3-preserve-successive-death-answers-and-proof-inside-the-core.md`
   summary: The engine accepts and calculates a person whose relationship contradicts their own gender (a female person entered as `father`), including in later deaths.
   evidence: `engine/core.py` checks impossible relationship combinations and a later deceased's spouse sex, not every heir's gender. The session shell sets gender from the relationship, so no current producer sends this.
