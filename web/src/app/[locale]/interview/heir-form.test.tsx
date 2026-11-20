@@ -212,3 +212,13 @@ test("Arabic renders the labels and the reveal button", async () => {
     assert.equal(ui.radios()[1].closest("label")!.textContent, m.relationships.son);
   } finally { await ui.close(); }
 });
+
+test("the add form's relationship error slot is not a live region", async () => {
+  const ui = await mount({ errors: { relationship: "required" } });
+  try {
+    const el = ui.node.querySelector("#heir-relationship-error")!;
+    assert.equal(el.hasAttribute("role"), false);
+    assert.equal(el.children.length, 0);
+    assert.notEqual(el.textContent, "");
+  } finally { await ui.close(); }
+});

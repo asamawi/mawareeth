@@ -193,10 +193,10 @@ export function HeirForm({
 }
 
 export function RelationshipFields({ messages, options, deceasedGender, labelBlocked, value, frozen,
-  relationshipError, onChange, onBlur, immediate = false }: {
+  relationshipError, onChange, onBlur, immediate = false, errorAnnounce }: {
   messages: Messages["interview"]; options: HeirOptions; deceasedGender: Gender;
   labelBlocked: boolean; value: string; frozen: boolean; relationshipError: string | null;
-  onChange: (value: string, control: string) => void; onBlur?: () => void; immediate?: boolean;
+  onChange: (value: string, control: string) => void; onBlur?: () => void; immediate?: boolean; errorAnnounce?: number;
 }) {
   // Every relative stays offered: a blocked one can still change the others' shares.
   const offered = heirOptionLabels(options, labelBlocked, messages.relationships, messages.heirRelationshipBlocked);
@@ -298,7 +298,7 @@ export function RelationshipFields({ messages, options, deceasedGender, labelBlo
             </select>
           </div>
         )}
-        <FieldError id="heir-relationship-error" text={relationshipError} />
+        <FieldError id="heir-relationship-error" text={relationshipError} live={immediate} announce={errorAnnounce} />
       </fieldset>
   );
 }

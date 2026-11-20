@@ -177,9 +177,9 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Interview & web UI
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-edit-sheet-refuses-invalid-relationships.md`
-  summary: Announce relationship errors in the tree edit sheet to screen readers (a live region or focus move), since a refused or rejected pick reverts the picker and the reason appears only in a plain paragraph.
-  evidence: `FieldError` in `web/src/app/[locale]/interview/form-bits.tsx` is a plain `<p>`; the sheet's `FormError` excludes `relationship`; same for server-rejected picks before the local refusal existed.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-announce-edit-sheet-relationship-errors.md`
+  summary: Check with real screen readers (NVDA, JAWS, VoiceOver, TalkBack) that the tree edit sheet's relationship alert is spoken on a refused or rejected pick, and again on an identical retry.
+  evidence: The alert (`role="alert"` on `#heir-relationship-error`, inner span re-keyed per refusal) is tested in jsdom only; whether each screen reader speaks a replaced span with identical text is unverified.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-browser-tests.md`
   summary: Run a browser hydration check under the production Content-Security-Policy, for example a Playwright project that serves the export through Django/WhiteNoise (or sends the CSP computed by `mawareeth/web_headers.py`) and fails on any CSP console violation.

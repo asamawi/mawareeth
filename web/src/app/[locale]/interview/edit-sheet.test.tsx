@@ -210,7 +210,7 @@ for (const phone of [false, true]) test(`the edit sheet offers Add relative here
   try {
     const toggle = ui.node.querySelector<HTMLButtonElement>('[data-focus="addHere"]')!;
     assert.equal(toggle.textContent, messages.en.interview.addRelativeHere);
-    assert.equal(ui.node.querySelector('[role="alert"]')?.textContent, "Refused here");
+    assert.equal(ui.node.querySelector('[role="alert"]:not(#heir-relationship-error)')?.textContent, "Refused here");
     await act(async () => toggle.click());
     await act(async () => ui.node.querySelector<HTMLButtonElement>('[data-focus="addHere:son_of_son"]')!.click());
     assert.deepEqual(ui.added, ["son_of_son"]);
@@ -367,5 +367,70 @@ test("a status save or the placeholder pick clears the local message", async () 
       select.dispatchEvent(new t.dom.Event("change", { bubbles: true }) as unknown as Event);
     });
     assert.equal(slot(t.node), "");
+  } finally { await t.stop(); }
+});
+
+test("the sheet's relationship slot is a live region, empty until a refusal, with focus left in place", async () => {
+  const t = await mount({ view: withInvalid({ daughter: "gender_locked" }) });
+  try {
+    const el = t.node.querySelector("#heir-relationship-error")!;
+    assert.equal(el.getAttribute("role"), "alert");
+    assert.equal(el.textContent, "");
+    const daughter = radio(t.node, "daughter");
+    daughter.focus();
+    await act(async () => daughter.click());
+    assert.equal(el.isConnected, true);
+    assert.equal(t.node.querySelector("#heir-relationship-error"), el);
+    assert.equal(el.getAttribute("role"), "alert");
+    assert.equal(el.textContent, relationshipErrors.gender_locked);
+    assert.equal(document.activeElement, daughter);
+  } finally { await t.stop(); }
+});
+
+test("a repeated identical refusal replaces the text node so it is announced again", async () => {
+  const t = await mount({ view: withInvalid({ daughter: "gender_locked" }) });
+  try {
+    const el = t.node.querySelector("#heir-relationship-error")!;
+    await act(async () => radio(t.node, "daughter").click());
+    const first = el.querySelector("span")!;
+    assert.ok(first);
+    await act(async () => radio(t.node, "daughter").click());
+    const second = el.querySelector("span")!;
+    assert.equal(second.textContent, relationshipErrors.gender_locked);
+    assert.notEqual(second, first);
+    assert.equal(first.isConnected, false);
+    assert.equal(el.isConnected, true);
+    assert.equal(t.node.querySelector("#heir-relationship-error"), el);
+  } finally { await t.stop(); }
+});
+
+test("a repeated identical refusal through the more select is announced again", async () => {
+  const t = await mount({ view: withInvalid({ husband: "husband_of_male" }) });
+  try {
+    const select = await pickSelect(t, "husband");
+    const first = t.node.querySelector("#heir-relationship-error span")!;
+    assert.equal(first.textContent, relationshipErrors.husband_of_male);
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(select), "value")!.set!;
+    await act(async () => {
+      setter.call(select, "husband");
+      select.dispatchEvent(new t.dom.Event("change", { bubbles: true }) as unknown as Event);
+    });
+    const second = t.node.querySelector("#heir-relationship-error span")!;
+    assert.equal(second.textContent, relationshipErrors.husband_of_male);
+    assert.notEqual(second, first);
+    assert.equal(first.isConnected, false);
+  } finally { await t.stop(); }
+});
+
+test("a server relationship error arriving in the mounted empty alert shows there", async () => {
+  const view = withInvalid({});
+  const t = await mount({ view });
+  try {
+    const el = t.node.querySelector("#heir-relationship-error")!;
+    assert.equal(el.textContent, "");
+    await t.draw({ ...view, errors: { relationship: "second_father" } });
+    assert.equal(t.node.querySelector("#heir-relationship-error"), el);
+    assert.equal(el.getAttribute("role"), "alert");
+    assert.equal(el.textContent, relationshipErrors.second_father);
   } finally { await t.stop(); }
 });

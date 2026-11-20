@@ -38,10 +38,13 @@ export function WithHeir({ template, heir }: { template: string; heir: string })
  * The room for a field's message is always there, so a message appearing on blur never
  * shifts the button the visitor is about to click.
  */
-export function FieldError({ id, text }: { id: string; text: string | null }) {
+export function FieldError({ id, text, live = false, announce }: {
+  id: string; text: string | null; live?: boolean; announce?: number | string;
+}) {
+  // Live: the one paragraph shows and announces; a new key re-announces an identical message.
   return (
-    <p id={id} className="min-h-6 text-sm font-medium">
-      {text}
+    <p id={id} className="min-h-6 text-sm font-medium" role={live ? "alert" : undefined}>
+      {live ? (text === null ? null : <span key={announce}>{text}</span>) : text}
     </p>
   );
 }

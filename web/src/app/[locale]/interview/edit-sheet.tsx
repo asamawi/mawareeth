@@ -76,6 +76,7 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
   const [draft, setDraft] = useState<{ text: string; basis: typeof view.case } | null>(null);
   // A picked relationship the server already marks impossible: explained at once, never sent.
   const [issue, setIssue] = useState<{ code: string; basis: typeof view.case; id: string } | null>(null);
+  const [seq, setSeq] = useState(0);
   const localIssue = issue?.basis === view.case && issue.id === person.id ? issue.code : null;
   const accepted = person.name ?? "";
   const text = draft?.basis === view.case ? draft.text : accepted;
@@ -139,14 +140,14 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
         <FieldError id="edit-name-error" text={nameError} />
       </div>
       <RelationshipFields messages={messages} options={options} deceasedGender={layer.gender ?? person.gender}
-        labelBlocked={false} value={person.relationship} frozen={frozen} immediate
+        labelBlocked={false} value={person.relationship} frozen={frozen} immediate errorAnnounce={seq}
         relationshipError={localIssue
           ? errorText(messages, "relationship", { relationship: localIssue })
           : errorText(messages, "relationship", view.errors)}
         onChange={(relationship, control) => {
           if (!relationship || relationship === fields.relationship) { setIssue(null); return; }
           const code = relationshipIssue(options, relationship);
-          if (code) { setIssue({ code, basis: view.case, id: person.id }); return; }
+          if (code) { setIssue({ code, basis: view.case, id: person.id }); setSeq(n => n + 1); return; }
           save({ ...fields, relationship: relationship as HeirFields["relationship"] }, `editRelationship:${control}`);
         }} />
       {view.layer === null && person.state !== "died_later" && <fieldset aria-describedby="edit-status-error">
