@@ -1,7 +1,7 @@
 "use client";
 import type { PresentedResult } from "@/contracts/presented";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   addHeir,
@@ -84,24 +84,11 @@ import { buttonClass, errorText, SaveNotice, WithHeir } from "./form-bits";
 import { DeceasedSummary, HeirList } from "./heir-list";
 import { HeirForm } from "./heir-form";
 import { MadhabSelector } from "./madhab-selector";
+import { useOnline } from "./online";
 import { RelativesQuestion } from "./relatives-question";
 import { OrderQuestion } from "./order-question";
 import { SharePreview } from "./share-preview";
 import { isUndoShortcut, UndoButton, UndoToast } from "./undo-toast";
-
-function subscribeOnline(notify: () => void) {
-  window.addEventListener("online", notify);
-  window.addEventListener("offline", notify);
-  return () => {
-    window.removeEventListener("online", notify);
-    window.removeEventListener("offline", notify);
-  };
-}
-
-/** Whether the browser believes it is online. Edits are blocked while it is not; nothing is queued. */
-function useOnline(): boolean {
-  return useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
-}
 
 const SEEN_KEY = "mawareeth.case-seen";
 

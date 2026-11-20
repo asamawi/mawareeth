@@ -426,7 +426,6 @@ Completed and obsolete items are removed; their history is in git.
 - A same-Case revision conflict (another tab edited first) uses the existing "replaced" path, so the web shows the existing-case screen and clears the unsent form. Epic 9's conflict outcome handling should refresh it in place instead.
 - A live guest session created before this release has no `changed_at`, so its expiry runs from `started_at`. A guest who started more than 24 hours ago and is still editing at deploy time sees the Case expire once.
 - The 503 `busy` response is shown as the generic failed notice. The web does not retry using `Retry-After`.
-- The results page's School choice (`results-view.tsx` `ChooseSchool`) is not blocked while offline. Only the interview screens are.
 
 ## Story 8.10
 
