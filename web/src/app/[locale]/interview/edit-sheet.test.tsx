@@ -47,15 +47,20 @@ async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedVi
   const node = document.createElement("div");
   document.body.append(node);
   const root = createRoot(node);
-  await act(async () => {
-    root.render(<EditSheet messages={messages.en.interview} view={view} person={person} label="Son Ali"
-      frozen={opts.frozen ?? false} onClose={() => { closed += 1; }}
-      onSave={(fields, focus) => saves.push({ fields, focus })} onRemove={c => removes.push(c)}
-      entries={[{ relationship: "son_of_son", link: "child", blocked: false, gender: "male" }]} atLimit={false}
-      addAlert={opts.alert ?? null} onAddHere={entry => added.push(entry.relationship)} />);
-  });
+  const draw = async (v: StartedView) => {
+    const who = estateModel(v.case, v.layer, null).people.find(p => p.id === v.editingHeir)!;
+    await act(async () => {
+      root.render(<EditSheet messages={messages.en.interview} view={v} person={who} label="Son Ali"
+        frozen={opts.frozen ?? false} onClose={() => { closed += 1; }}
+        onSave={(fields, focus) => saves.push({ fields, focus })} onRemove={c => removes.push(c)}
+        entries={[{ relationship: "son_of_son", link: "child", blocked: false, gender: "male" }]} atLimit={false}
+        addAlert={opts.alert ?? null} onAddHere={entry => added.push(entry.relationship)} />);
+    });
+  };
+  void person;
+  await draw(view);
   return {
-    dom, node, shown, saves, removes, added, closed: () => closed,
+    draw, dom, node, shown, saves, removes, added, closed: () => closed,
     async stop() { await act(async () => root.unmount()); await teardownDom(dom); },
   };
 }
@@ -210,4 +215,157 @@ for (const phone of [false, true]) test(`the edit sheet offers Add relative here
     await act(async () => ui.node.querySelector<HTMLButtonElement>('[data-focus="addHere:son_of_son"]')!.click());
     assert.deepEqual(ui.added, ["son_of_son"]);
   } finally { await ui.stop(); }
+});
+
+function withInvalid(invalid: Record<string, string>, deceasedGender: "male" | "female" = "male"): StartedView {
+  const kase: Case = {
+    ...KASE, deceased: { ...KASE.deceased, gender: deceasedGender } as Case["deceased"],
+    heirs: [{ ...KASE.heirs[0], edit_options: { blocked: [], invalid } } as Case["heirs"][number], KASE.heirs[1]],
+  };
+  return viewOf({ case: kase });
+}
+const relationshipErrors = messages.en.interview.fieldErrors.relationship;
+const slot = (node: Element) => node.querySelector("#heir-relationship-error")?.textContent ?? "";
+const radio = (node: Element, id: string) => node.querySelector<HTMLInputElement>(`input[name="relationship"][value="${id}"]`)!;
+
+async function pickSelect(t: Awaited<ReturnType<typeof mount>>, value: string) {
+  await act(async () => t.node.querySelector<HTMLButtonElement>('button[aria-controls="heir-relationship-more"]')!.click());
+  const select = t.node.querySelector<HTMLSelectElement>("#heir-relationship-rare")!;
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(select), "value")!.set!;
+  await act(async () => {
+    setter.call(select, value);
+    select.dispatchEvent(new t.dom.Event("change", { bubbles: true }) as unknown as Event);
+  });
+  return select;
+}
+
+test("a valid relationship pick saves at once with no local message", async () => {
+  const t = await mount({ view: withInvalid({ husband: "husband_of_male" }) });
+  try {
+    await act(async () => radio(t.node, "daughter").click());
+    assert.deepEqual(t.saves, [{ fields: { relationship: "daughter", name: "Ali" }, focus: "editRelationship:daughter" }]);
+    assert.equal(slot(t.node), "");
+  } finally { await t.stop(); }
+});
+
+test("a gender-locked pick is explained, not saved, and the saved relationship stays checked", async () => {
+  const t = await mount({ view: withInvalid({ daughter: "gender_locked" }) });
+  try {
+    await act(async () => radio(t.node, "daughter").click());
+    assert.equal(t.saves.length, 0);
+    assert.equal(slot(t.node), relationshipErrors.gender_locked);
+    assert.equal(radio(t.node, "son").checked, true);
+    assert.equal(radio(t.node, "daughter").checked, false);
+  } finally { await t.stop(); }
+});
+
+test("a kinship-invalid pick from the more select is explained, not saved, and the select reverts", async () => {
+  const t = await mount({ view: withInvalid({ husband: "husband_of_male" }) });
+  try {
+    const select = await pickSelect(t, "husband");
+    assert.equal(t.saves.length, 0);
+    assert.equal(slot(t.node), relationshipErrors.husband_of_male);
+    assert.equal(select.value, "");
+    assert.equal(radio(t.node, "son").checked, true);
+  } finally { await t.stop(); }
+});
+
+test("a valid pick after an invalid one clears the message and saves", async () => {
+  const t = await mount({ view: withInvalid({ daughter: "gender_locked" }) });
+  try {
+    await act(async () => radio(t.node, "daughter").click());
+    assert.equal(slot(t.node), relationshipErrors.gender_locked);
+    await act(async () => radio(t.node, "father").click());
+    assert.equal(slot(t.node), "");
+    assert.deepEqual(t.saves, [{ fields: { relationship: "father", name: "Ali" }, focus: "editRelationship:father" }]);
+  } finally { await t.stop(); }
+});
+
+test("a server relationship error still shows when no local issue is pending", async () => {
+  const t = await mount({ view: { ...withInvalid({}), errors: { relationship: "second_father" } } });
+  try {
+    assert.equal(slot(t.node), relationshipErrors.second_father);
+  } finally { await t.stop(); }
+});
+
+test("a frozen sheet neither saves nor explains an invalid pick", async () => {
+  const t = await mount({ frozen: true, view: withInvalid({ daughter: "gender_locked" }) });
+  try {
+    await act(async () => radio(t.node, "daughter").click());
+    assert.equal(t.saves.length, 0);
+    assert.equal(slot(t.node), "");
+  } finally { await t.stop(); }
+});
+
+test("a replaced view.case for the same row clears the local message", async () => {
+  const view = withInvalid({ daughter: "gender_locked" });
+  const t = await mount({ view });
+  try {
+    await act(async () => radio(t.node, "daughter").click());
+    assert.equal(slot(t.node), relationshipErrors.gender_locked);
+    await t.draw({ ...view, case: { ...view.case } });
+    assert.equal(slot(t.node), "");
+  } finally { await t.stop(); }
+});
+
+test("a refused pick from a saved rare relationship leaves the select on that value", async () => {
+  const kase: Case = { ...KASE, heirs: [
+    { ...KASE.heirs[0], relationship: "brother", edit_options: { blocked: [], invalid: { husband: "husband_of_male" } } } as Case["heirs"][number],
+    KASE.heirs[1]] };
+  const t = await mount({ view: viewOf({ case: kase }) });
+  try {
+    const select = t.node.querySelector<HTMLSelectElement>("#heir-relationship-rare")!;
+    assert.equal(select.value, "brother");
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(select), "value")!.set!;
+    await act(async () => {
+      setter.call(select, "husband");
+      select.dispatchEvent(new t.dom.Event("change", { bubbles: true }) as unknown as Event);
+    });
+    assert.equal(t.saves.length, 0);
+    assert.equal(slot(t.node), relationshipErrors.husband_of_male);
+    assert.equal(select.value, "brother");
+  } finally { await t.stop(); }
+});
+
+test("a blocked but not invalid relationship still saves", async () => {
+  const kase: Case = { ...KASE, heirs: [
+    { ...KASE.heirs[0], edit_options: { blocked: ["daughter"], invalid: {} } } as Case["heirs"][number], KASE.heirs[1]] };
+  const t = await mount({ view: viewOf({ case: kase }) });
+  try {
+    await act(async () => radio(t.node, "daughter").click());
+    assert.equal(t.saves.length, 1);
+    assert.equal(slot(t.node), "");
+  } finally { await t.stop(); }
+});
+
+test("a later-estate row is refused by its own options, not the root row's", async () => {
+  const kase: Case = { ...KASE, deaths: [{ heir_id: "h2", order: 1, placement: {}, heirs: [
+    { id: "l1", relationship: "son", gender: "male", name: null,
+      edit_options: { blocked: [], invalid: { daughter: "gender_locked" } } }] } as unknown as Case["deaths"][number]] };
+  const view = { ...viewOf({ case: kase, layer: "h2" }), editingHeir: "l1" };
+  const t = await mount({ view });
+  try {
+    await act(async () => radio(t.node, "daughter").click());
+    assert.equal(t.saves.length, 0);
+    assert.equal(slot(t.node), relationshipErrors.gender_locked);
+  } finally { await t.stop(); }
+});
+
+test("a status save or the placeholder pick clears the local message", async () => {
+  const t = await mount({ view: withInvalid({ daughter: "gender_locked", husband: "husband_of_male" }) });
+  try {
+    await act(async () => radio(t.node, "daughter").click());
+    assert.equal(slot(t.node), relationshipErrors.gender_locked);
+    await act(async () => t.node.querySelectorAll<HTMLInputElement>('input[name="edit-status"]')[1].click());
+    assert.equal(t.saves.length, 1);
+    assert.equal(slot(t.node), "");
+    const select = await pickSelect(t, "husband");
+    assert.equal(slot(t.node), relationshipErrors.husband_of_male);
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(select), "value")!.set!;
+    await act(async () => {
+      setter.call(select, "");
+      select.dispatchEvent(new t.dom.Event("change", { bubbles: true }) as unknown as Event);
+    });
+    assert.equal(slot(t.node), "");
+  } finally { await t.stop(); }
 });

@@ -177,9 +177,9 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Interview & web UI
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-edit-options-respect-locked-gender.md`
-  summary: The tree edit sheet's relationship picker ignores the edited row's `edit_options.invalid` and saves on selection, so a relationship the server already marks impossible (any kinship code, and now `gender_locked`) is still offered and only explained after the rejecting PUT.
-  evidence: `web/src/app/[locale]/interview/edit-sheet.tsx` `RelationshipFields` `onChange` calls `onSave` directly; `heirOptionLabels` (`web/src/interview/answers.ts`) reads only `blocked`. The blur path in `web/src/interview/flow.ts` does consult `relationshipIssue`. Needs a UX decision (disable, label or hide invalid choices).
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-edit-sheet-refuses-invalid-relationships.md`
+  summary: Announce relationship errors in the tree edit sheet to screen readers (a live region or focus move), since a refused or rejected pick reverts the picker and the reason appears only in a plain paragraph.
+  evidence: `FieldError` in `web/src/app/[locale]/interview/form-bits.tsx` is a plain `<p>`; the sheet's `FormError` excludes `relationship`; same for server-rejected picks before the local refusal existed.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-browser-tests.md`
   summary: Run a browser hydration check under the production Content-Security-Policy, for example a Playwright project that serves the export through Django/WhiteNoise (or sends the CSP computed by `mawareeth/web_headers.py`) and fails on any CSP console violation.

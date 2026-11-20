@@ -3,6 +3,7 @@ import { useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "
 import type { HeirFields, PlacementOption } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import type { FocusTarget, StartedView } from "@/interview/flow";
+import { relationshipIssue } from "@/interview/answers";
 import { layerAt } from "@/interview/layers";
 import { estateModel, treeDescription, type TreePerson } from "@/interview/tree";
 import { AddHere } from "./add-here";
@@ -73,6 +74,9 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
     onPointerCancelCapture: () => { pressing.current = false; },
   };
   const [draft, setDraft] = useState<{ text: string; basis: typeof view.case } | null>(null);
+  // A picked relationship the server already marks impossible: explained at once, never sent.
+  const [issue, setIssue] = useState<{ code: string; basis: typeof view.case; id: string } | null>(null);
+  const localIssue = issue?.basis === view.case && issue.id === person.id ? issue.code : null;
   const accepted = person.name ?? "";
   const text = draft?.basis === view.case ? draft.text : accepted;
   const confirmation = view.confirming;
@@ -92,12 +96,16 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
     (confirmation ? keep.current : name.current)?.focus();
   }, [phone, person.id, confirmation]);
 
+  function save(next: HeirFields, focus: FocusTarget, closing?: boolean) {
+    setIssue(null);
+    onSave(next, focus, closing);
+  }
   function commitName() {
-    if (!frozen && dirty) onSave(fields, "name");
+    if (!frozen && dirty) save(fields, "name");
   }
   function close() {
     if (frozen) return;
-    if (dirty && !confirmation) onSave(fields, "name", true);
+    if (dirty && !confirmation) save(fields, "name", true);
     else onClose();
   }
   const content = <div className="flex min-w-0 flex-col gap-3">
@@ -132,17 +140,21 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
       </div>
       <RelationshipFields messages={messages} options={options} deceasedGender={layer.gender ?? person.gender}
         labelBlocked={false} value={person.relationship} frozen={frozen} immediate
-        relationshipError={errorText(messages, "relationship", view.errors)}
+        relationshipError={localIssue
+          ? errorText(messages, "relationship", { relationship: localIssue })
+          : errorText(messages, "relationship", view.errors)}
         onChange={(relationship, control) => {
-          if (relationship && relationship !== fields.relationship)
-            onSave({ ...fields, relationship: relationship as HeirFields["relationship"] }, `editRelationship:${control}`);
+          if (!relationship || relationship === fields.relationship) { setIssue(null); return; }
+          const code = relationshipIssue(options, relationship);
+          if (code) { setIssue({ code, basis: view.case, id: person.id }); return; }
+          save({ ...fields, relationship: relationship as HeirFields["relationship"] }, `editRelationship:${control}`);
         }} />
       {view.layer === null && person.state !== "died_later" && <fieldset aria-describedby="edit-status-error">
         <legend>{messages.statusLegend}</legend>
         {(["alive", "died_before_or_with"] as const).map(status => <label key={status} className="flex min-h-11 items-center gap-2">
           <input type="radio" name="edit-status" value={status} data-focus={`editStatus:${status}`}
             checked={(person.state === "died_before") === (status === "died_before_or_with")}
-            aria-disabled={frozen} onChange={() => { if (!frozen) onSave({ ...fields, status }, `editStatus:${status}`); }} />
+            aria-disabled={frozen} onChange={() => { if (!frozen) save({ ...fields, status }, `editStatus:${status}`); }} />
           {status === "alive" ? messages.statusAlive : messages.statusDiedBefore}
         </label>)}
         <FieldError id="edit-status-error" text={statusError} />
