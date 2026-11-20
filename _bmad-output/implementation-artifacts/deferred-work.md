@@ -469,10 +469,6 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
   summary: A persisted currency that is not explicit is re-defaulted from the viewer's Locale at presentation time, so two viewers can see different currencies for one Case.
   evidence: `presentation/present.py` uses `default_currency(fmt.locale)` unless `currency.explicit`. Unreachable today (phase-1 estates convert to SAR explicit); settle before the currency picker writes non-explicit currencies.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-10-upgrade-existing-saved-cases-without-losing-their-original-basis.md`
-  summary: No test renders a real PDF from a schema-2 Saved case; Stories 8.8–8.10 compared the inputs passed to a mocked renderer.
-  evidence: Spec 8.8, 8.9 and 8.10 residual risks. Add one end-to-end render of a schema-2 case (both layered and single) in the CI job that has the Noto fonts.
-
 - source_spec: none
   summary: Country writes must wait until every rollback-eligible image reads schema 2.
   evidence: Declared in `epic-8-context.md` (Cross-Story Dependencies) and carried by no story. Today Country Basis resolution is unavailable and `api/snapshots.py` rejects Country bases, so nothing writes them yet. The Country epic must check this before enabling writes.

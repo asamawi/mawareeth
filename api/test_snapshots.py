@@ -1,5 +1,9 @@
 """Release compatibility gate and reader integration coverage."""
 import json
+import os
+import shutil
+import subprocess
+import tempfile
 from copy import deepcopy
 from datetime import timedelta
 from decimal import Decimal
@@ -131,6 +135,49 @@ class SnapshotTests(InterviewHelpers, TestCase):
             # Preview identity fields can carry regenerated alias row ids.
             self.assertEqual(normalized_body(bodies[0]), normalized_body(bodies[1]))
             self.assertEqual(pdf_calls[0], pdf_calls[1])
+
+    def require_pdf_tools(self, what, error=None):
+        # CI must never skip silently; other hosts skip when the native tools are missing.
+        if os.environ.get('GITHUB_ACTIONS') == 'true':
+            self.fail(f'{what} is required in CI' + (f' ({type(error).__name__}: {error})' if error else ''))
+        self.skipTest(f'{type(error).__name__ if error else "missing"}: {what} unavailable')
+
+    def test_schema_2_saved_cases_render_real_pdfs(self):
+        try:
+            import weasyprint  # noqa: F401
+        except (OSError, ImportError) as error:
+            self.require_pdf_tools('WeasyPrint native libraries', error)
+        if not shutil.which('pdftotext'):
+            self.require_pdf_tools('pdftotext')
+
+        def flat(text):
+            return ' '.join(text.split())
+
+        for name, extra in (('estate', []), ('no-estate', []), ('compare', []),
+                            ('later-deaths', ["Old jami'a multiplier", "New jami'a"])):
+            with self.subTest(name=name):
+                row, share, token, invite = self.readers(fixture(name, 2), 2)
+                headers = {**self.csrf(self.client), 'Accept-Language': 'en'}
+                view = self.client.post('/api/v1/shares/view/', {'token': token}, format='json',
+                                        secure=True, headers=headers)
+                self.assertEqual(view.status_code, 200)
+                rows = view.json()['preview']['presented']['rows']
+                self.assertTrue(rows)
+                response = self.client.post('/api/v1/shares/report/', {'token': token}, format='json',
+                                            secure=True, headers=headers)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response['Content-Type'], 'application/pdf')
+                self.assertTrue(response.content.startswith(b'%PDF'))
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / 'draft.pdf'
+                    path.write_bytes(response.content)
+                    result = subprocess.run(['pdftotext', str(path), '-'], capture_output=True, check=True)
+                text = flat(result.stdout.decode('utf-8'))
+                expected = ['Ali', 'Draft / not certified', *extra]
+                for item in rows:
+                    expected += [item['relationship']['translated']['text'], item['percent']['text']]
+                for needle in expected:
+                    self.assertIn(flat(needle), text)
 
     def invalids(self):
         valid = fixture('estate', 2)
