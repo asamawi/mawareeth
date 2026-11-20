@@ -1085,7 +1085,7 @@ class WorkflowContractTests(SimpleTestCase):
                 self.assertNotIn(forbidden, workflow)
 
     def test_workflows_pin_third_party_actions(self):
-        for name in ("deploy.yml", "django.yml", "deploy-production.yml"):
+        for name in ("deploy.yml", "django.yml", "deploy-production.yml", "cloudflare-ips.yml"):
             workflow = (PROJECT_ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
             action_references = re.findall(r"(?m)^\s*(?:-\s+)?uses:\s*(\S+)", workflow)
 
