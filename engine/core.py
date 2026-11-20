@@ -15,7 +15,7 @@ from .contracts.result import Allocation, Layer, Param, Result, Stage, Step
 from .rule_set import RuleSet
 from .single import Refused, solve
 
-from .kinship import SECOND_OF, MAX_WIVES, is_impossible as impossible_counts
+from .kinship import SECOND_OF, MAX_WIVES, RELATIONSHIP_GENDERS, is_impossible as impossible_counts
 
 # What an allocation's `kind` is, by the proof rule it rests on.
 KINDS = {
@@ -110,6 +110,12 @@ def evaluate(family, rule_set):
     if not isinstance(rule_set, RuleSet):
         raise ContractError('invalid_contract', 'rule_set must be a RuleSet')
     people = {person.id: person for person in family.persons}
+    for person in family.persons:
+        if person.relationship is not None and RELATIONSHIP_GENDERS[person.relationship] != person.gender:
+            return _refused(rule_set, 'invalid_family')
+    for estate in family.estates:
+        if any(RELATIONSHIP_GENDERS[heir.relationship] != people[heir.person].gender for heir in estate.heirs):
+            return _refused(rule_set, 'invalid_family')
     for estate in family.estates:
         rels = [heir.relationship for heir in estate.heirs]
         if (is_impossible(rels) or (estate.order > 1 and (

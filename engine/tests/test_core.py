@@ -175,6 +175,25 @@ class KnownAnswerTests(unittest.TestCase):
         self.assertEqual(calculate(fam, school_rule_set('hanbali')).refusal, 'invalid_family')
         self.assertEqual(calculate(fam, school_rule_set('jafari')).refusal, 'invalid_family')
 
+    def test_gender_contradicting_relationship_is_refused(self):
+        for gender, rel in (('male', 'daughter'), ('female', 'father')):
+            document = family_document([rel, 'brother'])
+            document['persons'][0]['gender'] = gender
+            fam = c.parse_family(document)
+            for school in SCHOOLS:
+                with self.subTest(rel=rel, school=school):
+                    result = calculate(fam, school_rule_set(school))
+                    self.assertEqual((result.status, result.refusal, result.allocations), ('refused', 'invalid_family', ()))
+
+    def test_gender_mismatch_of_person_who_died_before(self):
+        document = family_document(['son'])
+        document['persons'].append(person('d', 'mother', 'died_before_or_with'))
+        document['persons'][-1]['gender'] = 'male'
+        fam = c.parse_family(document)
+        for school in SCHOOLS:
+            with self.subTest(school=school):
+                self.assertEqual(calculate(fam, school_rule_set(school)).refusal, 'invalid_family')
+
     def test_later_deaths_are_calculated(self):
         fam = c.parse_family(later_deaths_document())
         self.assertEqual(calculate(fam, school_rule_set('hanbali')).status, 'calculated')

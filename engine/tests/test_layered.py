@@ -133,6 +133,24 @@ class LayeredCoreTests(unittest.TestCase):
         doc['estates'][1]['heirs'] = [{'person': 'W', 'relationship': 'husband'}]
         self.assertEqual(evaluate(c.parse_family(doc), school_rule_set('jafari')).result.refusal, 'invalid_family')
 
+    def test_later_estate_gender_mismatch_is_refused(self):
+        base = layered_document([('S', 'son'), ('W', 'wife')], [('S', [('N', 'son')])])
+        for school in SCHOOLS:
+            result = evaluate(c.parse_family(base), school_rule_set(school)).result
+            self.assertEqual((result.status, result.refusal),
+                             ('refused', 'school_not_supported') if school == 'jafari' else ('calculated', None))
+        only = layered_document([('S', 'son'), ('W', 'wife')], [('S', [('N', 'son')])])
+        next(p for p in only['persons'] if p['id'] == 'N')['gender'] = 'female'
+        aliased = layered_document([('S', 'son'), ('W', 'wife')], [('S', [('W', 'mother')])])
+        aliased['estates'][1]['heirs'] = [{'person': 'W', 'relationship': 'son'}]
+        third = layered_document([('S', 'son'), ('W', 'wife')], [('S', [('W', 'mother'), ('N', 'son')]),
+                                                                  ('W', [('N', 'daughter')])])
+        for name, doc in (('only', only), ('aliased', aliased), ('third_estate', third)):
+            for school in SCHOOLS:
+                with self.subTest(name=name, school=school):
+                    result = evaluate(c.parse_family(doc), school_rule_set(school)).result
+                    self.assertEqual((result.status, result.refusal), ('refused', 'invalid_family'))
+
     def test_inherited_mismatch_and_frozen_evidence(self):
         ev = evaluate(c.parse_family(layered_cases()['fixture_True_False']), school_rule_set('hanbali'))
         bad = replace(ev.result, layers=(replace(ev.result.layers[0], inherited=F(1)),) + ev.result.layers[1:])

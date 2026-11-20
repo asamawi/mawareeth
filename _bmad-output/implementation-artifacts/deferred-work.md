@@ -453,9 +453,9 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
   summary: `evaluate` ignores Family gifts, bequests and eligibility answers, so a Family carrying a bequest gets a normal Result with no refusal.
   evidence: `engine/core.py` `evaluate` reads only heirs and estate. No producer emits these yet; the bequest/gift stories must compute them or refuse a Family that carries them.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-3-preserve-successive-death-answers-and-proof-inside-the-core.md`
-  summary: The engine accepts and calculates a person whose relationship contradicts their own gender (a female person entered as `father`), including in later deaths.
-  evidence: `engine/core.py` checks impossible relationship combinations and a later deceased's spouse sex, not every heir's gender. The session shell sets gender from the relationship, so no current producer sends this.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-engine-refuses-gender-contradicting-relationship.md`
+  summary: Count production legacy successive-death Calculations where a heir row's stored `sex` contradicts its class and that heir later dies with a spouse heir, since their result changed when the legacy adapter began taking gender from the class.
+  evidence: The engine now refuses any gender-contradicting person (`invalid_family`) and `calc/adapters.py` takes legacy heir gender from the row class. A stored female `Son` linked to a female `Deceased` with a `Husband` heir used to calculate and is now refused; with a `Wife` heir it used to be refused and now calculates. Run a read-only production query joining `Heir` (class vs `sex`) to `Deceased.heir` and the later layer's spouse rows; none is expected.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-4-give-every-family-action-one-engine-decision.md`
   summary: Blocked labels and the answer disagree when the full sisters' cap exhausts the paternal siblings' pool beside a grandfather. The add-relative label says "not blocked" while the share is zero.

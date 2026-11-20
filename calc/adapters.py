@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import engine
 from engine.contracts import parse_family, resolve_basis
 from engine.contracts.family import Currency
+from engine.kinship import RELATIONSHIP_GENDERS
 from presentation import minor_units
 
 from . import schools
@@ -113,7 +114,7 @@ def family_from_calculation(calc):
         pid = identities[row.pk]
         person_to_heir.setdefault(pid, row.pk)
         session_rows[row.pk] = {'id': f'h{row.pk}', 'relationship': inverse[type(row)],
-                                'gender': 'male' if row.sex == 'M' else 'female',
+                                'gender': RELATIONSHIP_GENDERS[inverse[type(row)]],
                                 'name': ' '.join(filter(None, (row.first_name, row.last_name))),
                                 **({'same_as': identities[row.same_person_id]} if row.same_person_id else {})}
     root_death = by_calc[calc.pk]
