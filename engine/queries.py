@@ -68,8 +68,12 @@ def _counts(estate, replacing=None):
     return counts
 
 
-def _options(rule_set, counts, deceased_gender, existing=None):
-    """`existing` is the family that cardinality counts; `counts` alone decides what is blocked."""
+GENDER_LOCKED = 'gender_locked'
+
+
+def _options(rule_set, counts, deceased_gender, existing=None, person_gender=None):
+    """`existing` is the family that cardinality counts; `counts` alone decides what is blocked.
+    `person_gender` holds a replaced person's gender fixed."""
     existing = counts if existing is None else existing
     impossible = {}
     for relationship in codes.RELATIONSHIPS:
@@ -79,6 +83,9 @@ def _options(rule_set, counts, deceased_gender, existing=None):
                 code = kinship.HUSBAND_OF_MALE
             elif relationship == 'wife' and existing.get('husband', 0):
                 code = kinship.WIFE_OF_FEMALE
+        if code is None and person_gender is not None \
+                and kinship.RELATIONSHIP_GENDERS[relationship] != person_gender:
+            code = GENDER_LOCKED
         if code is not None:
             impossible[relationship] = code
     blocked = kinship.blocked(rule_set.rules, rule_set.school, counts)
@@ -93,7 +100,11 @@ def relationship_options(family, rule_set, *, estate=1, replacing=None, deceased
         if deceased_gender is not None:
             _invalid()
         deceased_gender = next(p.gender for p in family.persons if p.id == target.deceased)
-    return _options(rule_set, _counts(target, replacing), deceased_gender)
+    counts = _counts(target, replacing)
+    person_gender = None
+    if replacing is not None:
+        person_gender = next(p.gender for p in family.persons if p.id == replacing)
+    return _options(rule_set, counts, deceased_gender, person_gender=person_gender)
 
 
 @dataclass(frozen=True)

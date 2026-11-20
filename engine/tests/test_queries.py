@@ -13,7 +13,7 @@ from engine.contracts.family import Edge
 from engine.kinship import RELATIONSHIP_GENDERS, SECOND_OF
 from engine.single import solve, Refused
 from engine.tests.test_core import family, family_document, MALIKIYYA
-from engine.tests.test_layered import layered_cases
+from engine.tests.test_layered import layered_cases, layered_document
 
 H = school_rule_set('hanafi')
 
@@ -54,6 +54,63 @@ class QueryTests(unittest.TestCase):
         self.assertEqual(q.deceased_gender_conflict(family(['wife']), 'female'), 'has_wife')
         for gender in codes.GENDERS:
             self.assertEqual(q.deceased_gender_conflict(family(['wife', 'husband']), gender), 'has_both_spouses')
+
+    def test_replacing_person_keeps_gender(self):
+        male = family(['son', 'wife'])
+        options = q.relationship_options(male, H, replacing='h0')
+        for rel, gender in RELATIONSHIP_GENDERS.items():
+            if rel in options.impossible and options.impossible[rel] != 'gender_locked':
+                continue
+            self.assertEqual(options.impossible.get(rel) == 'gender_locked', gender == 'female', rel)
+        self.assertEqual(options.impossible['daughter'], 'gender_locked')
+        self.assertNotIn('daughter', options.blocked)
+        self.assertNotIn('son', options.impossible)
+        self.assertNotIn('brother', options.impossible)
+        self.assertEqual(q.change_impossible(male, H, 'daughter', replacing='h0'), 'gender_locked')
+        add = q.relationship_options(male, H)
+        self.assertNotIn('gender_locked', add.impossible.values())
+        female = family(['daughter'])
+        for rel in ('son', 'father', 'husband'):
+            self.assertEqual(q.change_impossible(female, H, rel, replacing='h0'), 'gender_locked')
+        self.assertIsNone(q.change_impossible(female, H, 'mother', replacing='h0'))
+        both = q.relationship_options(family(['son', 'brother']), H, replacing='h1')
+        self.assertEqual(both.impossible['daughter_of_son'], 'gender_locked')
+        self.assertNotIn('daughter_of_son', both.blocked)
+        self.assertEqual(q.change_impossible(family(['father', 'daughter']), H, 'father', replacing='h1'),
+                         'second_father')
+        doc = family_document(['daughter'])
+        doc['persons'][0]['gender'] = 'male'
+        recorded = parse_family(doc)
+        self.assertNotEqual(q.change_impossible(recorded, H, 'son', replacing='h0'), 'gender_locked')
+        self.assertEqual(q.change_impossible(recorded, H, 'daughter', replacing='h0'), 'gender_locked')
+        # precedence: an estate code wins over gender_locked
+        wife = family(['wife'])
+        self.assertEqual(q.change_impossible(wife, H, 'husband', replacing='h0', deceased_gender='male'),
+                         'husband_of_male')
+
+    def test_replacing_aliased_person_in_later_estate(self):
+        doc = layered_document([('S', 'son'), ('W', 'wife')], [('W', [('S', 'husband')])])
+        fam = parse_family(doc)
+        options = q.relationship_options(fam, H, estate=2, replacing='S')
+        self.assertEqual(options.impossible['daughter'], 'gender_locked')
+        self.assertNotIn('brother', options.impossible)
+        self.assertEqual(q.change_impossible(fam, H, 'daughter', estate=2, replacing='S'), 'gender_locked')
+        self.assertEqual(q.change_impossible(fam, H, 'brother', estate=2, replacing='S'),
+                         options.impossible.get('brother'))
+        for school in ('hanafi', 'maliki', 'shafii', 'hanbali'):
+            rules = school_rule_set(school)
+            options = q.relationship_options(fam, rules, estate=2, replacing='S')
+            for rel in codes.RELATIONSHIPS:
+                applied = copy.deepcopy(doc)
+                applied['estates'][1]['heirs'][0]['relationship'] = rel
+                result = calculate(parse_family(applied), rules)
+                with self.subTest(school=school, relationship=rel):
+                    if options.impossible.get(rel) == 'gender_locked':
+                        self.assertEqual(result.refusal, 'invalid_family')
+                    elif rel not in options.impossible:
+                        self.assertNotEqual(result.refusal, 'invalid_family')
+        with self.assertRaises(ContractError):
+            q.relationship_options(fam, H, estate=2, replacing='W')
 
     def test_blocking_matrix_and_rule_values(self):
         o = q.relationship_options(family(['son']), H)

@@ -461,9 +461,9 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
   summary: Blocked labels and the answer disagree when the full sisters' cap exhausts the paternal siblings' pool beside a grandfather. The add-relative label says "not blocked" while the share is zero.
   evidence: `engine/kinship.py` keeps the wave-1 label; `engine/single.py` gives the paternal sibling `excluded_by_full_siblings` and share 0. `engine/tests/test_queries.py` `test_solver_consistency` pins the exception. Needs a fiqh/UX decision on labelling that case.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-4-give-every-family-action-one-engine-decision.md`
-  summary: `relationship_options` and `change_impossible` can offer a replacing person a relationship that contradicts their gender or their relationship in another estate.
-  evidence: `engine/queries.py` uses only the estate's relationship counts. The web shell locks a linked person's gender (`api/anonymous_case.py` `gender_locked`), but the public query boundary does not check it. Same root as the 8.3 item.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-queries-respect-replaced-person-gender.md`
+  summary: The case API's `edit_options` still computes options from counts without the edited person's identity, so a linked person's or a later deceased's edit options list opposite-gender relationships that the write then rejects with `gender_locked`.
+  evidence: `api/anonymous_case.py` `edit_options` (root and later edit options) calls `api.heir_rules.blocked_relationships`, which passes no `replacing`; only the engine queries hold a replaced person's gender fixed.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
   summary: A persisted currency that is not explicit is re-defaulted from the viewer's Locale at presentation time, so two viewers can see different currencies for one Case.
