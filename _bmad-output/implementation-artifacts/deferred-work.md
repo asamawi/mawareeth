@@ -546,3 +546,19 @@ Native review is pending for these interview strings in `web/src/i18n/messages.t
 | `undoAction` | Undo | تراجع | Annuler |
 | `undoDone` | Last change undone. | تم التراجع عن آخر تغيير. | Dernière modification annulée. |
 | `undoFailed` | That change could not be undone. Try again. | تعذّر التراجع عن هذا التغيير. حاول مرة أخرى. | Impossible d’annuler cette modification. Réessayez. |
+
+## Story 9.7
+
+Native review is pending for these interview strings in `web/src/i18n/messages.ts`.
+
+| Key | English | Arabic | French |
+| --- | --- | --- | --- |
+| `addRelativeHere` | Add relative here | أضف قريبًا هنا | Ajouter un proche ici |
+| `addHereGroup` | Relatives to add to {person} | الأقارب الذين يمكن إضافتهم إلى {person} | Proches à ajouter à {person} |
+| `addHereNone` | No relatives can be added here. | لا يمكن إضافة أقارب هنا. | Aucun proche ne peut être ajouté ici. |
+| `dropHere` | Drop here | أفلت هنا | Déposer ici |
+| `dropNotHere` | Not allowed | غير مسموح | Non autorisé |
+| `notAllowedHere` | Not allowed here: {reason} | غير مسموح هنا: {reason} | Non autorisé ici : {reason} |
+| `positionNotAllowed` | {relationship} cannot be added at this person. | لا يمكن إضافة {relationship} عند هذا الشخص. | Impossible d’ajouter {relationship} à cette personne. |
+| `fieldErrors.anchor.not_allowed` | That relative can no longer be added there. | لم يعد من الممكن إضافة هذا القريب هناك. | Ce proche ne peut plus être ajouté à cet endroit. |
+| `fieldErrors.anchor.schema_unsupported` | This case cannot record who a relative belongs to yet. | لا يمكن لهذه الحالة تسجيل من ينتمي إليه القريب بعد. | Ce dossier ne peut pas encore enregistrer à qui un proche est rattaché. |

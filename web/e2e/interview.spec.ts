@@ -523,7 +523,7 @@ test.describe("add relatives", () => {
   test("at 50 heirs the limit shows and every add button is aria-disabled", async ({ page, api }) => {
     const kase = { ...base(), heirs: Array.from({ length: 50 }, (_, i) => son(`m${i}`)) };
     await open(page, api, kase);
-    await expect(page.getByText(en.fieldErrors.heirs.limit)).toBeVisible();
+    await expect(page.getByText(en.fieldErrors.heirs.limit).first()).toBeVisible();
     const buttons = page.locator("section[aria-labelledby='add-relatives-heading'] button[data-focus^='add:']");
     expect(await buttons.count()).toBeGreaterThan(4);
     for (const button of await buttons.all()) await expect(button).toHaveAttribute("aria-disabled", "true");
@@ -1025,7 +1025,7 @@ test.describe("lineage canvas", () => {
       const group = page.getByRole("group", { name: t.treeHeading });
       await expect(group.getByText(t.treeAddParent, { exact: true })).toBeVisible();
       await expect(group.getByText(t.treeAddSpouse, { exact: true })).toBeVisible();
-      await expect(group.locator("button")).toHaveCount(1);
+      await expect(group.locator("button")).toHaveCount(3);
       await expect(page.getByText(t.heirsEmpty, { exact: true })).toBeVisible();
       // Matrix "empty estate": the preview shows its prompt and no share rows.
       const preview = page.locator("section[aria-labelledby='preview-heading']");
@@ -1057,4 +1057,174 @@ test.describe("lineage canvas", () => {
       await expect(canvas.locator('[data-node="many49"]')).toBeInViewport(); await pinned();
     });
   }
+});
+
+// Story 9.7: add relatives at a chosen node by touch, keyboard or drag
+test.describe("add relative here", () => {
+  const agree = fixture("Agree: wife, son and daughter in every school");
+  const options = { blocked: [], invalid: {} };
+  const entry = (relationship: string, link: string, gender: string) => ({ relationship, link, blocked: false, gender });
+  const placed = () => {
+    const kase = fullCase(agree.case) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    kase.placement = {
+      root: [entry("father", "parent", "male"), entry("son", "child", "male"), entry("daughter", "child", "female")],
+      h2: [entry("son_of_son", "child", "male"), entry("daughter_of_son", "child", "female")],
+      h3: [],
+    };
+    return kase;
+  };
+  const grandson = { id: "g1", relationship: "son_of_son", gender: "male", name: null, edit_options: options };
+  const open = async (page: Page, api: Parameters<typeof openHeirsScreen>[1], kase: Record<string, unknown>) => {
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, agree.response) });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    await page.locator("section[data-tree] [data-tree-area]").waitFor();
+  };
+  const accepted = (api: Parameters<typeof openHeirsScreen>[1], kase: Record<string, any>) => // eslint-disable-line @typescript-eslint/no-explicit-any
+    api.set({ postHeir: json(201, { case: { ...kase, revision: kase.revision + 1, heirs: [...kase.heirs, grandson] } }) });
+  const expectedBody = (kase: Record<string, any>) => ({ relationship: "son_of_son", name: null, anchor: "h2", case_id: kase.id, expected_revision: kase.revision }); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  test("keyboard: Tab from a card reaches Add relative here, Enter opens it and a choice posts one anchored add", async ({ page, api }) => {
+    const kase = placed();
+    await open(page, api, kase);
+    accepted(api, kase);
+    await page.locator('[data-node="h2"]').focus();
+    await page.keyboard.press("Tab");
+    const toggle = page.getByRole("button", { name: en.addRelativeHere });
+    await expect(toggle).toBeFocused();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await page.keyboard.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("group", { name: en.addHereGroup.replace("{person}", "Son") })).toBeVisible();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => api.heirPosts.length).toBe(1);
+    expect(JSON.parse(api.heirPosts[0].body)).toEqual(expectedBody(kase));
+    await expect(page.locator('[data-node="g1"]')).toBeFocused();
+  });
+
+  test.describe("touch", () => {
+    test.use({ hasTouch: true });
+    test("a tap path sends the same body", async ({ page, api }) => {
+      const kase = placed();
+      await open(page, api, kase);
+      accepted(api, kase);
+      // A tap on a card opens its edit sheet, which holds the chooser for that person.
+      await page.locator('[data-node="h2"]').tap();
+      const sheet = page.locator("[data-edit-sheet]");
+      await sheet.getByRole("button", { name: en.addRelativeHere }).tap();
+      await sheet.getByRole("button", { name: en.addRelative.replace("{relationship}", en.relationships.son_of_son) }).tap();
+      await expect.poll(() => api.heirPosts.length).toBe(1);
+      expect(JSON.parse(api.heirPosts[0].body)).toEqual(expectedBody(kase));
+    });
+  });
+
+  const drag = async (page: Page, to: string) => {
+    // Let the preview settle first: it shifts the layout, and so the chip.
+    await page.locator("section[aria-labelledby='preview-heading']").locator("table, ul").first().waitFor();
+    await expect(page.locator('[data-focus="add:son"]')).toHaveAttribute("aria-disabled", "false");
+    // hover() waits for the chip to hold still, so the press lands on it and not on a neighbour.
+    await page.locator('[data-focus="add:son"]').hover();
+    const chip = (await page.locator('[data-focus="add:son"]').boundingBox())!;
+    const target = (await page.locator(to).boundingBox())!;
+    await page.mouse.down();
+    await page.mouse.move(chip.x + chip.width / 2 + 12, chip.y + chip.height / 2 + 12, { steps: 3 });
+    await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 8 });
+    return { release: () => page.mouse.up() };
+  };
+
+  test("mouse: a Son chip dropped on a legal card sends the same body", async ({ page, api }) => {
+    // Chip and target must both show: a drag does not scroll the page.
+    await page.setViewportSize({ width: 1280, height: 1400 });
+    const kase = placed();
+    await open(page, api, kase);
+    accepted(api, kase);
+    const held = await drag(page, '[data-node="h2"]');
+    await expect(page.locator('[data-node="h2"]')).toContainText(en.dropHere);
+    await expect(page.locator('[data-node="h3"]')).toContainText(en.dropNotHere);
+    await held.release();
+    await expect.poll(() => api.heirPosts.length).toBe(1);
+    expect(JSON.parse(api.heirPosts[0].body)).toEqual(expectedBody(kase));
+    expect(api.bulkPosts).toHaveLength(0);
+  });
+
+  test("mouse: an illegal drop sends nothing, shows the alert and keeps focus", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 1400 });
+    const kase = placed();
+    await open(page, api, kase);
+    await page.locator('[data-node="h1"]').focus();
+    const held = await drag(page, '[data-node="h3"]');
+    await held.release();
+    await expect(page.locator("[data-add-row] [role='alert']")).toHaveText(
+      en.notAllowedHere.replace("{reason}", en.positionNotAllowed.replace("{relationship}", en.relationships.son)));
+    expect(api.heirPosts).toHaveLength(0);
+    await expect(page.locator('[data-node="h1"]')).toBeFocused();
+  });
+
+  test("a placeholder opens the chooser for the root and posts anchor root", async ({ page, api }) => {
+    const kase = placed();
+    kase.heirs = [];
+    kase.placement = { root: [entry("father", "parent", "male"), entry("wife", "spouse", "female")] };
+    await open(page, api, kase);
+    api.set({ postHeir: json(201, { case: { ...kase, revision: kase.revision + 1, heirs: [{ id: "f1", relationship: "father", gender: "male", name: null, edit_options: options }] } }) });
+    await page.locator('[data-focus="placeholder:parent"]').click();
+    const group = page.locator("[data-add-row]").getByRole("group");
+    await expect(group.getByRole("button")).toHaveCount(1);
+    await group.getByRole("button", { name: /Father/ }).click();
+    await expect.poll(() => api.heirPosts.length).toBe(1);
+    expect(JSON.parse(api.heirPosts[0].body)).toMatchObject({ relationship: "father", anchor: "root" });
+    await expect(page.locator('[data-node="f1"]')).toBeFocused();
+  });
+
+  test("the edit sheet shows Add relative here for the edited person", async ({ page, api }) => {
+    const kase = placed();
+    await open(page, api, kase);
+    await page.locator('[data-node="h2"]').click();
+    const sheet = page.locator("[data-edit-sheet]");
+    await expect(sheet.getByRole("button", { name: en.addRelativeHere })).toBeVisible();
+    accepted(api, kase);
+    await sheet.getByRole("button", { name: en.addRelativeHere }).click();
+    await sheet.getByRole("button", { name: en.addRelative.replace("{relationship}", en.relationships.son_of_son) }).click();
+    await expect.poll(() => api.heirPosts.length).toBe(1);
+    expect(JSON.parse(api.heirPosts[0].body)).toEqual(expectedBody(kase));
+  });
+
+  test("died-before son: keyboard choice and a Son chip drop send the same single add", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 1400 });
+    const kase = placed();
+    kase.heirs = kase.heirs.filter((h: { id: string }) => h.id !== "h2");
+    kase.persons = [{ id: "h2", relationship: "son", gender: "male", name: null, status: "died_before_or_with", death_order: null }];
+    await open(page, api, kase);
+    accepted(api, kase);
+    await page.locator('[data-node="h2"]').focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => api.heirPosts.length).toBe(1);
+    const keyboard = JSON.parse(api.heirPosts[0].body);
+    expect(keyboard).toEqual(expectedBody(kase));
+    await expect(page.locator('[data-node="g1"]')).toBeFocused();
+    await page.locator('[data-focus="add:son"]').hover();
+    const chip = (await page.locator('[data-focus="add:son"]').boundingBox())!;
+    const target = (await page.locator('[data-node="h2"]').boundingBox())!;
+    await page.mouse.down();
+    await page.mouse.move(chip.x + chip.width / 2 + 12, chip.y + chip.height / 2 + 12, { steps: 3 });
+    await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(() => api.heirPosts.length).toBe(2);
+    expect(JSON.parse(api.heirPosts[1].body)).toEqual({ ...keyboard, expected_revision: keyboard.expected_revision + 1 });
+  });
+
+  test("a server anchor refusal shows the localized alert and keeps focus on the choice", async ({ page, api }) => {
+    const kase = placed();
+    await open(page, api, kase);
+    api.set({ postHeir: json(400, { errors: { anchor: "not_allowed" } }) });
+    await page.locator('[data-node="h2"]').focus();
+    await page.getByRole("button", { name: en.addRelativeHere }).click();
+    const choice = page.locator("[data-add-row]").getByRole("button", { name: en.addRelative.replace("{relationship}", en.relationships.son_of_son) });
+    await choice.click();
+    await expect(page.locator("[data-add-row] [role='alert']")).toHaveText(en.fieldErrors.anchor.not_allowed);
+    await expect(choice).toBeFocused();
+  });
 });

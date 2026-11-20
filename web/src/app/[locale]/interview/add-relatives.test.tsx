@@ -9,7 +9,7 @@ import type { Announcement, PanelOutcome } from "@/interview/flow";
 import { addGroups } from "@/interview/relatives";
 import { installDom, teardownDom } from "@/test/dom";
 
-import { AddRelatives } from "./add-relatives";
+import { AddRelatives, outcomeText } from "./add-relatives";
 
 async function mount(props: { locale?: Locale; atLimit?: boolean; outcome?: PanelOutcome; blocked?: RelationshipId[] } = {}) {
   const dom = installDom("https://localhost/en/interview/");
@@ -27,6 +27,7 @@ async function mount(props: { locale?: Locale; atLimit?: boolean; outcome?: Pane
     ],
     { blocked: props.blocked ?? [], invalid: {} },
   );
+  const drags: string[] = [];
   async function render(remaining = 50, completed?: Announcement, outcome = props.outcome, disabled = false) {
     await act(async () => {
       root.render(
@@ -39,6 +40,9 @@ async function mount(props: { locale?: Locale; atLimit?: boolean; outcome?: Pane
           disabled={disabled}
           outcome={outcome}
           onAdd={(relationship, count) => pressed.push([relationship, count])}
+          onDragStart={(id) => drags.push(`start:${id}`)}
+          onDragEnd={() => drags.push("end")}
+          onDrop={(id, target) => drags.push(`drop:${id}:${target.anchor}:${target.link ?? ""}`)}
         />,
       );
     });
@@ -47,6 +51,8 @@ async function mount(props: { locale?: Locale; atLimit?: boolean; outcome?: Pane
   return {
     node,
     pressed,
+    drags,
+    dom,
     render,
     labelled: (label: string) => node.querySelector<HTMLElement>(`[aria-label="${label}"]`)!,
     button: (id: string) => node.querySelector<HTMLButtonElement>(`[data-focus="add:${id}"]`)!,
@@ -190,4 +196,59 @@ test("a refusal and a conflict show in one alert", async () => {
   try {
     assert.equal(ui.node.querySelector('[role="alert"]')?.textContent, messages.en.interview.conflictNotice);
   } finally { await ui.close(); }
+});
+
+function pointer(dom: unknown, type: string, element: EventTarget, init: { x: number; y: number }) {
+  const event = new (dom as { Event: typeof Event }).Event(type, { bubbles: true, cancelable: true });
+  Object.assign(event, { pointerId: 1, pointerType: "mouse", button: 0, buttons: 1, clientX: init.x, clientY: init.y });
+  element.dispatchEvent(event);
+}
+
+test("a press that moves more than 6px drags the relationship, drops on a target and swallows the click", async () => {
+  const ui = await mount();
+  try {
+    const target = document.createElement("div");
+    target.dataset.dropAnchor = "s";
+    target.dataset.dropLink = "child";
+    document.body.append(target);
+    (document as unknown as { elementFromPoint: () => Element }).elementFromPoint = () => target;
+    const son = ui.button("son");
+    await act(async () => pointer(ui.dom, "pointerdown", son, { x: 10, y: 10 }));
+    await act(async () => pointer(ui.dom, "pointermove", window, { x: 13, y: 12 }));
+    assert.deepEqual(ui.drags, [], "a small move is still a tap");
+    await act(async () => pointer(ui.dom, "pointermove", window, { x: 40, y: 12 }));
+    await act(async () => pointer(ui.dom, "pointerup", window, { x: 40, y: 12 }));
+    assert.deepEqual(ui.drags, ["start:son", "end", "drop:son:s:child"]);
+    await ui.click(son);
+    assert.deepEqual(ui.pressed, [], "the click after a drag adds nothing");
+    await ui.click(son);
+    assert.deepEqual(ui.pressed, [["son", 1]], "a later plain tap still adds");
+  } finally { await ui.close(); }
+});
+
+test("a cancelled pointer, a release away from any target and a disabled button drop nothing", async () => {
+  const ui = await mount();
+  try {
+    (document as unknown as { elementFromPoint: () => Element | null }).elementFromPoint = () => null;
+    const son = ui.button("son");
+    await act(async () => pointer(ui.dom, "pointerdown", son, { x: 0, y: 0 }));
+    await act(async () => pointer(ui.dom, "pointermove", window, { x: 30, y: 0 }));
+    await act(async () => pointer(ui.dom, "pointerup", window, { x: 30, y: 0 }));
+    assert.deepEqual(ui.drags, ["start:son", "end"]);
+    ui.drags.length = 0;
+    await act(async () => pointer(ui.dom, "pointerdown", son, { x: 0, y: 0 }));
+    await act(async () => pointer(ui.dom, "pointermove", window, { x: 30, y: 0 }));
+    await act(async () => pointer(ui.dom, "pointercancel", window, { x: 30, y: 0 }));
+    assert.deepEqual(ui.drags, ["start:son", "end"]);
+    ui.drags.length = 0;
+    await ui.render(50, undefined, undefined, true);
+    await act(async () => pointer(ui.dom, "pointerdown", son, { x: 0, y: 0 }));
+    await act(async () => pointer(ui.dom, "pointermove", window, { x: 30, y: 0 }));
+    assert.deepEqual(ui.drags, []);
+  } finally { await ui.close(); }
+});
+
+test("outcomeText turns an anchor schema refusal into its localized text", () => {
+  const text = messages.en.interview;
+  assert.equal(outcomeText(text, { errors: { anchor: "schema_unsupported" } }), text.fieldErrors.anchor.schema_unsupported);
 });

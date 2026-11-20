@@ -4142,8 +4142,9 @@ class InterviewLineageTests(InterviewDeathsHelpers, InterviewHelpers, TestCase):
         for son in case['heirs'][1:]:
             # Sons shut out the sons' children under every school: labelled, not refused.
             self.assertEqual(case['placement'][son['id']],
-                             [{'relationship': 'son_of_son', 'link': 'child', 'blocked': True},
-                              {'relationship': 'daughter_of_son', 'link': 'child', 'blocked': True}])
+                             [{'relationship': 'son_of_son', 'link': 'child', 'blocked': True, 'gender': 'male'},
+                              {'relationship': 'daughter_of_son', 'link': 'child', 'blocked': True,
+                               'gender': 'female'}])
         self.assertEqual(case['placement'][case['heirs'][0]['id']], [])
         # The stored case is as before: no derived or empty lineage keys.
         self.assertFalse((self.NEW | {'died_before'}) & set(self.stored()))
@@ -4206,8 +4207,8 @@ class InterviewLineageTests(InterviewDeathsHelpers, InterviewHelpers, TestCase):
         self.assertEqual(case['persons'][-1]['id'], 'omar')
         self.assertEqual(case['edges'][0], {'kind': 'parent_of', 'from': 'omar', 'to': grandson})
         self.assertEqual(case['placement']['omar'], [
-            {'relationship': 'son_of_son', 'link': 'child', 'blocked': False},
-            {'relationship': 'daughter_of_son', 'link': 'child', 'blocked': False}])
+            {'relationship': 'son_of_son', 'link': 'child', 'blocked': False, 'gender': 'male'},
+            {'relationship': 'daughter_of_son', 'link': 'child', 'blocked': False, 'gender': 'female'}])
         self.assertEqual(case['placement'][grandson], [])
         self.assertNotIn('omar', [h['id'] for h in case['heirs']])
         self.assertEqual(self.preview(case['id']).status_code, 200)

@@ -504,7 +504,8 @@ def _decorate(case):
 
 
 def _placement(options):
-    return {anchor: [{'relationship': o.relationship, 'link': o.link, 'blocked': o.blocked} for o in found]
+    return {anchor: [{'relationship': o.relationship, 'link': o.link, 'blocked': o.blocked,
+                      'gender': RELATIONSHIPS[o.relationship]} for o in found]
             for anchor, found in options.items()}
 
 
@@ -786,13 +787,46 @@ def _add_heir(case, data, layer=None, same_as=None):
             elif (isinstance(relationship, str) and relationship in RELATIONSHIPS
                   and rows[link]['gender'] != RELATIONSHIPS[relationship]):
                 errors['same_as'] = 'gender_mismatch'
+    edge = None
+    if 'anchor' in data:
+        edge = _anchor_edge(case, layer, data['anchor'], relationship, link, errors)
     if errors:
         raise FieldErrors(errors)
     row = {'id': uuid.uuid4().hex, **fields, 'gender': RELATIONSHIPS[relationship]}
     if link is not None:
         row['same_as'] = link
     heirs.append(row)
+    if edge is not None:
+        kind, anchor, side = edge
+        pair = {'from': anchor, 'to': row['id']} if side == 'from' else {'from': row['id'], 'to': anchor}
+        case.setdefault('edges', []).append({'kind': kind, **pair})
     return row
+
+
+def _anchor_edge(case, layer, anchor, relationship, link, errors):
+    """Check a positioned add against the layer's placement. Returns (kind, anchor, side) or None."""
+    if link is not None or not isinstance(anchor, str) or not isinstance(relationship, str):
+        errors['anchor'] = 'not_allowed'
+        return None
+    if layer is None:
+        placement = case.get('placement') or {}
+    else:
+        placement = next((d.get('placement') or {} for d in case['deaths'] if d['heir_id'] == layer), {})
+    entry = next((e for e in placement.get(anchor, []) if e['relationship'] == relationship), None)
+    if entry is None:
+        errors['anchor'] = 'not_allowed'
+        return None
+    if anchor == 'root':
+        return None
+    from api.snapshots import write_version
+    if write_version() == 1:
+        errors['anchor'] = 'schema_unsupported'
+        return None
+    if entry['link'] == 'child':
+        return 'parent_of', anchor, 'from'
+    if entry['link'] == 'parent':
+        return 'parent_of', anchor, 'to'
+    return 'spouse_of', anchor, 'from'
 
 
 def update_heir(request, heir_id, data, case_id):

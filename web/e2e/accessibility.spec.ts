@@ -78,3 +78,19 @@ for (const locale of ["en", "ar"] as const) {
     expect(await serious(page)).toEqual([]);
   });
 }
+
+for (const locale of ["en", "ar"] as const) {
+  test(`the expanded Add relative here chooser in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+    const kase = fullCase(agree.case) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const entry = (relationship: string, link: string, gender: string) => ({ relationship, link, blocked: false, gender });
+    kase.placement = { root: [entry("father", "parent", "male"), entry("son", "child", "male")], h2: [entry("son_of_son", "child", "male"), { ...entry("daughter_of_son", "child", "female"), blocked: true }] };
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, agree.response) });
+    await page.goto(`/${locale}/interview/`);
+    await page.getByRole("button", { name: messages[locale].interview.resume }).click();
+    await page.locator("section[data-tree] [data-tree-area]").waitFor();
+    await page.locator('[data-node="h2"]').focus();
+    await page.locator("[data-add-row]").getByRole("button", { name: messages[locale].interview.addRelativeHere }).click();
+    await expect(page.locator("[data-add-row] [role='group']")).toBeVisible();
+    expect(await serious(page)).toEqual([]);
+  });
+}

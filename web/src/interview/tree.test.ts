@@ -13,7 +13,7 @@ import {
   NODE_HEIGHT,
   scrollDelta,
   treeDescription,
-  estateModel, fitZoom, focusAfterRemoval, pinBox, placeholders, type EstateModel,
+  dropEntry, estateModel, fitZoom, focusAfterRemoval, pinBox, placeholders, type EstateModel,
   type TreeLayout,
 } from "./tree.ts";
 
@@ -299,4 +299,33 @@ test("removal focus follows surviving siblings with the same parent and generati
   assert.equal(focusAfterRemoval(model, "last"), "removed");
   assert.equal(focusAfterRemoval(model, "removed", new Set(["first"])), "first");
   assert.equal(focusAfterRemoval(model, "other-parent"), "root");
+});
+
+test("dropEntry resolves a chip at the root, a placeholder and a person from the placement only", () => {
+  const model: EstateModel = {
+    people: [],
+    placement: {
+      root: [
+        { relationship: "father", link: "parent", blocked: false, gender: "male" },
+        { relationship: "son", link: "child", blocked: false, gender: "male" },
+        { relationship: "daughter", link: "child", blocked: false, gender: "female" },
+      ],
+      s: [
+        { relationship: "son_of_son", link: "child", blocked: false, gender: "male" },
+        { relationship: "daughter_of_son", link: "child", blocked: true, gender: "female" },
+      ],
+      d: [],
+      f: [{ relationship: "brother", link: "child", blocked: false, gender: "male" }, { relationship: "paternal_brother", link: "child", blocked: false, gender: "male" }],
+    },
+  };
+  assert.equal(dropEntry(model, "root", "son")?.relationship, "son");
+  assert.equal(dropEntry(model, "root", "father", "parent")?.relationship, "father");
+  assert.equal(dropEntry(model, "root", "father", "spouse"), null, "a placeholder narrows by link");
+  assert.equal(dropEntry(model, "root", "wife"), null);
+  assert.equal(dropEntry(model, "s", "son")?.relationship, "son_of_son");
+  assert.equal(dropEntry(model, "s", "daughter")?.relationship, "daughter_of_son");
+  assert.equal(dropEntry(model, "d", "son"), null, "a daughter offers nothing");
+  assert.equal(dropEntry(model, "f", "son"), null, "two same-gender children are ambiguous");
+  assert.equal(dropEntry(model, "s", "father"), null, "a parent chip is not a child");
+  assert.equal(dropEntry(model, "ghost", "son"), null);
 });

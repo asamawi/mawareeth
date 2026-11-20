@@ -30,7 +30,7 @@ function viewOf(extra: Partial<StartedView> = {}, layer: string | null = null): 
   };
 }
 
-async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedView } = {}) {
+async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedView; alert?: string } = {}) {
   const dom = installDom("https://localhost/en/interview/");
   const win = window as unknown as { matchMedia: unknown };
   win.matchMedia = () => ({ matches: !!opts.phone, addEventListener() {}, removeEventListener() {} });
@@ -42,6 +42,7 @@ async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedVi
   const person = estateModel(view.case, view.layer, null).people.find(p => p.id === view.editingHeir)!;
   const saves: unknown[] = [];
   const removes: boolean[] = [];
+  const added: string[] = [];
   let closed = 0;
   const node = document.createElement("div");
   document.body.append(node);
@@ -49,10 +50,12 @@ async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedVi
   await act(async () => {
     root.render(<EditSheet messages={messages.en.interview} view={view} person={person} label="Son Ali"
       frozen={opts.frozen ?? false} onClose={() => { closed += 1; }}
-      onSave={(fields, focus) => saves.push({ fields, focus })} onRemove={c => removes.push(c)} />);
+      onSave={(fields, focus) => saves.push({ fields, focus })} onRemove={c => removes.push(c)}
+      entries={[{ relationship: "son_of_son", link: "child", blocked: false, gender: "male" }]} atLimit={false}
+      addAlert={opts.alert ?? null} onAddHere={entry => added.push(entry.relationship)} />);
   });
   return {
-    dom, node, shown, saves, removes, closed: () => closed,
+    dom, node, shown, saves, removes, added, closed: () => closed,
     async stop() { await act(async () => root.unmount()); await teardownDom(dom); },
   };
 }
@@ -195,4 +198,16 @@ test("a changed name saves exactly once on blur to outside the sheet, and not wh
     await act(async () => { name.dispatchEvent(new t.dom.FocusEvent("focusout", { bubbles: true, relatedTarget: null }) as unknown as Event); });
     assert.deepEqual(t.saves, [{ fields: { relationship: "son", name: "Omar" }, focus: "name" }]);
   } finally { await t.stop(); }
+});
+
+for (const phone of [false, true]) test(`the edit sheet offers Add relative here for the edited person (${phone ? "phone" : "wide"})`, async () => {
+  const ui = await mount({ phone, alert: "Refused here" });
+  try {
+    const toggle = ui.node.querySelector<HTMLButtonElement>('[data-focus="addHere"]')!;
+    assert.equal(toggle.textContent, messages.en.interview.addRelativeHere);
+    assert.equal(ui.node.querySelector('[role="alert"]')?.textContent, "Refused here");
+    await act(async () => toggle.click());
+    await act(async () => ui.node.querySelector<HTMLButtonElement>('[data-focus="addHere:son_of_son"]')!.click());
+    assert.deepEqual(ui.added, ["son_of_son"]);
+  } finally { await ui.stop(); }
 });

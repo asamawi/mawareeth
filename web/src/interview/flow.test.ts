@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import type { AnswerResult, Case, MadhabResult, StartResult } from "../api/case.ts";
+import type { AnswerResult, Case, MadhabResult, RelationshipId, StartResult } from "../api/case.ts";
 import { noHeirOptions } from "../api/case.ts";
 import type { FormRecord } from "./answers.ts";
 import {
@@ -1256,7 +1256,7 @@ test("Removing the heir being edited ends the edit; removing another keeps it an
 
 test("every focus target flow.ts can emit is a data-focus value in the components", () => {
   const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "app", "[locale]", "interview");
-  const source = ["family-tree.tsx", "edit-sheet.tsx", "deceased-form.tsx", "heir-form.tsx", "add-relatives.tsx", "heir-list.tsx", "form-bits.tsx", "order-question.tsx", "relatives-question.tsx", "death-breadcrumb.tsx"]
+  const source = ["family-tree.tsx", "edit-sheet.tsx", "deceased-form.tsx", "heir-form.tsx", "add-relatives.tsx", "heir-list.tsx", "form-bits.tsx", "order-question.tsx", "relatives-question.tsx", "death-breadcrumb.tsx", "add-here.tsx"]
     .map((file) => readFileSync(join(dir, file), "utf8"))
     .join("\n");
   for (const target of FOCUS_TARGETS) {
@@ -2259,4 +2259,79 @@ test("Undo that meets a conflict adopts the live case, says so, clears the histo
   assert.equal(view.conflict, true);
   assert.deepEqual(view.history ?? [], []);
   assert.equal(view.undoToast, undefined);
+});
+
+// Story 9.7: positioned adds
+const TREE_ADD = (from: StartedView, anchor = "h1", relationship: RelationshipId = "son_of_son"): Answer => ({
+  kind: "addHeir", from, origin: "tree", anchor, values: { relationship, name: "", same_as: "" },
+});
+
+test("tree add sends one person with the anchor, adopts the case, pushes one entry and focuses the new card", async () => {
+  const grandson = { ...SON, id: "g1", relationship: "son_of_son" as const };
+  const saved: Case = { ...U0, revision: 6, snapshot: snap("u1"), heirs: [SON, grandson] };
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: saved }) });
+  const view = (await runAction("addHeir", signal, value, U0, undefined, TREE_ADD(startedOf(U0, true)))) as StartedView;
+  assert.deepEqual(log.answers.map((a) => [a.call, a.fields]), [["addHeir", { relationship: "son_of_son", name: null, anchor: "h1" }]]);
+  assert.equal(view.focus?.target, "card:g1");
+  assert.equal(view.announcement?.kind, "added");
+  assert.equal(view.announcement?.id, "g1");
+  assert.deepEqual(view.history, [{ snapshot: snap("u0") }]);
+  assert.equal(view.tree, undefined);
+});
+
+test("tree add on a later death carries the layer", async () => {
+  const r0 = { id: "r0", relationship: "brother" as const, gender: "male" as const, name: null, edit_options: noHeirOptions() };
+  const before: Case = { ...FAMILY, deaths: [{ ...S1_DEATH, heirs: [r0] }] };
+  const { value, log } = deps({});
+  await runAction("addHeir", signal, value, before, undefined, TREE_ADD(startedOf(before, true, { layer: "s1" }), "r0", "son_of_brother"));
+  assert.deepEqual(log.answers[0].fields, { relationship: "son_of_brother", name: null, anchor: "r0", layer: "s1" });
+});
+
+test("tree add refusal stays on the view as a tree outcome with focus on the pressed control", async () => {
+  const { value } = deps({ answer: () => ({ kind: "invalid", errors: { anchor: "not_allowed" } }) });
+  const from = startedOf(U0, true);
+  const view = (await runAction("addHeir", signal, value, U0, undefined, TREE_ADD(from))) as StartedView;
+  assert.deepEqual(view.tree, { relationship: "son_of_son", anchor: "h1", errors: { anchor: "not_allowed" } });
+  assert.equal(view.errors, null);
+  assert.equal(view.panel, undefined);
+  assert.equal(view.focus?.target, "addHere:son_of_son");
+  assert.equal(view.case, U0);
+  assert.deepEqual(view.history ?? [], []);
+});
+
+test("tree add failure, throttle and conflict are kept as tree outcomes", async () => {
+  const failed = deps({ answer: () => ({ kind: "failed" }), read: async () => U0 });
+  const one = (await runAction("addHeir", signal, failed.value, U0, undefined, TREE_ADD(startedOf(U0, true)))) as StartedView;
+  assert.deepEqual(one.tree, { relationship: "son_of_son", anchor: "h1", notice: "failed" });
+  assert.equal(one.notice, null);
+  const throttled = deps({ answer: () => ({ kind: "throttled" }) });
+  const two = (await runAction("addHeir", signal, throttled.value, U0, undefined, TREE_ADD(startedOf(U0, true)))) as StartedView;
+  assert.equal(two.tree?.notice, "throttled");
+  const newer = { ...U0, revision: 9 };
+  const moved = deps({ answer: () => ({ kind: "replaced", case: newer }) });
+  const three = (await runAction("addHeir", signal, moved.value, U0, undefined, TREE_ADD(startedOf(U0, true)))) as StartedView;
+  assert.equal(three.tree?.notice, "conflict");
+  assert.equal(three.case, newer);
+  assert.equal(three.focus?.target, "addHere:son_of_son");
+});
+
+test("tree add at 50 heirs is refused before anything is sent, and the next action clears the outcome", async () => {
+  const many = Array.from({ length: 50 }, (_, i) => ({ ...SON, id: `m${i}` }));
+  const full: Case = { ...WITH_DECEASED, heirs: many };
+  const { value, log } = deps({});
+  const view = (await runAction("addHeir", signal, value, full, undefined, TREE_ADD(startedOf(full, true), "root", "son"))) as StartedView;
+  assert.equal(log.answers.length, 0);
+  assert.deepEqual(view.tree?.errors, { heirs: "limit" });
+  assert.equal((pendingView("addHeir", view) as StartedView).tree, undefined);
+});
+
+test("a tree add that succeeds while the edit sheet is open closes it and focuses the new card", async () => {
+  const grandson = { ...SON, id: "g1", relationship: "son_of_son" as const };
+  const saved: Case = { ...U0, revision: 6, snapshot: snap("u1"), heirs: [SON, grandson] };
+  const { value } = deps({ answer: () => ({ kind: "saved", case: saved }) });
+  const from = startedOf(U0, true, { editingHeir: "h1" });
+  const view = (await runAction("addHeir", signal, value, U0, undefined, TREE_ADD(from))) as StartedView;
+  assert.equal(view.editingHeir, null);
+  assert.equal(view.formEpoch, from.formEpoch + 1);
+  assert.equal(view.focus?.target, "card:g1");
 });

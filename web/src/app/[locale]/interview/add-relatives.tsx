@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import type { RelationshipId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
-import { heirOptionLabels } from "@/interview/answers";
-import type { Announcement, PanelOutcome } from "@/interview/flow";
+import { heirOptionLabels, type Errors } from "@/interview/answers";
+import type { Announcement, Notice } from "@/interview/flow";
 import type { AddGroup, AddGroupKey } from "@/interview/relatives";
 
 import { focusRing, focusRingOnAccent } from "../ui";
@@ -21,9 +21,18 @@ type Props = {
   /** A save is in flight or the browser is offline: a press does nothing. */
   disabled: boolean;
   /** What the last press left behind: a refusal, a conflict or a failure. */
-  outcome?: PanelOutcome;
+  outcome?: Outcome;
   onAdd: (relationship: RelationshipId, count: number) => void;
+  /** A press that moves more than 6px drags the relationship; drops go to `onDrop`. */
+  onDragStart?: (relationship: RelationshipId) => void;
+  onDragEnd?: () => void;
+  onDrop?: (relationship: RelationshipId, target: { anchor: string; link?: string }) => void;
 };
+
+/** What a press left behind: a refusal, a conflict or a failure. */
+type Outcome = { errors?: Errors; notice?: Notice | "conflict" };
+
+const DRAG_DISTANCE = 6;
 
 /** Splits "Add {relationship}" around the placeholder, so the label can sit between its two halves. */
 function around(template: string): [string, string] {
@@ -32,7 +41,7 @@ function around(template: string): [string, string] {
 }
 
 /** The text of an outcome: refusal codes, a conflict, or a failed or throttled write. */
-function outcomeText(messages: Messages["interview"], outcome: PanelOutcome | undefined): string | null {
+export function outcomeText(messages: Messages["interview"], outcome: Outcome | undefined): string | null {
   if (!outcome) return null;
   const parts: string[] = [];
   for (const field of Object.keys(outcome.errors ?? {})) {
@@ -47,7 +56,7 @@ function outcomeText(messages: Messages["interview"], outcome: PanelOutcome | un
 
 const stepperButton = `size-11 shrink-0 rounded-lg border border-graphic bg-surface aria-disabled:opacity-60 ${focusRing}`;
 
-export function AddRelatives({ messages, groups, remaining, atLimit, disabled, completed, outcome, onAdd }: Props) {
+export function AddRelatives({ messages, groups, remaining, atLimit, disabled, completed, outcome, onAdd, onDragStart, onDragEnd, onDrop }: Props) {
   const [counts, setCounts] = useState<Partial<Record<RelationshipId, number>>>({});
   const [lastCompletedSeq, setLastCompletedSeq] = useState(completed?.seq);
   if (completed?.seq !== lastCompletedSeq) {
@@ -72,6 +81,40 @@ export function AddRelatives({ messages, groups, remaining, atLimit, disabled, c
   const [before, after] = around(messages.addRelative);
   const unavailable = disabled || atLimit;
   const alert = outcomeText(messages, outcome);
+  // The click that follows a drag must not also add through the panel.
+  const dragged = useRef(false);
+  const press = (event: ReactPointerEvent<HTMLButtonElement>, id: RelationshipId) => {
+    dragged.current = false;
+    if (event.button !== 0 || unavailable) return;
+    const { pointerId, clientX, clientY } = event;
+    // Pressing a button moves focus to it; a drag leaves focus where it was.
+    const before = document.activeElement;
+    let active = false;
+    const move = (next: PointerEvent) => {
+      if (next.pointerId !== pointerId || active) return;
+      if (Math.hypot(next.clientX - clientX, next.clientY - clientY) <= DRAG_DISTANCE) return;
+      active = true;
+      dragged.current = true;
+      onDragStart?.(id);
+    };
+    const finish = (next: PointerEvent, cancelled: boolean) => {
+      if (next.pointerId !== pointerId) return;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      if (!active) return;
+      onDragEnd?.();
+      if (before instanceof HTMLElement && before !== document.body && before.isConnected) before.focus();
+      if (cancelled) return;
+      const over = document.elementFromPoint(next.clientX, next.clientY)?.closest<HTMLElement>("[data-drop-anchor]");
+      if (over?.dataset.dropAnchor) onDrop?.(id, { anchor: over.dataset.dropAnchor, link: over.dataset.dropLink });
+    };
+    const up = (next: PointerEvent) => finish(next, false);
+    const cancel = (next: PointerEvent) => finish(next, true);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -97,11 +140,17 @@ export function AddRelatives({ messages, groups, remaining, atLimit, disabled, c
                 <div key={entry.id} className="flex min-h-11 max-w-full flex-wrap items-center gap-1 rounded-node border border-graphic bg-[var(--background)]">
                   <button
                     type="button"
-                    className={`min-h-11 rounded-lg bg-accent px-3 py-2 text-base font-medium text-accent-foreground aria-disabled:opacity-60 ${focusRingOnAccent}`}
+                    className={`min-h-11 touch-none select-none rounded-lg bg-accent px-3 py-2 text-base font-medium text-accent-foreground aria-disabled:opacity-60 ${focusRingOnAccent}`}
                     aria-disabled={unavailable}
+                    onPointerDown={(event) => press(event, entry.id)}
+                    onDragStart={(event) => event.preventDefault()}
                     aria-describedby={`${countId} ${countId}-value`}
                     data-focus={`add:${entry.id}`}
                     onClick={() => {
+                      if (dragged.current) {
+                        dragged.current = false;
+                        return;
+                      }
                       if (!unavailable) onAdd(entry.id, count);
                     }}
                   >

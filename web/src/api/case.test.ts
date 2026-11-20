@@ -1202,6 +1202,44 @@ test("parseCase round-trips persons, edges and placement and reads them as absen
   assert.deepEqual(older?.deaths[0].placement, {});
 });
 
+test("parseCase keeps a valid placement gender and reads the entry without an invalid one", async () => {
+  const kase = await parsed({
+    ...LINEAGE,
+    placement: {
+      root: [
+        { relationship: "son", link: "child", blocked: false, gender: "male" },
+        { relationship: "daughter", link: "child", blocked: false, gender: "robot" },
+        { relationship: "wife", link: "spouse", blocked: false },
+      ],
+    },
+  });
+  assert.deepEqual(kase?.placement?.root, [
+    { relationship: "son", link: "child", blocked: false, gender: "male" },
+    { relationship: "daughter", link: "child", blocked: false },
+    { relationship: "wife", link: "spouse", blocked: false },
+  ]);
+});
+
+test("parseCase keeps a valid gender in a later death's placement and drops an invalid one", async () => {
+  const placement = { root: [
+    { relationship: "husband", link: "spouse", blocked: false, gender: "male" },
+    { relationship: "son", link: "child", blocked: false, gender: "robot" },
+  ] };
+  const kase = await parsed({ ...LAYERED, deaths: [{ ...LAYERED.deaths[0], placement }] });
+  assert.deepEqual(kase?.deaths[0]?.placement?.root, [
+    { relationship: "husband", link: "spouse", blocked: false, gender: "male" },
+    { relationship: "son", link: "child", blocked: false },
+  ]);
+});
+
+test("addHeir sends anchor only when set", async () => {
+  const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
+  await addHeir(signal(), "abc123", 4, { relationship: "son_of_son", name: null, anchor: "p1" }, withToken);
+  await addHeir(signal(), "abc123", 4, { relationship: "son", name: null }, withToken);
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { relationship: "son_of_son", name: null, anchor: "p1", case_id: "abc123", expected_revision: 4 });
+  assert.equal("anchor" in JSON.parse(String(calls[1].init?.body)), false);
+});
+
 test("parseCase keeps a __proto__ placement anchor as an own entry", async () => {
   const body = JSON.parse(JSON.stringify({ ...LINEAGE, placement: {} }).replace('"placement":{}', '"placement":{"__proto__":[{"relationship":"son","link":"child","blocked":false}]}'));
   const kase = await parsed(body);

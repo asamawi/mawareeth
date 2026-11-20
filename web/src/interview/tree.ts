@@ -1,4 +1,4 @@
-import type { Case, Gender, Placement, RelationshipId } from "../api/case.ts";
+import type { Case, Gender, Placement, PlacementLink, PlacementOption, RelationshipId } from "../api/case.ts";
 import { layerAt, personOf } from "./layers.ts";
 import { heirLabels } from "./answers.ts";
 import type { PresentedResult } from "../contracts/presented.ts";
@@ -247,6 +247,22 @@ export function treeDescription(messages: Messages["interview"], model: EstateMo
 }
 export function placeholders(model: EstateModel): ("parent" | "spouse")[] {
   return model.people.length ? [] : (["parent", "spouse"] as const).filter(link => model.placement.root?.some(o => o.link === link));
+}
+/**
+ * The placement entry a dragged relationship chip means at an anchor (`root` or a person id), or null
+ * when the engine offers none. A chip that is a child of the deceased dropped on a person means that
+ * person's child of the same gender, when the anchor offers exactly one such child entry. `link`
+ * narrows the match, for a placeholder. Reads only the engine's lists and genders.
+ */
+export function dropEntry(model: EstateModel, anchor: string, chip: RelationshipId, link?: PlacementLink): PlacementOption | null {
+  const entries = (model.placement[anchor] ?? []).filter(e => !link || e.link === link);
+  const direct = entries.find(e => e.relationship === chip);
+  if (direct) return direct;
+  if (anchor === "root") return null;
+  const own = model.placement.root?.find(e => e.relationship === chip);
+  if (!own || own.link !== "child" || !own.gender) return null;
+  const children = entries.filter(e => e.link === "child" && e.gender === own.gender);
+  return children.length === 1 ? children[0] : null;
 }
 export const ZOOM_LEVELS = [0.6, 0.8, 1, 1.25, 1.5] as const;
 export type Box = { x: number; y: number; width: number; height: number };

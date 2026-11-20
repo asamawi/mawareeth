@@ -17,6 +17,8 @@ import {
   unmarkDeceased,
   updateHeir,
   type MadhabId,
+  type PlacementOption,
+  type RelationshipId,
 } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import {
@@ -69,11 +71,11 @@ import {
   rowsOf,
 } from "@/interview/layers";
 import { initialPick, selectionStore } from "@/interview/madhabs";
-import { estateModel, scrollDelta, treeDescription } from "@/interview/tree";
+import { dropEntry, estateModel, scrollDelta, treeDescription } from "@/interview/tree";
 import { previewKey } from "@/interview/preview";
 import { addGroups } from "@/interview/relatives";
 
-import { AddRelatives } from "./add-relatives";
+import { AddRelatives, outcomeText } from "./add-relatives";
 import { DeathBreadcrumb, crumbTextOf } from "./death-breadcrumb";
 import { DeceasedForm } from "./deceased-form";
 import { EditSheet } from "./edit-sheet";
@@ -150,6 +152,9 @@ export function StartCase({
   const [presented, setPresented] = useState<{ key: string; value: PresentedResult | null } | null>(null);
   const [zoomNote, setZoomNote] = useState<{ text: string; announcement: unknown } | null>(null);
   const [choiceFailed, setChoiceFailed] = useState(false);
+  // Story 9.7: the relationship chip being dragged, and the alert of a drop the placement refuses.
+  const [dragChip, setDragChip] = useState<RelationshipId | null>(null);
+  const [dropAlert, setDropAlert] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
   const live = useRef(true);
   const latest = useRef<View>(view);
@@ -324,6 +329,27 @@ export function StartCase({
   const editingPerson = model.people.find(p => p.id === started?.editingHeir);
   const relativeGroups = started && layer ? addGroups(placementRootOf(started.case, layer.id), layer.options) : [];
   const remaining = MAX_HEIRS - (layer?.heirs.length ?? 0);
+  const treeText = started?.tree ? outcomeText(messages, started.tree) : null;
+  const treeInSheet = !!editingPerson && started?.tree?.anchor === editingPerson.personId;
+  // One positioned add, by touch, keyboard or drop: the same request for each.
+  const addAt = (anchor: string, entry: PlacementOption) => {
+    setDropAlert(null);
+    submit((from) => ({
+      kind: "addHeir",
+      from,
+      values: { relationship: entry.relationship, name: "", same_as: "" },
+      origin: "tree",
+      anchor,
+    }));
+  };
+  const dropOn = (chip: RelationshipId, target: { anchor: string; link?: string }) => {
+    const entry = dropEntry(model, target.anchor, chip, target.link as PlacementOption["link"] | undefined);
+    if (entry) addAt(target.anchor, entry);
+    else {
+      setDropAlert(messages.notAllowedHere.replace(
+        "{reason}", messages.positionNotAllowed.replace("{relationship}", messages.relationships[chip])));
+    }
+  };
   // The heir form is for an edit, and for linking a later death's heir to someone already in the case.
   const showHeirForm = started?.editingHeir === null && layer?.id != null && candidates.length > 0;
   const orderQuestion = (() => {
@@ -570,6 +596,9 @@ export function StartCase({
                 completed={announced?.panelCount ? announced : null}
                 disabled={frozen}
                 outcome={started.panel}
+                onDragStart={(chip) => { setDropAlert(null); setDragChip(chip); }}
+                onDragEnd={() => setDragChip(null)}
+                onDrop={dropOn}
                 onAdd={(relationship, count) =>
                   submit((from) => ({
                     kind: "addHeir",
@@ -618,12 +647,19 @@ export function StartCase({
                 rootText={layerText}
                 editingId={started.editingHeir}
                 frozen={frozen}
+                dragging={dragChip}
+                atLimit={remaining <= 0}
+                addOutcome={treeText && started.tree && !treeInSheet ? { anchor: started.tree.anchor, text: treeText } : null}
+                dropAlert={dropAlert}
+                onAddHere={addAt}
                 onEdit={id => edit(current => startEditHeir(current, id, deps, `card:${id}`))}
                 onRemoveRequest={id => edit(current => requestCardRemoval(current, id, deps))}
               />
               {editingPerson && <EditSheet key={editingPerson.id} messages={messages} view={started}
                 person={editingPerson} label={description.people.find(p => p.id === editingPerson.id)!.label}
                 frozen={frozen} onClose={() => edit(current => cancelEditHeir(current, deps))}
+                entries={model.placement[editingPerson.personId] ?? []} atLimit={remaining <= 0}
+                addAlert={treeInSheet ? treeText : null} onAddHere={entry => addAt(editingPerson.personId, entry)}
                 onSave={(fields, field, close) => submit(from => ({ kind: "saveHeir", from, heirId: editingPerson.id,
                   values: { relationship: fields.relationship, name: fields.name ?? "" }, status: fields.status, field, close }))}
                 onRemove={confirm => submit(from => ({ kind: "removeHeir", from, heirId: editingPerson.id, confirm }))}

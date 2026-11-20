@@ -616,3 +616,110 @@ class PreviewRevisionTests(CommandBase):
         self.assertEqual(body['revision'], live['revision'])
         self.heir(case, 'daughter')
         self.assertEqual(self.preview(live['id']).json()['revision'], live['revision'] + 1)
+
+
+class PositionedAddTests(CommandBase):
+    """Story 9.7: an add may name the person it hangs from."""
+
+    def son_and_anchor(self, **post):
+        case = self.build('hanbali', 'male', None, ['son'], ['S'])
+        return case, case['heirs'][0]['id']
+
+    def test_no_anchor_key_is_unchanged_and_root_adds_no_edge(self):
+        case = self.ready()
+        plain = self.heir(case)
+        self.assertEqual(plain.status_code, 201)
+        rooted = self.heir(case, 'daughter', anchor='root')
+        self.assertEqual(rooted.status_code, 201)
+        self.assertEqual(rooted.json()['case']['edges'], [])
+        self.assertEqual([h['relationship'] for h in rooted.json()['case']['heirs']], ['son', 'daughter'])
+        self.assertEqual(set(plain.json()['case']), set(rooted.json()['case']))
+
+    def test_every_placement_entry_has_a_gender(self):
+        case, _ = self.son_and_anchor()
+        for entries in case['placement'].values():
+            for entry in entries:
+                self.assertIn(entry['gender'], ('male', 'female'))
+        self.assertEqual({e['relationship']: e['gender'] for e in case['placement']['root']}['son'], 'male')
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_child_edge(self):
+        case, son = self.son_and_anchor()
+        response = self.heir(case, 'son_of_son', anchor=son)
+        self.assertEqual(response.status_code, 201, response.content)
+        body = response.json()['case']
+        new = next(h['id'] for h in body['heirs'] if h['relationship'] == 'son_of_son')
+        self.assertEqual(body['edges'], [{'kind': 'parent_of', 'from': son, 'to': new}])
+        self.assertEqual(self.stored()['edges'], body['edges'])
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_parent_edge(self):
+        case = self.build('hanbali', 'male', None, ['father'], ['F'])
+        father = case['heirs'][0]['id']
+        response = self.heir(case, 'paternal_grandmother', anchor=father)
+        self.assertEqual(response.status_code, 201, response.content)
+        body = response.json()['case']
+        new = next(h['id'] for h in body['heirs'] if h['relationship'] == 'paternal_grandmother')
+        self.assertEqual(body['edges'], [{'kind': 'parent_of', 'from': new, 'to': father}])
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_died_before_anchor_and_restore(self):
+        case, son = self.son_and_anchor()
+        edit = self.send('put', f'{HEIRS_URL}{son}/', {
+            'case_id': case['id'], 'relationship': 'son', 'status': 'died_before_or_with'})
+        self.assertEqual(edit.status_code, 200, edit.content)
+        before = self.live()
+        response = self.heir(before, 'son_of_son', anchor=son)
+        self.assertEqual(response.status_code, 201, response.content)
+        body = response.json()['case']
+        new = next(h['id'] for h in body['heirs'] if h['relationship'] == 'son_of_son')
+        self.assertEqual(body['edges'], [{'kind': 'parent_of', 'from': son, 'to': new}])
+        restored = self.send('post', RESTORE_URL, {
+            'case_id': case['id'], 'snapshot': anonymous_case.export_snapshot(before)})
+        self.assertEqual(restored.status_code, 200, restored.content)
+        self.assertEqual(restored.json()['case']['edges'], [])
+        self.assertEqual(restored.json()['case']['heirs'], [])
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_later_estate_anchor(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        death = self.live()['deaths'][0]
+        anchor, entries = next((a, e) for a, e in death['placement'].items() if a != 'root' and e)
+        entry = entries[0]
+        response = self.add_layer(death['heir_id'], entry['relationship'], anchor=anchor)
+        self.assertEqual(response.status_code, 201, response.content)
+        edges = response.json()['case']['edges']
+        self.assertEqual(len(edges), 1)
+        self.assertIn(anchor, (edges[0]['from'], edges[0]['to']))
+
+    def test_writer_1_refuses_a_non_root_anchor_without_changes(self):
+        case, son = self.son_and_anchor()
+        before_raw, before = self.raw_session(), self.stored()
+        response = self.heir(case, 'son_of_son', anchor=son)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['errors'], {'anchor': 'schema_unsupported'})
+        self.assertEqual(self.raw_session(), before_raw)
+        self.assertEqual(self.stored(), before)
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_not_offered_unknown_non_string_and_same_as_are_refused(self):
+        case, son = self.son_and_anchor()
+        before_raw, before = self.raw_session(), self.stored()
+        for extra in ({'anchor': son, 'relationship': 'son'},
+                      {'anchor': 'nobody', 'relationship': 'son'},
+                      {'anchor': 7, 'relationship': 'son'},
+                      {'anchor': None, 'relationship': 'son'},
+                      {'anchor': son, 'relationship': 'son_of_son', 'same_as': son}):
+            response = self.heir(case, **extra)
+            self.assertEqual(response.status_code, 400, extra)
+            self.assertEqual(response.json()['errors']['anchor'], 'not_allowed', extra)
+            self.assertEqual(self.raw_session(), before_raw)
+        self.assertEqual(self.stored(), before)
+
+    def test_a_slot_the_engine_no_longer_offers_is_refused(self):
+        case = self.ready()
+        self.assertEqual(self.heir(case, 'father', anchor='root').status_code, 201)
+        response = self.heir(case, 'father', anchor='root')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['errors']['anchor'], 'not_allowed')

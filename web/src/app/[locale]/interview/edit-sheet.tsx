@@ -1,10 +1,11 @@
 import { useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
-import type { HeirFields } from "@/api/case";
+import type { HeirFields, PlacementOption } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
 import type { FocusTarget, StartedView } from "@/interview/flow";
 import { layerAt } from "@/interview/layers";
 import { estateModel, treeDescription, type TreePerson } from "@/interview/tree";
+import { AddHere } from "./add-here";
 import { buttonClass, errorText, FieldError, FormError, inputClass, SaveNotice, WithHeir } from "./form-bits";
 import { RelationshipFields } from "./heir-form";
 
@@ -25,6 +26,11 @@ type Props = {
   onClose: () => void;
   onSave: (fields: HeirFields, focus: FocusTarget, close?: boolean) => void;
   onRemove: (confirm: boolean) => void;
+  /** The engine's placement entries for this person, and the add they make (Story 9.7). */
+  entries?: readonly PlacementOption[];
+  atLimit?: boolean;
+  addAlert?: string | null;
+  onAddHere?: (entry: PlacementOption) => void;
 };
 
 function ImpactList({ view, messages }: Pick<Props, "view" | "messages">) {
@@ -52,7 +58,7 @@ function ImpactList({ view, messages }: Pick<Props, "view" | "messages">) {
   </>;
 }
 
-export function EditSheet({ messages, view, person, label, frozen, onClose, onSave, onRemove }: Props) {
+export function EditSheet({ messages, view, person, label, frozen, onClose, onSave, onRemove, entries = [], atLimit = false, addAlert = null, onAddHere }: Props) {
   const phone = useSyncExternalStore(subscribePhone, () => window.matchMedia(phoneQuery).matches, () => false);
   const heading = useId();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -141,6 +147,8 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
         </label>)}
         <FieldError id="edit-status-error" text={statusError} />
       </fieldset>}
+      <AddHere messages={messages} anchor={person.personId} personLabel={label} entries={entries}
+        frozen={frozen} atLimit={atLimit} alert={addAlert} onChoose={entry => onAddHere?.(entry)} />
       {person.state !== "died_later" && <button type="button" className={buttonClass} aria-disabled={frozen}
         onClick={() => { if (!frozen) onRemove(false); }}><WithHeir template={messages.heirRemove} heir={label} /></button>}
     </>}

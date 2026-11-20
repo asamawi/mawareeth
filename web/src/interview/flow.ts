@@ -81,8 +81,9 @@ export const FOCUS_TARGETS = [
   "relatives",
   "relativeMother",
   "relativesSubmit",
+  "addHere",
 ] as const;
-export const FOCUS_PREFIXES = ["card", "editRelationship", "editStatus", "editHeir", "remove", "alsoDied", "relative", "add"] as const;
+export const FOCUS_PREFIXES = ["card", "editRelationship", "editStatus", "editHeir", "remove", "alsoDied", "relative", "add", "addHere"] as const;
 export type FocusTarget =
   | (typeof FOCUS_TARGETS)[number]
   | `${(typeof FOCUS_PREFIXES)[number]}:${string}`;
@@ -96,6 +97,17 @@ export type FocusRequest = { target: FocusTarget; seq: number };
  */
 export type PanelOutcome = {
   relationship: string;
+  errors?: Errors;
+  notice?: Notice | "conflict";
+};
+
+/**
+ * What a positioned add (Add relative here, a placeholder or a drop) left behind, shown beside the
+ * chooser that made it and cleared by the next action.
+ */
+export type TreeOutcome = {
+  relationship: string;
+  anchor: string;
   errors?: Errors;
   notice?: Notice | "conflict";
 };
@@ -137,6 +149,8 @@ export type StartedView = {
   errors: Errors | null;
   /** The outcome of the last Add relatives press; kept apart from `errors` so the heir form never shows it. */
   panel?: PanelOutcome;
+  /** The outcome of the last positioned add. */
+  tree?: TreeOutcome;
   focus: FocusRequest | null;
   announcement: Announcement | null;
   saving: boolean;
@@ -282,6 +296,7 @@ export function pendingView(action: Action, current?: View): View {
   // The announcement stays, so the form below it is not rebuilt (and loses focus) mid-save.
   const rest = { ...current };
   delete rest.panel;
+  delete rest.tree;
   delete rest.conflict;
   delete rest.undoFailed;
   return { ...rest, notice: null, errors: null, saving: true };
@@ -403,6 +418,7 @@ export function openLayer(view: StartedView, id: string | null, deps: Deps): Sta
     focus: nextFocus(view, "relationship"),
   };
   delete opened.panel;
+  delete opened.tree;
   return opened;
 }
 
@@ -578,8 +594,11 @@ function startedFor(found: Case, resumed: boolean, deps: Deps): StartedView {
 
 export type Answer =
   | { kind: "saveDeceased"; from: StartedView; values: DeceasedValues }
-  /** `origin: "panel"` is one press in the Add relatives panel: it keeps the heir form as it was. */
-  | { kind: "addHeir"; from: StartedView; values: HeirValues; origin?: "panel"; count?: number }
+  /**
+   * `origin: "panel"` is one press in the Add relatives panel: it keeps the heir form as it was.
+   * `origin: "tree"` is a positioned add of one person at `anchor` (a person id or "root").
+   */
+  | { kind: "addHeir"; from: StartedView; values: HeirValues; origin?: "panel" | "tree"; count?: number; anchor?: string }
   | { kind: "saveHeir"; from: StartedView; heirId: string; values: HeirValues; status?: HeirFields["status"]; field?: FocusTarget; close?: boolean }
   | { kind: "removeHeir"; from: StartedView; heirId: string; confirm?: boolean; fromRow?: boolean }
   /** `rowId` is the row whose person died; `first` answers the order question. */
@@ -611,6 +630,22 @@ function isPanel(answer: Answer): answer is Extract<Answer, { kind: "addHeir" }>
   return answer.kind === "addHeir" && answer.origin === "panel";
 }
 
+function isTree(answer: Answer): answer is Extract<Answer, { kind: "addHeir" }> & { origin: "tree"; anchor: string } {
+  return answer.kind === "addHeir" && answer.origin === "tree" && typeof answer.anchor === "string";
+}
+
+/** A positioned add shows its outcome beside its chooser and focus stays on the pressed control. */
+function treeView(from: StartedView, answer: Extract<Answer, { kind: "addHeir" }> & { anchor: string }, outcome: Omit<TreeOutcome, "relationship" | "anchor">): StartedView {
+  return {
+    ...from,
+    notice: null,
+    saving: false,
+    errors: null,
+    tree: { relationship: answer.values.relationship, anchor: answer.anchor, ...outcome },
+    focus: nextFocus(from, `addHere:${answer.values.relationship}`),
+  };
+}
+
 /** The panel shows an outcome and focus stays on the pressed button (or the panel heading). */
 function panelView(from: StartedView, relationship: string, outcome: Omit<PanelOutcome, "relationship">): StartedView {
   return {
@@ -625,6 +660,7 @@ function panelView(from: StartedView, relationship: string, outcome: Omit<PanelO
 
 /** A refusal: in the panel for a panel add, else on the heir form. */
 function refusedView(answer: Answer, from: StartedView, errors: Errors): StartedView {
+  if (isTree(answer)) return treeView(from, answer, { errors });
   return isPanel(answer)
     ? panelView(from, answer.values.relationship, { errors })
     : invalidView(from, formOf(answer), errors);
@@ -779,6 +815,11 @@ function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerRe
       return deps.saveDeceased(signal, caseId, revision, validateDeceased(answer.values).fields as DeceasedFields);
     case "addHeir": {
       const fields = validateHeir(answer.values).fields as HeirFields;
+      if (isTree(answer)) {
+        return deps.addHeir(signal, caseId, revision, {
+          ...fields, anchor: answer.anchor, ...(answer.from.layer === null ? {} : { layer: answer.from.layer }),
+        });
+      }
       if (isPanel(answer) && answer.count !== undefined && answer.count >= 2) {
         return deps.addHeirs(signal, caseId, revision, fields.relationship, answer.count, answer.from.layer ?? undefined);
       }
@@ -908,6 +949,24 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
     case "saveDeceased":
       return settle({ ...base, announcement: from.announcement, focus: from.focus }, deps);
     case "addHeir": {
+      if (isTree(answer)) {
+        // One person at a chosen node: the new row is the layer's row the prior Case did not have.
+        const known = new Set(layerHeirs(from.case, from.layer).map((row) => row.id));
+        const added = layerHeirs(kase, from.layer).find((row) => !known.has(row.id))?.id ?? "";
+        // An open edit sheet closes, as cancelEditHeir does, so focus can reach the new card behind it.
+        const sheet = from.editingHeir !== null;
+        if (sheet) restoreHeirForm(deps, kase.id);
+        return settle(
+          {
+            ...base,
+            editingHeir: null,
+            formEpoch: sheet ? from.formEpoch + 1 : from.formEpoch,
+            announcement: announce(from, "added", layerHeirs(kase, from.layer), added),
+            focus: nextFocus(from, added ? `card:${added}` : `addHere:${answer.values.relationship}`),
+          },
+          deps,
+        );
+      }
       if (isPanel(answer)) {
         // One press leaves the heir form alone: an edit in progress keeps its heir and its text.
         const added = layerHeirs(kase, from.layer).at(-1)?.id ?? "";
@@ -1153,6 +1212,7 @@ async function settled(answer: Answer, result: Exclude<AnswerResult, { kind: "sa
         fresh,
         deps,
       );
+      if (isTree(answer)) return { ...reconciled, focus: nextFocus(from, `addHere:${answer.values.relationship}`) };
       return isPanel(answer) ? { ...reconciled, focus: nextFocus(from, `add:${answer.values.relationship}`) } : reconciled;
     }
     case "gone":
@@ -1171,27 +1231,29 @@ async function settled(answer: Answer, result: Exclude<AnswerResult, { kind: "sa
         const opener = answer.kind === "removeHeir" && answer.fromRow ? `remove:${answer.heirId}` as const : from.opener;
         return { ...startEditHeir(live, answer.heirId, deps, opener), conflict: true };
       }
-      if (isPanel(answer) && result.case.id === from.case.id) {
+      if ((isPanel(answer) || isTree(answer)) && result.case.id === from.case.id) {
         // The same case at a newer revision: a stale press. Show the live case and say so; never resend.
         const fresh = result.case;
         const gone = from.editingHeir !== null && !estateModel(fresh, from.layer, null).people.some(p => p.id === from.editingHeir);
         if (gone) restoreHeirForm(deps, fresh.id);
+        const stale: StartedView = {
+          ...from,
+          case: fresh,
+          layer: keepLayer(from.layer, fresh),
+          ...(gone ? { editingHeir: null, formEpoch: from.formEpoch + 1 } : {}),
+        };
         const reconciled = reconcileFresh(
-          panelView(
-            {
-              ...from,
-              case: fresh,
-              layer: keepLayer(from.layer, fresh),
-              ...(gone ? { editingHeir: null, formEpoch: from.formEpoch + 1 } : {}),
-            },
-            answer.values.relationship,
-            { notice: "conflict" },
-          ),
+          isTree(answer)
+            ? treeView(stale, answer, { notice: "conflict" })
+            : panelView(stale, answer.values.relationship, { notice: "conflict" }),
           from,
           fresh,
           deps,
         );
-        return { ...reconciled, focus: nextFocus(from, `add:${answer.values.relationship}`) };
+        return {
+          ...reconciled,
+          focus: nextFocus(from, isTree(answer) ? `addHere:${answer.values.relationship}` : `add:${answer.values.relationship}`),
+        };
       }
       deps.selection.set(null);
       deps.forms.set(null);
@@ -1225,14 +1287,16 @@ async function settled(answer: Answer, result: Exclude<AnswerResult, { kind: "sa
         ...from,
         case: fresh,
         layer: keepLayer(from.layer, fresh),
-        notice: isPanel(answer) ? null : result.kind,
+        notice: isPanel(answer) || isTree(answer) ? null : result.kind,
         // The errors pendingView cleared are not brought back by a failed save.
         errors: null,
         ...(isPanel(answer) ? { panel: { relationship: answer.values.relationship, notice: result.kind } } : {}),
+        ...(isTree(answer) ? { tree: { relationship: answer.values.relationship, anchor: answer.anchor, notice: result.kind } } : {}),
         saving: false,
         // A failed removal puts focus back on the row button, which the question replaced.
         focus: answer.kind === "saveHeir" ? nextFocus(from, answer.field ?? "relationship") : answer.kind === "removeHeir" && !from.confirming && !from.editingHeir ? nextFocus(from, `remove:${answer.heirId}`) : from.focus,
       }, from, fresh, deps);
+      if (isTree(answer)) return { ...kept, focus: nextFocus(from, `addHere:${answer.values.relationship}`) };
       return isPanel(answer) ? { ...kept, focus: nextFocus(from, `add:${answer.values.relationship}`) } : kept;
     }
   }

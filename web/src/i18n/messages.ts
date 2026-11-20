@@ -104,6 +104,17 @@ export type Messages = {
     addGroupChildren: string;
     addGroupSiblings: string;
     addRelative: string;
+    /** Story 9.7: the shared chooser, drop-target plates and refusals for positioned adds. */
+    addRelativeHere: string;
+    /** `{person}` is the card's label. */
+    addHereGroup: string;
+    addHereNone: string;
+    dropHere: string;
+    dropNotHere: string;
+    /** `{reason}` is `positionNotAllowed`. */
+    notAllowedHere: string;
+    /** `{relationship}` is the localized term. */
+    positionNotAllowed: string;
     conflictNotice: string;
     /** Under the add form's list, when an option is labelled. */
     heirNameLabel: string;
@@ -181,7 +192,7 @@ export type Messages = {
     relationships: Record<RelationshipId, string>;
     /** Field name, then the error code the form or the server reports. */
     fieldErrors: Record<string, Record<string, string>> & Record<
-      "gender" | "estate" | "relationship" | "name" | "heirs" | "case" | "same_as" | "death" | "status",
+      "gender" | "estate" | "relationship" | "name" | "heirs" | "case" | "same_as" | "death" | "status" | "anchor",
       Record<string, string>
     >;
     madhabLabel: string;
@@ -384,6 +395,13 @@ export const messages: Record<Locale, Messages> = {
       addGroupChildren: "الأبناء",
       addGroupSiblings: "الإخوة والأخوات",
       addRelative: "إضافة {relationship}",
+      addRelativeHere: "أضف قريبًا هنا",
+      addHereGroup: "الأقارب الذين يمكن إضافتهم إلى {person}",
+      addHereNone: "لا يمكن إضافة أقارب هنا.",
+      dropHere: "أفلت هنا",
+      dropNotHere: "غير مسموح",
+      notAllowedHere: "غير مسموح هنا: {reason}",
+      positionNotAllowed: "لا يمكن إضافة {relationship} عند هذا الشخص.",
       conflictNotice: "تغيّرت هذه الحالة في نافذة أخرى. تُعرض الآن أحدث نسخة، ولم يُحفظ تغييرك الأخير.",
       heirNameLabel: "الاسم (اختياري)",
       heirNameHint: "يمكنك ترك الاسم فارغًا، وسيظهر الوارث بصلة القرابة.",
@@ -457,6 +475,10 @@ export const messages: Record<Locale, Messages> = {
       startOverNo: "لا، أبقِ حالتي",
       relationships: relationshipTerms("ar"),
       fieldErrors: {
+        anchor: {
+          not_allowed: "لم يعد من الممكن إضافة هذا القريب هناك.",
+          schema_unsupported: "لا يمكن لهذه الحالة تسجيل من ينتمي إليه القريب بعد.",
+        },
         status: {
           invalid: "اختر حالة صحيحة.",
           schema_unsupported: "لا يمكن لهذه الحالة تسجيل وفاة قبل المتوفى بعد.",
@@ -698,6 +720,13 @@ export const messages: Record<Locale, Messages> = {
       addGroupChildren: "Children",
       addGroupSiblings: "Siblings",
       addRelative: "Add {relationship}",
+      addRelativeHere: "Add relative here",
+      addHereGroup: "Relatives to add to {person}",
+      addHereNone: "No relatives can be added here.",
+      dropHere: "Drop here",
+      dropNotHere: "Not allowed",
+      notAllowedHere: "Not allowed here: {reason}",
+      positionNotAllowed: "{relationship} cannot be added at this person.",
       conflictNotice: "This case changed in another tab. The latest version is shown, and your last change was not saved.",
       heirNameLabel: "Name (optional)",
       heirNameHint: "You can leave the name empty. The heir will be shown by relationship.",
@@ -771,6 +800,10 @@ export const messages: Record<Locale, Messages> = {
       startOverNo: "No, keep my case",
       relationships: relationshipTerms("en"),
       fieldErrors: {
+        anchor: {
+          not_allowed: "That relative can no longer be added there.",
+          schema_unsupported: "This case cannot record who a relative belongs to yet.",
+        },
         status: {
           invalid: "Choose a valid status.",
           schema_unsupported: "This case cannot record a death before the deceased yet.",
@@ -1013,6 +1046,13 @@ export const messages: Record<Locale, Messages> = {
       addGroupChildren: "Enfants",
       addGroupSiblings: "Frères et sœurs",
       addRelative: "Ajouter {relationship}",
+      addRelativeHere: "Ajouter un proche ici",
+      addHereGroup: "Proches à ajouter à {person}",
+      addHereNone: "Aucun proche ne peut être ajouté ici.",
+      dropHere: "Déposer ici",
+      dropNotHere: "Non autorisé",
+      notAllowedHere: "Non autorisé ici : {reason}",
+      positionNotAllowed: "Impossible d’ajouter {relationship} à cette personne.",
       conflictNotice: "Ce dossier a été modifié dans un autre onglet. La dernière version est affichée et votre dernière modification n'a pas été enregistrée.",
       heirNameLabel: "Nom (facultatif)",
       heirNameHint: "Vous pouvez laisser le nom vide. L'héritier sera affiché par son lien de parenté.",
@@ -1086,6 +1126,10 @@ export const messages: Record<Locale, Messages> = {
       startOverNo: "Non, garder mon dossier",
       relationships: relationshipTerms("fr"),
       fieldErrors: {
+        anchor: {
+          not_allowed: "Ce proche ne peut plus être ajouté à cet endroit.",
+          schema_unsupported: "Ce dossier ne peut pas encore enregistrer à qui un proche est rattaché.",
+        },
         status: {
           invalid: "Choisissez une situation valide.",
           schema_unsupported: "Ce dossier ne peut pas encore enregistrer un décès antérieur au défunt.",

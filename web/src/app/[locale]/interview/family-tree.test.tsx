@@ -49,12 +49,87 @@ for (const locale of ["en", "ar"] as const) test(`cards, reading keys, badges an
     assert.equal(notes[0], messages[locale].interview.treeZoomStatus.replace("{percent}", new Intl.NumberFormat(locale, { style: "percent" }).format(1.25)));
   } finally { await act(async () => root.unmount()); await teardownDom(dom); }
 });
-test("empty placeholders are plain items", async () => {
+test("empty placeholders are native buttons that open the chooser", async () => {
   const dom = installDom(), node = document.createElement("div"); document.body.append(node); const root = createRoot(node);
   try {
     await act(async () => root.render(<FamilyTree messages={messages.en.interview} model={{ people: [], placement: { root: [{ relationship: "father", link: "parent", blocked: false }, { relationship: "wife", link: "spouse", blocked: false }] } }} locale="en" editingId={null} onAnnounce={() => {}} />));
-    assert.equal(node.querySelector('[role="group"]')!.querySelectorAll("button").length, 1);
+    const buttons = [...node.querySelector('[role="group"]')!.querySelectorAll<HTMLButtonElement>("button")];
+    assert.deepEqual(buttons.map(b => b.dataset.focus), ["card:root", "placeholder:parent", "placeholder:spouse"]);
     assert.ok(node.textContent?.includes(messages.en.interview.treeAddParent));
+    // Activating one opens the chooser for the root, filtered to that link.
+    await act(async () => buttons[1].click());
+    const options = [...node.querySelectorAll<HTMLButtonElement>('[data-add-row] [role="group"] button')];
+    assert.deepEqual(options.map(o => o.dataset.focus), ["addHere:father"]);
     assert.ok(node.textContent?.includes(messages.en.interview.treeAddSpouse));
+  } finally { await act(async () => root.unmount()); await teardownDom(dom); }
+});
+
+test("while dragging, legal targets and placeholders say Drop here and illegal ones say Not allowed", async () => {
+  const dom = installDom(), node = document.createElement("div"); document.body.append(node); const root = createRoot(node);
+  const model: EstateModel = {
+    people: [
+      { id: "s", personId: "s", relationship: "son", gender: "male", name: null, parentId: null, state: "normal" },
+      { id: "d", personId: "d", relationship: "daughter", gender: "female", name: null, parentId: null, state: "normal" },
+    ],
+    placement: {
+      root: [{ relationship: "son", link: "child", blocked: false, gender: "male" }, { relationship: "daughter", link: "child", blocked: false, gender: "female" }],
+      s: [{ relationship: "son_of_son", link: "child", blocked: false, gender: "male" }],
+      d: [],
+    },
+  };
+  const text = messages.en.interview;
+  try {
+    await act(async () => root.render(<FamilyTree messages={text} model={model} locale="en" editingId={null} onAnnounce={() => {}} dragging="son" />));
+    const card = (id: string) => node.querySelector<HTMLElement>(`[data-node="${id}"]`)!;
+    assert.deepEqual(["root", "s", "d"].map(id => card(id).dataset.drop), ["legal", "legal", "illegal"]);
+    assert.ok(card("s").textContent?.includes(text.dropHere));
+    assert.ok(card("d").textContent?.includes(text.dropNotHere));
+    assert.ok(card("d").className.includes("bg-surface text-muted"));
+    assert.equal(card("s").dataset.dropAnchor, "s");
+    await act(async () => root.render(<FamilyTree messages={text} model={model} locale="en" editingId={null} onAnnounce={() => {}} />));
+    assert.equal(card("s").dataset.drop, undefined);
+    assert.equal(card("s").textContent?.includes(text.dropHere), false);
+  } finally { await act(async () => root.unmount()); await teardownDom(dom); }
+});
+
+test("the action row follows the current card and sends the anchor and entry", async () => {
+  const dom = installDom(), node = document.createElement("div"); document.body.append(node); const root = createRoot(node);
+  const model: EstateModel = {
+    people: [{ id: "row1", personId: "s", relationship: "son", gender: "male", name: null, parentId: null, state: "normal" }],
+    placement: { root: [{ relationship: "son", link: "child", blocked: false, gender: "male" }], s: [{ relationship: "son_of_son", link: "child", blocked: false, gender: "male" }] },
+  };
+  const sent: string[] = [];
+  try {
+    await act(async () => root.render(<FamilyTree messages={messages.en.interview} model={model} locale="en" editingId={null} onAnnounce={() => {}}
+      onAddHere={(anchor, entry) => sent.push(`${anchor}:${entry.relationship}`)} addOutcome={{ anchor: "s", text: "Refused" }} />));
+    const toggle = () => node.querySelector<HTMLButtonElement>('[data-add-row] [data-focus="addHere"]')!;
+    assert.equal(node.querySelector('[data-add-row] [role="alert"]'), null, "an outcome for another anchor is not shown");
+    await act(async () => toggle().click());
+    await act(async () => node.querySelector<HTMLButtonElement>('[data-add-row] [data-focus="addHere:son"]')!.click());
+    await act(async () => node.querySelector<HTMLButtonElement>('[data-node="row1"]')!.focus());
+    assert.equal(toggle().getAttribute("aria-expanded"), "false", "the row collapses when the current card changes");
+    assert.equal(node.querySelector('[data-add-row] [role="alert"]')?.textContent, "Refused");
+    await act(async () => toggle().click());
+    await act(async () => node.querySelector<HTMLButtonElement>('[data-add-row] [data-focus="addHere:son_of_son"]')!.click());
+    assert.deepEqual(sent, ["root:son", "s:son_of_son"]);
+  } finally { await act(async () => root.unmount()); await teardownDom(dom); }
+});
+
+test("no action row while a person is being edited, and focusing a card clears a placeholder's filter", async () => {
+  const dom = installDom(), node = document.createElement("div"); document.body.append(node); const root = createRoot(node);
+  const text = messages.en.interview;
+  const empty: EstateModel = { people: [], placement: { root: [{ relationship: "father", link: "parent", blocked: false }, { relationship: "wife", link: "spouse", blocked: false }] } };
+  const one: EstateModel = { people: [{ id: "a", personId: "a", relationship: "son", gender: "male", name: null, parentId: null, state: "normal" }], placement: empty.placement };
+  const tree = (model: EstateModel, editingId: string | null) => <FamilyTree messages={text} model={model} locale="en" editingId={editingId} onAnnounce={() => {}} />;
+  try {
+    await act(async () => root.render(tree(one, "a")));
+    assert.equal(node.querySelector("[data-add-row]"), null);
+    await act(async () => root.render(tree(one, null)));
+    assert.ok(node.querySelector("[data-add-row]"));
+    await act(async () => root.render(tree(empty, null)));
+    await act(async () => node.querySelector<HTMLButtonElement>('[data-focus="placeholder:parent"]')!.click());
+    assert.deepEqual([...node.querySelectorAll('[data-add-row] [role="group"] button')].map(b => (b as HTMLElement).dataset.focus), ["addHere:father"]);
+    await act(async () => node.querySelector<HTMLButtonElement>('[data-node="root"]')!.focus());
+    assert.deepEqual([...node.querySelectorAll('[data-add-row] [role="group"] button')].map(b => (b as HTMLElement).dataset.focus), ["addHere:father", "addHere:wife"]);
   } finally { await act(async () => root.unmount()); await teardownDom(dom); }
 });

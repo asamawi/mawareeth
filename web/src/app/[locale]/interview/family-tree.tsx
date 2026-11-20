@@ -1,14 +1,24 @@
 "use client";
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
+import type { PlacementLink, PlacementOption, RelationshipId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
-import { fitZoom, layoutTree, pinBox, placeholders, treeDescription, ZOOM_LEVELS, type EstateModel } from "@/interview/tree";
+import { dropEntry, fitZoom, layoutTree, pinBox, placeholders, treeDescription, ZOOM_LEVELS, type EstateModel } from "@/interview/tree";
 import { focusRing, focusRingOnAccent, secondaryButton } from "../ui";
+import { AddHere } from "./add-here";
 
-export function FamilyTree({ messages, model, rootText, editingId, locale, onAnnounce, frozen = false, onEdit, onRemoveRequest }: {
+export function FamilyTree({ messages, model, rootText, editingId, locale, onAnnounce, frozen = false, onEdit, onRemoveRequest, dragging = null, atLimit = false, addOutcome = null, dropAlert = null, onAddHere }: {
   messages: Messages["interview"]; model: EstateModel; rootText?: string;
   frozen?: boolean; onEdit?: (id: string) => void; onRemoveRequest?: (id: string) => void;
   editingId: string | null; locale: string; onAnnounce: (note: string) => void;
+  /** The relationship chip being dragged: every card and placeholder is marked as a legal or illegal drop. */
+  dragging?: RelationshipId | null;
+  atLimit?: boolean;
+  /** The refusal of the last positioned add, with the anchor it was made at. */
+  addOutcome?: { anchor: string; text: string } | null;
+  /** The alert of a drop the placement does not allow. */
+  dropAlert?: string | null;
+  onAddHere?: (anchor: string, entry: PlacementOption) => void;
 }) {
   const heading = useId();
   const area = useRef<HTMLDivElement>(null);
@@ -18,6 +28,7 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
   const [rtl, setRtl] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
+  const [rootLink, setRootLink] = useState<PlacementLink | null>(null);
   const drag = useRef<{ x: number; y: number; left: number; top: number; touch: boolean } | null>(null);
   const suppress = useRef(false);
   const measure = () => {
@@ -44,17 +55,23 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
     onAnnounce(messages.treeZoomStatus.replace("{percent}", new Intl.NumberFormat(locale, { style: "percent" }).format(z)));
   };
   const empty = placeholders(model);
+  const openLink = rootLink !== null && (empty as readonly string[]).includes(rootLink) ? rootLink : null;
+  const currentPerson = model.people.find(p => p.id === current);
+  const rowAnchor = openLink ? "root" : currentPerson ? currentPerson.personId : "root";
+  const rowLabel = openLink || current === "root" ? text.deceased : text.people.find(p => p.id === current)?.label ?? text.deceased;
+  const mark = (anchor: string, link?: PlacementLink) => dragging === null ? null : dropEntry(model, anchor, dragging, link) ? "legal" : "illegal";
   const height = layout.height + (empty.length ? 128 : 0) + 16;
   const card = (id: string, box: typeof layout.deceased) => {
     const person = model.people.find(p => p.id === id);
     const words = text.people.find(p => p.id === id);
     const state = person?.state ?? "deceased";
     const editable = state !== "deceased" && state !== "died_later";
-    return <button key={id} data-focus={`card:${id}`} aria-disabled={editable && frozen} type="button" data-node={id} data-state={state}
+    const target = mark(person?.personId ?? "root");
+    return <button key={id} data-focus={`card:${id}`} data-drop-anchor={person?.personId ?? "root"} data-drop={target ?? undefined} aria-disabled={editable && frozen} type="button" data-node={id} data-state={state}
       ref={el => { if (el) buttons.current.set(id, el); else buttons.current.delete(id); }}
       tabIndex={current === id ? 0 : -1} aria-current={(editingId ?? selected) === id ? "true" : undefined}
-      onClick={() => { if (editable && frozen) return; setSelected(id); if (editable) onEdit?.(id); }}
-      onFocus={event => { setSelected(id); if (id !== "root") event.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }}
+      onClick={() => { if (editable && frozen) return; setRootLink(null); setSelected(id); if (editable) onEdit?.(id); }}
+      onFocus={event => { setRootLink(null); setSelected(id); if (id !== "root") event.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }}
       onKeyDown={event => {
         // Modified arrows keep their browser meaning, such as Alt+Left for back.
         if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -73,13 +90,14 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
         const next = ids[Math.max(0, Math.min(ids.length - 1, index))];
         setSelected(next); buttons.current.get(next)?.focus();
       }}
-      className={`absolute flex flex-col items-center justify-center gap-1 rounded-node p-2 text-center [overflow-wrap:anywhere] ${editingId === id ? "outline-3 -outline-offset-3 outline-current" : "aria-[current=true]:outline aria-[current=true]:outline-offset-2 aria-[current=true]:outline-accent"} ${state === "deceased" ? `bg-accent text-accent-foreground ${focusRingOnAccent}` : focusRing} ${state === "normal" || state === "died_later" ? "bg-[var(--background)]" : ""} ${state === "died_before" || state === "blocked" ? "bg-surface" : ""}`}
+      className={`absolute flex flex-col items-center justify-center gap-1 rounded-node p-2 text-center [overflow-wrap:anywhere] ${editingId === id ? "outline-3 -outline-offset-3 outline-current" : "aria-[current=true]:outline aria-[current=true]:outline-offset-2 aria-[current=true]:outline-accent"} ${target === "illegal" ? `bg-surface text-muted ${focusRing}` : state === "deceased" ? `bg-accent text-accent-foreground ${focusRingOnAccent}` : focusRing} ${target !== "illegal" && (state === "normal" || state === "died_later") ? "bg-[var(--background)]" : ""} ${target !== "illegal" && (state === "died_before" || state === "blocked") ? "bg-surface" : ""}`}
       style={{ insetInlineStart: box.x, top: box.y, width: box.width, height: box.height,
-        border: state === "deceased" || state === "died_before" ? "none" : state === "died_later" ? "2px solid var(--accent)" : "1.5px solid var(--graphic)",
+        border: target === "legal" ? "2px solid var(--accent)" : state === "deceased" || state === "died_before" ? "none" : state === "died_later" ? "2px solid var(--accent)" : "1.5px solid var(--graphic)",
         backgroundImage: state === "blocked" ? "repeating-linear-gradient(135deg, var(--surface) 0 6px, var(--blocked-stripe) 6px 12px)" : undefined }}>
       {state === "died_before" && <svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" fill="none"><rect x="1" y="1" width={box.width - 2} height={box.height - 2} rx="9" stroke="var(--graphic)" strokeWidth="2" strokeDasharray="4 3" /></svg>}
       <strong className={`text-node-name ${state === "blocked" ? "bg-surface text-muted" : ""}`}>{id === "root" ? <bdi>{text.deceased}</bdi> : words?.relationship}</strong>
       {words?.secondary && <span className={`text-node-meta ${state === "blocked" ? "bg-surface text-muted" : ""}`}><bdi>{words.secondary}</bdi></span>}
+      {target && <span aria-hidden="true" className={`absolute inset-x-1 bottom-1 rounded px-1 text-badge font-semibold ${target === "legal" ? "bg-accent text-accent-foreground" : "bg-surface text-muted"}`}>{target === "legal" ? messages.dropHere : messages.dropNotHere}</span>}
       {words?.badge && <span className={`rounded-full border px-1 text-badge ${state === "died_later" ? "border-accent bg-accent-soft text-accent" : state === "died_before" ? "border-dashed border-graphic bg-[var(--background)]" : "border-graphic bg-surface text-muted"}`}>{words.badge}{state === "died_later" && <span aria-hidden="true" className="inline-block rtl:-scale-x-100"> ›</span>}</span>}
     </button>;
   };
@@ -119,9 +137,25 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
           </svg>
           {layout.nodes.map(n => card(n.id, n))}
           {card("root", pinned)}
-          {empty.map((link, i) => <div key={link} className="absolute flex min-h-[76px] items-center justify-center rounded-node border-[1.5px] border-dashed border-accent p-2 text-accent" style={{ insetInlineStart: i * ((wide ? 136 : 108) + 8), top: layout.height + 16, width: wide ? 136 : 108 }}>{link === "parent" ? messages.treeAddParent : messages.treeAddSpouse}</div>)}
+          {empty.map((link, i) => {
+            const target = mark("root", link);
+            return <button key={link} type="button" data-focus={`placeholder:${link}`} data-drop-anchor="root" data-drop-link={link} data-drop={target ?? undefined}
+              aria-disabled={frozen} onClick={() => { if (!frozen) setRootLink(link); }}
+              className={`absolute flex min-h-[76px] min-w-11 flex-col items-center justify-center gap-1 rounded-node border-dashed p-2 aria-disabled:opacity-60 ${focusRing} ${target === "illegal" ? "bg-surface text-muted border-[1.5px] border-graphic" : target === "legal" ? "border-2 border-accent text-accent" : "border-[1.5px] border-accent text-accent"}`}
+              style={{ insetInlineStart: i * ((wide ? 136 : 108) + 8), top: layout.height + 16, width: wide ? 136 : 108 }}>
+              {link === "parent" ? messages.treeAddParent : messages.treeAddSpouse}
+              {target && <span aria-hidden="true" className={`rounded px-1 text-badge font-semibold ${target === "legal" ? "bg-accent text-accent-foreground" : "bg-surface text-muted"}`}>{target === "legal" ? messages.dropHere : messages.dropNotHere}</span>}
+            </button>;
+          })}
         </div>
       </div>
     </div>
+    {editingId === null && <div data-add-row className="flex flex-col gap-2 px-2">
+      <AddHere key={`${rowAnchor}:${openLink ?? ""}`} messages={messages} anchor={rowAnchor} personLabel={rowLabel}
+        entries={model.placement[rowAnchor] ?? []} link={openLink ?? undefined} defaultOpen={openLink !== null}
+        frozen={frozen} atLimit={atLimit}
+        alert={dropAlert ?? (addOutcome && addOutcome.anchor === rowAnchor ? addOutcome.text : null)}
+        onChoose={entry => onAddHere?.(rowAnchor, entry)} />
+    </div>}
   </section>;
 }

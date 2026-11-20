@@ -67,6 +67,6 @@ export async function openCanvasFixture(page: Page, api: Api, locale: "en" | "ar
   api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, kind === "lineage" ? fixture.response : { status: "not_ready" }) });
   await page.goto(`/${locale}/interview/`);
   await page.getByRole("button", { name: messages[locale].interview.resume }).click();
-  await page.locator("section[data-tree] [role='group']").waitFor();
+  await page.locator("section[data-tree] [data-tree-area]").waitFor();
   if (kind === "lineage") await page.locator('[data-node="s2"][data-state="blocked"]').waitFor();
 }

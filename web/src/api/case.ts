@@ -168,6 +168,8 @@ export type PlacementOption = {
   link: PlacementLink;
   /** Valid but inherits nothing: labelled, never refused. */
   blocked: boolean;
+  /** The new person's gender, from the engine; absent when the server did not send a valid one. */
+  gender?: Gender;
 };
 
 /** Anchor id (`root` for the estate's deceased) to the relationships the engine allows there. */
@@ -372,13 +374,20 @@ export function parsePlacement(value: unknown): Placement {
     if (Array.isArray(entries)) {
       for (const entry of entries as unknown[]) {
         const found = typeof entry === "object" && entry !== null && !Array.isArray(entry) &&
-          hasExactKeys(entry, ["relationship", "link", "blocked"]) ? (entry as Record<string, unknown>) : null;
+          (hasExactKeys(entry, ["relationship", "link", "blocked"]) ||
+            hasExactKeys(entry, ["relationship", "link", "blocked", "gender"]))
+          ? (entry as Record<string, unknown>) : null;
         if (!found || !isRelationshipId(found.relationship) || typeof found.link !== "string" ||
             !PLACEMENT_LINKS.includes(found.link) || typeof found.blocked !== "boolean") {
           valid = false;
           break;
         }
-        options.push({ relationship: found.relationship, link: found.link as PlacementLink, blocked: found.blocked });
+        options.push({
+          relationship: found.relationship,
+          link: found.link as PlacementLink,
+          blocked: found.blocked,
+          ...(found.gender === "male" || found.gender === "female" ? { gender: found.gender } : {}),
+        });
       }
     }
     // defineProperty: an anchor named `__proto__` must become an own entry, not set the prototype.
@@ -700,6 +709,8 @@ export type HeirFields = {
   layer?: string;
   /** Joins an earlier person instead of entering a new one. */
   same_as?: string;
+  /** The person (or `root`) this relative is added at; sent only when set. */
+  anchor?: string;
 };
 
 const DECEASED_URL = "/api/v1/case/deceased/";
