@@ -22,10 +22,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Parse each admin key type's fields in `bootstrap-host.sh` `validate_admin` (as OpenSSH's `sshkey.c` does), so a key with a matching type header but an incomplete body (e.g. a one-byte ed25519 key) is refused.
   evidence: The guest check now requires strict, canonical base64, the full type header and at least one key byte, but no type-specific structure; `provision-host.sh` sends an `ssh-keygen -y` key, so only a direct guest run with a hand-made key could install a key OpenSSH cannot load.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-host-baseline-suite-tightening.md`
-  summary: Fix ShellCheck SC2258 in `deploy/tests/test_host_baseline.sh` (`for cidrs in 203.0.113.0/24, ,203.0.113.0/24; do`, added in 83b889a) by quoting the two values, before the next push: CI runs ShellCheck 0.11.0 on `deploy/tests/*.sh`.
-  evidence: ShellCheck 0.9.0 in an Ubuntu 24.04 container reports SC2258 (warning) at that line on HEAD 83b889a, independent of this story's diff; the trailing comma is part of the word, so the test values are probably still as intended, but the lint step fails on warnings.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-host-baseline-validation-tests.md`
   summary: Add a sandboxed run of `bootstrap-host.sh` itself (stubbed EUID, `/etc/os-release`, `apt-get` and a mutation log) that proves a bad guest input is refused before the first host change.
   evidence: `test_host_baseline.sh` checks the validator call lines and their order and runs the extracted validators directly; a call moved into a branch that never runs would still pass. The public-web step checks have the same gap.

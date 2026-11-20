@@ -43,7 +43,7 @@ fetch_ranges() { # $1 = URL
 }
 
 [[ -r "$file" ]] || die "cannot read $file"
-file_ranges="$(parse_ranges "$file" <"$file")" || exit 2
+file_ranges="$(exec 3<"$file" && parse_ranges "$file" <&3)" || exit 2
 published="$( { fetch_ranges "$v4_url"; fetch_ranges "$v6_url"; } )" || exit 2
 
 file_set="$(sort -u <<<"$file_ranges")"

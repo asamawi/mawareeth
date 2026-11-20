@@ -168,7 +168,7 @@ done
 guest_refuses validate_cidrs 'SSH_ALLOWED_CIDRS is required'
 guest_refuses validate_cidrs 'SSH_ALLOWED_CIDRS is required' SSH_ALLOWED_CIDRS=
 guest_refuses validate_cidrs 'contains an empty CIDR' SSH_ALLOWED_CIDRS=203.0.113.0/24,,198.51.100.0/24
-for cidrs in 203.0.113.0/24, ,203.0.113.0/24; do
+for cidrs in '203.0.113.0/24,' ',203.0.113.0/24'; do
   guest_refuses validate_cidrs 'contains an empty CIDR' "SSH_ALLOWED_CIDRS=$cidrs"
 done
 for cidrs in $'203.0.113.0/24\n198.51.100.0/24' '203.0.113.0/24, 198.51.100.0/24' $'203.0.113.0/24\n'; do
