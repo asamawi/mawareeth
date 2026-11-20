@@ -106,7 +106,10 @@ def _estate(estate, rule_set):
 
 
 def evaluate(family, rule_set):
-    """Solve in death order, carrying exact running totals between estates."""
+    """Solve in death order, carrying exact running totals between estates.
+
+    Refuses (invalid_family) a Family carrying gifts, bequests or answers: content the engine cannot compute yet.
+    """
     if not isinstance(rule_set, RuleSet):
         raise ContractError('invalid_contract', 'rule_set must be a RuleSet')
     people = {person.id: person for person in family.persons}
@@ -122,6 +125,8 @@ def evaluate(family, rule_set):
                 ('husband' in rels and people[estate.deceased].gender == 'male') or
                 ('wife' in rels and people[estate.deceased].gender == 'female')))):
             return _refused(rule_set, 'invalid_family')
+    if family.gifts or family.bequests or family.answers:
+        return _refused(rule_set, 'invalid_family')
     if rule_set.school == 'jafari':
         return _refused(rule_set, 'school_not_supported')
     earlier = set()

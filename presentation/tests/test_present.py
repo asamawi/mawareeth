@@ -91,6 +91,14 @@ class MatrixTests(unittest.TestCase):
                              [('invalid_family', i18n.term('refusal.invalid_family', locale), None)])
             self.assertEqual((r.rows, r.rounding, r.unallocated, r.comparison, r.evidence), ((), None, None, None, ()))
 
+    def test_family_with_bequest_is_all_refused(self):
+        document = family_document(['son', 'wife'])
+        document['bequests'].append({'branch': 'h0', 'amount_minor': 1000})
+        r = run(c.parse_family(document))
+        self.assertEqual((r.state, r.comparison_outcome), ('refused', 'all_refused'))
+        self.assertEqual([x['reason'] for x in r.refusals], ['invalid_family'])
+        self.assertEqual((r.rows, r.comparison, r.evidence), ((), None, ()))
+
     def test_jafari_refuses(self):
         r = run(family(['son'], 1000), {'kind': 'school', 'school': 'jafari'})
         self.assertEqual((r.state, [x['reason'] for x in r.refusals]), ('refused', ['school_not_supported']))

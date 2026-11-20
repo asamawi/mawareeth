@@ -12,7 +12,7 @@ from engine.contracts.errors import ContractError
 from engine.contracts.family import Edge
 from engine.kinship import RELATIONSHIP_GENDERS, SECOND_OF
 from engine.single import solve, Refused
-from engine.tests.test_core import family, MALIKIYYA
+from engine.tests.test_core import family, family_document, MALIKIYYA
 from engine.tests.test_layered import layered_cases
 
 H = school_rule_set('hanafi')
@@ -100,6 +100,9 @@ class QueryTests(unittest.TestCase):
         s = school_rule_set('shafii')
         f = family(['grandfather', 'brother'])
         self.assertEqual(q.share_changing_presets(f, H, [H, s]), (s,))
+        document = family_document(['grandfather', 'brother'])
+        document['gifts'].append({'branch': 'h0', 'amount_minor': 100})
+        self.assertEqual(q.share_changing_presets(parse_family(document), H, [H, s]), ())
         data = json.loads((Path(__file__).resolve().parents[2] / 'contracts/fixtures/preset/zz-2026-01-01.json').read_text())
         data.update(rules={}, settings={}, citations={})
         preset = parse_preset(data)

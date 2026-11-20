@@ -1,10 +1,11 @@
 """Successive-death matrix and exact evidence tests, without Django."""
+import copy
 import unittest
 from contextlib import nullcontext
 from dataclasses import replace, FrozenInstanceError
 from fractions import Fraction as F
 
-from engine import evaluate, final_shares, school_rule_set, thaw, contracts as c
+from engine import calculate, evaluate, final_shares, school_rule_set, thaw, contracts as c
 from engine.tests.test_core import family_document, person, SCHOOLS, MALIKIYYA
 
 
@@ -129,6 +130,9 @@ class LayeredCoreTests(unittest.TestCase):
         doc['estates'][1]['deceased'] = 'outsider'
         fam = c.parse_family(doc)
         self.assertEqual(evaluate(fam, school_rule_set('hanbali')).result.refusal, 'manasikhat_unsupported')
+        with_bequest = copy.deepcopy(doc)
+        with_bequest['bequests'].append({'branch': 'W', 'amount_minor': 1000})
+        self.assertEqual(calculate(c.parse_family(with_bequest), school_rule_set('hanbali')).refusal, 'invalid_family')
         self.assertEqual(evaluate(fam, school_rule_set('jafari')).result.refusal, 'school_not_supported')
         doc['estates'][1]['heirs'] = [{'person': 'W', 'relationship': 'husband'}]
         self.assertEqual(evaluate(c.parse_family(doc), school_rule_set('jafari')).result.refusal, 'invalid_family')

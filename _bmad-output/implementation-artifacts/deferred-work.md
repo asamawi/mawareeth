@@ -449,9 +449,9 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
   summary: The engine cannot refuse a spouse of the deceased's own sex (a husband alone for a male deceased), because Family v1 has no gender for the root.
   evidence: `engine/core.py` `is_impossible` is gender-free; `calc/test_engine_parity.py` pins that the engine calculates these. Production is protected by the preview's consumer guard (`presentation.refused_outcome`), not by the core. Settle with a Family version carrying the root's gender.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-reproduce-existing-single-estate-school-answers-in-memory.md`
-  summary: `evaluate` ignores Family gifts, bequests and eligibility answers, so a Family carrying a bequest gets a normal Result with no refusal.
-  evidence: `engine/core.py` `evaluate` reads only heirs and estate. No producer emits these yet; the bequest/gift stories must compute them or refuse a Family that carries them.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-engine-refuses-uncomputed-family-content.md`
+  summary: The bequest, gift and eligibility stories must replace the `invalid_family` refusal of a Family carrying gifts, bequests or answers with real computation, or with a dedicated refusal reason with reviewed text and a Result/Comparison/PresentedResult version bump, before any producer emits these fields.
+  evidence: `engine/core.py` `evaluate` now refuses them as `invalid_family`, whose text tells the user the family is impossible. No producer reaches it today (adapters send empty lists; snapshots reject the fields as `unsupported_content`).
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-engine-refuses-gender-contradicting-relationship.md`
   summary: Count production legacy successive-death Calculations where a heir row's stored `sex` contradicts its class and that heir later dies with a spouse heir, since their result changed when the legacy adapter began taking gender from the class.
