@@ -1060,7 +1060,7 @@ need "$route" '      - alertname="MawareethDiskWarning"'
 need "$route" '    equal: [project, mountpoint]'
 [[ "$(grep -c '^ *- receiver: ' "$route")" == 2 && "$(grep -c '^  - name: ' "$route")" == 2 ]] || fail 'the route snippet must define exactly two routes and two receivers'
 [[ "$(grep -c '^  - source_matchers:$' "$route")" == 2 ]] || fail 'the route snippet must define exactly two inhibit rules'
-host_rules='MawareethInodesLow MawareethFilesystemReadOnly MawareethMemoryPressure MawareethOOMKill MawareethSystemdUnitFailed MawareethClockUnsynced'
+host_rules='MawareethInodesLow MawareethFilesystemReadOnly MawareethMemoryPressure MawareethOOMKill MawareethSystemdUnitFailed MawareethClockUnsynced MawareethHostMetricsMissing'
 all_rules="MawareethHostDown MawareethBackupUnhealthy MawareethBackupIncomplete MawareethRestoreUnhealthy MawareethDiskWarning MawareethDiskCritical
   MawareethCollectorStale MawareethAlertDrill MawareethDrillOverdue MawareethOriginCertificateExpiring MawareethGithubTokenUnhealthy $host_rules MawareethWatchdog"
 for name in $all_rules; do
@@ -1070,10 +1070,10 @@ for name in $all_rules; do
   [[ -n "$anchor" ]] || fail "$name has no runbook annotation"
   need "$root/deploy/README.md" "<a id=\"$anchor\"></a>"
 done
-[[ "$(grep -c '^ *- alert:' "$alerts")" == 21 ]] || fail 'expected exactly twenty-one alert rules'
-[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 21 ]] || fail 'every rule needs a project: mawareeth label'
-[[ "$(grep -c '^ *severity: ' "$alerts")" == 21 ]] || fail 'every rule needs a severity label'
-[[ "$(grep -c '^ *runbook: ' "$alerts")" == 21 ]] || fail 'every rule needs a runbook annotation'
+[[ "$(grep -c '^ *- alert:' "$alerts")" == 22 ]] || fail 'expected exactly twenty-two alert rules'
+[[ "$(grep -c '^ *project: mawareeth$' "$alerts")" == 22 ]] || fail 'every rule needs a project: mawareeth label'
+[[ "$(grep -c '^ *severity: ' "$alerts")" == 22 ]] || fail 'every rule needs a severity label'
+[[ "$(grep -c '^ *runbook: ' "$alerts")" == 22 ]] || fail 'every rule needs a runbook annotation'
 [[ "$(grep -c '^ *- alert: MawareethOriginCertificateExpiring$' "$alerts")" == 2 ]] || fail 'the certificate alert needs a warning and a critical rule'
 # shellcheck disable=SC2013 # anchors are single words without spaces.
 for anchor in $(grep -o 'README.md#runbook-[a-z]*' "$alerts" | sort -u | cut -d# -f2); do
@@ -1102,6 +1102,9 @@ for text in 'up{job="mawareeth-node"} == 0 or absent(up{job="mawareeth-node"})' 
   'or absent(node_systemd_unit_state{job="mawareeth-node"})' \
   'node_timex_sync_status{job="mawareeth-node"} == 0' \
   'or abs(node_timex_offset_seconds{job="mawareeth-node"}) > 0.5' \
+  'node_scrape_collector_success{job="mawareeth-node",collector=~"filesystem|meminfo|vmstat|timex"} == 0' \
+  'or node_filesystem_device_error{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"} == 1' \
+  'or absent(node_vmstat_oom_kill{job="mawareeth-node"})' \
   '(mawareeth_origin_certificate_expiry_timestamp_seconds{job="mawareeth-node"} - time()) < 30 * 86400' \
   'and (mawareeth_origin_certificate_expiry_timestamp_seconds{job="mawareeth-node"} - time()) >= 7 * 86400' \
   'expr: (mawareeth_origin_certificate_expiry_timestamp_seconds{job="mawareeth-node"} - time()) < 7 * 86400' \
@@ -1116,9 +1119,9 @@ for text in 'up{job="mawareeth-node"} == 0 or absent(up{job="mawareeth-node"})' 
 # GitHub token, and collector/drill absent-only branches 5m (missing metrics
 # must wait for HostDown to inhibit them); memory and clock 10m. Backup,
 # restore, collector/drill thresholds, certificates, OOM, and Watchdog fire at once.
-[[ "$(grep -c '^ *for: ' "$alerts")" == 11 ]] || fail 'expected exactly eleven for: delays'
+[[ "$(grep -c '^ *for: ' "$alerts")" == 12 ]] || fail 'expected exactly twelve for: delays'
 [[ "$(grep -c '^ *for: 2m$' "$alerts")" == 2 ]] || fail 'HostDown and the read-only alert need for: 2m'
-[[ "$(grep -c '^ *for: 5m$' "$alerts")" == 7 ]] || fail 'expected seven for: 5m delays'
+[[ "$(grep -c '^ *for: 5m$' "$alerts")" == 8 ]] || fail 'expected eight for: 5m delays'
 for name in MawareethCollectorStale MawareethDrillOverdue; do
   awk -v name="$name" '
     /^ *- alert: / { selected = ($3 == name); absent = 0; delay = "" }
@@ -1167,6 +1170,20 @@ elif command -v promtool >/dev/null 2>&1; then
   # which would keep resetting its pending state.
   long_groups="$tmp/alerts-long.groups"
   : > "$long_groups"
+  # The host-health series every rule reads, for $1 samples, without the
+  # metric names in $2 (space-separated); $3/$4 set SwapTotal/SwapFree.
+  host_series() {
+    local n="$1" skip=" ${2:-} " entry name set value
+    for entry in "node_filesystem_avail_bytes d 50" "node_filesystem_size_bytes d 100" "node_filesystem_files d 1000" \
+      "node_filesystem_files_free d 900" "node_filesystem_readonly d 0" "node_memory_MemAvailable_bytes h 500" \
+      "node_memory_MemTotal_bytes h 1000" "node_memory_SwapFree_bytes h ${4:-900}" "node_memory_SwapTotal_bytes h ${3:-1000}" \
+      "node_vmstat_oom_kill h 3" "node_timex_sync_status h 1" "node_timex_offset_seconds h 0.002"; do
+      read -r name set value <<< "$entry"
+      [[ "$skip" == *" $name "* ]] && continue
+      if [[ "$set" == d ]]; then printf "      - {series: '%s{%s,%s}', values: '%sx%s'}\n" "$name" "$labels" "$disk" "$value" "$n"
+      else printf "      - {series: '%s{%s}', values: '%sx%s'}\n" "$name" "$labels" "$value" "$n"; fi
+    done
+  }
   {
     printf 'rule_files: [mawareeth-alerts.yml]\nevaluation_interval: 1m\ntests:\n'
     # Healthy: nothing fires.
@@ -1194,6 +1211,10 @@ elif command -v promtool >/dev/null 2>&1; then
     printf "      - {series: 'node_systemd_unit_state{%s,%s}', values: '1x40'}\n" "$labels" "${unit/failed/active}"
     printf "      - {series: 'node_timex_sync_status{%s}', values: '1x40'}\n" "$labels"
     printf "      - {series: 'node_timex_offset_seconds{%s}', values: '0.002x40'}\n" "$labels"
+    for collector in filesystem meminfo vmstat timex; do
+      printf "      - {series: 'node_scrape_collector_success{%s,collector=\"%s\"}', values: '1x40'}\n" "$labels" "$collector"
+    done
+    printf "      - {series: 'node_filesystem_device_error{%s,%s}', values: '0x40'}\n" "$labels" "$disk"
     printf "      - {series: 'mawareeth_origin_certificate_expiry_timestamp_seconds{%s,file=\"cert.pem\"}', values: '99999999x40'}\n" "$labels"
     printf "      - {series: 'mawareeth_github_token_usable{%s}', values: '1x40'}\n" "$labels"
     printf "      - {series: 'mawareeth_github_token_last_ok_timestamp_seconds{%s}', values: '0x40'}\n" "$labels"
@@ -1525,6 +1546,44 @@ elif command -v promtool >/dev/null 2>&1; then
     printf '    alert_rule_test:\n'
     printf '      - {eval_time: 12m, alertname: MawareethClockUnsynced, exp_alerts: []}\n'
     printf '      - {eval_time: 24m, alertname: MawareethClockUnsynced, exp_alerts: []}\n'
+    # Host metrics: each failing collector fires at 5m, with its name.
+    for collector in filesystem meminfo vmstat timex; do
+      printf '  - interval: 1m\n    input_series:\n'
+      host_series 15
+      printf "      - {series: 'node_scrape_collector_success{%s,collector=\"%s\"}', values: '0x15'}\n" "$labels" "$collector"
+      printf '    alert_rule_test:\n'
+      printf '      - {eval_time: 4m, alertname: MawareethHostMetricsMissing, exp_alerts: []}\n'
+      printf '      - eval_time: 6m\n        alertname: MawareethHostMetricsMissing\n        exp_alerts:\n'; alert_labels warning MawareethHostMetricsMissing ", collector: $collector"
+    done
+    # A device error on a monitored filesystem fires at 5m, with its mountpoint.
+    printf '  - interval: 1m\n    input_series:\n'
+    host_series 15
+    printf "      - {series: 'node_filesystem_device_error{%s,%s}', values: '1x15'}\n" "$labels" "$disk"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 4m, alertname: MawareethHostMetricsMissing, exp_alerts: []}\n'
+    printf '      - eval_time: 6m\n        alertname: MawareethHostMetricsMissing\n        exp_alerts:\n'; alert_labels warning MawareethHostMetricsMissing "$disk_yaml"
+    # One series gone while the rest are healthy: fires at 5m with only the job label.
+    for missing in node_filesystem_avail_bytes node_filesystem_size_bytes node_filesystem_files node_filesystem_files_free node_filesystem_readonly \
+      node_memory_MemAvailable_bytes node_memory_MemTotal_bytes node_memory_SwapFree_bytes node_memory_SwapTotal_bytes \
+      node_vmstat_oom_kill node_timex_sync_status node_timex_offset_seconds; do
+      printf '  - interval: 1m\n    input_series:\n'
+      host_series 15 "$missing"
+      printf '    alert_rule_test:\n'
+      printf '      - {eval_time: 4m, alertname: MawareethHostMetricsMissing, exp_alerts: []}\n'
+      printf '      - eval_time: 6m\n        alertname: MawareethHostMetricsMissing\n        exp_alerts:\n          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethHostMetricsMissing, job: mawareeth-node}\n'
+    done
+    # A 3-minute collector blip never fires.
+    printf '  - interval: 1m\n    input_series:\n'
+    host_series 15
+    printf "      - {series: 'node_scrape_collector_success{%s,collector=\"vmstat\"}', values: '0x3 1x12'}\n" "$labels"
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 3m, alertname: MawareethHostMetricsMissing, exp_alerts: []}\n'
+    printf '      - {eval_time: 10m, alertname: MawareethHostMetricsMissing, exp_alerts: []}\n'
+    # A swapless host (SwapTotal and SwapFree both 0) is healthy.
+    printf '  - interval: 1m\n    input_series:\n'
+    host_series 15 "" 0 0
+    printf '    alert_rule_test:\n'
+    printf '      - {eval_time: 10m, alertname: MawareethHostMetricsMissing, exp_alerts: []}\n'
     # The Watchdog fires at once with no input at all, and while the host is down.
     printf '  - interval: 1m\n    input_series:\n'
     printf "      - {series: 'up{%s}', values: '0x10'}\n" "$labels"
@@ -1546,6 +1605,27 @@ elif command -v promtool >/dev/null 2>&1; then
     printf "              summary: 'Mawareeth alert-path drill code 654321'\n"
     printf "              description: '%s'\n" "$(sed -n '/alert: MawareethAlertDrill/,/runbook:/s/^ *description: '"'"'\(.*\)'"'"'$/\1/p' "$alerts" | sed 's/{{ $labels.alias }}/mawareeth-prod/')"
     printf "              runbook: 'deploy/README.md#runbook-mawareethalertdrill'\n"
+    # MawareethHostMetricsMissing: the three summary variants render.
+    hm_desc="$(sed -n '/alert: MawareethHostMetricsMissing/,/runbook:/s/^ *description: '"'"'\(.*\)'"'"'$/\1/p' "$alerts")"
+    hm_exp() {
+      printf '          - exp_labels: {severity: warning, project: mawareeth, alertname: MawareethHostMetricsMissing, job: mawareeth-node%s}\n' "$1"
+      printf "            exp_annotations:\n              summary: '%s'\n              description: '%s'\n" "$2" "$hm_desc"
+      printf "              runbook: 'deploy/README.md#runbook-mawareethhostmetricsmissing'\n"
+    }
+    printf '  - interval: 1m\n    input_series:\n'
+    host_series 10
+    printf "      - {series: 'node_scrape_collector_success{%s,collector=\"vmstat\"}', values: '0x10'}\n" "$labels"
+    printf '    alert_rule_test:\n      - eval_time: 6m\n        alertname: MawareethHostMetricsMissing\n        exp_alerts:\n'
+    hm_exp ', instance: "100.101.102.103:9100", alias: mawareeth-prod, collector: vmstat' 'Mawareeth: node_exporter collector vmstat is failing on mawareeth-prod'
+    printf '  - interval: 1m\n    input_series:\n'
+    host_series 10
+    printf "      - {series: 'node_filesystem_device_error{%s,%s}', values: '1x10'}\n" "$labels" "$disk"
+    printf '    alert_rule_test:\n      - eval_time: 6m\n        alertname: MawareethHostMetricsMissing\n        exp_alerts:\n'
+    hm_exp ", instance: \"100.101.102.103:9100\", alias: mawareeth-prod$disk_yaml" 'Mawareeth: filesystem / on mawareeth-prod reports a device error'
+    printf '  - interval: 1m\n    input_series:\n'
+    host_series 10 node_timex_sync_status
+    printf '    alert_rule_test:\n      - eval_time: 6m\n        alertname: MawareethHostMetricsMissing\n        exp_alerts:\n'
+    hm_exp '' 'Mawareeth: a host-health series is missing (check the node_exporter)'
   } > "$tmp/drill.test.yml"
   promtool test rules "$tmp/drill.test.yml" > "$tmp/out" 2>&1 || fail 'promtool drill annotation test failed (the email must carry the code)'
   # Rule paths resolve relative to the test file. Annotations (checked

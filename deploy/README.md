@@ -700,6 +700,7 @@ The steps:
 | `MawareethOOMKill` | The kernel OOM killer ran within the last 10 minutes (`increase(node_vmstat_oom_kill[10m]) > 0`); fires at once and resolves 10 minutes after the last kill | warning |
 | `MawareethSystemdUnitFailed` | A systemd unit in the `failed` state for 5 minutes (labelled with the unit `name`), or no `node_systemd_unit_state` series at all for 5 minutes (the exporter runs without `--collector.systemd`; the alert then has no `name`) | warning |
 | `MawareethClockUnsynced` | `node_timex_sync_status == 0`, or `abs(node_timex_offset_seconds) > 0.5`, for 10 minutes | warning |
+| `MawareethHostMetricsMissing` | a `filesystem`, `meminfo`, `vmstat`, or `timex` collector reports `node_scrape_collector_success == 0`, a monitored filesystem reports `node_filesystem_device_error == 1`, or a series the host-health alerts read is absent, for 5 minutes | warning |
 | `MawareethWatchdog` | Always (`vector(1)`). Routed only to the `mawareeth-heartbeat` webhook, never emailed, never inhibited; see [Better Stack heartbeat](#better-stack-heartbeat) | heartbeat |
 
 `deploy/tests/test_monitor.sh` unit-tests these rules with `promtool test rules` and checks the route snippet with `amtool check-config` and `amtool config routes test`. Those checks run only when `promtool` and `amtool` are installed (otherwise only static checks run); with `CI` set, a missing tool fails the suite. The end-to-end path is proven by the operator's [alert-path drill](#alert-path-drill), which must pass on a new host and then every quarter.
@@ -884,6 +885,14 @@ A missing metric fires only after 5 minutes, so a single failed scrape does not 
 1. Run `timedatectl status` and `timedatectl timesync-status` (or `chronyc tracking` if chrony is installed).
 2. Make sure exactly one time daemon is active and can reach its NTP servers (UDP 123 outbound), then restart the one in use: `sudo systemctl restart systemd-timesyncd` for systemd-timesyncd, or `sudo systemctl restart chrony` for chrony.
 3. A wrong clock also skews the backup, restore, and drill age rules (and may close `backup.sh gate` as future-dated). Re-check those alerts once the clock is synchronised.
+
+<a id="runbook-mawareethhostmetricsmissing"></a>
+**MawareethHostMetricsMissing.**
+The scrape works, but a node_exporter `filesystem`, `meminfo`, `vmstat`, or `timex` collector is failing, a monitored filesystem reports a device error, or a series the host-health alerts read is absent. Until it is fixed the disk, inode, read-only, memory, OOM, and clock alerts can stay silent. (If the whole scrape is down, `MawareethHostDown` fires instead and suppresses this alert.)
+1. Check which collector fails: `curl -s http://$(tailscale ip -4):9100/metrics | grep node_scrape_collector_success`. A `0` names the failing collector (the alert's `collector` label); a missing line means the exporter is not running that collector.
+2. Read the exporter log: `sudo journalctl -u prometheus-node-exporter -n 100`. Then restart it with `sudo systemctl restart prometheus-node-exporter`, or re-run `sudo deploy/monitor.sh install` if the flags or wrapper are out of date.
+3. With a `mountpoint` label (a device error): run `sudo dmesg -T | tail -50` and `findmnt <mountpoint>` for I/O errors, and check the disk (`smartctl -a`, the provider console). Treat it like the [read-only runbook](#runbook-mawareethfilesystemreadonly).
+4. With neither label, one host-health series is absent: `curl -s http://$(tailscale ip -4):9100/metrics | grep -E '^node_(filesystem_(avail_bytes|size_bytes|files_free|files|readonly)|memory_(MemAvailable|MemTotal|SwapFree|SwapTotal)_bytes|vmstat_oom_kill|timex_(sync_status|offset_seconds))' | grep -E 'fstype="(ext4|xfs|btrfs)"|^node_(memory|vmstat|timex)'` shows which one is missing. A host without swap must still report `node_memory_SwapTotal_bytes 0`.
 
 <a id="runbook-mawareethwatchdog"></a>
 **MawareethWatchdog.**

@@ -62,9 +62,9 @@ Completed and obsolete items are removed; their history is in git.
   summary: Add external dead-man coverage for the shared p1 SMTP relay so a stopped relay is detected between quarterly alert-path drills.
   evidence: Review of 0.8 noted every host-side Mawareeth alert depends on p1's Prometheus/Alertmanager/SMTP; if any stops, all Mawareeth alerts go silent while Better Stack covers only the public endpoint. Complements the existing quarterly alert-path drill. Partly shipped in `ba2f7c7`: Watchdog/Better Stack cover Prometheus, Alertmanager and reachability; SMTP remains covered only by quarterly drills.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-monitoring-gaps.md`
-  summary: Detect collector failures behind the host-health rules (e.g. `node_scrape_collector_success{collector=~"systemd|vmstat|timex|filesystem|meminfo"} == 0`, `node_filesystem_device_error == 1`, or `absent()` guards for the memory, OOM and clock series) so they cannot go quiet unnoticed.
-  evidence: Review of the monitoring-gaps change found that only `MawareethSystemdUnitFailed` has an absence guard; if the vmstat, timex, meminfo or filesystem collector fails or drops a series, the OOM, clock, memory, inode and read-only rules can never fire, and nothing reports it.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-collector-failure-alerts.md`
+  summary: Prove at runtime that Alertmanager suppresses host alerts (including the new `MawareethHostMetricsMissing`, whose absent() branches fire during a scrape outage) while `MawareethHostDown` fires for the same project.
+  evidence: `deploy/tests/test_monitor.sh` checks receiver selection with `amtool` and the inhibit matchers as text only; no harness evaluates inhibition. Settle with a throwaway Alertmanager that receives both alerts and lists `/api/v2/alerts?inhibited=false`, or rely on the quarterly alert-path drill.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-monitoring-gaps.md`
   summary: Move the Better Stack heartbeat URL out of `alertmanager.yml` into a root-only file read through `webhook_configs[].url_file`, if p1's Alertmanager version supports it.
