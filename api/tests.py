@@ -2761,6 +2761,42 @@ class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, Transaction
         self.refused(self.mark(self.w), {'death': 'already_deceased'}, before)
         self.assertEqual(self.rows(), counts)
 
+    def put_relationship(self, heir_id, relationship):
+        return self.send('put', HEIRS_URL + heir_id + '/',
+                         {'case_id': self.case_id, 'relationship': relationship})
+
+    def assert_locked_options(self, row, gender):
+        from api.anonymous_case import RELATIONSHIPS
+        options = row['edit_options']
+        opposite = {r for r, g in RELATIONSHIPS.items() if g != gender}
+        self.assertEqual({r for r, c in options['invalid'].items() if c == 'gender_locked'}, opposite)
+        self.assertFalse(opposite & set(options['blocked']))
+        self.assertFalse(set(options['blocked']) & set(options['invalid']))
+        for relationship in RELATIONSHIPS:
+            response = self.put_relationship(row['id'], relationship)
+            self.assertIn(response.status_code, (200, 400), relationship)
+            errors = response.json().get('errors', {}) if response.status_code == 400 else {}
+            self.assertEqual(errors.get('relationship') == 'gender_locked', relationship in opposite, relationship)
+
+    def test_edit_options_respect_locked_gender(self):
+        self.two()
+        # S2 is linked into the later estate as a brother, so S2 and the alias are male-locked.
+        self.assert_locked_options(next(r for r in self.live()['heirs'] if r['id'] == self.s2), 'male')
+        self.assert_locked_options(
+            next(r for r in self.live()['deaths'][0]['heirs'] if r.get('same_as') == self.s2), 'male')
+        # W is linked as the mother (female), and S1 is the later deceased (male).
+        self.assert_locked_options(next(r for r in self.live()['heirs'] if r['id'] == self.w), 'female')
+        self.assert_locked_options(next(r for r in self.live()['heirs'] if r['id'] == self.s1), 'male')
+        # Case-level add options are unchanged by locks.
+        self.assertFalse(any(c == 'gender_locked' for c in self.live()['heir_options']['invalid'].values()))
+
+    def test_edit_options_unlocked_unchanged(self):
+        self.setup_family()
+        case = self.live()
+        for row in case['heirs']:
+            self.assertNotIn('gender_locked', row['edit_options']['invalid'].values())
+        self.assertEqual(self.put_relationship(self.s1, 'daughter').status_code, 200)
+
     def test_order_answers_and_conflicts(self):
         for answer, code in ((None, 'order_required'), ('unknown', 'unknown'),
                              ('simultaneous', 'simultaneous'), ('missing', 'order_conflict')):
@@ -2812,6 +2848,8 @@ class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, Transaction
         self.assertEqual(self.preview(self.case_id).status_code, 200)
         self.send('delete', DEATHS_URL + self.s1 + '/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
         self.assertEqual(self.live()['deaths'], [])
+        for row in self.live()['heirs']:
+            self.assertNotIn('gender_locked', row['edit_options']['invalid'].values())
         self.two()
         self.mark(self.w)
         self.send('delete', HEIRS_URL + self.s1 + '/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
@@ -3390,6 +3428,10 @@ class SavedCaseTests(InterviewBase):
             'case_id': loaded['id'], 'saved_id': row.pk, 'base_revision': row.revision})
         self.assertNotEqual(loaded['id'], case['id'])
         self.assertEqual(anonymous_case.export_snapshot(loaded), row.snapshot)
+        locked_root = next(r for r in loaded['heirs'] if r['id'] == 'father-row')
+        locked_alias = loaded['deaths'][0]['heirs'][0]
+        for locked in (locked_root, locked_alias):
+            self.assertEqual(locked['edit_options']['invalid']['daughter'], 'gender_locked')
         regenerated = device.get(
             f'/api/v1/case/preview/?case_id={loaded["id"]}', secure=True)
         self.assertEqual(regenerated.status_code, 200)

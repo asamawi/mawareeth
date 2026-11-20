@@ -260,12 +260,16 @@ def _read_edges(value, known):
     return edges
 
 
-def heir_options(madhab, deceased, heirs):
+def heir_options(madhab, deceased, heirs, locked_gender=None):
     """What adding a relative to the whole family would meet: {'blocked': [...], 'invalid': {...}}.
 
     `blocked` lists the relationships the engine would give nothing (hajb): they are labelled,
     never refused. `invalid` maps a relationship to the code of the kinship rule it would
     break. The two never overlap: kinship comes first.
+
+    With `locked_gender` (a person linked into another row, or named as a later deceased), every
+    relationship of the other gender is `invalid` as `gender_locked`, ahead of any kinship code,
+    as `update_heir` answers it.
     """
     if deceased is None:
         return {'blocked': [], 'invalid': {}}
@@ -273,7 +277,9 @@ def heir_options(madhab, deceased, heirs):
     invalid = {}
     for relationship in RELATIONSHIPS:
         code = heir_rules.kinship_code(relationship, deceased['gender'], counts)
-        if code is not None:
+        if locked_gender is not None and RELATIONSHIPS[relationship] != locked_gender:
+            invalid[relationship] = 'gender_locked'
+        elif code is not None:
             invalid[relationship] = code
     blocked = heir_rules.blocked_relationships(madhab, counts)
     return {
@@ -375,9 +381,8 @@ def read_snapshot(snapshot, case_id, started_at):
         'heir_options': heir_options(madhab, deceased, heirs),
         'deaths': [],
     }
-    for i, heir in enumerate(heirs):
-        heir['edit_options'] = heir_options(madhab, deceased, heirs[:i] + heirs[i + 1:])
     _read_deaths(result, snapshot.get('deaths'))
+    _decorate(result)
     died_before = _read_died_before(snapshot.get('died_before'), set(_rows(result)))
     if died_before:
         result['died_before'] = died_before
@@ -492,13 +497,28 @@ def _person(row):
     return row.get('same_as') or row['id']
 
 
+def _is_locked(case, rows, row):
+    """True when the row's person is linked into another row or named as a later deceased."""
+    person = _person(row)
+    return (any(_person(r) == person and r['id'] != row['id'] for r in rows.values())
+            or any(d['heir_id'] == person for d in case['deaths']))
+
+
+def _edit_options(case, rows, deceased, layer, i):
+    row = layer[i]
+    return heir_options(case['madhab'], deceased, layer[:i] + layer[i + 1:],
+                        row['gender'] if _is_locked(case, rows, row) else None)
+
+
 def _decorate(case):
     rows = _rows(case)
+    for i, row in enumerate(case['heirs']):
+        row['edit_options'] = _edit_options(case, rows, case['deceased'], case['heirs'], i)
     for death in case['deaths']:
         death['gender'] = rows[death['heir_id']]['gender']
         death['heir_options'] = heir_options(case['madhab'], death, death['heirs'])
         for i, row in enumerate(death['heirs']):
-            row['edit_options'] = heir_options(case['madhab'], death, death['heirs'][:i] + death['heirs'][i + 1:])
+            row['edit_options'] = _edit_options(case, rows, death, death['heirs'], i)
             if row.get('same_as'):
                 row['name'] = rows[row['same_as']]['name']
 
@@ -581,7 +601,6 @@ def _read_deaths(case, value):
             heirs.append(row)
         case['deaths'].append({'heir_id': target, 'order': len(case['deaths']) + 2,
                                'gender': rows[target]['gender'], 'heirs': heirs})
-    _decorate(case)
 
 
 def _store_case(request, case):
@@ -844,8 +863,7 @@ def update_heir(request, heir_id, data, case_id):
     if status not in ('alive', 'died_before_or_with'):
         raise FieldErrors({'status': 'invalid'})
     person = _person(row)
-    locked = (any(_person(r) == person and r['id'] != heir_id for r in rows.values())
-              or any(d['heir_id'] == person for d in case['deaths']))
+    locked = _is_locked(case, rows, row)
     moving_before = not was_before and status == 'died_before_or_with'
     returning = was_before and status == 'alive'
     if moving_before:

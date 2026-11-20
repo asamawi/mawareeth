@@ -177,6 +177,10 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Interview & web UI
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-edit-options-respect-locked-gender.md`
+  summary: The tree edit sheet's relationship picker ignores the edited row's `edit_options.invalid` and saves on selection, so a relationship the server already marks impossible (any kinship code, and now `gender_locked`) is still offered and only explained after the rejecting PUT.
+  evidence: `web/src/app/[locale]/interview/edit-sheet.tsx` `RelationshipFields` `onChange` calls `onSave` directly; `heirOptionLabels` (`web/src/interview/answers.ts`) reads only `blocked`. The blur path in `web/src/interview/flow.ts` does consult `relationshipIssue`. Needs a UX decision (disable, label or hide invalid choices).
+
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-browser-tests.md`
   summary: Run a browser hydration check under the production Content-Security-Policy, for example a Playwright project that serves the export through Django/WhiteNoise (or sends the CSP computed by `mawareeth/web_headers.py`) and fails on any CSP console violation.
   evidence: The Playwright suite serves `web/out` with a plain Node server and no CSP. The hash-based CSP from `9d2e3ff` is covered by Django header tests and by one manual headless-Edge run. A hash mismatch that blocks Next's inline bootstrap scripts would therefore pass every automated test while breaking hydration in production.
@@ -460,10 +464,6 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-4-give-every-family-action-one-engine-decision.md`
   summary: Blocked labels and the answer disagree when the full sisters' cap exhausts the paternal siblings' pool beside a grandfather. The add-relative label says "not blocked" while the share is zero.
   evidence: `engine/kinship.py` keeps the wave-1 label; `engine/single.py` gives the paternal sibling `excluded_by_full_siblings` and share 0. `engine/tests/test_queries.py` `test_solver_consistency` pins the exception. Needs a fiqh/UX decision on labelling that case.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-queries-respect-replaced-person-gender.md`
-  summary: The case API's `edit_options` still computes options from counts without the edited person's identity, so a linked person's or a later deceased's edit options list opposite-gender relationships that the write then rejects with `gender_locked`.
-  evidence: `api/anonymous_case.py` `edit_options` (root and later edit options) calls `api.heir_rules.blocked_relationships`, which passes no `replacing`; only the engine queries hold a replaced person's gender fixed.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
   summary: A persisted currency that is not explicit is re-defaulted from the viewer's Locale at presentation time, so two viewers can see different currencies for one Case.

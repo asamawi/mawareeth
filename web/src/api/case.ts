@@ -354,7 +354,7 @@ export function parseHeirOptions(value: unknown): HeirOptions {
   if (typeof invalid !== "object" || invalid === null || Array.isArray(invalid)) return noHeirOptions();
   const codes: Partial<Record<RelationshipId, string>> = {};
   for (const [relationship, code] of Object.entries(invalid)) {
-    if (!isRelationshipId(relationship) || !KINSHIP_CODES.includes(code as string)) return noHeirOptions();
+    if (!isRelationshipId(relationship) || !(KINSHIP_CODES.includes(code as string) || code === "gender_locked")) return noHeirOptions();
     codes[relationship] = code;
   }
   // A relationship cannot be both labelled and invalid: the server never sends that.

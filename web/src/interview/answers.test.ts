@@ -479,11 +479,12 @@ test("the shared fixtures are read as they are, and the kinship codes match the 
     contract.errorCodes.relationship.filter((code: string) => code !== "required" && code !== "invalid" && code !== "gender_locked").sort(),
   );
   // gender_locked depends on a person's links/death, not family counts, so it is
-  // a write error rather than an heir_options kinship code.
+  // not a kinship code, but the case API reports it in edit_options.invalid.
   assert.ok(contract.errorCodes.relationship.includes("gender_locked"));
   assert.deepEqual(parseHeirOptions({ blocked: [], invalid: { son: "gender_locked" } }), {
-    blocked: [], invalid: {},
+    blocked: [], invalid: { son: "gender_locked" },
   });
+  assert.deepEqual(parseHeirOptions({ blocked: [], invalid: { son: "mystery" } }), { blocked: [], invalid: {} });
   assert.ok(fixtures.families.length >= 10);
   for (const family of fixtures.families) {
     const options = parseHeirOptions(family.heir_options);

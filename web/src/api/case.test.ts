@@ -976,6 +976,19 @@ const LAYERED = {
   ],
 };
 
+test("parseCase keeps gender_locked in root and later-estate edit options", () => {
+  const locked = { blocked: [], invalid: { daughter: "gender_locked" } };
+  const kase = parseCase({
+    case: {
+      ...LAYERED,
+      heirs: [LAYERED.heirs[0], { ...LAYERED.heirs[2], edit_options: locked }],
+      deaths: [{ ...LAYERED.deaths[0], heir_id: "w", heirs: [{ ...LAYERED.deaths[0].heirs[1], edit_options: locked }] }],
+    },
+  });
+  assert.deepEqual(kase?.heirs[1].edit_options, locked);
+  assert.deepEqual(kase?.deaths[0].heirs[0].edit_options, locked);
+});
+
 async function parsed(value: unknown) {
   stubFetch(async () => Response.json({ case: value }));
   return fetchCase(signal());
