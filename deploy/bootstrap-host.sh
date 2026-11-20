@@ -7,6 +7,7 @@ umask 077
 die() { printf 'bootstrap: %s\n' "$*" >&2; exit 1; }
 require_command() { command -v "$1" >/dev/null 2>&1 || die "required command is unavailable: $1"; }
 
+# >>> guest inputs (deploy/tests/test_host_baseline.sh extracts this block)
 validate_cidrs() {
   [[ -n "${SSH_ALLOWED_CIDRS:-}" ]] || die 'SSH_ALLOWED_CIDRS is required'
   local cidr
@@ -24,6 +25,14 @@ if net.prefixlen < min_prefix:
 PY
   done
 }
+
+validate_admin() {
+  ADMIN_USER="${ADMIN_USER:-}"
+  ADMIN_PUBLIC_KEY="${ADMIN_PUBLIC_KEY:-}"
+  [[ "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die 'ADMIN_USER is required and must be valid'
+  [[ "$ADMIN_PUBLIC_KEY" =~ ^(ssh-[a-z0-9]+|ecdsa-sha2-[a-z0-9]+|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-[a-z0-9]+@openssh\.com)[[:space:]] ]] || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
+}
+# <<< guest inputs
 
 # >>> public web sources (deploy/tests/test_host_baseline.sh extracts this block)
 # PUBLIC_WEB_SOURCES selects who may reach 80/443: "any" or "cloudflare", whose
@@ -269,10 +278,7 @@ require_command python3
 require_command stat
 validate_cidrs
 validate_web_sources
-ADMIN_USER="${ADMIN_USER:-}" 
-ADMIN_PUBLIC_KEY="${ADMIN_PUBLIC_KEY:-}"
-[[ "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die 'ADMIN_USER is required and must be valid'
-[[ "$ADMIN_PUBLIC_KEY" =~ ^(ssh-[a-z0-9]+|ecdsa-sha2-[a-z0-9]+|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-[a-z0-9]+@openssh\.com)[[:space:]] ]] || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
+validate_admin
 if [[ -e /etc/mawareeth ]] && [[ "$(stat -c '%U:%G:%a' /etc/mawareeth)" != root:root:700 ]]; then
   die 'refusing unsafe ownership or mode on /etc/mawareeth'
 fi

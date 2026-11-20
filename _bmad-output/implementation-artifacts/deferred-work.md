@@ -18,9 +18,13 @@ Completed and obsolete items are removed; their history is in git.
   summary: Harden `provision-host.sh`'s Hetzner-API interactions: distinguish a transient/auth `hcloud describe` failure from a genuine "not found" before creating resources, detect firewalls shared via a label selector (not just direct server attachment), validate the permission bits of the referenced SSH key files, and give an explicit error when `ssh-keygen -y` blocks on a passphrase-protected key.
   evidence: Each is a real edge case identified during review (confirmed by tracing the script logic) that could cause a duplicate resource, an undetected shared firewall, or an opaque hang/failure, but none are required by the story's stated acceptance criteria.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-0-4-create-secured-hetzner-host-baseline.md`
-  summary: Extend `deploy/tests/test_host_baseline.sh` to actually execute `bootstrap-host.sh`'s CIDR/key validation logic and to exercise the admin-user (sudo-prefixed) provisioning path, not only the root-fallback path.
-  evidence: Confirmed while fixing the test's SSH stub during this review — the suite only `grep`-matches literal strings in `bootstrap-host.sh` and never runs its validation functions, and the stub always lets the root probe succeed first, so the admin/sudo code path in `provision-host.sh` has never actually been exercised by this test.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-host-baseline-validation-tests.md`
+  summary: Tighten `bootstrap-host.sh` guest input checks: parse `ADMIN_PUBLIC_KEY` (a known type plus whitespace with no or a malformed payload is accepted today), refuse a trailing comma in `SSH_ALLOWED_CIDRS` (bash `read -a` drops it, while an interior empty entry is refused) and a value with an embedded newline (silently truncated).
+  evidence: Pre-existing; review of the guest-input tests found them, and the suite now pins the trailing-comma acceptance with a comment. provision-host.sh sends an `ssh-keygen -y` key and its own validated CIDRs, so only a direct guest run is exposed.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-host-baseline-validation-tests.md`
+  summary: Add a sandboxed run of `bootstrap-host.sh` itself (stubbed EUID, `/etc/os-release`, `apt-get` and a mutation log) that proves a bad guest input is refused before the first host change.
+  evidence: `test_host_baseline.sh` checks the validator call lines and their order and runs the extracted validators directly; a call moved into a branch that never runs would still pass. The public-web step checks have the same gap.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Deploy-check the real runtime configuration (e.g. `DJANGO_KEY` strength, `security.W009`), not just build placeholders.

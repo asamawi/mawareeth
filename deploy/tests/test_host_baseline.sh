@@ -136,6 +136,73 @@ line_of() { grep -nx -- "$1" "$bootstrap" | head -n 1 | cut -d: -f1; }
 (($(line_of converge_docker_web_rules) < $(line_of 'ufw --force reset'))) || fail 'DOCKER-USER must be verified before UFW changes'
 (($(line_of require_ufw_ipv6) < $(line_of 'docker_firewall_script > /usr/local/sbin/mawareeth-docker-firewall'))) || fail 'the UFW IPv6 check must come before any firewall change'
 (($(line_of 'install -d -o root -g root -m 0700 /etc/mawareeth') < $(line_of persist_web_sources))) || fail 'the mode must be persisted inside /etc/mawareeth'
+# Guest input validation: bootstrap's guest-inputs block (validate_cidrs and
+# validate_admin), run in fresh child shells with explicit env. Nothing on the
+# host is touched.
+for step_name in validate_cidrs validate_admin; do
+  [[ "$(grep -cx "$step_name" "$bootstrap")" == 1 ]] || fail "bootstrap must call $step_name exactly once"
+done
+(($(line_of validate_cidrs) < $(line_of validate_web_sources))) || fail 'validate_cidrs must run before validate_web_sources'
+(($(line_of validate_web_sources) < $(line_of validate_admin))) || fail 'validate_admin must run after validate_web_sources'
+(($(line_of validate_admin) < $(line_of 'apt-get update'))) || fail 'validate_admin must run before any host change'
+guest_lib="$tmp/guest-inputs.sh"
+# Exactly one marker pair, opening first: a lost closing marker would make sed
+# copy the rest of bootstrap, whose top level changes the host when sourced.
+[[ "$(grep -c '^# >>> guest inputs' "$bootstrap"):$(grep -c '^# <<< guest inputs' "$bootstrap")" == 1:1 ]] || fail 'bootstrap must have exactly one guest inputs marker pair'
+(($(grep -n '^# >>> guest inputs' "$bootstrap" | cut -d: -f1) < $(grep -n '^# <<< guest inputs' "$bootstrap" | cut -d: -f1))) || fail 'the guest inputs markers are out of order'
+{
+  printf '%s\n' 'die() { printf "bootstrap: %s\n" "$*" >&2; exit 1; }'
+  sed -n '/^# >>> guest inputs/,/^# <<< guest inputs/p' "$bootstrap"
+} > "$guest_lib"
+grep -q '^validate_cidrs() {' "$guest_lib" || fail 'bootstrap guest inputs block not found'
+grep -q '^validate_admin() {' "$guest_lib" || fail 'bootstrap validate_admin not found in the guest inputs block'
+guest_accepts() { # function env-assignment...
+  local fn="$1"
+  shift
+  env -u SSH_ALLOWED_CIDRS -u ADMIN_USER -u ADMIN_PUBLIC_KEY "$@" \
+    bash -c 'set -Eeuo pipefail; source "$1"; "$2"' _ "$guest_lib" "$fn" >/dev/null 2>&1 \
+    || fail "bootstrap $fn refused: $*"
+}
+guest_refuses() { # function expected-message env-assignment...
+  local fn="$1" want="$2" out
+  shift 2
+  if out="$(env -u SSH_ALLOWED_CIDRS -u ADMIN_USER -u ADMIN_PUBLIC_KEY "$@" \
+    bash -c 'set -Eeuo pipefail; source "$1"; "$2"' _ "$guest_lib" "$fn" 2>&1)"; then
+    fail "bootstrap $fn accepted: $*"
+  fi
+  [[ "$out" == *"bootstrap: "*"$want"* ]] || fail "bootstrap $fn refusal for $* does not say '$want': $out"
+}
+for cidrs in 203.0.113.0/24 198.51.100.7/32,2001:db8::/48 10.0.0.0/8 2001:db8::/32 203.0.113.5/24; do
+  guest_accepts validate_cidrs "SSH_ALLOWED_CIDRS=$cidrs"
+done
+guest_refuses validate_cidrs 'SSH_ALLOWED_CIDRS is required'
+guest_refuses validate_cidrs 'SSH_ALLOWED_CIDRS is required' SSH_ALLOWED_CIDRS=
+guest_refuses validate_cidrs 'contains an empty CIDR' SSH_ALLOWED_CIDRS=203.0.113.0/24,,198.51.100.0/24
+# bash's read -a drops a trailing empty field, so a trailing comma is accepted.
+guest_accepts validate_cidrs SSH_ALLOWED_CIDRS=203.0.113.0/24,
+for cidrs in not-a-cidr 10.0.0.0/7 0.0.0.0/0 2001:db8::/31 ::/0 203.0.113.0/24,10.0.0.0/7 203.0.113.0/24,2001:db8::/31; do
+  guest_refuses validate_cidrs 'invalid or excessively broad CIDR' "SSH_ALLOWED_CIDRS=$cidrs"
+done
+good_key="$(cat "$tmp/id.pub")"
+for admin in deploy _svc a-b_1 abcdefghijklmnopqrstuvwxyz012345; do
+  guest_accepts validate_admin "ADMIN_USER=$admin" "ADMIN_PUBLIC_KEY=$good_key"
+done
+for key in "$good_key" 'ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTY c' 'sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29t c' 'sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20 c'; do
+  guest_accepts validate_admin ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
+done
+# The accepted values reach the rest of bootstrap unchanged (sudoers, authorized_keys).
+kept="$(env ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$good_key" \
+  bash -c 'set -Eeuo pipefail; source "$1"; validate_admin; printf "%s|%s" "$ADMIN_USER" "$ADMIN_PUBLIC_KEY"' _ "$guest_lib")" \
+  || fail 'bootstrap validate_admin refused the suite key'
+[[ "$kept" == "deploy|$good_key" ]] || fail "validate_admin changed the admin values: $kept"
+for admin in '' Deploy 1deploy abcdefghijklmnopqrstuvwxyz0123456 'de ploy'; do
+  guest_refuses validate_admin 'ADMIN_USER is required and must be valid' "ADMIN_USER=$admin" "ADMIN_PUBLIC_KEY=$good_key"
+done
+guest_refuses validate_admin 'ADMIN_USER is required and must be valid' "ADMIN_PUBLIC_KEY=$good_key"
+for key in '' ssh-ed25519 'AAAAC3NzaC1lZDI1NTE5AAAAITest c' 'rsa AAAAB3NzaC1yc2E c'; do
+  guest_refuses validate_admin 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
+done
+printf '%s\n' 'bootstrap guest input checks passed'
 # The sudoers file stays today's: sudo's NOPASSWD ALL already admits the
 # command-line variables that provisioning passes.
 need "$bootstrap" "\\nDefaults:%s env_keep += \"SSH_ALLOWED_CIDRS ADMIN_USER ADMIN_PUBLIC_KEY\"\\n' \"\$ADMIN_USER\" \"\$ADMIN_USER\" > \"/etc/sudoers.d/90-\$ADMIN_USER\""
