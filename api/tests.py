@@ -204,7 +204,7 @@ class CaseTests(TestCase):
         case = response.json()['case']
         self.assertEqual(
             set(case), {'id', 'revision', 'started_at', 'madhab', 'deceased', 'heirs', 'heir_options', 'deaths',
-                        'persons', 'edges', 'placement'})
+                        'persons', 'edges', 'placement', 'snapshot'})
         self.assertIsNone(case['madhab'])
         self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
         self.assertEqual(self.client.get(CASE_URL, secure=True).json(), {'case': case})
@@ -349,7 +349,8 @@ class CaseTests(TestCase):
                 response = self.patch({'madhab': madhab})
                 self.assertEqual(response.status_code, 200)
                 expected = case['revision'] + 1 + anonymous_case.MADHABS.index(madhab)
-                self.assertEqual(response.json()['case'], {**case, 'madhab': madhab, 'revision': expected})
+                self.assertEqual(response.json()['case'], {**case, 'madhab': madhab, 'revision': expected,
+                                   'snapshot': {**case['snapshot'], 'madhab': madhab}})
                 self.assertEqual(self.stored()['revision'], expected)
                 self.assertEqual(self.client.get(CASE_URL, secure=True).json()['case']['madhab'], madhab)
         self.assertEqual(Calculation.objects.count(), 0)
@@ -452,7 +453,8 @@ class CaseTests(TestCase):
         response = self.patch({'madhab': 'jafari', 'case_id': old['id']})
 
         self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.json()['case'], {**live, 'madhab': 'maliki', 'revision': live['revision'] + 1})
+        self.assertEqual(response.json()['case'], {**live, 'madhab': 'maliki', 'revision': live['revision'] + 1,
+                                                       'snapshot': {**live['snapshot'], 'madhab': 'maliki'}})
         self.assertEqual(self.stored()['madhab'], 'maliki')
 
     def test_the_matching_case_id_is_accepted(self):
@@ -978,7 +980,8 @@ class InterviewAnswerTests(InterviewBase):
         response = self.send('patch', CASE_URL, {'madhab': 'jafari', 'case_id': case['id']})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['case'], {**before, 'madhab': 'jafari', 'revision': before['revision'] + 1})
+        self.assertEqual(response.json()['case'], {**before, 'madhab': 'jafari', 'revision': before['revision'] + 1,
+                                                       'snapshot': {**before['snapshot'], 'madhab': 'jafari'}})
 
     def test_start_over_clears_the_answers(self):
         case = self.ready()

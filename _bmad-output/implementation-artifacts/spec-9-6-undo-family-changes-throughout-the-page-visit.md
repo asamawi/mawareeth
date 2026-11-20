@@ -240,3 +240,5 @@ Status: done
 - The full `api.tests` suite was not run in this story: two attempts were cut off by low memory or a timeout. The driver's batch run covers it. Only additive `snapshot` fields changed on responses.
 - The toast hover-pause unit test uses simulated mouseover and mouseout. The focus pause and the e2e lifetime are covered properly.
 - The new copy awaits native review.
+
+**Follow-up (2026-11-20, after the run):** the first residual risk was real. An extra review with Qwen Code and ERNIE 5.5 Flash Preview found that four `api.tests` tests compared whole Case bodies or key sets without `snapshot`. A full `api.tests` run confirmed it: 8 failures in 4 tests, out of 289. The tests now expect `snapshot` (key set) and update it like `madhab` (body comparisons). `api.tests.CaseTests` and the madhab answer test pass, 42 tests.
