@@ -11,6 +11,10 @@ require_command() { command -v "$1" >/dev/null 2>&1 || die "required command is 
 validate_cidrs() {
   [[ -n "${SSH_ALLOWED_CIDRS:-}" ]] || die 'SSH_ALLOWED_CIDRS is required'
   local cidr
+  # Checked on the raw value: read -a drops a trailing empty field and a
+  # here-string read stops at the first newline.
+  [[ "$SSH_ALLOWED_CIDRS" != *[[:space:]]* ]] || die 'SSH_ALLOWED_CIDRS must be a comma-separated list without spaces or newlines'
+  [[ "$SSH_ALLOWED_CIDRS" != ,* && "$SSH_ALLOWED_CIDRS" != *, ]] || die 'SSH_ALLOWED_CIDRS contains an empty CIDR'
   IFS=',' read -r -a cidrs <<<"$SSH_ALLOWED_CIDRS"
   ((${#cidrs[@]} > 0)) || die 'SSH_ALLOWED_CIDRS must contain at least one CIDR'
   for cidr in "${cidrs[@]}"; do
@@ -31,6 +35,29 @@ validate_admin() {
   ADMIN_PUBLIC_KEY="${ADMIN_PUBLIC_KEY:-}"
   [[ "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die 'ADMIN_USER is required and must be valid'
   [[ "$ADMIN_PUBLIC_KEY" =~ ^(ssh-[a-z0-9]+|ecdsa-sha2-[a-z0-9]+|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-[a-z0-9]+@openssh\.com)[[:space:]] ]] || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
+  # One OpenSSH public-key line: type, strictly decoded base64 blob that starts
+  # with that type as its first length-prefixed string and carries key bytes
+  # after it, optional comment, and only spaces and tabs as whitespace.
+  python3 - "$ADMIN_PUBLIC_KEY" <<'PY' || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
+import base64
+import re
+import sys
+line = sys.argv[1]
+if any(char.isspace() and char not in ' \t' for char in line):
+    sys.exit(1)
+fields = re.split(r'[ \t]+', line.strip(' \t'))
+if len(fields) < 2:
+    sys.exit(1)
+ktype, payload = fields[0], fields[1]
+if not re.fullmatch(r'[A-Za-z0-9+/]+={0,2}', payload) or len(payload) % 4:
+    sys.exit(1)
+blob = base64.b64decode(payload, validate=True)
+if base64.b64encode(blob).decode('ascii') != payload:
+    sys.exit(1)
+want = len(ktype.encode()).to_bytes(4, 'big') + ktype.encode()
+if not blob.startswith(want) or len(blob) <= len(want):
+    sys.exit(1)
+PY
 }
 # <<< guest inputs
 

@@ -101,7 +101,8 @@ cf_csv="$(IFS=','; printf '%s' "${cf_ranges[*]}")"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-printf 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest baseline@test\n' > "$tmp/id.pub"
+ssh-keygen -q -t ed25519 -N '' -C baseline@test -f "$tmp/idpair" >/dev/null || fail 'ssh-keygen could not create the sample admin key'
+{ cut -d' ' -f1,2 "$tmp/idpair.pub" | tr -d '\n'; printf ' baseline@test\n'; } > "$tmp/id.pub"
 printf 'placeholder\n' > "$tmp/id"
 cat > "$tmp/config" <<EOF
 HETZNER_TOKEN=redacted
@@ -178,8 +179,12 @@ done
 guest_refuses validate_cidrs 'SSH_ALLOWED_CIDRS is required'
 guest_refuses validate_cidrs 'SSH_ALLOWED_CIDRS is required' SSH_ALLOWED_CIDRS=
 guest_refuses validate_cidrs 'contains an empty CIDR' SSH_ALLOWED_CIDRS=203.0.113.0/24,,198.51.100.0/24
-# bash's read -a drops a trailing empty field, so a trailing comma is accepted.
-guest_accepts validate_cidrs SSH_ALLOWED_CIDRS=203.0.113.0/24,
+for cidrs in 203.0.113.0/24, ,203.0.113.0/24; do
+  guest_refuses validate_cidrs 'contains an empty CIDR' "SSH_ALLOWED_CIDRS=$cidrs"
+done
+for cidrs in $'203.0.113.0/24\n198.51.100.0/24' '203.0.113.0/24, 198.51.100.0/24' $'203.0.113.0/24\n'; do
+  guest_refuses validate_cidrs 'without spaces or newlines' "SSH_ALLOWED_CIDRS=$cidrs"
+done
 for cidrs in not-a-cidr 10.0.0.0/7 0.0.0.0/0 2001:db8::/31 ::/0 203.0.113.0/24,10.0.0.0/7 203.0.113.0/24,2001:db8::/31; do
   guest_refuses validate_cidrs 'invalid or excessively broad CIDR' "SSH_ALLOWED_CIDRS=$cidrs"
 done
@@ -187,19 +192,37 @@ good_key="$(cat "$tmp/id.pub")"
 for admin in deploy _svc a-b_1 abcdefghijklmnopqrstuvwxyz012345; do
   guest_accepts validate_admin "ADMIN_USER=$admin" "ADMIN_PUBLIC_KEY=$good_key"
 done
-for key in "$good_key" 'ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTY c' 'sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29t c' 'sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20 c'; do
+sample_key() { # type [key byte count]: a well-formed key line (type header plus key bytes)
+  python3 -c 'import base64, sys
+t = sys.argv[1].encode()
+print(sys.argv[1], base64.b64encode(len(t).to_bytes(4, "big") + t + bytes(range(int(sys.argv[2])))).decode(), "c")' "$1" "${2:-32}"
+}
+b64_ed="${good_key#ssh-ed25519 }"; b64_ed="${b64_ed%% *}"
+tab_key="ssh-ed25519"$'\t'"$b64_ed"$'\t'"baseline@test"
+canonical_key="$(sample_key ssh-ed25519 1)"
+noncanonical_key="$(python3 -c 'import sys
+ktype, payload, comment = sys.argv[1].split()
+if not payload.endswith("AA=="):
+    sys.exit("expected AA== padding for the one-byte key")
+print(ktype, payload[:-4] + "AB==", comment)' "$canonical_key")"
+for key in "$good_key" "$tab_key" "$canonical_key" "ssh-ed25519 $b64_ed" "$(sample_key ecdsa-sha2-nistp256)" "$(sample_key sk-ssh-ed25519@openssh.com 33)" "$(sample_key sk-ecdsa-sha2-nistp256@openssh.com 7)"; do
   guest_accepts validate_admin ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
 done
 # The accepted values reach the rest of bootstrap unchanged (sudoers, authorized_keys).
-kept="$(env ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$good_key" \
-  bash -c 'set -Eeuo pipefail; source "$1"; validate_admin; printf "%s|%s" "$ADMIN_USER" "$ADMIN_PUBLIC_KEY"' _ "$guest_lib")" \
-  || fail 'bootstrap validate_admin refused the suite key'
-[[ "$kept" == "deploy|$good_key" ]] || fail "validate_admin changed the admin values: $kept"
+for key in "$good_key" "$tab_key"; do
+  kept="$(env ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key" \
+    bash -c 'set -Eeuo pipefail; source "$1"; validate_admin; printf "%s|%s" "$ADMIN_USER" "$ADMIN_PUBLIC_KEY"' _ "$guest_lib")" \
+    || fail 'bootstrap validate_admin refused the suite key'
+  [[ "$kept" == "deploy|$key" ]] || fail "validate_admin changed the admin values: $kept"
+done
 for admin in '' Deploy 1deploy abcdefghijklmnopqrstuvwxyz0123456 'de ploy'; do
   guest_refuses validate_admin 'ADMIN_USER is required and must be valid' "ADMIN_USER=$admin" "ADMIN_PUBLIC_KEY=$good_key"
 done
 guest_refuses validate_admin 'ADMIN_USER is required and must be valid' "ADMIN_PUBLIC_KEY=$good_key"
-for key in '' ssh-ed25519 'AAAAC3NzaC1lZDI1NTE5AAAAITest c' 'rsa AAAAB3NzaC1yc2E c'; do
+for key in '' ssh-ed25519 'AAAAC3NzaC1lZDI1NTE5AAAAITest c' 'rsa AAAAB3NzaC1yc2E c' \
+  'ssh-ed25519 ' 'ssh-ed25519  ' 'ssh-ed25519 not*base64 c' 'ssh-ed25519 AAAACw=' 'ssh-ed25519 AAAACw==' \
+  'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5' "ssh-rsa $b64_ed c" "$good_key"$'\n'"ssh-ed25519 $b64_ed evil" "$good_key"$'\r' \
+  "ssh-ed25519"$'\v'"$b64_ed baseline@test" "ssh-ed25519 $b64_ed"$'\xc2\xa0'"baseline@test" "$noncanonical_key"; do
   guest_refuses validate_admin 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
 done
 printf '%s\n' 'bootstrap guest input checks passed'
@@ -569,6 +592,11 @@ provision_refuses() { # expected-name config [provision script]
 { cat "$tmp/valid-config"; printf 'PUBLIC_WEB_SOURCES=other\n'; } > "$tmp/bad-mode-config"
 chmod 600 "$tmp/bad-mode-config"
 provision_refuses PUBLIC_WEB_SOURCES "$tmp/bad-mode-config"
+for bad in '203.0.113.0/24,:contains an empty CIDR' ',203.0.113.0/24:contains an empty CIDR' $'203.0.113.0/24\n198.51.100.0/24:without spaces or newlines' '203.0.113.0/24, 198.51.100.0/24:without spaces or newlines'; do
+  { sed '/^SSH_ALLOWED_CIDRS=/d' "$tmp/valid-config"; printf 'SSH_ALLOWED_CIDRS=%q\n' "${bad%:*}"; } > "$tmp/bad-cidr-config"
+  chmod 600 "$tmp/bad-cidr-config"
+  provision_refuses "${bad##*:}" "$tmp/bad-cidr-config"
+done
 copy="$tmp/ranges-copy"
 mkdir -p "$copy"
 cp "$provision" "$copy/provision-host.sh"

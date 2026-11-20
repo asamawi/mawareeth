@@ -27,6 +27,10 @@ source "$config_file"
 validate_cidrs() {
   [[ -n "${SSH_ALLOWED_CIDRS:-}" ]] || die 'SSH_ALLOWED_CIDRS is required'
   local cidr
+  # Checked on the raw value: read -a drops a trailing empty field and a
+  # here-string read stops at the first newline.
+  [[ "$SSH_ALLOWED_CIDRS" != *[[:space:]]* ]] || die 'SSH_ALLOWED_CIDRS must be a comma-separated list without spaces or newlines'
+  [[ "$SSH_ALLOWED_CIDRS" != ,* && "$SSH_ALLOWED_CIDRS" != *, ]] || die 'SSH_ALLOWED_CIDRS contains an empty CIDR'
   IFS=',' read -r -a cidrs <<<"$SSH_ALLOWED_CIDRS"
   ((${#cidrs[@]} > 0)) || die 'SSH_ALLOWED_CIDRS must contain at least one CIDR'
   for cidr in "${cidrs[@]}"; do
