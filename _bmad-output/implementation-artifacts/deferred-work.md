@@ -38,10 +38,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Extend the supported runtime-configuration rotation to adopt the new snapshot in both slots with overlap for compatibility-affecting keys.
   evidence: Both-slot adoption of the new snapshot with overlap for compatibility-affecting keys remains unsupported. Partly shipped in `0a35899`: `release.sh deploy --rotate-config` and the README procedure rotate the candidate while the prior slot retains its old configuration.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`
-  summary: Pin the expected OpenPGP fingerprints of third-party apt signing keys (Docker in `bootstrap-host.sh`, Tailscale in `monitor.sh`) and refuse to install a downloaded key that does not match.
-  evidence: Review of 0.8 found `monitor.sh install` trusts whatever key `pkgs.tailscale.com` serves over HTTPS; `bootstrap-host.sh` already does the same for Docker, so this is a pre-existing pattern best fixed for both at once.
-
 ## Backup & restore
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-7-implement-encrypted-backup-and-restore.md`

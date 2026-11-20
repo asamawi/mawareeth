@@ -61,6 +61,21 @@ PY
 }
 # <<< guest inputs
 
+# >>> apt key pin (deploy/tests/test_host_baseline.sh extracts this block)
+# Docker Release (CE deb), verified 2026-11-21. The primary-key fingerprint is the
+# trust anchor; rotate it by checking a new key against Docker's published one.
+docker_key_fingerprint=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+
+key_fingerprint_matches() { # key-file fingerprint: exactly one primary key, with this fingerprint
+  local file="$1" want="$2" home out
+  home="$(mktemp -d)" || return 1
+  out="$(gpg --batch --homedir "$home" --show-keys --with-colons "$file" 2>/dev/null)" || { rm -rf -- "$home"; return 1; }
+  rm -rf -- "$home"
+  [[ "$(grep -c '^pub:' <<<"$out")" == 1 ]] || return 1
+  [[ "$(grep -A1 '^pub:' <<<"$out" | grep -m1 '^fpr:' | cut -d: -f10)" == "$want" ]]
+}
+# <<< apt key pin
+
 # >>> public web sources (deploy/tests/test_host_baseline.sh extracts this block)
 # PUBLIC_WEB_SOURCES selects who may reach 80/443: "any" or "cloudflare", whose
 # ranges provision-host.sh passes from deploy/cloudflare-ips.txt in
@@ -320,7 +335,12 @@ apt-get install -y --no-install-recommends ca-certificates curl gnupg sudo ufw u
 require_ufw_ipv6
 
 install -d -m 0755 /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
+docker_key_dir="$(mktemp -d)"
+trap 'rm -rf -- "$docker_key_dir"' EXIT
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$docker_key_dir/docker.key"
+key_fingerprint_matches "$docker_key_dir/docker.key" "$docker_key_fingerprint" || die "the Docker apt signing key does not have the pinned fingerprint $docker_key_fingerprint; refusing to install it"
+gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg "$docker_key_dir/docker.key"
+rm -rf -- "$docker_key_dir"
 chmod a+r /etc/apt/keyrings/docker.gpg
 arch="$(dpkg --print-architecture)"
 # shellcheck source=/dev/null # host OS metadata, read at runtime only.

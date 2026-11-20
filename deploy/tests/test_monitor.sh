@@ -39,6 +39,10 @@ real_stat="$(command -v stat)"; real_flock="$(command -v flock 2>/dev/null || tr
 tmp="$(mktemp -d)"; [[ -z "${KEEP_TMP:-}" ]] || echo "$tmp" >&2
 case "$tmp" in "$root"/*) fail 'temporary directory must be outside the checkout' ;; esac
 trap '[[ -n "${KEEP_TMP:-}" ]] || rm -rf "$tmp"' EXIT
+# Wrong-key fixtures: Docker's key as binary (a valid key, wrong fingerprint),
+# and the genuine Tailscale key followed by it (a two-key bundle).
+gpg --batch --dearmor < "$root/deploy/tests/fixtures/docker-archive-keyring.asc" > "$tmp/docker-key.gpg"
+cat "$root/deploy/tests/fixtures/tailscale-archive-keyring.gpg" "$tmp/docker-key.gpg" > "$tmp/ts-plus-docker.gpg"
 stub="$tmp/bin"; S="$tmp/stub-state"; state="$tmp/state"; bundle="$tmp/bundle"; units="$tmp/systemd"
 textfile="$tmp/textfile"; journald="$tmp/journald.conf.d"; apt="$tmp/apt"; sbin="$tmp/sbin"
 tls="$tmp/origin-tls"; github_token_file="$tmp/github-read.token"
@@ -95,7 +99,10 @@ if [[ "\$*" == *api.github.com/rate_limit* ]]; then
   cat '$S/github-response'
   exit 0
 fi
-while (( \$# )); do if [[ "\$1" == -o ]]; then printf 'stub-keyring\n' > "\$2"; fi; shift; done
+key_fixture='$root/deploy/tests/fixtures/tailscale-archive-keyring.gpg'
+[[ ! -e '$S/curl-wrong-key' ]] || key_fixture='$tmp/docker-key.gpg'
+[[ ! -e '$S/curl-bundle' ]] || key_fixture='$tmp/ts-plus-docker.gpg'
+while (( \$# )); do if [[ "\$1" == -o ]]; then cp "\$key_fixture" "\$2"; fi; shift; done
 EOF
 cat > "$stub/tailscale" <<EOF
 #!/usr/bin/env bash
@@ -902,6 +909,18 @@ expect_rc 2 'install on another OS'; [[ ! -s "$S/calls.log" ]] || fail 'a refuse
 touch "$S/curl-fails"; run "$monitor" install; rm -f "$S/curl-fails"
 expect_rc 1 'install with an unreachable key server'; lacks "$S/calls.log" 'apt-get'
 [[ ! -e "$apt/sources.list.d/tailscale.list" ]] || fail 'the Tailscale repository was added without its key'
+touch "$S/curl-wrong-key"; run "$monitor" install; rm -f "$S/curl-wrong-key"
+expect_rc 1 'install with a key server that serves a different key'; need "$tmp/out" '2596A99EAAB33821893C0A79458CA832957F5868'
+lacks "$S/calls.log" 'apt-get'
+[[ ! -e "$apt/sources.list.d/tailscale.list" ]] || fail 'the Tailscale repository was added with an unpinned key'
+[[ ! -e "$apt/keyrings/tailscale-archive-keyring.gpg" ]] || fail 'an unpinned Tailscale key was installed'
+compgen -G "$apt/keyrings/.tmp.*" >/dev/null && fail 'a rejected key left a temporary file behind'
+touch "$S/curl-bundle"; run "$monitor" install; rm -f "$S/curl-bundle"
+expect_rc 1 'install with a key server that serves the Tailscale key plus a second key'; need "$tmp/out" '2596A99EAAB33821893C0A79458CA832957F5868'
+lacks "$S/calls.log" 'apt-get'
+[[ ! -e "$apt/sources.list.d/tailscale.list" ]] || fail 'the Tailscale repository was added with a bundled key'
+[[ ! -e "$apt/keyrings/tailscale-archive-keyring.gpg" ]] || fail 'a bundled Tailscale key was installed'
+compgen -G "$apt/keyrings/.tmp.*" >/dev/null && fail 'a rejected bundle left a temporary file behind'
 touch "$S/ufw-inactive"; run "$monitor" install; rm -f "$S/ufw-inactive"
 expect_rc 1 'install with UFW inactive'; need "$tmp/out" 'UFW is not active'
 lacks "$S/calls.log" 'ufw allow'; lacks "$S/calls.log" 'apt-get'; lacks "$S/calls.log" 'curl'
@@ -929,6 +948,7 @@ need "$sbin/mawareeth-node-exporter" '--collector.systemd'
   || fail 'install must rewrite an old exporter wrapper with --collector.systemd before restarting the exporter'
 keyring="$apt/keyrings/tailscale-archive-keyring.gpg"
 [[ -s "$keyring" ]] || fail 'Tailscale keyring was not installed'
+cmp -s "$keyring" "$root/deploy/tests/fixtures/tailscale-archive-keyring.gpg" || fail 'the installed keyring must be byte-identical to the served key'
 need "$S/calls.log" "curl -fsSL --proto =https --tlsv1.2 -o"
 need "$S/calls.log" 'https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg'
 [[ "$(cat "$apt/sources.list.d/tailscale.list")" == "deb [signed-by=$keyring] https://pkgs.tailscale.com/stable/ubuntu noble main" ]] \
@@ -1011,6 +1031,14 @@ expect_token_record missing '' '' 'install with no token file'
 expect_metric mawareeth_github_token_usable 0 'install with no token file'
 expect_metric mawareeth_github_token_last_ok_timestamp_seconds 0 'install with no token file'
 rm -f "$tls/cert.pem"
+
+# A refused key leaves an existing install intact.
+cp "$keyring" "$tmp/keyring.before"; cp "$apt/sources.list.d/tailscale.list" "$tmp/tailscale.list.before"
+touch "$S/curl-wrong-key"; run "$monitor" install; rm -f "$S/curl-wrong-key"
+expect_rc 1 'reinstall with a key server that serves a different key'; need "$tmp/out" '2596A99EAAB33821893C0A79458CA832957F5868'
+cmp -s "$keyring" "$tmp/keyring.before" || fail 'a refused key replaced the existing Tailscale keyring'
+cmp -s "$apt/sources.list.d/tailscale.list" "$tmp/tailscale.list.before" || fail 'a refused key changed the existing tailscale.list'
+compgen -G "$apt/keyrings/.tmp.*" >/dev/null && fail 'a refused reinstall left a temporary file behind'
 
 # --- Exporter wrapper: Tailscale IPv4 only, never a fallback ------------------------
 sed "s|/usr/bin/tailscale|$stub/tailscale|; s|/usr/bin/prometheus-node-exporter|$stub/exporter|" "$wrapper" > "$tmp/wrapper"

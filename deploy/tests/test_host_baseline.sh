@@ -752,3 +752,34 @@ for mode in server key firewall; do
   grep -Eq -- 'server create|enable-protection|apply-to-resource|^curl ' "$mismatch_log" 2>/dev/null && fail "conflict detection for $mode mutated provider state instead of aborting first"
 done
 printf '%s\n' 'conflict/drift detection checks passed'
+
+# Apt signing-key pin: bootstrap's apt key pin block, run against the committed
+# copies of the real vendor keys (no network).
+fixtures="$root/deploy/tests/fixtures"
+[[ "$(grep -c '^# >>> apt key pin' "$bootstrap"):$(grep -c '^# <<< apt key pin' "$bootstrap")" == 1:1 ]] || fail 'bootstrap must have exactly one apt key pin marker pair'
+(($(grep -n '^# >>> apt key pin' "$bootstrap" | cut -d: -f1) < $(grep -n '^# <<< apt key pin' "$bootstrap" | cut -d: -f1))) || fail 'the apt key pin markers are out of order'
+pin_lib="$tmp/apt-key-pin.sh"
+sed -n '/^# >>> apt key pin/,/^# <<< apt key pin/p' "$bootstrap" > "$pin_lib"
+grep -q '^key_fingerprint_matches() {' "$pin_lib" || fail 'bootstrap apt key pin block not found'
+need "$pin_lib" 'docker_key_fingerprint=9DC858229FC7DD38854AE2D88D81803C0EBFCD88'
+pin_matches() { bash -c 'set -Eeuo pipefail; source "$1"; key_fingerprint_matches "$2" "$3"' _ "$pin_lib" "$@" >/dev/null 2>&1; }
+docker_pin=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+pin_matches "$fixtures/docker-archive-keyring.asc" "$docker_pin" || fail 'the genuine Docker key was refused'
+pin_matches "$fixtures/tailscale-archive-keyring.gpg" 2596A99EAAB33821893C0A79458CA832957F5868 || fail 'the helper refused the genuine Tailscale key against its own pin'
+pin_matches "$fixtures/tailscale-archive-keyring.gpg" "$docker_pin" && fail 'a different valid key was accepted as the Docker key'
+gpg --batch --dearmor < "$fixtures/docker-archive-keyring.asc" > "$tmp/two-keys.gpg"
+cat "$fixtures/tailscale-archive-keyring.gpg" >> "$tmp/two-keys.gpg"
+pin_matches "$tmp/two-keys.gpg" "$docker_pin" && fail 'a file with an extra key was accepted'
+: > "$tmp/empty.key"
+pin_matches "$tmp/empty.key" "$docker_pin" && fail 'an empty file was accepted as a key'
+printf 'not a key\n' > "$tmp/text.key"
+pin_matches "$tmp/text.key" "$docker_pin" && fail 'a text file was accepted as a key'
+pin_matches "$tmp/missing.key" "$docker_pin" && fail 'a missing file was accepted as a key'
+(($(line_of 'apt-get install -y --no-install-recommends ca-certificates curl gnupg sudo ufw unattended-upgrades') < $(grep -n 'key_fingerprint_matches "\$docker_key_dir' "$bootstrap" | cut -d: -f1))) || fail 'the Docker key check must come after gnupg is installed'
+key_check_line="$(grep -n 'key_fingerprint_matches "\$docker_key_dir' "$bootstrap" | cut -d: -f1)"
+[[ "$(grep -cE '^key_fingerprint_matches "\$docker_key_dir/docker\.key" "\$docker_key_fingerprint" \|\| die ' "$bootstrap")" == 1 ]] || fail 'bootstrap must call key_fingerprint_matches on the Docker key exactly once, followed by || die'
+(($(grep -n 'download.docker.com/linux/ubuntu/gpg' "$bootstrap" | cut -d: -f1) < key_check_line)) || fail 'the Docker key must be downloaded before it is checked'
+(($(grep -n 'gpg --dearmor' "$bootstrap" | cut -d: -f1) > key_check_line)) || fail 'the Docker key must be checked before gpg --dearmor'
+(($(grep -n 'docker.list' "$bootstrap" | head -n 1 | cut -d: -f1) > key_check_line)) || fail 'the Docker key must be checked before docker.list is written'
+! grep -Eq 'curl .*\| *gpg' "$bootstrap" || fail 'bootstrap must not pipe a downloaded key straight into gpg'
+printf '%s\n' 'apt key pin checks passed'

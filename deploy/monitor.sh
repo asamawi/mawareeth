@@ -70,6 +70,9 @@ exporter_dropin_dir="$systemd_dir/$exporter_unit.d"
 exporter_wrapper="$sbin_dir/mawareeth-node-exporter"
 collect_unit=mawareeth-monitor-collect
 tailscale_key_url=https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
+# Tailscale Inc. (Package repository signing key), verified 2026-11-21. The
+# primary-key fingerprint is the trust anchor.
+tailscale_key_fingerprint=2596A99EAAB33821893C0A79458CA832957F5868
 tailscale_repo='https://pkgs.tailscale.com/stable/ubuntu noble main'
 ufw_rule=(allow in on tailscale0 from 100.64.0.0/10 to any port 9100 proto tcp)
 ssh_ufw_rule=(allow in on tailscale0 from 100.64.0.0/10 to any port 22 proto tcp)
@@ -616,10 +619,19 @@ token_service_content() {
   printf 'ExecStart=/bin/bash %s/monitor.sh token-check\nTimeoutStartSec=360\nNice=10\n' "$deploy_dir"
 }
 
+key_fingerprint_matches() { # key-file fingerprint: exactly one primary key, with this fingerprint
+  local file="$1" want="$2" home out
+  home="$(mktemp -d)" || return 1
+  out="$(gpg --batch --homedir "$home" --show-keys --with-colons "$file" 2>/dev/null)" || { rm -rf -- "$home"; return 1; }
+  rm -rf -- "$home"
+  [[ "$(grep -c '^pub:' <<<"$out")" == 1 ]] || return 1
+  [[ "$(grep -A1 '^pub:' <<<"$out" | grep -m1 '^fpr:' | cut -d: -f10)" == "$want" ]]
+}
+
 cmd_install() {
   require_root
   local tool
-  for tool in apt-get curl systemctl ufw timeout flock mktemp sync install; do require_command "$tool"; done
+  for tool in apt-get curl systemctl ufw timeout flock mktemp sync install gpg; do require_command "$tool"; done
   clean_path "$deploy_dir" 'the deployment checkout'
   clean_path "$state_dir" MAWAREETH_RUNTIME_DIR
   check_sessions_timeout
@@ -662,6 +674,9 @@ cmd_install() {
   key_tmp="$(mktemp "$apt_dir/keyrings/.tmp.XXXXXX")" || install_fail 'could not allocate a temporary keyring'
   if ! timeout 120 curl -fsSL --proto '=https' --tlsv1.2 -o "$key_tmp" "$tailscale_key_url" || [[ ! -s "$key_tmp" ]]; then
     rm -f -- "$key_tmp"; install_fail "could not download the Tailscale signing key from $tailscale_key_url"
+  fi
+  if ! key_fingerprint_matches "$key_tmp" "$tailscale_key_fingerprint"; then
+    rm -f -- "$key_tmp"; install_fail "the Tailscale signing key from $tailscale_key_url does not have the pinned fingerprint $tailscale_key_fingerprint; refusing to install it"
   fi
   if ! { chmod 0644 "$key_tmp" && mv -f -- "$key_tmp" "$keyring"; }; then rm -f -- "$key_tmp"; install_fail 'could not install the Tailscale keyring'; fi
   atomic_write "$apt_dir/sources.list.d/tailscale.list" 0644 "deb [signed-by=$keyring] $tailscale_repo" || install_fail 'could not write tailscale.list'
