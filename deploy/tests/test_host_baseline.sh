@@ -215,6 +215,91 @@ for key in '' ssh-ed25519 'AAAAC3NzaC1lZDI1NTE5AAAAITest c' 'rsa AAAAB3NzaC1yc2E
   guest_refuses validate_admin 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
 done
 printf '%s\n' 'bootstrap guest input checks passed'
+# Sandboxed run of bootstrap-host.sh itself: a copy that differs only in the root
+# check and the /etc/os-release path, run with stub executables for every
+# host-mutating command. Each stub logs its call and exits with a sentinel, so a
+# run stops at the first host change (nothing after it, including redirections
+# into /etc that a PATH stub cannot intercept, ever runs, even as root).
+sandbox="$tmp/bootstrap-sandbox"
+mkdir -p "$sandbox/bin"
+sbx_osrel="$sandbox/os-release"
+printf -v sbx_osrel_q '%q' "$sbx_osrel"
+sbx_sentinel=97
+root_check="[[ \${EUID:-999} -eq 0 ]] || die 'must run as root'"
+[[ "$(grep -cxF -- "$root_check" "$bootstrap")" == 1 ]] || fail 'bootstrap root check not found exactly once'
+osrel_lines="$(grep -cF -- '/etc/os-release' "$bootstrap" || true)"
+((osrel_lines >= 2)) || fail 'bootstrap must read /etc/os-release at least twice'
+while IFS= read -r line || [[ -n "$line" ]]; do
+  if [[ "$line" == "$root_check" ]]; then
+    printf '%s\n' ':'
+  else
+    printf '%s\n' "${line//\/etc\/os-release/"$sbx_osrel_q"}"
+  fi
+done < "$bootstrap" > "$sandbox/bootstrap-host.sh"
+! grep -qF -- '/etc/os-release' "$sandbox/bootstrap-host.sh" || fail 'the sandbox copy still reads /etc/os-release'
+sbx_diff="$(diff "$bootstrap" "$sandbox/bootstrap-host.sh" || true)"
+[[ "$(grep -c '^<' <<<"$sbx_diff")" == "$((osrel_lines + 1))" && "$(grep -c '^>' <<<"$sbx_diff")" == "$((osrel_lines + 1))" ]] \
+  || fail "the sandbox copy differs from bootstrap beyond the root check and os-release path: $sbx_diff"
+cat > "$sandbox/stub" <<'STUB'
+#!/usr/bin/env bash
+{ printf '%s' "${0##*/}"; for a in "$@"; do printf ' %s' "$a"; done; printf '\n'; } >> "$MUTATION_LOG"
+exit 97
+STUB
+chmod +x "$sandbox/stub"
+for stub_name in apt-get install curl gpg chmod chown dpkg systemctl useradd visudo sshd ufw iptables ip6tables mv rm; do
+  cp "$sandbox/stub" "$sandbox/bin/$stub_name"
+done
+sbx_base=("SSH_ALLOWED_CIDRS=203.0.113.0/24" "ADMIN_USER=deploy" "ADMIN_PUBLIC_KEY=$good_key")
+sbx_run() { # case-name os-id[:version] override...: sets sbx_status, sbx_err, sbx_log. "NAME=v" replaces a base value, "-NAME" unsets it, other NAME=v adds one.
+  local name="$1" os_release="$2" version=24.04 entry key over skip
+  local envs=()
+  shift 2
+  [[ "$os_release" != *:* ]] || version="${os_release#*:}"
+  printf 'ID=%s\nVERSION_ID=%s\nVERSION_CODENAME=noble\n' "${os_release%%:*}" "$version" > "$sbx_osrel"
+  for entry in "${sbx_base[@]}"; do
+    key="${entry%%=*}" skip=
+    for over in "$@"; do
+      [[ "${over%%=*}" == "$key" || "$over" == "-$key" ]] && skip=1
+    done
+    [[ -n "$skip" ]] || envs+=("$entry")
+  done
+  for over in "$@"; do
+    [[ "$over" == -* ]] || envs+=("$over")
+  done
+  : > "$sandbox/log"
+  sbx_status=0
+  env -i PATH="$sandbox/bin:$PATH" MUTATION_LOG="$sandbox/log" \
+    MAWAREETH_PUBLIC_WEB_STATE="$tmp/public-web-sources" MAWAREETH_UFW_DEFAULTS="$tmp/ufw-defaults" \
+    "${envs[@]}" "$BASH" "$sandbox/bootstrap-host.sh" >"$sandbox/out" 2>"$sandbox/err" || sbx_status=$?
+  sbx_err="$(cat "$sandbox/err")"
+  sbx_log="$(cat "$sandbox/log")"
+  : "$name"
+}
+sbx_accepts() { # case-name os-id[:version] override...
+  local name="$1"
+  sbx_run "$@"
+  [[ "$sbx_status" == "$sbx_sentinel" && "$sbx_log" == 'apt-get update' ]] \
+    || fail "sandbox case '$name': expected the first host change to be 'apt-get update' (status $sbx_sentinel), got status $sbx_status, log '$sbx_log', stderr '$sbx_err'"
+}
+sbx_refuses() { # case-name expected-message os-id[:version] override...
+  local name="$1" want="$2"
+  shift 2
+  sbx_run "$name" "$@"
+  [[ "$sbx_status" == 1 && "$sbx_err" == *"bootstrap: "*"$want"* && -z "$sbx_log" ]] \
+    || fail "sandbox case '$name': expected exit 1 with '$want' and no host change, got status $sbx_status, stderr '$sbx_err', log '$sbx_log'"
+}
+sbx_accepts 'valid input' ubuntu
+sbx_accepts 'valid Cloudflare input' ubuntu PUBLIC_WEB_SOURCES=cloudflare "PUBLIC_WEB_RANGES=$cf_csv"
+sbx_refuses 'missing CIDRs' 'SSH_ALLOWED_CIDRS is required' ubuntu -SSH_ALLOWED_CIDRS
+sbx_refuses 'trailing comma CIDR' 'contains an empty CIDR' ubuntu 'SSH_ALLOWED_CIDRS=203.0.113.0/24,'
+sbx_refuses 'broad CIDR' 'invalid or excessively broad CIDR' ubuntu SSH_ALLOWED_CIDRS=0.0.0.0/0
+sbx_refuses 'bad web mode' 'PUBLIC_WEB_SOURCES must be any or cloudflare' ubuntu PUBLIC_WEB_SOURCES=bogus
+sbx_refuses 'cloudflare without ranges' 'PUBLIC_WEB_RANGES' ubuntu PUBLIC_WEB_SOURCES=cloudflare
+sbx_refuses 'bad admin user' 'ADMIN_USER is required and must be valid' ubuntu ADMIN_USER=Root
+sbx_refuses 'bad admin key' 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ubuntu 'ADMIN_PUBLIC_KEY=ssh-ed25519 AAAA'
+sbx_refuses 'wrong OS' 'Ubuntu 24.04 is required' debian
+sbx_refuses 'wrong Ubuntu version' 'Ubuntu 24.04 is required' ubuntu:22.04
+printf '%s\n' 'bootstrap sandboxed run checks passed'
 # The sudoers file stays today's: sudo's NOPASSWD ALL already admits the
 # command-line variables that provisioning passes.
 need "$bootstrap" "\\nDefaults:%s env_keep += \"SSH_ALLOWED_CIDRS ADMIN_USER ADMIN_PUBLIC_KEY\"\\n' \"\$ADMIN_USER\" \"\$ADMIN_USER\" > \"/etc/sudoers.d/90-\$ADMIN_USER\""

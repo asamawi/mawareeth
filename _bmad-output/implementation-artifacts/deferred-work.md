@@ -22,9 +22,9 @@ Completed and obsolete items are removed; their history is in git.
   summary: Parse each admin key type's fields in `bootstrap-host.sh` `validate_admin` (as OpenSSH's `sshkey.c` does), so a key with a matching type header but an incomplete body (e.g. a one-byte ed25519 key) is refused.
   evidence: The guest check now requires strict, canonical base64, the full type header and at least one key byte, but no type-specific structure; `provision-host.sh` sends an `ssh-keygen -y` key, so only a direct guest run with a hand-made key could install a key OpenSSH cannot load.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-host-baseline-validation-tests.md`
-  summary: Add a sandboxed run of `bootstrap-host.sh` itself (stubbed EUID, `/etc/os-release`, `apt-get` and a mutation log) that proves a bad guest input is refused before the first host change.
-  evidence: `test_host_baseline.sh` checks the validator call lines and their order and runs the extracted validators directly; a call moved into a branch that never runs would still pass. The public-web step checks have the same gap.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-bootstrap-sandboxed-guest-validation-run.md`
+  summary: Execute `bootstrap-host.sh`'s later public-web steps (`require_ufw_ipv6`, `converge_docker_web_rules`, `allow_public_web`, `persist_web_sources`) through the entry point, not only by call-line checks.
+  evidence: The sandboxed run in `test_host_baseline.sh` stops at the first host change (`apt-get update`), so these steps are still proven only by `grep -cx` call checks and extracted-helper runs; reaching them needs stand-ins for the shell redirections into `/etc` that PATH stubs cannot intercept.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Deploy-check the real runtime configuration (e.g. `DJANGO_KEY` strength, `security.W009`), not just build placeholders.
