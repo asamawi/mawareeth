@@ -88,10 +88,6 @@ Completed and obsolete items are removed; their history is in git.
 
 ## CI
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-origin-lock.md`
-  summary: Add a scheduled CI check that compares `deploy/cloudflare-ips.txt` with Cloudflare's published https://www.cloudflare.com/ips-v4 and /ips-v6 and fails (or opens an issue) when they differ.
-  evidence: Review noted that with PUBLIC_WEB_SOURCES=cloudflare a new Cloudflare range would make visitors routed through it time out, and nothing flags drift until someone refreshes the file by hand; a CI-side fetch keeps the no-runtime-fetch rule.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-authenticated-origin-pulls.md`
   summary: Add a CI job that starts Caddy with the cloudflare-aop snippets and a throwaway CA, and proves live that a handshake without a client certificate, or with one from another CA, fails on both names while the throwaway client certificate succeeds.
   evidence: CI only runs `caddy adapt --validate` plus JSON shape checks, and test_release.sh uses a curl stub; the live handshake behaviour was checked once by hand during implementation and is not guarded against regressions.
