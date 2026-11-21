@@ -126,6 +126,9 @@ mode_clear "$SSH_PUBLIC_KEY" 022 || die 'SSH_PUBLIC_KEY must be a regular file n
 mode_clear "$ADMIN_SSH_PRIVATE_KEY" 077 || die 'ADMIN_SSH_PRIVATE_KEY must be a regular file not accessible by group or others (chmod 600)'
 [[ "$SERVER_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]] || die 'SERVER_NAME is invalid'
 [[ "$HETZNER_SSH_KEY_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$ ]] || die 'HETZNER_SSH_KEY_NAME is invalid'
+# hcloud resolves a numeric argument as an ID first, so names must never be all digits.
+[[ ! "$SERVER_NAME" =~ ^[0-9]+$ ]] || die 'SERVER_NAME must not be all digits (hcloud reads a number as an ID)'
+[[ ! "$HETZNER_SSH_KEY_NAME" =~ ^[0-9]+$ ]] || die 'HETZNER_SSH_KEY_NAME must not be all digits (hcloud reads a number as an ID)'
 require_command python3
 validate_cidrs
 validate_web_sources
@@ -138,6 +141,7 @@ require_command ssh-keygen
 export HCLOUD_TOKEN="$HETZNER_TOKEN"
 FIREWALL_NAME="${FIREWALL_NAME:-${SERVER_NAME}-edge}"
 [[ "$FIREWALL_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$ ]] || die 'FIREWALL_NAME is invalid'
+[[ ! "$FIREWALL_NAME" =~ ^[0-9]+$ ]] || die 'FIREWALL_NAME must not be all digits (hcloud reads a number as an ID)'
 ADMIN_USER="${ADMIN_USER:-mawareeth-admin}"
 [[ "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die 'ADMIN_USER is invalid'
 

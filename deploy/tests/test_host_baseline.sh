@@ -866,6 +866,25 @@ for bad in 'not-a-cidr:invalid or excessively broad CIDR' '203.0.113.0/24,:conta
   chmod 600 "$tmp/bad-cidr-config"
   provision_refuses "${bad##*:}" "$tmp/bad-cidr-config"
 done
+for bad in SERVER_NAME=12345 HETZNER_SSH_KEY_NAME=42 FIREWALL_NAME=7; do
+  { sed "/^${bad%%=*}=/d" "$tmp/valid-config"; printf '%s\n' "$bad"; } > "$tmp/digit-config"
+  chmod 600 "$tmp/digit-config"
+  provision_refuses "${bad%%=*} must not be all digits" "$tmp/digit-config"
+done
+{ sed -e '/^SERVER_NAME=/d' -e '/^HETZNER_SSH_KEY_NAME=/d' "$tmp/valid-config"; printf 'SERVER_NAME=web1\nHETZNER_SSH_KEY_NAME=2026-key\nFIREWALL_NAME=1-edge\n'; } > "$tmp/digit-ok-config"
+chmod 600 "$tmp/digit-ok-config"
+# The hcloud stub only knows the baseline-test names, so this run proves only
+# that names with a non-digit pass validation and that the configured names, not
+# defaults, reach the Hetzner create calls.
+: > "$log"
+CASE_STATE="$tmp/digit-ok-state"
+mkdir -p "$CASE_STATE"
+out="$(provision_with "$tmp/digit-ok-config" 2>&1)" || true
+unset CASE_STATE
+[[ "$out" != *'must not be all digits'* && "$out" != *' is invalid'* ]] || fail "names with a non-digit were refused: $out"
+for call in 'hcloud ssh-key create --name 2026-key ' 'hcloud firewall create --name 1-edge'; do
+  grep -Fq -- "$call" "$log" || fail "names with a non-digit did not reach '$call': $out"
+done
 copy="$tmp/ranges-copy"
 mkdir -p "$copy"
 cp "$provision" "$copy/provision-host.sh"
