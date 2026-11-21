@@ -94,7 +94,6 @@ function deps(options: {
     selection: options.selection ?? (null as Selection | null),
     form: options.form ?? (null as FormRecord | null),
     answers: [] as { call: string; caseId: string; fields?: unknown; heirId?: string }[],
-    empties: [] as (boolean | undefined)[],
     sentAnswers: [] as unknown[],
   };
   const answerWith = (call: string, caseId: string, extra: { fields?: unknown; heirId?: string }, revision: number | null) => {
@@ -129,8 +128,7 @@ function deps(options: {
       log.confirmations.push(confirm);
       return answerWith("removeHeir", caseId, { heirId }, revision);
     },
-    markDeceased: async (_signal, caseId, revision, heirId, first, _answers, empty) => {
-      log.empties.push(empty);
+    markDeceased: async (_signal, caseId, revision, heirId, first, _answers) => {
       log.sentAnswers.push(_answers);
       return answerWith("markDeceased", caseId, { heirId, ...(first === undefined ? {} : { fields: { first } }) }, revision);
     },
@@ -1574,14 +1572,13 @@ test("a limit or already-deceased refusal closes the question and focuses the bu
   }
 });
 
-test("a later death marked from the sheet sends empty, keeps the sheet and layer and focuses Open own estate", async () => {
+test("a later death marked from the sheet keeps the sheet and layer and focuses Open own estate", async () => {
   const from = startedOf({ ...FAMILY, snapshot: { prior: true } }, true, { editingHeir: "s1", opener: "card:s1" });
   const marked: Case = { ...FAMILY, deaths: [{ ...S1_DEATH, heirs: [] }] };
-  const { value, log } = deps({ answer: () => ({ kind: "saved", case: marked }), form: BLANK_RECORD(FAMILY.id, "s1") });
+  const { value } = deps({ answer: () => ({ kind: "saved", case: marked }), form: BLANK_RECORD(FAMILY.id, "s1") });
   const view = (await runAction("markDeath", signal, value, FAMILY, undefined, {
     kind: "markDeath", from, rowId: "s1", origin: "sheet",
   })) as StartedView;
-  assert.deepEqual(log.empties, [true]);
   assert.equal(view.layer, null);
   assert.equal(view.editingHeir, "s1");
   assert.equal(view.formEpoch, from.formEpoch);
@@ -1591,13 +1588,7 @@ test("a later death marked from the sheet sends empty, keeps the sheet and layer
   assert.equal(view.history?.length, 1, "one Undo entry");
 });
 
-test("a row death is not sent as empty", async () => {
-  const { value, log } = deps({ answer: () => ({ kind: "saved", case: TWO_LAYERS }) });
-  await runAction("markDeath", signal, value, FAMILY, undefined, { kind: "markDeath", from: startedOf(FAMILY, true), rowId: "s1" });
-  assert.deepEqual(log.empties, [false]);
-});
-
-test("a sheet order refusal keeps the question for the sheet and resends first with empty", async () => {
+test("a sheet order refusal keeps the question for the sheet and resends first", async () => {
   const from = startedOf(TWO_LAYERS, true, { editingHeir: "s2" });
   const asked = deps({ answer: () => ({ kind: "invalid", errors: { death: "order_required" } }) });
   const refused = (await runAction("markDeath", signal, asked.value, TWO_LAYERS, undefined, {
@@ -1612,11 +1603,40 @@ test("a sheet order refusal keeps the question for the sheet and resends first w
   const done = (await runAction("markDeath", signal, resent.value, TWO_LAYERS, undefined, {
     kind: "markDeath", from: { ...refused, saving: false }, rowId: "s2", first: "s1", origin: "sheet",
   })) as StartedView;
-  assert.deepEqual(resent.log.empties, [true]);
   assert.deepEqual(resent.log.answers[0].fields, { first: "s1" });
   assert.equal(done.ordering, null);
   assert.equal(done.sheetDeath, undefined);
   assert.equal(done.editingHeir, "s2");
+});
+
+test("a sheet relatives refusal keeps the questions for the sheet, the answers resend with origin sheet, and cancel focuses the radio", async () => {
+  const questions = [{ id: "w", person: "w", kind: "relative" as const, options: ["mother", "none"], suggested: "mother" }];
+  const from = startedOf(FAMILY, true, { editingHeir: "s1" });
+  const asked = deps({ answer: () => ({ kind: "invalid", errors: { relatives: "required" }, questions }) });
+  const refused = (await runAction("markDeath", signal, asked.value, FAMILY, undefined, {
+    kind: "markDeath", from, rowId: "s1", origin: "sheet",
+  })) as StartedView;
+  assert.equal(refused.ordering, "s1");
+  assert.equal(refused.sheetDeath, true);
+  assert.equal(refused.editingHeir, "s1");
+  assert.deepEqual(refused.relativeQuestions, questions);
+  assert.equal(refused.focus?.target, "relatives");
+  assert.deepEqual(refused.case, FAMILY);
+  assert.equal(cancelOrder(refused).focus?.target, "editStatus:died_later");
+  assert.equal(cancelOrder(refused).relativeQuestions, undefined);
+  const marked: Case = { ...FAMILY, deaths: [{ ...S1_DEATH, heirs: [] }] };
+  const resent = deps({ answer: () => ({ kind: "saved", case: marked }) });
+  const answers = { relatives: { w: "mother" } };
+  const done = (await runAction("markDeath", signal, resent.value, FAMILY, undefined, {
+    kind: "markDeath", from: { ...refused, saving: false }, rowId: "s1", answers, origin: "sheet",
+  })) as StartedView;
+  assert.deepEqual(resent.log.sentAnswers, [answers]);
+  assert.equal(done.ordering, null);
+  assert.equal(done.sheetDeath, undefined);
+  assert.equal(done.relativeQuestions, undefined);
+  assert.equal(done.editingHeir, "s1");
+  assert.equal(done.layer, null);
+  assert.equal(done.focus?.target, "openEstate");
 });
 
 test("any other sheet refusal shows its error, keeps the sheet and focuses the radio", async () => {
@@ -1656,15 +1676,15 @@ test("an uncommitted name is saved first and the death is sent after it, at the 
   assert.equal(view.focus?.target, "openEstate");
 });
 
-test("a sheet death sends no relatives answers even when a row question is open, and names the saved name", async () => {
-  const from = startedOf(FAMILY, true, { editingHeir: "s1", ordering: "s1", relativeQuestions: [{ kind: "shared_father", id: "q" } as never], deathAnswers: { shared_father: "yes" } });
+test("a sheet death carries the open relatives answers like a row death, and names the saved name", async () => {
+  const from = startedOf(FAMILY, true, { editingHeir: "s1", ordering: "s1", relativeQuestions: [{ kind: "shared_father", id: "shared_father" } as never], deathAnswers: { shared_father: "yes" } });
   const named: Case = { ...FAMILY, heirs: FAMILY.heirs.map((heir) => heir.id === "s1" ? { ...heir, name: "Typed" } : heir) };
   const marked: Case = { ...named, deaths: [{ ...S1_DEATH, heirs: [] }] };
   const { value, log } = deps({ answer: (call) => ({ kind: "saved", case: call === "updateHeir" ? named : marked }) });
   const view = (await runAction("markDeath", signal, value, FAMILY, undefined, {
     kind: "markDeath", from, rowId: "s1", origin: "sheet", name: "Typed",
   })) as StartedView;
-  assert.deepEqual(log.sentAnswers, [{}]);
+  assert.deepEqual(log.sentAnswers, [{ shared_father: "yes" }]);
   assert.equal(view.announcement?.heir.name, "Typed");
 });
 

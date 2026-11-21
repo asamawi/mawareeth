@@ -170,6 +170,14 @@ deferred: []
 - **Known-bad state avoided:** combined shares and wrong relationships shown under a later estate's heading, and a partial "available" preview while an estate is empty.
 - **KEEP:** start from `spec-9-8-attempt-1.patch`. Keep its `empty` mark-death flag, sheet radio and refusal handling, `openLayer` focus parameter and `treeHeading`, breadcrumb rework with `estatePath`, died-later card activation, heir-row relabel and limit hiding, the e2e deaths mock, and the axe run. Remove its preview/pending pieces.
 
+### 2026-11-21 — Owner change after delivery: later estates derive existing heirs
+- **Trigger:** the owner tried the dev server and asked that a later estate automatically take its existing heirs from the first estate.
+- **Amended (behaviour, after `done`):**
+  - The edit sheet's later-death choice no longer sends `empty: true`. It uses the same server derivation as the Heirs-row "Also died" action: relatives already in the case are linked into the new estate.
+  - When the server asks relatives, shared-father or order questions, they render inside the sheet. Answering resends with `origin: "sheet"`, and Cancel focuses the later-death radio.
+  - This supersedes "initially empty estate" in the Boundaries and Matrix above. The server `empty` flag stays as an unused optional capability, with its tests.
+- **Verification:** `npm test` 650/650; lint 0 errors / 12 warnings; typecheck clean; 110 Playwright tests (interview and accessibility, chromium); `api.test_case_commands` 64 OK (as the implementer reported; the server is unchanged).
+
 ## Review Triage Log
 
 ### 2026-11-21 — Review pass (all five layers in one combined read-only codex call, deep tier; diff 122 kB)

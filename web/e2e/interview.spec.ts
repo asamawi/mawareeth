@@ -970,7 +970,7 @@ test.describe("later-death estates", () => {
     await page.locator("section[data-tree] [data-tree-area]").waitFor();
   };
 
-  test("the sheet's later-death radio posts an empty death, keeps the sheet and focuses Open own estate", async ({ page, api }) => {
+  test("the sheet's later-death radio posts the death without an empty flag, keeps the sheet and focuses Open own estate", async ({ page, api }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const kase = fullCase(agree.case, { snapshot: { at: 1 } }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     const son = rows(kase).find((row) => row.relationship === "son")!;
@@ -984,7 +984,7 @@ test.describe("later-death estates", () => {
     await sheet.getByRole("radio", { name: en.statusDiedLater }).click();
     await expect(sheet.locator('[data-focus="openEstate"]')).toBeFocused();
     expect(api.deathPosts).toHaveLength(1);
-    expect(JSON.parse(api.deathPosts[0].body)).toEqual({ heir_id: son.id, empty: true, case_id: kase.id, expected_revision: kase.revision });
+    expect(JSON.parse(api.deathPosts[0].body)).toEqual({ heir_id: son.id, case_id: kase.id, expected_revision: kase.revision });
     await expect(page.locator("[role='status']").filter({ hasText: /died later\. Open own estate to add his heirs\./ }).first()).toBeAttached();
     await expect(page.locator(`[data-node="${son.id}"]`)).toHaveAttribute("data-state", "died_later");
     await expect(page.locator("[data-breadcrumb]")).toHaveCount(0);
@@ -1007,7 +1007,7 @@ test.describe("later-death estates", () => {
     await expect(sheet.locator('[data-focus="openEstate"]')).toBeFocused();
     expect(api.writes).toEqual(["put heir", "post death"]);
     expect(JSON.parse(api.heirPuts[0]).name).toBe("Karim");
-    expect(JSON.parse(api.deathPosts[0].body)).toMatchObject({ heir_id: son.id, empty: true, expected_revision: 2 });
+    expect(JSON.parse(api.deathPosts[0].body)).toMatchObject({ heir_id: son.id, expected_revision: 2 });
     await expect(page.locator(`[data-node="${son.id}"]`)).toContainText("Karim");
   });
 
@@ -1060,7 +1060,7 @@ test.describe("later-death estates", () => {
     await expect(page.locator('[data-node="r2"]')).toHaveAttribute("data-state", "blocked");
   });
 
-  test("the sheet's order question resends first with empty and ends on Open own estate", async ({ page, api }) => {
+  test("the sheet's order question resends first and ends on Open own estate", async ({ page, api }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const kase = layeredCase();
     await open(page, api, kase, layered.response);
@@ -1074,7 +1074,51 @@ test.describe("later-death estates", () => {
     await sheet.locator('[data-focus="orderFirst:s1"]').click();
     await expect(sheet.locator('[data-focus="openEstate"]')).toBeFocused();
     expect(api.deathPosts).toHaveLength(2);
-    expect(JSON.parse(api.deathPosts[1].body)).toMatchObject({ heir_id: "s2", empty: true, first: "s1" });
+    expect(JSON.parse(api.deathPosts[1].body)).toMatchObject({ heir_id: "s2", first: "s1" });
+    expect(JSON.parse(api.deathPosts[1].body)).not.toHaveProperty("empty");
+  });
+
+  test("the sheet asks the relatives question inside itself, and the answer posts again and brings the derived heir", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = fullCase(agree.case, { snapshot: { at: 1 } }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const son = rows(kase).find((row) => row.relationship === "son")!;
+    const wife = rows(kase).find((row) => row.relationship === "wife")!;
+    await open(page, api, kase, agree.response);
+    const derived = { id: "d1", relationship: "mother", gender: "female", name: null, same_as: wife.id, edit_options: options };
+    const marked = { ...kase, revision: 2, snapshot: { at: 2 }, deaths: [{ heir_id: son.id, order: 2, gender: "male", heir_options: options, heirs: [derived] }] };
+    const questions = [{ id: wife.id, person: wife.id, kind: "relative", options: ["mother", "none"], suggested: "mother" }];
+    api.set({ postDeath: json(400, { errors: { relatives: "required" }, questions }) });
+    await page.locator(`[data-node="${son.id}"]`).press("Enter");
+    const sheet = page.locator("section[data-edit-sheet]");
+    await sheet.getByRole("radio", { name: en.statusDiedLater }).click();
+    await expect(sheet.locator('[data-focus="relatives"]')).toBeVisible();
+    await expect(sheet.locator('[data-focus="relatives"]')).toBeFocused();
+    api.set({ postDeath: json(201, { case: marked }), getCase: json(200, { case: marked }), getPreview: json(200, { status: "not_ready", revision: 2 }) });
+    await sheet.locator('[data-focus="relativesSubmit"]').click();
+    await expect(sheet.locator('[data-focus="openEstate"]')).toBeFocused();
+    expect(api.deathPosts).toHaveLength(2);
+    const second = JSON.parse(api.deathPosts[1].body);
+    expect(second).toMatchObject({ heir_id: son.id, relatives: { [wife.id]: "mother" } });
+    expect(second).not.toHaveProperty("empty");
+    await sheet.locator('[data-focus="openEstate"]').click();
+    await expect(page.locator('[data-node="d1"]')).toBeVisible();
+  });
+
+  test("cancelling the sheet's relatives question writes nothing and focuses the later-death radio", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = fullCase(agree.case, { snapshot: { at: 1 } }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const son = rows(kase).find((row) => row.relationship === "son")!;
+    const wife = rows(kase).find((row) => row.relationship === "wife")!;
+    await open(page, api, kase, agree.response);
+    const questions = [{ id: wife.id, person: wife.id, kind: "relative", options: ["mother", "none"], suggested: "mother" }];
+    api.set({ postDeath: json(400, { errors: { relatives: "required" }, questions }) });
+    await page.locator(`[data-node="${son.id}"]`).press("Enter");
+    const sheet = page.locator("section[data-edit-sheet]");
+    await sheet.getByRole("radio", { name: en.statusDiedLater }).click();
+    await sheet.locator('[data-focus="relativesCancel"]').click();
+    await expect(sheet.locator('[data-focus="relatives"]')).toHaveCount(0);
+    await expect(sheet.locator('[data-focus="editStatus:died_later"]')).toBeFocused();
+    expect(api.deathPosts).toHaveLength(1);
   });
 
   test("at two later deaths the radio is replaced by the limit text and the Also died row action is hidden", async ({ page, api }) => {

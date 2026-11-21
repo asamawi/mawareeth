@@ -104,8 +104,8 @@ const deps: Deps = {
   addHeirs,
   updateHeir: (signal, caseId, revision, heirId, fields) => updateHeir(signal, caseId, revision, heirId, fields),
   removeHeir,
-  markDeceased: (signal, caseId, revision, heirId, first, answers, empty) =>
-    markDeceased(signal, caseId, revision, heirId, first, {}, answers, empty),
+  markDeceased: (signal, caseId, revision, heirId, first, answers) =>
+    markDeceased(signal, caseId, revision, heirId, first, {}, answers),
   unmarkDeceased: (signal, caseId, revision, heirId) => unmarkDeceased(signal, caseId, revision, heirId),
   restoreCase,
   selection: selectionStore(),
@@ -386,16 +386,31 @@ export function StartCase({
     return function renderOrder(name?: string | null) {
     const names = rowLabels(started.case, messages.relationships, messages.heirNumbered, messages.previewOf);
     const ids = [...started.case.deaths.map((death) => death.heir_id), personOf(row)];
+    const nameField = name === undefined ? {} : { name };
+    const asked = !!started.relativeQuestions?.length;
     return (
-      <OrderQuestion
-        messages={messages}
-        selected={started.deathFirst}
-        choices={ids.map((id) => ({ id, label: names[id] ?? id }))}
-        saving={frozen}
-        error={started.errors?.death ? errorText(messages, "death", started.errors) : null}
-        onChoose={(first) => submit((from) => ({ kind: "markDeath", from, rowId: row.id, first, origin: "sheet", ...(name === undefined ? {} : { name }) }))}
-        onCancel={() => edit((current) => cancelOrder(current))}
-      />
+      <>
+        {(started.deathOrderNeeded ?? !asked) && <OrderQuestion
+          messages={messages}
+          selected={started.deathFirst}
+          choices={ids.map((id) => ({ id, label: names[id] ?? id }))}
+          saving={frozen}
+          error={started.errors?.death ? errorText(messages, "death", started.errors) : null}
+          onChoose={(first) => {
+            if (asked) edit((current) => ({ ...current, deathFirst: first }));
+            else submit((from) => ({ kind: "markDeath", from, rowId: row.id, first, origin: "sheet", ...nameField }));
+          }}
+          onCancel={() => edit((current) => cancelOrder(current))}
+        />}
+        {asked && <>
+          {started.errors?.relatives && <p role="alert">{errorText(messages, "relatives", started.errors)}</p>}
+          <RelativesQuestion key={JSON.stringify(started.relativeQuestions)} questions={started.relativeQuestions!}
+            messages={messages} labels={names} saving={frozen} initial={started.deathAnswers}
+            onSubmit={(answers) => submit((from) => ({ kind: "markDeath", from, rowId: row.id, answers, origin: "sheet", ...nameField }))} />
+          <button type="button" className={buttonClass} data-focus="relativesCancel" disabled={frozen}
+            onClick={() => edit((current) => cancelOrder(current))}>{messages.deathOrderCancel}</button>
+        </>}
+      </>
     );
     };
   })();

@@ -199,7 +199,7 @@ export type Deps = {
     fields: HeirFields,
   ) => Promise<AnswerResult>;
   removeHeir: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, confirm: boolean) => Promise<AnswerResult>;
-  markDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, first?: string, answers?: RelativeAnswers, empty?: boolean) => Promise<AnswerResult>;
+  markDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, first?: string, answers?: RelativeAnswers) => Promise<AnswerResult>;
   unmarkDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string) => Promise<AnswerResult>;
   restoreCase: (signal: AbortSignal, caseId: string, revision: number | null, snapshot: Record<string, unknown>) => Promise<AnswerResult>;
   /** Whether this browser has seen a case before; the only way to tell expired from new. */
@@ -850,11 +850,9 @@ function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerRe
       return deps.removeHeir(signal, caseId, revision, answer.heirId, answer.confirm === true);
     case "markDeath": {
       const pending = answer.from.ordering === answer.rowId;
-      // A death chosen in the sheet is always empty: it carries no relatives answers.
-      const sheet = answer.origin === "sheet";
       return deps.markDeceased(signal, caseId, revision, answer.rowId,
         answer.first ?? (pending ? answer.from.deathFirst : undefined),
-        sheet ? {} : { ...(pending ? openAnswers(answer.from) : {}), ...answer.answers }, sheet);
+        { ...(pending ? openAnswers(answer.from) : {}), ...answer.answers });
     }
     case "unmarkDeath":
       return deps.unmarkDeceased(signal, caseId, revision, answer.heirId);
