@@ -14,10 +14,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Document the admin user's passwordless sudo grant and the first-connection TOFU host-key acceptance (`StrictHostKeyChecking=accept-new`) as deliberate tradeoffs, and add a break-glass recovery procedure for an SSH lockout.
   evidence: Both are real, currently-undocumented security-relevant decisions in `bootstrap-host.sh`/`provision-host.sh`; `deploy/README.md` only warns "do not remove the only permitted CIDR" with no recovery path if it happens anyway.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-provision-host-api-hardening.md`
-  summary: Refuse all-digit `SERVER_NAME`, `HETZNER_SSH_KEY_NAME` and `FIREWALL_NAME` values in `provision-host.sh`, or carry the IDs validated by name into later hcloud calls, because hcloud resolves a numeric argument as an ID first.
-  evidence: The name regexes allow all-digit names. The later describe, `set_rules`, protection and `--ssh-key` calls pass the name, so they could act on a different resource than the one the list lookup validated. This was already true before the lookup hardening and was raised in its review on 2026-11-22.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-bootstrap-sandboxed-guest-validation-run.md`
   summary: Execute `bootstrap-host.sh`'s later public-web steps (`require_ufw_ipv6`, `converge_docker_web_rules`, `allow_public_web`, `persist_web_sources`) through the entry point, not only by call-line checks.
   evidence: The sandboxed run in `test_host_baseline.sh` stops at the first host change (`apt-get update`), so these steps are still proven only by `grep -cx` call checks and extracted-helper runs; reaching them needs stand-ins for the shell redirections into `/etc` that PATH stubs cannot intercept.
