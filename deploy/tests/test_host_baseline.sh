@@ -633,18 +633,45 @@ stub="$tmp/stub"
 mkdir -p "$stub"
 state="$tmp/state" log="$tmp/log"
 mkdir -p "$state"
+touch "$state/firewall"
 cat > "$stub/hcloud" <<'EOF'
 #!/usr/bin/env bash
 set -e
 echo "hcloud $*" >> "$TEST_LOG"
+# Fixture switches: LOOKUP_FAIL / LOOKUP_BAD / LOOKUP_DUP name a resource whose
+# list call fails, answers with a non-array, or returns the match twice;
+# FW_LIST_ATTACH=selector attaches the firewall by label selector at lookup time;
+# FW_PRE=selector attaches it by label selector before the server is protected;
+# FW_FINAL=selector|foreign changes its attachments once the server is protected.
+if [[ "${2:-}" == list ]]; then
+  if [[ "${LOOKUP_FAIL:-}" == "$1" ]]; then echo 'Error: unauthorized' >&2; exit 1; fi
+  if [[ "${LOOKUP_BAD:-}" == "$1" ]]; then printf '{"error":"unexpected"}\n'; exit 0; fi
+  attached='[]'
+  if [[ "${FW_LIST_ATTACH:-}" == selector ]]; then attached='[{"type":"label_selector","label_selector":{"selector":"env=prod"}}]'; fi
+  entry=''
+  case "$1" in
+    server) if [[ -e "$TEST_STATE/server" ]]; then entry='{"id":2,"name":"baseline-test","server_type":{"name":"cx33"},"location":{"name":"nbg1"},"image":{"name":"ubuntu-24.04"},"labels":{"mawareeth_host_baseline":"1"}}'; fi ;;
+    ssh-key) if [[ -e "$TEST_STATE/key" ]]; then entry="{\"id\":3,\"name\":\"baseline-test-key\",\"public_key\":\"$TEST_PUBLIC_KEY\"}"; fi ;;
+    firewall) if [[ -e "$TEST_STATE/firewall" ]]; then entry="{\"id\":1,\"name\":\"baseline-test-edge\",\"applied_to\":$attached}"; fi ;;
+  esac
+  if [[ "${LOOKUP_DUP:-}" == "$1" && -n "$entry" ]]; then entry="$entry,$entry"; fi
+  printf '[{"id":9,"name":"unrelated","applied_to":[]}%s]\n' "${entry:+,$entry}"
+  exit 0
+fi
 case "$1 $2 $3" in
-  "ssh-key describe baseline-test-key") [[ -e "$TEST_STATE/key" ]] || exit 1; printf '{"ssh_key":{"public_key":"%s"}}\n' "$TEST_PUBLIC_KEY" ;;
   "ssh-key create --name") touch "$TEST_STATE/key" ;;
-  "firewall describe baseline-test-edge") printf '{"firewall":{"id":1,"applied_to":[]}}\n' ;;
-  "firewall create --name") : ;;
+  "firewall describe baseline-test-edge")
+    attached='[]'
+    if [[ ( ! -e "$TEST_STATE/protected" && "${FW_PRE:-}" == selector ) ||
+          ( -e "$TEST_STATE/protected" && "${FW_FINAL:-}" == selector ) ]]; then
+      attached='[{"type":"label_selector","label_selector":{"selector":"env=prod"}}]'
+    fi
+    if [[ -e "$TEST_STATE/protected" && "${FW_FINAL:-}" == foreign ]]; then attached='[{"type":"server","server":{"id":99}}]'; fi
+    printf '{"firewall":{"id":1,"applied_to":%s}}\n' "$attached" ;;
+  "firewall create --name") touch "$TEST_STATE/firewall" ;;
   "server describe baseline-test") [[ -e "$TEST_STATE/server" ]] || exit 1; printf '{"server":{"id":2,"server_type":{"name":"cx33"},"datacenter":{"location":{"name":"nbg1"}},"image":{"name":"ubuntu-24.04"},"labels":{"mawareeth_host_baseline":"1"}}}\n' ;;
   "server create --name") touch "$TEST_STATE/server" ;;
-  "server enable-protection baseline-test") : ;;
+  "server enable-protection baseline-test") touch "$TEST_STATE/protected" ;;
   "server apply-to-resource baseline-test-edge") : ;;
   "server ip baseline-test") printf '203.0.113.10\n' ;;
   "action wait 1") : ;;
@@ -660,26 +687,91 @@ cat > "$stub/jq" <<'EOF'
 #!/usr/bin/env bash
 args="$*"
 case "$args" in
-  # Piped from hcloud: drain stdin so the writer never gets SIGPIPE under pipefail.
-  *'(.ssh_key // .).public_key'*) cat >/dev/null; printf '%s\n' "$TEST_PUBLIC_KEY" ;;
-  *'(.firewall // .).id'*) printf '1\n' ;;
-  *'(.server // .).server_type.name'*) printf 'cx33\n' ;;
-  *'(.location.name // .datacenter.location.name)'*) printf 'nbg1\n' ;;
-  *'(.server // .).image.name'*) printf 'ubuntu-24.04\n' ;;
-  *'(.server // .).labels.mawareeth_host_baseline'*) printf '1\n' ;;
-  *'.actions[]?.id'*) printf '1\n' ;;
-  *'length > 0'*) exit 1 ;;
-  *'all((.firewall // .).applied_to'*) exit 0 ;;
-  *'applied_to'*) exit 1 ;;
   # The rules payload: record the arguments, and render it with real jq when available.
   *'--argjson ssh_sources'*)
     printf '%s\n' "$@" > "$TEST_STATE/payload-args"
     if [[ -n "${REAL_JQ:-}" ]]; then "$REAL_JQ" "$@" | tee "$TEST_STATE/payload.json"
-    else printf '{"rules": [{"port": "80"}, {"port": "443"}, {"port": "22"}]}'; fi ;;
-  *'-R .'*) cat | sed 's/.*/"&"/' ;;
-  *'-s .'*) cat >/dev/null; printf '["198.51.100.0/24"]' ;;
-  *) cat ;;
+    else printf '{"rules": [{"port": "80"}, {"port": "443"}, {"port": "22"}]}'; fi
+    exit ;;
+  *'-R .'*) cat | sed 's/.*/"&"/'; exit ;;
+  *'-s .'*) cat >/dev/null; printf '["198.51.100.0/24"]'; exit ;;
 esac
+# Everything else runs the real program on the fixtures; without jq, a stand-in
+# that knows exactly the programs provision-host.sh uses.
+if [[ -n "${REAL_JQ:-}" ]]; then exec "$REAL_JQ" "$@"; fi
+fallback="$(cat <<'PY'
+import json
+import sys
+
+argv = sys.argv[1:]
+named = {}
+program = None
+i = 0
+while i < len(argv):
+    arg = argv[i]
+    if arg == '--arg':
+        named[argv[i + 1]] = argv[i + 2]
+        i += 3
+        continue
+    if arg in ('-c', '-r', '-e'):
+        i += 1
+        continue
+    program = arg
+    i += 1
+try:
+    data = json.loads(sys.stdin.read())
+except ValueError:
+    sys.exit(2)
+
+
+def unwrap(doc, key):
+    return doc[key] if isinstance(doc, dict) and doc.get(key) else doc
+
+
+if 'select(.name == $name)' in program:
+    if data is None:
+        data = []
+    if not isinstance(data, list):
+        sys.exit(5)
+    print(json.dumps([d for d in data if d.get('name') == named['name']], separators=(',', ':')))
+elif program == 'length':
+    print(len(data))
+elif program == '.[0]':
+    print(json.dumps(data[0], separators=(',', ':')))
+elif program.startswith('all((.firewall // .).applied_to'):
+    firewall = unwrap(data, 'firewall')
+    ok = all(a.get('type') == 'server' and str(a['server']['id']) == named['server_id'] for a in firewall.get('applied_to') or [])
+    sys.exit(0 if ok else 1)
+elif program.startswith('(.firewall // .).applied_to[]? | select'):
+    firewall = unwrap(data, 'firewall')
+    hit = [a for a in firewall.get('applied_to') or [] if a.get('type') == 'server' and str(a['server']['id']) == named['server_id']]
+    sys.exit(0 if hit else 1)
+elif program == '(.firewall // .).id':
+    print(unwrap(data, 'firewall')['id'])
+elif program == '(.server // .).id':
+    print(unwrap(data, 'server')['id'])
+elif program == '.id':
+    print(data['id'])
+elif program == '.public_key':
+    print(data['public_key'])
+elif program == '.server_type.name':
+    print(data['server_type']['name'])
+elif program == '.location.name // .datacenter.location.name':
+    print((data.get('location') or data['datacenter']['location'])['name'])
+elif program == '.image.name':
+    print(data['image']['name'])
+elif program == '.labels.mawareeth_host_baseline // empty':
+    value = (data.get('labels') or {}).get('mawareeth_host_baseline')
+    if value is not None:
+        print(value)
+elif program.startswith('[.actions[]?.id'):
+    print(1)
+else:
+    sys.stderr.write('jq stub: unsupported program: %s\n' % program)
+    sys.exit(3)
+PY
+)"
+exec python3 -c "$fallback" "$@"
 EOF
 cat > "$stub/ssh" <<'EOF'
 #!/usr/bin/env bash
@@ -704,7 +796,7 @@ SSH_ALLOWED_CIDRS=198.51.100.0/24
 EOF
 chmod 600 "$tmp/valid-config"
 provision_with() { # config [provision script], stubbed; extra arguments are ignored
-  TEST_LOG="$log" TEST_STATE="$state" TEST_PUBLIC_KEY="$pub" REAL_JQ="$real_jq" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$1" bash "${2:-$provision}"
+  TEST_LOG="$log" TEST_STATE="${CASE_STATE:-$state}" TEST_PUBLIC_KEY="$pub" REAL_JQ="$real_jq" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$1" bash "${2:-$provision}"
 }
 provision_with "$tmp/valid-config"
 provision_with "$tmp/valid-config"
@@ -816,31 +908,15 @@ set -e
 echo "hcloud $*" >> "$TEST_LOG"
 server_type=cx33; [[ "${MISMATCH_MODE:-}" == server ]] && server_type=cx22
 key_value="$TEST_PUBLIC_KEY"; [[ "${MISMATCH_MODE:-}" == key ]] && key_value='ssh-ed25519 AAAADIFFERENTKEYDATA different@test'
+attached='[]'; [[ "${MISMATCH_MODE:-}" == firewall ]] && attached='[{"type":"server","server":{"id":99}}]'
 case "$1 $2 $3" in
-  "ssh-key describe baseline-test-key") printf '{"ssh_key":{"public_key":"%s"}}\n' "$key_value" ;;
-  "firewall describe baseline-test-edge") printf '{"firewall":{"id":1,"applied_to":[]}}\n' ;;
-  "server describe baseline-test") printf '{"server":{"id":2,"server_type":{"name":"%s"},"datacenter":{"location":{"name":"nbg1"}},"image":{"name":"ubuntu-24.04"},"labels":{"mawareeth_host_baseline":"1"}}}\n' "$server_type" ;;
+  "ssh-key list -o") printf '[{"id":3,"name":"baseline-test-key","public_key":"%s"}]\n' "$key_value" ;;
+  "firewall list -o") printf '[{"id":1,"name":"baseline-test-edge","applied_to":%s}]\n' "$attached" ;;
+  "server list -o") printf '[{"id":2,"name":"baseline-test","server_type":{"name":"%s"},"location":{"name":"nbg1"},"image":{"name":"ubuntu-24.04"},"labels":{"mawareeth_host_baseline":"1"}}]\n' "$server_type" ;;
   *) exit 0 ;;
 esac
 EOF
-cat > "$mismatch_stub/jq" <<'EOF'
-#!/usr/bin/env bash
-args="$*"
-server_type=cx33; [[ "${MISMATCH_MODE:-}" == server ]] && server_type=cx22
-key_value="$TEST_PUBLIC_KEY"; [[ "${MISMATCH_MODE:-}" == key ]] && key_value='ssh-ed25519 AAAADIFFERENTKEYDATA different@test'
-case "$args" in
-  # Piped from hcloud: drain stdin so the writer never gets SIGPIPE under pipefail.
-  *'(.ssh_key // .).public_key'*) cat >/dev/null; printf '%s\n' "$key_value" ;;
-  *'(.server // .).server_type.name'*) printf '%s\n' "$server_type" ;;
-  *'(.location.name // .datacenter.location.name)'*) printf 'nbg1\n' ;;
-  *'(.server // .).image.name'*) printf 'ubuntu-24.04\n' ;;
-  *'(.server // .).labels.mawareeth_host_baseline'*) printf '1\n' ;;
-  *'(.server // .).id'*) printf '1\n' ;;
-  *'length > 0'*) exit 1 ;;
-  *'all((.firewall // .).applied_to'*) if [[ "${MISMATCH_MODE:-}" == firewall ]]; then exit 1; else exit 0; fi ;;
-  *) cat ;;
-esac
-EOF
+cp "$stub/jq" "$mismatch_stub/jq"
 cat > "$mismatch_stub/curl" <<'EOF'
 #!/usr/bin/env bash
 echo "curl $*" >> "$TEST_LOG"
@@ -849,12 +925,135 @@ EOF
 chmod +x "$mismatch_stub"/*
 for mode in server key firewall; do
   mismatch_log="$tmp/mismatch-log-$mode"
-  if MISMATCH_MODE="$mode" TEST_LOG="$mismatch_log" TEST_PUBLIC_KEY="$pub" PATH="$mismatch_stub:$PATH" HOST_BASELINE_CONFIG="$tmp/valid-config" bash "$provision" >/dev/null 2>&1; then
+  if out="$(MISMATCH_MODE="$mode" TEST_LOG="$mismatch_log" TEST_PUBLIC_KEY="$pub" PATH="$mismatch_stub:$PATH" HOST_BASELINE_CONFIG="$tmp/valid-config" bash "$provision" 2>&1)"; then
     fail "conflicting $mode was accepted instead of aborting for an operator decision"
   fi
-  grep -Eq -- 'server create|enable-protection|apply-to-resource|^curl ' "$mismatch_log" 2>/dev/null && fail "conflict detection for $mode mutated provider state instead of aborting first"
+  case "$mode" in
+    server) expected='existing server is conflicting or not managed by this baseline; operator decision required' ;;
+    key) expected='existing SSH-key identity has different public key; operator decision required' ;;
+    firewall) expected='configured firewall is shared with another server; operator decision required' ;;
+  esac
+  [[ "$out" == *"$expected"* ]] || fail "expected \"$expected\", got: $out"
+  grep -Eq -- 'ssh-key create|firewall create|server create|enable-protection|apply-to-resource|^curl ' "$mismatch_log" 2>/dev/null && fail "conflict detection for $mode mutated provider state instead of aborting first"
 done
 printf '%s\n' 'conflict/drift detection checks passed'
+
+# Hetzner lookups, shared-firewall detection and SSH key file checks. Each case
+# gets its own state directory; the stub log records every provider call.
+case_n=0
+fresh_state() { # [existing...]: a new state directory holding marker files for resources that already exist
+  case_n=$((case_n + 1))
+  CASE_STATE="$tmp/case-state-$case_n"
+  mkdir -p "$CASE_STATE"
+  local marker
+  for marker in "$@"; do touch "$CASE_STATE/$marker"; done
+  : > "$log"
+}
+# The run must have failed with the message, without the token in it.
+stops_with() { # expected-message output
+  [[ "$2" == *"$1"* ]] || fail "expected \"$1\", got: $2"
+  [[ "$2" != *redacted* ]] || fail 'refusal printed the Hetzner token'
+}
+no_changes() { # label: nothing changed at the provider or reached the host
+  ! grep -Eq "^(hcloud (ssh-key create|firewall create|server create|server enable-protection|server apply-to-resource|firewall apply-to-resource)|curl |ssh |scp )" "$log" \
+    || fail "$1 changed provider state or reached the host: $(grep -E '^(hcloud (ssh-key create|firewall create|server create|server enable-protection|server apply-to-resource|firewall apply-to-resource)|curl |ssh |scp )' "$log" | head -n 1)"
+}
+lookup_msg() { printf 'could not look up Hetzner %s "%s"; check HETZNER_TOKEN and connectivity' "$1" "$2"; }
+
+# An auth failure, or output that is not an array, on any of the three lookups
+# stops the run before every provider change; absence is never assumed.
+for lookup in 'server:server:baseline-test' 'ssh-key:SSH key:baseline-test-key' 'firewall:firewall:baseline-test-edge'; do
+  IFS=: read -r resource label name <<<"$lookup"
+  for failure in LOOKUP_FAIL LOOKUP_BAD; do
+    fresh_state
+    out="$(env "$failure=$resource" CASE_STATE="$CASE_STATE" TEST_LOG="$log" TEST_STATE="$CASE_STATE" TEST_PUBLIC_KEY="$pub" REAL_JQ="$real_jq" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$tmp/valid-config" bash "$provision" 2>&1)" \
+      && fail "$failure on the $resource lookup was accepted"
+    stops_with "$(lookup_msg "$label" "$name")" "$out"
+    no_changes "$failure on the $resource lookup"
+  done
+done
+# Two entries with the name: an operator decision, not a guess.
+for lookup in 'server:server' 'ssh-key:SSH key' 'firewall:firewall'; do
+  IFS=: read -r resource label <<<"$lookup"
+  fresh_state server key firewall
+  out="$(env LOOKUP_DUP="$resource" TEST_LOG="$log" TEST_STATE="$CASE_STATE" TEST_PUBLIC_KEY="$pub" REAL_JQ="$real_jq" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$tmp/valid-config" bash "$provision" 2>&1)" \
+    && fail "an ambiguous $resource name was accepted"
+  stops_with "Hetzner $label" "$out"
+  stops_with 'is ambiguous' "$out"
+  no_changes "the ambiguous $resource name"
+done
+# A firewall attached through a label selector is shared, even for an existing
+# server, and refused before the rules are replaced.
+fresh_state server key firewall
+out="$(FW_LIST_ATTACH=selector provision_with "$tmp/valid-config" 2>&1)" && fail 'a selector-attached firewall was accepted for an existing server'
+stops_with 'configured firewall is shared with another server; operator decision required' "$out"
+no_changes 'the selector firewall on an existing server'
+# With no server yet, any attachment at all is another server's.
+fresh_state firewall
+out="$(FW_LIST_ATTACH=selector provision_with "$tmp/valid-config" 2>&1)" && fail 'a selector-attached firewall was accepted for a new server'
+stops_with 'configured firewall is already attached to another server; operator decision required' "$out"
+no_changes 'the selector firewall on a new server'
+# A selector that appears after lookup is refused before the rules are replaced.
+fresh_state server key firewall
+out="$(FW_PRE=selector provision_with "$tmp/valid-config" 2>&1)" && fail 'a selector attachment on the pre-set_rules refresh was accepted'
+stops_with 'configured firewall is shared with another server; operator decision required' "$out"
+! grep -q '^curl ' "$log" || fail 'the selector attachment on the pre-set_rules refresh still reached set_rules'
+# A selector or a foreign server that appears only on the final refresh stops
+# the run before the firewall is applied.
+for final in selector foreign; do
+  fresh_state server key firewall
+  out="$(FW_FINAL="$final" provision_with "$tmp/valid-config" 2>&1)" && fail "a $final attachment on the final refresh was accepted"
+  stops_with 'configured firewall is shared with another server; operator decision required' "$out"
+  ! grep -q 'apply-to-resource' "$log" || fail "the $final attachment on the final refresh still reached apply-to-resource"
+done
+unset CASE_STATE
+# A fresh project creates the key, firewall and server; a repeat run creates none.
+fresh_state
+provision_with "$tmp/valid-config" >/dev/null
+for created in 'ssh-key create --name baseline-test-key' 'firewall create --name baseline-test-edge' 'server create --name baseline-test'; do need "$log" "$created"; done
+awk '/^hcloud firewall create --name baseline-test-edge$/ { created = 1 } /^curl / { ordered = created; exit } END { exit !ordered }' "$log" \
+  || fail 'the firewall was not created before the first curl call'
+: > "$log"
+provision_with "$tmp/valid-config" >/dev/null
+! grep -Eq '(ssh-key|firewall|server) create' "$log" || fail 'a repeat run created a resource that already exists'
+unset CASE_STATE
+
+# SSH key files: the private key must be a private regular file, the public key
+# must not be writable by others, and an encrypted key is refused without a prompt.
+key_config() { # name private-key public-key -> config path
+  sed -e "s|^ADMIN_SSH_PRIVATE_KEY=.*|ADMIN_SSH_PRIVATE_KEY=$2|" -e "s|^SSH_PUBLIC_KEY=.*|SSH_PUBLIC_KEY=$3|" "$tmp/valid-config" > "$tmp/$1-config"
+  chmod 600 "$tmp/$1-config"
+  printf '%s' "$tmp/$1-config"
+}
+cp "$tmp/pair" "$tmp/loose-pair"
+chmod 644 "$tmp/loose-pair"
+provision_refuses 'ADMIN_SSH_PRIVATE_KEY must be a regular file not accessible by group or others (chmod 600)' "$(key_config loose-private "$tmp/loose-pair" "$tmp/pair.pub")"
+chmod 640 "$tmp/loose-pair"
+provision_refuses 'ADMIN_SSH_PRIVATE_KEY must be a regular file not accessible by group or others (chmod 600)' "$(key_config loose-private "$tmp/loose-pair" "$tmp/pair.pub")"
+mkdir -p "$tmp/key-dir"
+provision_refuses 'ADMIN_SSH_PRIVATE_KEY must be a regular file not accessible by group or others (chmod 600)' "$(key_config dir-private "$tmp/key-dir" "$tmp/pair.pub")"
+cp "$tmp/pair.pub" "$tmp/loose.pub"
+chmod 664 "$tmp/loose.pub"
+provision_refuses 'SSH_PUBLIC_KEY must be a regular file not writable by group or others' "$(key_config loose-public "$tmp/pair" "$tmp/loose.pub")"
+provision_refuses 'SSH_PUBLIC_KEY must be a regular file not writable by group or others' "$(key_config dir-public "$tmp/pair" "$tmp/key-dir")"
+# A read-only public key is fine (0644 is the usual mode of a .pub file).
+chmod 644 "$tmp/pair.pub"
+fresh_state server key firewall
+provision_with "$tmp/valid-config" >/dev/null || fail 'a 0644 public key was refused'
+unset CASE_STATE
+# An encrypted private key gets its own refusal, with no prompt and no hang.
+ssh-keygen -q -t ed25519 -N testpass -f "$tmp/encrypted-pair"
+fresh_state
+out="$(TEST_LOG="$log" TEST_STATE="$CASE_STATE" TEST_PUBLIC_KEY="$pub" REAL_JQ="$real_jq" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$(key_config encrypted "$tmp/encrypted-pair" "$tmp/encrypted-pair.pub")" timeout 20 bash "$provision" </dev/null 2>&1)" \
+  && fail 'an encrypted private key was accepted'
+stops_with 'ADMIN_SSH_PRIVATE_KEY is passphrase-protected; provisioning needs a key usable without a prompt' "$out"
+! grep -Eq '^(hcloud|curl|ssh|scp) ' "$log" || fail 'the encrypted-key refusal contacted Hetzner first'
+unset CASE_STATE
+# Any other unusable key keeps the existing message.
+printf 'not a key\n' > "$tmp/garbage-key"
+chmod 600 "$tmp/garbage-key"
+provision_refuses 'ADMIN_SSH_PRIVATE_KEY is not a usable private key' "$(key_config garbage "$tmp/garbage-key" "$tmp/pair.pub")"
+printf '%s\n' 'hetzner lookup and key file checks passed'
 
 # Apt signing-key pin: bootstrap's apt key pin block, run against the committed
 # copies of the real vendor keys (no network).
