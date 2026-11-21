@@ -411,7 +411,6 @@ Completed and obsolete items are removed; their history is in git.
 - The new offline message (`offlineEditing`, ar and fr) needs native review.
 - Removals and un-marking a death send `confirm_cascade: true` until the Epic 9 impact dialog exists.
 - The currency, eligibility-answer, tree-drop and redeem commands plug into `api/case_commands.py` later.
-- An expired guest Case is not deleted from the session on read; it reads as no Case until replaced.
 - The limit stays 50 Heirs per layer (AD-26 says 50 Heirs).
 - A web bundle opened across the deploy gets 400 `invalid_revision` on writes until it reloads.
 - The case lock measurements are `mawareeth.case_lock` log records, not metrics yet.
