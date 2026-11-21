@@ -916,13 +916,8 @@ test.describe("interview shell", () => {
     });
   }
 
-  test("a layered case keeps the breadcrumb above the grid, before Add relatives", async ({ page, api }) => {
-    const layered = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as {
-      fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[];
-    }).fixtures.find((item) => item.title === "Agree layered: wife and two sons, a son dies")!;
-    const served = JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-presented-fixtures.json"), "utf8")) as {
-      presented: Record<string, unknown>;
-    };
+  test("a layered case shows no breadcrumb at the root and opens a later estate from its row", async ({ page, api }) => {
+    const layered = fixture("Agree layered: wife and two sons, a son dies");
     await page.setViewportSize({ width: 1100, height: 900 });
     api.set({
       session: sessionAnonymous,
@@ -935,29 +930,182 @@ test.describe("interview shell", () => {
           })),
         }),
       }),
-      getPreview: json(200, { ...layered.response, presented: served.presented[layered.title] }),
+      getPreview: json(200, layered.response),
     });
     await page.goto("/en/interview/");
     await page.getByRole("button", { name: en.resume }).click();
-    const nav = page.getByRole("navigation", { name: en.deathsNavLabel });
-    await expect(nav).toBeVisible();
-    const gap = await page.evaluate(() => {
-      const crumb = document.querySelector("nav[data-focus='breadcrumb']")!.getBoundingClientRect();
-      const grid = document.querySelector("section[aria-labelledby='add-relatives-heading']")!.closest("[data-wide]")!.getBoundingClientRect();
-      return grid.top - crumb.bottom;
-    });
-    expect(gap).toBeGreaterThanOrEqual(0);
-    const precedes = await page.evaluate(() => {
-      const crumb = document.querySelector("nav[data-focus='breadcrumb']")!;
-      const form = document.querySelector("section[aria-labelledby='add-relatives-heading']")!;
-      return !!(crumb.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING);
-    });
-    expect(precedes).toBe(true);
+    const nav = page.getByRole("navigation", { name: en.estateLevel });
+    await expect(nav).toHaveCount(0);
     await page.locator("[data-focus^='openLayer:']").first().click();
-    const first = page.locator("button[data-focus='layer:first']");
-    await expect(first).toBeVisible();
-    await first.click();
-    await expect(page.locator("span[data-focus='layer:first'][aria-current]")).toBeVisible();
+    await expect(nav).toBeVisible();
+    await expect(page.locator("[data-focus='treeHeading']")).toBeFocused();
+    const inTree = await page.evaluate(() => {
+      const crumb = document.querySelector("nav[data-breadcrumb]")!;
+      const area = document.querySelector("[data-tree-area]")!;
+      return !!crumb.closest("[data-tree]") && !!(crumb.compareDocumentPosition(area) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    expect(inTree).toBe(true);
+    await expect(nav.locator('[aria-current="page"]')).toBeVisible();
+    await nav.getByRole("link").first().click();
+    await expect(nav).toHaveCount(0);
+    await expect(page.locator("[data-focus='treeHeading']")).toBeFocused();
+    await expect(page.locator("[data-focus='treeHeading']")).toHaveText(en.treeHeading);
+  });
+});
+
+test.describe("later-death estates", () => {
+  const agree = fixture("Agree: wife, son and daughter in every school");
+  const layered = fixture("Agree layered: wife and two sons, a son dies");
+  const options = { blocked: [], invalid: {} };
+  const rows = (kase: Record<string, any>) => kase.heirs as { id: string; relationship: string }[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const layeredCase = () => fullCase(layered.case, {
+    deaths: (layered.case.deaths as { heirs: Record<string, unknown>[] }[]).map((death) => ({
+      ...death, heir_options: options, heirs: death.heirs.map((heir) => ({ ...heir, edit_options: options })),
+    })),
+  }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const open = async (page: Page, api: Parameters<typeof openHeirsScreen>[1], kase: Record<string, unknown>, response: Record<string, unknown>) => {
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, response) });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    await page.locator("section[data-tree] [data-tree-area]").waitFor();
+  };
+
+  test("the sheet's later-death radio posts an empty death, keeps the sheet and focuses Open own estate", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = fullCase(agree.case, { snapshot: { at: 1 } }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const son = rows(kase).find((row) => row.relationship === "son")!;
+    await open(page, api, kase, agree.response);
+    const marked = { ...kase, revision: 2, snapshot: { at: 2 }, deaths: [{ heir_id: son.id, order: 2, gender: "male", heir_options: options, heirs: [] }] };
+    api.set({ postDeath: json(201, { case: marked }), getCase: json(200, { case: marked }), getPreview: json(200, { status: "not_ready", revision: 2 }) });
+    const card = page.locator(`[data-node="${son.id}"]`);
+    await card.focus();
+    await card.press("Enter");
+    const sheet = page.locator("section[data-edit-sheet]");
+    await sheet.getByRole("radio", { name: en.statusDiedLater }).click();
+    await expect(sheet.locator('[data-focus="openEstate"]')).toBeFocused();
+    expect(api.deathPosts).toHaveLength(1);
+    expect(JSON.parse(api.deathPosts[0].body)).toEqual({ heir_id: son.id, empty: true, case_id: kase.id, expected_revision: kase.revision });
+    await expect(page.locator("[role='status']").filter({ hasText: /died later\. Open own estate to add his heirs\./ }).first()).toBeAttached();
+    await expect(page.locator(`[data-node="${son.id}"]`)).toHaveAttribute("data-state", "died_later");
+    await expect(page.locator("[data-breadcrumb]")).toHaveCount(0);
+  });
+
+  test("a typed name survives choosing the later-death radio: the name is saved before the death", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = fullCase(agree.case, { snapshot: { at: 1 } }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const son = rows(kase).find((row) => row.relationship === "son")!;
+    await open(page, api, kase, agree.response);
+    const named = { ...kase, revision: 2, snapshot: { at: 2 }, heirs: rows(kase).map((row) => row.id === son.id ? { ...row, name: "Karim" } : row) };
+    const marked = { ...named, revision: 3, snapshot: { at: 3 }, deaths: [{ heir_id: son.id, order: 2, gender: "male", heir_options: options, heirs: [] }] };
+    api.set({ putHeir: json(200, { case: named }), postDeath: json(201, { case: marked }), getCase: json(200, { case: marked }), getPreview: json(200, { status: "not_ready", revision: 3 }) });
+    const card = page.locator(`[data-node="${son.id}"]`);
+    await card.focus();
+    await card.press("Enter");
+    const sheet = page.locator("section[data-edit-sheet]");
+    await sheet.locator("#edit-name").fill("Karim");
+    await sheet.getByRole("radio", { name: en.statusDiedLater }).click();
+    await expect(sheet.locator('[data-focus="openEstate"]')).toBeFocused();
+    expect(api.writes).toEqual(["put heir", "post death"]);
+    expect(JSON.parse(api.heirPuts[0]).name).toBe("Karim");
+    expect(JSON.parse(api.deathPosts[0].body)).toMatchObject({ heir_id: son.id, empty: true, expected_revision: 2 });
+    await expect(page.locator(`[data-node="${son.id}"]`)).toContainText("Karim");
+  });
+
+  test("Enter on a died-later card opens the estate with the breadcrumb and a focused heading, and the preview is gone until the root returns", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = layeredCase();
+    await open(page, api, kase, layered.response);
+    const preview = page.locator("section[aria-labelledby='preview-heading']");
+    await expect(preview).toBeVisible();
+    const card = page.locator('[data-node="s1"]');
+    await card.focus();
+    await card.press("Enter");
+    const heading = page.locator("[data-focus='treeHeading']");
+    await expect(heading).toBeFocused();
+    await expect(heading).toContainText(en.deathSecond);
+    const nav = page.getByRole("navigation", { name: en.estateLevel });
+    await expect(nav.getByRole("link")).toHaveCount(1);
+    await expect(nav.locator("[aria-current='page']")).toContainText(en.deathSecond);
+    await expect(preview).toBeHidden();
+    await expect(page.locator("#preview-heading")).toBeHidden();
+    // The first wife is the later deceased's mother here, never "Wife".
+    const mother = page.locator('[data-node="r1"]');
+    await expect(mother).toContainText(en.relationships.mother);
+    await expect(mother).not.toContainText(en.relationships.wife);
+    await nav.getByRole("link").click();
+    await expect(heading).toBeFocused();
+    await expect(heading).toHaveText(en.treeHeading);
+    await expect(nav).toHaveCount(0);
+    await expect(page.locator("section[aria-labelledby='preview-heading']")).toBeVisible();
+    await expect(page.locator('[data-node="w"]')).toContainText(en.relationships.wife);
+  });
+
+  test("a blocked heir in an open later estate keeps its blocked state after an edit there", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = layeredCase();
+    const presented = structuredClone(served.presented[layered.title]) as { evidence: { order: number; heirs: { person: string; rule: { code: string } }[] }[] };
+    const second = presented.evidence.find((entry) => entry.order === 2)!;
+    second.heirs.find((heir) => heir.person === "s2")!.rule.code = "blocked";
+    await open(page, api, kase, { ...layered.response, presented });
+    await page.locator('[data-node="s1"]').press("Enter");
+    await expect(page.locator("[data-focus='treeHeading']")).toBeFocused();
+    await expect(page.locator('[data-node="r2"]')).toHaveAttribute("data-state", "blocked");
+    const renamed = { ...kase, revision: 2, deaths: kase.deaths.map((death: Record<string, any>) => ({ ...death, heirs: death.heirs.map((row: Record<string, any>) => row.id === "r2" ? { ...row, name: "Omar" } : row) })) }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    api.set({ putHeir: json(200, { case: renamed }), getCase: json(200, { case: renamed }), getPreview: json(200, { ...layered.response, revision: 2, presented }) });
+    await page.locator('[data-node="r2"]').press("Enter");
+    const sheet = page.locator("section[data-edit-sheet]");
+    await sheet.locator("#edit-name").fill("Omar");
+    await sheet.locator("#edit-name").press("Enter");
+    await expect(page.locator('[data-node="r2"]')).toContainText("Omar");
+    await expect(page.locator('[data-node="r2"]')).toHaveAttribute("data-state", "blocked");
+  });
+
+  test("the sheet's order question resends first with empty and ends on Open own estate", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = layeredCase();
+    await open(page, api, kase, layered.response);
+    const marked = { ...kase, revision: 2, deaths: [...kase.deaths, { heir_id: "s2", order: 3, gender: "male", heir_options: options, heirs: [] }] };
+    api.set({ postDeath: json(400, { errors: { death: "order_required" } }) });
+    await page.locator('[data-node="s2"]').press("Enter");
+    const sheet = page.locator("section[data-edit-sheet]");
+    await sheet.getByRole("radio", { name: en.statusDiedLater }).click();
+    await expect(sheet.locator('[data-focus="death-order"]').first()).toBeVisible();
+    api.set({ postDeath: json(201, { case: marked }), getCase: json(200, { case: marked }) });
+    await sheet.locator('[data-focus="orderFirst:s1"]').click();
+    await expect(sheet.locator('[data-focus="openEstate"]')).toBeFocused();
+    expect(api.deathPosts).toHaveLength(2);
+    expect(JSON.parse(api.deathPosts[1].body)).toMatchObject({ heir_id: "s2", empty: true, first: "s1" });
+  });
+
+  test("at two later deaths the radio is replaced by the limit text and the Also died row action is hidden", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = fullCase(agree.case) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const [a, b] = rows(kase).filter((row) => row.relationship !== "wife");
+    const wife = rows(kase).find((row) => row.relationship === "wife")!;
+    const death = (id: string, order: number, gender: string) => ({ heir_id: id, order, gender, heir_options: options, heirs: [] });
+    kase.deaths = [death(a.id, 2, "female"), death(b.id, 3, "male")];
+    await open(page, api, kase, agree.response);
+    await page.locator(`[data-node="${wife.id}"]`).press("Enter");
+    const sheet = page.locator("section[data-edit-sheet]");
+    await expect(sheet.getByRole("radio", { name: en.statusDiedLater })).toHaveCount(0);
+    await expect(sheet).toContainText(en.laterDeathLimit);
+    await expect(page.locator(`[data-focus="alsoDied:${wife.id}"]`)).toHaveCount(0);
+  });
+
+  test("removing the linked person lists the later estate's people by name and cancel changes nothing", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = layeredCase();
+    kase.deaths[0].heirs.push({ id: "r3", relationship: "wife", gender: "female", name: "Layla", edit_options: options });
+    await open(page, api, kase, layered.response);
+    api.set({ deleteHeir: json(409, { error: "cascade_unconfirmed", impact: { persons: ["r3"], estates: [2] }, case: kase }) });
+    await page.locator('[data-focus="remove:s1"]').click();
+    const sheet = page.locator("[data-edit-sheet]");
+    await expect(sheet.locator("li")).toHaveCount(2);
+    await expect(sheet.locator("li").first()).toContainText("Layla");
+    await expect(sheet).not.toContainText("r3");
+    await sheet.getByRole("button", { name: en.heirRemoveNo }).click();
+    await expect(page.locator('[data-node="s1"]')).toHaveAttribute("data-state", "died_later");
+    expect(api.heirDeletes).toHaveLength(1);
   });
 });
 

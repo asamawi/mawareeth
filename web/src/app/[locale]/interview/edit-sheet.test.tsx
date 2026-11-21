@@ -43,6 +43,7 @@ async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedVi
   const saves: unknown[] = [];
   const removes: boolean[] = [];
   const added: string[] = [];
+  const later: (string | null | undefined)[] = [];
   let closed = 0;
   const node = document.createElement("div");
   document.body.append(node);
@@ -54,13 +55,15 @@ async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedVi
         frozen={opts.frozen ?? false} onClose={() => { closed += 1; }}
         onSave={(fields, focus) => saves.push({ fields, focus })} onRemove={c => removes.push(c)}
         entries={[{ relationship: "son_of_son", link: "child", blocked: false, gender: "male" }]} atLimit={false}
-        addAlert={opts.alert ?? null} onAddHere={entry => added.push(entry.relationship)} />);
+        addAlert={opts.alert ?? null} onAddHere={entry => added.push(entry.relationship)}
+        onMarkLater={() => later.push("mark")} onOpenEstate={name => later.push(name === undefined ? "open" : `open:${name}`)}
+        orderQuestion={opts.alert === "order" ? () => <p id="order-stub">order</p> : null} />);
     });
   };
   void person;
   await draw(view);
   return {
-    draw, dom, node, shown, saves, removes, added, closed: () => closed,
+    draw, dom, node, shown, saves, removes, added, later, closed: () => closed,
     async stop() { await act(async () => root.unmount()); await teardownDom(dom); },
   };
 }
@@ -76,8 +79,9 @@ test("a wide viewport renders a non-modal panel with name, relationship, status 
     assert.equal(document.activeElement, name);
     assert.ok(panel.querySelector('input[name="relationship"]'));
     const radios = [...panel.querySelectorAll<HTMLInputElement>('input[name="edit-status"]')];
-    assert.equal(radios.length, 2);
+    assert.equal(radios.length, 3);
     assert.equal(radios[0].checked, true);
+    assert.ok(panel.textContent?.includes(messages.en.interview.statusDiedLater));
     assert.ok(panel.textContent?.includes(messages.en.interview.statusDiedBefore));
     assert.ok(panel.textContent?.includes(messages.en.interview.editClose));
     assert.ok([...panel.querySelectorAll("button")].some(b => b.textContent === "Remove Son Ali"));
@@ -112,13 +116,53 @@ test("a phone viewport renders a modal dialog", async () => {
   } finally { await t.stop(); }
 });
 
-test("status radios are hidden outside the first estate", async () => {
-  const kase: Case = { ...KASE, deaths: [{ heir_id: "h2", order: 1, placement: {}, heirs: [
+test("outside the first estate the died-before radio is hidden but the later-death radio stays", async () => {
+  const kase: Case = { ...KASE, deaths: [{ heir_id: "h2", order: 2, placement: {}, heirs: [
     { id: "l1", relationship: "son", gender: "male", name: null, edit_options: NONE }] } as unknown as Case["deaths"][number]] };
   const view = viewOf({ case: kase, layer: "h2" });
   const t = await mount({ view: { ...view, editingHeir: "l1" } });
   try {
+    const radios = [...t.node.querySelectorAll<HTMLInputElement>('input[name="edit-status"]')];
+    assert.deepEqual(radios.map(r => r.value), ["alive", "died_later"]);
+  } finally { await t.stop(); }
+});
+
+test("choosing the later-death radio asks to mark the death", async () => {
+  const t = await mount();
+  try {
+    const radio = t.node.querySelector<HTMLInputElement>('input[value="died_later"]')!;
+    await act(async () => radio.click());
+    assert.deepEqual(t.later, ["mark"]);
+  } finally { await t.stop(); }
+});
+
+test("with two later deaths the radio is replaced by the limit text", async () => {
+  const dead = (id: string, order: number) => ({ heir_id: id, order, placement: {}, heirs: [] }) as unknown as Case["deaths"][number];
+  const kase: Case = { ...KASE, heirs: [...KASE.heirs, { id: "h3", relationship: "son", gender: "male", name: null, edit_options: NONE }],
+    deaths: [dead("h2", 2), dead("h3", 3)] };
+  const t = await mount({ view: viewOf({ case: kase }) });
+  try {
+    assert.equal(t.node.querySelector('input[value="died_later"]'), null);
+    assert.ok(t.node.textContent?.includes(messages.en.interview.laterDeathLimit));
+  } finally { await t.stop(); }
+});
+
+test("a died-later person shows the Open own estate button, not the status group", async () => {
+  const kase: Case = { ...KASE, deaths: [{ heir_id: "h1", order: 2, placement: {}, heirs: [] } as unknown as Case["deaths"][number]] };
+  const t = await mount({ view: viewOf({ case: kase }) });
+  try {
     assert.equal(t.node.querySelector('input[name="edit-status"]'), null);
+    const button = t.node.querySelector<HTMLButtonElement>('[data-focus="openEstate"]')!;
+    assert.ok(button.textContent?.startsWith("Open own estate"));
+    await act(async () => button.click());
+    assert.deepEqual(t.later, ["open"]);
+  } finally { await t.stop(); }
+});
+
+test("an order question is shown inside the sheet", async () => {
+  const t = await mount({ alert: "order" });
+  try {
+    assert.ok(t.node.querySelector("#order-stub"));
   } finally { await t.stop(); }
 });
 
@@ -432,5 +476,20 @@ test("a server relationship error arriving in the mounted empty alert shows ther
     assert.equal(t.node.querySelector("#heir-relationship-error"), el);
     assert.equal(el.getAttribute("role"), "alert");
     assert.equal(el.textContent, relationshipErrors.second_father);
+  } finally { await t.stop(); }
+});
+
+test("Open own estate passes an uncommitted name so it is saved first", async () => {
+  const kase: Case = { ...KASE, deaths: [{ heir_id: "h1", order: 2, placement: {}, heirs: [] } as unknown as Case["deaths"][number]] };
+  const t = await mount({ view: viewOf({ case: kase }) });
+  try {
+    const name = t.node.querySelector<HTMLInputElement>("#edit-name")!;
+    await act(async () => {
+      name.focus();
+      Object.getOwnPropertyDescriptor(Object.getPrototypeOf(name), "value")!.set!.call(name, "Newer");
+      for (const type of ["input", "keyup", "change"]) name.dispatchEvent(new t.dom.Event(type, { bubbles: true }) as unknown as Event);
+    });
+    await act(async () => t.node.querySelector<HTMLButtonElement>('[data-focus="openEstate"]')!.click());
+    assert.deepEqual(t.later, ["open:Newer"]);
   } finally { await t.stop(); }
 });

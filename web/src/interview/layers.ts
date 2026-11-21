@@ -179,3 +179,22 @@ export function deceasedLabel(
 export function deathLayerText(template: string, label: string, order: string): string {
   return template.replace(/\{label\}|\{order\}/g, (token) => token === "{label}" ? label : order);
 }
+
+/**
+ * The estate levels from the first deceased down to the active one, as layer ids (null is the
+ * first deceased). The parent of a later death is the latest earlier death whose estate holds a
+ * row of that person, else the first deceased, so a path has at most three levels.
+ */
+export function estatePath(kase: Pick<Case, "deaths">, activeId: string | null): (string | null)[] {
+  const path: (string | null)[] = [];
+  let at = keepLayer(activeId, kase);
+  while (at !== null) {
+    path.unshift(at);
+    const death = deathOf(kase, at)!;
+    const parent = kase.deaths
+      .filter((earlier) => earlier.order < death.order && earlier.heirs.some((row) => personOf(row) === death.heir_id))
+      .sort((a, b) => b.order - a.order)[0];
+    at = parent ? parent.heir_id : null;
+  }
+  return [null, ...path];
+}

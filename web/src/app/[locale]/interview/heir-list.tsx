@@ -204,7 +204,7 @@ export function HeirList({
                       >
                         <WithHeir template={messages.heirEdit} heir={label} />
                       </button>
-                      {onAlsoDied && heir && !dead && (
+                      {onAlsoDied && heir && !dead && (deceasedIds?.size ?? 0) < 2 && (
                         <button
                           type="button"
                           className={buttonClass}
@@ -227,7 +227,7 @@ export function HeirList({
                             if (!saving) onOpenLayer(person);
                           }}
                         >
-                          <WithHeir template={messages.heirOpenLayer} heir={label} />
+                          <WithHeir template={messages.openOwnEstate} heir={label} />
                         </button>
                       )}
                       {onDidNotDie && dead && (

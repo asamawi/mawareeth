@@ -94,6 +94,8 @@ function deps(options: {
     selection: options.selection ?? (null as Selection | null),
     form: options.form ?? (null as FormRecord | null),
     answers: [] as { call: string; caseId: string; fields?: unknown; heirId?: string }[],
+    empties: [] as (boolean | undefined)[],
+    sentAnswers: [] as unknown[],
   };
   const answerWith = (call: string, caseId: string, extra: { fields?: unknown; heirId?: string }, revision: number | null) => {
     log.revisions.push(revision);
@@ -127,8 +129,11 @@ function deps(options: {
       log.confirmations.push(confirm);
       return answerWith("removeHeir", caseId, { heirId }, revision);
     },
-    markDeceased: async (_signal, caseId, revision, heirId, first) =>
-      answerWith("markDeceased", caseId, { heirId, ...(first === undefined ? {} : { fields: { first } }) }, revision),
+    markDeceased: async (_signal, caseId, revision, heirId, first, _answers, empty) => {
+      log.empties.push(empty);
+      log.sentAnswers.push(_answers);
+      return answerWith("markDeceased", caseId, { heirId, ...(first === undefined ? {} : { fields: { first } }) }, revision);
+    },
     unmarkDeceased: async (_signal, caseId, revision, heirId) => answerWith("unmarkDeceased", caseId, { heirId }, revision),
     restoreCase: async (_signal, caseId, revision, snapshot) => answerWith("restoreCase", caseId, { fields: snapshot }, revision),
     seen: { get: () => log.seen, set: (next) => (log.seen = next) },
@@ -1567,6 +1572,151 @@ test("a limit or already-deceased refusal closes the question and focuses the bu
     assert.equal(view.focus?.target, "alsoDied:s2");
     assert.equal(view.layer, null);
   }
+});
+
+test("a later death marked from the sheet sends empty, keeps the sheet and layer and focuses Open own estate", async () => {
+  const from = startedOf({ ...FAMILY, snapshot: { prior: true } }, true, { editingHeir: "s1", opener: "card:s1" });
+  const marked: Case = { ...FAMILY, deaths: [{ ...S1_DEATH, heirs: [] }] };
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: marked }), form: BLANK_RECORD(FAMILY.id, "s1") });
+  const view = (await runAction("markDeath", signal, value, FAMILY, undefined, {
+    kind: "markDeath", from, rowId: "s1", origin: "sheet",
+  })) as StartedView;
+  assert.deepEqual(log.empties, [true]);
+  assert.equal(view.layer, null);
+  assert.equal(view.editingHeir, "s1");
+  assert.equal(view.formEpoch, from.formEpoch);
+  assert.equal(view.focus?.target, "openEstate");
+  assert.equal(view.announcement?.kind, "laterDeath");
+  assert.equal(view.announcement?.gender, "male");
+  assert.equal(view.history?.length, 1, "one Undo entry");
+});
+
+test("a row death is not sent as empty", async () => {
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: TWO_LAYERS }) });
+  await runAction("markDeath", signal, value, FAMILY, undefined, { kind: "markDeath", from: startedOf(FAMILY, true), rowId: "s1" });
+  assert.deepEqual(log.empties, [false]);
+});
+
+test("a sheet order refusal keeps the question for the sheet and resends first with empty", async () => {
+  const from = startedOf(TWO_LAYERS, true, { editingHeir: "s2" });
+  const asked = deps({ answer: () => ({ kind: "invalid", errors: { death: "order_required" } }) });
+  const refused = (await runAction("markDeath", signal, asked.value, TWO_LAYERS, undefined, {
+    kind: "markDeath", from, rowId: "s2", origin: "sheet",
+  })) as StartedView;
+  assert.equal(refused.ordering, "s2");
+  assert.equal(refused.sheetDeath, true);
+  assert.equal(refused.editingHeir, "s2");
+  assert.equal(refused.focus?.target, "death-order");
+  const three: Case = { ...TWO_LAYERS, deaths: [S1_DEATH, { ...S1_DEATH, heir_id: "s2", order: 3, heirs: [] }] };
+  const resent = deps({ answer: () => ({ kind: "saved", case: three }) });
+  const done = (await runAction("markDeath", signal, resent.value, TWO_LAYERS, undefined, {
+    kind: "markDeath", from: { ...refused, saving: false }, rowId: "s2", first: "s1", origin: "sheet",
+  })) as StartedView;
+  assert.deepEqual(resent.log.empties, [true]);
+  assert.deepEqual(resent.log.answers[0].fields, { first: "s1" });
+  assert.equal(done.ordering, null);
+  assert.equal(done.sheetDeath, undefined);
+  assert.equal(done.editingHeir, "s2");
+});
+
+test("any other sheet refusal shows its error, keeps the sheet and focuses the radio", async () => {
+  const from = startedOf(TWO_LAYERS, true, { editingHeir: "s2" });
+  const { value } = deps({ answer: () => ({ kind: "invalid", errors: { death: "limit" } }) });
+  const view = (await runAction("markDeath", signal, value, TWO_LAYERS, undefined, {
+    kind: "markDeath", from, rowId: "s2", origin: "sheet",
+  })) as StartedView;
+  assert.equal(view.ordering, null);
+  assert.equal(view.sheetDeath, true);
+  assert.deepEqual(view.errors, { death: "limit" });
+  assert.equal(view.editingHeir, "s2");
+  assert.equal(view.focus?.target, "editStatus:died_later");
+  assert.deepEqual(view.case, TWO_LAYERS);
+});
+
+test("cancelling a sheet order question sends nothing and focuses the later-death radio", () => {
+  const view = cancelOrder(startedOf(TWO_LAYERS, true, { editingHeir: "s2", ordering: "s2", sheetDeath: true, errors: { death: "order_required" } }));
+  assert.equal(view.ordering, null);
+  assert.equal(view.sheetDeath, undefined);
+  assert.equal(view.editingHeir, "s2");
+  assert.equal(view.focus?.target, "editStatus:died_later");
+});
+
+test("an uncommitted name is saved first and the death is sent after it, at the new revision", async () => {
+  const from = startedOf(FAMILY, true, { editingHeir: "s1", opener: "card:s1" });
+  const renamed: Case = { ...FAMILY, revision: (FAMILY.revision ?? 0) + 1 };
+  const marked: Case = { ...renamed, revision: (renamed.revision ?? 0) + 1, deaths: [{ ...S1_DEATH, heirs: [] }] };
+  const { value, log } = deps({ answer: (call) => ({ kind: "saved", case: call === "updateHeir" ? renamed : marked }) });
+  const view = (await runAction("markDeath", signal, value, FAMILY, undefined, {
+    kind: "markDeath", from, rowId: "s1", origin: "sheet", name: "Typed",
+  })) as StartedView;
+  assert.deepEqual(log.answers.map((entry) => entry.call), ["updateHeir", "markDeceased"]);
+  assert.deepEqual(log.answers[0].fields, { relationship: "son", name: "Typed" });
+  assert.deepEqual(log.revisions, [FAMILY.revision, renamed.revision]);
+  assert.equal(view.case, marked);
+  assert.equal(view.focus?.target, "openEstate");
+});
+
+test("a sheet death sends no relatives answers even when a row question is open, and names the saved name", async () => {
+  const from = startedOf(FAMILY, true, { editingHeir: "s1", ordering: "s1", relativeQuestions: [{ kind: "shared_father", id: "q" } as never], deathAnswers: { shared_father: "yes" } });
+  const named: Case = { ...FAMILY, heirs: FAMILY.heirs.map((heir) => heir.id === "s1" ? { ...heir, name: "Typed" } : heir) };
+  const marked: Case = { ...named, deaths: [{ ...S1_DEATH, heirs: [] }] };
+  const { value, log } = deps({ answer: (call) => ({ kind: "saved", case: call === "updateHeir" ? named : marked }) });
+  const view = (await runAction("markDeath", signal, value, FAMILY, undefined, {
+    kind: "markDeath", from, rowId: "s1", origin: "sheet", name: "Typed",
+  })) as StartedView;
+  assert.deepEqual(log.sentAnswers, [{}]);
+  assert.equal(view.announcement?.heir.name, "Typed");
+});
+
+test("a death refused after the name was saved builds on the renamed case and revision", async () => {
+  const from = startedOf(FAMILY, true, { editingHeir: "s1" });
+  const named: Case = { ...FAMILY, revision: 2, heirs: FAMILY.heirs.map((heir) => heir.id === "s1" ? { ...heir, name: "Typed" } : heir) };
+  const { value, log } = deps({ answer: (call) => call === "updateHeir" ? { kind: "saved", case: named } : { kind: "throttled" } });
+  const view = (await runAction("markDeath", signal, value, FAMILY, undefined, {
+    kind: "markDeath", from, rowId: "s1", origin: "sheet", name: "Typed",
+  })) as StartedView;
+  assert.equal(view.notice, "throttled");
+  assert.equal(view.case.revision, 2);
+  assert.equal(view.case.heirs.find((heir) => heir.id === "s1")?.name, "Typed");
+  const next = deps({ answer: () => ({ kind: "saved", case: named }) });
+  await runAction("saveHeir", signal, next.value, named, undefined, {
+    kind: "saveHeir", from: { ...view, saving: false }, heirId: "s1", values: { relationship: "son", name: "Typed" },
+  });
+  assert.deepEqual(next.log.revisions, [2]);
+  assert.deepEqual(log.revisions, [FAMILY.revision, 2]);
+});
+
+test("saving a name for Open own estate opens the estate after the save", async () => {
+  const from = startedOf(TWO_LAYERS, true, { editingHeir: "s1" });
+  const { value } = deps({ answer: () => ({ kind: "saved", case: TWO_LAYERS }) });
+  const view = (await runAction("saveHeir", signal, value, TWO_LAYERS, undefined, {
+    kind: "saveHeir", from, heirId: "s1", values: { relationship: "son", name: "Typed" }, field: "name", openEstate: "s1",
+  })) as StartedView;
+  assert.equal(view.layer, "s1");
+  assert.equal(view.editingHeir, null);
+  assert.equal(view.focus?.target, "treeHeading");
+});
+
+test("a refused name save sends no death command", async () => {
+  const from = startedOf(FAMILY, true, { editingHeir: "s1" });
+  const { value, log } = deps({ answer: () => ({ kind: "invalid", errors: { name: "too_long" } }), read: async () => FAMILY });
+  const view = (await runAction("markDeath", signal, value, FAMILY, undefined, {
+    kind: "markDeath", from, rowId: "s1", origin: "sheet", name: "Typed",
+  })) as StartedView;
+  assert.deepEqual(log.answers.map((entry) => entry.call), ["updateHeir"]);
+  assert.equal(view.editingHeir, "s1");
+  assert.deepEqual(view.case.deaths, []);
+});
+
+test("openLayer can focus the tree heading, closes editing and falls back to the root for a gone estate", () => {
+  const { value } = deps({});
+  const from = startedOf(TWO_LAYERS, true, { editingHeir: "w", opener: "card:w" });
+  const opened = openLayer(from, "s1", value, "treeHeading");
+  assert.equal(opened.layer, "s1");
+  assert.equal(opened.editingHeir, null);
+  assert.equal(opened.focus?.target, "treeHeading");
+  assert.equal(openLayer(from, "s1", value).focus?.target, "relationship");
+  assert.equal(openLayer(opened, "gone", value, "treeHeading").layer, null);
 });
 
 test("taking back a death falls back to the first layer when the active one is gone", async () => {

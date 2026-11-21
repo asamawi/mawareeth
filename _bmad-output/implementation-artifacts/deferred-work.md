@@ -549,3 +549,17 @@ Native review is pending for these interview strings in `web/src/i18n/messages.t
 | `positionNotAllowed` | {relationship} cannot be added at this person. | لا يمكن إضافة {relationship} عند هذا الشخص. | Impossible d’ajouter {relationship} à cette personne. |
 | `fieldErrors.anchor.not_allowed` | That relative can no longer be added there. | لم يعد من الممكن إضافة هذا القريب هناك. | Ce proche ne peut plus être ajouté à cet endroit. |
 | `fieldErrors.anchor.schema_unsupported` | This case cannot record who a relative belongs to yet. | لا يمكن لهذه الحالة تسجيل من ينتمي إليه القريب بعد. | Ce dossier ne peut pas encore enregistrer à qui un proche est rattaché. |
+
+## Story 9.8
+
+Arabic and French copy for later-death estates awaits native review.
+
+| Key | English | Arabic | French |
+| --- | --- | --- | --- |
+| `statusDiedLater` | Died after the deceased, before division | توفي بعد المتوفى وقبل القسمة | Décédé après le défunt, avant le partage |
+| `laterDeathLimit` | A case can hold up to two later deaths. | يمكن أن تتضمن الحالة وفاتين لاحقتين على الأكثر. | Un dossier peut comporter au plus deux décès ultérieurs. |
+| `openOwnEstate` | Open own estate: {heir} | افتح التركة المستقلة: {heir} | Ouvrir la succession propre : {heir} |
+| `laterDeathAddedMale` | {heir} died later. Open own estate to add his heirs. | توفي {heir} لاحقًا. افتح تركته المستقلة لإضافة ورثته. | {heir} est décédé plus tard. Ouvrez sa succession propre pour ajouter ses héritiers. |
+| `laterDeathAddedFemale` | {heir} died later. Open own estate to add her heirs. | توفيت {heir} لاحقًا. افتحي تركتها المستقلة لإضافة ورثتها. | {heir} est décédée plus tard. Ouvrez sa succession propre pour ajouter ses héritiers. |
+| `estateLevel` | Estate level | مستوى التركة | Niveau de succession |
+| `fieldErrors.empty.invalid` | That request could not be read. | تعذرت قراءة هذا الطلب. | Cette demande n'a pas pu être lue. |

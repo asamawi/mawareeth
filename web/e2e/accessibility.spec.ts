@@ -94,3 +94,25 @@ for (const locale of ["en", "ar"] as const) {
     expect(await serious(page)).toEqual([]);
   });
 }
+
+for (const locale of ["en", "ar"] as const) {
+  test(`an open later estate with the breadcrumb in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+    const all = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[] }).fixtures;
+    const layered = all.find((item) => item.title === "Agree layered: wife and two sons, a son dies")!;
+    const served = JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-presented-fixtures.json"), "utf8")) as { presented: Record<string, unknown> };
+    const options = { blocked: [], invalid: {} };
+    const kase = fullCase(layered.case, {
+      deaths: (layered.case.deaths as { heirs: Record<string, unknown>[] }[]).map((death) => ({
+        ...death, heir_options: options, heirs: death.heirs.map((heir) => ({ ...heir, edit_options: options })),
+      })),
+    });
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, { ...layered.response, presented: served.presented[layered.title] }) });
+    await page.goto(`/${locale}/interview/`);
+    await page.getByRole("button", { name: messages[locale].interview.resume }).click();
+    await page.locator("section[data-tree] [data-tree-area]").waitFor();
+    await page.locator('[data-node="s1"]').press("Enter");
+    await expect(page.locator("nav[data-breadcrumb]")).toBeVisible();
+    await expect(page.locator("[data-focus='treeHeading']")).toBeFocused();
+    expect(await serious(page)).toEqual([]);
+  });
+}

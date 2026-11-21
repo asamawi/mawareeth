@@ -136,6 +136,13 @@ export type Messages = {
     statusLegend: string;
     statusAlive: string;
     statusDiedBefore: string;
+    /** Story 9.8: later-death estates. Arabic and French await native review. */
+    statusDiedLater: string;
+    laterDeathLimit: string;
+    openOwnEstate: string;
+    laterDeathAddedMale: string;
+    laterDeathAddedFemale: string;
+    estateLevel: string;
     removeImpactIntro: string;
     removeImpactEstate: string;
     heirAdded: string;
@@ -192,7 +199,7 @@ export type Messages = {
     relationships: Record<RelationshipId, string>;
     /** Field name, then the error code the form or the server reports. */
     fieldErrors: Record<string, Record<string, string>> & Record<
-      "gender" | "estate" | "relationship" | "name" | "heirs" | "case" | "same_as" | "death" | "status" | "anchor",
+      "gender" | "estate" | "relationship" | "name" | "heirs" | "case" | "same_as" | "death" | "status" | "anchor" | "empty",
       Record<string, string>
     >;
     madhabLabel: string;
@@ -419,6 +426,12 @@ export const messages: Record<Locale, Messages> = {
       statusLegend: "الحالة عند الوفاة",
       statusAlive: "على قيد الحياة عند الوفاة",
       statusDiedBefore: "توفي قبل المتوفى",
+      statusDiedLater: "توفي بعد المتوفى وقبل القسمة",
+      laterDeathLimit: "يمكن أن تتضمن الحالة وفاتين لاحقتين على الأكثر.",
+      openOwnEstate: "افتح التركة المستقلة: {heir}",
+      laterDeathAddedMale: "توفي {heir} لاحقًا. افتح تركته المستقلة لإضافة ورثته.",
+      laterDeathAddedFemale: "توفيت {heir} لاحقًا. افتحي تركتها المستقلة لإضافة ورثتها.",
+      estateLevel: "مستوى التركة",
       removeImpactIntro: "سيُحذف معه أيضًا:",
       removeImpactEstate: "تركة {heir}",
       heirEditHeading: "تعديل بيانات الوارث",
@@ -515,6 +528,7 @@ export const messages: Record<Locale, Messages> = {
         },
         // Native-language review pending.
         relatives: { required: "يرجى الإجابة عن أسئلة القرابة.", invalid: "اختر إجابة من الخيارات المعروضة." },
+        empty: { invalid: "تعذرت قراءة هذا الطلب." },
         same_as: {
           gender_mismatch: "جنس الشخص المختار مختلف. يرجى اختيار شخص من الجنس نفسه أو تصحيح صلة القرابة.",
           not_alive: "لم يكن الشخص المختار على قيد الحياة عند هذه الوفاة. يرجى اختيار شخص كان حيًا آنذاك.",
@@ -744,6 +758,12 @@ export const messages: Record<Locale, Messages> = {
       statusLegend: "Status at the death",
       statusAlive: "Alive at death",
       statusDiedBefore: "Died before the deceased",
+      statusDiedLater: "Died after the deceased, before division",
+      laterDeathLimit: "A case can hold up to two later deaths.",
+      openOwnEstate: "Open own estate: {heir}",
+      laterDeathAddedMale: "{heir} died later. Open own estate to add his heirs.",
+      laterDeathAddedFemale: "{heir} died later. Open own estate to add her heirs.",
+      estateLevel: "Estate level",
       removeImpactIntro: "This also removes:",
       removeImpactEstate: "The estate of {heir}",
       heirEditHeading: "Edit heir",
@@ -838,6 +858,7 @@ export const messages: Record<Locale, Messages> = {
           wife_of_female: "The deceased is recorded as female, and a female has no wife. Choose husband if you meant the spouse, or correct the gender of the deceased.",
         },
         relatives: { required: "Please answer the relationship questions.", invalid: "Choose one of the offered answers." },
+        empty: { invalid: "That request could not be read." },
         same_as: {
           gender_mismatch: "The selected person has a different gender. Choose a person with the same gender, or correct the relationship.",
           not_alive: "The selected person was not alive at this death. Choose someone who was alive then.",
@@ -1070,6 +1091,12 @@ export const messages: Record<Locale, Messages> = {
       statusLegend: "Situation au décès",
       statusAlive: "En vie au décès",
       statusDiedBefore: "Décédé avant le défunt",
+      statusDiedLater: "Décédé après le défunt, avant le partage",
+      laterDeathLimit: "Un dossier peut comporter au plus deux décès ultérieurs.",
+      openOwnEstate: "Ouvrir la succession propre : {heir}",
+      laterDeathAddedMale: "{heir} est décédé plus tard. Ouvrez sa succession propre pour ajouter ses héritiers.",
+      laterDeathAddedFemale: "{heir} est décédée plus tard. Ouvrez sa succession propre pour ajouter ses héritiers.",
+      estateLevel: "Niveau de succession",
       removeImpactIntro: "Cela supprime aussi :",
       removeImpactEstate: "La succession de {heir}",
       heirEditHeading: "Modifier l'héritier",
@@ -1166,6 +1193,7 @@ export const messages: Record<Locale, Messages> = {
         },
         // Native-language review pending.
         relatives: { required: "Veuillez répondre aux questions de parenté.", invalid: "Choisissez une des réponses proposées." },
+        empty: { invalid: "Cette demande n'a pas pu être lue." },
         same_as: {
           gender_mismatch: "Le sexe de la personne choisie est différent. Choisissez une personne du même sexe ou corrigez le lien de parenté.",
           not_alive: "La personne choisie ne vivait plus lors de ce décès. Choisissez une personne encore en vie à ce moment-là.",

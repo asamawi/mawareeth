@@ -16,6 +16,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from api import anonymous_case, case_commands
+from api import preview as case_preview
 from api.models import SavedCase
 from api.tests import (
     CASE_URL, DEATHS_URL, HEIRS_URL, InterviewDeathsHelpers, InterviewHelpers,
@@ -302,6 +303,92 @@ class LimitTests(CommandBase):
         response = self.mark(self.s2)
         self.assert_untouched(response, 400, raw, stored)
         self.assertEqual(response.json()['errors'], {'death': 'limit'})
+
+
+class EmptyLaterDeathTests(CommandBase):
+    """Story 9.8: a later death can be marked with no derived relatives."""
+    def test_an_empty_mark_derives_nothing_where_the_old_mark_would(self):
+        self.setup_family()
+        response = self.mark(self.s1, empty=True)
+        self.assertEqual(response.status_code, 201, response.content)
+        deaths = response.json()['case']['deaths']
+        self.assertEqual([(d['heir_id'], d['heirs']) for d in deaths], [(self.s1, [])])
+
+    def test_no_key_and_false_keep_the_old_derivation(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        self.assertEqual(len(self.live()['deaths'][0]['heirs']), 2)
+        self.send('delete', f'{DEATHS_URL}{self.s1}/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
+        self.assertEqual(self.mark(self.s1, empty=False).status_code, 201)
+        self.assertEqual(len(self.live()['deaths'][0]['heirs']), 2)
+
+    def test_a_bad_empty_is_refused_without_a_revision(self):
+        self.setup_family()
+        before, revision = self.stored(), self.revision()
+        self.refused(self.mark(self.s1, empty='yes'), {'empty': 'invalid'}, before)
+        self.refused(self.mark(self.s1, empty=True, relatives={}), {'relatives': 'invalid'}, before)
+        self.refused(self.mark(self.s1, empty=True, shared_father='yes'), {'relatives': 'invalid'}, before)
+        self.refused(self.mark(self.s1, empty=True, relatives=None), {'relatives': 'invalid'}, before)
+        self.refused(self.mark(self.s1, empty=True, shared_father=None), {'relatives': 'invalid'}, before)
+        self.assertEqual(self.revision(), revision)
+
+    def test_the_order_question_applies_and_first_resolves_it(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
+        before = self.stored()
+        self.refused(self.mark(self.s2, empty=True), {'death': 'order_required'}, before)
+        response = self.mark(self.s2, empty=True, first=self.s2)
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual([d['heir_id'] for d in response.json()['case']['deaths']], [self.s2, self.s1])
+
+    def test_the_limit_is_refused_with_the_revision_unchanged(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
+        self.assertEqual(self.mark(self.s2, empty=True, first=self.s1).status_code, 201)
+        revision, before = self.revision(), self.stored()
+        self.refused(self.mark(self.w, empty=True), {'death': 'limit'}, before)
+        self.assertEqual(self.revision(), revision)
+
+    def test_an_empty_later_estate_keeps_the_preview_not_ready(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
+        body = self.preview(self.case_id).json()
+        self.assertIs(type(body.pop('revision')), int)
+        self.assertEqual(body, {'status': 'not_ready'})
+        self.assertEqual(case_preview.preview(self.live()), {'status': 'not_ready'})
+
+    def test_cascade_impact_lists_the_later_estate_people(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
+        added = self.add_layer(self.s1, 'wife', name='New')
+        self.assertEqual(added.status_code, 201)
+        new = added.json()['case']['deaths'][0]['heirs'][0]['id']
+        response = self.send('delete', f'{HEIRS_URL}{self.s1}/', {'case_id': self.case_id})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['impact'], {'persons': [new], 'estates': [2]})
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_a_restore_after_removing_a_populated_estate_keeps_rows_edges_and_ids(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
+        self.assertEqual(self.add_layer(self.s1, 'son', name='New').status_code, 201)
+        death = self.live()['deaths'][0]
+        anchor, entries = next((a, e) for a, e in death['placement'].items() if a != 'root' and e)
+        child = self.add_layer(self.s1, entries[0]['relationship'], name='Kid', anchor=anchor)
+        self.assertEqual(child.status_code, 201, child.content)
+        before = self.live()
+        self.assertEqual(len(before['deaths'][0]['heirs']), 2)
+        self.assertEqual(len(before['edges']), 1)
+        old = anonymous_case.export_snapshot(anonymous_case.read_snapshot(dict(self.stored()), 'x', 'y'))
+        removed = self.send('delete', f'{HEIRS_URL}{self.s1}/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
+        self.assertEqual(removed.status_code, 200, removed.content)
+        self.assertEqual(removed.json()['case']['deaths'], [])
+        response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot': old})
+        self.assertEqual(response.status_code, 200, response.content)
+        case = response.json()['case']
+        self.assertEqual(case['deaths'], before['deaths'])
+        self.assertEqual(case['heirs'], before['heirs'])
+        self.assertEqual(case['edges'], before['edges'])
 
 
 class CascadeTests(CommandBase):

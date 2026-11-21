@@ -330,7 +330,9 @@ class DeathsView(CaseWriteView):
     def post(self, request):
         return self.write(request, 'mark_death', lambda data, case_id: anonymous_case.mark_deceased(
             request, data.get('heir_id'), data.get('first'), case_id,
-            relatives=data.get('relatives'), shared_father=data.get('shared_father')), success=status.HTTP_201_CREATED)
+            relatives=data.get('relatives'), shared_father=data.get('shared_father'),
+            empty=data.get('empty', anonymous_case._UNSET),
+            companions_given='relatives' in data or 'shared_father' in data), success=status.HTTP_201_CREATED)
 
 
 class DeathView(CaseWriteView):

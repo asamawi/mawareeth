@@ -32,6 +32,13 @@ type Props = {
   atLimit?: boolean;
   addAlert?: string | null;
   onAddHere?: (entry: PlacementOption) => void;
+  /** Story 9.8: choose a later death here, and open the person's own estate. */
+  /** `name` is an uncommitted name edit, saved before the death is sent; undefined when there is none. */
+  onMarkLater?: (name?: string | null) => void;
+  /** `name` is an uncommitted name edit, saved before the estate opens; undefined when there is none. */
+  onOpenEstate?: (name?: string | null) => void;
+  /** The order question of a refused later death, shown inside the sheet. */
+  orderQuestion?: ((name?: string | null) => React.ReactNode) | null;
 };
 
 function ImpactList({ view, messages }: Pick<Props, "view" | "messages">) {
@@ -59,7 +66,7 @@ function ImpactList({ view, messages }: Pick<Props, "view" | "messages">) {
   </>;
 }
 
-export function EditSheet({ messages, view, person, label, frozen, onClose, onSave, onRemove, entries = [], atLimit = false, addAlert = null, onAddHere }: Props) {
+export function EditSheet({ messages, view, person, label, frozen, onClose, onSave, onRemove, entries = [], atLimit = false, addAlert = null, onAddHere, onMarkLater, onOpenEstate, orderQuestion = null }: Props) {
   const phone = useSyncExternalStore(subscribePhone, () => window.matchMedia(phoneQuery).matches, () => false);
   const heading = useId();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -87,6 +94,10 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
   const dirty = draftName !== (person.name ?? null);
   const fields = { relationship: person.relationship, name: draftName };
   const nameError = errorText(messages, "name", view.errors);
+  const deathAlert = view.sheetDeath && view.ordering === null
+    ? errorText(messages, "death", view.errors) ?? errorText(messages, "empty", view.errors) ?? errorText(messages, "relatives", view.errors)
+    : null;
+  const sheetAlert = deathAlert;
   const statusError = errorText(messages, "status", view.errors) ?? errorText(messages, "heirs", view.errors);
   useLayoutEffect(() => {
     const modal = dialog.current;
@@ -150,22 +161,36 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
           if (code) { setIssue({ code, basis: view.case, id: person.id }); setSeq(n => n + 1); return; }
           save({ ...fields, relationship: relationship as HeirFields["relationship"] }, `editRelationship:${control}`);
         }} />
-      {view.layer === null && person.state !== "died_later" && <fieldset aria-describedby="edit-status-error">
+      {person.state !== "died_later" && <fieldset aria-describedby="edit-status-error">
         <legend>{messages.statusLegend}</legend>
-        {(["alive", "died_before_or_with"] as const).map(status => <label key={status} className="flex min-h-11 items-center gap-2">
+        {(view.layer === null ? ["alive", "died_before_or_with"] as const : ["alive"] as const).map(status => <label key={status} className="flex min-h-11 items-center gap-2">
           <input type="radio" name="edit-status" value={status} data-focus={`editStatus:${status}`}
             checked={(person.state === "died_before") === (status === "died_before_or_with")}
             aria-disabled={frozen} onChange={() => { if (!frozen) save({ ...fields, status }, `editStatus:${status}`); }} />
           {status === "alive" ? messages.statusAlive : messages.statusDiedBefore}
         </label>)}
+        {person.state !== "died_before" && (view.case.deaths.length >= 2
+          ? <p>{messages.laterDeathLimit}</p>
+          : <label className="flex min-h-11 items-center gap-2">
+            <input type="radio" name="edit-status" value="died_later" data-focus="editStatus:died_later"
+              checked={false} aria-disabled={frozen}
+              onChange={() => { if (!frozen) { setIssue(null); onMarkLater?.(dirty ? draftName : undefined); } }} />
+            {messages.statusDiedLater}
+          </label>)}
         <FieldError id="edit-status-error" text={statusError} />
+        {sheetAlert && <p role="alert">{sheetAlert}</p>}
+        {orderQuestion?.(dirty ? draftName : undefined)}
       </fieldset>}
+      {person.state === "died_later" && <button type="button" data-focus="openEstate"
+        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-accent px-4 py-2 text-base font-semibold text-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-disabled:opacity-60"
+        aria-disabled={frozen} onClick={() => { if (!frozen) onOpenEstate?.(dirty ? draftName : undefined); }}>
+        <WithHeir template={messages.openOwnEstate} heir={label} /></button>}
       <AddHere messages={messages} anchor={person.personId} personLabel={label} entries={entries}
         frozen={frozen} atLimit={atLimit} alert={addAlert} onChoose={entry => onAddHere?.(entry)} />
       {person.state !== "died_later" && <button type="button" className={buttonClass} aria-disabled={frozen}
         onClick={() => { if (!frozen) onRemove(false); }}><WithHeir template={messages.heirRemove} heir={label} /></button>}
     </>}
-    <FormError messages={messages} errors={view.errors} fields={["name", "relationship", "status", "heirs"]} />
+    <FormError messages={messages} errors={view.errors} fields={["name", "relationship", "status", "heirs", "death", "empty", "relatives"]} />
     <SaveNotice messages={messages} notice={view.notice} saving={view.saving} />
   </div>;
 

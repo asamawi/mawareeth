@@ -21,6 +21,7 @@ export type Stubs = {
   postHeir?: Answer;
   postBulk?: Answer;
   postRestore?: Answer;
+  postDeath?: Answer;
   putHeir?: Answer;
   deleteHeir?: Answer;
   getPreview?: Answer;
@@ -49,7 +50,10 @@ export class Api {
   heirPosts: { body: string; csrf: string | undefined }[] = [];
   bulkPosts: { body: string; csrf: string | undefined }[] = [];
   restorePosts: { body: string; csrf: string | undefined }[] = [];
+  deathPosts: { body: string; csrf: string | undefined }[] = [];
   heirPuts: string[] = [];
+  /** The order the mocked writes arrived in. */
+  writes: string[] = [];
   heirDeletes: URL[] = [];
   previewGets = 0;
 
@@ -90,9 +94,15 @@ export class Api {
         this.restorePosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
         return this.answer(route, this.stubs.postRestore, "restore");
       }
+      if (pathname === "/api/v1/case/deaths/" && method === "POST") {
+        this.deathPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        this.writes.push("post death");
+        return this.answer(route, this.stubs.postDeath, "post death");
+      }
       if (/^\/api\/v1\/case\/heirs\/[^/]+\/$/.test(pathname)) {
         if (method === "PUT") {
           this.heirPuts.push(request.postData() ?? "");
+          this.writes.push("put heir");
           return this.answer(route, this.stubs.putHeir, "put heir");
         }
         if (method === "DELETE") {

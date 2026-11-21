@@ -54,12 +54,14 @@ export type Notice = "throttled" | "failed" | "heirGone";
 
 /** What the screen-reader live region says; `seq` makes a repeat count as new. */
 export type Announcement = {
-  kind: "added" | "updated" | "removed" | "deathMarked" | "deathUnmarked" | "undone";
+  kind: "added" | "updated" | "removed" | "deathMarked" | "laterDeath" | "deathUnmarked" | "undone";
   /** The id of the heir the change was about. */
   id: string;
   heir: { name: string | null; relationship: RelationshipId };
   /** The heir number among unnamed heirs of the same relationship, when there are several. */
   ordinal: number | null;
+  /** The person's gender, for a later death marked from the edit sheet. */
+  gender?: "male" | "female";
   /** Present on a successful panel add, including a one-press add. */
   panelCount?: number;
   seq: number;
@@ -82,6 +84,8 @@ export const FOCUS_TARGETS = [
   "relativeMother",
   "relativesSubmit",
   "addHere",
+  "openEstate",
+  "treeHeading",
 ] as const;
 export const FOCUS_PREFIXES = ["card", "editRelationship", "editStatus", "editHeir", "remove", "alsoDied", "relative", "add", "addHere"] as const;
 export type FocusTarget =
@@ -142,6 +146,8 @@ export type StartedView = {
   deathAnswers?: RelativeAnswers;
   deathFirst?: string;
   deathOrderNeeded?: boolean;
+  /** The open death question or refusal belongs to the edit sheet's later-death choice, not to a row. */
+  sheetDeath?: boolean;
   /** Counts the times the heir form had to be cleared, so only those rebuild it. */
   formEpoch: number;
   notice: Notice | null;
@@ -193,7 +199,7 @@ export type Deps = {
     fields: HeirFields,
   ) => Promise<AnswerResult>;
   removeHeir: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, confirm: boolean) => Promise<AnswerResult>;
-  markDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, first?: string, answers?: RelativeAnswers) => Promise<AnswerResult>;
+  markDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, first?: string, answers?: RelativeAnswers, empty?: boolean) => Promise<AnswerResult>;
   unmarkDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string) => Promise<AnswerResult>;
   restoreCase: (signal: AbortSignal, caseId: string, revision: number | null, snapshot: Record<string, unknown>) => Promise<AnswerResult>;
   /** Whether this browser has seen a case before; the only way to tell expired from new. */
@@ -389,7 +395,7 @@ export function cancelEditDeceased(view: StartedView, deps: Deps): StartedView {
  * Moves the heirs screen to another layer (null is the first deceased's), ending any edit. A new
  * heir's draft stays, so nothing typed is lost. Refused mid-save, and for a death that is gone.
  */
-export function openLayer(view: StartedView, id: string | null, deps: Deps): StartedView {
+export function openLayer(view: StartedView, id: string | null, deps: Deps, focus: "relationship" | "treeHeading" = "relationship"): StartedView {
   if (view.saving) return view;
   const target = keepLayer(id, view.case);
   if (view.editingHeir !== null) restoreHeirForm(deps, view.case.id);
@@ -409,13 +415,14 @@ export function openLayer(view: StartedView, id: string | null, deps: Deps): Sta
     deathAnswers: undefined,
     deathFirst: undefined,
     deathOrderNeeded: undefined,
+    sheetDeath: undefined,
     editingHeir: null,
     confirming: undefined,
     conflict: false,
     formEpoch: view.formEpoch + 1,
     notice: null,
     errors: null,
-    focus: nextFocus(view, "relationship"),
+    focus: nextFocus(view, focus),
   };
   delete opened.panel;
   delete opened.tree;
@@ -426,7 +433,14 @@ export function openLayer(view: StartedView, id: string | null, deps: Deps): Sta
 export function cancelOrder(view: StartedView): StartedView {
   if (view.saving || view.ordering === null) return view;
   const row = view.ordering;
-  return { ...view, ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, errors: null, notice: null, focus: nextFocus(view, `alsoDied:${row}`) };
+  return { ...view, ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, sheetDeath: undefined, errors: null, notice: null, focus: nextFocus(view, view.sheetDeath ? "editStatus:died_later" : `alsoDied:${row}`) };
+}
+
+/** Drops the death question or refusal that belongs to the edit sheet, when the sheet is leaving. */
+function clearSheetDeath(view: StartedView): Partial<StartedView> {
+  return view.sheetDeath
+    ? { ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, sheetDeath: undefined }
+    : {};
 }
 
 /** Fills the heir form with the heir's details. */
@@ -439,6 +453,7 @@ export function startEditHeir(view: StartedView, heirId: string, deps: Deps, ope
   if (record) deps.forms.set({ ...record, layer: view.layer });
   return {
     ...view,
+    ...clearSheetDeath(view),
     editingHeir: heirId,
     confirming: undefined,
     conflict: false,
@@ -458,6 +473,7 @@ export function cancelEditHeir(view: StartedView, deps: Deps): StartedView {
   restoreHeirForm(deps, view.case.id);
   return {
     ...view,
+    ...clearSheetDeath(view),
     confirming: undefined,
     conflict: false,
     editingHeir: null,
@@ -599,10 +615,10 @@ export type Answer =
    * `origin: "tree"` is a positioned add of one person at `anchor` (a person id or "root").
    */
   | { kind: "addHeir"; from: StartedView; values: HeirValues; origin?: "panel" | "tree"; count?: number; anchor?: string }
-  | { kind: "saveHeir"; from: StartedView; heirId: string; values: HeirValues; status?: HeirFields["status"]; field?: FocusTarget; close?: boolean }
+  | { kind: "saveHeir"; from: StartedView; heirId: string; values: HeirValues; status?: HeirFields["status"]; field?: FocusTarget; close?: boolean; openEstate?: string }
   | { kind: "removeHeir"; from: StartedView; heirId: string; confirm?: boolean; fromRow?: boolean }
   /** `rowId` is the row whose person died; `first` answers the order question. */
-  | { kind: "markDeath"; from: StartedView; rowId: string; first?: string; answers?: RelativeAnswers }
+  | { kind: "markDeath"; from: StartedView; rowId: string; first?: string; answers?: RelativeAnswers; origin?: "sheet"; name?: string | null }
   | { kind: "unmarkDeath"; from: StartedView; heirId: string; rowId: string }
   /** Takes back the latest family change with one restore at the current revision. */
   | { kind: "undo"; from: StartedView };
@@ -834,9 +850,11 @@ function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerRe
       return deps.removeHeir(signal, caseId, revision, answer.heirId, answer.confirm === true);
     case "markDeath": {
       const pending = answer.from.ordering === answer.rowId;
+      // A death chosen in the sheet is always empty: it carries no relatives answers.
+      const sheet = answer.origin === "sheet";
       return deps.markDeceased(signal, caseId, revision, answer.rowId,
         answer.first ?? (pending ? answer.from.deathFirst : undefined),
-        { ...(pending ? openAnswers(answer.from) : {}), ...answer.answers });
+        sheet ? {} : { ...(pending ? openAnswers(answer.from) : {}), ...answer.answers }, sheet);
     }
     case "unmarkDeath":
       return deps.unmarkDeceased(signal, caseId, revision, answer.heirId);
@@ -901,6 +919,21 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
   const base = { ...started(kase, from.resumed), formEpoch: from.formEpoch, layer };
   switch (answer.kind) {
     case "markDeath": {
+      if (answer.origin === "sheet") {
+        // The sheet stays open on the person; the active estate does not change.
+        const known = layerHeirs(kase, layer).find((heir) => heir.id === answer.rowId);
+        const note = announce(from, "laterDeath", layerHeirs(kase, layer), answer.rowId);
+        return settle(
+          {
+            ...base,
+            editingHeir: from.editingHeir,
+            opener: from.opener,
+            announcement: note && known ? { ...note, gender: known.gender } : note,
+            focus: nextFocus(from, "openEstate"),
+          },
+          deps,
+        );
+      }
       // The new layer opens: the person's death is stored under their earliest row.
       const row = rowsOf(from.case).get(answer.rowId)?.row;
       const person = row ? (row.same_as ?? row.id) : null;
@@ -999,18 +1032,20 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
       if (answer.close) {
         restoreHeirForm(deps, kase.id);
         return {
-          ...from, case: kase, saving: false, errors: null, notice: null, conflict: false,
+          ...from, ...clearSheetDeath(from), case: kase, saving: false, errors: null, notice: null, conflict: false,
           editingHeir: null, confirming: undefined, formEpoch: from.formEpoch + 1,
           announcement: announce(from, "updated", people, answer.heirId),
           focus: nextFocus(from, from.opener ?? `editHeir:${answer.heirId}`),
         };
       }
-      return {
+      const stayed: StartedView = {
         ...from, case: kase, saving: false, errors: null, notice: null, conflict: false,
         editingHeir: answer.heirId,
         announcement: announce(from, "updated", people, answer.heirId),
         focus: nextFocus(from, answer.field ?? "relationship"),
       };
+      // "Open own estate" with an uncommitted name: the name is saved, then the estate opens.
+      return answer.openEstate === undefined ? stayed : openLayer(stayed, answer.openEstate, deps, "treeHeading");
     }
     case "removeHeir": {
       const before = estateModel(from.case, from.layer, null);
@@ -1060,12 +1095,14 @@ function deathRefused(answer: Extract<Answer, { kind: "markDeath" }>, errors: Er
     ordering: asks || questions?.length ? answer.rowId : null,
     relativeQuestions: questions,
     deathOrderNeeded: asks,
+    sheetDeath: answer.origin === "sheet",
     deathAnswers: { ...(answer.from.ordering === answer.rowId ? answer.from.deathAnswers : {}), ...answer.answers },
     deathFirst: answer.first ?? (answer.from.ordering === answer.rowId ? answer.from.deathFirst : undefined),
     notice: null,
     saving: false,
     errors,
-    focus: nextFocus(answer.from, asks ? "death-order" : questions?.length ? "relatives" : `alsoDied:${answer.rowId}`),
+    focus: nextFocus(answer.from, asks ? "death-order" : questions?.length ? "relatives"
+      : answer.origin === "sheet" ? "editStatus:died_later" : `alsoDied:${answer.rowId}`),
   };
 }
 
@@ -1158,9 +1195,23 @@ function recorded(answer: Answer, result: AnswerResult, shown: View): View {
   return finish(kept, from.undoToast, answer.kind === "undo" && shown.undoFailed === true);
 }
 
-async function save(answer: Answer, signal: AbortSignal, deps: Deps): Promise<View> {
-  const blocked = precheck(answer);
+async function save(input: Answer, signal: AbortSignal, deps: Deps): Promise<View> {
+  const blocked = precheck(input);
   if (blocked) return blocked;
+  let answer = input;
+  if (input.kind === "markDeath" && input.name !== undefined) {
+    // An uncommitted name in the sheet is saved first; the death is sent only if that save succeeds.
+    const row = layerHeirs(input.from.case, input.from.layer).find((heir) => heir.id === input.rowId);
+    const named: AnswerResult = row
+      ? await deps.updateHeir(signal, input.from.case.id, input.from.case.revision, input.rowId, { relationship: row.relationship, name: input.name })
+      : { kind: "failed" };
+    if (named.kind !== "saved") {
+      const stopped = await settled(input, named, signal, deps);
+      return recorded(input, named, stopped);
+    }
+    // The death, and any refusal of it, builds on the case the rename produced.
+    answer = { ...input, name: undefined, from: { ...input.from, case: named.case } };
+  }
   const result = await send(answer, signal, deps);
   const view = result.kind === "saved" ? saved(answer, result.case, deps) : await settled(answer, result, signal, deps);
   return recorded(answer, result, view);

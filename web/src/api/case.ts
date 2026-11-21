@@ -805,6 +805,7 @@ export function markDeceased(
   first?: string,
   options: WriteOptions = {},
   answers: RelativeAnswers = {},
+  empty = false,
 ): Promise<AnswerResult> {
   return answer(
     signal,
@@ -813,7 +814,7 @@ export function markDeceased(
     DEATHS_URL,
     caseId,
     revision,
-    { heir_id: heirId, ...(first === undefined ? {} : { first }), ...answers },
+    { heir_id: heirId, ...(first === undefined ? {} : { first }), ...answers, ...(empty ? { empty: true } : {}) },
   );
 }
 

@@ -133,3 +133,30 @@ test("no action row while a person is being edited, and focusing a card clears a
     assert.deepEqual([...node.querySelectorAll('[data-add-row] [role="group"] button')].map(b => (b as HTMLElement).dataset.focus), ["addHere:father", "addHere:wife"]);
   } finally { await act(async () => root.unmount()); await teardownDom(dom); }
 });
+
+test("a died-later card opens its estate, the heading is focusable and names the estate, and the breadcrumb slot sits above the canvas", async () => {
+  const dom = installDom(), node = document.createElement("div"); document.body.append(node); const root = createRoot(node);
+  const text = messages.en.interview;
+  const model: EstateModel = { placement: {}, people: [
+    { id: "r1", personId: "p1", relationship: "son", gender: "male", name: null, parentId: null, state: "died_later" },
+    { id: "r2", personId: "p2", relationship: "daughter", gender: "female", name: null, parentId: null, state: "normal" },
+  ] };
+  const opened: string[] = [], edited: string[] = [];
+  try {
+    await act(async () => root.render(<FamilyTree messages={text} model={model} locale="en" editingId={null} onAnnounce={() => {}}
+      rootText="Son (2nd death)" breadcrumb={<nav data-slot aria-label="x" />} onOpenEstate={id => opened.push(id)} onEdit={id => edited.push(id)} />));
+    const heading = node.querySelector<HTMLElement>('[data-focus="treeHeading"]')!;
+    assert.equal(heading.tagName, "H3");
+    assert.equal(heading.tabIndex, -1);
+    assert.equal(heading.textContent, "Son (2nd death)");
+    const area = node.querySelector("[data-tree-area]")!;
+    assert.equal(node.querySelector("[data-slot]")!.nextElementSibling, area);
+    await act(async () => node.querySelector<HTMLButtonElement>('[data-node="r1"]')!.click());
+    assert.deepEqual(opened, ["p1"]);
+    assert.deepEqual(edited, []);
+    await act(async () => node.querySelector<HTMLButtonElement>('[data-node="r2"]')!.click());
+    assert.deepEqual(edited, ["r2"]);
+    await act(async () => root.render(<FamilyTree messages={text} model={model} locale="en" editingId={null} onAnnounce={() => {}} />));
+    assert.equal(node.querySelector('[data-focus="treeHeading"]')!.textContent, text.treeHeading);
+  } finally { await act(async () => root.unmount()); await teardownDom(dom); }
+});

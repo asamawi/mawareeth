@@ -1062,6 +1062,14 @@ test("markDeceased posts the row and the answer to the order question; unmarkDec
   assert.equal(calls[2].init?.body, undefined);
 });
 
+test("markDeceased sends empty: true only when asked", async () => {
+  const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
+  await markDeceased(signal(), "abc123", 4, "s1", undefined, withToken, {}, true);
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { heir_id: "s1", empty: true, case_id: "abc123", expected_revision: 4 });
+  await markDeceased(signal(), "abc123", 4, "s1", undefined, withToken, {}, false);
+  assert.equal("empty" in JSON.parse(String(calls[1].init?.body)), false);
+});
+
 test("a refused death comes back as its codes", async () => {
   stubFetch(async () => Response.json({ errors: { death: "order_required" } }, { status: 400 }));
   assert.deepEqual(await markDeceased(signal(), "abc123", 4, "s2", undefined, withToken), {

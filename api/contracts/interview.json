@@ -35,6 +35,7 @@
     "heirs": ["limit"],
     "case": ["deceased_required"],
     "relatives": ["required", "invalid"],
+    "empty": ["invalid"],
     "same_as": ["gender_mismatch", "not_alive", "already_linked"],
     "status": ["invalid", "schema_unsupported", "first_estate_only", "status_locked"],
     "anchor": ["not_allowed", "schema_unsupported"],

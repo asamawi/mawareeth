@@ -281,6 +281,22 @@ test("later estate resolves person aliases, excludes died-before and remaps dece
   assert.deepEqual(placeholders(model), []);
 });
 
+test("a person is labelled by the relationship stored on the open estate's own row, never the first estate's", () => {
+  const options = { blocked: [], invalid: {} };
+  const kase: Case = { ...base, heirs: [
+    { id: "w", gender: "female", name: null, relationship: "wife", edit_options: options },
+    { id: "s", gender: "male", name: null, relationship: "son", edit_options: options },
+  ], deaths: [{ heir_id: "s", order: 2, gender: "male", heir_options: options, heirs: [
+    { id: "r", same_as: "w", gender: "female", name: null, relationship: "mother", edit_options: options },
+  ] }] };
+  const first = treeDescription(messages.en.interview, estateModel(kase, null, null)).people.find(p => p.id === "w")!;
+  assert.equal(first.relationship, messages.en.interview.relationships.wife);
+  const later = treeDescription(messages.en.interview, estateModel(kase, "s", null)).people;
+  assert.equal(later.length, 1);
+  assert.equal(later[0].relationship, messages.en.interview.relationships.mother);
+  assert.equal(later[0].label, messages.en.interview.relationships.mother);
+});
+
 test("card widths are parameters and every fifty-person box stays reachable", () => {
   const model: EstateModel = { people: many(50).map(p => ({ ...p, personId: p.id, gender: "male", name: null, state: "normal", parentId: null })), placement: {} };
   for (const [width, cardWidth] of [[343, 108], [560, 136]]) {

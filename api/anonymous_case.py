@@ -643,7 +643,10 @@ def _order(case, first=None):
                 raise FieldErrors({'death': 'order_conflict'})
 
 
-def mark_deceased(request, heir_id, first=None, case_id=None, relatives=None, shared_father=None):
+_UNSET = object()
+
+
+def mark_deceased(request, heir_id, first=None, case_id=None, relatives=None, shared_father=None, empty=_UNSET, companions_given=False):
     """Add a person's death layer. Raises StaleCase, HeirNotFound or FieldErrors."""
     case = _live(request, case_id)
     if case is None:
@@ -656,8 +659,16 @@ def mark_deceased(request, heir_id, first=None, case_id=None, relatives=None, sh
         raise FieldErrors({'death': 'already_deceased'})
     if len(case['deaths']) == 2:
         raise FieldErrors({'death': 'limit'})
+    if empty is not _UNSET and empty is not True and empty is not False:
+        raise FieldErrors({'empty': 'invalid'})
+    empty = empty is True
+    if empty and (companions_given or relatives is not None or shared_father is not None):
+        raise FieldErrors({'relatives': 'invalid'})
     case['deaths'].append({'heir_id': person, 'order': len(case['deaths']) + 2,
                            'gender': rows[person]['gender'], 'heirs': []})
+    if empty:
+        _order(case, first)
+        return _store_case(request, case)
     if (relatives is not None and not (isinstance(relatives, dict) and all(
             isinstance(k, str) and isinstance(v, str) for k, v in relatives.items()))
             or shared_father not in (None, 'yes', 'no')):

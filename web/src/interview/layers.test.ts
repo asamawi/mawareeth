@@ -10,6 +10,7 @@ import {
   breadcrumb,
   deathOf,
   deceasedLabel,
+  estatePath,
   hasDeaths,
   keepLayer,
   layerAt,
@@ -230,6 +231,18 @@ test("the key follows the deaths, and a result for another layering is not kept"
   assert.deepEqual(reconcile(previewKey(mine), mine.id, outcome), outcome);
   const other: Case = { ...mine, deaths: [] };
   assert.deepEqual(reconcile(previewKey(other), other.id, outcome), { kind: "replaced" });
+});
+
+test("the estate path runs from the first deceased through the earlier estate that holds the person", () => {
+  const row = (id: string, same_as?: string) => ({ id, relationship: "son" as const, gender: "male" as const, name: null, ...(same_as ? { same_as } : {}), edit_options: NONE });
+  const death = (heir_id: string, order: 2 | 3, heirs: ReturnType<typeof row>[]) => ({ heir_id, order, gender: "male" as const, heir_options: NONE, heirs });
+  const nested = { deaths: [death("a", 2, [row("x")]), death("x", 3, [])] };
+  assert.deepEqual(estatePath(nested, null), [null]);
+  assert.deepEqual(estatePath(nested, "a"), [null, "a"]);
+  assert.deepEqual(estatePath(nested, "x"), [null, "a", "x"]);
+  const siblings = { deaths: [death("a", 2, []), death("b", 3, [])] };
+  assert.deepEqual(estatePath(siblings, "b"), [null, "b"]);
+  assert.deepEqual(estatePath(siblings, "gone"), [null]);
 });
 
 test("a preview waits for every person who died to have heirs", () => {

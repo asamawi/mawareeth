@@ -7,7 +7,7 @@ import { dropEntry, fitZoom, layoutTree, pinBox, placeholders, treeDescription, 
 import { focusRing, focusRingOnAccent, secondaryButton } from "../ui";
 import { AddHere } from "./add-here";
 
-export function FamilyTree({ messages, model, rootText, editingId, locale, onAnnounce, frozen = false, onEdit, onRemoveRequest, dragging = null, atLimit = false, addOutcome = null, dropAlert = null, onAddHere }: {
+export function FamilyTree({ messages, model, rootText, editingId, locale, onAnnounce, frozen = false, onEdit, onRemoveRequest, dragging = null, atLimit = false, addOutcome = null, dropAlert = null, onAddHere, onOpenEstate, breadcrumb = null }: {
   messages: Messages["interview"]; model: EstateModel; rootText?: string;
   frozen?: boolean; onEdit?: (id: string) => void; onRemoveRequest?: (id: string) => void;
   editingId: string | null; locale: string; onAnnounce: (note: string) => void;
@@ -19,6 +19,10 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
   /** The alert of a drop the placement does not allow. */
   dropAlert?: string | null;
   onAddHere?: (anchor: string, entry: PlacementOption) => void;
+  /** A died-later card opens that person's own estate (by their person id). */
+  onOpenEstate?: (personId: string) => void;
+  /** The "Estate level" breadcrumb, shown directly above the canvas. */
+  breadcrumb?: React.ReactNode;
 }) {
   const heading = useId();
   const area = useRef<HTMLDivElement>(null);
@@ -70,7 +74,13 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
     return <button key={id} data-focus={`card:${id}`} data-drop-anchor={person?.personId ?? "root"} data-drop={target ?? undefined} aria-disabled={editable && frozen} type="button" data-node={id} data-state={state}
       ref={el => { if (el) buttons.current.set(id, el); else buttons.current.delete(id); }}
       tabIndex={current === id ? 0 : -1} aria-current={(editingId ?? selected) === id ? "true" : undefined}
-      onClick={() => { if (editable && frozen) return; setRootLink(null); setSelected(id); if (editable) onEdit?.(id); }}
+      onClick={() => {
+        if (editable && frozen) return;
+        setRootLink(null);
+        if (state === "died_later" && person && onOpenEstate) { onOpenEstate(person.personId); return; }
+        setSelected(id);
+        if (editable) onEdit?.(id);
+      }}
       onFocus={event => { setRootLink(null); setSelected(id); if (id !== "root") event.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }}
       onKeyDown={event => {
         // Modified arrows keep their browser meaning, such as Alt+Left for back.
@@ -102,7 +112,7 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
     </button>;
   };
   return <section data-tree aria-labelledby={heading} data-wide className="flex w-full flex-col gap-2">
-    <h3 id={heading} className="text-lg font-semibold">{messages.treeHeading}</h3>
+    <h3 id={heading} tabIndex={-1} data-focus="treeHeading" className={`text-lg font-semibold ${focusRing}`}>{rootText ?? messages.treeHeading}</h3>
     <p className="text-sm text-muted">{messages.treeHint}</p>
     <div className="flex gap-2">
       <button type="button" className={`${secondaryButton} motion-reduce:transition-none`} onClick={() => {
@@ -111,6 +121,7 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
       }}>{messages.treeFit}</button>
       {([1, -1] as const).map(delta => <button key={delta} type="button" className={`${secondaryButton} motion-reduce:transition-none`} disabled={zoom === (delta === 1 ? 1.5 : 0.6)} onClick={() => announceZoom(ZOOM_LEVELS[ZOOM_LEVELS.indexOf(zoom as typeof ZOOM_LEVELS[number]) + delta])}><span aria-hidden="true">{delta === 1 ? "+" : "−"}</span><span className="sr-only">{delta === 1 ? messages.treeZoomIn : messages.treeZoomOut}</span></button>)}
     </div>
+    {breadcrumb}
     <div ref={area} data-tree-area role="group" aria-labelledby={heading}
       className="relative h-[45vh] min-h-[200px] w-full select-none overflow-auto border-y border-line bg-surface p-2"
       style={{ touchAction: "pan-y pinch-zoom", backgroundImage: "radial-gradient(var(--color-line) 1px, transparent 1px)", backgroundSize: "18px 18px" }}
