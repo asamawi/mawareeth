@@ -35,9 +35,11 @@ validate_admin() {
   ADMIN_PUBLIC_KEY="${ADMIN_PUBLIC_KEY:-}"
   [[ "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die 'ADMIN_USER is required and must be valid'
   [[ "$ADMIN_PUBLIC_KEY" =~ ^(ssh-[a-z0-9]+|ecdsa-sha2-[a-z0-9]+|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-[a-z0-9]+@openssh\.com)[[:space:]] ]] || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
-  # One OpenSSH public-key line: type, strictly decoded base64 blob that starts
-  # with that type as its first length-prefixed string and carries key bytes
-  # after it, optional comment, and only spaces and tabs as whitespace.
+  # One OpenSSH public-key line: type, strictly decoded base64 blob, optional
+  # comment, and only spaces and tabs as whitespace. The blob is read as SSH wire
+  # strings and each supported type's fields are checked the way OpenSSH's
+  # sshkey_from_blob does (no trailing bytes), so a key OpenSSH cannot load is
+  # never installed. Unsupported types, including certificates, are refused.
   python3 - "$ADMIN_PUBLIC_KEY" <<'PY' || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
 import base64
 import re
@@ -54,8 +56,79 @@ if not re.fullmatch(r'[A-Za-z0-9+/]+={0,2}', payload) or len(payload) % 4:
 blob = base64.b64decode(payload, validate=True)
 if base64.b64encode(blob).decode('ascii') != payload:
     sys.exit(1)
-want = len(ktype.encode()).to_bytes(4, 'big') + ktype.encode()
-if not blob.startswith(want) or len(blob) <= len(want):
+
+pos = 0
+def string():
+    global pos
+    if pos + 4 > len(blob):
+        sys.exit(1)
+    size = int.from_bytes(blob[pos:pos + 4], 'big')
+    pos += 4
+    if size > len(blob) - pos:
+        sys.exit(1)
+    value = blob[pos:pos + size]
+    pos += size
+    return value
+
+def mpint():
+    value = string()
+    if len(value) > 2049 or (len(value) == 2049 and value[0]) or (value and value[0] & 0x80):
+        sys.exit(1)
+    return int.from_bytes(value, 'big')
+
+def application():
+    # Read as a C string by OpenSSH: non-empty, NUL only as the last byte.
+    value = string()
+    if not value or b'\0' in value[:-1]:
+        sys.exit(1)
+
+# NIST curves (FIPS 186-4 / SEC 2): field prime p and coefficient b of
+# y^2 = x^3 - 3x + b; field size in bytes.
+CURVES = {
+    'nistp256': (2**256 - 2**224 + 2**192 + 2**96 - 1,
+                 0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b, 32, 256),
+    'nistp384': (2**384 - 2**128 - 2**96 + 2**32 - 1,
+                 0xb3312fa7e23ee7e4988e056be3f82d19181d9c6efe8141120314088f5013875ac656398d8a2ed19d2a85c8edd3ec2aef, 48, 384),
+    'nistp521': (2**521 - 1,
+                 0x0051953eb9618e1c9a1f929a21a0b68540eea2da725b99b315f3b8b489918ef109e156193951ec7e937b1652c0bd3bb1bf073573df883d2c34f1ef451fd46b503f00, 66, 521),
+}
+
+def ec_point(curve_suffix):
+    if string() != curve_suffix.encode():
+        sys.exit(1)
+    prime, b, size, order_bits = CURVES[curve_suffix]
+    q = string()
+    if len(q) != 1 + 2 * size or q[0] != 4:
+        sys.exit(1)
+    x = int.from_bytes(q[1:1 + size], 'big')
+    y = int.from_bytes(q[1 + size:], 'big')
+    if x.bit_length() <= order_bits // 2 or y.bit_length() <= order_bits // 2:
+        sys.exit(1)
+    if x >= prime or y >= prime or (y * y - (x * x * x - 3 * x + b)) % prime:
+        sys.exit(1)
+
+if string() != ktype.encode():
+    sys.exit(1)
+if ktype == 'ssh-ed25519':
+    if len(string()) != 32:
+        sys.exit(1)
+elif ktype == 'sk-ssh-ed25519@openssh.com':
+    if len(string()) != 32:
+        sys.exit(1)
+    application()
+elif ktype in ('ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521'):
+    ec_point(ktype.rsplit('-', 1)[1])
+elif ktype == 'sk-ecdsa-sha2-nistp256@openssh.com':
+    ec_point('nistp256')
+    application()
+elif ktype == 'ssh-rsa':
+    e = mpint()
+    n = mpint()
+    if e <= 0 or not 1024 <= n.bit_length() <= 16384:
+        sys.exit(1)
+else:
+    sys.exit(1)
+if pos != len(blob):
     sys.exit(1)
 PY
 }

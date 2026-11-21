@@ -18,10 +18,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Harden `provision-host.sh`'s Hetzner-API interactions: distinguish a transient/auth `hcloud describe` failure from a genuine "not found" before creating resources, detect firewalls shared via a label selector (not just direct server attachment), validate the permission bits of the referenced SSH key files, and give an explicit error when `ssh-keygen -y` blocks on a passphrase-protected key.
   evidence: Each is a real edge case identified during review (confirmed by tracing the script logic) that could cause a duplicate resource, an undetected shared firewall, or an opaque hang/failure, but none are required by the story's stated acceptance criteria.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-bootstrap-guest-input-tightening.md`
-  summary: Parse each admin key type's fields in `bootstrap-host.sh` `validate_admin` (as OpenSSH's `sshkey.c` does), so a key with a matching type header but an incomplete body (e.g. a one-byte ed25519 key) is refused.
-  evidence: The guest check now requires strict, canonical base64, the full type header and at least one key byte, but no type-specific structure; `provision-host.sh` sends an `ssh-keygen -y` key, so only a direct guest run with a hand-made key could install a key OpenSSH cannot load.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-bootstrap-sandboxed-guest-validation-run.md`
   summary: Execute `bootstrap-host.sh`'s later public-web steps (`require_ufw_ipv6`, `converge_docker_web_rules`, `allow_public_web`, `persist_web_sources`) through the entry point, not only by call-line checks.
   evidence: The sandboxed run in `test_host_baseline.sh` stops at the first host change (`apt-get update`), so these steps are still proven only by `grep -cx` call checks and extracted-helper runs; reaching them needs stand-ins for the shell redirections into `/etc` that PATH stubs cannot intercept.

@@ -181,20 +181,109 @@ good_key="$(cat "$tmp/id.pub")"
 for admin in deploy _svc a-b_1 abcdefghijklmnopqrstuvwxyz012345; do
   guest_accepts validate_admin "ADMIN_USER=$admin" "ADMIN_PUBLIC_KEY=$good_key"
 done
-sample_key() { # type [key byte count]: a well-formed key line (type header plus key bytes)
-  python3 -c 'import base64, sys
-t = sys.argv[1].encode()
-print(sys.argv[1], base64.b64encode(len(t).to_bytes(4, "big") + t + bytes(range(int(sys.argv[2])))).decode(), "c")' "$1" "${2:-32}"
-}
+# Structure-aware key builder: one well-formed key per supported type and the
+# malformed variants validate_admin must refuse. EC and RSA bodies are taken
+# from real ssh-keygen keys so their points are on the curve.
+for kind in ecdsa-256 ecdsa-384 ecdsa-521 rsa-3072; do
+  ssh-keygen -q -t "${kind%-*}" -b "${kind#*-}" -N '' -C baseline@test -f "$tmp/key-$kind" >/dev/null || fail "ssh-keygen could not create a $kind key"
+done
+cat > "$tmp/mkkey.py" <<'PY'
+import base64
+import sys
+
+def s(data):
+    return len(data).to_bytes(4, 'big') + data
+
+def mp(value):
+    raw = value.to_bytes((value.bit_length() + 7) // 8, 'big')
+    return s((b'\0' + raw) if raw and raw[0] & 0x80 else raw)
+
+def fields(path):
+    blob = base64.b64decode(open(path).read().split()[1])
+    out, pos = [], 0
+    while pos < len(blob):
+        size = int.from_bytes(blob[pos:pos + 4], 'big')
+        out.append(blob[pos + 4:pos + 4 + size])
+        pos += 4 + size
+    return out
+
+tmp, name = sys.argv[1], sys.argv[2]
+ec = {n: fields(f'{tmp}/key-ecdsa-{n}.pub') for n in (256, 384, 521)}
+rsa = fields(f'{tmp}/key-rsa-3072.pub')
+t256, c256, q256 = ec[256]
+rsa_n = int.from_bytes(rsa[2], 'big')
+rsa_e = int.from_bytes(rsa[1], 'big')
+pk = bytes(range(32))
+app = b'ssh:baseline'
+big = (1 << 1023) | 12345
+bad_y = q256[:-1] + bytes([q256[-1] ^ 1])
+ktype, body = None, None
+def put(t, *parts):
+    global ktype, body
+    ktype, body = t, s(t.encode()) + b''.join(parts)
+
+if name == 'sk-ed25519': put('sk-ssh-ed25519@openssh.com', s(pk), s(app))
+elif name == 'sk-ed25519-canonical': put('sk-ssh-ed25519@openssh.com', s(pk), s(b'ss\0'))
+elif name == 'sk-ed25519-noapp': put('sk-ssh-ed25519@openssh.com', s(pk))
+elif name == 'sk-ed25519-emptyapp': put('sk-ssh-ed25519@openssh.com', s(pk), s(b''))
+elif name == 'sk-ed25519-shortpk': put('sk-ssh-ed25519@openssh.com', s(pk[:31]), s(app))
+elif name == 'sk-ed25519-trailing': put('sk-ssh-ed25519@openssh.com', s(pk), s(app), b'\0')
+elif name == 'ed25519-1': put('ssh-ed25519', s(b'\0'))
+elif name == 'ed25519-33': put('ssh-ed25519', s(pk + b'\0'))
+elif name == 'ed25519-trailing': put('ssh-ed25519', s(pk), b'\0')
+elif name == 'ed25519-truncated': ktype, body = 'ssh-ed25519', s(b'ssh-ed25519') + (64).to_bytes(4, 'big') + pk
+elif name == 'ed25519-cutlen': ktype, body = 'ssh-ed25519', s(b'ssh-ed25519') + b'\0\0'
+elif name == 'ecdsa-curve-mismatch': put('ecdsa-sha2-nistp256', s(b'nistp384'), s(q256))
+elif name == 'ecdsa-off-curve': put('ecdsa-sha2-nistp256', s(c256), s(bad_y))
+elif name == 'ecdsa-compressed': put('ecdsa-sha2-nistp256', s(c256), s(bytes([2]) + q256[1:33]))
+elif name == 'ecdsa-short': put('ecdsa-sha2-nistp256', s(c256), s(q256[:-1]))
+elif name == 'ecdsa-coord-ge-p': put('ecdsa-sha2-nistp256', s(c256), s(b'\4' + b'\xff' * 64))
+elif name == 'ecdsa-trailing': put('ecdsa-sha2-nistp256', s(c256), s(q256), b'\0')
+elif name == 'ecdsa-nistp192': put('ecdsa-sha2-nistp192', s(b'nistp192'), s(b'\4' + bytes(48)))
+elif name == 'sk-ecdsa': put('sk-ecdsa-sha2-nistp256@openssh.com', s(c256), s(q256), s(app))
+elif name == 'sk-ecdsa-emptyapp': put('sk-ecdsa-sha2-nistp256@openssh.com', s(c256), s(q256), s(b''))
+elif name == 'sk-ecdsa-noapp': put('sk-ecdsa-sha2-nistp256@openssh.com', s(c256), s(q256))
+elif name == 'sk-ecdsa-p384': put('sk-ecdsa-sha2-nistp256@openssh.com', s(ec[384][1]), s(ec[384][2]), s(app))
+elif name == 'rsa-512': put('ssh-rsa', mp(65537), mp((1 << 511) | 12345))
+elif name == 'rsa-16400': put('ssh-rsa', mp(65537), mp((1 << 16399) | 12345))
+elif name == 'rsa-negative': put('ssh-rsa', mp(65537), s(big.to_bytes(128, 'big')))
+elif name == 'rsa-e0': put('ssh-rsa', s(b''), mp(rsa_n))
+elif name == 'rsa-trailing': put('ssh-rsa', mp(rsa_e), mp(rsa_n), b'\0')
+elif name == 'rsa-leading-zeros': put('ssh-rsa', s(b'\0\0' + rsa[1]), s(b'\0\0\0' + rsa[2].lstrip(b'\0')))
+elif name == 'rsa-1024': put('ssh-rsa', mp(65537), mp((1 << 1023) | 1))
+elif name == 'rsa-16384': put('ssh-rsa', mp(65537), mp((1 << 16383) | 1))
+elif name == 'rsa-overlong': put('ssh-rsa', mp(rsa_e), s(bytes(2050 - len(rsa[2])) + rsa[2]))
+elif name == 'sk-ed25519-nul': put('sk-ssh-ed25519@openssh.com', s(pk), s(b'ss\0h:x'))
+elif name == 'sk-ecdsa-nul': put('sk-ecdsa-sha2-nistp256@openssh.com', s(c256), s(q256), s(b'ss\0h:x'))
+elif name == 'ecdsa-small-coord':
+    p256 = 2**256 - 2**224 + 2**192 + 2**96 - 1
+    b256 = 0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b
+    y0 = pow(b256, (p256 + 1) // 4, p256)
+    assert y0 * y0 % p256 == b256
+    put('ecdsa-sha2-nistp256', s(c256), s(b'\4' + bytes(32) + y0.to_bytes(32, 'big')))
+elif name == 'ssh-dss': put('ssh-dss', mp(big), mp((1 << 159) | 1), mp(big), mp(big))
+else: sys.exit('unknown key variant ' + name)
+print(ktype, base64.b64encode(body).decode(), 'baseline@test')
+PY
+mkkey() { python3 "$tmp/mkkey.py" "$tmp" "$1" || fail "could not build key variant $1"; }
 b64_ed="${good_key#ssh-ed25519 }"; b64_ed="${b64_ed%% *}"
 tab_key="ssh-ed25519"$'\t'"$b64_ed"$'\t'"baseline@test"
-canonical_key="$(sample_key ssh-ed25519 1)"
+canonical_key="$(mkkey sk-ed25519-canonical)" || fail 'could not build the canonical key'
 noncanonical_key="$(python3 -c 'import sys
 ktype, payload, comment = sys.argv[1].split()
 if not payload.endswith("AA=="):
-    sys.exit("expected AA== padding for the one-byte key")
+    sys.exit("expected AA== padding for the canonical key")
 print(ktype, payload[:-4] + "AB==", comment)' "$canonical_key")"
-for key in "$good_key" "$tab_key" "$canonical_key" "ssh-ed25519 $b64_ed" "$(sample_key ecdsa-sha2-nistp256)" "$(sample_key sk-ssh-ed25519@openssh.com 33)" "$(sample_key sk-ecdsa-sha2-nistp256@openssh.com 7)"; do
+accepted_keys=("$good_key" "$tab_key" "$canonical_key" "ssh-ed25519 $b64_ed")
+for variant in sk-ed25519 sk-ecdsa rsa-leading-zeros rsa-1024 rsa-16384; do
+  key="$(mkkey "$variant")" || fail "could not build key variant $variant"
+  [[ -n "$key" ]] || fail "key variant $variant is empty"
+  accepted_keys+=("$key")
+done
+for kind in ecdsa-256 ecdsa-384 ecdsa-521 rsa-3072; do
+  accepted_keys+=("$(cut -d' ' -f1,2 "$tmp/key-$kind.pub") baseline@test")
+done
+for key in "${accepted_keys[@]}"; do
   guest_accepts validate_admin ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
 done
 # The accepted values reach the rest of bootstrap unchanged (sudoers, authorized_keys).
@@ -212,6 +301,17 @@ for key in '' ssh-ed25519 'AAAAC3NzaC1lZDI1NTE5AAAAITest c' 'rsa AAAAB3NzaC1yc2E
   'ssh-ed25519 ' 'ssh-ed25519  ' 'ssh-ed25519 not*base64 c' 'ssh-ed25519 AAAACw=' 'ssh-ed25519 AAAACw==' \
   'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5' "ssh-rsa $b64_ed c" "$good_key"$'\n'"ssh-ed25519 $b64_ed evil" "$good_key"$'\r' \
   "ssh-ed25519"$'\v'"$b64_ed baseline@test" "ssh-ed25519 $b64_ed"$'\xc2\xa0'"baseline@test" "$noncanonical_key"; do
+  guest_refuses validate_admin 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
+done
+# A matching header with a body OpenSSH cannot load is never installed.
+for variant in ed25519-1 ed25519-33 ed25519-trailing ed25519-truncated ed25519-cutlen \
+  sk-ed25519-noapp sk-ed25519-emptyapp sk-ed25519-shortpk sk-ed25519-trailing \
+  ecdsa-curve-mismatch ecdsa-off-curve ecdsa-compressed ecdsa-short ecdsa-coord-ge-p ecdsa-trailing ecdsa-nistp192 \
+  sk-ecdsa-emptyapp sk-ecdsa-noapp sk-ecdsa-p384 \
+  sk-ed25519-nul sk-ecdsa-nul rsa-overlong ecdsa-small-coord \
+  rsa-512 rsa-16400 rsa-negative rsa-e0 rsa-trailing ssh-dss; do
+  key="$(mkkey "$variant")" || fail "could not build key variant $variant"
+  [[ -n "$key" ]] || fail "key variant $variant is empty"
   guest_refuses validate_admin 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
 done
 printf '%s\n' 'bootstrap guest input checks passed'
@@ -297,6 +397,9 @@ sbx_refuses 'bad web mode' 'PUBLIC_WEB_SOURCES must be any or cloudflare' ubuntu
 sbx_refuses 'cloudflare without ranges' 'PUBLIC_WEB_RANGES' ubuntu PUBLIC_WEB_SOURCES=cloudflare
 sbx_refuses 'bad admin user' 'ADMIN_USER is required and must be valid' ubuntu ADMIN_USER=Root
 sbx_refuses 'bad admin key' 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ubuntu 'ADMIN_PUBLIC_KEY=ssh-ed25519 AAAA'
+short_key="$(mkkey ed25519-1)" || fail 'could not build the one-byte ed25519 key'
+[[ -n "$short_key" ]] || fail 'the one-byte ed25519 key is empty'
+sbx_refuses 'incomplete admin key body' 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ubuntu "ADMIN_PUBLIC_KEY=$short_key"
 sbx_refuses 'wrong OS' 'Ubuntu 24.04 is required' debian
 sbx_refuses 'wrong Ubuntu version' 'Ubuntu 24.04 is required' ubuntu:22.04
 printf '%s\n' 'bootstrap sandboxed run checks passed'
