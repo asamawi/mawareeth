@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { messages } from "../src/i18n/messages";
-import { openCanvasFixture, openHeirsScreen } from "./family";
+import { lineageFixture, openCanvasFixture, openHeirsScreen } from "./family";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, fullCase, json, noCase, sessionAnonymous, startedCase, test } from "./api";
@@ -18,7 +18,7 @@ async function serious(page: Page) {
 }
 
 test.describe("axe", () => {
-  for (const locale of ["ar", "en"] as const) {
+  for (const locale of ["ar", "en", "fr"] as const) {
     test(`landing /${locale}/ has no serious or critical violations`, async ({ page, api }) => {
       api.set({ session: sessionAnonymous });
       await page.goto(`/${locale}/`);
@@ -51,7 +51,7 @@ test.describe("axe", () => {
   }
 });
 
-for (const locale of ["en", "ar"] as const) for (const kind of ["lineage", "empty"] as const) {
+for (const locale of ["en", "ar", "fr"] as const) for (const kind of ["lineage", "empty"] as const) {
   test(`${kind} canvas in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
     await openCanvasFixture(page, api, locale, kind);
     expect(await serious(page)).toEqual([]);
@@ -113,6 +113,17 @@ for (const locale of ["en", "ar"] as const) {
     await page.locator('[data-node="s1"]').press("Enter");
     await expect(page.locator("nav[data-breadcrumb]")).toBeVisible();
     await expect(page.locator("[data-focus='treeHeading']")).toBeFocused();
+    expect(await serious(page)).toEqual([]);
+  });
+}
+
+for (const locale of ["ar", "en", "fr"] as const) {
+  test(`the removal confirmation in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openCanvasFixture(page, api, locale);
+    api.set({ deleteHeir: json(409, { error: "cascade_unconfirmed", impact: { persons: [], estates: [2] }, case: lineageFixture().kase }) });
+    await page.locator('[data-node="w"]').press("Delete");
+    await expect(page.locator("[data-edit-sheet]").getByRole("button", { name: messages[locale].interview.heirRemoveNo })).toBeFocused();
     expect(await serious(page)).toEqual([]);
   });
 }

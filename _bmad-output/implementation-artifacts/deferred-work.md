@@ -555,3 +555,7 @@ Arabic and French copy for later-death estates awaits native review.
 | `laterDeathAddedFemale` | {heir} died later. Open own estate to add her heirs. | توفيت {heir} لاحقًا. افتحي تركتها المستقلة لإضافة ورثتها. | {heir} est décédée plus tard. Ouvrez sa succession propre pour ajouter ses héritiers. |
 | `estateLevel` | Estate level | مستوى التركة | Niveau de succession |
 | `fieldErrors.empty.invalid` | That request could not be read. | تعذرت قراءة هذا الطلب. | Cette demande n'a pas pu être lue. |
+
+## Story 9.9: manual screen-reader release evidence (pending)
+
+Keyboard and axe coverage is automated (unit, Playwright lineage navigation in en and ar, axe in ar, en and fr). Screen-reader verification is not claimed and stays a manual release item. Still owed: Arabic NVDA/Chrome, VoiceOver/Safari iOS and TalkBack runs over the canonical outline (add, edit, delete with cascade, Undo, open and return to an estate) with normal, blocked, died-before and died-later people. Each finding records browser, reader and action.

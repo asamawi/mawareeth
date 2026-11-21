@@ -685,7 +685,10 @@ export function StartCase({
                   onOpen={openEstate}
                 />}
                 onEdit={id => edit(current => startEditHeir(current, id, deps, `card:${id}`))}
-                onRemoveRequest={id => edit(current => requestCardRemoval(current, id, deps))}
+                onRemoveRequest={id => model.people.find(p => p.id === id)?.state === "died_later"
+                  // A died-later card has no edit surface: it uses the Heirs-row removal confirmation.
+                  ? submit(from => ({ kind: "removeHeir", from, heirId: id, fromRow: true, confirm: false }))
+                  : edit(current => requestCardRemoval(current, id, deps))}
               />
               {editingPerson && <EditSheet key={editingPerson.id} messages={messages} view={started}
                 person={editingPerson} label={description.people.find(p => p.id === editingPerson.id)!.label}

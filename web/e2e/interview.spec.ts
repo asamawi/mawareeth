@@ -4,7 +4,7 @@ import { messages, locales, directionOf } from "../src/i18n/messages";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { openCanvasFixture, openHeirsScreen } from "./family";
+import { lineageFixture, openCanvasFixture, openHeirsScreen } from "./family";
 import { abort, expect, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors, type Stubs } from "./api";
 
 const en = messages.en.interview;
@@ -1247,6 +1247,153 @@ test.describe("lineage canvas", () => {
       }
       await canvas.evaluate(el => { el.scrollTop = el.scrollHeight; });
       await expect(canvas.locator('[data-node="many49"]')).toBeInViewport(); await pinned();
+    });
+  }
+
+  // Story 9.9: lineage keyboard navigation along the drawn tree, mirrored in Arabic.
+  for (const locale of ["en", "ar"] as const) {
+    test(`arrows, Home and End follow the drawn tree in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await openCanvasFixture(page, api, locale);
+      const t = messages[locale].interview, ar = locale === "ar";
+      const next = ar ? "ArrowLeft" : "ArrowRight", prev = ar ? "ArrowRight" : "ArrowLeft";
+      const group = page.getByRole("group", { name: t.treeHeading });
+      const area = page.locator("[data-tree-area]");
+      const press = async (key: string, expected: string) => {
+        await page.keyboard.press(key);
+        await expect(page.locator(`[data-node="${expected}"]`)).toBeFocused();
+        await expect(group.locator('[aria-current="true"]')).toHaveAttribute("data-node", expected);
+        await expect(group.locator('[data-node][tabindex="0"]')).toHaveCount(1);
+      };
+      await page.locator('[data-node="root"]').focus();
+      await press("ArrowUp", "root");
+      await press("ArrowDown", "w");
+      await press(next, "s1");
+      await press(next, "before");
+      await press(next, "before");
+      await press("ArrowDown", "s2");
+      await press("ArrowDown", "s2");
+      await press("ArrowUp", "before");
+      await press(prev, "s1");
+      await press("End", "s2");
+      await press("Home", "root");
+      // An absent neighbour neither moves focus nor scrolls the page or the canvas.
+      const before = await area.evaluate(el => [el.scrollLeft, el.scrollTop, window.scrollX, window.scrollY]);
+      await page.keyboard.press("ArrowUp"); await page.keyboard.press(next);
+      expect(await area.evaluate(el => [el.scrollLeft, el.scrollTop, window.scrollX, window.scrollY])).toEqual(before);
+      // Zoom keys behave like the toolbar and are ignored beyond the limits.
+      const status = page.locator("section[aria-labelledby='heirs-heading'] [role='status']");
+      const percent = (z: number) => t.treeZoomStatus.replace("{percent}", new Intl.NumberFormat(locale, { style: "percent" }).format(z));
+      const canvasWidth = () => page.locator("[data-tree-area] > div").first().evaluate(el => el.getBoundingClientRect().width);
+      const startingWidth = await canvasWidth();
+      await page.keyboard.press("+"); await expect(status).toHaveText(percent(1.25));
+      expect(await canvasWidth()).toBeGreaterThan(startingWidth);
+      await page.keyboard.press("=");
+      await expect(status).toHaveText(percent(1.5));
+      await expect(page.getByRole("button", { name: t.treeZoomIn, exact: true })).toBeDisabled();
+      await page.keyboard.press("+"); await expect(status).toHaveText(percent(1.5));
+      for (const key of ["-", "_", "-", "-", "-"]) await page.keyboard.press(key);
+      await expect(status).toHaveText(percent(0.6));
+      expect(await canvasWidth()).toBeLessThan(startingWidth);
+      await expect(page.getByRole("button", { name: t.treeZoomOut, exact: true })).toBeDisabled();
+      await page.keyboard.press("-"); await expect(status).toHaveText(percent(0.6));
+    });
+
+    test(`text inputs keep their keystrokes while editing in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await openCanvasFixture(page, api, locale);
+      const card = page.locator('[data-node="before"]');
+      await card.focus();
+      await page.keyboard.press("Enter");
+      const sheet = page.locator("[data-edit-sheet]");
+      const input = sheet.getByLabel(messages[locale].interview.heirNameLabel);
+      const status = page.locator("section[aria-labelledby='heirs-heading'] [role='status']");
+      const zoomStatus = await status.textContent();
+      await input.focus();
+      await input.pressSequentially("ab+-=_");
+      for (const key of ["Home", "ArrowRight", "ArrowUp", "ArrowDown", "End"]) await page.keyboard.press(key);
+      await expect(input).toBeFocused();
+      await expect(input).toHaveValue("ab+-=_");
+      expect(await status.textContent()).toBe(zoomStatus);
+      await expect(card).not.toBeFocused();
+    });
+
+    test(`a card reached by arrow keys keeps its focus ring inside the canvas in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 375, height: 700 });
+      await openCanvasFixture(page, api, locale);
+      const area = page.locator("[data-tree-area]");
+      const canvas = await area.elementHandle();
+      const next = locale === "ar" ? "ArrowLeft" : "ArrowRight";
+      await area.locator('[data-node="root"]').focus();
+      for (const [key, id] of [["ArrowDown", "w"], [next, "s1"], [next, "before"], ["ArrowDown", "s2"]]) {
+        const card = area.locator(`[data-node="${id}"]`);
+        const ringInside = () => card.evaluate((el, canvas) => {
+          const c = canvas.getBoundingClientRect(), r = el.getBoundingClientRect();
+          const left = c.x + canvas.clientLeft, top = c.y + canvas.clientTop;
+          return r.left - 4 >= left - 0.5 && r.top - 4 >= top - 0.5 && r.right + 4 <= left + canvas.clientWidth + 0.5 && r.bottom + 4 <= top + canvas.clientHeight + 0.5;
+        }, canvas);
+        if (id === "s2") {
+          const panAway = () => card.evaluate((el, canvas) => {
+            const c = canvas.getBoundingClientRect(), r = el.getBoundingClientRect();
+            const rtl = getComputedStyle(canvas).direction === "rtl";
+            const middle = c.left + canvas.clientLeft + canvas.clientWidth / 2;
+            const center = r.left + r.width / 2;
+            const atInlineStart = rtl ? center >= middle : center <= middle;
+            canvas.scrollTop = 0;
+            canvas.scrollLeft = atInlineStart ? (rtl ? -canvas.scrollWidth : canvas.scrollWidth) : 0;
+          }, canvas);
+          await panAway();
+          if (await ringInside()) {
+            await page.keyboard.press("+");
+            await page.keyboard.press("+");
+            await panAway();
+          }
+          expect(await ringInside()).toBe(false);
+        }
+        await page.keyboard.press(key);
+        await expect(card).toBeFocused();
+        // Scrolling may still be settling; the ring (2px plus a 2px offset) must end inside the canvas client box.
+        await expect.poll(ringInside).toBe(true);
+      }
+    });
+
+    test(`Tab leaves the tree group and Delete on a died-later card asks first in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await openCanvasFixture(page, api, locale);
+      const t = messages[locale].interview, group = page.getByRole("group", { name: t.treeHeading });
+      await page.locator('[data-node="root"]').focus();
+      await page.keyboard.press("Tab");
+      expect(await group.evaluate(el => el.contains(document.activeElement))).toBe(false);
+      await page.keyboard.press("Shift+Tab");
+      await expect(group.locator('[data-node="root"]')).toBeFocused();
+      const kase = (await lineageFixture()).kase as Record<string, unknown>;
+      api.set({ deleteHeir: json(409, { error: "cascade_unconfirmed", impact: { persons: [], estates: [2] }, case: kase }) });
+      await page.locator('[data-node="w"]').focus();
+      await page.keyboard.press("Delete");
+      const sheet = page.locator("[data-edit-sheet]");
+      await expect(sheet.getByRole("button", { name: t.heirRemoveNo })).toBeFocused();
+      expect(api.heirDeletes.every(d => !d.searchParams.has("confirm_cascade"))).toBe(true);
+      await sheet.getByRole("button", { name: t.heirRemoveNo }).click();
+      await expect(page.locator('[data-focus="remove:w"]')).toBeFocused();
+      await expect(page.locator('[data-node="w"]')).toHaveAttribute("data-state", "died_later");
+      expect(api.heirDeletes.every(d => !d.searchParams.has("confirm_cascade"))).toBe(true);
+    });
+
+    test(`each tree card has the same relationship and state text as its Heirs outline row in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await openCanvasFixture(page, api, locale);
+      const area = page.locator("[data-tree-area]");
+      const outline = page.getByRole("list", { name: messages[locale].interview.heirsListLabel, exact: true });
+      const items = outline.locator("li");
+      const deceased = (await area.locator('[data-node="root"] strong').textContent())!.trim();
+      expect(deceased).toBeTruthy();
+      await expect(items.first()).toContainText(deceased);
+      const rows = await items.allTextContents();
+      for (const card of await area.locator('[data-node]:not([data-node="root"])').all()) {
+        const relationship = (await card.locator("strong").textContent())!.trim();
+        const badge = await card.evaluate(el => el.querySelector("span.rounded-full")?.textContent?.replace(/\s*›\s*$/, "").trim() ?? "");
+        expect(rows.some(row => relationship && row.includes(relationship) && row.includes(badge))).toBe(true);
+      }
     });
   }
 });

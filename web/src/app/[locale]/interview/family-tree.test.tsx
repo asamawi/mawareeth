@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { messages } from "@/i18n/messages";
-import type { EstateModel } from "@/interview/tree";
+import { treeDescription, type EstateModel } from "@/interview/tree";
 import { installDom, teardownDom } from "@/test/dom";
 import { FamilyTree } from "./family-tree";
 
@@ -32,21 +32,41 @@ for (const locale of ["en", "ar"] as const) test(`cards, reading keys, badges an
     assert.equal(cards[0].getAttribute("aria-current"), "true");
     const key = async (value: string) => { await act(async () => { (document.activeElement ?? deceased).dispatchEvent(new dom.KeyboardEvent("keydown", { key: value, bubbles: true }) as unknown as Event); }); };
     await act(async () => deceased.focus());
-    await key(locale === "ar" ? "ArrowLeft" : "ArrowRight");
-    assert.equal((document.activeElement as HTMLElement).dataset.node, "b");
-    await key("End"); assert.equal((document.activeElement as HTMLElement).dataset.node, "a");
+    const at = () => (document.activeElement as HTMLElement).dataset.node;
+    const next = locale === "ar" ? "ArrowLeft" : "ArrowRight", prev = locale === "ar" ? "ArrowRight" : "ArrowLeft";
+    // The deceased has no siblings or parent: the inline arrows and Up leave focus alone.
+    await key(next); assert.equal(at(), "root");
+    await key("ArrowUp"); assert.equal(at(), "root");
+    await key("ArrowDown"); assert.equal(at(), "b");
+    await key(next); assert.equal(at(), "c");
+    await key(next); assert.equal(at(), "a");
+    await key(next); assert.equal(at(), "a");
+    await key(prev); assert.equal(at(), "c");
+    await key("ArrowDown"); assert.equal(at(), "c", "a leaf has no child");
+    await key("ArrowUp"); assert.equal(at(), "root");
+    await key("End"); assert.equal(at(), "a");
     await key("Home"); assert.equal(document.activeElement, deceased);
     // Alt+Arrow keeps its browser meaning: focus stays and the event is not cancelled.
     const alt = new dom.KeyboardEvent("keydown", { key: "ArrowRight", altKey: true, bubbles: true, cancelable: true }) as unknown as Event;
     await act(async () => { deceased.dispatchEvent(alt); });
     assert.equal(document.activeElement, deceased); assert.equal(alt.defaultPrevented, false);
-    await key(locale === "ar" ? "ArrowRight" : "ArrowLeft"); assert.equal(document.activeElement, deceased);
+    const absent = new dom.KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true }) as unknown as Event;
+    await act(async () => { deceased.dispatchEvent(absent); });
+    assert.equal(absent.defaultPrevented, true);
+    assert.equal(cards.filter(b => b.tabIndex === 0).length, 1);
     assert.ok(group.textContent?.includes(messages[locale].interview.treeDiedBefore.male));
     assert.ok(group.textContent?.includes(messages[locale].interview.treeDiedLater.female));
     assert.ok(group.textContent?.includes(messages[locale].interview.treeNoShare));
     const zoom = [...node.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent?.includes(messages[locale].interview.treeZoomIn))!;
     await act(async () => zoom.click());
-    assert.equal(notes[0], messages[locale].interview.treeZoomStatus.replace("{percent}", new Intl.NumberFormat(locale, { style: "percent" }).format(1.25)));
+    const percent = (z: number) => messages[locale].interview.treeZoomStatus.replace("{percent}", new Intl.NumberFormat(locale, { style: "percent" }).format(z));
+    assert.equal(notes[0], percent(1.25));
+    await act(async () => deceased.focus());
+    await key("+"); assert.equal(notes.at(-1), percent(1.5));
+    const count = notes.length; await key("="); assert.equal(notes.length, count, "no step beyond 150%");
+    await key("-"); await key("_"); await key("-"); await key("-"); assert.equal(notes.at(-1), percent(0.6));
+    const total = notes.length; await key("-"); assert.equal(notes.length, total, "no step below 60%");
+    await key("+"); assert.equal(notes.at(-1), percent(0.8));
   } finally { await act(async () => root.unmount()); await teardownDom(dom); }
 });
 test("empty placeholders are native buttons that open the chooser", async () => {
@@ -158,5 +178,43 @@ test("a died-later card opens its estate, the heading is focusable and names the
     assert.deepEqual(edited, ["r2"]);
     await act(async () => root.render(<FamilyTree messages={text} model={model} locale="en" editingId={null} onAnnounce={() => {}} />));
     assert.equal(node.querySelector('[data-focus="treeHeading"]')!.textContent, text.treeHeading);
+  } finally { await act(async () => root.unmount()); await teardownDom(dom); }
+});
+
+test("Delete asks to remove any card but the deceased, never while frozen", async () => {
+  const dom = installDom(), node = document.createElement("div"); document.body.append(node); const root = createRoot(node);
+  const model: EstateModel = { placement: {}, people: [
+    { id: "n", personId: "n", relationship: "son", gender: "male", name: null, parentId: null, state: "normal" },
+    { id: "l", personId: "l", relationship: "daughter", gender: "female", name: null, parentId: null, state: "died_later" },
+  ] };
+  const asked: string[] = [];
+  const tree = (frozen: boolean) => <FamilyTree messages={messages.en.interview} model={model} locale="en" editingId={null} frozen={frozen} onAnnounce={() => {}} onRemoveRequest={id => asked.push(id)} />;
+  const press = async (id: string) => { const el = node.querySelector<HTMLElement>(`[data-node="${id}"]`)!; await act(async () => { el.dispatchEvent(new dom.KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true }) as unknown as Event); }); };
+  try {
+    await act(async () => root.render(tree(false)));
+    await press("l"); await press("n"); await press("root");
+    assert.deepEqual(asked, ["l", "n"]);
+    await act(async () => root.render(tree(true)));
+    await press("l"); await press("n");
+    assert.deepEqual(asked, ["l", "n"]);
+  } finally { await act(async () => root.unmount()); await teardownDom(dom); }
+});
+
+test("each card shows the text and badge of its Heirs-list outline entry", async () => {
+  const dom = installDom(), node = document.createElement("div"); document.body.append(node); const root = createRoot(node);
+  const text = messages.en.interview;
+  const model: EstateModel = { placement: {}, people: [
+    { id: "a", personId: "a", relationship: "son", gender: "male", name: "Omar", parentId: null, state: "died_before" },
+    { id: "b", personId: "b", relationship: "wife", gender: "female", name: null, parentId: null, state: "died_later" },
+    { id: "c", personId: "c", relationship: "brother", gender: "male", name: null, parentId: null, state: "blocked" },
+  ] };
+  try {
+    await act(async () => root.render(<FamilyTree messages={text} model={model} locale="en" editingId={null} onAnnounce={() => {}} />));
+    for (const word of treeDescription(text, model).people) {
+      const card = node.querySelector<HTMLElement>(`[data-node="${word.id}"]`)!.textContent ?? "";
+      assert.ok(card.includes(word.relationship));
+      if (word.secondary) assert.ok(card.includes(word.secondary));
+      if (word.badge) assert.ok(card.includes(word.badge));
+    }
   } finally { await act(async () => root.unmount()); await teardownDom(dom); }
 });

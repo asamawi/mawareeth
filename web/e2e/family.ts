@@ -17,7 +17,7 @@ const agree = (JSON.parse(readFileSync(join(contracts, "preview-fixtures.json"),
 )!;
 
 /** Opens the heirs screen: a saved deceased with heirs, resumed from an existing case. */
-export async function openHeirsScreen(page: Page, api: Api, locale: "en" | "ar"): Promise<void> {
+export async function openHeirsScreen(page: Page, api: Api, locale: "en" | "ar" | "fr"): Promise<void> {
   api.set({
     session: sessionAnonymous,
     getCase: json(200, { case: fullCase(agree.case) }),
@@ -52,11 +52,14 @@ export function lineageFixture() {
   const deaths = (layered.case.deaths as Record<string, unknown>[]).map(d => ({ ...d, heir_options: options, heirs: (d.heirs as Record<string, unknown>[]).map(h => ({ ...h, edit_options: options })) }));
   return { kase: fullCase(layered.case, {
     deaths,
-    persons: [{ id: "before", relationship: "son", gender: "male", name: null, status: "died_before_or_with", death_order: null }],
+    persons: [
+      { id: "before", relationship: "son", gender: "male", name: null, status: "died_before_or_with", death_order: null },
+      { id: "s2", relationship: "son_of_son", gender: "male", name: null, status: "alive", death_order: null },
+    ],
     edges: [{ kind: "parent_of", from: "before", to: "s2" }], placement: {},
   }), response };
 }
-export async function openCanvasFixture(page: Page, api: Api, locale: "en" | "ar", kind: "lineage" | "empty" | "many" = "lineage") {
+export async function openCanvasFixture(page: Page, api: Api, locale: "en" | "ar" | "fr", kind: "lineage" | "empty" | "many" = "lineage") {
   const fixture = lineageFixture();
   const options = { blocked: [], invalid: {} };
   const kase = kind === "lineage" ? fixture.kase : fullCase(agree.case, {

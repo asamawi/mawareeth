@@ -3,7 +3,7 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { PlacementLink, PlacementOption, RelationshipId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
-import { dropEntry, fitZoom, layoutTree, pinBox, placeholders, treeDescription, ZOOM_LEVELS, type EstateModel } from "@/interview/tree";
+import { dropEntry, fitZoom, layoutTree, pinBox, placeholders, treeDescription, treeNeighbour, ZOOM_LEVELS, type EstateModel } from "@/interview/tree";
 import { focusRing, focusRingOnAccent, secondaryButton } from "../ui";
 import { AddHere } from "./add-here";
 
@@ -58,6 +58,10 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
     setZoom(z);
     onAnnounce(messages.treeZoomStatus.replace("{percent}", new Intl.NumberFormat(locale, { style: "percent" }).format(z)));
   };
+  const stepZoom = (delta: 1 | -1) => {
+    const next = ZOOM_LEVELS[ZOOM_LEVELS.indexOf(zoom as typeof ZOOM_LEVELS[number]) + delta];
+    if (next !== undefined) announceZoom(next);
+  };
   const empty = placeholders(model);
   const openLink = rootLink !== null && (empty as readonly string[]).includes(rootLink) ? rootLink : null;
   const currentPerson = model.people.find(p => p.id === current);
@@ -85,22 +89,25 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
       onKeyDown={event => {
         // Modified arrows keep their browser meaning, such as Alt+Left for back.
         if (event.altKey || event.ctrlKey || event.metaKey) return;
-        if (event.key === "Delete" && editable) {
+        if (event.key === "Delete") {
+          if (state === "deceased") return;
           event.preventDefault();
           if (!frozen) onRemoveRequest?.(id);
           return;
         }
-        let index = ids.indexOf(id);
-        if (event.key === "Home") index = 0;
-        else if (event.key === "End") index = ids.length - 1;
-        else if (event.key === "ArrowRight") index += rtl ? -1 : 1;
-        else if (event.key === "ArrowLeft") index += rtl ? 1 : -1;
-        else return;
+        if (event.key === "+" || event.key === "=" || event.key === "-" || event.key === "_") {
+          event.preventDefault();
+          stepZoom(event.key === "+" || event.key === "=" ? 1 : -1);
+          return;
+        }
+        const dir = ({ ArrowUp: "up", ArrowDown: "down", Home: "home", End: "end",
+          ArrowRight: rtl ? "prev" : "next", ArrowLeft: rtl ? "next" : "prev" } as const)[event.key as "ArrowUp"];
+        if (!dir) return;
         event.preventDefault();
-        const next = ids[Math.max(0, Math.min(ids.length - 1, index))];
-        setSelected(next); buttons.current.get(next)?.focus();
+        const next = treeNeighbour(model, ids, id, dir);
+        if (next !== id) { setSelected(next); buttons.current.get(next)?.focus(); }
       }}
-      className={`absolute flex flex-col items-center justify-center gap-1 rounded-node p-2 text-center [overflow-wrap:anywhere] ${editingId === id ? "outline-3 -outline-offset-3 outline-current" : "aria-[current=true]:outline aria-[current=true]:outline-offset-2 aria-[current=true]:outline-accent"} ${target === "illegal" ? `bg-surface text-muted ${focusRing}` : state === "deceased" ? `bg-accent text-accent-foreground ${focusRingOnAccent}` : focusRing} ${target !== "illegal" && (state === "normal" || state === "died_later") ? "bg-[var(--background)]" : ""} ${target !== "illegal" && (state === "died_before" || state === "blocked") ? "bg-surface" : ""}`}
+      className={`absolute scroll-m-2 flex flex-col items-center justify-center gap-1 rounded-node p-2 text-center [overflow-wrap:anywhere] ${editingId === id ? "outline-3 -outline-offset-3 outline-current" : "aria-[current=true]:outline aria-[current=true]:outline-offset-2 aria-[current=true]:outline-accent"} ${target === "illegal" ? `bg-surface text-muted ${focusRing}` : state === "deceased" ? `bg-accent text-accent-foreground ${focusRingOnAccent}` : focusRing} ${target !== "illegal" && (state === "normal" || state === "died_later") ? "bg-[var(--background)]" : ""} ${target !== "illegal" && (state === "died_before" || state === "blocked") ? "bg-surface" : ""}`}
       style={{ insetInlineStart: box.x, top: box.y, width: box.width, height: box.height,
         border: target === "legal" ? "2px solid var(--accent)" : state === "deceased" || state === "died_before" ? "none" : state === "died_later" ? "2px solid var(--accent)" : "1.5px solid var(--graphic)",
         backgroundImage: state === "blocked" ? "repeating-linear-gradient(135deg, var(--surface) 0 6px, var(--blocked-stripe) 6px 12px)" : undefined }}>
@@ -119,7 +126,7 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
         const z = fitZoom({ width: layout.width, height }, view); announceZoom(z);
         requestAnimationFrame(() => { const el = area.current; if (el) { el.scrollTop = 0; const inline = Math.max(0, (layout.deceased.x + layout.deceased.width / 2) * z - view.width / 2); el.scrollLeft = rtl ? -inline : inline; measure(); } });
       }}>{messages.treeFit}</button>
-      {([1, -1] as const).map(delta => <button key={delta} type="button" className={`${secondaryButton} motion-reduce:transition-none`} disabled={zoom === (delta === 1 ? 1.5 : 0.6)} onClick={() => announceZoom(ZOOM_LEVELS[ZOOM_LEVELS.indexOf(zoom as typeof ZOOM_LEVELS[number]) + delta])}><span aria-hidden="true">{delta === 1 ? "+" : "−"}</span><span className="sr-only">{delta === 1 ? messages.treeZoomIn : messages.treeZoomOut}</span></button>)}
+      {([1, -1] as const).map(delta => <button key={delta} type="button" className={`${secondaryButton} motion-reduce:transition-none`} disabled={zoom === (delta === 1 ? 1.5 : 0.6)} onClick={() => stepZoom(delta)}><span aria-hidden="true">{delta === 1 ? "+" : "−"}</span><span className="sr-only">{delta === 1 ? messages.treeZoomIn : messages.treeZoomOut}</span></button>)}
     </div>
     {breadcrumb}
     <div ref={area} data-tree-area role="group" aria-labelledby={heading}

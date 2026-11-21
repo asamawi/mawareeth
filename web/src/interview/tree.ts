@@ -235,6 +235,29 @@ export function focusAfterRemoval(model: EstateModel, id: string, surviving?: Re
   const candidates = [...siblings.slice(index + 1), ...siblings.slice(0, index).reverse()];
   return candidates.find(p => !surviving || surviving.has(p.id))?.id ?? "root";
 }
+/**
+ * The card keyboard focus goes to from `id` along the drawn tree, or `id` itself when there is no
+ * neighbour that way. A card's tree parent is the card of its `parentId`, else the deceased (`root`).
+ * `order` is the keyboard order, deceased first. The caller maps physical arrows to prev/next.
+ */
+export function treeNeighbour(model: EstateModel, order: readonly string[], id: string, key: "up" | "down" | "prev" | "next" | "home" | "end"): string {
+  if (key === "home") return order[0] ?? id;
+  if (key === "end") return order[order.length - 1] ?? id;
+  const parentOf = (card: string): string | null => {
+    if (card === "root") return null;
+    const person = model.people.find(p => p.id === card);
+    if (!person) return null;
+    const parent = person.parentId === null ? undefined : model.people.find(p => p.personId === person.parentId);
+    return parent && parent.id !== card && order.includes(parent.id) ? parent.id : "root";
+  };
+  if (key === "up") return parentOf(id) ?? id;
+  if (key === "down") return order.find(card => card !== id && parentOf(card) === id) ?? id;
+  const parent = parentOf(id);
+  if (parent === null) return id;
+  const siblings = order.filter(card => parentOf(card) === parent);
+  const index = siblings.indexOf(id);
+  return index < 0 ? id : siblings[key === "next" ? Math.min(siblings.length - 1, index + 1) : Math.max(0, index - 1)];
+}
 export function treeDescription(messages: Messages["interview"], model: EstateModel, rootText?: string) {
   const people = readingOrder(model.people);
   const labels = heirLabels(people.map(p => ({ ...p, edit_options: { blocked: [], invalid: {} } })), messages.relationships, messages.heirNumbered);

@@ -13,7 +13,7 @@ import {
   NODE_HEIGHT,
   scrollDelta,
   treeDescription,
-  dropEntry, estateModel, fitZoom, focusAfterRemoval, pinBox, placeholders, type EstateModel,
+  dropEntry, estateModel, fitZoom, focusAfterRemoval, pinBox, placeholders, treeNeighbour, type EstateModel,
   type TreeLayout,
 } from "./tree.ts";
 
@@ -344,4 +344,30 @@ test("dropEntry resolves a chip at the root, a placeholder and a person from the
   assert.equal(dropEntry(model, "f", "son"), null, "two same-gender children are ambiguous");
   assert.equal(dropEntry(model, "s", "father"), null, "a parent chip is not a child");
   assert.equal(dropEntry(model, "ghost", "son"), null);
+});
+
+test("treeNeighbour walks the drawn tree: parent, first child, siblings, home and end", () => {
+  const person = (id: string, relationship: RelationshipId, parentId: string | null = null) =>
+    ({ id, personId: `p-${id}`, relationship, gender: "male" as const, name: null, state: "normal" as const, parentId: parentId && `p-${parentId}` });
+  const model: EstateModel = { placement: {}, people: [
+    person("w", "wife"), person("b", "brother"), person("s", "son"), person("d", "daughter"),
+    person("g", "son_of_son", "b"), person("o", "son_of_brother", "missing"),
+  ] };
+  const order = ["root", "w", "b", "g", "s", "d", "o"];
+  const go = (id: string, key: Parameters<typeof treeNeighbour>[3]) => treeNeighbour(model, order, id, key);
+  assert.equal(go("root", "down"), "w");
+  assert.equal(go("g", "up"), "b");
+  assert.equal(go("b", "down"), "g");
+  assert.equal(go("w", "down"), "w", "a leaf has no child");
+  assert.equal(go("w", "next"), "b");
+  assert.equal(go("b", "next"), "s", "linked children are not root siblings");
+  assert.equal(go("o", "next"), "o", "clamped at the last sibling");
+  assert.equal(go("w", "prev"), "w", "clamped at the first sibling");
+  assert.equal(go("s", "prev"), "b");
+  assert.equal(go("o", "up"), "root", "a parent outside the estate falls back to the deceased");
+  assert.equal(go("root", "up"), "root");
+  assert.equal(go("root", "next"), "root");
+  assert.equal(go("root", "prev"), "root");
+  assert.equal(go("s", "home"), "root");
+  assert.equal(go("w", "end"), "o");
 });
