@@ -64,7 +64,7 @@ development_status:
   9-10-coordinate-interview-announcements-and-updating-states: done
   9-11-verify-responsive-rtl-and-reduced-motion-tree-interactions: done
   9-13-link-a-later-estate-heir-from-the-edit-sheet-and-retire-the-o: review
-  11-2-present-one-readable-share-preview-in-the-desktop-slot: backlog
+  11-2-present-one-readable-share-preview-in-the-desktop-slot: done
   11-3-open-the-full-preview-from-a-sticky-summary-bar-and-modal-sh: backlog
   9-12-prove-the-complete-family-entry-journey-meets-capacity-and-s: backlog
   epic-9-retrospective: optional
@@ -76,7 +76,7 @@ development_status:
   10-4-preserve-received-invitations-and-label-shared-cases-as-read: backlog
   epic-10-retrospective: optional
 
-  epic-11: backlog
+  epic-11: in-progress
   11-1-show-school-agreement-and-ask-for-a-school-only-when-shares: backlog
   11-4-keep-summary-controls-reachable-at-narrow-widths-and-high-zo: backlog
   11-5-preserve-the-results-table-and-make-result-actions-clear: backlog
