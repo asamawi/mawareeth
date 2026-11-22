@@ -3,10 +3,10 @@ import { templateParts, type Errors } from "@/interview/answers";
 import type { Notice } from "@/interview/flow";
 
 export const buttonClass =
-  "rounded-md border border-current px-4 py-2 text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-disabled:opacity-60";
+  "min-h-11 rounded-md border border-current px-4 py-2 text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-disabled:opacity-60";
 
 export const inputClass =
-  "w-full rounded-md border-2 border-current/60 bg-transparent px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-[invalid=true]:border-current aria-[invalid=true]:border-dashed read-only:opacity-70";
+  "min-h-11 w-full rounded-md border-2 border-current/60 bg-transparent px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-[invalid=true]:border-current aria-[invalid=true]:border-dashed read-only:opacity-70";
 
 /** The message for a field's error code; an unknown code falls back to the generic failure. */
 export function errorText(
@@ -38,10 +38,13 @@ export function WithHeir({ template, heir }: { template: string; heir: string })
  * The room for a field's message is always there, so a message appearing on blur never
  * shifts the button the visitor is about to click.
  */
-export function FieldError({ id, text }: { id: string; text: string | null }) {
+export function FieldError({ id, text, live = false, announce }: {
+  id: string; text: string | null; live?: boolean; announce?: number | string;
+}) {
+  // Live: the one paragraph shows and announces; a new key re-announces an identical message.
   return (
-    <p id={id} className="min-h-6 text-sm font-medium">
-      {text}
+    <p id={id} className="min-h-6 text-sm font-medium" role={live ? "alert" : undefined}>
+      {live ? (text === null ? null : <span key={announce}>{text}</span>) : text}
     </p>
   );
 }

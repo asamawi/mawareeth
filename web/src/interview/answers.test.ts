@@ -17,7 +17,6 @@ import {
   formStore,
   heirLabel,
   heirLabels,
-  heirLimitReached,
   heirValues,
   normalizeDigits,
   templateParts,
@@ -29,7 +28,6 @@ import {
   validateDeceased,
   validateField,
   validateHeir,
-  LINK_PENDING,
   valuesFor,
   type FormRecord,
 } from "./answers.ts";
@@ -144,12 +142,6 @@ test("the first invalid field follows screen order", () => {
   assert.equal(firstInvalid("deceased", { estate: "invalid", gender: "required" }), "gender");
   assert.equal(firstInvalid("heir", { name: "too_long", relationship: "required" }), "relationship");
   assert.equal(firstInvalid("heir", { heirs: "limit" }), null);
-});
-
-test("the 50th heir is the last", () => {
-  const heir = { id: "a", relationship: "son", gender: "male", name: null } as const;
-  assert.equal(heirLimitReached(Array(49).fill(heir)), false);
-  assert.equal(heirLimitReached(Array(50).fill(heir)), true);
 });
 
 test("estate formatting is an amount for the language: no currency, percentage or kirat", () => {
@@ -486,11 +478,12 @@ test("the shared fixtures are read as they are, and the kinship codes match the 
     contract.errorCodes.relationship.filter((code: string) => code !== "required" && code !== "invalid" && code !== "gender_locked").sort(),
   );
   // gender_locked depends on a person's links/death, not family counts, so it is
-  // a write error rather than an heir_options kinship code.
+  // not a kinship code, but the case API reports it in edit_options.invalid.
   assert.ok(contract.errorCodes.relationship.includes("gender_locked"));
   assert.deepEqual(parseHeirOptions({ blocked: [], invalid: { son: "gender_locked" } }), {
-    blocked: [], invalid: {},
+    blocked: [], invalid: { son: "gender_locked" },
   });
+  assert.deepEqual(parseHeirOptions({ blocked: [], invalid: { son: "mystery" } }), { blocked: [], invalid: {} });
   assert.ok(fixtures.families.length >= 10);
   for (const family of fixtures.families) {
     const options = parseHeirOptions(family.heir_options);
@@ -502,12 +495,11 @@ test("the shared fixtures are read as they are, and the kinship codes match the 
   }
 });
 
-test("a linked heir sends the person and no name; an unchosen link is required; no link adds nothing", () => {
+test("a linked heir sends the person and no name; no link adds nothing", () => {
   assert.deepEqual(validateHeir({ relationship: "brother", name: "ignored", same_as: "s2" }), {
     errors: {},
     fields: { relationship: "brother", name: null, same_as: "s2" },
   });
-  assert.deepEqual(validateHeir({ relationship: "brother", name: "", same_as: LINK_PENDING }).errors, { same_as: "required" });
   assert.deepEqual(validateHeir({ relationship: "brother", name: "B", same_as: "" }).fields, { relationship: "brother", name: "B" });
   // A name that breaks a rule does not matter once the person is linked.
   assert.deepEqual(validateHeir({ relationship: "brother", name: "x".repeat(101), same_as: "s2" }).errors, {});
@@ -519,18 +511,6 @@ test("focus goes to the first invalid control in screen order, the picker betwee
   assert.equal(firstInvalid("heir", { heirs: "limit" }), null);
 });
 
-
-test("link choice stays visible without candidates and stale ids require a new choice", async () => {
-  const { linkChoice } = await import("./answers.ts");
-  for (const same_as of ["gone", LINK_PENDING]) {
-    const choice = linkChoice(false, [], { relationship: "mother", name: "Keep", same_as });
-    assert.equal(choice.visible, true);
-    assert.equal(choice.values.same_as, LINK_PENDING);
-  }
-  assert.equal(linkChoice(false, [], { relationship: "mother", name: "" }).visible, false);
-  assert.equal(linkChoice(true, [{ id: "w" }], { relationship: "mother", name: "", same_as: "w" }).visible, false);
-  assert.equal(linkChoice(false, [{ id: "w" }], { relationship: "mother", name: "", same_as: "w" }).values.same_as, "w");
-});
 
 test("form records persist layers and old records default to the first layer", () => {
   const record: FormRecord = { caseId: "c1", form: "heir", layer: null, heirId: null, values: { name: "Keep" } };

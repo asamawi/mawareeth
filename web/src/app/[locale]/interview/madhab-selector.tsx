@@ -12,7 +12,7 @@ import {
 } from "@/interview/madhabs";
 
 const buttonClass =
-  "rounded-md border border-current px-4 py-2 text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-disabled:opacity-60";
+  "min-h-11 rounded-md border border-current px-4 py-2 text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-disabled:opacity-60";
 
 const NOTICE_ID = "madhab-default-notice";
 

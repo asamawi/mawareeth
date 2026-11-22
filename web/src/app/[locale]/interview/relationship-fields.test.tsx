@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { RELATIONSHIP_IDS, type Gender, type HeirOptions } from "@/api/case";
@@ -8,9 +8,30 @@ import { messages, type Locale } from "@/i18n/messages";
 import type { HeirValues } from "@/interview/answers";
 import { installDom, teardownDom } from "@/test/dom";
 
-import { HeirForm } from "./heir-form";
+import { errorText } from "./form-bits";
+import { RelationshipFields } from "./relationship-fields";
 
 const NONE: HeirOptions = { blocked: [], invalid: {} };
+
+function Harness(props: {
+  messages: (typeof messages)["en"]["interview"]; initial: HeirValues; editing: boolean; options: HeirOptions;
+  deceasedGender: Gender; saving: boolean; errors: Record<string, string> | null;
+  onChange: (values: HeirValues, field: string) => void; onBlur: (field: string, values: HeirValues) => void;
+}) {
+  const [values, setValues] = useState(props.initial);
+  return (
+    <RelationshipFields messages={props.messages} options={props.options} deceasedGender={props.deceasedGender}
+      labelBlocked={!props.editing} value={values.relationship} frozen={props.saving}
+      relationshipError={errorText(props.messages, "relationship", props.errors)}
+      onChange={(value) => {
+        if (props.saving) return;
+        const next = { ...values, relationship: value };
+        setValues(next);
+        props.onChange(next, "relationship");
+      }}
+      onBlur={() => props.onBlur("relationship", values)} />
+  );
+}
 
 async function mount(
   props: {
@@ -26,7 +47,6 @@ async function mount(
   const dom = installDom("https://localhost/en/interview/");
   const changes: { values: HeirValues; field: string }[] = [];
   const blurs: { field: string; values: HeirValues }[] = [];
-  const submits: HeirValues[] = [];
   const locale = props.locale ?? "en";
   const node = document.createElement("div");
   document.body.append(node);
@@ -34,19 +54,16 @@ async function mount(
   await act(async () => {
     root.render(
       <div dir={locale === "ar" ? "rtl" : "ltr"}>
-        <HeirForm
+        <Harness
           messages={messages[locale].interview}
           initial={props.initial ?? { relationship: "", name: "" }}
           errors={props.errors ?? null}
-          notice={null}
           saving={props.saving ?? false}
           editing={props.editing ?? false}
           options={props.options ?? NONE}
           deceasedGender={props.gender ?? "male"}
           onChange={(values, field) => changes.push({ values, field })}
           onBlur={(field, values) => blurs.push({ field, values })}
-          onSubmit={(values) => submits.push(values)}
-          onCancel={() => {}}
         />
       </div>,
     );
@@ -55,7 +72,7 @@ async function mount(
   const select = () => node.querySelector<HTMLSelectElement>("#heir-relationship-rare");
   const moreButton = () => node.querySelector<HTMLButtonElement>("button[aria-controls]");
   return {
-    node, changes, blurs, submits, radios, select, moreButton,
+    node, changes, blurs, radios, select, moreButton,
     async click(el: Element) {
       await act(async () => { el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); });
     },
@@ -188,7 +205,7 @@ test("blur fires once when focus leaves the picker, not between its controls", a
     await ui.focusOut(first, second);
     await ui.focusOut(second, ui.moreButton());
     assert.equal(ui.blurs.length, 0);
-    await ui.focusOut(second, document.querySelector("#heir-name"));
+    await ui.focusOut(second, document.body);
     assert.equal(ui.blurs.length, 1);
     assert.equal(ui.blurs[0].field, "relationship");
   } finally { await ui.close(); }
@@ -210,5 +227,15 @@ test("Arabic renders the labels and the reveal button", async () => {
     assert.equal(ui.node.querySelector("legend")!.textContent, m.heirRelationshipLabel);
     assert.equal(ui.moreButton()!.textContent, m.heirMoreRelatives);
     assert.equal(ui.radios()[1].closest("label")!.textContent, m.relationships.son);
+  } finally { await ui.close(); }
+});
+
+test("the relationship error slot is not a live region", async () => {
+  const ui = await mount({ errors: { relationship: "required" } });
+  try {
+    const el = ui.node.querySelector("#heir-relationship-error")!;
+    assert.equal(el.hasAttribute("role"), false);
+    assert.equal(el.children.length, 0);
+    assert.notEqual(el.textContent, "");
   } finally { await ui.close(); }
 });

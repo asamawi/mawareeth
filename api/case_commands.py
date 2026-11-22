@@ -14,6 +14,7 @@ import json
 from django.utils import timezone
 
 from api import anonymous_case
+from api.snapshots import SnapshotError
 from engine.queries import delete_impact
 from calc.adapters import family_from_session
 
@@ -111,10 +112,12 @@ def remove_impact(case, heir_id):
     """What removing this row would drop besides the row's own person, from the engine."""
     rows = anonymous_case._rows(case)
     row = rows.get(heir_id)
-    if row is None or case['deceased'] is None:
+    if case['deceased'] is None or (row is None and not any(
+            p['id'] == heir_id for p in case.get('died_before', []))):
         return None
-    person = anonymous_case._person(row)
-    family, _ = family_from_session(case)
+    person = anonymous_case._person(row) if row else heir_id
+    # Removing a row drops its edges and nothing linked through them, so the impact ignores edges.
+    family, _ = family_from_session({**case, 'edges': []})
     found = delete_impact(family, person, estate=_layer_order(case, heir_id))
     return {'persons': [p for p in found.persons if p != person], 'estates': list(found.estates)}
 
@@ -191,4 +194,10 @@ def restore(request, snapshot, case_id):
         raise InvalidSnapshot()
     if not same:
         raise InvalidSnapshot()
-    return anonymous_case._store_case(request, value)
+    # An absent key means no lineage: replace, never merge with what the case holds.
+    value.setdefault('died_before', [])
+    try:
+        return anonymous_case._store_case(request, value)
+    except SnapshotError:
+        # Lineage the snapshot writer in use cannot store: nothing was written.
+        raise InvalidSnapshot()

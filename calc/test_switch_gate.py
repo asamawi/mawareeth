@@ -127,6 +127,40 @@ class SweepSwitchGateTests(SwitchGate, TransactionTestCase):
         self.sweep(core_families())
 
 
+class LegacyHeirSexTests(TransactionTestCase):
+    def test_heir_gender_follows_the_class_not_the_stored_sex(self):
+        from calc.models import Father, Wife
+
+        def allocations(sex):
+            calc, rows = build_case('M', [Father, Wife])
+            Father.objects.filter(pk=rows[0].pk).update(sex=sex)
+            family, _ids = family_from_calculation(calc)
+            result = engine.calculate(family, engine.school_rule_set('hanbali'))
+            self.assertEqual(result.status, 'calculated')
+            return [(a.share, a.kind) for a in result.allocations]
+
+        expected = allocations('M')
+        self.assertEqual(allocations('F'), expected)
+        self.assertEqual(allocations(''), expected)
+
+    def test_later_estate_only_heir_gender_follows_the_class(self):
+        from calc.models import Heir, Son, Wife
+
+        def shares(sex):
+            calc, rows = build_case('M', [Wife, Son])
+            _layer, later = build_layer(calc, rows[1], 'M', [Son], order=2)
+            Heir.objects.filter(pk=later[0].pk).update(sex=sex)
+            family, _ids = family_from_calculation(calc)
+            result = engine.calculate(family, engine.school_rule_set('hanbali'))
+            self.assertEqual(result.status, 'calculated')
+            return (sorted(a.share for a in result.allocations),
+                    sorted(a.share for a in result.layers[0].allocations))
+
+        expected = shares('M')
+        self.assertEqual(shares('F'), expected)
+        self.assertEqual(shares(''), expected)
+
+
 @tag('slow')
 class LayeredSwitchGateTests(SwitchGate, TransactionTestCase):
     def test_later_deaths(self):

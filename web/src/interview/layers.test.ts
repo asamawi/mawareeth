@@ -10,12 +10,13 @@ import {
   breadcrumb,
   deathOf,
   deceasedLabel,
+  estatePath,
   hasDeaths,
   keepLayer,
   layerAt,
   layersOf,
-  linkCandidates,
   personOf,
+  placementRootOf,
   rowLabels,
   rowsOf,
 } from "./layers.ts";
@@ -90,28 +91,6 @@ test("rows are found in any layer, and a person is their earliest row", () => {
   assert.equal(personOf(rows.get("w")!.row), "w");
   assert.equal(deathOf(CASE, "w")?.order, 3);
   assert.equal(deathOf(CASE, "s2"), undefined);
-});
-
-test("link candidates: earlier layers only, minus the deceased, people already there and the earlier dead", () => {
-  // The first layer has nobody to link to.
-  assert.deepEqual(linkCandidates(CASE, null), []);
-  // S1's layer: W and S2 are in it already, and S1 is its deceased.
-  assert.deepEqual(linkCandidates(CASE, "s1"), []);
-  // Without the two links, W and S2 are offered, and S1 is not.
-  const bare: Case = { ...CASE, deaths: [{ ...CASE.deaths[0], heirs: [CASE.deaths[0].heirs[2]] }] };
-  assert.deepEqual(linkCandidates(bare, "s1").map((row) => row.id), ["w", "s2"]);
-  // W's layer: S1 died before W, W is the deceased, S2 is in it already, so only R3 (a layer-2 person).
-  assert.deepEqual(linkCandidates(CASE, "w").map((row) => row.id), ["r3"]);
-  // A person who dies later than this layer is still offered.
-  const later: Case = {
-    ...CASE,
-    deaths: [
-      { ...CASE.deaths[0], heirs: [CASE.deaths[0].heirs[2]] },
-      { ...CASE.deaths[1], heir_id: "s2", heirs: [] },
-    ],
-  };
-  assert.ok(linkCandidates(later, "s1").some((row) => row.id === "s2"));
-  assert.equal(linkCandidates(later, "nobody").length, 0);
 });
 
 test("labels name every row of every layer by the person's earliest row", () => {
@@ -231,6 +210,18 @@ test("the key follows the deaths, and a result for another layering is not kept"
   assert.deepEqual(reconcile(previewKey(other), other.id, outcome), { kind: "replaced" });
 });
 
+test("the estate path runs from the first deceased through the earlier estate that holds the person", () => {
+  const row = (id: string, same_as?: string) => ({ id, relationship: "son" as const, gender: "male" as const, name: null, ...(same_as ? { same_as } : {}), edit_options: NONE });
+  const death = (heir_id: string, order: 2 | 3, heirs: ReturnType<typeof row>[]) => ({ heir_id, order, gender: "male" as const, heir_options: NONE, heirs });
+  const nested = { deaths: [death("a", 2, [row("x")]), death("x", 3, [])] };
+  assert.deepEqual(estatePath(nested, null), [null]);
+  assert.deepEqual(estatePath(nested, "a"), [null, "a"]);
+  assert.deepEqual(estatePath(nested, "x"), [null, "a", "x"]);
+  const siblings = { deaths: [death("a", 2, []), death("b", 3, [])] };
+  assert.deepEqual(estatePath(siblings, "b"), [null, "b"]);
+  assert.deepEqual(estatePath(siblings, "gone"), [null]);
+});
+
 test("a preview waits for every person who died to have heirs", () => {
   assert.equal(previewReady(CASE), true);
   assert.equal(previewReady({ ...CASE, deaths: [{ ...CASE.deaths[0], heirs: [] }] }), false);
@@ -262,16 +253,16 @@ test("names cannot inject placeholders or replacement patterns", async () => {
   assert.equal(deathLayerText("{label} ({order})", "{order} $&", "second"), "{order} $& (second)");
 });
 
-test("removing a death warns only for the person's last row across all layers", async () => {
-  const { removesDeath } = await import("./layers.ts");
-  assert.equal(removesDeath(CASE, "w"), false);
-  assert.equal(removesDeath(CASE, "r1"), false);
-  assert.equal(removesDeath(CASE, "s1"), true);
-  assert.equal(removesDeath(CASE, "s2"), false);
-  assert.equal(removesDeath(CASE, "missing"), false);
-  const onlyLater = { ...CASE, heirs: CASE.heirs.filter((row) => row.id !== "w"), deaths: [
-    { ...CASE.deaths[0], heirs: CASE.deaths[0].heirs.map((row) => row.id === "r1" ? { ...row, same_as: undefined } : row) },
-    { ...CASE.deaths[1], heir_id: "r1" },
-  ] };
-  assert.equal(removesDeath(onlyLater, "r1"), true);
+test("placementRootOf: the first deceased, a later death, an unknown layer and an absent placement", () => {
+  const root = [{ relationship: "mother" as const, link: "parent" as const, blocked: false }];
+  const deathRoot = [{ relationship: "wife" as const, link: "spouse" as const, blocked: false }];
+  const kase = {
+    placement: { root },
+    deaths: [{ ...CASE.deaths[0], placement: { root: deathRoot } }],
+  };
+  assert.equal(placementRootOf(kase, null), root);
+  assert.equal(placementRootOf(kase, CASE.deaths[0].heir_id), deathRoot);
+  assert.equal(placementRootOf(kase, "nobody"), undefined);
+  assert.equal(placementRootOf({ deaths: [{ ...CASE.deaths[0] }] }, null), undefined);
+  assert.equal(placementRootOf({ deaths: [{ ...CASE.deaths[0] }] }, CASE.deaths[0].heir_id), undefined);
 });

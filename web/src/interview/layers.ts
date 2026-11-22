@@ -1,4 +1,4 @@
-import type { Case, Death, Gender, Heir, HeirOptions } from "../api/case.ts";
+import type { Case, Death, Gender, Heir, HeirOptions, PlacementOption } from "../api/case.ts";
 import { heirLabels } from "./answers.ts";
 
 /**
@@ -53,6 +53,15 @@ export function layerAt(kase: Pick<Case, "deceased" | "heirs" | "heir_options" |
   return layers.find((layer) => layer.id === id) ?? layers[0];
 }
 
+/** The engine's placement for the active estate's deceased; undefined when the server sent none. */
+export function placementRootOf(
+  kase: Pick<Case, "placement" | "deaths">,
+  layerId: string | null,
+): PlacementOption[] | undefined {
+  const placement = layerId === null ? kase.placement : kase.deaths.find((death) => death.heir_id === layerId)?.placement;
+  return placement?.root;
+}
+
 /** After a write: the active layer stays only while its death still exists. */
 export function keepLayer(id: string | null, kase: Pick<Case, "deaths">): string | null {
   return id !== null && kase.deaths.some((death) => death.heir_id === id) ? id : null;
@@ -70,32 +79,6 @@ export function rowsOf(kase: Pick<Case, "deceased" | "heirs" | "heir_options" | 
 /** The death of a person (by their earliest row's id), if any. */
 export function deathOf(kase: Pick<Case, "deaths">, personId: string): Death | undefined {
   return kase.deaths.find((death) => death.heir_id === personId);
-}
-
-/**
- * The people an added row in this layer could be: those whose earliest row is in an earlier layer,
- * minus this layer's deceased, people already in the layer, and people who died before this layer's
- * death. Gender and aliveness are left to the server's codes.
- */
-export function linkCandidates(
-  kase: Pick<Case, "deceased" | "heirs" | "heir_options" | "deaths">,
-  layerId: string | null,
-): Heir[] {
-  const layers = layersOf(kase);
-  const at = layers.findIndex((layer) => layer.id === layerId);
-  if (at <= 0) return [];
-  const layer = layers[at];
-  const inLayer = new Set(layer.heirs.map(personOf));
-  const candidates: Heir[] = [];
-  for (const earlier of layers.slice(0, at)) {
-    for (const row of earlier.heirs) {
-      if (row.same_as !== undefined || row.id === layer.id || inLayer.has(row.id)) continue;
-      const death = deathOf(kase, row.id);
-      if (death && death.order < layer.order) continue;
-      candidates.push(row);
-    }
-  }
-  return candidates;
 }
 
 /** Puts the two names into the "{heir} of {deceased}" sentence, with no replacer patterns. */
@@ -166,15 +149,26 @@ export function deceasedLabel(
   return breadcrumb(kase, relationships, numbered).find((crumb) => crumb.id === layerId)?.label ?? null;
 }
 
-/** Whether removing this row also removes its person's death and heirs. */
-export function removesDeath(kase: Case, rowId: string): boolean {
-  const rows = [...rowsOf(kase).values()].map(({ row }) => row);
-  const row = rows.find((row) => row.id === rowId);
-  return row !== undefined && deathOf(kase, personOf(row)) !== undefined &&
-    rows.filter((other) => personOf(other) === personOf(row)).length === 1;
-}
-
 /** Substitute a layer label without interpreting names as placeholders or replacement patterns. */
 export function deathLayerText(template: string, label: string, order: string): string {
   return template.replace(/\{label\}|\{order\}/g, (token) => token === "{label}" ? label : order);
+}
+
+/**
+ * The estate levels from the first deceased down to the active one, as layer ids (null is the
+ * first deceased). The parent of a later death is the latest earlier death whose estate holds a
+ * row of that person, else the first deceased, so a path has at most three levels.
+ */
+export function estatePath(kase: Pick<Case, "deaths">, activeId: string | null): (string | null)[] {
+  const path: (string | null)[] = [];
+  let at = keepLayer(activeId, kase);
+  while (at !== null) {
+    path.unshift(at);
+    const death = deathOf(kase, at)!;
+    const parent = kase.deaths
+      .filter((earlier) => earlier.order < death.order && earlier.heirs.some((row) => personOf(row) === death.heir_id))
+      .sort((a, b) => b.order - a.order)[0];
+    at = parent ? parent.heir_id : null;
+  }
+  return [null, ...path];
 }

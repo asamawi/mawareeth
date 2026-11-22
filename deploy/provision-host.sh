@@ -27,6 +27,10 @@ source "$config_file"
 validate_cidrs() {
   [[ -n "${SSH_ALLOWED_CIDRS:-}" ]] || die 'SSH_ALLOWED_CIDRS is required'
   local cidr
+  # Checked on the raw value: read -a drops a trailing empty field and a
+  # here-string read stops at the first newline.
+  [[ "$SSH_ALLOWED_CIDRS" != *[[:space:]]* ]] || die 'SSH_ALLOWED_CIDRS must be a comma-separated list without spaces or newlines'
+  [[ "$SSH_ALLOWED_CIDRS" != ,* && "$SSH_ALLOWED_CIDRS" != *, ]] || die 'SSH_ALLOWED_CIDRS contains an empty CIDR'
   IFS=',' read -r -a cidrs <<<"$SSH_ALLOWED_CIDRS"
   ((${#cidrs[@]} > 0)) || die 'SSH_ALLOWED_CIDRS must contain at least one CIDR'
   for cidr in "${cidrs[@]}"; do
@@ -105,10 +109,26 @@ for required in HETZNER_TOKEN SERVER_NAME HETZNER_SSH_KEY_NAME SSH_PUBLIC_KEY AD
   [[ -n "${!required:-}" ]] || die "$required is required"
 done
 [[ -r "$SSH_PUBLIC_KEY" ]] || die 'SSH_PUBLIC_KEY must name a readable public-key file'
+# A key file must be a regular file whose mode has none of the forbidden bits set.
+mode_clear() { # path forbidden-octal-bits
+  python3 - "$1" "$2" <<'PY'
+import os
+import stat
+import sys
+st = os.stat(sys.argv[1])
+if not stat.S_ISREG(st.st_mode) or st.st_mode & int(sys.argv[2], 8):
+    sys.exit(1)
+PY
+}
+mode_clear "$SSH_PUBLIC_KEY" 022 || die 'SSH_PUBLIC_KEY must be a regular file not writable by group or others'
 [[ "$(grep -c '[^[:space:]]' "$SSH_PUBLIC_KEY")" -eq 1 ]] || die 'SSH_PUBLIC_KEY must contain exactly one key on a single line'
 [[ -r "$ADMIN_SSH_PRIVATE_KEY" ]] || die 'ADMIN_SSH_PRIVATE_KEY must name a readable private-key file'
+mode_clear "$ADMIN_SSH_PRIVATE_KEY" 077 || die 'ADMIN_SSH_PRIVATE_KEY must be a regular file not accessible by group or others (chmod 600)'
 [[ "$SERVER_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]] || die 'SERVER_NAME is invalid'
 [[ "$HETZNER_SSH_KEY_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$ ]] || die 'HETZNER_SSH_KEY_NAME is invalid'
+# hcloud resolves a numeric argument as an ID first, so names must never be all digits.
+[[ ! "$SERVER_NAME" =~ ^[0-9]+$ ]] || die 'SERVER_NAME must not be all digits (hcloud reads a number as an ID)'
+[[ ! "$HETZNER_SSH_KEY_NAME" =~ ^[0-9]+$ ]] || die 'HETZNER_SSH_KEY_NAME must not be all digits (hcloud reads a number as an ID)'
 require_command python3
 validate_cidrs
 validate_web_sources
@@ -121,11 +141,23 @@ require_command ssh-keygen
 export HCLOUD_TOKEN="$HETZNER_TOKEN"
 FIREWALL_NAME="${FIREWALL_NAME:-${SERVER_NAME}-edge}"
 [[ "$FIREWALL_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$ ]] || die 'FIREWALL_NAME is invalid'
+[[ ! "$FIREWALL_NAME" =~ ^[0-9]+$ ]] || die 'FIREWALL_NAME must not be all digits (hcloud reads a number as an ID)'
 ADMIN_USER="${ADMIN_USER:-mawareeth-admin}"
 [[ "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die 'ADMIN_USER is invalid'
 
 configured_key="$(tr -d '\r\n' < "$SSH_PUBLIC_KEY")"
-private_key="$(ssh-keygen -y -f "$ADMIN_SSH_PRIVATE_KEY")" || die 'ADMIN_SSH_PRIVATE_KEY is not a usable private key'
+# An empty passphrase and no stdin keep an encrypted key from waiting at a prompt;
+# ssh-keygen then reports "incorrect passphrase", which gets its own refusal.
+keygen_err="$(mktemp)"
+if ! private_key="$(LC_ALL=C ssh-keygen -y -P '' -f "$ADMIN_SSH_PRIVATE_KEY" 2>"$keygen_err" </dev/null)"; then
+  keygen_msg="$(cat "$keygen_err")"
+  rm -f "$keygen_err"
+  if [[ "$keygen_msg" == *'incorrect passphrase'* ]]; then
+    die 'ADMIN_SSH_PRIVATE_KEY is passphrase-protected; provisioning needs a key usable without a prompt'
+  fi
+  die 'ADMIN_SSH_PRIVATE_KEY is not a usable private key'
+fi
+rm -f "$keygen_err"
 # Compare only the key type and base64 data; ssh-keygen -y echoes back whatever
 # comment is embedded in the private key (notably always for ed25519), so
 # comparing full lines or assuming one side is bare produces false mismatches.
@@ -134,32 +166,74 @@ IFS=' ' read -r private_type private_data _ <<<"$private_key"
 [[ -n "$configured_type" && -n "$configured_data" ]] || die 'SSH_PUBLIC_KEY must contain a key type and base64 key data'
 [[ "$configured_type $configured_data" == "$private_type $private_data" ]] || die 'configured public and private SSH keys do not match'
 
-# hcloud --output json returns the bare object in current releases and wrapped it
-# in a resource key (.server, .ssh_key, .firewall) in older ones; accept both.
+# Look up the server, SSH key and firewall by exact name with `list`, before any
+# provider change. A failed lookup (auth, network, rate limit) must never read as
+# "absent": only a successful array without a match means the resource is missing.
+# Sets lookup_json to the single matching object, or to '' when there is none.
+lookup_by_name() { # label resource name
+  local label="$1" resource="$2" name="$3" listing matches count
+  local failure="could not look up Hetzner $label \"$name\"; check HETZNER_TOKEN and connectivity"
+  listing="$(hcloud "$resource" list -o json 2>/dev/null </dev/null)" || die "$failure"
+  matches="$(jq -c --arg name "$name" 'if . == null then [] elif type == "array" then map(select(.name == $name)) else error("not an array") end' <<<"$listing" 2>/dev/null)" || die "$failure"
+  [[ -n "$matches" ]] || die "$failure"
+  count="$(jq 'length' <<<"$matches")"
+  case "$count" in
+    0) lookup_json='' ;;
+    1) lookup_json="$(jq -c '.[0]' <<<"$matches")" ;;
+    *) die "Hetzner $label \"$name\" is ambiguous (more than one match); operator decision required" ;;
+  esac
+}
+# True when every attachment of the firewall is the server with this id; a label
+# selector counts as another attachment even if it matches only this host today.
+firewall_only_on_server() { # server-id firewall-json
+  jq -e --arg server_id "$1" 'all((.firewall // .).applied_to[]?; .type == "server" and (.server.id | tostring) == $server_id)' <<<"$2" >/dev/null
+}
+lookup_by_name server server "$SERVER_NAME"
+server_json="$lookup_json"
+lookup_by_name 'SSH key' ssh-key "$HETZNER_SSH_KEY_NAME"
+key_json="$lookup_json"
+lookup_by_name firewall firewall "$FIREWALL_NAME"
+firewall_json="$lookup_json"
+
 # Inspect an existing host before changing any provider resource. A matching name
 # must be explicitly labelled as a baseline host before this script may reconcile it.
 server_exists=false
-if hcloud server describe "$SERVER_NAME" --output json >/dev/null 2>&1; then
+if [[ -n "$server_json" ]]; then
   server_exists=true
-  server_json="$(hcloud server describe "$SERVER_NAME" --output json)"
-  type="$(jq -r '(.server // .).server_type.name' <<<"$server_json")"
+  type="$(jq -r '.server_type.name' <<<"$server_json")"
   # Current releases report .location; older ones only .datacenter.location.
-  location="$(jq -r '(.server // .) | (.location.name // .datacenter.location.name)' <<<"$server_json")"
-  image="$(jq -r '(.server // .).image.name' <<<"$server_json")"
-  managed="$(jq -r '(.server // .).labels.mawareeth_host_baseline // empty' <<<"$server_json")"
-  existing_server_id="$(jq -r '(.server // .).id' <<<"$server_json")"
+  location="$(jq -r '.location.name // .datacenter.location.name' <<<"$server_json")"
+  image="$(jq -r '.image.name' <<<"$server_json")"
+  managed="$(jq -r '.labels.mawareeth_host_baseline // empty' <<<"$server_json")"
+  existing_server_id="$(jq -r '.id' <<<"$server_json")"
   [[ "$type" == cx33 && "$location" == nbg1 && "$image" == ubuntu-24.04 && "$managed" == 1 ]] || die 'existing server is conflicting or not managed by this baseline; operator decision required'
 fi
 
 # A named key is reused; a different public key under the same identity is an operator decision.
-if ! hcloud ssh-key describe "$HETZNER_SSH_KEY_NAME" >/dev/null 2>&1; then
-  hcloud ssh-key create --name "$HETZNER_SSH_KEY_NAME" --public-key-from-file "$SSH_PUBLIC_KEY" >/dev/null
-else
-  existing_key="$(hcloud ssh-key describe "$HETZNER_SSH_KEY_NAME" --output json | jq -r '(.ssh_key // .).public_key')"
+if [[ -n "$key_json" ]]; then
+  existing_key="$(jq -r '.public_key' <<<"$key_json")"
   # Compare only type and base64 data, matching the private-key comparison above:
   # Hetzner may normalize or drop the comment, producing a false mismatch otherwise.
   IFS=' ' read -r existing_type existing_data _ <<<"$existing_key"
   [[ "$configured_type $configured_data" == "$existing_type $existing_data" ]] || die 'existing SSH-key identity has different public key; operator decision required'
+fi
+
+# An existing firewall must belong to this host alone, whatever way it is attached.
+if [[ -n "$firewall_json" ]]; then
+  if [[ "$server_exists" == false ]] && ! firewall_only_on_server none "$firewall_json"; then
+    die 'configured firewall is already attached to another server; operator decision required'
+  fi
+  if [[ "$server_exists" == true ]] && ! firewall_only_on_server "$existing_server_id" "$firewall_json"; then
+    die 'configured firewall is shared with another server; operator decision required'
+  fi
+fi
+
+# Every refusal above happens before the first provider change below.
+if [[ -z "$key_json" ]]; then
+  hcloud ssh-key create --name "$HETZNER_SSH_KEY_NAME" --public-key-from-file "$SSH_PUBLIC_KEY" >/dev/null
+fi
+if [[ -z "$firewall_json" ]]; then
+  hcloud firewall create --name "$FIREWALL_NAME" >/dev/null
 fi
 
 # Replace the rule set atomically: public web only (from everywhere, or only
@@ -172,19 +246,14 @@ rules_payload="$(jq -n --argjson ssh_sources "$cidr_json" --argjson web_sources 
     {direction: "in", protocol: "tcp", port: "80", source_ips: $web_sources},
     {direction: "in", protocol: "tcp", port: "443", source_ips: $web_sources}
   ] + ($ssh_sources | map({direction: "in", protocol: "tcp", port: "22", source_ips: [.]})))}')"
-if hcloud firewall describe "$FIREWALL_NAME" >/dev/null 2>&1; then
-  firewall_json="$(hcloud firewall describe "$FIREWALL_NAME" --output json)"
-  if [[ "$server_exists" == false ]] && jq -e '(.firewall // .).applied_to | length > 0' <<<"$firewall_json" >/dev/null; then
-    die 'configured firewall is already attached to another server; operator decision required'
-  fi
-  # applied_to identifies servers by id only in current API responses.
-  if [[ "$server_exists" == true ]] && ! jq -e --arg server_id "$existing_server_id" 'all((.firewall // .).applied_to[]?; .type != "server" or (.server.id | tostring) == $server_id)' <<<"$firewall_json" >/dev/null; then
-    die 'configured firewall is shared with another server; operator decision required'
-  fi
-else
-  hcloud firewall create --name "$FIREWALL_NAME" >/dev/null
-fi
+# hcloud --output json returns the bare object in current releases and wrapped it
+# in a resource key (.firewall) in older ones; accept both.
 firewall_json="$(hcloud firewall describe "$FIREWALL_NAME" --output json)"
+if [[ "$server_exists" == true ]]; then
+  firewall_only_on_server "$existing_server_id" "$firewall_json" || die 'configured firewall is shared with another server; operator decision required'
+else
+  firewall_only_on_server none "$firewall_json" || die 'configured firewall is already attached to another server; operator decision required'
+fi
 firewall_id="$(jq -r '(.firewall // .).id' <<<"$firewall_json")"
 [[ "$firewall_id" =~ ^[0-9]+$ ]] || die 'could not determine the firewall id'
 # Pass the bearer token via a curl config file rather than argv, so it is not
@@ -218,6 +287,8 @@ hcloud server enable-protection "$SERVER_NAME" delete rebuild >/dev/null
 server_json="$(hcloud server describe "$SERVER_NAME" --output json)"
 server_id="$(jq -r '(.server // .).id' <<<"$server_json")"
 firewall_json="$(hcloud firewall describe "$FIREWALL_NAME" --output json)"
+# The firewall may have gained a selector or another server since the lookup.
+firewall_only_on_server "$server_id" "$firewall_json" || die 'configured firewall is shared with another server; operator decision required'
 if ! jq -e --arg server_id "$server_id" '(.firewall // .).applied_to[]? | select(.type == "server" and (.server.id | tostring) == $server_id)' <<<"$firewall_json" >/dev/null; then
   hcloud firewall apply-to-resource "$FIREWALL_NAME" --type server --server "$SERVER_NAME" >/dev/null
 fi

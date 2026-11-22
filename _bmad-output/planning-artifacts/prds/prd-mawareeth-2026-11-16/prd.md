@@ -129,7 +129,7 @@ The calculation, comparison, proof and draft PDF stay free. Mawareeth remains a 
 - **Heir:** a relative of the Deceased entered in a Case, with a relationship and an optional name. An Heir can be marked as having died before the Deceased, to carry their descendants for an Obligatory bequest.
 - **Interview:** the guided screens where the user enters the Deceased, estate and Heirs.
 - **Family tree:** the visual diagram of the Deceased and Heirs in the Interview. Heirs can be added, edited and deleted from it.
-- **Share preview:** the live share table beside the Interview.
+- **Share preview:** the live share table for the Interview, opened from its summary bar.
 - **Full results:** the results page with shares, proof, PDF, save and share.
 - **School:** one of the four Sunni schools of Islamic law: Hanafi, Maliki, Shafi'i, Hanbali.
 - **Country law:** the inheritance rules of one country's statute.

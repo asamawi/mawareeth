@@ -21,5 +21,13 @@
       2
     ],
     "writes": 2
+  },
+  {
+    "image": "9.1b lineage (edges and died-before in schema 2)",
+    "reads": [
+      1,
+      2
+    ],
+    "writes": 2
   }
 ]

@@ -105,6 +105,15 @@ class CapacityTests(TransactionTestCase):
         self.assertFalse(json.loads(lines[0])["passed"])
         self.assertIn("budget missed: standard_school engine", lines)
         self.assertIn("budget missed: standard_compare engine", lines)
+        self.assertIn("budget missed: fifty_compare placement", lines)
+        self.assertFalse(json.loads(lines[0])["workloads"]["fifty_compare"]["placement"]["passed"])
+
+    def test_placement_fits_the_engine_budget_for_fifty_heirs(self):
+        with patch("api.capacity.WORKLOADS", ("fifty_compare",)), patch("api.capacity.TOTAL_BUDGET_MS", 100000):
+            result = Harness().run(3, False)
+        placement = result["workloads"]["fifty_compare"]["placement"]
+        self.assertEqual(placement["n"], 3)
+        self.assertTrue(placement["passed"], placement)
 
     def test_end_to_end_budget_miss(self):
         out = io.StringIO()

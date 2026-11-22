@@ -18,6 +18,13 @@ export type Stubs = {
   getCase?: Answer;
   postCase?: Answer;
   patchCase?: Answer;
+  putDeceased?: Answer;
+  postHeir?: Answer;
+  postBulk?: Answer;
+  postRestore?: Answer;
+  postDeath?: Answer;
+  putHeir?: Answer;
+  deleteHeir?: Answer;
   getPreview?: Answer;
 };
 
@@ -41,6 +48,15 @@ export class Api {
   caseGets = 0;
   casePosts: { body: string; csrf: string | undefined }[] = [];
   casePatches: { body: string; csrf: string | undefined }[] = [];
+  deceasedPuts: { body: string; csrf: string | undefined }[] = [];
+  heirPosts: { body: string; csrf: string | undefined }[] = [];
+  bulkPosts: { body: string; csrf: string | undefined }[] = [];
+  restorePosts: { body: string; csrf: string | undefined }[] = [];
+  deathPosts: { body: string; csrf: string | undefined }[] = [];
+  heirPuts: string[] = [];
+  /** The order the mocked writes arrived in. */
+  writes: string[] = [];
+  heirDeletes: URL[] = [];
   previewGets = 0;
 
   set(stubs: Stubs): void {
@@ -67,6 +83,38 @@ export class Api {
       if (pathname === "/api/v1/case/" && method === "PATCH") {
         this.casePatches.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
         return this.answer(route, this.stubs.patchCase, "patch case");
+      }
+      if (pathname === "/api/v1/case/deceased/" && method === "PUT") {
+        this.deceasedPuts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.putDeceased, "put deceased");
+      }
+      if (pathname === "/api/v1/case/heirs/" && method === "POST") {
+        this.heirPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.postHeir, "post heir");
+      }
+      if (pathname === "/api/v1/case/heirs/bulk/" && method === "POST") {
+        this.bulkPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.postBulk, "bulk add");
+      }
+      if (pathname === "/api/v1/case/restore/" && method === "POST") {
+        this.restorePosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.postRestore, "restore");
+      }
+      if (pathname === "/api/v1/case/deaths/" && method === "POST") {
+        this.deathPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        this.writes.push("post death");
+        return this.answer(route, this.stubs.postDeath, "post death");
+      }
+      if (/^\/api\/v1\/case\/heirs\/[^/]+\/$/.test(pathname)) {
+        if (method === "PUT") {
+          this.heirPuts.push(request.postData() ?? "");
+          this.writes.push("put heir");
+          return this.answer(route, this.stubs.putHeir, "put heir");
+        }
+        if (method === "DELETE") {
+          this.heirDeletes.push(new URL(request.url()));
+          return this.answer(route, this.stubs.deleteHeir, "delete heir");
+        }
       }
       if (pathname === "/api/v1/case/preview/" && method === "GET") {
         this.previewGets += 1;

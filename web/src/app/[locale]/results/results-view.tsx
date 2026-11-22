@@ -18,10 +18,12 @@ import {
   type ResultEntry,
 } from "@/interview/results";
 
+import { estateModel } from "@/interview/tree";
 import { FamilyTree } from "../interview/family-tree";
 import { crumbTextOf } from "../interview/death-breadcrumb";
 import { buttonClass } from "../interview/form-bits";
 import { RelationshipText } from "../interview/relationship-text";
+import { useOnline } from "../interview/online";
 import { SchoolChoice } from "../interview/school-choice";
 import { AuthGate } from "./auth-gate";
 import { InheritanceTable, ProofList } from "./inheritance-table";
@@ -164,6 +166,7 @@ function ChooseSchool({
   onChosen: () => void;
 }) {
   const interview = messages.interview;
+  const online = useOnline();
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState<"failed" | "throttled" | null>(null);
   const labels = useMemo(
@@ -180,7 +183,7 @@ function ChooseSchool({
     };
   }, []);
   async function choose(madhab: SunniId) {
-    if (saving) return;
+    if (saving || !navigator.onLine) return;
     const own = new AbortController();
     request.current = own;
     setSaving(true);
@@ -193,11 +196,12 @@ function ChooseSchool({
   }
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+      {!online && <p role="status" className="text-sm">{interview.offlineEditing}</p>}
       <SchoolChoice
         messages={interview}
         preview={preview}
         labels={labels}
-        disabled={saving}
+        disabled={saving || !online}
         failed={failed}
         onChoose={(madhab) => void choose(madhab)}
       />
@@ -331,9 +335,10 @@ export function Available({
             <FamilyTree
               key={layer.id ?? "first"}
               messages={interview}
-              gender={layer.gender ?? kase.deceased?.gender ?? "male"}
+              model={estateModel(kase, layer.id, presented ?? null)}
+              locale={locale}
+              onAnnounce={() => {}}
               rootText={crumb && crumb.id !== null ? crumbTextOf(interview, crumb) : undefined}
-              heirs={layer.heirs}
               editingId={null}
             />
           );

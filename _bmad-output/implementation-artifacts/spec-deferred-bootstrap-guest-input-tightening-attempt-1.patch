@@ -1,0 +1,104 @@
+diff --git a/deploy/bootstrap-host.sh b/deploy/bootstrap-host.sh
+index 6af7293..1191012 100755
+--- a/deploy/bootstrap-host.sh
++++ b/deploy/bootstrap-host.sh
+@@ -11,6 +11,10 @@ require_command() { command -v "$1" >/dev/null 2>&1 || die "required command is
+ validate_cidrs() {
+   [[ -n "${SSH_ALLOWED_CIDRS:-}" ]] || die 'SSH_ALLOWED_CIDRS is required'
+   local cidr
++  # Checked on the raw value: read -a drops a trailing empty field and a
++  # here-string read stops at the first newline.
++  [[ "$SSH_ALLOWED_CIDRS" != *[[:space:]]* ]] || die 'SSH_ALLOWED_CIDRS must be a comma-separated list without spaces or newlines'
++  [[ "$SSH_ALLOWED_CIDRS" != ,* && "$SSH_ALLOWED_CIDRS" != *, ]] || die 'SSH_ALLOWED_CIDRS contains an empty CIDR'
+   IFS=',' read -r -a cidrs <<<"$SSH_ALLOWED_CIDRS"
+   ((${#cidrs[@]} > 0)) || die 'SSH_ALLOWED_CIDRS must contain at least one CIDR'
+   for cidr in "${cidrs[@]}"; do
+@@ -31,6 +35,30 @@ validate_admin() {
+   ADMIN_PUBLIC_KEY="${ADMIN_PUBLIC_KEY:-}"
+   [[ "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die 'ADMIN_USER is required and must be valid'
+   [[ "$ADMIN_PUBLIC_KEY" =~ ^(ssh-[a-z0-9]+|ecdsa-sha2-[a-z0-9]+|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-[a-z0-9]+@openssh\.com)[[:space:]] ]] || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
++  # One OpenSSH public-key line: type, base64 blob whose first string is that
++  # type, optional comment. A blob cut short (as in test keys) only has to agree
++  # with the type as far as it goes.
++  python3 - "$ADMIN_PUBLIC_KEY" <<'PY' || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
++import base64
++import re
++import sys
++line = sys.argv[1]
++if '\r' in line or '\n' in line:
++    sys.exit(1)
++fields = line.split()
++if len(fields) < 2:
++    sys.exit(1)
++ktype, payload = fields[0], fields[1]
++if not re.fullmatch(r'[A-Za-z0-9+/]+={0,2}', payload):
++    sys.exit(1)
++body = payload.rstrip('=')
++if len(body) % 4 == 1:
++    body = body[:-1]
++blob = base64.b64decode(body + '=' * (-len(body) % 4), validate=True)
++want = len(ktype.encode()).to_bytes(4, 'big') + ktype.encode()
++if blob[:len(want)] != want[:len(blob)] or len(blob) < 4:
++    sys.exit(1)
++PY
+ }
+ # <<< guest inputs
+ 
+diff --git a/deploy/provision-host.sh b/deploy/provision-host.sh
+index c2268ac..9cd5874 100755
+--- a/deploy/provision-host.sh
++++ b/deploy/provision-host.sh
+@@ -27,6 +27,10 @@ source "$config_file"
+ validate_cidrs() {
+   [[ -n "${SSH_ALLOWED_CIDRS:-}" ]] || die 'SSH_ALLOWED_CIDRS is required'
+   local cidr
++  # Checked on the raw value: read -a drops a trailing empty field and a
++  # here-string read stops at the first newline.
++  [[ "$SSH_ALLOWED_CIDRS" != *[[:space:]]* ]] || die 'SSH_ALLOWED_CIDRS must be a comma-separated list without spaces or newlines'
++  [[ "$SSH_ALLOWED_CIDRS" != ,* && "$SSH_ALLOWED_CIDRS" != *, ]] || die 'SSH_ALLOWED_CIDRS contains an empty CIDR'
+   IFS=',' read -r -a cidrs <<<"$SSH_ALLOWED_CIDRS"
+   ((${#cidrs[@]} > 0)) || die 'SSH_ALLOWED_CIDRS must contain at least one CIDR'
+   for cidr in "${cidrs[@]}"; do
+diff --git a/deploy/tests/test_host_baseline.sh b/deploy/tests/test_host_baseline.sh
+index bc0980c..5f5fcc3 100755
+--- a/deploy/tests/test_host_baseline.sh
++++ b/deploy/tests/test_host_baseline.sh
+@@ -113,6 +113,11 @@ SSH_ALLOWED_CIDRS=not-a-cidr
+ EOF
+ chmod 600 "$tmp/config"
+ if HOST_BASELINE_CONFIG="$tmp/config" bash "$provision" >/dev/null 2>&1; then fail 'malformed CIDR was accepted'; fi
++for bad_cidrs in '203.0.113.0/24,' $'203.0.113.0/24\n198.51.100.0/24'; do
++  { sed '/^SSH_ALLOWED_CIDRS=/d' "$tmp/config"; printf 'SSH_ALLOWED_CIDRS=%q\n' "$bad_cidrs"; } > "$tmp/config-bad"
++  chmod 600 "$tmp/config-bad"
++  if HOST_BASELINE_CONFIG="$tmp/config-bad" bash "$provision" >/dev/null 2>&1; then fail 'provision accepted a malformed CIDR list'; fi
++done
+ printf '%s\n' 'host baseline offline checks passed'
+ 
+ # PUBLIC_WEB_SOURCES on the guest: bootstrap's public-web block, exercised with
+@@ -178,8 +183,12 @@ done
+ guest_refuses validate_cidrs 'SSH_ALLOWED_CIDRS is required'
+ guest_refuses validate_cidrs 'SSH_ALLOWED_CIDRS is required' SSH_ALLOWED_CIDRS=
+ guest_refuses validate_cidrs 'contains an empty CIDR' SSH_ALLOWED_CIDRS=203.0.113.0/24,,198.51.100.0/24
+-# bash's read -a drops a trailing empty field, so a trailing comma is accepted.
+-guest_accepts validate_cidrs SSH_ALLOWED_CIDRS=203.0.113.0/24,
++for cidrs in 203.0.113.0/24, ,203.0.113.0/24; do
++  guest_refuses validate_cidrs 'contains an empty CIDR' "SSH_ALLOWED_CIDRS=$cidrs"
++done
++for cidrs in $'203.0.113.0/24\n198.51.100.0/24' '203.0.113.0/24, 198.51.100.0/24' $'203.0.113.0/24\n'; do
++  guest_refuses validate_cidrs 'without spaces or newlines' "SSH_ALLOWED_CIDRS=$cidrs"
++done
+ for cidrs in not-a-cidr 10.0.0.0/7 0.0.0.0/0 2001:db8::/31 ::/0 203.0.113.0/24,10.0.0.0/7 203.0.113.0/24,2001:db8::/31; do
+   guest_refuses validate_cidrs 'invalid or excessively broad CIDR' "SSH_ALLOWED_CIDRS=$cidrs"
+ done
+@@ -202,6 +211,11 @@ guest_refuses validate_admin 'ADMIN_USER is required and must be valid' "ADMIN_P
+ for key in '' ssh-ed25519 'AAAAC3NzaC1lZDI1NTE5AAAAITest c' 'rsa AAAAB3NzaC1yc2E c'; do
+   guest_refuses validate_admin 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
+ done
++b64_ed="${good_key#ssh-ed25519 }"; b64_ed="${b64_ed%% *}"
++guest_accepts validate_admin ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=ssh-ed25519 $b64_ed"
++for key in 'ssh-ed25519 ' 'ssh-ed25519  ' 'ssh-ed25519 not*base64 c' "ssh-rsa $b64_ed c" "$good_key"$'\n'"ssh-ed25519 $b64_ed evil" "$good_key"$'\r'; do
++  guest_refuses validate_admin 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
++done
+ printf '%s\n' 'bootstrap guest input checks passed'
+ # The sudoers file stays today's: sudo's NOPASSWD ALL already admits the
+ # command-line variables that provisioning passes.

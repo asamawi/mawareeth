@@ -160,11 +160,25 @@ export function previewRows(preview: Extract<Preview, { status: "available" }>):
 }
 
 /** What a request came back with, and what it was asked for. */
-export type Settled<T> = { key: string; attempt: number; outcome: T };
+export type Settled<T> = { key: string; attempt: number; revision?: number | null; outcome: T };
 
-/** The outcome to show: only a result for the current key and attempt, else nothing. */
-export function shown<T>(current: { key: string; attempt: number }, settled: Settled<T> | null): T | null {
-  return settled && settled.key === current.key && settled.attempt === current.attempt
+/** What a request is for: the family key, the attempt and, when it matters, the case revision. */
+export type Asked = { key: string; attempt: number; revision?: number | null };
+
+/** The outcome to show: only a result for the current key, attempt and revision, else nothing. */
+export function shown<T>(current: Asked, settled: Settled<T> | null): T | null {
+  return settled &&
+    settled.key === current.key &&
+    settled.attempt === current.attempt &&
+    (current.revision === undefined || settled.revision === current.revision)
     ? settled.outcome
     : null;
+}
+
+/**
+ * Whether a request for `current` is still unanswered. A same-family change such as a rename moves
+ * only the revision, so the revision counts: the old answer is shown but is no longer current.
+ */
+export function isPending<T>(ready: boolean, current: Asked, settled: Settled<T> | null): boolean {
+  return ready && shown(current, settled) === null;
 }

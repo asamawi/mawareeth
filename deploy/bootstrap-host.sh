@@ -7,9 +7,14 @@ umask 077
 die() { printf 'bootstrap: %s\n' "$*" >&2; exit 1; }
 require_command() { command -v "$1" >/dev/null 2>&1 || die "required command is unavailable: $1"; }
 
+# >>> guest inputs (deploy/tests/test_host_baseline.sh extracts this block)
 validate_cidrs() {
   [[ -n "${SSH_ALLOWED_CIDRS:-}" ]] || die 'SSH_ALLOWED_CIDRS is required'
   local cidr
+  # Checked on the raw value: read -a drops a trailing empty field and a
+  # here-string read stops at the first newline.
+  [[ "$SSH_ALLOWED_CIDRS" != *[[:space:]]* ]] || die 'SSH_ALLOWED_CIDRS must be a comma-separated list without spaces or newlines'
+  [[ "$SSH_ALLOWED_CIDRS" != ,* && "$SSH_ALLOWED_CIDRS" != *, ]] || die 'SSH_ALLOWED_CIDRS contains an empty CIDR'
   IFS=',' read -r -a cidrs <<<"$SSH_ALLOWED_CIDRS"
   ((${#cidrs[@]} > 0)) || die 'SSH_ALLOWED_CIDRS must contain at least one CIDR'
   for cidr in "${cidrs[@]}"; do
@@ -24,6 +29,125 @@ if net.prefixlen < min_prefix:
 PY
   done
 }
+
+validate_admin() {
+  ADMIN_USER="${ADMIN_USER:-}"
+  ADMIN_PUBLIC_KEY="${ADMIN_PUBLIC_KEY:-}"
+  [[ "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die 'ADMIN_USER is required and must be valid'
+  [[ "$ADMIN_PUBLIC_KEY" =~ ^(ssh-[a-z0-9]+|ecdsa-sha2-[a-z0-9]+|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-[a-z0-9]+@openssh\.com)[[:space:]] ]] || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
+  # One OpenSSH public-key line: type, strictly decoded base64 blob, optional
+  # comment, and only spaces and tabs as whitespace. The blob is read as SSH wire
+  # strings and each supported type's fields are checked the way OpenSSH's
+  # sshkey_from_blob does (no trailing bytes), so a key OpenSSH cannot load is
+  # never installed. Unsupported types, including certificates, are refused.
+  python3 - "$ADMIN_PUBLIC_KEY" <<'PY' || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
+import base64
+import re
+import sys
+line = sys.argv[1]
+if any(char.isspace() and char not in ' \t' for char in line):
+    sys.exit(1)
+fields = re.split(r'[ \t]+', line.strip(' \t'))
+if len(fields) < 2:
+    sys.exit(1)
+ktype, payload = fields[0], fields[1]
+if not re.fullmatch(r'[A-Za-z0-9+/]+={0,2}', payload) or len(payload) % 4:
+    sys.exit(1)
+blob = base64.b64decode(payload, validate=True)
+if base64.b64encode(blob).decode('ascii') != payload:
+    sys.exit(1)
+
+pos = 0
+def string():
+    global pos
+    if pos + 4 > len(blob):
+        sys.exit(1)
+    size = int.from_bytes(blob[pos:pos + 4], 'big')
+    pos += 4
+    if size > len(blob) - pos:
+        sys.exit(1)
+    value = blob[pos:pos + size]
+    pos += size
+    return value
+
+def mpint():
+    value = string()
+    if len(value) > 2049 or (len(value) == 2049 and value[0]) or (value and value[0] & 0x80):
+        sys.exit(1)
+    return int.from_bytes(value, 'big')
+
+def application():
+    # Read as a C string by OpenSSH: non-empty, NUL only as the last byte.
+    value = string()
+    if not value or b'\0' in value[:-1]:
+        sys.exit(1)
+
+# NIST curves (FIPS 186-4 / SEC 2): field prime p and coefficient b of
+# y^2 = x^3 - 3x + b; field size in bytes.
+CURVES = {
+    'nistp256': (2**256 - 2**224 + 2**192 + 2**96 - 1,
+                 0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b, 32, 256),
+    'nistp384': (2**384 - 2**128 - 2**96 + 2**32 - 1,
+                 0xb3312fa7e23ee7e4988e056be3f82d19181d9c6efe8141120314088f5013875ac656398d8a2ed19d2a85c8edd3ec2aef, 48, 384),
+    'nistp521': (2**521 - 1,
+                 0x0051953eb9618e1c9a1f929a21a0b68540eea2da725b99b315f3b8b489918ef109e156193951ec7e937b1652c0bd3bb1bf073573df883d2c34f1ef451fd46b503f00, 66, 521),
+}
+
+def ec_point(curve_suffix):
+    if string() != curve_suffix.encode():
+        sys.exit(1)
+    prime, b, size, order_bits = CURVES[curve_suffix]
+    q = string()
+    if len(q) != 1 + 2 * size or q[0] != 4:
+        sys.exit(1)
+    x = int.from_bytes(q[1:1 + size], 'big')
+    y = int.from_bytes(q[1 + size:], 'big')
+    if x.bit_length() <= order_bits // 2 or y.bit_length() <= order_bits // 2:
+        sys.exit(1)
+    if x >= prime or y >= prime or (y * y - (x * x * x - 3 * x + b)) % prime:
+        sys.exit(1)
+
+if string() != ktype.encode():
+    sys.exit(1)
+if ktype == 'ssh-ed25519':
+    if len(string()) != 32:
+        sys.exit(1)
+elif ktype == 'sk-ssh-ed25519@openssh.com':
+    if len(string()) != 32:
+        sys.exit(1)
+    application()
+elif ktype in ('ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521'):
+    ec_point(ktype.rsplit('-', 1)[1])
+elif ktype == 'sk-ecdsa-sha2-nistp256@openssh.com':
+    ec_point('nistp256')
+    application()
+elif ktype == 'ssh-rsa':
+    e = mpint()
+    n = mpint()
+    if e <= 0 or not 1024 <= n.bit_length() <= 16384:
+        sys.exit(1)
+else:
+    sys.exit(1)
+if pos != len(blob):
+    sys.exit(1)
+PY
+}
+# <<< guest inputs
+
+# >>> apt key pin (deploy/tests/test_host_baseline.sh extracts this block)
+# Docker Release (CE deb), verified 2026-11-21. The primary-key fingerprint is the
+# trust anchor; rotate it by checking a new key against Docker's published one.
+docker_key_fingerprint=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+
+key_fingerprint_matches() { # key-file fingerprint: exactly one primary key, with this fingerprint
+  local file="$1" want="$2" home out
+  home="$(mktemp -d)" || return 1
+  out="$(gpg --batch --homedir "$home" --show-keys --with-colons "$file" 2>/dev/null)" || { rm -rf -- "$home"; return 1; }
+  rm -rf -- "$home"
+  [[ "$(grep -c '^pub:' <<<"$out")" == 1 ]] || return 1
+  [[ "$(grep -A1 '^pub:' <<<"$out" | grep -m1 '^fpr:' | cut -d: -f10)" == "$want" ]]
+}
+# <<< apt key pin
 
 # >>> public web sources (deploy/tests/test_host_baseline.sh extracts this block)
 # PUBLIC_WEB_SOURCES selects who may reach 80/443: "any" or "cloudflare", whose
@@ -269,10 +393,7 @@ require_command python3
 require_command stat
 validate_cidrs
 validate_web_sources
-ADMIN_USER="${ADMIN_USER:-}" 
-ADMIN_PUBLIC_KEY="${ADMIN_PUBLIC_KEY:-}"
-[[ "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die 'ADMIN_USER is required and must be valid'
-[[ "$ADMIN_PUBLIC_KEY" =~ ^(ssh-[a-z0-9]+|ecdsa-sha2-[a-z0-9]+|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-[a-z0-9]+@openssh\.com)[[:space:]] ]] || die 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key'
+validate_admin
 if [[ -e /etc/mawareeth ]] && [[ "$(stat -c '%U:%G:%a' /etc/mawareeth)" != root:root:700 ]]; then
   die 'refusing unsafe ownership or mode on /etc/mawareeth'
 fi
@@ -287,7 +408,12 @@ apt-get install -y --no-install-recommends ca-certificates curl gnupg sudo ufw u
 require_ufw_ipv6
 
 install -d -m 0755 /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
+docker_key_dir="$(mktemp -d)"
+trap 'rm -rf -- "$docker_key_dir"' EXIT
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$docker_key_dir/docker.key"
+key_fingerprint_matches "$docker_key_dir/docker.key" "$docker_key_fingerprint" || die "the Docker apt signing key does not have the pinned fingerprint $docker_key_fingerprint; refusing to install it"
+gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg "$docker_key_dir/docker.key"
+rm -rf -- "$docker_key_dir"
 chmod a+r /etc/apt/keyrings/docker.gpg
 arch="$(dpkg --print-architecture)"
 # shellcheck source=/dev/null # host OS metadata, read at runtime only.

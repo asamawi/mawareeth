@@ -1,0 +1,99 @@
+{
+  "deceased": {
+    "gender": "male"
+  },
+  "family": {
+    "version": 1,
+    "root": "root",
+    "persons": [
+      {
+        "id": "wife",
+        "gender": "female",
+        "name": null,
+        "relationship": "wife",
+        "status": "alive",
+        "death_order": null
+      },
+      {
+        "id": "son",
+        "gender": "male",
+        "name": "Ali",
+        "relationship": "son",
+        "status": "died_later",
+        "death_order": 2
+      },
+      {
+        "id": "grandson",
+        "gender": "male",
+        "name": null,
+        "relationship": null,
+        "status": "alive",
+        "death_order": null
+      },
+      {
+        "id": "omar",
+        "gender": "male",
+        "name": null,
+        "relationship": "father",
+        "status": "died_before_or_with",
+        "death_order": null
+      }
+    ],
+    "edges": [
+      {
+        "kind": "parent_of",
+        "from": "omar",
+        "to": "son"
+      },
+      {
+        "kind": "spouse_of",
+        "from": "omar",
+        "to": "wife"
+      }
+    ],
+    "estates": [
+      {
+        "order": 1,
+        "deceased": "root",
+        "heirs": [
+          {
+            "person": "wife",
+            "relationship": "wife"
+          },
+          {
+            "person": "son",
+            "relationship": "son"
+          }
+        ]
+      },
+      {
+        "order": 2,
+        "deceased": "son",
+        "heirs": [
+          {
+            "person": "wife",
+            "relationship": "mother"
+          },
+          {
+            "person": "grandson",
+            "relationship": "son"
+          }
+        ]
+      }
+    ],
+    "answers": [],
+    "gifts": [],
+    "bequests": [],
+    "estate": {
+      "amount_minor": 120050,
+      "currency": {
+        "code": "SAR",
+        "explicit": true
+      }
+    }
+  },
+  "basis": {
+    "kind": "school",
+    "school": "hanbali"
+  }
+}

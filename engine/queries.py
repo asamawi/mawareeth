@@ -9,6 +9,7 @@ from .contracts.family import Family
 from .core import calculate, final_shares
 from .rule_set import RuleSet
 from . import kinship
+from .placement import ANCHORS, ROOT
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,30 @@ def _counts(estate, replacing=None):
     return counts
 
 
+GENDER_LOCKED = 'gender_locked'
+
+
+def _options(rule_set, counts, deceased_gender, existing=None, person_gender=None):
+    """`existing` is the family that cardinality counts; `counts` alone decides what is blocked.
+    `person_gender` holds a replaced person's gender fixed."""
+    existing = counts if existing is None else existing
+    impossible = {}
+    for relationship in codes.RELATIONSHIPS:
+        code = kinship.kinship_code(relationship, deceased_gender, existing)
+        if code is None and deceased_gender is None:
+            if relationship == 'husband' and existing.get('wife', 0):
+                code = kinship.HUSBAND_OF_MALE
+            elif relationship == 'wife' and existing.get('husband', 0):
+                code = kinship.WIFE_OF_FEMALE
+        if code is None and person_gender is not None \
+                and kinship.RELATIONSHIP_GENDERS[relationship] != person_gender:
+            code = GENDER_LOCKED
+        if code is not None:
+            impossible[relationship] = code
+    blocked = kinship.blocked(rule_set.rules, rule_set.school, counts)
+    return Options(impossible, tuple(r for r in codes.RELATIONSHIPS if r in blocked and r not in impossible))
+
+
 def relationship_options(family, rule_set, *, estate=1, replacing=None, deceased_gender=None):
     _rules(family, rule_set)
     target = _estate(family, estate)
@@ -76,18 +101,54 @@ def relationship_options(family, rule_set, *, estate=1, replacing=None, deceased
             _invalid()
         deceased_gender = next(p.gender for p in family.persons if p.id == target.deceased)
     counts = _counts(target, replacing)
-    impossible = {}
-    for relationship in codes.RELATIONSHIPS:
-        code = kinship.kinship_code(relationship, deceased_gender, counts)
-        if code is None and deceased_gender is None:
-            if relationship == 'husband' and counts.get('wife', 0):
-                code = kinship.HUSBAND_OF_MALE
-            elif relationship == 'wife' and counts.get('husband', 0):
-                code = kinship.WIFE_OF_FEMALE
-        if code is not None:
-            impossible[relationship] = code
-    blocked = kinship.blocked(rule_set.rules, rule_set.school, counts)
-    return Options(impossible, tuple(r for r in codes.RELATIONSHIPS if r in blocked and r not in impossible))
+    person_gender = None
+    if replacing is not None:
+        person_gender = next(p.gender for p in family.persons if p.id == replacing)
+    return _options(rule_set, counts, deceased_gender, person_gender=person_gender)
+
+
+@dataclass(frozen=True)
+class Placement:
+    """One relationship that can be added at an anchor, and the new person's role relative to it."""
+    relationship: str
+    link: str
+    blocked: bool
+
+
+def placement_options(family, rule_set, *, estate=1, deceased_gender=None):
+    """What can be added at each person of an estate: {anchor id: (Placement, ...)}.
+
+    The estate's own deceased is `root`. Every person of the family is a key; one that is not an
+    anchor of this estate, or whose relationship has no entry in the anchor table, maps to ().
+    Candidates the estate's kinship rules make impossible are left out; blocked ones stay and are
+    flagged. Persons who died before the deceased count toward cardinality (no second father while
+    a father died before) and are anchors in the first estate only."""
+    _rules(family, rule_set)
+    target = _estate(family, estate)
+    _gender(deceased_gender, optional=True)
+    if estate != 1:
+        if deceased_gender is not None:
+            _invalid()
+        deceased_gender = next(p.gender for p in family.persons if p.id == target.deceased)
+    counts = _counts(target)
+    existing = dict(counts)
+    anchors = {ROOT: ROOT}
+    anchors.update((h.person, h.relationship) for h in target.heirs)
+    if estate == 1:
+        for person in family.persons:
+            if person.status == 'died_before_or_with' and person.relationship is not None:
+                existing[person.relationship] = existing.get(person.relationship, 0) + 1
+                anchors[person.id] = person.relationship
+    options = _options(rule_set, counts, deceased_gender, existing)
+    result = {ROOT: ()}
+    for person in family.persons:
+        result[person.id] = ()
+    for anchor, relationship in anchors.items():
+        result[anchor] = tuple(
+            Placement(candidate, link, candidate in options.blocked)
+            for link, candidate in ANCHORS.get(relationship, ())
+            if candidate not in options.impossible)
+    return MappingProxyType(result)
 
 
 def change_impossible(family, rule_set, relationship, *, estate=1, replacing=None, deceased_gender=None):

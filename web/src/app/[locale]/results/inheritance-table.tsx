@@ -233,7 +233,7 @@ export function InheritanceTable({
           role="region"
           aria-label={t.caption}
           tabIndex={0}
-          className="min-w-0 overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
+          className="relative min-w-0 overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
         >
           <table className="w-full min-w-max border-collapse text-sm">
             <caption className="sr-only">{t.caption}</caption>

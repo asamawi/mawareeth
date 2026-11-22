@@ -175,6 +175,60 @@ class KnownAnswerTests(unittest.TestCase):
         self.assertEqual(calculate(fam, school_rule_set('hanbali')).refusal, 'invalid_family')
         self.assertEqual(calculate(fam, school_rule_set('jafari')).refusal, 'invalid_family')
 
+    def test_gender_contradicting_relationship_is_refused(self):
+        for gender, rel in (('male', 'daughter'), ('female', 'father')):
+            document = family_document([rel, 'brother'])
+            document['persons'][0]['gender'] = gender
+            fam = c.parse_family(document)
+            for school in SCHOOLS:
+                with self.subTest(rel=rel, school=school):
+                    result = calculate(fam, school_rule_set(school))
+                    self.assertEqual((result.status, result.refusal, result.allocations), ('refused', 'invalid_family', ()))
+
+    def test_gender_mismatch_of_person_who_died_before(self):
+        document = family_document(['son'])
+        document['persons'].append(person('d', 'mother', 'died_before_or_with'))
+        document['persons'][-1]['gender'] = 'male'
+        fam = c.parse_family(document)
+        for school in SCHOOLS:
+            with self.subTest(school=school):
+                self.assertEqual(calculate(fam, school_rule_set(school)).refusal, 'invalid_family')
+
+    def test_uncomputed_content_is_refused(self):
+        from engine import queries
+        mutations = {
+            'bequest': ('bequests', {'branch': 'h0', 'amount_minor': 1000}),
+            'gift': ('gifts', {'branch': 'h0', 'amount_minor': 500}),
+            'zero bequest': ('bequests', {'branch': 'h0', 'amount_minor': 0}),
+            'answer': ('answers', {'question': 'sect', 'person': None, 'value': 'sunni'}),
+            'false answer': ('answers', {'question': 'sect', 'person': None, 'value': False}),
+        }
+        for name, (field, entry) in mutations.items():
+            document = family_document(['son', 'wife'])
+            document[field].append(entry)
+            fam = c.parse_family(document)
+            for school in SCHOOLS:
+                with self.subTest(name=name, school=school):
+                    result = calculate(fam, school_rule_set(school))
+                    self.assertEqual((result.status, result.refusal, result.allocations), ('refused', 'invalid_family', ()))
+                    self.assertEqual(queries.refusal(fam, school_rule_set(school)), 'invalid_family')
+
+    def test_uncomputed_content_precedes_school_and_successive_refusals(self):
+        document = family_document(['son', 'wife'])
+        document['bequests'].append({'branch': 'h0', 'amount_minor': 1000})
+        self.assertEqual(calculate(c.parse_family(document), school_rule_set('jafari')).refusal, 'invalid_family')
+        document = later_deaths_document()
+        document['bequests'].append({'branch': 'h0', 'amount_minor': 1000})
+        fam = c.parse_family(document)
+        for school in SCHOOLS:
+            with self.subTest(school=school):
+                result = calculate(fam, school_rule_set(school))
+                self.assertEqual(result.refusal, 'invalid_family')
+                self.assertEqual((result.allocations, result.layers), ((), ()))
+
+    def test_empty_content_is_calculated(self):
+        self.assertEqual(calculate(family(['son', 'wife']), school_rule_set('hanbali')).status, 'calculated')
+
     def test_later_deaths_are_calculated(self):
         fam = c.parse_family(later_deaths_document())
         self.assertEqual(calculate(fam, school_rule_set('hanbali')).status, 'calculated')

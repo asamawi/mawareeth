@@ -96,11 +96,9 @@ spacing:
   interview-max: 1360px
   tap-target: 44px
   interview-col-left: 380px
-  interview-col-right: 340px
   # Breakpoints (shared with EXPERIENCE Responsive & Platform).
   breakpoint-wide-card: 640px
   breakpoint-two-col: 1024px
-  breakpoint-three-col: 1280px
 components:
   button-primary:
     background: '{colors.accent}'
@@ -216,7 +214,7 @@ components:
     border-top: '2px solid {colors.foreground}'
     shadow: '0 -6px 16px rgba(0,0,0,.12)'
     minHeight: '{spacing.tap-target}'
-    width: 'full viewport width at every breakpoint below 1280px'
+    width: 'full viewport width at every breakpoint'
     reflow: 'under 360px wraps to two rows: text above, button and chevron below'
   summary-sheet:
     background: '{colors.background}'
@@ -272,9 +270,7 @@ components:
     minHeight: '{spacing.tap-target}'
   share-preview:
     background: '{colors.background}'
-    border-inline-start: '1px solid {colors.line}'
     padding: '24px'
-    width: '{spacing.interview-col-right}'
   school-prompt:
     group: '{components.choice-card}'
     radius: '{rounded.node}'
@@ -395,8 +391,7 @@ Spacing is the Tailwind 4px scale. Public pages sit in `{spacing.content-max}` (
 
 Phase-2 Interview (layout B):
 - **Below `{spacing.breakpoint-two-col}` (1024px):** one column with a `{spacing.page-gutter-mobile}` gutter. Order: Add relatives (relationship buttons grouped Spouse, Parents, Children, Siblings, More relatives), the Family tree on its dotted canvas, the Heirs list. The Share preview is not in the flow; it lives in the sticky summary bar and its expanded sheet. The bar is full viewport width at every width in this range. Tree cards are 108px wide below `{spacing.breakpoint-wide-card}` (640px) and 136px from 640px up.
-- **1024px to 1279px:** two columns, `{spacing.interview-col-left}` (relationship buttons and Heirs list) · flexible tree (at least 596px, so two 136px cards fit side by side). The Share preview stays in the sticky summary bar and its sheet; there is no third column.
-- **1280px and up:** three columns, `{spacing.interview-col-left}` · flexible (tree) · `{spacing.interview-col-right}` (Share preview), inside `{spacing.interview-max}`. No sticky bar. Column dividers are 1px `{colors.line}`.
+- **1024px and up:** two columns, `{spacing.interview-col-left}` (relationship buttons and Heirs list) · flexible tree (at least 596px, so two 136px cards fit side by side). The Share preview stays in the sticky summary bar and its sheet; there is no third column. The layout sits inside `{spacing.interview-max}`.
 - **Reflow:** at 320px the sticky bar wraps into two rows (text above; Full results and chevron below). At 400% zoom (a 320px viewport) bar plus toast are capped at 25% of the viewport height, and the page uses `scroll-padding-block-end` equal to their combined height so a focused card or heir is never hidden behind them. The page scrolls; only the tree-canvas is a nested, labelled 2D scroll region. In a phone landscape viewport under 480px high the bar is replaced by a "Share preview" button in the flow. The canvas keeps at least 6px padding so focus rings are not clipped.
 - Every interactive target is at least `{spacing.tap-target}` (44px), matching `min-h-11` in the shipped buttons.
 - Use logical properties only (`ms-`, `ps-`, `start-0`, `inset-inline-*`, `border-inline-*`). No `left`/`right`.
@@ -435,11 +430,11 @@ Visual specs only. Behaviour is in EXPERIENCE.md Component Patterns, under the s
 - **undo-control.** A 44px outlined secondary button "Undo last change" in the heirs-list-header.
 - **heir-row.** One row per Heir, 52px minimum, hairline top border, label with muted relationship below, an Edit button (44px). A blocked Heir's label is muted.
 - **share-row.** Label (with optional muted sub-line such as "Residue, 2 parts") and a bold value, right-aligned in LTR and left-aligned in RTL (`text-align: end`). Blocked Heirs show a dimmed row with a smaller value. The line "Same result in all four Sunni schools" is teal text above the rows.
-- **sticky-summary-bar.** Fixed to the bottom of the viewport below 1280px, full width: "6 heirs · shares ready", a primary "Full results" button and a 44px chevron toggle. 2px foreground top border and shadow. Under 360px it wraps to two rows.
+- **sticky-summary-bar.** Fixed to the bottom of the viewport at every width, full width: "6 heirs · shares ready", a primary "Full results" button and a 44px chevron toggle. 2px foreground top border and shadow. Under 360px it wraps to two rows.
 - **summary-sheet.** The expanded Share preview: rounded top corners, 78% max height, scrim behind. Its title bar reads "Share preview" with a Close button, a hairline bottom border and no shadow.
 - **edit-sheet.** On phone, the same surface as summary-sheet. On desktop, the same fields sit in a right-column edit panel. Fields use the shipped form styling (`form-bits.tsx`): label above input, 44px minimum. Below the fields sit the `{components.add-relative-action}` and, for a died-later person, "Open own estate".
 - **add-relative-action.** The "Add relative here" button: 44px, teal fill, in the edit-sheet and panel and on every focused tree-card's action row; the same label and look everywhere.
-- **share-preview.** The desktop third column: white, 24px padding, inline-start 1px line, 340px wide at 1280px and up. Holds share-rows, the "Same result" line, the country-law-link, `badge-beta`, a notice and a primary Full results button. The summary-sheet shows the same content.
+- **share-preview.** The content of the summary-sheet: 24px padding. Holds share-rows, the "Same result" line, the country-law-link, `badge-beta`, a notice and a primary Full results button.
 - **school-prompt.** Shown only when the Schools differ: a group of choice-cards (one per School) in a `{rounded.node}` box with 12px padding and a short question line above.
 - **country-law-link.** Teal underlined text "Calculate under a country's law", 44px high.
 - **country-law-list.** A stack of choice-cards (one per live Country preset, with `badge-beta` where unreviewed) and a "Back to all four Schools" secondary button.

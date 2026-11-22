@@ -1,19 +1,26 @@
+import { readFileSync } from "node:fs";
+import type { PresentedResult } from "../contracts/presented.ts";
+import { parsePresentedResult } from "../contracts/presented.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { RELATIONSHIP_IDS, type RelationshipId } from "../api/case.ts";
+import { RELATIONSHIP_IDS, type RelationshipId, type Case } from "../api/case.ts";
 import { locales, messages } from "../i18n/messages.ts";
 import {
   generationLines,
-  layoutTree,
+  layoutTree as layoutModel,
   lineOf,
   NODE_HEIGHT,
-  scrollTopFor,
+  scrollDelta,
   treeDescription,
-  treeSummary,
+  dropEntry, estateModel, fitZoom, focusAfterRemoval, pinBox, placeholders, treeNeighbour, type EstateModel,
   type TreeLayout,
 } from "./tree.ts";
 
+function layoutTree(rows: readonly { id: string; relationship: RelationshipId }[], width: number) {
+  const model: EstateModel = { people: rows.map(r => ({ ...r, personId: r.id, gender: "male", name: null, state: "normal", parentId: null })), placement: {} };
+  return layoutModel(model, width);
+}
 const WIDTHS = [272, 327, 576, 1104];
 
 function heirs(...relationships: RelationshipId[]) {
@@ -186,77 +193,181 @@ test("ancestors feed down: their bar is below them and the spine starts there", 
   assert.ok(layout.nodes.every((node) => node.y < layout.deceased.y));
 });
 
-test("scrollTopFor shows a node with the least movement", () => {
+test("scrollDelta shows a node with the least movement on one axis", () => {
   const cases: [number, number, number, number, number][] = [
-    // top, height, scrollTop, view, expected
-    [100, 80, 0, 300, 0],
-    [400, 80, 0, 300, 180],
-    [20, 80, 100, 300, 20],
-    [10, 80, 0, 300, 0],
-    [100, 80, 50, 60, 100],
-    [-5, 80, 0, 300, 0],
+    // node start, node end, view start, view end, expected delta
+    [100, 180, 0, 300, 0], // already shows
+    [400, 480, 0, 300, 180], // below: bring its end to the view's end
+    [-80, 0, 0, 300, -80], // above: bring its start to the view's start
+    [-20, 60, 0, 300, -20], // partly above
+    [250, 350, 0, 300, 50], // partly below
+    [100, 200, 0, 60, 100], // larger than the view: its start
+    [520, 640, 500, 800, 0], // offset view (on-screen coordinates)
   ];
-  for (const [top, height, scroll, view, expected] of cases) {
-    assert.equal(scrollTopFor(top, height, scroll, view), expected, `${top},${height},${scroll},${view}`);
+  for (const [start, end, viewStart, viewEnd, expected] of cases) {
+    assert.equal(scrollDelta(start, end, viewStart, viewEnd), expected, `${start},${end},${viewStart},${viewEnd}`);
   }
 });
 
-const SAMPLE = heirs("son", "wife", "son");
-const SENTENCES: Record<string, { male: string; female: string; none: [string, string] }> = {
-  en: {
-    male: "Family tree. The deceased, male. Wife: 1. Son: 2.",
-    female: "Family tree. The deceased, female. Wife: 1. Son: 2.",
-    none: ["Family tree. The deceased, male.", "Family tree. The deceased, female."],
-  },
-  ar: {
-    male: "شجرة العائلة. المتوفى (ذكر). زوجة: 1. ابن: 2.",
-    female: "شجرة العائلة. المتوفاة (أنثى). زوجة: 1. ابن: 2.",
-    none: ["شجرة العائلة. المتوفى (ذكر).", "شجرة العائلة. المتوفاة (أنثى)."],
-  },
-  fr: {
-    male: "Arbre généalogique. Le défunt, homme. Épouse : 1. Fils : 2.",
-    female: "Arbre généalogique. La défunte, femme. Épouse : 1. Fils : 2.",
-    none: ["Arbre généalogique. Le défunt, homme.", "Arbre généalogique. La défunte, femme."],
-  },
-};
-
-test("the description reads in full in every locale, for both genders", () => {
+test("description includes relationship, numbered defaults and gendered states", () => {
+  const model: EstateModel = { people: [
+    { id: "a", personId: "a", relationship: "son", gender: "male", name: null, state: "died_before", parentId: null },
+    { id: "b", personId: "b", relationship: "son", gender: "female", name: "Name", state: "died_later", parentId: null },
+  ], placement: {} };
   for (const locale of locales) {
-    const text = messages[locale].interview;
-    const expected = SENTENCES[locale];
-    assert.equal(treeDescription(text, { gender: "male", estate: null }, SAMPLE), expected.male, locale);
-    assert.equal(treeDescription(text, { gender: "female", estate: null }, SAMPLE), expected.female, locale);
-    assert.equal(treeDescription(text, { gender: "male", estate: null }, []), expected.none[0], locale);
-    assert.equal(treeDescription(text, { gender: "female", estate: null }, []), expected.none[1], locale);
+    const t = messages[locale].interview, d = treeDescription(t, model);
+    assert.equal(d.deceased, t.treeDeceased);
+    assert.equal(d.people[0].badge, t.treeDiedBefore.male);
+    assert.equal(d.people[1].badge, t.treeDiedLater.female);
+    assert.equal(d.people[1].secondary, "Name");
+    assert.equal(d.people[0].secondary, null);
   }
 });
 
-test("the description leaves no placeholder and never holds a name", () => {
-  const named = [
-    { id: "a", relationship: "son" as const, name: "Zaid Qasim" },
-    { id: "b", relationship: "wife" as const, name: "{heir} {n}" },
-  ];
-  for (const locale of locales) {
-    for (const heirsIn of [[], named]) {
-      const text = treeDescription(messages[locale].interview, { gender: "male", estate: null }, heirsIn);
-      assert.ok(!/[{}]/.test(text), text);
-      assert.ok(!text.includes("Zaid") && !text.includes("Qasim"), text);
-    }
+test("pin keeps the whole box in LTR and negative-scroll RTL at every zoom", () => {
+  for (const z of [0.6, 1.5]) for (const rtl of [false, true]) {
+    const v = { width: 320, height: 280, scrollLeft: rtl ? -120 : 120, scrollTop: 400 };
+    const p = pinBox({ x: 20, y: 0, width: 108, height: 112 }, v, z, 6, rtl);
+    assert.ok(p.x * z >= 126 && (p.x + p.width) * z <= 434);
+    assert.ok(p.y * z >= 406 && (p.y + p.height) * z <= 674);
+  }
+});
+test("fit picks the largest allowed level and falls back to minimum", () => {
+  assert.equal(fitZoom({ width: 300, height: 300 }, { width: 320, height: 320 }), 1);
+  assert.equal(fitZoom({ width: 400, height: 400 }, { width: 340, height: 340 }), 0.8);
+  assert.equal(fitZoom({ width: 400, height: 4000 }, { width: 320, height: 320 }), 0.6);
+});
+
+const base: Case = { id: "case", revision: 1, started_at: "", madhab: "hanafi", deceased: { gender: "male", estate: null }, heirs: [], deaths: [], heir_options: { blocked: [], invalid: {} } };
+test("lineage includes died-before people and ignores unshown/root endpoints", () => {
+  const kase: Case = { ...base, heirs: [{ edit_options: { blocked: [], invalid: {} }, id: "g", relationship: "son_of_son", gender: "male", name: null }], persons: [{ id: "s", relationship: "son", gender: "male", name: null, status: "died_before_or_with", death_order: null }], edges: [{ kind: "parent_of", from: "s", to: "g" }, { kind: "parent_of", from: "missing", to: "s" }] };
+  const model = estateModel(kase, null, null), layout = layoutModel(model, 320);
+  assert.equal(model.people[0].state, "died_before");
+  assert.equal(model.people[0].parentId, null);
+  assert.equal(model.people[1].parentId, "s");
+  const parent = layout.nodes.find(n => n.id === "s")!;
+  assert.equal(layout.nodes.find(n => n.id === "g")!.x, parent.x);
+  assert.deepEqual(treeDescription(messages.en.interview, model).people.map(p => p.id), layout.nodes.map(n => n.id));
+  assert.ok(layout.edges.find(e => e.id === "g")!.path.startsWith(`M${parent.x + parent.width / 2} ${parent.y + parent.height}`));
+});
+test("empty placement creates only permitted parent/spouse placeholders", () => {
+  const model = estateModel({ ...base, placement: { root: [{ relationship: "father", link: "parent", blocked: false }] } }, null, null);
+  assert.deepEqual(placeholders(model), ["parent"]);
+});
+
+test("blocked state uses only supplied evidence of the active estate order", () => {
+  const served = JSON.parse(readFileSync(new URL("../../../api/contracts/preview-presented-fixtures.json", import.meta.url), "utf8"));
+  const presented = parsePresentedResult(served.presented["Grandfather and brother under Hanafi"]);
+  const kase: Case = { ...base, heirs: [ { id: "h2", gender: "male", name: null, relationship: "brother", edit_options: { blocked: [], invalid: {} } } ] };
+  assert.equal(estateModel(kase, null, presented).people[0].state, "blocked");
+  assert.equal(estateModel(kase, null, null).people[0].state, "normal");
+  const other: PresentedResult = { ...presented, evidence: presented.evidence.map(e => ({ ...e, order: 2 })) };
+  assert.equal(estateModel(kase, null, other).people[0].state, "normal");
+});
+test("later estate resolves person aliases, excludes died-before and remaps deceased edges to root", () => {
+  const options = { blocked: [], invalid: {} };
+  const kase: Case = { ...base, heirs: [{ id: "wife", gender: "female", name: null, relationship: "wife", edit_options: options }],
+    persons: [{ id: "before", gender: "male", relationship: "son", name: null, status: "died_before_or_with", death_order: null }],
+    deaths: [{ heir_id: "wife", order: 2, gender: "female", heir_options: options, heirs: [
+      { id: "row", same_as: "h2", gender: "male", name: null, relationship: "brother", edit_options: options }
+    ] }], edges: [{ kind: "parent_of", from: "wife", to: "h2" }] };
+  assert.equal(estateModel(kase, null, null).people.find(p => p.id === "wife")?.state, "died_later");
+  const model = estateModel(kase, "wife", null);
+  assert.equal(model.people.length, 1);
+  assert.equal(model.people[0].id, "row"); assert.equal(model.people[0].personId, "h2");
+  assert.equal(model.people[0].parentId, null);
+  assert.equal(model.people[0].state, "normal");
+  assert.equal(treeDescription(messages.en.interview, model, "Wife (2nd death)").deceased, "Wife (2nd death)");
+  assert.deepEqual(placeholders(model), []);
+});
+
+test("a person is labelled by the relationship stored on the open estate's own row, never the first estate's", () => {
+  const options = { blocked: [], invalid: {} };
+  const kase: Case = { ...base, heirs: [
+    { id: "w", gender: "female", name: null, relationship: "wife", edit_options: options },
+    { id: "s", gender: "male", name: null, relationship: "son", edit_options: options },
+  ], deaths: [{ heir_id: "s", order: 2, gender: "male", heir_options: options, heirs: [
+    { id: "r", same_as: "w", gender: "female", name: null, relationship: "mother", edit_options: options },
+  ] }] };
+  const first = treeDescription(messages.en.interview, estateModel(kase, null, null)).people.find(p => p.id === "w")!;
+  assert.equal(first.relationship, messages.en.interview.relationships.wife);
+  const later = treeDescription(messages.en.interview, estateModel(kase, "s", null)).people;
+  assert.equal(later.length, 1);
+  assert.equal(later[0].relationship, messages.en.interview.relationships.mother);
+  assert.equal(later[0].label, messages.en.interview.relationships.mother);
+});
+
+test("card widths are parameters and every fifty-person box stays reachable", () => {
+  const model: EstateModel = { people: many(50).map(p => ({ ...p, personId: p.id, gender: "male", name: null, state: "normal", parentId: null })), placement: {} };
+  for (const [width, cardWidth] of [[343, 108], [560, 136]]) {
+    const layout = layoutModel(model, width, cardWidth);
+    assert.ok([layout.deceased, ...layout.nodes].every(n => n.width === cardWidth && n.height >= 76 && n.x >= 0 && n.x + n.width <= layout.width));
   }
 });
 
-test("the summary counts by relationship in table order", () => {
-  const summary = treeSummary(heirs("wife", "son", "son", "father"));
-  assert.deepEqual(summary, [
-    { relationship: "father", count: 1 },
-    { relationship: "wife", count: 1 },
-    { relationship: "son", count: 2 },
-  ]);
-  assert.deepEqual(treeSummary([]), []);
+test("removal focus follows surviving siblings with the same parent and generation", () => {
+  const people: EstateModel["people"] = ["first", "removed", "other-parent", "last"].map(id => ({
+    id, personId: id, relationship: "son", gender: "male", name: null, state: "normal",
+    parentId: id === "other-parent" ? "b" : "a",
+  }));
+  const model = { people, placement: {} };
+  assert.equal(focusAfterRemoval(model, "removed"), "last");
+  assert.equal(focusAfterRemoval(model, "last"), "removed");
+  assert.equal(focusAfterRemoval(model, "removed", new Set(["first"])), "first");
+  assert.equal(focusAfterRemoval(model, "other-parent"), "root");
 });
 
+test("dropEntry resolves a chip at the root, a placeholder and a person from the placement only", () => {
+  const model: EstateModel = {
+    people: [],
+    placement: {
+      root: [
+        { relationship: "father", link: "parent", blocked: false, gender: "male" },
+        { relationship: "son", link: "child", blocked: false, gender: "male" },
+        { relationship: "daughter", link: "child", blocked: false, gender: "female" },
+      ],
+      s: [
+        { relationship: "son_of_son", link: "child", blocked: false, gender: "male" },
+        { relationship: "daughter_of_son", link: "child", blocked: true, gender: "female" },
+      ],
+      d: [],
+      f: [{ relationship: "brother", link: "child", blocked: false, gender: "male" }, { relationship: "paternal_brother", link: "child", blocked: false, gender: "male" }],
+    },
+  };
+  assert.equal(dropEntry(model, "root", "son")?.relationship, "son");
+  assert.equal(dropEntry(model, "root", "father", "parent")?.relationship, "father");
+  assert.equal(dropEntry(model, "root", "father", "spouse"), null, "a placeholder narrows by link");
+  assert.equal(dropEntry(model, "root", "wife"), null);
+  assert.equal(dropEntry(model, "s", "son")?.relationship, "son_of_son");
+  assert.equal(dropEntry(model, "s", "daughter")?.relationship, "daughter_of_son");
+  assert.equal(dropEntry(model, "d", "son"), null, "a daughter offers nothing");
+  assert.equal(dropEntry(model, "f", "son"), null, "two same-gender children are ambiguous");
+  assert.equal(dropEntry(model, "s", "father"), null, "a parent chip is not a child");
+  assert.equal(dropEntry(model, "ghost", "son"), null);
+});
 
-test("tree descriptions preserve placeholders and dollar patterns inside a later deceased's name", () => {
-  const text = { ...messages.en.interview, treeSummary: "{deceased}: {heirs}" };
-  assert.equal(treeDescription(text, { gender: "male" }, [], "{heirs} $&"), "{heirs} $&: ");
+test("treeNeighbour walks the drawn tree: parent, first child, siblings, home and end", () => {
+  const person = (id: string, relationship: RelationshipId, parentId: string | null = null) =>
+    ({ id, personId: `p-${id}`, relationship, gender: "male" as const, name: null, state: "normal" as const, parentId: parentId && `p-${parentId}` });
+  const model: EstateModel = { placement: {}, people: [
+    person("w", "wife"), person("b", "brother"), person("s", "son"), person("d", "daughter"),
+    person("g", "son_of_son", "b"), person("o", "son_of_brother", "missing"),
+  ] };
+  const order = ["root", "w", "b", "g", "s", "d", "o"];
+  const go = (id: string, key: Parameters<typeof treeNeighbour>[3]) => treeNeighbour(model, order, id, key);
+  assert.equal(go("root", "down"), "w");
+  assert.equal(go("g", "up"), "b");
+  assert.equal(go("b", "down"), "g");
+  assert.equal(go("w", "down"), "w", "a leaf has no child");
+  assert.equal(go("w", "next"), "b");
+  assert.equal(go("b", "next"), "s", "linked children are not root siblings");
+  assert.equal(go("o", "next"), "o", "clamped at the last sibling");
+  assert.equal(go("w", "prev"), "w", "clamped at the first sibling");
+  assert.equal(go("s", "prev"), "b");
+  assert.equal(go("o", "up"), "root", "a parent outside the estate falls back to the deceased");
+  assert.equal(go("root", "up"), "root");
+  assert.equal(go("root", "next"), "root");
+  assert.equal(go("root", "prev"), "root");
+  assert.equal(go("s", "home"), "root");
+  assert.equal(go("w", "end"), "o");
 });

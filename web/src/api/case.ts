@@ -66,6 +66,8 @@ export type Heir = {
   name: string | null;
   /** In a later layer: the id of the person's earliest row. The server resolves `name` from it. */
   same_as?: string;
+  /** In a later layer: the people this row could be linked to, decided by the server. */
+  link_candidates?: string[];
   /**
    * What adding a relative would meet if this heir were removed — computed server-side without
    * this heir in the family. Used for the blur check in the edit form.
@@ -85,6 +87,8 @@ export type Death = {
   gender: Gender;
   heir_options: HeirOptions;
   heirs: Heir[];
+  /** Where each person of this estate can have a relative added, from the engine. `parseCase` sets `{}` when absent. */
+  placement?: Placement;
 };
 
 /**
@@ -127,7 +131,51 @@ export type Case = {
   heir_options: HeirOptions;
   /** The later deaths in order; empty for a case without any. */
   deaths: Death[];
+  /** Every person once, with the status the server holds. `parseCase` always sets it: `[]` when the server sent none. */
+  persons?: Person[];
+  /** Lineage links between persons (and the deceased, `root`); empty for a case with none. */
+  edges?: Edge[];
+  /** Where each person of the first estate can have a relative added; `root` is the deceased. */
+  placement?: Placement;
+  /** The server's own export of this case, kept opaque: it is what a restore sends back. Absent when not sent. */
+  snapshot?: Record<string, unknown>;
 };
+
+export type PersonStatus = "alive" | "died_before_or_with" | "died_later";
+
+const PERSON_STATUSES: readonly string[] = ["alive", "died_before_or_with", "died_later"];
+
+/** One person of the family, as the server's Family contract holds them. */
+export type Person = {
+  id: string;
+  gender: Gender;
+  name: string | null;
+  /** To the first deceased; null for a person who only appears in a later estate. */
+  relationship: RelationshipId | null;
+  status: PersonStatus;
+  /** 2 or 3 for a person who died later, otherwise null. */
+  death_order: 2 | 3 | null;
+};
+
+export type EdgeKind = "parent_of" | "spouse_of";
+
+/** `parent_of` runs from parent to child. The first deceased is "root". */
+export type Edge = { kind: EdgeKind; from: string; to: string };
+
+/** The new person's role relative to the anchor. */
+export type PlacementLink = "parent" | "child" | "spouse";
+
+export type PlacementOption = {
+  relationship: RelationshipId;
+  link: PlacementLink;
+  /** Valid but inherits nothing: labelled, never refused. */
+  blocked: boolean;
+  /** The new person's gender, from the engine; absent when the server did not send a valid one. */
+  gender?: Gender;
+};
+
+/** Anchor id (`root` for the estate's deceased) to the relationships the engine allows there. */
+export type Placement = Record<string, PlacementOption[]>;
 
 /** A field name to the code of its broken rule. */
 export type FieldErrorCodes = Record<string, string>;
@@ -159,7 +207,10 @@ export function parseQuestions(value: unknown): RelativeQuestion[] | null {
   return result;
 }
 
+export type RemoveImpact = { persons: string[]; estates: number[] };
+
 export type AnswerResult =
+  | { kind: "cascade"; impact: RemoveImpact; case: Case }
   | { kind: "saved"; case: Case }
   /** The server refused the input; nothing was stored. */
   | { kind: "invalid"; errors: FieldErrorCodes; questions?: RelativeQuestion[] }
@@ -201,6 +252,10 @@ type CaseBody = {
   heirs?: unknown;
   heir_options?: unknown;
   deaths?: unknown;
+  persons?: unknown;
+  edges?: unknown;
+  placement?: unknown;
+  snapshot?: unknown;
 };
 
 function isCaseBody(value: unknown): value is CaseBody {
@@ -235,8 +290,9 @@ function parseHeirs(value: unknown): Heir[] {
   return heirs;
 }
 
-const DEATH_KEYS = ["heir_id", "order", "gender", "heir_options", "heirs"];
-const ROW_KEYS = ["id", "relationship", "gender", "name", "same_as", "edit_options"];
+const DEATH_KEYS = ["heir_id", "order", "gender", "heir_options", "heirs", "placement"];
+const DEATH_REQUIRED_KEYS = ["heir_id", "order", "gender", "heir_options", "heirs"];
+const ROW_KEYS = ["id", "relationship", "gender", "name", "same_as", "edit_options", "link_candidates"];
 
 function onlyKeys(value: object, allowed: readonly string[]): boolean {
   return Object.keys(value).every((key) => allowed.includes(key));
@@ -255,8 +311,8 @@ function parseDeaths(value: unknown, first: readonly Heir[]): Death[] {
   for (const item of value as unknown[]) {
     if (deaths.length >= MAX_LATER_DEATHS) break;
     if (typeof item !== "object" || item === null || Array.isArray(item)) continue;
-    if (!onlyKeys(item, DEATH_KEYS) || !DEATH_KEYS.every((key) => Object.hasOwn(item, key))) continue;
-    const { heir_id, order, gender, heir_options, heirs } = item as Record<string, unknown>;
+    if (!onlyKeys(item, DEATH_KEYS) || !DEATH_REQUIRED_KEYS.every((key) => Object.hasOwn(item, key))) continue;
+    const { heir_id, order, gender, heir_options, heirs, placement } = item as Record<string, unknown>;
     if (order !== deaths.length + 2 || typeof heir_id !== "string" || !people.has(heir_id)) continue;
     if (deaths.some((death) => death.heir_id === heir_id) || !isGender(gender) || !Array.isArray(heirs)) continue;
     const rows: Heir[] = [];
@@ -264,10 +320,14 @@ function parseDeaths(value: unknown, first: readonly Heir[]): Death[] {
     const earliest: string[] = [];
     for (const raw of heirs as unknown[]) {
       if (typeof raw !== "object" || raw === null || Array.isArray(raw) || !onlyKeys(raw, ROW_KEYS)) continue;
-      const { id, relationship, gender: rowGender, name, same_as, edit_options: rowEditOptions } = raw as Record<string, unknown>;
+      const { id, relationship, gender: rowGender, name, same_as, edit_options: rowEditOptions, link_candidates } = raw as Record<string, unknown>;
       if (typeof id !== "string" || ids.has(id) || !isRelationshipId(relationship) || !isGender(rowGender)) continue;
       if (name !== undefined && name !== null && typeof name !== "string") continue;
       const row: Heir = { id, relationship, gender: rowGender, name: typeof name === "string" ? name : null, edit_options: parseHeirOptions(rowEditOptions) };
+      // Only people from earlier estates can be offered; anything else reads as no candidates.
+      if (Array.isArray(link_candidates)) {
+        row.link_candidates = link_candidates.filter((candidate): candidate is string => typeof candidate === "string" && people.has(candidate));
+      }
       if (same_as !== undefined) {
         if (typeof same_as !== "string" || !people.has(same_as) || same_as === heir_id || linked.has(same_as)) continue;
         if (deaths.some((death) => death.heir_id === same_as)) continue;
@@ -286,6 +346,7 @@ function parseDeaths(value: unknown, first: readonly Heir[]): Death[] {
       gender,
       heir_options: parseHeirOptions(heir_options),
       heirs: rows,
+      placement: parsePlacement(placement),
     });
   }
   return deaths;
@@ -299,12 +360,85 @@ export function parseHeirOptions(value: unknown): HeirOptions {
   if (typeof invalid !== "object" || invalid === null || Array.isArray(invalid)) return noHeirOptions();
   const codes: Partial<Record<RelationshipId, string>> = {};
   for (const [relationship, code] of Object.entries(invalid)) {
-    if (!isRelationshipId(relationship) || !KINSHIP_CODES.includes(code as string)) return noHeirOptions();
+    if (!isRelationshipId(relationship) || !(KINSHIP_CODES.includes(code as string) || code === "gender_locked")) return noHeirOptions();
     codes[relationship] = code;
   }
   // A relationship cannot be both labelled and invalid: the server never sends that.
   if (blocked.some((relationship) => relationship in codes)) return noHeirOptions();
   return { blocked: [...new Set(blocked)], invalid: codes };
+}
+
+const PLACEMENT_LINKS: readonly string[] = ["parent", "child", "spouse"];
+
+/** Strict: a malformed anchor reads as offering nothing, and a malformed object as no anchors. */
+export function parsePlacement(value: unknown): Placement {
+  const result: Placement = {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return result;
+  for (const [anchor, entries] of Object.entries(value)) {
+    const options: PlacementOption[] = [];
+    let valid = Array.isArray(entries);
+    if (Array.isArray(entries)) {
+      for (const entry of entries as unknown[]) {
+        const found = typeof entry === "object" && entry !== null && !Array.isArray(entry) &&
+          (hasExactKeys(entry, ["relationship", "link", "blocked"]) ||
+            hasExactKeys(entry, ["relationship", "link", "blocked", "gender"]))
+          ? (entry as Record<string, unknown>) : null;
+        if (!found || !isRelationshipId(found.relationship) || typeof found.link !== "string" ||
+            !PLACEMENT_LINKS.includes(found.link) || typeof found.blocked !== "boolean") {
+          valid = false;
+          break;
+        }
+        options.push({
+          relationship: found.relationship,
+          link: found.link as PlacementLink,
+          blocked: found.blocked,
+          ...(found.gender === "male" || found.gender === "female" ? { gender: found.gender } : {}),
+        });
+      }
+    }
+    // defineProperty: an anchor named `__proto__` must become an own entry, not set the prototype.
+    Object.defineProperty(result, anchor, { value: valid ? options : [], enumerable: true, writable: true, configurable: true });
+  }
+  return result;
+}
+
+/** Strict: a person that is malformed or repeats an id is dropped; the rest still parse. */
+export function parsePersons(value: unknown): Person[] {
+  if (!Array.isArray(value)) return [];
+  const people: Person[] = [];
+  const seen = new Set<string>();
+  for (const item of value as unknown[]) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) continue;
+    if (!hasExactKeys(item, ["id", "gender", "name", "relationship", "status", "death_order"])) continue;
+    const { id, gender, name, relationship, status, death_order } = item as Record<string, unknown>;
+    if (typeof id !== "string" || id === "" || id === "root" || seen.has(id) || !isGender(gender)) continue;
+    if (name !== null && typeof name !== "string") continue;
+    if (relationship !== null && !isRelationshipId(relationship)) continue;
+    if (typeof status !== "string" || !PERSON_STATUSES.includes(status)) continue;
+    // Only a person who died later has an order, and it is 2 or 3.
+    if (status === "died_later" ? death_order !== 2 && death_order !== 3 : death_order !== null) continue;
+    seen.add(id);
+    people.push({
+      id, gender, name, relationship, status: status as PersonStatus,
+      death_order: death_order as 2 | 3 | null,
+    });
+  }
+  return people;
+}
+
+/** Strict: an edge that is malformed, joins a person to themselves or points at an unknown person is dropped. */
+export function parseEdges(value: unknown, persons: readonly Person[]): Edge[] {
+  if (!Array.isArray(value)) return [];
+  const known = new Set<string>(["root", ...persons.map((person) => person.id)]);
+  const edges: Edge[] = [];
+  for (const item of value as unknown[]) {
+    if (typeof item !== "object" || item === null || Array.isArray(item) || !hasExactKeys(item, ["kind", "from", "to"])) continue;
+    const { kind, from, to } = item as Record<string, unknown>;
+    if ((kind !== "parent_of" && kind !== "spouse_of") || typeof from !== "string" || typeof to !== "string") continue;
+    if (from === to || !known.has(from) || !known.has(to)) continue;
+    edges.push({ kind, from, to });
+  }
+  return edges;
 }
 
 /** A revision is an integer of at least 1; anything else reads as none. */
@@ -319,6 +453,8 @@ export function parseCase(body: unknown): Case | null {
   if (!isCaseBody(value)) throw new Error("Case endpoint returned an unexpected body");
   // A missing or unknown madhab, deceased or heirs (an older shape) reads as none.
   const heirs = parseHeirs(value.heirs);
+  // Lineage is new: a body without it (an older server) reads as no persons, edges or placement.
+  const persons = parsePersons(value.persons);
   return {
     id: value.id,
     revision: parseRevision(value.revision),
@@ -328,7 +464,15 @@ export function parseCase(body: unknown): Case | null {
     heirs,
     heir_options: parseHeirOptions(value.heir_options),
     deaths: parseDeaths(value.deaths, heirs),
+    persons,
+    edges: parseEdges(value.edges, persons),
+    placement: parsePlacement(value.placement),
+    ...(isPlainObject(value.snapshot) ? { snapshot: value.snapshot } : {}),
   };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function readCsrfToken(cookie: string = document.cookie): string | undefined {
@@ -487,6 +631,27 @@ function parseErrors(body: unknown): FieldErrorCodes | null {
   return Object.keys(codes).length > 0 ? codes : null;
 }
 
+function bulkErrors(body: unknown): FieldErrorCodes | null {
+  if (!body || typeof body !== "object" || !("error" in body)) return null;
+  if (body.error === "over_capacity") return { heirs: "limit" };
+  if (body.error !== "invalid_input" || !("errors" in body)) return null;
+  const indexed = body.errors;
+  if (!indexed || typeof indexed !== "object" || Array.isArray(indexed)) return null;
+
+  let first = Infinity;
+  let errors: FieldErrorCodes | null = null;
+  for (const [index, fields] of Object.entries(indexed)) {
+    if (!/^(0|[1-9]\d*)$/.test(index) || !fields || typeof fields !== "object" || Array.isArray(fields)) return null;
+    const codes = Object.values(fields);
+    if (!codes.length || !codes.every(code => typeof code === "string" && code.length > 0)) return null;
+    if (Number(index) < first) {
+      first = Number(index);
+      errors = fields as FieldErrorCodes;
+    }
+  }
+  return errors;
+}
+
 /** One write to the interview answers; every one needs the case id it was made for. */
 async function answer(
   signal: AbortSignal,
@@ -506,6 +671,10 @@ async function answer(
       if (response.status === 429) return { kind: "throttled" };
       if (response.status === 400) {
         const body = await response.json();
+        if (url === BULK_HEIRS_URL) {
+          const errors = bulkErrors(body);
+          return errors ? { kind: "invalid", errors } : null;
+        }
         const errors = parseErrors(body);
         const raw =
           typeof body === "object" && body !== null && !Array.isArray(body)
@@ -520,10 +689,16 @@ async function answer(
         return live ? { kind: "missing", case: live } : { kind: "gone" };
       }
       if (response.status === 409) {
-        const live = parseCase(await response.json());
-        return live ? { kind: "replaced", case: live } : null;
+        const body = await response.json();
+        const live = parseCase(body);
+        if (!live) return null;
+        if (body.error !== "cascade_unconfirmed") return { kind: "replaced", case: live };
+        const impact = body.impact;
+        if (!Array.isArray(impact?.persons) || !impact.persons.every((id: unknown) => typeof id === "string" && id.length > 0)
+          || !Array.isArray(impact.estates) || !impact.estates.every((order: unknown) => typeof order === "number" && Number.isSafeInteger(order) && order > 0)) return null;
+        return { kind: "cascade", impact: { persons: impact.persons, estates: impact.estates }, case: live };
       }
-      if (!response.ok) return null;
+      if (!response.ok || (url === BULK_HEIRS_URL && response.status !== 201)) return null;
       const saved = parseCase(await response.json());
       return saved ? { kind: "saved", case: saved } : null;
     },
@@ -533,22 +708,27 @@ async function answer(
 
 export type DeceasedFields = { gender: Gender; estate: string | null };
 export type HeirFields = {
+  status?: "alive" | "died_before_or_with";
   relationship: RelationshipId;
   name: string | null;
   /** The death (a person's heir id) whose heirs this row joins; left out for the first deceased. */
   layer?: string;
-  /** Joins an earlier person instead of entering a new one. */
-  same_as?: string;
+  /** Joins an earlier person instead of entering a new one. On an edit, `null` clears the link. */
+  same_as?: string | null;
+  /** The person (or `root`) this relative is added at; sent only when set. */
+  anchor?: string;
 };
 
 const DECEASED_URL = "/api/v1/case/deceased/";
 const HEIRS_URL = "/api/v1/case/heirs/";
+const BULK_HEIRS_URL = `${HEIRS_URL}bulk/`;
 const DEATHS_URL = "/api/v1/case/deaths/";
+const RESTORE_URL = "/api/v1/case/restore/";
 
-/** The query of a DELETE: the case, its revision and the cascade confirmation (Epic 9 adds the dialog). */
-function deleteQuery(caseId: string, revision: number | null): string {
+/** The query of a DELETE: the case, its revision and the cascade confirmation, which each call opts into. */
+function deleteQuery(caseId: string, revision: number | null, confirm: boolean): string {
   const revisionPart = revision === null ? "" : `&expected_revision=${revision}`;
-  return `case_id=${encodeURIComponent(caseId)}${revisionPart}&confirm_cascade=true`;
+  return `case_id=${encodeURIComponent(caseId)}${revisionPart}${confirm ? "&confirm_cascade=true" : ""}`;
 }
 
 /** Stores the deceased, replacing the earlier one. One attempt; never throws. */
@@ -572,6 +752,30 @@ export function addHeir(
   return answer(signal, options, "POST", HEIRS_URL, caseId, revision, fields);
 }
 
+/** Replaces the case's inputs with a snapshot the server exported. One attempt; never throws. */
+export function restoreCase(
+  signal: AbortSignal,
+  caseId: string,
+  revision: number | null,
+  snapshot: Record<string, unknown>,
+  options: WriteOptions = {},
+): Promise<AnswerResult> {
+  return answer(signal, options, "POST", RESTORE_URL, caseId, revision, { snapshot });
+}
+
+export function addHeirs(
+  signal: AbortSignal,
+  caseId: string,
+  revision: number | null,
+  relationship: RelationshipId,
+  count: number,
+  layer?: string,
+  options: WriteOptions = {},
+): Promise<AnswerResult> {
+  const heirs = Array.from({ length: count }, () => ({ relationship, name: null }));
+  return answer(signal, options, "POST", BULK_HEIRS_URL, caseId, revision, { heirs, layer });
+}
+
 export function updateHeir(
   signal: AbortSignal,
   caseId: string,
@@ -588,11 +792,10 @@ export function removeHeir(
   caseId: string,
   revision: number | null,
   heirId: string,
+  confirm: boolean,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  // Intermediaries may drop a DELETE body, so the case id is in the query string. The cascade is
-  // confirmed up front until the impact dialog exists (Epic 9).
-  const url = `${HEIRS_URL}${encodeURIComponent(heirId)}/?${deleteQuery(caseId, revision)}`;
+  const url = `${HEIRS_URL}${encodeURIComponent(heirId)}/?${deleteQuery(caseId, revision, confirm)}`;
   return answer(signal, options, "DELETE", url, caseId, revision, null);
 }
 
@@ -608,6 +811,7 @@ export function markDeceased(
   first?: string,
   options: WriteOptions = {},
   answers: RelativeAnswers = {},
+  empty = false,
 ): Promise<AnswerResult> {
   return answer(
     signal,
@@ -616,7 +820,7 @@ export function markDeceased(
     DEATHS_URL,
     caseId,
     revision,
-    { heir_id: heirId, ...(first === undefined ? {} : { first }), ...answers },
+    { heir_id: heirId, ...(first === undefined ? {} : { first }), ...answers, ...(empty ? { empty: true } : {}) },
   );
 }
 
@@ -628,7 +832,7 @@ export function unmarkDeceased(
   heirId: string,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  const url = `${DEATHS_URL}${encodeURIComponent(heirId)}/?${deleteQuery(caseId, revision)}`;
+  const url = `${DEATHS_URL}${encodeURIComponent(heirId)}/?${deleteQuery(caseId, revision, true)}`;
   return answer(signal, options, "DELETE", url, caseId, revision, null);
 }
 

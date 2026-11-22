@@ -263,6 +263,31 @@ groups:
           description: 'For 10 minutes the kernel has reported the clock as unsynchronised, or its offset has exceeded 0.5 seconds. A drifting clock also skews the backup, restore, and drill age rules.'
           runbook: 'deploy/README.md#runbook-mawareethclockunsynced'
 
+      - alert: MawareethHostMetricsMissing
+        expr: |
+          node_scrape_collector_success{job="mawareeth-node",collector=~"filesystem|meminfo|vmstat|timex"} == 0
+            or node_filesystem_device_error{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"} == 1
+            or absent(node_filesystem_avail_bytes{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"})
+            or absent(node_filesystem_size_bytes{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"})
+            or absent(node_filesystem_files_free{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"})
+            or absent(node_filesystem_files{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"})
+            or absent(node_filesystem_readonly{job="mawareeth-node",fstype=~"ext4|xfs|btrfs"})
+            or absent(node_memory_MemAvailable_bytes{job="mawareeth-node"})
+            or absent(node_memory_MemTotal_bytes{job="mawareeth-node"})
+            or absent(node_memory_SwapFree_bytes{job="mawareeth-node"})
+            or absent(node_memory_SwapTotal_bytes{job="mawareeth-node"})
+            or absent(node_vmstat_oom_kill{job="mawareeth-node"})
+            or absent(node_timex_sync_status{job="mawareeth-node"})
+            or absent(node_timex_offset_seconds{job="mawareeth-node"})
+        for: 5m
+        labels:
+          severity: warning
+          project: mawareeth
+        annotations:
+          summary: 'Mawareeth: {{ if $labels.collector }}node_exporter collector {{ $labels.collector }} is failing on {{ $labels.alias }}{{ else if $labels.mountpoint }}filesystem {{ $labels.mountpoint }} on {{ $labels.alias }} reports a device error{{ else }}a host-health series is missing (check the node_exporter){{ end }}'
+          description: 'For 5 minutes a node_exporter filesystem, meminfo, vmstat, or timex collector has reported failure, a monitored filesystem has reported a device error, or a series the host-health alerts read (disk, inodes, read-only, memory, swap, OOM, clock) has been absent. The host-health alerts that read the affected series can stay silent until this is fixed. During a full scrape outage MawareethHostDown fires and suppresses this alert.'
+          runbook: 'deploy/README.md#runbook-mawareethhostmetricsmissing'
+
       - alert: MawareethWatchdog
         expr: vector(1)
         labels:

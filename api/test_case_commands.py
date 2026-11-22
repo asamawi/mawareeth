@@ -11,11 +11,12 @@ from django.contrib.sessions.backends.db import SessionStore
 from django.contrib.sessions.models import Session
 from django.db import connection, connections, transaction
 from django.db.migrations.executor import MigrationExecutor
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from api import anonymous_case
+from api import anonymous_case, case_commands
+from api import preview as case_preview
 from api.models import SavedCase
 from api.tests import (
     CASE_URL, DEATHS_URL, HEIRS_URL, InterviewDeathsHelpers, InterviewHelpers,
@@ -161,6 +162,87 @@ class RevisionTests(CommandBase):
         self.assertEqual(self.client.get(CASE_URL, secure=True).json()['case']['revision'], case['revision'])
 
 
+@override_settings(SNAPSHOT_WRITE_VERSION=2)
+class HeirStatusTests(CommandBase):
+    def edit(self, person, relationship='son', **fields):
+        return self.send('put', f'{HEIRS_URL}{person}/', {
+            'case_id': self.case_id, 'relationship': relationship, **fields})
+
+    def refused_edit(self, person, expected, **fields):
+        raw, stored = self.raw_session(), self.stored()
+        response = self.edit(person, **fields)
+        self.assert_untouched(response, 400, raw, stored)
+        self.assertEqual(response.json()['errors'], expected)
+
+    def test_status_round_trip_and_rename_keep_identity_and_edges(self):
+        self.setup_family()
+        edge = {'kind': 'parent_of', 'from': self.s1, 'to': self.s2}
+        self.plant(edges=[edge])
+        changed = self.edit(self.s1, status='died_before_or_with', name='S1').json()['case']
+        self.assertNotIn(self.s1, [row['id'] for row in changed['heirs']])
+        self.assertEqual(changed['died_before'], [
+            {'id': self.s1, 'relationship': 'son', 'name': 'S1', 'gender': 'male'}])
+        renamed = self.edit(self.s1, name='Ali').json()['case']
+        self.assertEqual(renamed['died_before'][0]['name'], 'Ali')
+        self.assertEqual(renamed['edges'], [edge])
+        restored = self.edit(self.s1, status='alive', name='Ali').json()['case']
+        self.assertNotIn('died_before', restored)
+        self.assertEqual(restored['heirs'][-1]['id'], self.s1)
+        self.assertEqual(restored['edges'], [edge])
+
+    def test_a_link_is_not_allowed_on_a_died_before_row(self):
+        self.setup_family()
+        self.edit(self.s1, status='died_before_or_with')
+        self.refused_edit(self.s1, {'same_as': 'not_allowed'}, same_as=self.s2)
+        self.refused_edit(self.s1, {'same_as': 'not_allowed'}, same_as=None, status='alive')
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=1)
+    def test_old_writer_refuses_status_before_storing(self):
+        self.setup_family()
+        self.refused_edit(self.s1, {'status': 'schema_unsupported'}, status='died_before_or_with')
+
+    def test_later_estates_and_linked_rows(self):
+        self.two()
+        alias = self.live()['deaths'][0]['heirs'][0]
+        for person in (self.s1, self.w, alias['id']):
+            self.refused_edit(person, {'status': 'status_locked'}, status='died_before_or_with')
+        new = self.add_layer(self.s1, 'son').json()['case']['deaths'][0]['heirs'][-1]
+        self.refused_edit(new['id'], {'status': 'first_estate_only'}, status='died_before_or_with')
+
+    def test_relationship_and_capacity_are_checked_on_return(self):
+        self.setup_family()
+        self.edit(self.s1, relationship='father', status='died_before_or_with')
+        self.heir({'id': self.case_id}, 'father')
+        self.refused_edit(self.s1, {'relationship': 'second_father'}, relationship='father', status='alive')
+        self.assertEqual(self.edit(self.s1, relationship='father', name='Ali').status_code, 200)
+        self.assertEqual(self.edit(self.s1, relationship='son').status_code, 200)
+        self.refused_edit(self.s1, {'relationship': 'second_father'}, relationship='father')
+        self.send('post', BULK_URL, {'case_id': self.case_id, 'heirs': [{'relationship': 'son'}] * 47})
+        self.refused_edit(self.s1, {'heirs': 'limit'}, status='alive')
+
+    def test_unknown_status_is_refused_and_nothing_is_stored(self):
+        self.setup_family()
+        self.refused_edit(self.s1, {'status': 'invalid'}, status='gone')
+
+    def test_died_before_list_at_capacity_refuses_one_more(self):
+        self.setup_family()
+        self.plant(died_before=[{'id': f'p{i}', 'gender': 'male', 'name': None, 'relationship': 'son'}
+                                for i in range(anonymous_case.MAX_HEIRS)])
+        self.refused_edit(self.s1, {'heirs': 'limit'}, status='died_before_or_with')
+
+    def test_died_before_removal_drops_only_the_person_and_incident_edges(self):
+        self.setup_family()
+        edge = {'kind': 'parent_of', 'from': self.s1, 'to': self.s2}
+        self.plant(edges=[edge])
+        before = self.edit(self.s1, status='died_before_or_with').json()['case']
+        self.assertEqual(case_commands.remove_impact(before, self.s1), {'persons': [], 'estates': []})
+        removed = self.send('delete', f'{HEIRS_URL}{self.s1}/', {'case_id': self.case_id}).json()['case']
+        self.assertNotIn(self.s1, [p['id'] for p in removed['persons']])
+        self.assertEqual(removed['heirs'], before['heirs'])
+        self.assertEqual(removed['edges'], [])
+        self.assertNotIn('died_before', removed)
+
+
 class BulkTests(CommandBase):
     def bulk(self, case, heirs, **extra):
         return self.send('post', BULK_URL, {'case_id': case['id'], 'heirs': heirs, **extra})
@@ -229,6 +311,92 @@ class LimitTests(CommandBase):
         self.assertEqual(response.json()['errors'], {'death': 'limit'})
 
 
+class EmptyLaterDeathTests(CommandBase):
+    """Story 9.8: a later death can be marked with no derived relatives."""
+    def test_an_empty_mark_derives_nothing_where_the_old_mark_would(self):
+        self.setup_family()
+        response = self.mark(self.s1, empty=True)
+        self.assertEqual(response.status_code, 201, response.content)
+        deaths = response.json()['case']['deaths']
+        self.assertEqual([(d['heir_id'], d['heirs']) for d in deaths], [(self.s1, [])])
+
+    def test_no_key_and_false_keep_the_old_derivation(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        self.assertEqual(len(self.live()['deaths'][0]['heirs']), 2)
+        self.send('delete', f'{DEATHS_URL}{self.s1}/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
+        self.assertEqual(self.mark(self.s1, empty=False).status_code, 201)
+        self.assertEqual(len(self.live()['deaths'][0]['heirs']), 2)
+
+    def test_a_bad_empty_is_refused_without_a_revision(self):
+        self.setup_family()
+        before, revision = self.stored(), self.revision()
+        self.refused(self.mark(self.s1, empty='yes'), {'empty': 'invalid'}, before)
+        self.refused(self.mark(self.s1, empty=True, relatives={}), {'relatives': 'invalid'}, before)
+        self.refused(self.mark(self.s1, empty=True, shared_father='yes'), {'relatives': 'invalid'}, before)
+        self.refused(self.mark(self.s1, empty=True, relatives=None), {'relatives': 'invalid'}, before)
+        self.refused(self.mark(self.s1, empty=True, shared_father=None), {'relatives': 'invalid'}, before)
+        self.assertEqual(self.revision(), revision)
+
+    def test_the_order_question_applies_and_first_resolves_it(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
+        before = self.stored()
+        self.refused(self.mark(self.s2, empty=True), {'death': 'order_required'}, before)
+        response = self.mark(self.s2, empty=True, first=self.s2)
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual([d['heir_id'] for d in response.json()['case']['deaths']], [self.s2, self.s1])
+
+    def test_the_limit_is_refused_with_the_revision_unchanged(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
+        self.assertEqual(self.mark(self.s2, empty=True, first=self.s1).status_code, 201)
+        revision, before = self.revision(), self.stored()
+        self.refused(self.mark(self.w, empty=True), {'death': 'limit'}, before)
+        self.assertEqual(self.revision(), revision)
+
+    def test_an_empty_later_estate_keeps_the_preview_not_ready(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
+        body = self.preview(self.case_id).json()
+        self.assertIs(type(body.pop('revision')), int)
+        self.assertEqual(body, {'status': 'not_ready'})
+        self.assertEqual(case_preview.preview(self.live()), {'status': 'not_ready'})
+
+    def test_cascade_impact_lists_the_later_estate_people(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
+        added = self.add_layer(self.s1, 'wife', name='New')
+        self.assertEqual(added.status_code, 201)
+        new = added.json()['case']['deaths'][0]['heirs'][0]['id']
+        response = self.send('delete', f'{HEIRS_URL}{self.s1}/', {'case_id': self.case_id})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['impact'], {'persons': [new], 'estates': [2]})
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_a_restore_after_removing_a_populated_estate_keeps_rows_edges_and_ids(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
+        self.assertEqual(self.add_layer(self.s1, 'son', name='New').status_code, 201)
+        death = self.live()['deaths'][0]
+        anchor, entries = next((a, e) for a, e in death['placement'].items() if a != 'root' and e)
+        child = self.add_layer(self.s1, entries[0]['relationship'], name='Kid', anchor=anchor)
+        self.assertEqual(child.status_code, 201, child.content)
+        before = self.live()
+        self.assertEqual(len(before['deaths'][0]['heirs']), 2)
+        self.assertEqual(len(before['edges']), 1)
+        old = anonymous_case.export_snapshot(anonymous_case.read_snapshot(dict(self.stored()), 'x', 'y'))
+        removed = self.send('delete', f'{HEIRS_URL}{self.s1}/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
+        self.assertEqual(removed.status_code, 200, removed.content)
+        self.assertEqual(removed.json()['case']['deaths'], [])
+        response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot': old})
+        self.assertEqual(response.status_code, 200, response.content)
+        case = response.json()['case']
+        self.assertEqual(case['deaths'], before['deaths'])
+        self.assertEqual(case['heirs'], before['heirs'])
+        self.assertEqual(case['edges'], before['edges'])
+
+
 class CascadeTests(CommandBase):
     def test_removing_a_heir_with_a_later_death_layer_needs_confirmation(self):
         self.setup_family()
@@ -294,6 +462,49 @@ class RestoreTests(CommandBase):
         self.assertEqual((case['id'], case['started_at']), (before['id'], before['started_at']))
         self.assertEqual(case['deaths'], [])
         self.assertEqual(case['madhab'], 'hanbali')
+
+    def test_every_live_case_response_carries_the_servers_own_snapshot(self):
+        case = self.setup_family()
+        self.assertIn('snapshot', case)
+        read = self.live()
+        self.assertEqual(read['snapshot'], anonymous_case.export_snapshot(self.stored_case()))
+        added = self.send('post', HEIRS_URL, {'case_id': self.case_id, 'relationship': 'daughter'})
+        self.assertEqual(added.status_code, 201)
+        body = added.json()['case']
+        self.assertEqual(body['snapshot'], anonymous_case.export_snapshot(self.stored_case()))
+        stale = self.send('post', HEIRS_URL, {'case_id': self.case_id, 'relationship': 'son',
+                                              'expected_revision': 1})
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(stale.json()['case']['snapshot'], self.live()['snapshot'])
+        self.assertNotIn('snapshot', self.stored())
+
+    def test_posting_the_snapshot_from_before_an_add_restores_that_family(self):
+        self.setup_family()
+        before = self.live()
+        self.assertEqual(self.send('post', HEIRS_URL, {'case_id': self.case_id,
+                                                       'relationship': 'daughter'}).status_code, 201)
+        response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot': before['snapshot']})
+        self.assertEqual(response.status_code, 200)
+        case = response.json()['case']
+        self.assertEqual([row['id'] for row in case['heirs']], [row['id'] for row in before['heirs']])
+        self.assertEqual(case['revision'], before['revision'] + 2)
+
+    def stored_case(self):
+        return anonymous_case.read_snapshot(dict(self.stored()), 'x', 'y')
+
+    def test_a_restore_at_a_stale_revision_is_a_conflict_that_changes_nothing(self):
+        self.setup_family()
+        before = self.live()
+        self.assertEqual(self.send('post', HEIRS_URL, {'case_id': self.case_id,
+                                                       'relationship': 'daughter'}).status_code, 201)
+        raw, stored = self.raw_session(), self.stored()
+        response = self.send('post', RESTORE_URL, {
+            'case_id': self.case_id, 'snapshot': before['snapshot'], 'expected_revision': before['revision']})
+        self.assert_untouched(response, 409, raw, stored)
+        body = response.json()
+        self.assertEqual(body['error'], 'conflict')
+        self.assertEqual(body['case'], self.live())
+        self.assertIn('snapshot', body['case'])
 
     def test_an_invalid_snapshot_is_refused_whole(self):
         self.setup_family()
@@ -498,3 +709,110 @@ class PreviewRevisionTests(CommandBase):
         self.assertEqual(body['revision'], live['revision'])
         self.heir(case, 'daughter')
         self.assertEqual(self.preview(live['id']).json()['revision'], live['revision'] + 1)
+
+
+class PositionedAddTests(CommandBase):
+    """Story 9.7: an add may name the person it hangs from."""
+
+    def son_and_anchor(self, **post):
+        case = self.build('hanbali', 'male', None, ['son'], ['S'])
+        return case, case['heirs'][0]['id']
+
+    def test_no_anchor_key_is_unchanged_and_root_adds_no_edge(self):
+        case = self.ready()
+        plain = self.heir(case)
+        self.assertEqual(plain.status_code, 201)
+        rooted = self.heir(case, 'daughter', anchor='root')
+        self.assertEqual(rooted.status_code, 201)
+        self.assertEqual(rooted.json()['case']['edges'], [])
+        self.assertEqual([h['relationship'] for h in rooted.json()['case']['heirs']], ['son', 'daughter'])
+        self.assertEqual(set(plain.json()['case']), set(rooted.json()['case']))
+
+    def test_every_placement_entry_has_a_gender(self):
+        case, _ = self.son_and_anchor()
+        for entries in case['placement'].values():
+            for entry in entries:
+                self.assertIn(entry['gender'], ('male', 'female'))
+        self.assertEqual({e['relationship']: e['gender'] for e in case['placement']['root']}['son'], 'male')
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_child_edge(self):
+        case, son = self.son_and_anchor()
+        response = self.heir(case, 'son_of_son', anchor=son)
+        self.assertEqual(response.status_code, 201, response.content)
+        body = response.json()['case']
+        new = next(h['id'] for h in body['heirs'] if h['relationship'] == 'son_of_son')
+        self.assertEqual(body['edges'], [{'kind': 'parent_of', 'from': son, 'to': new}])
+        self.assertEqual(self.stored()['edges'], body['edges'])
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_parent_edge(self):
+        case = self.build('hanbali', 'male', None, ['father'], ['F'])
+        father = case['heirs'][0]['id']
+        response = self.heir(case, 'paternal_grandmother', anchor=father)
+        self.assertEqual(response.status_code, 201, response.content)
+        body = response.json()['case']
+        new = next(h['id'] for h in body['heirs'] if h['relationship'] == 'paternal_grandmother')
+        self.assertEqual(body['edges'], [{'kind': 'parent_of', 'from': new, 'to': father}])
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_died_before_anchor_and_restore(self):
+        case, son = self.son_and_anchor()
+        edit = self.send('put', f'{HEIRS_URL}{son}/', {
+            'case_id': case['id'], 'relationship': 'son', 'status': 'died_before_or_with'})
+        self.assertEqual(edit.status_code, 200, edit.content)
+        before = self.live()
+        response = self.heir(before, 'son_of_son', anchor=son)
+        self.assertEqual(response.status_code, 201, response.content)
+        body = response.json()['case']
+        new = next(h['id'] for h in body['heirs'] if h['relationship'] == 'son_of_son')
+        self.assertEqual(body['edges'], [{'kind': 'parent_of', 'from': son, 'to': new}])
+        restored = self.send('post', RESTORE_URL, {
+            'case_id': case['id'], 'snapshot': anonymous_case.export_snapshot(before)})
+        self.assertEqual(restored.status_code, 200, restored.content)
+        self.assertEqual(restored.json()['case']['edges'], [])
+        self.assertEqual(restored.json()['case']['heirs'], [])
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_later_estate_anchor(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        death = self.live()['deaths'][0]
+        anchor, entries = next((a, e) for a, e in death['placement'].items() if a != 'root' and e)
+        entry = entries[0]
+        response = self.add_layer(death['heir_id'], entry['relationship'], anchor=anchor)
+        self.assertEqual(response.status_code, 201, response.content)
+        edges = response.json()['case']['edges']
+        self.assertEqual(len(edges), 1)
+        self.assertIn(anchor, (edges[0]['from'], edges[0]['to']))
+
+    def test_writer_1_refuses_a_non_root_anchor_without_changes(self):
+        case, son = self.son_and_anchor()
+        before_raw, before = self.raw_session(), self.stored()
+        response = self.heir(case, 'son_of_son', anchor=son)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['errors'], {'anchor': 'schema_unsupported'})
+        self.assertEqual(self.raw_session(), before_raw)
+        self.assertEqual(self.stored(), before)
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_not_offered_unknown_non_string_and_same_as_are_refused(self):
+        case, son = self.son_and_anchor()
+        before_raw, before = self.raw_session(), self.stored()
+        for extra in ({'anchor': son, 'relationship': 'son'},
+                      {'anchor': 'nobody', 'relationship': 'son'},
+                      {'anchor': 7, 'relationship': 'son'},
+                      {'anchor': None, 'relationship': 'son'},
+                      {'anchor': son, 'relationship': 'son_of_son', 'same_as': son}):
+            response = self.heir(case, **extra)
+            self.assertEqual(response.status_code, 400, extra)
+            self.assertEqual(response.json()['errors']['anchor'], 'not_allowed', extra)
+            self.assertEqual(self.raw_session(), before_raw)
+        self.assertEqual(self.stored(), before)
+
+    def test_a_slot_the_engine_no_longer_offers_is_refused(self):
+        case = self.ready()
+        self.assertEqual(self.heir(case, 'father', anchor='root').status_code, 201)
+        response = self.heir(case, 'father', anchor='root')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['errors']['anchor'], 'not_allowed')

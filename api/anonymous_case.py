@@ -16,6 +16,11 @@ from django.utils import timezone
 
 from api import heir_rules
 from api.kinship import derive
+from engine.contracts.errors import ContractError
+from engine.contracts.family import EDGE_KINDS
+from engine.contracts.values import ID_RE
+from engine.queries import placement_options
+from engine.rule_set import school_rule_set
 
 SESSION_KEY = 'anonymous_case'
 SAVED_LINK_KEY = 'saved_case_link'
@@ -213,12 +218,59 @@ def _read_heirs(value):
     return heirs[:MAX_HEIRS]
 
 
-def heir_options(madhab, deceased, heirs):
+def _read_died_before(value, taken):
+    """The valid died-before persons, in order. A tampered entry, or one whose id is taken, is left out."""
+    if not isinstance(value, list):
+        return []
+    people, seen = [], set(taken)
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        person_id = item.get('id')
+        if not isinstance(person_id, str) or not person_id or person_id in seen or person_id == 'root':
+            continue
+        try:
+            fields = clean_heir(item)
+        except FieldErrors:
+            continue
+        seen.add(person_id)
+        people.append({
+            'id': person_id,
+            'gender': RELATIONSHIPS[fields['relationship']],
+            'name': fields['name'],
+            'relationship': fields['relationship'],
+        })
+    return people[:MAX_HEIRS]
+
+
+def _read_edges(value, known):
+    """The valid lineage edges, in order. Unknown ends, self-links, repeats and extra keys are left out."""
+    if not isinstance(value, list):
+        return []
+    edges, seen = [], set()
+    for item in value:
+        if not isinstance(item, dict) or set(item) != {'kind', 'from', 'to'}:
+            continue
+        kind, start, end = item['kind'], item['from'], item['to']
+        if (not isinstance(kind, str) or kind not in EDGE_KINDS or not isinstance(start, str)
+                or not isinstance(end, str) or start == end or start not in known or end not in known
+                or (kind, start, end) in seen):
+            continue
+        seen.add((kind, start, end))
+        edges.append({'kind': kind, 'from': start, 'to': end})
+    return edges
+
+
+def heir_options(madhab, deceased, heirs, locked_gender=None):
     """What adding a relative to the whole family would meet: {'blocked': [...], 'invalid': {...}}.
 
     `blocked` lists the relationships the engine would give nothing (hajb): they are labelled,
     never refused. `invalid` maps a relationship to the code of the kinship rule it would
     break. The two never overlap: kinship comes first.
+
+    With `locked_gender` (a person linked into another row, or named as a later deceased), every
+    relationship of the other gender is `invalid` as `gender_locked`, ahead of any kinship code,
+    as `update_heir` answers it.
     """
     if deceased is None:
         return {'blocked': [], 'invalid': {}}
@@ -226,7 +278,9 @@ def heir_options(madhab, deceased, heirs):
     invalid = {}
     for relationship in RELATIONSHIPS:
         code = heir_rules.kinship_code(relationship, deceased['gender'], counts)
-        if code is not None:
+        if locked_gender is not None and RELATIONSHIPS[relationship] != locked_gender:
+            invalid[relationship] = 'gender_locked'
+        elif code is not None:
             invalid[relationship] = code
     blocked = heir_rules.blocked_relationships(madhab, counts)
     return {
@@ -328,9 +382,15 @@ def read_snapshot(snapshot, case_id, started_at):
         'heir_options': heir_options(madhab, deceased, heirs),
         'deaths': [],
     }
-    for i, heir in enumerate(heirs):
-        heir['edit_options'] = heir_options(madhab, deceased, heirs[:i] + heirs[i + 1:])
     _read_deaths(result, snapshot.get('deaths'))
+    died_before = _read_died_before(snapshot.get('died_before'), set(_rows(result)))
+    if died_before:
+        result['died_before'] = died_before
+    known = {'root'} | {_person(row) for row in _rows(result).values()} | {p['id'] for p in died_before}
+    result['edges'] = _read_edges(snapshot.get('edges'), known)
+    # After the edges: they decide which rows can be linked.
+    _decorate(result)
+    _describe(result)
     return result
 
 
@@ -362,12 +422,21 @@ def _save(request, **changes):
         stored['changed_at'] = raw['changed_at']
     stored['revision'] = revision_of(raw)
     stored.pop('heir_options', None)
+    stored.pop('persons', None)
+    stored.pop('placement', None)
+    for key in ('edges', 'died_before'):
+        if not stored.get(key):
+            stored.pop(key, None)
+    from api.snapshots import ensure_writable
+    ensure_writable(stored)
     for heir in stored.get('heirs', []):
         heir.pop('edit_options', None)
     for death in stored.get('deaths', []):
         death.pop('heir_options', None)
+        death.pop('placement', None)
         for heir in death.get('heirs', []):
             heir.pop('edit_options', None)
+            heir.pop('link_candidates', None)
     # Reassign: changing the nested dict would not mark the session modified.
     request.session[SESSION_KEY] = stored
     touch(request)
@@ -431,15 +500,119 @@ def _person(row):
     return row.get('same_as') or row['id']
 
 
+def _is_locked(case, rows, row):
+    """True when the row's person is linked into another row or named as a later deceased."""
+    person = _person(row)
+    return (any(_person(r) == person and r['id'] != row['id'] for r in rows.values())
+            or any(d['heir_id'] == person for d in case['deaths']))
+
+
+def _edit_options(case, rows, deceased, layer, i):
+    row = layer[i]
+    return heir_options(case['madhab'], deceased, layer[:i] + layer[i + 1:],
+                        row['gender'] if _is_locked(case, rows, row) else None)
+
+
+def _is_referenced(case, rows, row):
+    """True when another row links to this one or it owns a later death: it cannot itself be linked."""
+    return (any(r.get('same_as') == row['id'] for r in rows.values())
+            or any(d['heir_id'] == row['id'] for d in case['deaths'])
+            or any(row['id'] in (e['from'], e['to']) for e in case.get('edges') or []))
+
+
+def _link_context(case):
+    """Estate position of every row and the order of every death, computed once per call."""
+    positions = {r['id']: i for i, (_, _, rs) in enumerate(_layers(case), 1) for r in rs}
+    return positions, {d['heir_id']: d['order'] for d in case['deaths']}
+
+
+def _link_issue(case, rows, layer, heirs, link, relationship, skip=None, context=None):
+    """The refusal code for linking a row of estate `layer` to the person `link`, or None when it is allowed.
+
+    One rule for add, update and the candidates served to the browser. `skip` is the row being edited,
+    which does not count as already representing the person."""
+    if not isinstance(link, str) or link not in rows:
+        return 'not_alive'
+    person = _person(rows[link])
+    positions, orders = context or _link_context(case)
+    order = orders.get(layer, 1)
+    died = orders.get(person, 4)
+    if any(_person(r) == person for r in heirs if r is not skip):
+        return 'already_linked'
+    if positions[person] >= order or died <= order:
+        return 'not_alive'
+    if (isinstance(relationship, str) and relationship in RELATIONSHIPS
+            and rows[person]['gender'] != RELATIONSHIPS[relationship]):
+        return 'gender_mismatch'
+    return None
+
+
+def _link_candidates(case, rows, layer, heirs, row):
+    """Person ids the later-estate row could be linked to: server-decided, current target always included."""
+    if _is_referenced(case, rows, row):
+        return []
+    context = _link_context(case)
+    found = [r['id'] for r in rows.values() if not r.get('same_as') and r is not row
+             and _link_issue(case, rows, layer, heirs, r['id'], row['relationship'], skip=row,
+                             context=context) is None]
+    current = row.get('same_as')
+    if current and current not in found:
+        found.append(current)
+    return found
+
+
 def _decorate(case):
     rows = _rows(case)
+    for i, row in enumerate(case['heirs']):
+        row['edit_options'] = _edit_options(case, rows, case['deceased'], case['heirs'], i)
     for death in case['deaths']:
         death['gender'] = rows[death['heir_id']]['gender']
         death['heir_options'] = heir_options(case['madhab'], death, death['heirs'])
         for i, row in enumerate(death['heirs']):
-            row['edit_options'] = heir_options(case['madhab'], death, death['heirs'][:i] + death['heirs'][i + 1:])
+            row['edit_options'] = _edit_options(case, rows, death, death['heirs'], i)
+            row['link_candidates'] = _link_candidates(case, rows, death['heir_id'], death['heirs'], row)
             if row.get('same_as'):
                 row['name'] = rows[row['same_as']]['name']
+
+
+def _placement(options):
+    return {anchor: [{'relationship': o.relationship, 'link': o.link, 'blocked': o.blocked,
+                      'gender': RELATIONSHIPS[o.relationship]} for o in found]
+            for anchor, found in options.items()}
+
+
+def _describe(case):
+    """Add `persons` and the engine's `placement`, for the case and each death. `edges` is already set."""
+    from calc.adapters import family_from_session
+    case['persons'], case['placement'] = [], {}
+    for death in case['deaths']:
+        death['placement'] = {}
+    deceased = case['deceased']
+    try:
+        # The estate amount plays no part here and must not make a stored case unreadable.
+        family, _ = family_from_session({**case, 'deceased': {'estate': None}})
+        case['persons'] = [{'id': p.id, 'gender': p.gender, 'name': p.name, 'relationship': p.relationship,
+                            'status': p.status, 'death_order': p.death_order} for p in family.persons]
+        # An undecided school has no blocked relatives, as in `heir_options`.
+        madhab = case['madhab']
+        rules = school_rule_set(madhab or 'hanbali')
+
+        def serve(estate, gender):
+            found = _placement(placement_options(family, rules, estate=estate, deceased_gender=gender))
+            if madhab is None:
+                for entries in found.values():
+                    for entry in entries:
+                        entry['blocked'] = False
+            return found
+
+        case['placement'] = serve(1, deceased['gender'] if deceased else None)
+        for death in case['deaths']:
+            death['placement'] = serve(death['order'], None)
+    except (ContractError, KeyError, ValueError):
+        # A tampered case that the contract refuses still reads; it just offers no placements.
+        case['persons'], case['placement'] = [], {}
+        for death in case['deaths']:
+            death['placement'] = {}
 
 
 def _read_deaths(case, value):
@@ -480,7 +653,6 @@ def _read_deaths(case, value):
             heirs.append(row)
         case['deaths'].append({'heir_id': target, 'order': len(case['deaths']) + 2,
                                'gender': rows[target]['gender'], 'heirs': heirs})
-    _decorate(case)
 
 
 def _store_case(request, case):
@@ -523,7 +695,10 @@ def _order(case, first=None):
                 raise FieldErrors({'death': 'order_conflict'})
 
 
-def mark_deceased(request, heir_id, first=None, case_id=None, relatives=None, shared_father=None):
+_UNSET = object()
+
+
+def mark_deceased(request, heir_id, first=None, case_id=None, relatives=None, shared_father=None, empty=_UNSET, companions_given=False):
     """Add a person's death layer. Raises StaleCase, HeirNotFound or FieldErrors."""
     case = _live(request, case_id)
     if case is None:
@@ -536,8 +711,16 @@ def mark_deceased(request, heir_id, first=None, case_id=None, relatives=None, sh
         raise FieldErrors({'death': 'already_deceased'})
     if len(case['deaths']) == 2:
         raise FieldErrors({'death': 'limit'})
+    if empty is not _UNSET and empty is not True and empty is not False:
+        raise FieldErrors({'empty': 'invalid'})
+    empty = empty is True
+    if empty and (companions_given or relatives is not None or shared_father is not None):
+        raise FieldErrors({'relatives': 'invalid'})
     case['deaths'].append({'heir_id': person, 'order': len(case['deaths']) + 2,
                            'gender': rows[person]['gender'], 'heirs': []})
+    if empty:
+        _order(case, first)
+        return _store_case(request, case)
     if (relatives is not None and not (isinstance(relatives, dict) and all(
             isinstance(k, str) and isinstance(v, str) for k, v in relatives.items()))
             or shared_father not in (None, 'yes', 'no')):
@@ -587,6 +770,7 @@ def _remove_rows(case, removed, old=None):
     """Promote surviving identities, then recursively prune deaths with no surviving row."""
     old = _rows(case) if old is None else old
     while True:
+        before = {_person(r) for r in _rows(case).values()}
         for _, _, rows in _layers(case):
             rows[:] = [r for r in rows if r['id'] not in removed]
         remaining = _rows(case)
@@ -602,6 +786,12 @@ def _remove_rows(case, removed, old=None):
                 row.pop('same_as', None)
                 if row is not earliest:
                     row['same_as'] = earliest['id']
+        if case.get('edges'):
+            # An edge follows a promoted identity, and goes with a person who is gone.
+            case['edges'] = [{**edge, 'from': replacements.get(edge['from'], edge['from']),
+                              'to': replacements.get(edge['to'], edge['to'])}
+                             for edge in case['edges']
+                             if all(end not in before or end in replacements for end in (edge['from'], edge['to']))]
         lost = [d for d in case['deaths'] if d['heir_id'] not in replacements]
         for d in case['deaths']:
             if d not in lost:
@@ -668,24 +858,50 @@ def _add_heir(case, data, layer=None, same_as=None):
         if not isinstance(link, str) or link not in rows:
             errors['same_as'] = 'not_alive'
         else:
+            issue = _link_issue(case, rows, layer, heirs, link, relationship)
+            if issue:
+                errors['same_as'] = issue
             link = _person(rows[link])
-            positions = {r['id']: i for i, (key, _, rs) in enumerate(_layers(case), 1) for r in rs}
-            order = next((d['order'] for d in case['deaths'] if d['heir_id'] == layer), 1)
-            died = next((d['order'] for d in case['deaths'] if d['heir_id'] == link), 4)
-            if any(_person(r) == link for r in heirs):
-                errors['same_as'] = 'already_linked'
-            elif positions[link] >= order or died <= order:
-                errors['same_as'] = 'not_alive'
-            elif (isinstance(relationship, str) and relationship in RELATIONSHIPS
-                  and rows[link]['gender'] != RELATIONSHIPS[relationship]):
-                errors['same_as'] = 'gender_mismatch'
+    edge = None
+    if 'anchor' in data:
+        edge = _anchor_edge(case, layer, data['anchor'], relationship, link, errors)
     if errors:
         raise FieldErrors(errors)
     row = {'id': uuid.uuid4().hex, **fields, 'gender': RELATIONSHIPS[relationship]}
     if link is not None:
         row['same_as'] = link
     heirs.append(row)
+    if edge is not None:
+        kind, anchor, side = edge
+        pair = {'from': anchor, 'to': row['id']} if side == 'from' else {'from': row['id'], 'to': anchor}
+        case.setdefault('edges', []).append({'kind': kind, **pair})
     return row
+
+
+def _anchor_edge(case, layer, anchor, relationship, link, errors):
+    """Check a positioned add against the layer's placement. Returns (kind, anchor, side) or None."""
+    if link is not None or not isinstance(anchor, str) or not isinstance(relationship, str):
+        errors['anchor'] = 'not_allowed'
+        return None
+    if layer is None:
+        placement = case.get('placement') or {}
+    else:
+        placement = next((d.get('placement') or {} for d in case['deaths'] if d['heir_id'] == layer), {})
+    entry = next((e for e in placement.get(anchor, []) if e['relationship'] == relationship), None)
+    if entry is None:
+        errors['anchor'] = 'not_allowed'
+        return None
+    if anchor == 'root':
+        return None
+    from api.snapshots import write_version
+    if write_version() == 1:
+        errors['anchor'] = 'schema_unsupported'
+        return None
+    if entry['link'] == 'child':
+        return 'parent_of', anchor, 'from'
+    if entry['link'] == 'parent':
+        return 'parent_of', anchor, 'to'
+    return 'spouse_of', anchor, 'from'
 
 
 def update_heir(request, heir_id, data, case_id):
@@ -694,9 +910,31 @@ def update_heir(request, heir_id, data, case_id):
     if case is None:
         return None
     rows = _rows(case)
-    if heir_id not in rows:
+    before = case.get('died_before') or []
+    row = rows.get(heir_id) or next((p for p in before if p['id'] == heir_id), None)
+    if row is None:
         raise HeirNotFound(case)
-    row = rows[heir_id]
+    was_before = heir_id not in rows
+    status = data.get('status', 'died_before_or_with' if was_before else 'alive')
+    if status not in ('alive', 'died_before_or_with'):
+        raise FieldErrors({'status': 'invalid'})
+    person = _person(row)
+    locked = _is_locked(case, rows, row)
+    moving_before = not was_before and status == 'died_before_or_with'
+    returning = was_before and status == 'alive'
+    if moving_before:
+        from api.snapshots import write_version
+        if write_version() == 1:
+            raise FieldErrors({'status': 'schema_unsupported'})
+        if locked:
+            raise FieldErrors({'status': 'status_locked'})
+        if row not in case['heirs']:
+            raise FieldErrors({'status': 'first_estate_only'})
+        if len(case.get('died_before') or []) >= MAX_HEIRS:
+            raise FieldErrors({'heirs': 'limit'})
+    if returning and len(case['heirs']) >= MAX_HEIRS:
+        raise FieldErrors({'heirs': 'limit'})
+    # Every field issue is reported together, as before this command took a status.
     errors = {}
     try:
         fields = clean_heir(data)
@@ -704,13 +942,12 @@ def update_heir(request, heir_id, data, case_id):
         errors.update(error.errors)
     rel = canonical(data.get('relationship'))
     if isinstance(rel, str) and rel in RELATIONSHIPS:
-        person = _person(row)
-        locked = (any(_person(r) == person and r['id'] != row['id'] for r in rows.values())
-                  or any(d['heir_id'] == person for d in case['deaths']))
         if locked and RELATIONSHIPS[rel] != row['gender']:
             errors['relationship'] = 'gender_locked'
-        elif rel != row['relationship']:
-            _, deceased, heirs = next(e for e in _layers(case) if row in e[2])
+        elif returning or rel != row['relationship']:
+            deceased, heirs = case['deceased'], case['heirs']
+            if not was_before:
+                _, deceased, heirs = next(e for e in _layers(case) if row in e[2])
             if deceased is None:
                 errors['case'] = 'deceased_required'
             else:
@@ -718,11 +955,46 @@ def update_heir(request, heir_id, data, case_id):
                     rel, deceased['gender'], heir_rules.counts(r for r in heirs if r is not row))
                 if issue:
                     errors['relationship'] = issue
+    link_changes = False
+    if 'same_as' in data:
+        link = data['same_as']
+        layer_entry = None if was_before else next(e for e in _layers(case) if row in e[2])
+        if layer_entry is None or layer_entry[0] is None:
+            errors['same_as'] = 'not_allowed'
+        elif link is None:
+            link_changes = 'same_as' in row
+        elif _is_referenced(case, rows, row):
+            errors['same_as'] = 'already_linked'
+        else:
+            issue = _link_issue(case, rows, layer_entry[0], layer_entry[2], link,
+                                rel if isinstance(rel, str) and rel in RELATIONSHIPS else row['relationship'],
+                                skip=row)
+            if issue:
+                errors['same_as'] = issue
+            else:
+                link = _person(rows[link])
+                link_changes = link != row.get('same_as')
     if errors:
         raise FieldErrors(errors)
-    rows[_person(row)]['name'] = fields['name']
-    row['relationship'] = rel
-    row['gender'] = RELATIONSHIPS[rel]
+    if not link_changes:
+        rows.get(person, row)['name'] = fields['name']
+    elif data['same_as'] is None:
+        row.pop('same_as')
+        row['name'] = None
+        if not ID_RE.fullmatch(row['id']):
+            # A reopened snapshot names an alias `{person}~{order}`; as its own person it needs a valid id.
+            row['id'] = uuid.uuid4().hex
+    else:
+        row['same_as'] = link
+        row['name'] = None
+    row.update(relationship=rel, gender=RELATIONSHIPS[rel])
+    if moving_before:
+        case['heirs'].remove(row)
+        row.pop('edit_options', None)
+        case['died_before'] = before + [row]
+    elif returning:
+        before.remove(row)
+        case['heirs'].append(row)
     return _store_case(request, case)
 
 
@@ -731,9 +1003,15 @@ def remove_heir(request, heir_id, case_id):
     case = _live(request, case_id)
     if case is None:
         return None
-    if heir_id not in _rows(case):
+    before = case.get('died_before', [])
+    person = next((p for p in before if p['id'] == heir_id), None)
+    if person:
+        before.remove(person)
+        case['edges'] = [e for e in case['edges'] if heir_id not in (e['from'], e['to'])]
+    elif heir_id in _rows(case):
+        _remove_rows(case, {heir_id})
+    else:
         raise HeirNotFound(case)
-    _remove_rows(case, {heir_id})
     return _store_case(request, case)
 
 
@@ -741,13 +1019,20 @@ def export_snapshot(case):
     """Only input fields cross the persistence boundary, including linked identities."""
     def row(value):
         return {key: value[key] for key in ('id', 'relationship', 'gender', 'name', 'same_as') if key in value}
-    return {
+    exported = {
         'madhab': case['madhab'],
         'deceased': {key: case['deceased'][key] for key in ('gender', 'estate')} if case['deceased'] else None,
         'heirs': [row(value) for value in case['heirs']],
         'deaths': [{'heir_id': death['heir_id'], 'order': death['order'], 'gender': death['gender'],
                     'heirs': [row(value) for value in death['heirs']]} for death in case['deaths']],
     }
+    # Lineage is exported only when there is some, so a case without it exports exactly as before.
+    if case.get('edges'):
+        exported['edges'] = [{key: edge[key] for key in ('kind', 'from', 'to')} for edge in case['edges']]
+    if case.get('died_before'):
+        exported['died_before'] = [{key: person[key] for key in ('id', 'gender', 'name', 'relationship')}
+                                   for person in case['died_before']]
+    return exported
 
 
 def clear_saved_link(request):
@@ -773,5 +1058,8 @@ def set_saved_link(request, case_id, saved_id, base_revision):
 
 
 def load_snapshot(request, snapshot):
+    from api.snapshots import ensure_writable
+    # Before start() replaces the session case: a refused snapshot leaves the session as it was.
+    ensure_writable(snapshot)
     start(request)
     return _save(request, **snapshot)

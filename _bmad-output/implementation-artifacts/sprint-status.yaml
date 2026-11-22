@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 21:00
-last_updated: 11-18-2026 20:02
+last_updated: 11-22-2026 17:08
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
@@ -50,18 +50,22 @@ development_status:
   8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert: done
   epic-8-retrospective: done
 
-  epic-9: backlog
-  9-1-establish-the-interview-shell-and-accessible-tree-tokens: backlog
-  9-2-render-the-family-as-lineage-cards-on-a-navigable-canvas: backlog
-  9-3-add-one-relative-with-one-press: backlog
-  9-4-edit-and-remove-relatives-from-the-tree: backlog
-  9-5-add-a-group-of-relatives-with-a-count-stepper: backlog
-  9-6-undo-family-changes-throughout-the-page-visit: backlog
-  9-7-add-relatives-at-a-chosen-node-by-touch-keyboard-or-drag: backlog
-  9-8-open-and-edit-later-death-estates-with-a-breadcrumb: backlog
-  9-9-complete-keyboard-navigation-and-the-screen-reader-outline: backlog
-  9-10-coordinate-interview-announcements-and-updating-states: backlog
-  9-11-verify-responsive-rtl-and-reduced-motion-tree-interactions: backlog
+  epic-9: in-progress
+  9-1-establish-the-interview-shell-and-accessible-tree-tokens: done
+  9-1b-carry-lineage-and-status-in-the-interview-case: done
+  9-2-render-the-family-as-lineage-cards-on-a-navigable-canvas: done
+  9-3-add-one-relative-with-one-press: done
+  9-4-edit-and-remove-relatives-from-the-tree: done
+  9-5-add-a-group-of-relatives-with-a-count-stepper: done
+  9-6-undo-family-changes-throughout-the-page-visit: done
+  9-7-add-relatives-at-a-chosen-node-by-touch-keyboard-or-drag: done
+  9-8-open-and-edit-later-death-estates-with-a-breadcrumb: done
+  9-9-complete-keyboard-navigation-and-the-screen-reader-outline: done
+  9-10-coordinate-interview-announcements-and-updating-states: done
+  9-11-verify-responsive-rtl-and-reduced-motion-tree-interactions: done
+  9-13-link-a-later-estate-heir-from-the-edit-sheet-and-retire-the-o: review
+  11-2-present-one-readable-share-preview-in-the-desktop-slot: backlog
+  11-3-open-the-full-preview-from-a-sticky-summary-bar-and-modal-sh: backlog
   9-12-prove-the-complete-family-entry-journey-meets-capacity-and-s: backlog
   epic-9-retrospective: optional
 
@@ -74,8 +78,6 @@ development_status:
 
   epic-11: backlog
   11-1-show-school-agreement-and-ask-for-a-school-only-when-shares: backlog
-  11-2-present-one-readable-share-preview-in-the-desktop-slot: backlog
-  11-3-open-the-full-preview-from-a-sticky-summary-bar-and-modal-sh: backlog
   11-4-keep-summary-controls-reachable-at-narrow-widths-and-high-zo: backlog
   11-5-preserve-the-results-table-and-make-result-actions-clear: backlog
   11-6-explain-the-estate-input-and-identify-user-supplied-facts: backlog

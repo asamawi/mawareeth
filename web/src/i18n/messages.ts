@@ -10,7 +10,12 @@ export function isLocale(value: string): value is Locale {
 
 /** The reading direction of a Locale; a string that is no Locale reads left to right. */
 export function directionOf(locale: string): "rtl" | "ltr" {
-  return isLocale(locale) ? localeConfig[locale].direction : "ltr";
+  return directionFrom({ locales: locales.map((code) => ({ code, direction: localeConfig[code].direction })) }, locale);
+}
+
+/** The direction a registry gives a code, so tests can prove it is derived from the registry and not a literal `ar`. */
+export function directionFrom(registry: { locales: readonly { code: string; direction: "rtl" | "ltr" }[] }, code: string): "rtl" | "ltr" {
+  return registry.locales.find((entry) => entry.code === code)?.direction ?? "ltr";
 }
 
 // The ids in the order the screens list them. The catalog owns the text of every one.
@@ -79,14 +84,17 @@ export type Messages = {
     heirsEmpty: string;
     heirsListLabel: string;
     treeHeading: string;
-    treeDeceasedMale: string;
-    treeDeceasedFemale: string;
-    /** Shown under a tree that has only the deceased. */
-    treePrompt: string;
-    /** `{deceased}` is the deceased text and `{heirs}` the counts, such as " Son: 2. Wife: 1.". */
-    treeSummary: string;
-    /** `{relationship}` and `{n}`: one entry of the description, such as "Son: 2.". */
-    treeCount: string;
+    treeDeceased: string;
+    treeDiedBefore: Record<"male" | "female", string>;
+    treeDiedLater: Record<"male" | "female", string>;
+    treeNoShare: string;
+    treeAddParent: string;
+    treeAddSpouse: string;
+    treeFit: string;
+    treeZoomIn: string;
+    treeZoomOut: string;
+    treeZoomStatus: string;
+    treeHint: string;
     heirRelationshipLabel: string;
     heirRelationshipPlaceholder: string;
     /** An option the server says would inherit nothing with the family so far; {relationship} is its name. */
@@ -95,12 +103,26 @@ export type Messages = {
     heirMoreRelatives: string;
     /** Label of that select. */
     heirMoreRelativesLabel: string;
+    addRelativesHeading: string;
+    addGroupSpouse: string;
+    addGroupParents: string;
+    addGroupChildren: string;
+    addGroupSiblings: string;
+    addRelative: string;
+    /** Story 9.7: the shared chooser, drop-target plates and refusals for positioned adds. */
+    addRelativeHere: string;
+    /** `{person}` is the card's label. */
+    addHereGroup: string;
+    addHereNone: string;
+    dropHere: string;
+    dropNotHere: string;
+    /** `{reason}` is `positionNotAllowed`. */
+    notAllowedHere: string;
+    /** `{relationship}` is the localized term. */
+    positionNotAllowed: string;
+    conflictNotice: string;
     /** Under the add form's list, when an option is labelled. */
     heirNameLabel: string;
-    heirNameHint: string;
-    heirAdd: string;
-    heirSave: string;
-    heirCancel: string;
     /** The `{heir}` placeholder is the heir's name or relationship. */
     heirEdit: string;
     heirRemove: string;
@@ -109,10 +131,34 @@ export type Messages = {
     heirRemoveNo: string;
     /** `{heir}` is the relationship and `{n}` the number among unnamed heirs of that relationship. */
     heirNumbered: string;
-    heirAddHeading: string;
     heirEditHeading: string;
+    editClose: string;
+    statusLegend: string;
+    statusAlive: string;
+    statusDiedBefore: string;
+    /** Story 9.8: later-death estates. Arabic and French await native review. */
+    statusDiedLater: string;
+    laterDeathLimit: string;
+    openOwnEstate: string;
+    laterDeathAddedMale: string;
+    laterDeathAddedFemale: string;
+    estateLevel: string;
+    removeImpactIntro: string;
+    removeImpactEstate: string;
     heirAdded: string;
+    heirsAdded: string;
+    undoLastChange: string;
+    undoAction: string;
+    undoDone: string;
+    undoFailed: string;
+    stepperFewer: string;
+    stepperMore: string;
+    stepperCount: string;
     heirUpdated: string;
+    heirLinked: string;
+    heirUnlinked: string;
+    linkSameAsLabel: string;
+    linkNobody: string;
     heirRemoved: string;
     deathMarked: string;
     deathUnmarked: string;
@@ -141,13 +187,6 @@ export type Messages = {
     deathOrderSimultaneous: string;
     deathOrderUnknown: string;
     deathOrderCancel: string;
-    heirLinkLegend: string;
-    heirLinkNew: string;
-    heirLinkExisting: string;
-    heirLinkPickLabel: string;
-    heirLinkPickPlaceholder: string;
-    heirLinkRequired: string;
-    heirLinkedHint: string;
     previewOf: string;
     previewLayerPrompt: string;
     formSaving: string;
@@ -157,7 +196,7 @@ export type Messages = {
     relationships: Record<RelationshipId, string>;
     /** Field name, then the error code the form or the server reports. */
     fieldErrors: Record<string, Record<string, string>> & Record<
-      "gender" | "estate" | "relationship" | "name" | "heirs" | "case" | "same_as" | "death",
+      "gender" | "estate" | "relationship" | "name" | "heirs" | "case" | "same_as" | "death" | "status" | "anchor" | "empty",
       Record<string, string>
     >;
     madhabLabel: string;
@@ -180,6 +219,10 @@ export type Messages = {
     /** Shown while the case has no heir yet. */
     previewPrompt: string;
     previewWaiting: string;
+    /** `{count}` is the number of heirs in the active estate. Spoken once the shares settle. */
+    previewReadyCount: string;
+    /** Shown from ten seconds into a preview request. */
+    previewStillWorking: string;
     /** Shown while the browser is offline and every edit is disabled. */
     offlineEditing: string;
     /** `{school}` is the school's name. */
@@ -335,34 +378,73 @@ export const messages: Record<Locale, Messages> = {
       estateSummary: "التركة",
       estateNone: "لم تُدخل بعد",
       heirsHeading: "الورثة",
-      heirsEmpty: "لم تضف أي وارث بعد.",
+      heirsEmpty: "لا يوجد ورثة بعد. اضغط على صلة قرابة لإضافة وارث.",
       heirsListLabel: "الورثة المضافون",
       treeHeading: "شجرة العائلة",
-      treeDeceasedMale: "المتوفى (ذكر)",
-      treeDeceasedFemale: "المتوفاة (أنثى)",
-      treePrompt: "أضف أول وارث ليظهر في الشجرة.",
-      treeSummary: "شجرة العائلة. {deceased}.{heirs}",
-      treeCount: "{relationship}: {n}.",
+      treeDeceased: "المتوفى",
+      treeDiedBefore: {"male": "توفي قبله", "female": "توفيت قبله"},
+      treeDiedLater: {"male": "توفي لاحقاً · تركة مستقلة", "female": "توفيت لاحقاً · تركة مستقلة"},
+      treeNoShare: "لا نصيب في هذه الحالة",
+      treeAddParent: "+ إضافة أحد الوالدين",
+      treeAddSpouse: "+ إضافة الزوج أو الزوجة",
+      treeFit: "ملاءمة الشجرة",
+      treeZoomIn: "تكبير",
+      treeZoomOut: "تصغير",
+      treeZoomStatus: "التكبير {percent}",
+      treeHint: "اسحب للتنقل في الشجرة. استخدم الأزرار للتكبير والتصغير.",
       heirRelationshipLabel: "صلة القرابة بالمتوفى",
       heirRelationshipPlaceholder: "اختر صلة القرابة",
       heirRelationshipBlocked: "{relationship} (لا نصيب في الإرث مع الأسرة المسجّلة حتى الآن)",
       heirMoreRelatives: "أقارب آخرون",
       heirMoreRelativesLabel: "صلة قرابة أخرى",
+      addRelativesHeading: "إضافة أقارب",
+      addGroupSpouse: "الزوجية",
+      addGroupParents: "الوالدان",
+      addGroupChildren: "الأبناء",
+      addGroupSiblings: "الإخوة والأخوات",
+      addRelative: "إضافة {relationship}",
+      addRelativeHere: "أضف قريبًا هنا",
+      addHereGroup: "الأقارب الذين يمكن إضافتهم إلى {person}",
+      addHereNone: "لا يمكن إضافة أقارب هنا.",
+      dropHere: "أفلت هنا",
+      dropNotHere: "غير مسموح",
+      notAllowedHere: "غير مسموح هنا: {reason}",
+      positionNotAllowed: "لا يمكن إضافة {relationship} عند هذا الشخص.",
+      conflictNotice: "تغيّرت هذه الحالة في نافذة أخرى. تُعرض الآن أحدث نسخة، ولم يُحفظ تغييرك الأخير.",
       heirNameLabel: "الاسم (اختياري)",
-      heirNameHint: "يمكنك ترك الاسم فارغًا، وسيظهر الوارث بصلة القرابة.",
-      heirAdd: "إضافة وارث",
-      heirSave: "حفظ التعديل",
-      heirCancel: "إلغاء التعديل",
       heirEdit: "تعديل {heir}",
       heirRemove: "حذف {heir}",
       heirRemoveConfirm: "هل تريد حذف {heir}؟",
       heirRemoveYes: "نعم، احذف",
       heirRemoveNo: "إبقاء",
       heirNumbered: "{heir} رقم {n}",
-      heirAddHeading: "إضافة وارث جديد",
+      editClose: "إغلاق",
+      statusLegend: "الحالة عند الوفاة",
+      statusAlive: "على قيد الحياة عند الوفاة",
+      statusDiedBefore: "توفي قبل المتوفى",
+      statusDiedLater: "توفي بعد المتوفى وقبل القسمة",
+      laterDeathLimit: "يمكن أن تتضمن الحالة وفاتين لاحقتين على الأكثر.",
+      openOwnEstate: "افتح التركة المستقلة: {heir}",
+      laterDeathAddedMale: "توفي {heir} لاحقًا. افتح تركته المستقلة لإضافة ورثته.",
+      laterDeathAddedFemale: "توفيت {heir} لاحقًا. افتحي تركتها المستقلة لإضافة ورثتها.",
+      estateLevel: "مستوى التركة",
+      removeImpactIntro: "سيُحذف معه أيضًا:",
+      removeImpactEstate: "تركة {heir}",
       heirEditHeading: "تعديل بيانات الوارث",
       heirAdded: "تمت إضافة {heir}.",
+      heirsAdded: "تمت إضافة {count} × {relationship}.",
+      undoLastChange: "تراجع عن آخر تغيير",
+      undoAction: "تراجع",
+      undoDone: "تم التراجع عن آخر تغيير.",
+      undoFailed: "تعذّر التراجع عن هذا التغيير. حاول مرة أخرى.",
+      stepperFewer: "إنقاص عدد {relationship}",
+      stepperMore: "زيادة عدد {relationship}",
+      stepperCount: "عدد من سيُضاف ({relationship})",
       heirUpdated: "تم تعديل {heir}.",
+      heirLinked: "تم ربط {heir} بشخص موجود في الحالة.",
+      heirUnlinked: "أصبح {heir} شخصًا جديدًا.",
+      linkSameAsLabel: "الشخص نفسه مثل…",
+      linkNobody: "لا أحد آخر (شخص جديد)",
       heirRemoved: "تم حذف {heir}.",
       heirGone: "هذا الوارث لم يعد موجودًا. تم تحديث القائمة.",
       // Native-language review pending.
@@ -391,13 +473,6 @@ export const messages: Record<Locale, Messages> = {
       deathOrderSimultaneous: "في الوقت نفسه",
       deathOrderUnknown: "غير معروف",
       deathOrderCancel: "إلغاء",
-      heirLinkLegend: "من هو هذا القريب؟",
-      heirLinkNew: "شخص جديد",
-      heirLinkExisting: "شخص موجود في هذه الحالة",
-      heirLinkPickLabel: "الشخص الموجود في هذه الحالة",
-      heirLinkPickPlaceholder: "اختر شخصًا",
-      heirLinkRequired: "اختر شخصًا من القائمة، أو أدخل شخصًا جديدًا.",
-      heirLinkedHint: "هذا هو الشخص نفسه المسجّل في إدخال سابق. لا يمكن تغيير اسمه إلا هناك.",
       previewOf: "{heir} لدى {deceased}",
       previewLayerPrompt: "أضف ورثة لكل شخص متوفى لتظهر الأنصبة هنا.",
       formSaving: "جارٍ الحفظ…",
@@ -406,6 +481,16 @@ export const messages: Record<Locale, Messages> = {
       startOverNo: "لا، أبقِ حالتي",
       relationships: relationshipTerms("ar"),
       fieldErrors: {
+        anchor: {
+          not_allowed: "لم يعد من الممكن إضافة هذا القريب هناك.",
+          schema_unsupported: "لا يمكن لهذه الحالة تسجيل من ينتمي إليه القريب بعد.",
+        },
+        status: {
+          invalid: "اختر حالة صحيحة.",
+          schema_unsupported: "لا يمكن لهذه الحالة تسجيل وفاة قبل المتوفى بعد.",
+          first_estate_only: "لا يمكن تسجيل الوفاة قبل المتوفى إلا في التركة الأولى.",
+          status_locked: "لا يمكن تغيير حالة هذا الشخص ما دام مرتبطًا أو له تركة خاصة.",
+        },
         gender: {
           required: "اختر جنس المتوفى.",
           invalid: "اختر ذكرًا أو أنثى.",
@@ -436,10 +521,12 @@ export const messages: Record<Locale, Messages> = {
         },
         // Native-language review pending.
         relatives: { required: "يرجى الإجابة عن أسئلة القرابة.", invalid: "اختر إجابة من الخيارات المعروضة." },
+        empty: { invalid: "تعذرت قراءة هذا الطلب." },
         same_as: {
           gender_mismatch: "جنس الشخص المختار مختلف. يرجى اختيار شخص من الجنس نفسه أو تصحيح صلة القرابة.",
           not_alive: "لم يكن الشخص المختار على قيد الحياة عند هذه الوفاة. يرجى اختيار شخص كان حيًا آنذاك.",
           already_linked: "هذا الشخص موجود بالفعل ضمن هؤلاء الورثة. يرجى تعديل السجل الموجود أو اختيار شخص آخر.",
+          not_allowed: "لا يمكن ربط هذا القريب بشخص آخر هنا.",
         },
         death: {
           order_required: "يلزم تحديد ترتيب هاتين الوفاتين. يرجى تحديد الشخص الذي توفي أولًا.",
@@ -472,6 +559,8 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "معاينة الأنصبة",
       previewPrompt: "أضف وارثًا لتظهر الأنصبة هنا.",
       previewWaiting: "جارٍ تحديث المعاينة…",
+      previewReadyCount: "عدد الورثة: {count}. الأنصبة جاهزة.",
+      previewStillWorking: "ما زال تحديث المعاينة جاريًا…",
       offlineEditing: "أنت غير متصل بالإنترنت. أعد الاتصال لمتابعة التعديل.",
       previewSchool: "محسوبة وفق المذهب {school}. هذه معاينة وليست حكمًا نهائيًا.",
       schoolsAgree: "النتيجة نفسها في المذاهب السنية الأربعة",
@@ -616,34 +705,73 @@ export const messages: Record<Locale, Messages> = {
       estateSummary: "Estate to divide",
       estateNone: "Not entered yet",
       heirsHeading: "Heirs",
-      heirsEmpty: "You have not added any heirs yet.",
+      heirsEmpty: "No heirs yet. Press a relationship to add one.",
       heirsListLabel: "Heirs added",
       treeHeading: "Family tree",
-      treeDeceasedMale: "The deceased, male",
-      treeDeceasedFemale: "The deceased, female",
-      treePrompt: "Add the first heir to see them in the tree.",
-      treeSummary: "Family tree. {deceased}.{heirs}",
-      treeCount: "{relationship}: {n}.",
+      treeDeceased: "The deceased",
+      treeDiedBefore: {"male": "Died before", "female": "Died before"},
+      treeDiedLater: {"male": "Died later · own estate", "female": "Died later · own estate"},
+      treeNoShare: "No share in this case",
+      treeAddParent: "+ Add parent",
+      treeAddSpouse: "+ Add spouse",
+      treeFit: "Fit tree",
+      treeZoomIn: "Zoom in",
+      treeZoomOut: "Zoom out",
+      treeZoomStatus: "Zoom {percent}",
+      treeHint: "Drag to move around the tree. Use the buttons to zoom.",
       heirRelationshipLabel: "Relationship to the deceased",
       heirRelationshipPlaceholder: "Choose a relationship",
       heirRelationshipBlocked: "{relationship} (does not inherit with the family so far)",
       heirMoreRelatives: "More relatives",
       heirMoreRelativesLabel: "Other relationship",
+      addRelativesHeading: "Add relatives",
+      addGroupSpouse: "Spouse",
+      addGroupParents: "Parents",
+      addGroupChildren: "Children",
+      addGroupSiblings: "Siblings",
+      addRelative: "Add {relationship}",
+      addRelativeHere: "Add relative here",
+      addHereGroup: "Relatives to add to {person}",
+      addHereNone: "No relatives can be added here.",
+      dropHere: "Drop here",
+      dropNotHere: "Not allowed",
+      notAllowedHere: "Not allowed here: {reason}",
+      positionNotAllowed: "{relationship} cannot be added at this person.",
+      conflictNotice: "This case changed in another tab. The latest version is shown, and your last change was not saved.",
       heirNameLabel: "Name (optional)",
-      heirNameHint: "You can leave the name empty. The heir will be shown by relationship.",
-      heirAdd: "Add heir",
-      heirSave: "Save changes",
-      heirCancel: "Cancel editing",
       heirEdit: "Edit {heir}",
       heirRemove: "Remove {heir}",
       heirRemoveConfirm: "Remove {heir}?",
       heirRemoveYes: "Yes, remove",
       heirRemoveNo: "Keep",
       heirNumbered: "{heir} {n}",
-      heirAddHeading: "Add an heir",
+      editClose: "Close",
+      statusLegend: "Status at the death",
+      statusAlive: "Alive at death",
+      statusDiedBefore: "Died before the deceased",
+      statusDiedLater: "Died after the deceased, before division",
+      laterDeathLimit: "A case can hold up to two later deaths.",
+      openOwnEstate: "Open own estate: {heir}",
+      laterDeathAddedMale: "{heir} died later. Open own estate to add his heirs.",
+      laterDeathAddedFemale: "{heir} died later. Open own estate to add her heirs.",
+      estateLevel: "Estate level",
+      removeImpactIntro: "This also removes:",
+      removeImpactEstate: "The estate of {heir}",
       heirEditHeading: "Edit heir",
       heirAdded: "{heir} added.",
+      heirsAdded: "{count} × {relationship} added.",
+      undoLastChange: "Undo last change",
+      undoAction: "Undo",
+      undoDone: "Last change undone.",
+      undoFailed: "That change could not be undone. Try again.",
+      stepperFewer: "One fewer {relationship}",
+      stepperMore: "One more {relationship}",
+      stepperCount: "Number of {relationship} to add",
       heirUpdated: "{heir} updated.",
+      heirLinked: "{heir} linked to a person already in the case.",
+      heirUnlinked: "{heir} is now a new person.",
+      linkSameAsLabel: "Same person as…",
+      linkNobody: "Nobody else (a new person)",
       heirRemoved: "{heir} removed.",
       heirGone: "That heir no longer exists. The list has been refreshed.",
       // Successive deaths (Story 1.7b).
@@ -672,13 +800,6 @@ export const messages: Record<Locale, Messages> = {
       deathOrderSimultaneous: "At the same time",
       deathOrderUnknown: "Not known",
       deathOrderCancel: "Cancel",
-      heirLinkLegend: "Who is this relative?",
-      heirLinkNew: "A new person",
-      heirLinkExisting: "Someone already in this case",
-      heirLinkPickLabel: "Person already in this case",
-      heirLinkPickPlaceholder: "Choose a person",
-      heirLinkRequired: "Choose a person from the list, or enter a new person.",
-      heirLinkedHint: "This is the same person as in an earlier entry. Their name can only be changed there.",
       previewOf: "{heir} of {deceased}",
       previewLayerPrompt: "Add heirs for each person who died to see the shares here.",
       formSaving: "Saving…",
@@ -687,6 +808,16 @@ export const messages: Record<Locale, Messages> = {
       startOverNo: "No, keep my case",
       relationships: relationshipTerms("en"),
       fieldErrors: {
+        anchor: {
+          not_allowed: "That relative can no longer be added there.",
+          schema_unsupported: "This case cannot record who a relative belongs to yet.",
+        },
+        status: {
+          invalid: "Choose a valid status.",
+          schema_unsupported: "This case cannot record a death before the deceased yet.",
+          first_estate_only: "A death before the deceased can be set only in the first estate.",
+          status_locked: "This person's status cannot change while they are linked or have their own estate.",
+        },
         gender: {
           required: "Choose the gender of the deceased.",
           invalid: "Choose male or female.",
@@ -715,10 +846,12 @@ export const messages: Record<Locale, Messages> = {
           wife_of_female: "The deceased is recorded as female, and a female has no wife. Choose husband if you meant the spouse, or correct the gender of the deceased.",
         },
         relatives: { required: "Please answer the relationship questions.", invalid: "Choose one of the offered answers." },
+        empty: { invalid: "That request could not be read." },
         same_as: {
           gender_mismatch: "The selected person has a different gender. Choose a person with the same gender, or correct the relationship.",
           not_alive: "The selected person was not alive at this death. Choose someone who was alive then.",
           already_linked: "This person is already included among these heirs. Edit the existing entry, or choose another person.",
+          not_allowed: "This relative cannot be linked to another person here.",
         },
         death: {
           order_required: "The order of these deaths is needed. Choose which person died first.",
@@ -754,6 +887,8 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "Share preview",
       previewPrompt: "Add an heir to see the shares here.",
       previewWaiting: "Updating the preview…",
+      previewReadyCount: "Heirs: {count}. Shares ready.",
+      previewStillWorking: "Still working on the preview…",
       offlineEditing: "You're offline. Reconnect to keep editing.",
       previewSchool: "Calculated under the {school} school. This is a preview, not a final ruling.",
       schoolsAgree: "Same result in all four Sunni schools",
@@ -898,34 +1033,73 @@ export const messages: Record<Locale, Messages> = {
       estateSummary: "Succession",
       estateNone: "Pas encore renseigné",
       heirsHeading: "Héritiers",
-      heirsEmpty: "Vous n'avez pas encore ajouté d'héritier.",
+      heirsEmpty: "Aucun héritier pour l'instant. Appuyez sur une relation pour en ajouter un.",
       heirsListLabel: "Héritiers ajoutés",
       treeHeading: "Arbre généalogique",
-      treeDeceasedMale: "Le défunt, homme",
-      treeDeceasedFemale: "La défunte, femme",
-      treePrompt: "Ajoutez le premier héritier pour le voir dans l'arbre.",
-      treeSummary: "Arbre généalogique. {deceased}.{heirs}",
-      treeCount: "{relationship} : {n}.",
+      treeDeceased: "La personne décédée",
+      treeDiedBefore: {"male": "Décédé avant", "female": "Décédée avant"},
+      treeDiedLater: {"male": "Décédé plus tard · succession propre", "female": "Décédée plus tard · succession propre"},
+      treeNoShare: "Aucune part dans ce cas",
+      treeAddParent: "+ Ajouter un parent",
+      treeAddSpouse: "+ Ajouter un conjoint",
+      treeFit: "Ajuster l'arbre",
+      treeZoomIn: "Zoom avant",
+      treeZoomOut: "Zoom arrière",
+      treeZoomStatus: "Zoom {percent}",
+      treeHint: "Faites glisser pour parcourir l'arbre. Utilisez les boutons pour zoomer.",
       heirRelationshipLabel: "Lien avec le défunt",
       heirRelationshipPlaceholder: "Choisissez un lien de parenté",
       heirRelationshipBlocked: "{relationship} (n'hérite pas avec la famille saisie jusqu'ici)",
       heirMoreRelatives: "Autres proches",
       heirMoreRelativesLabel: "Autre lien de parenté",
+      addRelativesHeading: "Ajouter des proches",
+      addGroupSpouse: "Conjoint",
+      addGroupParents: "Parents",
+      addGroupChildren: "Enfants",
+      addGroupSiblings: "Frères et sœurs",
+      addRelative: "Ajouter {relationship}",
+      addRelativeHere: "Ajouter un proche ici",
+      addHereGroup: "Proches à ajouter à {person}",
+      addHereNone: "Aucun proche ne peut être ajouté ici.",
+      dropHere: "Déposer ici",
+      dropNotHere: "Non autorisé",
+      notAllowedHere: "Non autorisé ici : {reason}",
+      positionNotAllowed: "Impossible d’ajouter {relationship} à cette personne.",
+      conflictNotice: "Ce dossier a été modifié dans un autre onglet. La dernière version est affichée et votre dernière modification n'a pas été enregistrée.",
       heirNameLabel: "Nom (facultatif)",
-      heirNameHint: "Vous pouvez laisser le nom vide. L'héritier sera affiché par son lien de parenté.",
-      heirAdd: "Ajouter l'héritier",
-      heirSave: "Enregistrer les modifications",
-      heirCancel: "Annuler la modification",
       heirEdit: "Modifier {heir}",
       heirRemove: "Supprimer {heir}",
       heirRemoveConfirm: "Supprimer l'héritier {heir} ?",
       heirRemoveYes: "Oui, supprimer",
       heirRemoveNo: "Garder",
       heirNumbered: "{heir} n° {n}",
-      heirAddHeading: "Ajouter un héritier",
+      editClose: "Fermer",
+      statusLegend: "Situation au décès",
+      statusAlive: "En vie au décès",
+      statusDiedBefore: "Décédé avant le défunt",
+      statusDiedLater: "Décédé après le défunt, avant le partage",
+      laterDeathLimit: "Un dossier peut comporter au plus deux décès ultérieurs.",
+      openOwnEstate: "Ouvrir la succession propre : {heir}",
+      laterDeathAddedMale: "{heir} est décédé plus tard. Ouvrez sa succession propre pour ajouter ses héritiers.",
+      laterDeathAddedFemale: "{heir} est décédée plus tard. Ouvrez sa succession propre pour ajouter ses héritiers.",
+      estateLevel: "Niveau de succession",
+      removeImpactIntro: "Cela supprime aussi :",
+      removeImpactEstate: "La succession de {heir}",
       heirEditHeading: "Modifier l'héritier",
       heirAdded: "Héritier ajouté : {heir}",
+      heirsAdded: "{count} × {relationship} ajoutés.",
+      undoLastChange: "Annuler la dernière modification",
+      undoAction: "Annuler",
+      undoDone: "Dernière modification annulée.",
+      undoFailed: "Impossible d’annuler cette modification. Réessayez.",
+      stepperFewer: "Diminuer le nombre ({relationship})",
+      stepperMore: "Augmenter le nombre ({relationship})",
+      stepperCount: "Nombre à ajouter ({relationship})",
       heirUpdated: "Héritier modifié : {heir}",
+      heirLinked: "{heir} lié à une personne déjà présente dans le dossier.",
+      heirUnlinked: "{heir} est maintenant une nouvelle personne.",
+      linkSameAsLabel: "Même personne que…",
+      linkNobody: "Personne d'autre (une nouvelle personne)",
       heirRemoved: "Héritier supprimé : {heir}",
       heirGone: "Cet héritier n'existe plus. La liste a été actualisée.",
       // Native-language review pending.
@@ -954,13 +1128,6 @@ export const messages: Record<Locale, Messages> = {
       deathOrderSimultaneous: "En même temps",
       deathOrderUnknown: "On ne sait pas",
       deathOrderCancel: "Annuler",
-      heirLinkLegend: "Qui est ce parent ?",
-      heirLinkNew: "Une nouvelle personne",
-      heirLinkExisting: "Quelqu'un déjà présent dans ce dossier",
-      heirLinkPickLabel: "Personne déjà présente dans ce dossier",
-      heirLinkPickPlaceholder: "Choisissez une personne",
-      heirLinkRequired: "Choisissez une personne dans la liste, ou saisissez une nouvelle personne.",
-      heirLinkedHint: "C'est la même personne que dans une saisie précédente. Son nom ne peut être modifié que là.",
       previewOf: "{heir} de {deceased}",
       previewLayerPrompt: "Ajoutez des héritiers pour chaque personne décédée afin de voir les parts ici.",
       formSaving: "Enregistrement…",
@@ -969,6 +1136,16 @@ export const messages: Record<Locale, Messages> = {
       startOverNo: "Non, garder mon dossier",
       relationships: relationshipTerms("fr"),
       fieldErrors: {
+        anchor: {
+          not_allowed: "Ce proche ne peut plus être ajouté à cet endroit.",
+          schema_unsupported: "Ce dossier ne peut pas encore enregistrer à qui un proche est rattaché.",
+        },
+        status: {
+          invalid: "Choisissez une situation valide.",
+          schema_unsupported: "Ce dossier ne peut pas encore enregistrer un décès antérieur au défunt.",
+          first_estate_only: "Un décès antérieur au défunt ne peut être indiqué que dans la première succession.",
+          status_locked: "La situation de cette personne ne peut pas changer tant qu'elle est liée ou a sa propre succession.",
+        },
         gender: {
           required: "Choisissez le sexe du défunt.",
           invalid: "Choisissez homme ou femme.",
@@ -999,10 +1176,12 @@ export const messages: Record<Locale, Messages> = {
         },
         // Native-language review pending.
         relatives: { required: "Veuillez répondre aux questions de parenté.", invalid: "Choisissez une des réponses proposées." },
+        empty: { invalid: "Cette demande n'a pas pu être lue." },
         same_as: {
           gender_mismatch: "Le sexe de la personne choisie est différent. Choisissez une personne du même sexe ou corrigez le lien de parenté.",
           not_alive: "La personne choisie ne vivait plus lors de ce décès. Choisissez une personne encore en vie à ce moment-là.",
           already_linked: "Cette personne figure déjà parmi ces héritiers. Modifiez l'entrée existante ou choisissez une autre personne.",
+          not_allowed: "Ce proche ne peut pas être lié à une autre personne ici.",
         },
         death: {
           order_required: "L'ordre de ces décès est nécessaire. Indiquez quelle personne est décédée en premier.",
@@ -1038,6 +1217,8 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "Aperçu des parts",
       previewPrompt: "Ajoutez un héritier pour voir les parts ici.",
       previewWaiting: "Mise à jour de l'aperçu…",
+      previewReadyCount: "Héritiers : {count}. Parts prêtes.",
+      previewStillWorking: "Mise à jour de l'aperçu toujours en cours…",
       offlineEditing: "Vous êtes hors ligne. Reconnectez-vous pour continuer à modifier.",
       previewSchool: "Calculé selon l'école {school}. Il s'agit d'un aperçu, pas d'une décision définitive.",
       schoolsAgree: "Même résultat dans les quatre écoles sunnites",

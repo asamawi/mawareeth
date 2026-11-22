@@ -18,7 +18,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api import anonymous_case, case_commands, invites, preview, sharing
-from api.snapshots import READ_VERSIONS, SnapshotError, decode, default_name, encode_v2, write_version
+from api.snapshots import READ_VERSIONS, SnapshotError, decode, default_name, encode_v2, ensure_writable, write_version
 from engine.contracts import ContractError
 from presentation.money import PresentationError
 from api.models import SavedCase, ShareInvite, ShareLink
@@ -66,7 +66,7 @@ class CaseView(ApiView):
         case = anonymous_case.get(request)
         if case is None and anonymous_case.is_expired(request):
             return Response({'case': None, 'code': 'expired'})
-        return Response({'case': case})
+        return Response({'case': _with_snapshot(case)})
 
     def post(self, request):
         data = request.data if isinstance(request.data, dict) else {}
@@ -96,8 +96,10 @@ class CaseView(ApiView):
         if existing and 'expected_revision' in data and data['expected_revision'] != existing['revision']:
             return conflict_response(existing)
         if existing and not replace:
-            return Response({'detail': 'A case already exists.', 'case': existing}, status=status.HTTP_409_CONFLICT)
-        return Response({'case': anonymous_case.start(request)}, status=status.HTTP_201_CREATED)
+            return Response(
+                {'detail': 'A case already exists.', 'case': _with_snapshot(existing)},
+                status=status.HTTP_409_CONFLICT)
+        return Response({'case': _with_snapshot(anonymous_case.start(request))}, status=status.HTTP_201_CREATED)
 
     def patch(self, request):
         data = request.data
@@ -138,9 +140,16 @@ class CaseWriteView(ApiView):
             impact=None if impact is None else (lambda case: impact(case, data)))
 
 
+def _with_snapshot(case):
+    """The live case for a response, with the server's own export as `snapshot` (never stored)."""
+    if case is None:
+        return None
+    return {**case, 'snapshot': anonymous_case.export_snapshot(case)}
+
+
 def conflict_response(case):
     return Response(
-        {'error': 'conflict', 'detail': 'That case is no longer the current one.', 'case': case},
+        {'error': 'conflict', 'detail': 'That case is no longer the current one.', 'case': _with_snapshot(case)},
         status=status.HTTP_409_CONFLICT)
 
 
@@ -166,7 +175,7 @@ def respond_to_command(request, command, data, case_id, run, success=status.HTTP
     except case_commands.CascadeUnconfirmed as unconfirmed:
         return Response(
             {'error': 'cascade_unconfirmed', 'detail': 'This change needs confirmation.',
-             'impact': unconfirmed.impact, 'case': unconfirmed.case},
+             'impact': unconfirmed.impact, 'case': _with_snapshot(unconfirmed.case)},
             status=status.HTTP_409_CONFLICT)
     except case_commands.OverCapacity:
         return Response(
@@ -183,11 +192,11 @@ def respond_to_command(request, command, data, case_id, run, success=status.HTTP
             status=status.HTTP_400_BAD_REQUEST)
     except anonymous_case.HeirNotFound as missing:
         return Response(
-            {'detail': 'That heir no longer exists.', 'case': missing.case},
+            {'detail': 'That heir no longer exists.', 'case': _with_snapshot(missing.case)},
             status=status.HTTP_404_NOT_FOUND)
     if case is None:
         return no_case_response(request)
-    return Response({'case': case}, status=success)
+    return Response({'case': _with_snapshot(case)}, status=success)
 
 
 def no_case_response(request):
@@ -302,7 +311,7 @@ class PreviewView(ApiView):
             return no_case_response(request)
         if case['id'] != case_id:
             return Response(
-                {'detail': 'That case is no longer the current one.', 'case': case},
+                {'detail': 'That case is no longer the current one.', 'case': _with_snapshot(case)},
                 status=status.HTTP_409_CONFLICT)
         try:
             with translation.override(_asked_language(request)):
@@ -321,7 +330,9 @@ class DeathsView(CaseWriteView):
     def post(self, request):
         return self.write(request, 'mark_death', lambda data, case_id: anonymous_case.mark_deceased(
             request, data.get('heir_id'), data.get('first'), case_id,
-            relatives=data.get('relatives'), shared_father=data.get('shared_father')), success=status.HTTP_201_CREATED)
+            relatives=data.get('relatives'), shared_father=data.get('shared_father'),
+            empty=data.get('empty', anonymous_case._UNSET),
+            companions_given='relatives' in data or 'shared_father' in data), success=status.HTTP_201_CREATED)
 
 
 class DeathView(CaseWriteView):
@@ -360,6 +371,7 @@ class SavedCasesView(ApiView):
         version = write_version()
         snapshot = anonymous_case.export_snapshot(case)
         try:
+            ensure_writable(snapshot)
             if version == 2:
                 snapshot = encode_v2(snapshot)
                 decode(2, snapshot, 'snapshot', '')
@@ -416,9 +428,12 @@ class OpenSavedCaseView(ApiView):
             decoded = decode(row.schema_version, row.snapshot, str(row.pk), row.updated_at.isoformat())
         except SnapshotError as error:
             return Response({'detail': 'This saved case version is unsupported.', 'code': error.code}, status=400)
-        case = anonymous_case.load_snapshot(request, anonymous_case.export_snapshot(decoded))
+        try:
+            case = anonymous_case.load_snapshot(request, anonymous_case.export_snapshot(decoded))
+        except SnapshotError as error:
+            return Response({'detail': 'This saved case version is unsupported.', 'code': error.code}, status=400)
         anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision)
-        return Response({'case': case})
+        return Response({'case': _with_snapshot(case)})
 
 
 def _visibility(data, creating):

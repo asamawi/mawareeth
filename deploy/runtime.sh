@@ -57,7 +57,7 @@ file_metadata() {
 
 # Optional application keys, appended to the app snapshot in this order when
 # present. Absent keys leave the snapshot (and its hash) unchanged.
-optional_app_keys=(SITE_ID FACEBOOK_KEY FACEBOOK_SECRET LINKEDIN_KEY LINKEDIN_SECRET)
+optional_app_keys=(SITE_ID FACEBOOK_KEY FACEBOOK_SECRET LINKEDIN_KEY LINKEDIN_SECRET SNAPSHOT_WRITE_VERSION)
 # Optional edge keys. They configure Caddy only and never enter the app
 # snapshot, so they leave its content and hash unchanged.
 optional_edge_keys=(EDGE_MODE REDIRECT_DOMAIN ORIGIN_CLIENT_AUTH)
@@ -290,6 +290,8 @@ validate_optional_values() {
   # Django's Site.id is a PostgreSQL integer.
   [[ -z "${runtime_values[SITE_ID]+x}" ]] || ((10#${runtime_values[SITE_ID]} <= 2147483647)) || die 'SITE_ID must be at most 2147483647'
   [[ -z "${runtime_values[FACEBOOK_KEY]+x}" || "${runtime_values[FACEBOOK_KEY]}" =~ ^[0-9]{1,32}$ ]] || die 'FACEBOOK_KEY must be 1-32 digits'
+  # The Saved-case snapshot schema the app writes; release_check refuses one the rollback slot cannot read.
+  [[ -z "${runtime_values[SNAPSHOT_WRITE_VERSION]+x}" || "${runtime_values[SNAPSHOT_WRITE_VERSION]}" =~ ^[12]$ ]] || die 'SNAPSHOT_WRITE_VERSION must be 1 or 2'
   for key in FACEBOOK_SECRET LINKEDIN_KEY LINKEDIN_SECRET; do
     # The raw format only rejects edge whitespace; credentials never contain any.
     [[ -z "${runtime_values[$key]+x}" ]] || { ((${#runtime_values[$key]} <= 256)) && [[ "${runtime_values[$key]}" != *[[:space:]]* ]]; } \

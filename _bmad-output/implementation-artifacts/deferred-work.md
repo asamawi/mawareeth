@@ -14,13 +14,9 @@ Completed and obsolete items are removed; their history is in git.
   summary: Document the admin user's passwordless sudo grant and the first-connection TOFU host-key acceptance (`StrictHostKeyChecking=accept-new`) as deliberate tradeoffs, and add a break-glass recovery procedure for an SSH lockout.
   evidence: Both are real, currently-undocumented security-relevant decisions in `bootstrap-host.sh`/`provision-host.sh`; `deploy/README.md` only warns "do not remove the only permitted CIDR" with no recovery path if it happens anyway.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-0-4-create-secured-hetzner-host-baseline.md`
-  summary: Harden `provision-host.sh`'s Hetzner-API interactions: distinguish a transient/auth `hcloud describe` failure from a genuine "not found" before creating resources, detect firewalls shared via a label selector (not just direct server attachment), validate the permission bits of the referenced SSH key files, and give an explicit error when `ssh-keygen -y` blocks on a passphrase-protected key.
-  evidence: Each is a real edge case identified during review (confirmed by tracing the script logic) that could cause a duplicate resource, an undetected shared firewall, or an opaque hang/failure, but none are required by the story's stated acceptance criteria.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-0-4-create-secured-hetzner-host-baseline.md`
-  summary: Extend `deploy/tests/test_host_baseline.sh` to actually execute `bootstrap-host.sh`'s CIDR/key validation logic and to exercise the admin-user (sudo-prefixed) provisioning path, not only the root-fallback path.
-  evidence: Confirmed while fixing the test's SSH stub during this review — the suite only `grep`-matches literal strings in `bootstrap-host.sh` and never runs its validation functions, and the stub always lets the root probe succeed first, so the admin/sudo code path in `provision-host.sh` has never actually been exercised by this test.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-bootstrap-sandboxed-guest-validation-run.md`
+  summary: Execute `bootstrap-host.sh`'s later public-web steps (`require_ufw_ipv6`, `converge_docker_web_rules`, `allow_public_web`, `persist_web_sources`) through the entry point, not only by call-line checks.
+  evidence: The sandboxed run in `test_host_baseline.sh` stops at the first host change (`apt-get update`), so these steps are still proven only by `grep -cx` call checks and extracted-helper runs; reaching them needs stand-ins for the shell redirections into `/etc` that PATH stubs cannot intercept.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-2-make-django-production-ready.md`
   summary: Deploy-check the real runtime configuration (e.g. `DJANGO_KEY` strength, `security.W009`), not just build placeholders.
@@ -33,10 +29,6 @@ Completed and obsolete items are removed; their history is in git.
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-6-implement-safe-blue-green-deployment.md`
   summary: Extend the supported runtime-configuration rotation to adopt the new snapshot in both slots with overlap for compatibility-affecting keys.
   evidence: Both-slot adoption of the new snapshot with overlap for compatibility-affecting keys remains unsupported. Partly shipped in `0a35899`: `release.sh deploy --rotate-config` and the README procedure rotate the candidate while the prior slot retains its old configuration.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-0-8-add-monitoring-and-operational-controls.md`
-  summary: Pin the expected OpenPGP fingerprints of third-party apt signing keys (Docker in `bootstrap-host.sh`, Tailscale in `monitor.sh`) and refuse to install a downloaded key that does not match.
-  evidence: Review of 0.8 found `monitor.sh install` trusts whatever key `pkgs.tailscale.com` serves over HTTPS; `bootstrap-host.sh` already does the same for Docker, so this is a pre-existing pattern best fixed for both at once.
 
 ## Backup & restore
 
@@ -62,9 +54,9 @@ Completed and obsolete items are removed; their history is in git.
   summary: Add external dead-man coverage for the shared p1 SMTP relay so a stopped relay is detected between quarterly alert-path drills.
   evidence: Review of 0.8 noted every host-side Mawareeth alert depends on p1's Prometheus/Alertmanager/SMTP; if any stops, all Mawareeth alerts go silent while Better Stack covers only the public endpoint. Complements the existing quarterly alert-path drill. Partly shipped in `ba2f7c7`: Watchdog/Better Stack cover Prometheus, Alertmanager and reachability; SMTP remains covered only by quarterly drills.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-monitoring-gaps.md`
-  summary: Detect collector failures behind the host-health rules (e.g. `node_scrape_collector_success{collector=~"systemd|vmstat|timex|filesystem|meminfo"} == 0`, `node_filesystem_device_error == 1`, or `absent()` guards for the memory, OOM and clock series) so they cannot go quiet unnoticed.
-  evidence: Review of the monitoring-gaps change found that only `MawareethSystemdUnitFailed` has an absence guard; if the vmstat, timex, meminfo or filesystem collector fails or drops a series, the OOM, clock, memory, inode and read-only rules can never fire, and nothing reports it.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-collector-failure-alerts.md`
+  summary: Prove at runtime that Alertmanager suppresses host alerts (including the new `MawareethHostMetricsMissing`, whose absent() branches fire during a scrape outage) while `MawareethHostDown` fires for the same project.
+  evidence: `deploy/tests/test_monitor.sh` checks receiver selection with `amtool` and the inhibit matchers as text only; no harness evaluates inhibition. Settle with a throwaway Alertmanager that receives both alerts and lists `/api/v2/alerts?inhibited=false`, or rely on the quarterly alert-path drill.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-monitoring-gaps.md`
   summary: Move the Better Stack heartbeat URL out of `alertmanager.yml` into a root-only file read through `webhook_configs[].url_file`, if p1's Alertmanager version supports it.
@@ -87,10 +79,6 @@ Completed and obsolete items are removed; their history is in git.
   evidence: Review found that HTTP 200 without `github-authentication-token-expiration` overwrites a known expiry with `never`; the approved matrix treats a missing header as a never-expiring token, and treating the change as an error would also alert on a legitimate rotation to a non-expiring token.
 
 ## CI
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-origin-lock.md`
-  summary: Add a scheduled CI check that compares `deploy/cloudflare-ips.txt` with Cloudflare's published https://www.cloudflare.com/ips-v4 and /ips-v6 and fails (or opens an issue) when they differ.
-  evidence: Review noted that with PUBLIC_WEB_SOURCES=cloudflare a new Cloudflare range would make visitors routed through it time out, and nothing flags drift until someone refreshes the file by hand; a CI-side fetch keeps the no-runtime-fetch rule.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-cloudflare-authenticated-origin-pulls.md`
   summary: Add a CI job that starts Caddy with the cloudflare-aop snippets and a throwaway CA, and proves live that a handshake without a client certificate, or with one from another CA, fails on both names while the throwaway client certificate succeeds.
@@ -181,9 +169,9 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Interview & web UI
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-browser-tests.md`
-  summary: Run a browser hydration check under the production Content-Security-Policy, for example a Playwright project that serves the export through Django/WhiteNoise (or sends the CSP computed by `mawareeth/web_headers.py`) and fails on any CSP console violation.
-  evidence: The Playwright suite serves `web/out` with a plain Node server and no CSP. The hash-based CSP from `9d2e3ff` is covered by Django header tests and by one manual headless-Edge run. A hash mismatch that blocks Next's inline bootstrap scripts would therefore pass every automated test while breaking hydration in production.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-announce-edit-sheet-relationship-errors.md`
+  summary: Check with real screen readers (NVDA, JAWS, VoiceOver, TalkBack) that the tree edit sheet's relationship alert is spoken on a refused or rejected pick, and again on an identical retry.
+  evidence: The alert (`role="alert"` on `#heir-relationship-error`, inner span re-keyed per refusal) is tested in jsdom only; whether each screen reader speaks a replaced span with identical text is unverified.
 
 - source_spec: none
   summary: Have a native Arabic and French speaker review the new "Cancel" label added to calc/templates/calc/calculation_confirm_delete.html — AR msgstr is empty.
@@ -207,7 +195,7 @@ Completed and obsolete items are removed; their history is in git.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-4-family-tree-visualization-basic-render-updates.md`
   summary: Add repeatable browser tests for the tree's rendering, reveal scrolling, RTL mirroring and keyboard path.
-  evidence: The repo has no browser test tool, so these were checked once with a throwaway headless Edge script that is not in the repo, and a regression would pass lint, typecheck, unit tests and build.
+  evidence: The repo has no browser test tool, so these were checked once with a throwaway headless Edge script that is not in the repo, and a regression would pass lint, typecheck, unit tests and build. Addressed by Story 9.11: Playwright now covers the tree's geometry, reflow, RTL mirroring and reduced motion in en and ar.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-4-family-tree-visualization-basic-render-updates.md`
   summary: Decide how to keep the deceased visible once the tree outgrows its 45% viewport cap.
@@ -219,7 +207,7 @@ Completed and obsolete items are removed; their history is in git.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-5-real-time-share-preview-from-supported-engine-cases.md`
   summary: Add browser tests (Playwright with axe) for the heir screen with the share preview: add, edit, remove, change school, a refused case, a failed request, RTL at 320px, dark mode, forced colors and a keyboard-only run.
-  evidence: The suite has no browser runner yet. The staleness and display rules are covered by pure tests against the shared fixtures, and the component's effects, focus behavior and layout were not run in a browser.
+  evidence: The suite has no browser runner yet. The staleness and display rules are covered by pure tests against the shared fixtures, and the component's effects, focus behavior and layout were not run in a browser. Addressed by Story 9.11 for RTL at 320px with text spacing and dark mode (axe and geometry); forced colors stay unproven.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-5-real-time-share-preview-from-supported-engine-cases.md`
   summary: Have a native reviewer check the preview's refusal sentences, especially the Malikiyya sentence, which in Arabic reads like a repeat of the school's name.
@@ -227,7 +215,7 @@ Completed and obsolete items are removed; their history is in git.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
   summary: Add browser tests (Playwright with axe) for the add form's labels on blocked relatives, the hint, the second-father and spouse errors, a changed gender with a saved spouse, Arabic at 320px, and a keyboard-only run.
-  evidence: The labels, hint and error display were covered by pure tests and a built export only; no browser runner exists yet.
+  evidence: The labels, hint and error display were covered by pure tests and a built export only; no browser runner exists yet. Addressed by Story 9.11 for Arabic at 320px (reflow and axe with text spacing); the other clauses are covered by the earlier Interview specs.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
   summary: Have a native Arabic and French speaker and a fiqh reviewer check the new text: the kinship messages, the "does not inherit with the family so far" label and the hint under the relationship list.
@@ -281,8 +269,8 @@ Completed and obsolete items are removed; their history is in git.
   evidence: Review the WhatsApp button, ready status, "Open WhatsApp" label and unavailable-fallback wording, including Arabic RTL readability.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-legacy-calculations-in-saved-cases.md`
-  summary: Run the production purge of the 1,146 empty legacy drafts `api.0004` did not convert, and record its date and deleted count here.
-  evidence: Release 02d3627 ran the import on 2026-11-13: converted=2053, reported=1146, ownerless=0, owners affected 965 (841 no deceased, 304 no heirs, and calculation 2402 of owner 1829 with more than one deceased). Owner decision 2026-11-18: all 1,146 are empty, including 2402, and are approved for purging. `purge_empty_legacy_drafts` (Story 8.12) does it; the procedure, with a fresh restic backup first and `--expect 1146`, is in `deploy/README.md`. No production purge has run yet. The full import report is in the host's root-only `deploy/runtime/logs/migrate-20261113T224032Z-3125246.log`.
+  summary: Done 2026-11-18 21:06 UTC: the production purge deleted the 1,145 empty legacy drafts `api.0004` did not convert (`deleted=1145`); kept as the Story 8.12 record.
+  evidence: Release 02d3627 ran the import on 2026-11-13: converted=2053, reported=1146, ownerless=0, owners affected 965 (841 no deceased, 304 no heirs, and calculation 2402 of owner 1829 with more than one deceased). The production dry run of 2026-11-18 found `no_deceased=841 no_heirs=304 total=1145`, matching the report; `purge_empty_legacy_drafts --expect 1145` (Story 8.12) deletes them. Calculation 2402 is not empty (a mother and three daughters) and the command never selects it. Its extra, unlinked deceased row 11034 was deleted on 2026-11-19 by owner decision, keeping 11033, which the family is attached to; the row is kept root-only in `deploy/runtime/backup/calc-2402-deceased-11034-20261119.txt`, and 2402 now converts. On 2026-11-19 it was converted, like the `api.0004` import does, into Saved case 2055 for owner 1829 (schema 1, default name); the legacy row stays, as for every converted calculation. The purge ran per `deploy/README.md`, "Legacy draft purge": a fresh restic backup (`result=ok`, 21:04 UTC), the cross-tree check (1,145 roots, no later-death layers, 304 people, 2 marriages, zero references from outside), then `--expect 1145` (`deleted=1145`). A dry rerun finds `total=0`; 2,054 root calculations remain (the 2,053 converted plus 2402), and Saved cases were not touched. The full import report is in the host's root-only `deploy/runtime/logs/migrate-20261113T224032Z-3125246.log`.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-deferred-add-heir-picker.md`
   summary: Request native review of the two new add-heir picker strings in Arabic, English and French: "More relatives" (button) and "Other relationship" (select label).
@@ -419,18 +407,18 @@ Completed and obsolete items are removed; their history is in git.
 - The new offline message (`offlineEditing`, ar and fr) needs native review.
 - Removals and un-marking a death send `confirm_cascade: true` until the Epic 9 impact dialog exists.
 - The currency, eligibility-answer, tree-drop and redeem commands plug into `api/case_commands.py` later.
-- An expired guest Case is not deleted from the session on read; it reads as no Case until replaced.
 - The limit stays 50 Heirs per layer (AD-26 says 50 Heirs).
 - A web bundle opened across the deploy gets 400 `invalid_revision` on writes until it reloads.
 - The case lock measurements are `mawareeth.case_lock` log records, not metrics yet.
-- A same-Case revision conflict (another tab edited first) uses the existing "replaced" path, so the web shows the existing-case screen and clears the unsent form. Epic 9's conflict outcome handling should refresh it in place instead.
+- Resolved: a same-Case revision conflict now refreshes the Interview in place for the deceased form, the legacy heir form, mark and unmark death and the school choice (as it already did for the panel, bulk, tree adds, sheet edit/delete and Undo). The screen, the open form and the visitor's school pick stay, the live Case is adopted and the conflict alert shows. A conflict with a different case id still shows the existing-case screen.
+- The edit sheet's unsent draft is still dropped on a same-Case conflict. It saves on blur, so keeping a stale value could resend it and overwrite the other tab's change. Keeping it needs an explicit-retry design.
 - A live guest session created before this release has no `changed_at`, so its expiry runs from `started_at`. A guest who started more than 24 hours ago and is still editing at deploy time sees the Case expire once.
 - The 503 `busy` response is shown as the generic failed notice. The web does not retry using `Retry-After`.
-- The results page's School choice (`results-view.tsx` `ChooseSchool`) is not blocked while offline. Only the interview screens are.
 
 ## Story 8.10
 
 - Ops order: take a fresh restic backup, then flip `SNAPSHOT_WRITE_VERSION=2` and run the backfill only once every rollback-eligible image reads schema 2. Do not switch in the deploy that first ships 8.8.
+- **Switch the writer to schema 2 once Epic 9 is merged to master and deployed** (owner decision 2026-11-19). The live image (`8b5d91b`, deployed 2026-11-18) already reads schema 2, but production cannot set the key until a release carries the `deploy/runtime.sh` allow-list entry for `SNAPSHOT_WRITE_VERSION` (on `development` since 2026-11-19), so the switch waits for the Epic 9 release. On the host, after that deploy: copy `/etc/mawareeth/runtime.env` to a root-only file, add `SNAPSHOT_WRITE_VERSION=2`, run `deploy/runtime.sh prepare`, then `deploy/release.sh deploy --rotate-config` (its `release_check --rollback-reads` must pass), confirm a new save is stored with `schema_version=2`, then take a fresh restic backup and run `backfill_saved_cases` (dry run first). Procedure: `deploy/README.md`, "Rotating runtime configuration" and the `SNAPSHOT_WRITE_VERSION` optional key.
 - The new name msgids need native review.
 - Backfill names use the site default Locale, not each user's.
 - Legacy `Calculation.name` is not carried into names.
@@ -452,33 +440,21 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
   summary: The engine cannot refuse a spouse of the deceased's own sex (a husband alone for a male deceased), because Family v1 has no gender for the root.
   evidence: `engine/core.py` `is_impossible` is gender-free; `calc/test_engine_parity.py` pins that the engine calculates these. Production is protected by the preview's consumer guard (`presentation.refused_outcome`), not by the core. Settle with a Family version carrying the root's gender.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-reproduce-existing-single-estate-school-answers-in-memory.md`
-  summary: `evaluate` ignores Family gifts, bequests and eligibility answers, so a Family carrying a bequest gets a normal Result with no refusal.
-  evidence: `engine/core.py` `evaluate` reads only heirs and estate. No producer emits these yet; the bequest/gift stories must compute them or refuse a Family that carries them.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-engine-refuses-uncomputed-family-content.md`
+  summary: The bequest, gift and eligibility stories must replace the `invalid_family` refusal of a Family carrying gifts, bequests or answers with real computation, or with a dedicated refusal reason with reviewed text and a Result/Comparison/PresentedResult version bump, before any producer emits these fields.
+  evidence: `engine/core.py` `evaluate` now refuses them as `invalid_family`, whose text tells the user the family is impossible. No producer reaches it today (adapters send empty lists; snapshots reject the fields as `unsupported_content`).
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-2-reproduce-existing-single-estate-school-answers-in-memory.md`
-  summary: No corpus family exercises the cap on the full siblings' share in the grandfather branch; a mutation there went undetected.
-  evidence: Spec 8.2 residual risks. Add a known-answer family that hits the cap to the parity corpus.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-3-preserve-successive-death-answers-and-proof-inside-the-core.md`
-  summary: The engine accepts and calculates a person whose relationship contradicts their own gender (a female person entered as `father`), including in later deaths.
-  evidence: `engine/core.py` checks impossible relationship combinations and a later deceased's spouse sex, not every heir's gender. The session shell sets gender from the relationship, so no current producer sends this.
+- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-engine-refuses-gender-contradicting-relationship.md`
+  summary: Count production legacy successive-death Calculations where a heir row's stored `sex` contradicts its class and that heir later dies with a spouse heir, since their result changed when the legacy adapter began taking gender from the class.
+  evidence: The engine now refuses any gender-contradicting person (`invalid_family`) and `calc/adapters.py` takes legacy heir gender from the row class. A stored female `Son` linked to a female `Deceased` with a `Husband` heir used to calculate and is now refused; with a `Wife` heir it used to be refused and now calculates. Run a read-only production query joining `Heir` (class vs `sex`) to `Deceased.heir` and the later layer's spouse rows; none is expected.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-4-give-every-family-action-one-engine-decision.md`
   summary: Blocked labels and the answer disagree when the full sisters' cap exhausts the paternal siblings' pool beside a grandfather. The add-relative label says "not blocked" while the share is zero.
   evidence: `engine/kinship.py` keeps the wave-1 label; `engine/single.py` gives the paternal sibling `excluded_by_full_siblings` and share 0. `engine/tests/test_queries.py` `test_solver_consistency` pins the exception. Needs a fiqh/UX decision on labelling that case.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-4-give-every-family-action-one-engine-decision.md`
-  summary: `relationship_options` and `change_impossible` can offer a replacing person a relationship that contradicts their gender or their relationship in another estate.
-  evidence: `engine/queries.py` uses only the estate's relationship counts. The web shell locks a linked person's gender (`api/anonymous_case.py` `gender_locked`), but the public query boundary does not check it. Same root as the 8.3 item.
-
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-6-produce-one-presented-answer-for-every-renderer.md`
   summary: A persisted currency that is not explicit is re-defaulted from the viewer's Locale at presentation time, so two viewers can see different currencies for one Case.
   evidence: `presentation/present.py` uses `default_currency(fmt.locale)` unless `currency.explicit`. Unreachable today (phase-1 estates convert to SAR explicit); settle before the currency picker writes non-explicit currencies.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-8-10-upgrade-existing-saved-cases-without-losing-their-original-basis.md`
-  summary: No test renders a real PDF from a schema-2 Saved case; Stories 8.8–8.10 compared the inputs passed to a mocked renderer.
-  evidence: Spec 8.8, 8.9 and 8.10 residual risks. Add one end-to-end render of a schema-2 case (both layered and single) in the CI job that has the Noto fonts.
 
 - source_spec: none
   summary: Country writes must wait until every rollback-eligible image reads schema 2.
@@ -487,3 +463,123 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert.md`
   summary: Before the production purge, check that no row outside the purged trees references a heir inside them through `Heir.same_person` or `Deceased.heir`; both cascade on delete.
   evidence: Legacy views only link heirs within one calculation tree, so none is expected. Run a read-only query on production that counts such cross-root references; if any exist, resolve them before `purge_empty_legacy_drafts` runs.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-2-render-the-family-as-lineage-cards-on-a-navigable-canvas.md`
+  summary: Story 9.2 added or changed Interview tree and Heirs-list copy in ar, en and fr; every string needs native review before release.
+  evidence: |-
+    Keys in `web/src/i18n/messages.ts` (interview), en / ar / fr:
+    - `treeDeceased`: "The deceased" / "المتوفى" / "La personne décédée" (one label for any gender is the owner decision; the female Arabic form is still open per EXPERIENCE.md).
+    - `treeDiedBefore` male/female: "Died before" / "توفي قبله", "توفيت قبله" / "Décédé avant", "Décédée avant".
+    - `treeDiedLater` male/female: "Died later · own estate" / "توفي لاحقاً · تركة مستقلة", "توفيت لاحقاً · تركة مستقلة" / "Décédé plus tard · succession propre", "Décédée plus tard · succession propre".
+    - `treeNoShare`: "No share in this case" / "لا نصيب في هذه الحالة" / "Aucune part dans ce cas".
+    - `treeAddParent`: "+ Add parent" / "+ إضافة أحد الوالدين" / "+ Ajouter un parent".
+    - `treeAddSpouse` (new draft, not in the mock): "+ Add spouse" / "+ إضافة الزوج أو الزوجة" / "+ Ajouter un conjoint".
+    - `treeFit`: "Fit tree" / "ملاءمة الشجرة" / "Ajuster l'arbre".
+    - `treeZoomIn` / `treeZoomOut`: "Zoom in" / "Zoom out", "تكبير" / "تصغير", "Zoom avant" / "Zoom arrière".
+    - `treeZoomStatus`: "Zoom {percent}" / "التكبير {percent}" / "Zoom {percent}".
+    - `treeHint`: "Drag to move around the tree. Use the buttons to zoom." / "اسحب للتنقل في الشجرة. استخدم الأزرار للتكبير والتصغير." / "Faites glisser pour parcourir l'arbre. Utilisez les boutons pour zoomer."
+    - `heirsEmpty` (changed): "No heirs yet. Press a relationship to add one." / "لا يوجد ورثة بعد. اضغط على صلة قرابة لإضافة وارث." / "Aucun héritier pour l'instant. Appuyez sur une relation pour en ajouter un."
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-3-add-one-relative-with-one-press.md`
+  summary: Story 9.3 added Add relatives panel copy in ar, en and fr; every string needs native review before release.
+  evidence: |-
+    Keys in `web/src/i18n/messages.ts` (interview), en / ar / fr ("More relatives" reuses `heirMoreRelatives`):
+    - `addRelativesHeading`: "Add relatives" / "إضافة أقارب" / "Ajouter des proches".
+    - `addGroupSpouse`: "Spouse" / "الزوجية" / "Conjoint".
+    - `addGroupParents`: "Parents" / "الوالدان" / "Parents".
+    - `addGroupChildren`: "Children" / "الأبناء" / "Enfants".
+    - `addGroupSiblings`: "Siblings" / "الإخوة والأخوات" / "Frères et sœurs".
+    - `addRelative`: "Add {relationship}" / "إضافة {relationship}" / "Ajouter {relationship}".
+    - `conflictNotice`: "This case changed in another tab. The latest version is shown, and your last change was not saved." / "تغيّرت هذه الحالة في نافذة أخرى. تُعرض الآن أحدث نسخة، ولم يُحفظ تغييرك الأخير." / "Ce dossier a été modifié dans un autre onglet. La dernière version est affichée et votre dernière modification n'a pas été enregistrée."
+
+## Story 9.4
+
+Native review pending for the following Arabic, English and French interview strings in `web/src/i18n/messages.ts`.
+
+- `editClose`, `statusLegend`, `statusAlive`, `statusDiedBefore`
+- `removeImpactIntro`, `removeImpactEstate`
+- `fieldErrors.status.invalid`, `fieldErrors.status.schema_unsupported`, `fieldErrors.status.first_estate_only`, `fieldErrors.status.status_locked`
+
+## Story 9.5
+
+Native review is pending for these interview strings in `web/src/i18n/messages.ts`.
+
+| Key | English | Arabic | French |
+| --- | --- | --- | --- |
+| `stepperFewer` | One fewer {relationship} | إنقاص عدد {relationship} | Diminuer le nombre ({relationship}) |
+| `stepperMore` | One more {relationship} | زيادة عدد {relationship} | Augmenter le nombre ({relationship}) |
+| `stepperCount` | Number of {relationship} to add | عدد من سيُضاف ({relationship}) | Nombre à ajouter ({relationship}) |
+| `heirsAdded` | {count} × {relationship} added. | تمت إضافة {count} × {relationship}. | {count} × {relationship} ajoutés. |
+
+## Story 9.6
+
+Native review is pending for these interview strings in `web/src/i18n/messages.ts`.
+
+| Key | English | Arabic | French |
+| --- | --- | --- | --- |
+| `undoLastChange` | Undo last change | تراجع عن آخر تغيير | Annuler la dernière modification |
+| `undoAction` | Undo | تراجع | Annuler |
+| `undoDone` | Last change undone. | تم التراجع عن آخر تغيير. | Dernière modification annulée. |
+| `undoFailed` | That change could not be undone. Try again. | تعذّر التراجع عن هذا التغيير. حاول مرة أخرى. | Impossible d’annuler cette modification. Réessayez. |
+
+## Story 9.7
+
+Native review is pending for these interview strings in `web/src/i18n/messages.ts`.
+
+| Key | English | Arabic | French |
+| --- | --- | --- | --- |
+| `addRelativeHere` | Add relative here | أضف قريبًا هنا | Ajouter un proche ici |
+| `addHereGroup` | Relatives to add to {person} | الأقارب الذين يمكن إضافتهم إلى {person} | Proches à ajouter à {person} |
+| `addHereNone` | No relatives can be added here. | لا يمكن إضافة أقارب هنا. | Aucun proche ne peut être ajouté ici. |
+| `dropHere` | Drop here | أفلت هنا | Déposer ici |
+| `dropNotHere` | Not allowed | غير مسموح | Non autorisé |
+| `notAllowedHere` | Not allowed here: {reason} | غير مسموح هنا: {reason} | Non autorisé ici : {reason} |
+| `positionNotAllowed` | {relationship} cannot be added at this person. | لا يمكن إضافة {relationship} عند هذا الشخص. | Impossible d’ajouter {relationship} à cette personne. |
+| `fieldErrors.anchor.not_allowed` | That relative can no longer be added there. | لم يعد من الممكن إضافة هذا القريب هناك. | Ce proche ne peut plus être ajouté à cet endroit. |
+| `fieldErrors.anchor.schema_unsupported` | This case cannot record who a relative belongs to yet. | لا يمكن لهذه الحالة تسجيل من ينتمي إليه القريب بعد. | Ce dossier ne peut pas encore enregistrer à qui un proche est rattaché. |
+
+## Story 9.8
+
+Arabic and French copy for later-death estates awaits native review.
+
+| Key | English | Arabic | French |
+| --- | --- | --- | --- |
+| `statusDiedLater` | Died after the deceased, before division | توفي بعد المتوفى وقبل القسمة | Décédé après le défunt, avant le partage |
+| `laterDeathLimit` | A case can hold up to two later deaths. | يمكن أن تتضمن الحالة وفاتين لاحقتين على الأكثر. | Un dossier peut comporter au plus deux décès ultérieurs. |
+| `openOwnEstate` | Open own estate: {heir} | افتح التركة المستقلة: {heir} | Ouvrir la succession propre : {heir} |
+| `laterDeathAddedMale` | {heir} died later. Open own estate to add his heirs. | توفي {heir} لاحقًا. افتح تركته المستقلة لإضافة ورثته. | {heir} est décédé plus tard. Ouvrez sa succession propre pour ajouter ses héritiers. |
+| `laterDeathAddedFemale` | {heir} died later. Open own estate to add her heirs. | توفيت {heir} لاحقًا. افتحي تركتها المستقلة لإضافة ورثتها. | {heir} est décédée plus tard. Ouvrez sa succession propre pour ajouter ses héritiers. |
+| `estateLevel` | Estate level | مستوى التركة | Niveau de succession |
+| `fieldErrors.empty.invalid` | That request could not be read. | تعذرت قراءة هذا الطلب. | Cette demande n'a pas pu être lue. |
+
+## Story 9.9: manual screen-reader release evidence (pending)
+
+Keyboard and axe coverage is automated (unit, Playwright lineage navigation in en and ar, axe in ar, en and fr). Screen-reader verification is not claimed and stays a manual release item. Still owed: Arabic NVDA/Chrome, VoiceOver/Safari iOS and TalkBack runs over the canonical outline (add, edit, delete with cascade, Undo, open and return to an estate) with normal, blocked, died-before and died-later people. Each finding records browser, reader and action.
+
+## Story 9.10
+
+Native review of the new Interview status copy in Arabic and French, and screen-reader checks of the coalesced status, stay pending for a person.
+
+| Key | English | Arabic | French |
+| --- | --- | --- | --- |
+| `previewReadyCount` | Heirs: {count}. Shares ready. | عدد الورثة: {count}. الأنصبة جاهزة. | Héritiers : {count}. Parts prêtes. |
+| `previewStillWorking` | Still working on the preview… | ما زال تحديث المعاينة جاريًا… | Mise à jour de l'aperçu toujours en cours… |
+
+Screen-reader check still owed: that the one polite atomic status speaks once per change (an add, a zoom, a slow preview and its result) with NVDA/Chrome, VoiceOver/Safari iOS and TalkBack, in Arabic and English. Each finding records browser, reader and action.
+
+## Story 9.11
+
+Automated and proven in Playwright: column geometry at 320, 639, 640, 1023, 1024, 1279 and 1280px in en and ar, 320px reflow with WCAG 1.4.12 text spacing, the obstruction contract, 300ms motion-safe card transitions, reduced motion, RTL derived from the registry, and axe at 320px and with the side panel open in light and dark.
+
+Still pending for a person:
+
+- Real 400% browser zoom of the Interview at 1280px (the 320px CSS-width run is a stand-in, not the same engine path).
+- Real-device NVDA/Chrome, VoiceOver/Safari iOS and TalkBack runs over the responsive layouts, including the edit panel in the inline-end column and the modal sheet. Each finding records browser, reader and action.
+- Epic 11 will register the sticky summary under the key `summary` in `useObstruction`; until then only the in-flow toast registers.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-13-link-a-later-estate-heir-from-the-edit-sheet-and-retire-the-old-add-form.md`
+  summary: Remove the dormant add-form draft machinery in `web/src/interview/flow.ts` (`heirFormKey`, `resetHeirForm`, `restoreHeirForm`, parked heir drafts, `formEpoch`) now that the old "Add an heir" form is gone.
+  evidence: Story 9.13 removed the form but kept this state, because edit-sheet close/restore runs through it (about 17 call sites) and roughly 2,650 lines of `flow.test.ts` exercise it; it now maintains drafts no UI can resume.
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-13-link-a-later-estate-heir-from-the-edit-sheet-and-retire-the-old-add-form.md`
+  summary: An Interview tab opened before a deploy that adds a Case row field (e.g. 9.13's `link_candidates`) rejects the new rows in its strict parser and drops later-estate heirs until reload.
+  evidence: The old bundle's strict `ROW_KEYS` (`web/src/api/case.ts`) refuses unknown row keys; every additive contract change has this skew. A build-version reload prompt, or a tolerant parse for unknown row keys, would settle it (medium, unverified in a live deploy).

@@ -1,5 +1,6 @@
 import type {
   AnswerResult,
+  RemoveImpact,
   RelativeQuestion,
   RelativeAnswers,
   Case,
@@ -12,14 +13,13 @@ import type {
   RelationshipId,
   StartResult,
 } from "../api/case.ts";
-import { noHeirOptions } from "../api/case.ts";
+import { MAX_HEIRS, noHeirOptions } from "../api/case.ts";
 import {
   BLANK_HEIR,
   unnamedOrdinal,
   deceasedValues,
   firstInvalid,
   formFor,
-  heirLimitReached,
   heirValues,
   relationshipIssue,
   validateDeceased,
@@ -31,6 +31,7 @@ import {
   type FormStore,
   type HeirValues,
 } from "./answers.ts";
+import { estateModel, focusAfterRemoval } from "./tree.ts";
 import { keepLayer, layerAt, rowsOf } from "./layers.ts";
 import { selectionFor, type SelectionStore } from "./madhabs.ts";
 
@@ -45,19 +46,24 @@ export type Action =
   | "saveHeir"
   | "removeHeir"
   | "markDeath"
-  | "unmarkDeath";
+  | "unmarkDeath"
+  | "undo";
 
 /** A write that did not go through, or a list that changed under the visitor. */
 export type Notice = "throttled" | "failed" | "heirGone";
 
 /** What the screen-reader live region says; `seq` makes a repeat count as new. */
 export type Announcement = {
-  kind: "added" | "updated" | "removed" | "deathMarked" | "deathUnmarked";
+  kind: "added" | "updated" | "linked" | "unlinked" | "removed" | "deathMarked" | "laterDeath" | "deathUnmarked" | "undone";
   /** The id of the heir the change was about. */
   id: string;
   heir: { name: string | null; relationship: RelationshipId };
   /** The heir number among unnamed heirs of the same relationship, when there are several. */
   ordinal: number | null;
+  /** The person's gender, for a later death marked from the edit sheet. */
+  gender?: "male" | "female";
+  /** Present on a successful panel add, including a one-press add. */
+  panelCount?: number;
   seq: number;
 };
 
@@ -77,14 +83,44 @@ export const FOCUS_TARGETS = [
   "relatives",
   "relativeMother",
   "relativesSubmit",
+  "addHere",
+  "openEstate",
+  "treeHeading",
 ] as const;
-export const FOCUS_PREFIXES = ["editHeir", "remove", "alsoDied", "relative"] as const;
+export const FOCUS_PREFIXES = ["card", "editRelationship", "editStatus", "editHeir", "remove", "alsoDied", "relative", "add", "addHere"] as const;
 export type FocusTarget =
   | (typeof FOCUS_TARGETS)[number]
   | `${(typeof FOCUS_PREFIXES)[number]}:${string}`;
 
 /** Where to move focus: a `data-focus` id on the page. `seq` makes a repeat count as new. */
 export type FocusRequest = { target: FocusTarget; seq: number };
+
+/**
+ * What an add from the Add relatives panel left behind, shown in the panel and nowhere else, and
+ * cleared by the next action.
+ */
+export type PanelOutcome = {
+  relationship: string;
+  errors?: Errors;
+  notice?: Notice | "conflict";
+};
+
+/**
+ * What a positioned add (Add relative here, a placeholder or a drop) left behind, shown beside the
+ * chooser that made it and cleared by the next action.
+ */
+export type TreeOutcome = {
+  relationship: string;
+  anchor: string;
+  errors?: Errors;
+  notice?: Notice | "conflict";
+};
+
+/** One accepted family change that Undo can take back: the Case as it was, and who it touched. */
+export type UndoEntry = { snapshot: Record<string, unknown>; person?: string };
+
+/** The toast after a change that pushed an entry; `key` restarts its timer for each change. */
+export type UndoToast = { key: number; announcement: Announcement };
 
 export type StartedView = {
   name: "started";
@@ -96,6 +132,9 @@ export type StartedView = {
   editingDeceased: boolean;
   /** The heir whose details are in the heir form; null when the form adds a new heir. */
   editingHeir: string | null;
+  opener?: FocusTarget;
+  confirming?: { heirId: string; impact: RemoveImpact | null; fromRow: boolean };
+  conflict?: boolean;
   /**
    * The layer every part of the heirs screen works on: null for the first deceased, else the
    * `heir_id` of a later death. It falls back to null whenever that death no longer exists.
@@ -107,14 +146,26 @@ export type StartedView = {
   deathAnswers?: RelativeAnswers;
   deathFirst?: string;
   deathOrderNeeded?: boolean;
+  /** The open death question or refusal belongs to the edit sheet's later-death choice, not to a row. */
+  sheetDeath?: boolean;
   /** Counts the times the heir form had to be cleared, so only those rebuild it. */
   formEpoch: number;
   notice: Notice | null;
   /** Field name to error code, from the client's rules or from the server. */
   errors: Errors | null;
+  /** The outcome of the last Add relatives press; kept apart from `errors` so the heir form never shows it. */
+  panel?: PanelOutcome;
+  /** The outcome of the last positioned add. */
+  tree?: TreeOutcome;
   focus: FocusRequest | null;
   announcement: Announcement | null;
   saving: boolean;
+  /** Prior accepted snapshots, oldest first, for this page visit only. Absent reads as empty. */
+  history?: UndoEntry[];
+  /** Shown after a change that pushed an entry; cleared when the history is. */
+  undoToast?: UndoToast;
+  /** The last Undo could not be sent or was refused; the history is untouched. */
+  undoFailed?: boolean;
 };
 
 export type View =
@@ -139,6 +190,7 @@ export type Deps = {
   setMadhab: (signal: AbortSignal, madhab: MadhabId, caseId: string, revision: number | null) => Promise<MadhabResult>;
   saveDeceased: (signal: AbortSignal, caseId: string, revision: number | null, fields: DeceasedFields) => Promise<AnswerResult>;
   addHeir: (signal: AbortSignal, caseId: string, revision: number | null, fields: HeirFields) => Promise<AnswerResult>;
+  addHeirs: (signal: AbortSignal, caseId: string, revision: number | null, relationship: RelationshipId, count: number, layer?: string) => Promise<AnswerResult>;
   updateHeir: (
     signal: AbortSignal,
     caseId: string,
@@ -146,9 +198,10 @@ export type Deps = {
     heirId: string,
     fields: HeirFields,
   ) => Promise<AnswerResult>;
-  removeHeir: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string) => Promise<AnswerResult>;
+  removeHeir: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, confirm: boolean) => Promise<AnswerResult>;
   markDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, first?: string, answers?: RelativeAnswers) => Promise<AnswerResult>;
   unmarkDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string) => Promise<AnswerResult>;
+  restoreCase: (signal: AbortSignal, caseId: string, revision: number | null, snapshot: Record<string, unknown>) => Promise<AnswerResult>;
   /** Whether this browser has seen a case before; the only way to tell expired from new. */
   seen: { get: () => boolean; set: (value: boolean) => void };
   /** The selection in progress in this tab. */
@@ -247,7 +300,12 @@ export function pendingView(action: Action, current?: View): View {
   if (action === "start" || action === "startOver") return { name: "starting" };
   if (current?.name !== "started") return { name: "loading" };
   // The announcement stays, so the form below it is not rebuilt (and loses focus) mid-save.
-  return { ...current, notice: null, errors: null, saving: true };
+  const rest = { ...current };
+  delete rest.panel;
+  delete rest.tree;
+  delete rest.conflict;
+  delete rest.undoFailed;
+  return { ...rest, notice: null, errors: null, saving: true };
 }
 
 /** Opens the selector on the first question, with the current choice selected. */
@@ -337,7 +395,7 @@ export function cancelEditDeceased(view: StartedView, deps: Deps): StartedView {
  * Moves the heirs screen to another layer (null is the first deceased's), ending any edit. A new
  * heir's draft stays, so nothing typed is lost. Refused mid-save, and for a death that is gone.
  */
-export function openLayer(view: StartedView, id: string | null, deps: Deps): StartedView {
+export function openLayer(view: StartedView, id: string | null, deps: Deps, focus: "relationship" | "treeHeading" = "treeHeading"): StartedView {
   if (view.saving) return view;
   const target = keepLayer(id, view.case);
   if (view.editingHeir !== null) restoreHeirForm(deps, view.case.id);
@@ -349,7 +407,7 @@ export function openLayer(view: StartedView, id: string | null, deps: Deps): Sta
       values: target !== view.layer ? { ...record.values, same_as: "" } : record.values,
     });
   }
-  return {
+  const opened: StartedView = {
     ...view,
     layer: target,
     ordering: null,
@@ -357,48 +415,78 @@ export function openLayer(view: StartedView, id: string | null, deps: Deps): Sta
     deathAnswers: undefined,
     deathFirst: undefined,
     deathOrderNeeded: undefined,
+    sheetDeath: undefined,
     editingHeir: null,
+    confirming: undefined,
+    conflict: false,
     formEpoch: view.formEpoch + 1,
     notice: null,
     errors: null,
-    focus: nextFocus(view, "relationship"),
+    focus: nextFocus(view, focus),
   };
+  delete opened.panel;
+  delete opened.tree;
+  return opened;
 }
 
 /** Closes the order question without writing anything; focus returns to the row's button. */
 export function cancelOrder(view: StartedView): StartedView {
   if (view.saving || view.ordering === null) return view;
   const row = view.ordering;
-  return { ...view, ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, errors: null, notice: null, focus: nextFocus(view, `alsoDied:${row}`) };
+  return { ...view, ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, sheetDeath: undefined, errors: null, notice: null, focus: nextFocus(view, view.sheetDeath ? "editStatus:died_later" : `alsoDied:${row}`) };
+}
+
+/** Drops the death question or refusal that belongs to the edit sheet, when the sheet is leaving. */
+function clearSheetDeath(view: StartedView): Partial<StartedView> {
+  return view.sheetDeath
+    ? { ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, sheetDeath: undefined }
+    : {};
 }
 
 /** Fills the heir form with the heir's details. */
-export function startEditHeir(view: StartedView, heirId: string, deps: Deps): StartedView {
-  const heir = layerAt(view.case, view.layer).heirs.find((item) => item.id === heirId);
+export function startEditHeir(view: StartedView, heirId: string, deps: Deps, opener: FocusTarget = `editHeir:${heirId}`): StartedView {
+  if (view.saving) return view;
+  const heir = estateModel(view.case, view.layer, null).people.find((item) => item.id === heirId);
   if (!heir) return view;
   writeParked(deps, view.case.id, "heir", heirId, { ...heirValues(heir) }, draftOf(deps, view.case.id));
   const record = deps.forms.get();
   if (record) deps.forms.set({ ...record, layer: view.layer });
   return {
     ...view,
+    ...clearSheetDeath(view),
     editingHeir: heirId,
+    confirming: undefined,
+    conflict: false,
+    opener,
     notice: null,
     errors: null,
-    focus: nextFocus(view, "relationship"),
+    focus: nextFocus(view, "name"),
   };
 }
 
 /** Clears the heir form without writing anything; focus returns to the heir's row. */
 export function cancelEditHeir(view: StartedView, deps: Deps): StartedView {
+  if (view.saving) return view;
+  if (view.confirming && !view.confirming.fromRow) {
+    return { ...view, confirming: undefined, conflict: false, notice: null, errors: null, focus: nextFocus(view, "name") };
+  }
   restoreHeirForm(deps, view.case.id);
   return {
     ...view,
+    ...clearSheetDeath(view),
+    confirming: undefined,
+    conflict: false,
     editingHeir: null,
     formEpoch: view.formEpoch + 1,
     notice: null,
     errors: null,
-    focus: view.editingHeir ? nextFocus(view, `editHeir:${view.editingHeir}`) : view.focus,
+    focus: view.editingHeir ? nextFocus(view, view.opener ?? `editHeir:${view.editingHeir}`) : view.focus,
   };
+}
+
+export function requestCardRemoval(view: StartedView, heirId: string, deps: Deps): StartedView {
+  const opened = startEditHeir(view, heirId, deps, `card:${heirId}`);
+  return opened === view ? view : { ...opened, confirming: { heirId, impact: null, fromRow: false }, focus: null };
 }
 
 /**
@@ -514,7 +602,7 @@ function startedFor(found: Case, resumed: boolean, deps: Deps): StartedView {
   if (record?.form === "deceased" && found.deceased) view.editingDeceased = true;
   view.layer = keepLayer(record?.layer ?? null, found);
   if (record?.form === "heir" && view.layer !== (record.layer ?? null)) deps.forms.set(null);
-  if (record?.form === "heir" && view.layer === (record.layer ?? null) && record.heirId && layerAt(found, view.layer).heirs.some((row) => row.id === record.heirId)) {
+  if (record?.form === "heir" && view.layer === (record.layer ?? null) && record.heirId && estateModel(found, view.layer, null).people.some((row) => row.id === record.heirId)) {
     view.editingHeir = record.heirId;
   }
   return settle(view, deps);
@@ -522,12 +610,23 @@ function startedFor(found: Case, resumed: boolean, deps: Deps): StartedView {
 
 export type Answer =
   | { kind: "saveDeceased"; from: StartedView; values: DeceasedValues }
-  | { kind: "addHeir"; from: StartedView; values: HeirValues }
-  | { kind: "saveHeir"; from: StartedView; heirId: string; values: HeirValues }
-  | { kind: "removeHeir"; from: StartedView; heirId: string }
+  /**
+   * `origin: "panel"` is one press in the Add relatives panel: it keeps the heir form as it was.
+   * `origin: "tree"` is a positioned add of one person at `anchor` (a person id or "root").
+   */
+  | { kind: "addHeir"; from: StartedView; values: HeirValues; origin?: "panel" | "tree"; count?: number; anchor?: string }
+  | { kind: "saveHeir"; from: StartedView; heirId: string; values: HeirValues; status?: HeirFields["status"]; link?: string | null; field?: FocusTarget; close?: boolean; openEstate?: string }
+  | { kind: "removeHeir"; from: StartedView; heirId: string; confirm?: boolean; fromRow?: boolean }
   /** `rowId` is the row whose person died; `first` answers the order question. */
-  | { kind: "markDeath"; from: StartedView; rowId: string; first?: string; answers?: RelativeAnswers }
-  | { kind: "unmarkDeath"; from: StartedView; heirId: string; rowId: string };
+  | { kind: "markDeath"; from: StartedView; rowId: string; first?: string; answers?: RelativeAnswers; origin?: "sheet"; name?: string | null }
+  | { kind: "unmarkDeath"; from: StartedView; heirId: string; rowId: string }
+  /** Takes back the latest family change with one restore at the current revision. */
+  | { kind: "undo"; from: StartedView };
+
+/** The history of a view; a view that never had one reads as empty. */
+export function historyOf(view: StartedView): readonly UndoEntry[] {
+  return view.history ?? [];
+}
 
 function formOf(answer: Answer): FormName {
   return answer.kind === "saveDeceased" ? "deceased" : "heir";
@@ -543,22 +642,63 @@ function invalidView(from: StartedView, form: FormName, errors: Errors): Started
   };
 }
 
+function isPanel(answer: Answer): answer is Extract<Answer, { kind: "addHeir" }> & { origin: "panel" } {
+  return answer.kind === "addHeir" && answer.origin === "panel";
+}
+
+function isTree(answer: Answer): answer is Extract<Answer, { kind: "addHeir" }> & { origin: "tree"; anchor: string } {
+  return answer.kind === "addHeir" && answer.origin === "tree" && typeof answer.anchor === "string";
+}
+
+/** A positioned add shows its outcome beside its chooser and focus stays on the pressed control. */
+function treeView(from: StartedView, answer: Extract<Answer, { kind: "addHeir" }> & { anchor: string }, outcome: Omit<TreeOutcome, "relationship" | "anchor">): StartedView {
+  return {
+    ...from,
+    notice: null,
+    saving: false,
+    errors: null,
+    tree: { relationship: answer.values.relationship, anchor: answer.anchor, ...outcome },
+    focus: nextFocus(from, `addHere:${answer.values.relationship}`),
+  };
+}
+
+/** The panel shows an outcome and focus stays on the pressed button (or the panel heading). */
+function panelView(from: StartedView, relationship: string, outcome: Omit<PanelOutcome, "relationship">): StartedView {
+  return {
+    ...from,
+    notice: null,
+    saving: false,
+    errors: null,
+    panel: { relationship, ...outcome },
+    focus: nextFocus(from, `add:${relationship}`),
+  };
+}
+
+/** A refusal: in the panel for a panel add, else on the heir form. */
+function refusedView(answer: Answer, from: StartedView, errors: Errors): StartedView {
+  if (isTree(answer)) return treeView(from, answer, { errors });
+  return isPanel(answer)
+    ? panelView(from, answer.values.relationship, { errors })
+    : invalidView(from, formOf(answer), errors);
+}
+
 /**
  * The client's own check before anything is sent: the view to show when an answer breaks a
  * rule (focus on the first invalid field), or null when it can go to the server.
  */
 export function precheck(answer: Answer): StartedView | null {
-  if (answer.kind === "removeHeir" || answer.kind === "markDeath" || answer.kind === "unmarkDeath") return null;
+  if (answer.kind === "saveHeir" || answer.kind === "removeHeir" || answer.kind === "markDeath" || answer.kind === "unmarkDeath" || answer.kind === "undo") return null;
   if (answer.kind === "saveDeceased") {
     const { errors } = validateDeceased(answer.values);
     return Object.keys(errors).length > 0 ? invalidView(answer.from, "deceased", errors) : null;
   }
   // The options are advice for blur only: the server decides every save.
   const { errors } = validateHeir(answer.values);
-  if (answer.kind === "addHeir" && heirLimitReached(layerAt(answer.from.case, answer.from.layer).heirs)) {
+  if ((answer.count ?? 1) > MAX_HEIRS - layerAt(answer.from.case, answer.from.layer).heirs.length) {
     errors.heirs = "limit";
   }
-  return Object.keys(errors).length > 0 ? invalidView(answer.from, "heir", errors) : null;
+  if (Object.keys(errors).length === 0) return null;
+  return refusedView(answer, answer.from, errors);
 }
 
 /**
@@ -586,7 +726,8 @@ export async function runAction(
     action === "saveHeir" ||
     action === "removeHeir" ||
     action === "markDeath" ||
-    action === "unmarkDeath"
+    action === "unmarkDeath" ||
+    action === "undo"
   ) {
     if (!answer || answer.kind !== action) return { name: "failed", retry: "load", resumable: existing };
     return save(answer, signal, deps);
@@ -648,7 +789,7 @@ async function choose(
   // Continuing with the stored school selected writes nothing.
   if (from.case.madhab === madhab) {
     deps.selection.set(null);
-    return { ...from, changing: false, notice: null, saving: false };
+    return { ...from, changing: false, notice: null, saving: false, conflict: false };
   }
   const result = await deps.setMadhab(signal, madhab, from.case.id, from.case.revision);
   switch (result.kind) {
@@ -673,6 +814,13 @@ async function choose(
       return { name: "none", expired: true };
     }
     case "replaced":
+      if (result.case.id === from.case.id) {
+        // Same case, newer revision: adopt it, keep the screen and the visitor's pick, never resend.
+        return reconcileFresh({
+          ...from, case: result.case, layer: keepLayer(from.layer, result.case), confirming: undefined,
+          notice: null, errors: null, saving: false, conflict: true, history: [], undoToast: undefined, undoFailed: undefined,
+        }, from, result.case, deps);
+      }
       deps.selection.set(null);
       deps.forms.set(null);
       deps.seen.set(true);
@@ -690,12 +838,24 @@ function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerRe
       return deps.saveDeceased(signal, caseId, revision, validateDeceased(answer.values).fields as DeceasedFields);
     case "addHeir": {
       const fields = validateHeir(answer.values).fields as HeirFields;
+      if (isTree(answer)) {
+        return deps.addHeir(signal, caseId, revision, {
+          ...fields, anchor: answer.anchor, ...(answer.from.layer === null ? {} : { layer: answer.from.layer }),
+        });
+      }
+      if (isPanel(answer) && answer.count !== undefined && answer.count >= 2) {
+        return deps.addHeirs(signal, caseId, revision, fields.relationship, answer.count, answer.from.layer ?? undefined);
+      }
       return deps.addHeir(signal, caseId, revision, answer.from.layer === null ? fields : { ...fields, layer: answer.from.layer });
     }
     case "saveHeir":
-      return deps.updateHeir(signal, caseId, revision, answer.heirId, validateHeir(answer.values).fields as HeirFields);
+      return deps.updateHeir(signal, caseId, revision, answer.heirId, {
+        relationship: answer.values.relationship as RelationshipId, name: answer.values.name.trim() || null,
+        ...(answer.status ? { status: answer.status } : {}),
+        ...(answer.link !== undefined ? { same_as: answer.link } : {}),
+      });
     case "removeHeir":
-      return deps.removeHeir(signal, caseId, revision, answer.heirId);
+      return deps.removeHeir(signal, caseId, revision, answer.heirId, answer.confirm === true);
     case "markDeath": {
       const pending = answer.from.ordering === answer.rowId;
       return deps.markDeceased(signal, caseId, revision, answer.rowId,
@@ -704,6 +864,10 @@ function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerRe
     }
     case "unmarkDeath":
       return deps.unmarkDeceased(signal, caseId, revision, answer.heirId);
+    case "undo": {
+      const top = historyOf(answer.from).at(-1);
+      return top ? deps.restoreCase(signal, caseId, revision, top.snapshot) : Promise.resolve({ kind: "failed" });
+    }
   }
 }
 
@@ -726,15 +890,16 @@ function openAnswers(from: StartedView): RelativeAnswers {
 export function revealOf(view: View): string | null {
   if (view.name !== "started") return null;
   const note = view.announcement;
-  if (!note || (note.kind !== "added" && note.kind !== "updated")) return null;
+  if (!note || (note.kind !== "added" && note.kind !== "updated" && note.kind !== "linked" && note.kind !== "unlinked")) return null;
   return layerAt(view.case, view.layer).heirs.some((heir) => heir.id === note.id) ? note.id : null;
 }
 
 function announce(
   from: StartedView,
   kind: Announcement["kind"],
-  heirs: readonly Heir[],
+  heirs: readonly Pick<Heir, "id" | "relationship" | "name">[],
   heirId: string,
+  panelCount?: number,
 ): Announcement | null {
   const heir = heirs.find((item) => item.id === heirId);
   if (!heir) return from.announcement;
@@ -743,6 +908,7 @@ function announce(
     id: heirId,
     heir: { name: heir.name, relationship: heir.relationship },
     ordinal: unnamedOrdinal(heirs, heirId),
+    ...(panelCount === undefined ? {} : { panelCount }),
     seq: (from.announcement?.seq ?? 0) + 1,
   };
 }
@@ -759,6 +925,21 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
   const base = { ...started(kase, from.resumed), formEpoch: from.formEpoch, layer };
   switch (answer.kind) {
     case "markDeath": {
+      if (answer.origin === "sheet") {
+        // The sheet stays open on the person; the active estate does not change.
+        const known = layerHeirs(kase, layer).find((heir) => heir.id === answer.rowId);
+        const note = announce(from, "laterDeath", layerHeirs(kase, layer), answer.rowId);
+        return settle(
+          {
+            ...base,
+            editingHeir: from.editingHeir,
+            opener: from.opener,
+            announcement: note && known ? { ...note, gender: known.gender } : note,
+            focus: nextFocus(from, "openEstate"),
+          },
+          deps,
+        );
+      }
       // The new layer opens: the person's death is stored under their earliest row.
       const row = rowsOf(from.case).get(answer.rowId)?.row;
       const person = row ? (row.same_as ?? row.id) : null;
@@ -785,9 +966,60 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
         },
         deps,
       );
+    case "undo": {
+      // The restored family replaces the screen's; an edit in progress is closed rather than left showing old text.
+      const entry = historyOf(from).at(-1);
+      restoreHeirForm(deps, kase.id);
+      const people = estateModel(kase, layer, null).people;
+      return settle(
+        {
+          ...base,
+          formEpoch: from.formEpoch + 1,
+          history: historyOf(from).slice(0, -1),
+          announcement: {
+            kind: "undone", id: "", heir: { name: null, relationship: "son" }, ordinal: null,
+            seq: (from.announcement?.seq ?? 0) + 1,
+          },
+          focus: nextFocus(from, entry?.person && people.some((p) => p.id === entry.person) ? `card:${entry.person}` : "card:root"),
+        },
+        deps,
+      );
+    }
     case "saveDeceased":
       return settle({ ...base, announcement: from.announcement, focus: from.focus }, deps);
     case "addHeir": {
+      if (isTree(answer)) {
+        // One person at a chosen node: the new row is the layer's row the prior Case did not have.
+        const known = new Set(layerHeirs(from.case, from.layer).map((row) => row.id));
+        const added = layerHeirs(kase, from.layer).find((row) => !known.has(row.id))?.id ?? "";
+        // An open edit sheet closes, as cancelEditHeir does, so focus can reach the new card behind it.
+        const sheet = from.editingHeir !== null;
+        if (sheet) restoreHeirForm(deps, kase.id);
+        return settle(
+          {
+            ...base,
+            editingHeir: null,
+            formEpoch: sheet ? from.formEpoch + 1 : from.formEpoch,
+            announcement: announce(from, "added", layerHeirs(kase, from.layer), added),
+            focus: nextFocus(from, added ? `card:${added}` : `addHere:${answer.values.relationship}`),
+          },
+          deps,
+        );
+      }
+      if (isPanel(answer)) {
+        // One press leaves the heir form alone: an edit in progress keeps its heir and its text.
+        const added = layerHeirs(kase, from.layer).at(-1)?.id ?? "";
+        return settle(
+          {
+            ...base,
+            editingHeir: from.editingHeir,
+            opener: from.opener,
+            announcement: announce(from, "added", layerHeirs(kase, from.layer), added, answer.count ?? 1),
+            focus: nextFocus(from, `add:${answer.values.relationship}`),
+          },
+          deps,
+        );
+      }
       resetHeirForm(deps, kase.id);
       return {
         ...base,
@@ -802,25 +1034,38 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
       };
     }
     case "saveHeir": {
-      restoreHeirForm(deps, kase.id);
-      return {
-        ...base,
-        formEpoch: from.formEpoch + 1,
-        announcement: announce(from, "updated", layerHeirs(kase, from.layer), answer.heirId),
-        focus: nextFocus(from, "relationship"),
+      const people = estateModel(kase, layer, null).people;
+      if (answer.close) {
+        restoreHeirForm(deps, kase.id);
+        return {
+          ...from, ...clearSheetDeath(from), case: kase, saving: false, errors: null, notice: null, conflict: false,
+          editingHeir: null, confirming: undefined, formEpoch: from.formEpoch + 1,
+          announcement: announce(from, "updated", people, answer.heirId),
+          focus: nextFocus(from, from.opener ?? `editHeir:${answer.heirId}`),
+        };
+      }
+      const stayed: StartedView = {
+        ...from, case: kase, saving: false, errors: null, notice: null, conflict: false,
+        editingHeir: answer.heirId,
+        announcement: announce(from, answer.link === undefined ? "updated" : answer.link === null ? "unlinked" : "linked", people, answer.heirId),
+        focus: nextFocus(from, answer.field ?? "relationship"),
       };
+      // "Open own estate" with an uncommitted name: the name is saved, then the estate opens.
+      return answer.openEstate === undefined ? stayed : openLayer(stayed, answer.openEstate, deps, "treeHeading");
     }
     case "removeHeir": {
-      // Removing the heir being edited ends the edit; removing another leaves the form alone.
-      const wasEditing = from.editingHeir === answer.heirId;
+      const before = estateModel(from.case, from.layer, null);
+      const surviving = new Set(estateModel(kase, layer, null).people.map(p => p.id));
+      const target = focusAfterRemoval(before, answer.heirId, surviving);
+      const wasEditing = from.editingHeir !== null && !surviving.has(from.editingHeir);
       if (wasEditing) restoreHeirForm(deps, kase.id);
       return settle(
         {
           ...base,
           formEpoch: wasEditing ? from.formEpoch + 1 : from.formEpoch,
           editingHeir: wasEditing ? null : from.editingHeir,
-          announcement: announce(from, "removed", layerHeirs(from.case, from.layer), answer.heirId),
-          focus: nextFocus(from, "list"),
+          announcement: announce(from, "removed", before.people, answer.heirId),
+          focus: nextFocus(from, `card:${target}`),
         },
         deps,
       );
@@ -856,12 +1101,14 @@ function deathRefused(answer: Extract<Answer, { kind: "markDeath" }>, errors: Er
     ordering: asks || questions?.length ? answer.rowId : null,
     relativeQuestions: questions,
     deathOrderNeeded: asks,
+    sheetDeath: answer.origin === "sheet",
     deathAnswers: { ...(answer.from.ordering === answer.rowId ? answer.from.deathAnswers : {}), ...answer.answers },
     deathFirst: answer.first ?? (answer.from.ordering === answer.rowId ? answer.from.deathFirst : undefined),
     notice: null,
     saving: false,
     errors,
-    focus: nextFocus(answer.from, asks ? "death-order" : questions?.length ? "relatives" : `alsoDied:${answer.rowId}`),
+    focus: nextFocus(answer.from, asks ? "death-order" : questions?.length ? "relatives"
+      : answer.origin === "sheet" ? "editStatus:died_later" : `alsoDied:${answer.rowId}`),
   };
 }
 
@@ -874,19 +1121,128 @@ function reconcileFresh(view: StartedView, from: StartedView, fresh: Case, deps:
     case: fresh,
     layer,
     ordering: view.ordering !== null && rowsOf(fresh).has(view.ordering) ? view.ordering : null,
-    ...(changed ? { editingHeir: null, formEpoch: from.formEpoch + 1, focus: nextFocus(from, "relationship") } : {}),
+    ...(changed ? { editingHeir: null, formEpoch: from.formEpoch + 1, focus: nextFocus(from, "treeHeading") } : {}),
   };
 }
 
-async function save(answer: Answer, signal: AbortSignal, deps: Deps): Promise<View> {
-  const blocked = precheck(answer);
-  if (blocked) return blocked;
+/** The view after an Undo that did not restore: nothing changed, or the Case moved under it. */
+function undone(
+  answer: Extract<Answer, { kind: "undo" }>,
+  result: Exclude<AnswerResult, { kind: "saved" }>,
+  deps: Deps,
+): View {
   const from = answer.from;
-  const result = await send(answer, signal, deps);
   switch (result.kind) {
-    case "saved":
-      return saved(answer, result.case, deps);
+    case "gone":
+      deps.selection.set(null);
+      deps.forms.set(null);
+      deps.seen.set(false);
+      return { name: "none", expired: true };
+    case "replaced": {
+      if (result.case.id !== from.case.id) {
+        deps.selection.set(null);
+        deps.forms.set(null);
+        deps.seen.set(true);
+        return { name: "existing", case: result.case };
+      }
+      // The same case at a newer revision: show it, say so, and never resend.
+      const fresh = result.case;
+      const gone = from.editingHeir !== null && !estateModel(fresh, from.layer, null).people.some((p) => p.id === from.editingHeir);
+      if (gone) restoreHeirForm(deps, fresh.id);
+      return reconcileFresh({
+        ...from, case: fresh, layer: keepLayer(from.layer, fresh), confirming: undefined, notice: null, errors: null,
+        saving: false, conflict: true, history: [], undoToast: undefined,
+        ...(gone ? { editingHeir: null, formEpoch: from.formEpoch + 1 } : {}),
+      }, from, fresh, deps);
+    }
+    default:
+      // The entry and the family stay; the visitor can try again.
+      return { ...from, notice: null, errors: null, saving: false, undoFailed: true };
+  }
+}
+
+/**
+ * What a settled answer does to the history. A saved family change pushes one entry (the prior
+ * Case's own snapshot) and shows the toast; a saved non-family change clears it, because a later
+ * restore would silently revert it. Any other result keeps it only while the Case on screen is
+ * still the one this tab produced: another revision or case was adopted, not made.
+ */
+function recorded(answer: Answer, result: AnswerResult, shown: View): View {
+  if (shown.name !== "started") return shown;
+  const from = answer.from;
+  const kept = historyOf(from);
+  // An empty history and no toast are left off the view, so views without Undo keep their shape.
+  const finish = (history: readonly UndoEntry[], toast?: UndoToast, failed = false): StartedView => {
+    const out: StartedView = { ...shown };
+    delete out.history;
+    delete out.undoToast;
+    delete out.undoFailed;
+    if (history.length > 0) out.history = [...history];
+    if (toast) out.undoToast = toast;
+    if (failed) out.undoFailed = true;
+    return out;
+  };
+  if (result.kind === "saved" && answer.kind === "undo") return finish(shown.history ?? []);
+  if (result.kind === "saved") {
+    const person =
+      answer.kind === "saveHeir" || answer.kind === "removeHeir" || answer.kind === "unmarkDeath" ? answer.heirId
+      : answer.kind === "markDeath" ? answer.rowId : undefined;
+    const family = answer.kind !== "saveDeceased";
+    const snapshot = from.case.snapshot;
+    if (!family || !snapshot || result.case.id !== from.case.id) return finish([]);
+    const announcement = shown.announcement;
+    return finish(
+      [...kept, { snapshot, ...(person === undefined ? {} : { person }) }],
+      announcement ? { key: (from.undoToast?.key ?? 0) + 1, announcement } : undefined,
+    );
+  }
+  const same = shown.case.id === from.case.id && shown.case.revision === from.case.revision;
+  if (!same) return finish([]);
+  return finish(kept, from.undoToast, answer.kind === "undo" && shown.undoFailed === true);
+}
+
+async function save(input: Answer, signal: AbortSignal, deps: Deps): Promise<View> {
+  const blocked = precheck(input);
+  if (blocked) return blocked;
+  let answer = input;
+  if (input.kind === "markDeath" && input.name !== undefined) {
+    // An uncommitted name in the sheet is saved first; the death is sent only if that save succeeds.
+    const row = layerHeirs(input.from.case, input.from.layer).find((heir) => heir.id === input.rowId);
+    const named: AnswerResult = row
+      ? await deps.updateHeir(signal, input.from.case.id, input.from.case.revision, input.rowId, { relationship: row.relationship, name: input.name })
+      : { kind: "failed" };
+    if (named.kind !== "saved") {
+      const stopped = await settled(input, named, signal, deps);
+      return recorded(input, named, stopped);
+    }
+    // The death, and any refusal of it, builds on the case the rename produced.
+    answer = { ...input, name: undefined, from: { ...input.from, case: named.case } };
+  }
+  const result = await send(answer, signal, deps);
+  const view = result.kind === "saved" ? saved(answer, result.case, deps) : await settled(answer, result, signal, deps);
+  return recorded(answer, result, view);
+}
+
+async function settled(answer: Answer, result: Exclude<AnswerResult, { kind: "saved" }>, signal: AbortSignal, deps: Deps): Promise<View> {
+  const from = answer.from;
+  if (answer.kind === "undo") return undone(answer, result, deps);
+  switch (result.kind) {
+    case "cascade": {
+      if (answer.kind !== "removeHeir" || result.case.id !== from.case.id) {
+        return { ...from, notice: "failed", saving: false };
+      }
+      const fromRow = answer.fromRow ?? from.confirming?.fromRow ?? from.editingHeir !== answer.heirId;
+      const opened = startEditHeir({ ...from, case: result.case }, answer.heirId, deps,
+        fromRow ? `remove:${answer.heirId}` : from.opener);
+      return reconcileFresh({
+        ...opened, confirming: { heirId: answer.heirId, impact: result.impact, fromRow }, focus: null,
+      }, from, result.case, deps);
+    }
     case "invalid": {
+      if (answer.kind === "saveHeir") return {
+        ...from, saving: false, conflict: false, notice: null, errors: result.errors,
+        focus: nextFocus(from, answer.field ?? "relationship"),
+      };
       if (answer.kind === "markDeath") {
         if (result.errors.death !== "already_deceased") return deathRefused(answer, result.errors, result.questions);
         const fresh = await refreshed(from, signal, deps);
@@ -895,38 +1251,104 @@ async function save(answer: Answer, signal: AbortSignal, deps: Deps): Promise<Vi
       // A refused relationship or gender may mean this tab's list is stale (a spouse it never
       // saw, or an heir removed elsewhere), so read the case again. A failed read changes nothing.
       if (!result.errors.relationship && !result.errors.gender) {
-        return invalidView(from, formOf(answer), result.errors);
+        return refusedView(answer, from, result.errors);
       }
       const fresh = await refreshed(from, signal, deps);
-      const gone = from.editingHeir !== null && !rowsOf(fresh).has(from.editingHeir);
+      const gone = from.editingHeir !== null && !estateModel(fresh, from.layer, null).people.some(p => p.id === from.editingHeir);
       const layer = keepLayer(from.layer, fresh);
       if (gone) restoreHeirForm(deps, fresh.id);
-      return reconcileFresh(
-        invalidView(
+      const reconciled = reconcileFresh(
+        refusedView(
+          answer,
           gone
             ? { ...from, case: fresh, layer, editingHeir: null, formEpoch: from.formEpoch + 1 }
             : { ...from, case: fresh, layer },
-          formOf(answer),
           result.errors,
         ),
         from,
         fresh,
         deps,
       );
+      if (isTree(answer)) return { ...reconciled, focus: nextFocus(from, `addHere:${answer.values.relationship}`) };
+      return isPanel(answer) ? { ...reconciled, focus: nextFocus(from, `add:${answer.values.relationship}`) } : reconciled;
     }
     case "gone":
       deps.selection.set(null);
       deps.forms.set(null);
       deps.seen.set(false);
       return { name: "none", expired: true };
-    case "replaced":
+    case "replaced": {
+      if ((answer.kind === "saveHeir" || answer.kind === "removeHeir") && result.case.id === from.case.id) {
+        const fresh = result.case;
+        const live = reconcileFresh({ ...from, confirming: undefined, notice: null, errors: null, saving: false }, from, fresh, deps);
+        if (!estateModel(fresh, live.layer, null).people.some(p => p.id === answer.heirId)) {
+          restoreHeirForm(deps, fresh.id);
+          return { ...live, editingHeir: null, conflict: true, focus: nextFocus(from, "card:root") };
+        }
+        const opener = answer.kind === "removeHeir" && answer.fromRow ? `remove:${answer.heirId}` as const : from.opener;
+        return { ...startEditHeir(live, answer.heirId, deps, opener), conflict: true };
+      }
+      if ((isPanel(answer) || isTree(answer)) && result.case.id === from.case.id) {
+        // The same case at a newer revision: a stale press. Show the live case and say so; never resend.
+        const fresh = result.case;
+        const gone = from.editingHeir !== null && !estateModel(fresh, from.layer, null).people.some(p => p.id === from.editingHeir);
+        if (gone) restoreHeirForm(deps, fresh.id);
+        const stale: StartedView = {
+          ...from,
+          case: fresh,
+          layer: keepLayer(from.layer, fresh),
+          ...(gone ? { editingHeir: null, formEpoch: from.formEpoch + 1 } : {}),
+        };
+        const reconciled = reconcileFresh(
+          isTree(answer)
+            ? treeView(stale, answer, { notice: "conflict" })
+            : panelView(stale, answer.values.relationship, { notice: "conflict" }),
+          from,
+          fresh,
+          deps,
+        );
+        return {
+          ...reconciled,
+          focus: nextFocus(from, isTree(answer) ? `addHere:${answer.values.relationship}` : `add:${answer.values.relationship}`),
+        };
+      }
+      if (result.case.id === from.case.id) {
+        // The same case at a newer revision: keep the screen and the visitor's input, adopt the live case, never resend.
+        const fresh = result.case;
+        const layer = keepLayer(from.layer, fresh);
+        const { people } = estateModel(fresh, layer, null);
+        const gone = from.editingHeir !== null && !people.some((p) => p.id === from.editingHeir);
+        if (gone) restoreHeirForm(deps, fresh.id);
+        const death = answer.kind === "markDeath" || answer.kind === "unmarkDeath";
+        const reconciled = reconcileFresh({
+          ...from,
+          case: fresh,
+          layer,
+          confirming: undefined,
+          notice: null,
+          errors: null,
+          saving: false,
+          conflict: true,
+          ...(answer.kind === "saveDeceased" ? { editingDeceased: true } : {}),
+          ...(death
+            ? { ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, sheetDeath: undefined }
+            : {}),
+          ...(gone ? { editingHeir: null, formEpoch: from.formEpoch + 1 } : {}),
+        }, from, fresh, deps);
+        if (!death) return reconciled;
+        const target: FocusTarget = answer.kind === "markDeath" && answer.origin === "sheet" && reconciled.editingHeir !== null
+          ? "editStatus:died_later"
+          : people.some((p) => p.id === answer.rowId) ? `alsoDied:${answer.rowId}` : "card:root";
+        return { ...reconciled, focus: nextFocus(from, target) };
+      }
       deps.selection.set(null);
       deps.forms.set(null);
       deps.seen.set(true);
       return { name: "existing", case: result.case };
+    }
     case "missing": {
       // The heir is gone: show the list as it is now, and tell the visitor.
-      const stillThere = from.editingHeir !== null && rowsOf(result.case).has(from.editingHeir);
+      const stillThere = from.editingHeir !== null && estateModel(result.case, from.layer, null).people.some(p => p.id === from.editingHeir);
       const endsEdit = from.editingHeir !== null && !stillThere;
       if (endsEdit) restoreHeirForm(deps, result.case.id);
       return reconcileFresh(settle(
@@ -947,17 +1369,21 @@ async function save(answer: Answer, signal: AbortSignal, deps: Deps): Promise<Vi
     default: {
       // A lost answer to an add may hide a stored heir, so look once; the input stays.
       const fresh = answer.kind === "addHeir" && result.kind === "failed" ? await refreshed(from, signal, deps) : from.case;
-      return reconcileFresh({
+      const kept = reconcileFresh({
         ...from,
         case: fresh,
         layer: keepLayer(from.layer, fresh),
-        notice: result.kind,
+        notice: isPanel(answer) || isTree(answer) ? null : result.kind,
         // The errors pendingView cleared are not brought back by a failed save.
         errors: null,
+        ...(isPanel(answer) ? { panel: { relationship: answer.values.relationship, notice: result.kind } } : {}),
+        ...(isTree(answer) ? { tree: { relationship: answer.values.relationship, anchor: answer.anchor, notice: result.kind } } : {}),
         saving: false,
         // A failed removal puts focus back on the row button, which the question replaced.
-        focus: answer.kind === "removeHeir" ? nextFocus(from, `remove:${answer.heirId}`) : from.focus,
+        focus: answer.kind === "saveHeir" ? nextFocus(from, answer.field ?? "relationship") : answer.kind === "removeHeir" && !from.confirming && !from.editingHeir ? nextFocus(from, `remove:${answer.heirId}`) : from.focus,
       }, from, fresh, deps);
+      if (isTree(answer)) return { ...kept, focus: nextFocus(from, `addHere:${answer.values.relationship}`) };
+      return isPanel(answer) ? { ...kept, focus: nextFocus(from, `add:${answer.values.relationship}`) } : kept;
     }
   }
 }

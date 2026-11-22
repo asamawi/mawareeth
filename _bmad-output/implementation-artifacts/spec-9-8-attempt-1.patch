@@ -1,0 +1,1778 @@
+diff --git a/_bmad-output/implementation-artifacts/deferred-work.md b/_bmad-output/implementation-artifacts/deferred-work.md
+index 81bcd03..ec27a89 100644
+--- a/_bmad-output/implementation-artifacts/deferred-work.md
++++ b/_bmad-output/implementation-artifacts/deferred-work.md
+@@ -549,3 +549,20 @@ Native review is pending for these interview strings in `web/src/i18n/messages.t
+ | `positionNotAllowed` | {relationship} cannot be added at this person. | لا يمكن إضافة {relationship} عند هذا الشخص. | Impossible d’ajouter {relationship} à cette personne. |
+ | `fieldErrors.anchor.not_allowed` | That relative can no longer be added there. | لم يعد من الممكن إضافة هذا القريب هناك. | Ce proche ne peut plus être ajouté à cet endroit. |
+ | `fieldErrors.anchor.schema_unsupported` | This case cannot record who a relative belongs to yet. | لا يمكن لهذه الحالة تسجيل من ينتمي إليه القريب بعد. | Ce dossier ne peut pas encore enregistrer à qui un proche est rattaché. |
++
++## Story 9.8
++
++Arabic and French copy for later-death estates awaits native review.
++
++| Key | English | Arabic | French |
++| --- | --- | --- | --- |
++| `statusDiedLater` | Died after the deceased, before division | توفي بعد المتوفى وقبل القسمة | Décédé après le défunt, avant le partage |
++| `laterDeathLimit` | A case can hold up to two later deaths. | يمكن أن تتضمن الحالة وفاتين لاحقتين على الأكثر. | Un dossier peut comporter au plus deux décès ultérieurs. |
++| `openOwnEstate` | Open own estate: {heir} | افتح التركة المستقلة: {heir} | Ouvrir la succession propre : {heir} |
++| `laterDeathAddedMale` | {heir} died later. Open own estate to add his heirs. | توفي {heir} لاحقًا. افتح تركته المستقلة لإضافة ورثته. | {heir} est décédé plus tard. Ouvrez sa succession propre pour ajouter ses héritiers. |
++| `laterDeathAddedFemale` | {heir} died later. Open own estate to add her heirs. | توفيت {heir} لاحقًا. افتحي تركتها المستقلة لإضافة ورثتها. | {heir} est décédée plus tard. Ouvrez sa succession propre pour ajouter ses héritiers. |
++| `estateLevel` | Estate level | مستوى التركة | Niveau de succession |
++| `estatePending` | {heir}'s own estate is calculated separately. Add their heirs to see it. | تُحسب تركة {heir} المستقلة على حدة. أضف ورثته لعرضها. | La succession propre de {heir} est calculée séparément. Ajoutez ses héritiers pour la voir. |
++| `estateInherited` | This estate holds {share} of the first estate. | تحوز هذه التركة {share} من التركة الأولى. | Cette succession détient {share} de la première succession. |
++| `estatePreviewEmpty` | Add {heir}'s heirs to see this estate's shares. | أضف ورثة {heir} لعرض أنصبة هذه التركة. | Ajoutez les héritiers de {heir} pour voir les parts de cette succession. |
++| `fieldErrors.empty.invalid` | That request could not be read. | تعذرت قراءة هذا الطلب. | Cette demande n'a pas pu être lue. |
+diff --git a/api/anonymous_case.py b/api/anonymous_case.py
+index 5423777..afa7ebf 100644
+--- a/api/anonymous_case.py
++++ b/api/anonymous_case.py
+@@ -643,7 +643,10 @@ def _order(case, first=None):
+                 raise FieldErrors({'death': 'order_conflict'})
+ 
+ 
+-def mark_deceased(request, heir_id, first=None, case_id=None, relatives=None, shared_father=None):
++_UNSET = object()
++
++
++def mark_deceased(request, heir_id, first=None, case_id=None, relatives=None, shared_father=None, empty=_UNSET):
+     """Add a person's death layer. Raises StaleCase, HeirNotFound or FieldErrors."""
+     case = _live(request, case_id)
+     if case is None:
+@@ -656,8 +659,16 @@ def mark_deceased(request, heir_id, first=None, case_id=None, relatives=None, sh
+         raise FieldErrors({'death': 'already_deceased'})
+     if len(case['deaths']) == 2:
+         raise FieldErrors({'death': 'limit'})
++    if empty is not _UNSET and empty is not True and empty is not False:
++        raise FieldErrors({'empty': 'invalid'})
++    empty = empty is True
++    if empty and (relatives is not None or shared_father is not None):
++        raise FieldErrors({'relatives': 'invalid'})
+     case['deaths'].append({'heir_id': person, 'order': len(case['deaths']) + 2,
+                            'gender': rows[person]['gender'], 'heirs': []})
++    if empty:
++        _order(case, first)
++        return _store_case(request, case)
+     if (relatives is not None and not (isinstance(relatives, dict) and all(
+             isinstance(k, str) and isinstance(v, str) for k, v in relatives.items()))
+             or shared_father not in (None, 'yes', 'no')):
+diff --git a/api/contracts/interview.json b/api/contracts/interview.json
+index b7dccf8..267dc75 100644
+--- a/api/contracts/interview.json
++++ b/api/contracts/interview.json
+@@ -35,6 +35,7 @@
+     "heirs": ["limit"],
+     "case": ["deceased_required"],
+     "relatives": ["required", "invalid"],
++    "empty": ["invalid"],
+     "same_as": ["gender_mismatch", "not_alive", "already_linked"],
+     "status": ["invalid", "schema_unsupported", "first_estate_only", "status_locked"],
+     "anchor": ["not_allowed", "schema_unsupported"],
+diff --git a/api/preview.py b/api/preview.py
+index 3521eb2..b61d0bc 100644
+--- a/api/preview.py
++++ b/api/preview.py
+@@ -157,7 +157,20 @@ def _ready(case):
+     """Whether the family is far enough along to compute. The school is not needed."""
+     if case['deceased'] is None or not case['heirs']:
+         return False
+-    return all(d['heirs'] for d in case.get('deaths', []))
++    return True
++
++
++def _pending(case):
++    """The later deaths whose own estate has no heirs yet, in death order."""
++    return [d['heir_id'] for d in sorted(case.get('deaths', []), key=lambda d: d['order']) if not d['heirs']]
++
++
++def _trimmed(case):
++    """A copy of the case without its pending deaths, so each is an ordinary first-estate heir."""
++    kept = [d for d in sorted(case.get('deaths', []), key=lambda d: d['order']) if d['heirs']]
++    if len(kept) == len(case.get('deaths', [])):
++        return case
++    return {**case, 'deaths': [{**d, 'order': i} for i, d in enumerate(kept, 2)]}
+ 
+ 
+ def _impossible(case):
+@@ -238,16 +251,25 @@ def _differences(bodies):
+     return rules
+ 
+ 
+-def preview(case):
++def preview(case, *, allow_pending=False):
+     """The preview body for a session case: available, unavailable, choose_school or not ready.
+ 
+     With a school it is that school's answer. Without one the four Sunni schools are compared:
+     when they agree the answer is one result with `agreement: "all"`, and when they differ the
+     visitor is asked to choose. Never writes: the core runs in memory. Raises only for an
+     unexpected core error, which the caller turns into a 503.
++    Pending later deaths are included only when `allow_pending` is true.
+     """
+     if not _ready(case):
+         return {'status': 'not_ready'}
++    pending = _pending(case)
++    if pending and not allow_pending:
++        return {'status': 'not_ready'}
++    body = _preview(_trimmed(case))
++    return {**body, 'pending': pending} if pending else body
++
++
++def _preview(case):
+     family, currency = family_from_session(case, names=False)
+     resolved = basis_from_madhab(case['madhab'])
+     out = (refused_outcome(family, resolved, INVALID_FAMILY) if _impossible(case)
+diff --git a/api/test_case_commands.py b/api/test_case_commands.py
+index 9b51a60..b0295d8 100644
+--- a/api/test_case_commands.py
++++ b/api/test_case_commands.py
+@@ -16,6 +16,7 @@ from django.utils import timezone
+ from rest_framework.test import APIClient
+ 
+ from api import anonymous_case, case_commands
++from api import preview as case_preview
+ from api.models import SavedCase
+ from api.tests import (
+     CASE_URL, DEATHS_URL, HEIRS_URL, InterviewDeathsHelpers, InterviewHelpers,
+@@ -304,6 +305,89 @@ class LimitTests(CommandBase):
+         self.assertEqual(response.json()['errors'], {'death': 'limit'})
+ 
+ 
++class EmptyLaterDeathTests(CommandBase):
++    """Story 9.8: a later death can be marked with no derived relatives."""
++    def test_an_empty_mark_derives_nothing_where_the_old_mark_would(self):
++        self.setup_family()
++        response = self.mark(self.s1, empty=True)
++        self.assertEqual(response.status_code, 201, response.content)
++        deaths = response.json()['case']['deaths']
++        self.assertEqual([(d['heir_id'], d['heirs']) for d in deaths], [(self.s1, [])])
++
++    def test_no_key_and_false_keep_the_old_derivation(self):
++        self.setup_family()
++        self.assertEqual(self.mark(self.s1).status_code, 201)
++        self.assertEqual(len(self.live()['deaths'][0]['heirs']), 2)
++        self.send('delete', f'{DEATHS_URL}{self.s1}/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
++        self.assertEqual(self.mark(self.s1, empty=False).status_code, 201)
++        self.assertEqual(len(self.live()['deaths'][0]['heirs']), 2)
++
++    def test_a_bad_empty_is_refused_without_a_revision(self):
++        self.setup_family()
++        before, revision = self.stored(), self.revision()
++        self.refused(self.mark(self.s1, empty='yes'), {'empty': 'invalid'}, before)
++        self.refused(self.mark(self.s1, empty=True, relatives={}), {'relatives': 'invalid'}, before)
++        self.refused(self.mark(self.s1, empty=True, shared_father='yes'), {'relatives': 'invalid'}, before)
++        self.assertEqual(self.revision(), revision)
++
++    def test_the_order_question_applies_and_first_resolves_it(self):
++        self.setup_family()
++        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
++        before = self.stored()
++        self.refused(self.mark(self.s2, empty=True), {'death': 'order_required'}, before)
++        response = self.mark(self.s2, empty=True, first=self.s2)
++        self.assertEqual(response.status_code, 201, response.content)
++        self.assertEqual([d['heir_id'] for d in response.json()['case']['deaths']], [self.s2, self.s1])
++
++    def test_the_limit_is_refused_with_the_revision_unchanged(self):
++        self.setup_family()
++        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
++        self.assertEqual(self.mark(self.s2, empty=True, first=self.s1).status_code, 201)
++        revision, before = self.revision(), self.stored()
++        self.refused(self.mark(self.w, empty=True), {'death': 'limit'}, before)
++        self.assertEqual(self.revision(), revision)
++
++    def test_a_pending_preview_keeps_the_share_and_lists_the_person(self):
++        self.setup_family()
++        plain = self.preview(self.case_id).json()
++        self.assertNotIn('pending', plain)
++        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
++        body = self.preview(self.case_id).json()
++        self.assertEqual(body['status'], 'available')
++        self.assertEqual(body['pending'], [self.s1])
++        keep = lambda b: [(s['heir_id'], s['numerator'], s['denominator']) for s in b['shares']]
++        self.assertEqual(keep(body), keep(plain))
++
++    def test_pending_is_opt_in_for_the_preview_function(self):
++        self.setup_family()
++        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
++        case = self.live()
++        self.assertEqual(case_preview.preview(case), {'status': 'not_ready'})
++        body = case_preview.preview(case, allow_pending=True)
++        self.assertEqual(body['status'], 'available')
++        self.assertEqual(body['pending'], [self.s1])
++
++    def test_cascade_impact_lists_the_later_estate_people(self):
++        self.setup_family()
++        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
++        self.assertEqual(self.add_layer(self.s1, 'wife', name='New').status_code, 201)
++        response = self.send('delete', f'{HEIRS_URL}{self.s1}/', {'case_id': self.case_id})
++        self.assertEqual(response.status_code, 409)
++        self.assertEqual(response.json()['impact']['estates'], [2])
++        self.assertEqual(len(response.json()['impact']['persons']), 1)
++
++    def test_a_restore_after_removal_keeps_the_ids(self):
++        self.setup_family()
++        self.assertEqual(self.mark(self.s1, empty=True).status_code, 201)
++        old = anonymous_case.export_snapshot(anonymous_case.read_snapshot(dict(self.stored()), 'x', 'y'))
++        self.send('delete', f'{HEIRS_URL}{self.s1}/', {'case_id': self.case_id, 'confirm_cascade': 'true'})
++        response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot': old})
++        self.assertEqual(response.status_code, 200, response.content)
++        case = response.json()['case']
++        self.assertEqual([d['heir_id'] for d in case['deaths']], [self.s1])
++        self.assertIn(self.s1, [r['id'] for r in case['heirs']])
++
++
+ class CascadeTests(CommandBase):
+     def test_removing_a_heir_with_a_later_death_layer_needs_confirmation(self):
+         self.setup_family()
+diff --git a/api/tests.py b/api/tests.py
+index ec40b23..7bb52f2 100644
+--- a/api/tests.py
++++ b/api/tests.py
+@@ -3212,14 +3212,13 @@ class AutomaticRelativesTests(InterviewDeathsHelpers, InterviewHelpers, Transact
+         suggested = {q['id']: q['suggested'] for q in questions}
+         self.assertEqual(suggested, {'w1': 'mother', 'w2': 'mother', 'd': 'sister'})
+ 
+-    def test_layer_without_heirs_is_not_ready(self):
++    def test_layer_without_heirs_is_pending_not_unready(self):
+         s1, = self.family('male', ['son'])
+         self.assertEqual(self.mark(s1).status_code, 201)
+         self.assertEqual(self.live()['deaths'][0]['heirs'], [])
+-        response = self.preview(self.case_id)
+-        body = response.json()
+-        self.assertIs(type(body.pop('revision')), int)
+-        self.assertEqual(body, {'status': 'not_ready'})
++        body = self.preview(self.case_id).json()
++        self.assertEqual(body['status'], 'available')
++        self.assertEqual(body['pending'], [s1])
+ 
+     def test_same_as_gender_mismatch_in_a_later_layer(self):
+         s1, s2 = self.family('male', ['son', 'son'])
+diff --git a/api/views.py b/api/views.py
+index d8178cd..0b59a7e 100644
+--- a/api/views.py
++++ b/api/views.py
+@@ -315,7 +315,7 @@ class PreviewView(ApiView):
+                 status=status.HTTP_409_CONFLICT)
+         try:
+             with translation.override(_asked_language(request)):
+-                body = {**preview.preview(case), 'revision': case['revision']}
++                body = {**preview.preview(case, allow_pending=True), 'revision': case['revision']}
+         except Exception as error:
+             # The kind of error and where it came from, never its message or locals: the case
+             # holds names and amounts.
+@@ -330,7 +330,8 @@ class DeathsView(CaseWriteView):
+     def post(self, request):
+         return self.write(request, 'mark_death', lambda data, case_id: anonymous_case.mark_deceased(
+             request, data.get('heir_id'), data.get('first'), case_id,
+-            relatives=data.get('relatives'), shared_father=data.get('shared_father')), success=status.HTTP_201_CREATED)
++            relatives=data.get('relatives'), shared_father=data.get('shared_father'),
++            empty=data.get('empty', anonymous_case._UNSET)), success=status.HTTP_201_CREATED)
+ 
+ 
+ class DeathView(CaseWriteView):
+diff --git a/web/e2e/accessibility.spec.ts b/web/e2e/accessibility.spec.ts
+index c9e3057..5e376a6 100644
+--- a/web/e2e/accessibility.spec.ts
++++ b/web/e2e/accessibility.spec.ts
+@@ -94,3 +94,25 @@ for (const locale of ["en", "ar"] as const) {
+     expect(await serious(page)).toEqual([]);
+   });
+ }
++
++for (const locale of ["en", "ar"] as const) {
++  test(`an open later estate with the breadcrumb in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
++    const all = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[] }).fixtures;
++    const layered = all.find((item) => item.title === "Agree layered: wife and two sons, a son dies")!;
++    const served = JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-presented-fixtures.json"), "utf8")) as { presented: Record<string, unknown> };
++    const options = { blocked: [], invalid: {} };
++    const kase = fullCase(layered.case, {
++      deaths: (layered.case.deaths as { heirs: Record<string, unknown>[] }[]).map((death) => ({
++        ...death, heir_options: options, heirs: death.heirs.map((heir) => ({ ...heir, edit_options: options })),
++      })),
++    });
++    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, { ...layered.response, presented: served.presented[layered.title] }) });
++    await page.goto(`/${locale}/interview/`);
++    await page.getByRole("button", { name: messages[locale].interview.resume }).click();
++    await page.locator("section[data-tree] [data-tree-area]").waitFor();
++    await page.locator('[data-node="s1"]').press("Enter");
++    await expect(page.locator("nav[data-breadcrumb]")).toBeVisible();
++    await expect(page.locator("[data-focus='treeHeading']")).toBeFocused();
++    expect(await serious(page)).toEqual([]);
++  });
++}
+diff --git a/web/e2e/api.ts b/web/e2e/api.ts
+index f33b84c..d6eb5ad 100644
+--- a/web/e2e/api.ts
++++ b/web/e2e/api.ts
+@@ -21,6 +21,7 @@ export type Stubs = {
+   postHeir?: Answer;
+   postBulk?: Answer;
+   postRestore?: Answer;
++  postDeath?: Answer;
+   putHeir?: Answer;
+   deleteHeir?: Answer;
+   getPreview?: Answer;
+@@ -49,6 +50,7 @@ export class Api {
+   heirPosts: { body: string; csrf: string | undefined }[] = [];
+   bulkPosts: { body: string; csrf: string | undefined }[] = [];
+   restorePosts: { body: string; csrf: string | undefined }[] = [];
++  deathPosts: { body: string; csrf: string | undefined }[] = [];
+   heirPuts: string[] = [];
+   heirDeletes: URL[] = [];
+   previewGets = 0;
+@@ -90,6 +92,10 @@ export class Api {
+         this.restorePosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+         return this.answer(route, this.stubs.postRestore, "restore");
+       }
++      if (pathname === "/api/v1/case/deaths/" && method === "POST") {
++        this.deathPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
++        return this.answer(route, this.stubs.postDeath, "post death");
++      }
+       if (/^\/api\/v1\/case\/heirs\/[^/]+\/$/.test(pathname)) {
+         if (method === "PUT") {
+           this.heirPuts.push(request.postData() ?? "");
+diff --git a/web/e2e/interview.spec.ts b/web/e2e/interview.spec.ts
+index 655413a..ac9dd78 100644
+--- a/web/e2e/interview.spec.ts
++++ b/web/e2e/interview.spec.ts
+@@ -916,13 +916,8 @@ test.describe("interview shell", () => {
+     });
+   }
+ 
+-  test("a layered case keeps the breadcrumb above the grid, before Add relatives", async ({ page, api }) => {
+-    const layered = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as {
+-      fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[];
+-    }).fixtures.find((item) => item.title === "Agree layered: wife and two sons, a son dies")!;
+-    const served = JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-presented-fixtures.json"), "utf8")) as {
+-      presented: Record<string, unknown>;
+-    };
++  test("a layered case shows no breadcrumb at the root and opens a later estate from its row", async ({ page, api }) => {
++    const layered = fixture("Agree layered: wife and two sons, a son dies");
+     await page.setViewportSize({ width: 1100, height: 900 });
+     api.set({
+       session: sessionAnonymous,
+@@ -935,29 +930,116 @@ test.describe("interview shell", () => {
+           })),
+         }),
+       }),
+-      getPreview: json(200, { ...layered.response, presented: served.presented[layered.title] }),
++      getPreview: json(200, layered.response),
+     });
+     await page.goto("/en/interview/");
+     await page.getByRole("button", { name: en.resume }).click();
+-    const nav = page.getByRole("navigation", { name: en.deathsNavLabel });
++    const nav = page.getByRole("navigation", { name: en.estateLevel });
++    await expect(nav).toHaveCount(0);
++    await page.locator("[data-focus^='openLayer:']").first().click();
+     await expect(nav).toBeVisible();
+-    const gap = await page.evaluate(() => {
+-      const crumb = document.querySelector("nav[data-focus='breadcrumb']")!.getBoundingClientRect();
+-      const grid = document.querySelector("section[aria-labelledby='add-relatives-heading']")!.closest("[data-wide]")!.getBoundingClientRect();
+-      return grid.top - crumb.bottom;
++    await expect(page.locator("[data-focus='treeHeading']")).toBeFocused();
++    const inTree = await page.evaluate(() => {
++      const crumb = document.querySelector("nav[data-breadcrumb]")!;
++      const area = document.querySelector("[data-tree-area]")!;
++      return !!crumb.closest("[data-tree]") && !!(crumb.compareDocumentPosition(area) & Node.DOCUMENT_POSITION_FOLLOWING);
+     });
+-    expect(gap).toBeGreaterThanOrEqual(0);
+-    const precedes = await page.evaluate(() => {
+-      const crumb = document.querySelector("nav[data-focus='breadcrumb']")!;
+-      const form = document.querySelector("section[aria-labelledby='add-relatives-heading']")!;
+-      return !!(crumb.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING);
+-    });
+-    expect(precedes).toBe(true);
+-    await page.locator("[data-focus^='openLayer:']").first().click();
+-    const first = page.locator("button[data-focus='layer:first']");
+-    await expect(first).toBeVisible();
+-    await first.click();
+-    await expect(page.locator("span[data-focus='layer:first'][aria-current]")).toBeVisible();
++    expect(inTree).toBe(true);
++    await expect(nav.locator('[aria-current="page"]')).toBeVisible();
++    await nav.getByRole("link").first().click();
++    await expect(nav).toHaveCount(0);
++    await expect(page.locator("[data-focus='treeHeading']")).toBeFocused();
++    await expect(page.locator("[data-focus='treeHeading']")).toHaveText(en.treeHeading);
++  });
++});
++
++test.describe("later-death estates", () => {
++  const agree = fixture("Agree: wife, son and daughter in every school");
++  const layered = fixture("Agree layered: wife and two sons, a son dies");
++  const options = { blocked: [], invalid: {} };
++  const rows = (kase: Record<string, any>) => kase.heirs as { id: string; relationship: string }[]; // eslint-disable-line @typescript-eslint/no-explicit-any
++  const layeredCase = () => fullCase(layered.case, {
++    deaths: (layered.case.deaths as { heirs: Record<string, unknown>[] }[]).map((death) => ({
++      ...death, heir_options: options, heirs: death.heirs.map((heir) => ({ ...heir, edit_options: options })),
++    })),
++  }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
++  const open = async (page: Page, api: Parameters<typeof openHeirsScreen>[1], kase: Record<string, unknown>, response: Record<string, unknown>) => {
++    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, response) });
++    await page.goto("/en/interview/");
++    await page.getByRole("button", { name: en.resume }).click();
++    await page.locator("section[data-tree] [data-tree-area]").waitFor();
++  };
++
++  test("the sheet's later-death radio posts an empty death, keeps the sheet and focuses Open own estate", async ({ page, api }) => {
++    await page.setViewportSize({ width: 1280, height: 900 });
++    const kase = fullCase(agree.case, { snapshot: { at: 1 } }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
++    const son = rows(kase).find((row) => row.relationship === "son")!;
++    await open(page, api, kase, { ...agree.response, revision: 2, pending: [son.id] });
++    const marked = { ...kase, revision: 2, snapshot: { at: 2 }, deaths: [{ heir_id: son.id, order: 2, gender: "male", heir_options: options, heirs: [] }] };
++    api.set({ postDeath: json(201, { case: marked }), getCase: json(200, { case: marked }) });
++    const card = page.locator(`[data-node="${son.id}"]`);
++    await card.focus();
++    await card.press("Enter");
++    const sheet = page.locator("section[data-edit-sheet]");
++    await sheet.getByRole("radio", { name: en.statusDiedLater }).click();
++    await expect(sheet.locator('[data-focus="openEstate"]')).toBeFocused();
++    expect(api.deathPosts).toHaveLength(1);
++    expect(JSON.parse(api.deathPosts[0].body)).toEqual({ heir_id: son.id, empty: true, case_id: kase.id, expected_revision: kase.revision });
++    await expect(page.locator("[role='status']").filter({ hasText: /died later\. Open own estate to add his heirs\./ }).first()).toBeAttached();
++    await expect(page.locator(`[data-node="${son.id}"]`)).toHaveAttribute("data-state", "died_later");
++    await expect(page.locator("section[aria-labelledby='preview-heading']")).toContainText("own estate is calculated separately");
++    await expect(page.locator("[data-breadcrumb]")).toHaveCount(0);
++  });
++
++  test("Enter on a died-later card opens the estate with the breadcrumb, a focused heading and a scoped preview", async ({ page, api }) => {
++    await page.setViewportSize({ width: 1280, height: 900 });
++    const kase = layeredCase();
++    await open(page, api, kase, layered.response);
++    const card = page.locator('[data-node="s1"]');
++    await card.focus();
++    await card.press("Enter");
++    const heading = page.locator("[data-focus='treeHeading']");
++    await expect(heading).toBeFocused();
++    await expect(heading).toContainText(en.deathSecond);
++    const nav = page.getByRole("navigation", { name: en.estateLevel });
++    await expect(nav.getByRole("link")).toHaveCount(1);
++    await expect(nav.locator("[aria-current='page']")).toContainText(en.deathSecond);
++    const preview = page.locator("section[aria-labelledby='preview-heading']");
++    await expect(preview.locator("#preview-heading")).toContainText(en.deathSecond);
++    await expect(preview).toContainText("This estate holds 7/16 of the first estate.");
++    await nav.getByRole("link").click();
++    await expect(heading).toBeFocused();
++    await expect(heading).toHaveText(en.treeHeading);
++    await expect(nav).toHaveCount(0);
++    await expect(preview.locator("#preview-heading")).toHaveText(en.previewHeading);
++  });
++
++  test("at two later deaths the radio is replaced by the limit text and the Also died row action is hidden", async ({ page, api }) => {
++    await page.setViewportSize({ width: 1280, height: 900 });
++    const kase = fullCase(agree.case) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
++    const [a, b] = rows(kase).filter((row) => row.relationship !== "wife");
++    const wife = rows(kase).find((row) => row.relationship === "wife")!;
++    const death = (id: string, order: number, gender: string) => ({ heir_id: id, order, gender, heir_options: options, heirs: [] });
++    kase.deaths = [death(a.id, 2, "female"), death(b.id, 3, "male")];
++    await open(page, api, kase, { ...agree.response, pending: [a.id, b.id] });
++    await page.locator(`[data-node="${wife.id}"]`).press("Enter");
++    const sheet = page.locator("section[data-edit-sheet]");
++    await expect(sheet.getByRole("radio", { name: en.statusDiedLater })).toHaveCount(0);
++    await expect(sheet).toContainText(en.laterDeathLimit);
++    await expect(page.locator(`[data-focus="alsoDied:${wife.id}"]`)).toHaveCount(0);
++  });
++
++  test("removing the linked person lists the later estate's people and cancel changes nothing", async ({ page, api }) => {
++    await page.setViewportSize({ width: 1280, height: 900 });
++    const kase = layeredCase();
++    await open(page, api, kase, layered.response);
++    api.set({ deleteHeir: json(409, { error: "cascade_unconfirmed", impact: { persons: ["r2"], estates: [2] }, case: kase }) });
++    await page.locator('[data-focus="remove:s1"]').click();
++    const sheet = page.locator("[data-edit-sheet]");
++    await expect(sheet.locator("li")).toHaveCount(2);
++    await sheet.getByRole("button", { name: en.heirRemoveNo }).click();
++    await expect(page.locator('[data-node="s1"]')).toHaveAttribute("data-state", "died_later");
++    expect(api.heirDeletes).toHaveLength(1);
+   });
+ });
+ 
+diff --git a/web/src/api/case.test.ts b/web/src/api/case.test.ts
+index 5aef528..8444357 100644
+--- a/web/src/api/case.test.ts
++++ b/web/src/api/case.test.ts
+@@ -1062,6 +1062,14 @@ test("markDeceased posts the row and the answer to the order question; unmarkDec
+   assert.equal(calls[2].init?.body, undefined);
+ });
+ 
++test("markDeceased sends empty: true only when asked", async () => {
++  const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
++  await markDeceased(signal(), "abc123", 4, "s1", undefined, withToken, {}, true);
++  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { heir_id: "s1", empty: true, case_id: "abc123", expected_revision: 4 });
++  await markDeceased(signal(), "abc123", 4, "s1", undefined, withToken, {}, false);
++  assert.equal("empty" in JSON.parse(String(calls[1].init?.body)), false);
++});
++
+ test("a refused death comes back as its codes", async () => {
+   stubFetch(async () => Response.json({ errors: { death: "order_required" } }, { status: 400 }));
+   assert.deepEqual(await markDeceased(signal(), "abc123", 4, "s2", undefined, withToken), {
+diff --git a/web/src/api/case.ts b/web/src/api/case.ts
+index 0960fd9..2d79849 100644
+--- a/web/src/api/case.ts
++++ b/web/src/api/case.ts
+@@ -805,6 +805,7 @@ export function markDeceased(
+   first?: string,
+   options: WriteOptions = {},
+   answers: RelativeAnswers = {},
++  empty = false,
+ ): Promise<AnswerResult> {
+   return answer(
+     signal,
+@@ -813,7 +814,7 @@ export function markDeceased(
+     DEATHS_URL,
+     caseId,
+     revision,
+-    { heir_id: heirId, ...(first === undefined ? {} : { first }), ...answers },
++    { heir_id: heirId, ...(first === undefined ? {} : { first }), ...answers, ...(empty ? { empty: true } : {}) },
+   );
+ }
+ 
+@@ -968,7 +969,7 @@ export type SchoolPreview = Extract<Preview, { status: "available" | "unavailabl
+ export type Preview =
+   | { status: "not_ready" }
+   /** `reason` is any code the server sends; one with no sentence shows the generic text only. `madhab` is null when no school was chosen and every school refuses alike. */
+-  | { status: "unavailable"; madhab: MadhabId | null; reason: string; basis: PreviewBasis; presented?: PresentedResult }
++  | { status: "unavailable"; madhab: MadhabId | null; reason: string; basis: PreviewBasis; presented?: PresentedResult; pending?: string[] }
+   /** No school was chosen and the schools differ: each school's answer, and the rules or refusals behind it. */
+   | {
+       status: "choose_school";
+@@ -977,6 +978,8 @@ export type Preview =
+       rules: { code: string; label: string }[];
+       /** The server's PresentedResult (v3); every number and comparison text on screen is its own. */
+       presented?: PresentedResult;
++      /** The people who died later and whose own estate is still empty, in death order. */
++      pending?: string[];
+     }
+   | {
+       status: "available";
+@@ -993,6 +996,8 @@ export type Preview =
+       proof: PreviewProof | LayeredProof | null;
+       /** A server table; null only when a successive-death table failed its consistency check. */
+       table: PreviewTable | LayeredTable | null;
++      /** The people who died later and whose own estate is still empty, in death order. */
++      pending?: string[];
+     };
+ 
+ export type PreviewResult =
+@@ -1478,7 +1483,16 @@ export function parseServedPreview(body: unknown): Preview | null {
+ /** Strict: anything that is not exactly the documented shape is rejected, never repaired. */
+ export function parsePreview(body: unknown): Preview | null {
+   if (typeof body !== "object" || body === null) return null;
+-  const value = body as Record<string, unknown>;
++  const { pending, ...rest } = body as Record<string, unknown>;
++  const parsed = parsePreviewBody(rest);
++  if (parsed === null || parsed.status === "not_ready") return parsed;
++  // `pending` lists the later deaths whose own estate is still empty; anything else is ignored.
++  return Array.isArray(pending) && pending.length > 0 && pending.every((id) => typeof id === "string")
++    ? { ...parsed, pending: pending as string[] }
++    : parsed;
++}
++
++function parsePreviewBody(value: Record<string, unknown>): Preview | null {
+   if (value.status === "not_ready") return { status: "not_ready" };
+   if (value.status === "choose_school") return parseChoice(value);
+   const madhab = value.madhab === null ? null : isMadhabId(value.madhab) ? value.madhab : undefined;
+diff --git a/web/src/app/[locale]/interview/death-breadcrumb.test.tsx b/web/src/app/[locale]/interview/death-breadcrumb.test.tsx
+new file mode 100644
+index 0000000..f6aff82
+--- /dev/null
++++ b/web/src/app/[locale]/interview/death-breadcrumb.test.tsx
+@@ -0,0 +1,38 @@
++import assert from "node:assert/strict";
++import { test } from "node:test";
++import { act } from "react";
++import { createRoot } from "react-dom/client";
++
++import { messages } from "@/i18n/messages";
++import { installDom, teardownDom } from "@/test/dom";
++
++import { DeathBreadcrumb } from "./death-breadcrumb";
++
++const crumbs = [
++  { id: null, order: 1 as const, label: null },
++  { id: "a", order: 2 as const, label: "Son" },
++  { id: "x", order: 3 as const, label: "Wife of Son" },
++];
++
++test("the estate level nav has links for earlier levels and plain current text, and is absent at the root", async () => {
++  const dom = installDom(), node = document.createElement("div"); document.body.append(node); const root = createRoot(node);
++  const text = messages.en.interview;
++  const opened: (string | null)[] = [];
++  try {
++    await act(async () => root.render(<DeathBreadcrumb messages={text} crumbs={crumbs} active="x" disabled={false} onOpen={id => opened.push(id)} />));
++    const nav = node.querySelector("nav")!;
++    assert.equal(nav.getAttribute("aria-label"), text.estateLevel);
++    assert.equal(nav.querySelectorAll("li").length, 3);
++    const links = [...nav.querySelectorAll("a")];
++    assert.equal(links.length, 2);
++    const current = nav.querySelector('[aria-current="page"]')!;
++    assert.equal(current.tagName, "SPAN");
++    assert.ok(current.textContent?.includes("Wife of Son"));
++    assert.equal(nav.querySelectorAll('svg[aria-hidden="true"]').length, 2);
++    await act(async () => links[1].click());
++    await act(async () => links[0].click());
++    assert.deepEqual(opened, ["a", null]);
++    await act(async () => root.render(<DeathBreadcrumb messages={text} crumbs={[crumbs[0]]} active={null} disabled={false} onOpen={() => {}} />));
++    assert.equal(node.querySelector("nav"), null);
++  } finally { await act(async () => root.unmount()); await teardownDom(dom); }
++});
+diff --git a/web/src/app/[locale]/interview/death-breadcrumb.tsx b/web/src/app/[locale]/interview/death-breadcrumb.tsx
+index 69aca94..c38da06 100644
+--- a/web/src/app/[locale]/interview/death-breadcrumb.tsx
++++ b/web/src/app/[locale]/interview/death-breadcrumb.tsx
+@@ -3,8 +3,6 @@
+ import type { Messages } from "@/i18n/messages";
+ import { deathLayerText, type Crumb } from "@/interview/layers";
+ 
+-import { buttonClass } from "./form-bits";
+-
+ /** "<label> (2nd death)": the label sits in its own `bdi`, so a name cannot reorder the words. */
+ function CrumbText({ messages, crumb }: { messages: Messages["interview"]; crumb: Crumb }) {
+   if (crumb.label === null) return <>{messages.deathsFirst}</>;
+@@ -30,9 +28,9 @@ export function crumbTextOf(messages: Messages["interview"], crumb: Crumb): stri
+ }
+ 
+ /**
+- * The layers of a case in death order: "First deceased > A (2nd death) > B (3rd death)". The
+- * active one is marked `aria-current`; the others are buttons that move the heirs screen there.
+- * Only shown for a case that has later deaths.
++ * "Estate level": the first deceased, then each estate down to the open one, above the tree. The
++ * open level is plain text marked `aria-current="page"`; earlier levels are links that open that
++ * estate and move focus to the tree heading. Absent at the first deceased.
+  */
+ export function DeathBreadcrumb({
+   messages,
+@@ -42,39 +40,41 @@ export function DeathBreadcrumb({
+   onOpen,
+ }: {
+   messages: Messages["interview"];
++  /** The levels from the first deceased to the open estate. */
+   crumbs: Crumb[];
+   active: string | null;
+   disabled: boolean;
+   onOpen: (id: string | null) => void;
+ }) {
++  if (active === null || crumbs.length < 2) return null;
+   return (
+-    <nav aria-label={messages.deathsNavLabel} data-focus="breadcrumb">
+-      <ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
++    <nav aria-label={messages.estateLevel} data-breadcrumb>
++      <ol className="flex flex-wrap items-center gap-x-1 gap-y-1">
+         {crumbs.map((crumb, index) => {
+           const current = crumb.id === active;
+           return (
+-            <li key={crumb.id ?? "first"} className="flex items-center gap-2">
++            <li key={crumb.id ?? "first"} className="flex items-center gap-1">
+               {index > 0 && (
+-                <span aria-hidden="true" className="rtl:-scale-x-100">
+-                  ›
+-                </span>
++                <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 rtl:-scale-x-100">
++                  <path d="M6 3l5 5-5 5" />
++                </svg>
+               )}
+               {current ? (
+-                <span aria-current="true" data-focus={`layer:${crumb.id ?? "first"}`} className="font-semibold">
++                <span aria-current="page" className="inline-flex min-h-11 items-center font-semibold">
+                   <CrumbText messages={messages} crumb={crumb} />
+                 </span>
+               ) : (
+-                <button
+-                  type="button"
+-                  className={buttonClass}
+-                  data-focus={`layer:${crumb.id ?? "first"}`}
++                <a
++                  href="#"
++                  className="inline-flex min-h-11 min-w-11 items-center text-accent underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent aria-disabled:opacity-60"
+                   aria-disabled={disabled}
+-                  onClick={() => {
++                  onClick={(event) => {
++                    event.preventDefault();
+                     if (!disabled) onOpen(crumb.id);
+                   }}
+                 >
+                   <CrumbText messages={messages} crumb={crumb} />
+-                </button>
++                </a>
+               )}
+             </li>
+           );
+diff --git a/web/src/app/[locale]/interview/edit-sheet.test.tsx b/web/src/app/[locale]/interview/edit-sheet.test.tsx
+index 19de562..4213442 100644
+--- a/web/src/app/[locale]/interview/edit-sheet.test.tsx
++++ b/web/src/app/[locale]/interview/edit-sheet.test.tsx
+@@ -43,6 +43,7 @@ async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedVi
+   const saves: unknown[] = [];
+   const removes: boolean[] = [];
+   const added: string[] = [];
++  const later: string[] = [];
+   let closed = 0;
+   const node = document.createElement("div");
+   document.body.append(node);
+@@ -54,13 +55,15 @@ async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedVi
+         frozen={opts.frozen ?? false} onClose={() => { closed += 1; }}
+         onSave={(fields, focus) => saves.push({ fields, focus })} onRemove={c => removes.push(c)}
+         entries={[{ relationship: "son_of_son", link: "child", blocked: false, gender: "male" }]} atLimit={false}
+-        addAlert={opts.alert ?? null} onAddHere={entry => added.push(entry.relationship)} />);
++        addAlert={opts.alert ?? null} onAddHere={entry => added.push(entry.relationship)}
++        onMarkLater={() => later.push("mark")} onOpenEstate={() => later.push("open")}
++        orderQuestion={opts.alert === "order" ? <p id="order-stub">order</p> : null} />);
+     });
+   };
+   void person;
+   await draw(view);
+   return {
+-    draw, dom, node, shown, saves, removes, added, closed: () => closed,
++    draw, dom, node, shown, saves, removes, added, later, closed: () => closed,
+     async stop() { await act(async () => root.unmount()); await teardownDom(dom); },
+   };
+ }
+@@ -76,8 +79,9 @@ test("a wide viewport renders a non-modal panel with name, relationship, status
+     assert.equal(document.activeElement, name);
+     assert.ok(panel.querySelector('input[name="relationship"]'));
+     const radios = [...panel.querySelectorAll<HTMLInputElement>('input[name="edit-status"]')];
+-    assert.equal(radios.length, 2);
++    assert.equal(radios.length, 3);
+     assert.equal(radios[0].checked, true);
++    assert.ok(panel.textContent?.includes(messages.en.interview.statusDiedLater));
+     assert.ok(panel.textContent?.includes(messages.en.interview.statusDiedBefore));
+     assert.ok(panel.textContent?.includes(messages.en.interview.editClose));
+     assert.ok([...panel.querySelectorAll("button")].some(b => b.textContent === "Remove Son Ali"));
+@@ -112,13 +116,53 @@ test("a phone viewport renders a modal dialog", async () => {
+   } finally { await t.stop(); }
+ });
+ 
+-test("status radios are hidden outside the first estate", async () => {
+-  const kase: Case = { ...KASE, deaths: [{ heir_id: "h2", order: 1, placement: {}, heirs: [
++test("outside the first estate the died-before radio is hidden but the later-death radio stays", async () => {
++  const kase: Case = { ...KASE, deaths: [{ heir_id: "h2", order: 2, placement: {}, heirs: [
+     { id: "l1", relationship: "son", gender: "male", name: null, edit_options: NONE }] } as unknown as Case["deaths"][number]] };
+   const view = viewOf({ case: kase, layer: "h2" });
+   const t = await mount({ view: { ...view, editingHeir: "l1" } });
++  try {
++    const radios = [...t.node.querySelectorAll<HTMLInputElement>('input[name="edit-status"]')];
++    assert.deepEqual(radios.map(r => r.value), ["alive", "died_later"]);
++  } finally { await t.stop(); }
++});
++
++test("choosing the later-death radio asks to mark the death", async () => {
++  const t = await mount();
++  try {
++    const radio = t.node.querySelector<HTMLInputElement>('input[value="died_later"]')!;
++    await act(async () => radio.click());
++    assert.deepEqual(t.later, ["mark"]);
++  } finally { await t.stop(); }
++});
++
++test("with two later deaths the radio is replaced by the limit text", async () => {
++  const dead = (id: string, order: number) => ({ heir_id: id, order, placement: {}, heirs: [] }) as unknown as Case["deaths"][number];
++  const kase: Case = { ...KASE, heirs: [...KASE.heirs, { id: "h3", relationship: "son", gender: "male", name: null, edit_options: NONE }],
++    deaths: [dead("h2", 2), dead("h3", 3)] };
++  const t = await mount({ view: viewOf({ case: kase }) });
++  try {
++    assert.equal(t.node.querySelector('input[value="died_later"]'), null);
++    assert.ok(t.node.textContent?.includes(messages.en.interview.laterDeathLimit));
++  } finally { await t.stop(); }
++});
++
++test("a died-later person shows the Open own estate button, not the status group", async () => {
++  const kase: Case = { ...KASE, deaths: [{ heir_id: "h1", order: 2, placement: {}, heirs: [] } as unknown as Case["deaths"][number]] };
++  const t = await mount({ view: viewOf({ case: kase }) });
+   try {
+     assert.equal(t.node.querySelector('input[name="edit-status"]'), null);
++    const button = t.node.querySelector<HTMLButtonElement>('[data-focus="openEstate"]')!;
++    assert.ok(button.textContent?.startsWith("Open own estate"));
++    await act(async () => button.click());
++    assert.deepEqual(t.later, ["open"]);
++  } finally { await t.stop(); }
++});
++
++test("an order question is shown inside the sheet", async () => {
++  const t = await mount({ alert: "order" });
++  try {
++    assert.ok(t.node.querySelector("#order-stub"));
+   } finally { await t.stop(); }
+ });
+ 
+diff --git a/web/src/app/[locale]/interview/edit-sheet.tsx b/web/src/app/[locale]/interview/edit-sheet.tsx
+index 4567fef..62aa2af 100644
+--- a/web/src/app/[locale]/interview/edit-sheet.tsx
++++ b/web/src/app/[locale]/interview/edit-sheet.tsx
+@@ -32,6 +32,11 @@ type Props = {
+   atLimit?: boolean;
+   addAlert?: string | null;
+   onAddHere?: (entry: PlacementOption) => void;
++  /** Story 9.8: choose a later death here, and open the person's own estate. */
++  onMarkLater?: () => void;
++  onOpenEstate?: () => void;
++  /** The order question of a refused later death, shown inside the sheet. */
++  orderQuestion?: React.ReactNode;
+ };
+ 
+ function ImpactList({ view, messages }: Pick<Props, "view" | "messages">) {
+@@ -59,7 +64,7 @@ function ImpactList({ view, messages }: Pick<Props, "view" | "messages">) {
+   </>;
+ }
+ 
+-export function EditSheet({ messages, view, person, label, frozen, onClose, onSave, onRemove, entries = [], atLimit = false, addAlert = null, onAddHere }: Props) {
++export function EditSheet({ messages, view, person, label, frozen, onClose, onSave, onRemove, entries = [], atLimit = false, addAlert = null, onAddHere, onMarkLater, onOpenEstate, orderQuestion = null }: Props) {
+   const phone = useSyncExternalStore(subscribePhone, () => window.matchMedia(phoneQuery).matches, () => false);
+   const heading = useId();
+   const dialog = useRef<HTMLDialogElement>(null);
+@@ -87,6 +92,10 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
+   const dirty = draftName !== (person.name ?? null);
+   const fields = { relationship: person.relationship, name: draftName };
+   const nameError = errorText(messages, "name", view.errors);
++  const deathAlert = view.sheetDeath && view.ordering === null
++    ? errorText(messages, "death", view.errors) ?? errorText(messages, "empty", view.errors) ?? errorText(messages, "relatives", view.errors)
++    : null;
++  const sheetAlert = deathAlert;
+   const statusError = errorText(messages, "status", view.errors) ?? errorText(messages, "heirs", view.errors);
+   useLayoutEffect(() => {
+     const modal = dialog.current;
+@@ -150,22 +159,36 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
+           if (code) { setIssue({ code, basis: view.case, id: person.id }); setSeq(n => n + 1); return; }
+           save({ ...fields, relationship: relationship as HeirFields["relationship"] }, `editRelationship:${control}`);
+         }} />
+-      {view.layer === null && person.state !== "died_later" && <fieldset aria-describedby="edit-status-error">
++      {person.state !== "died_later" && <fieldset aria-describedby="edit-status-error">
+         <legend>{messages.statusLegend}</legend>
+-        {(["alive", "died_before_or_with"] as const).map(status => <label key={status} className="flex min-h-11 items-center gap-2">
++        {(view.layer === null ? ["alive", "died_before_or_with"] as const : ["alive"] as const).map(status => <label key={status} className="flex min-h-11 items-center gap-2">
+           <input type="radio" name="edit-status" value={status} data-focus={`editStatus:${status}`}
+             checked={(person.state === "died_before") === (status === "died_before_or_with")}
+             aria-disabled={frozen} onChange={() => { if (!frozen) save({ ...fields, status }, `editStatus:${status}`); }} />
+           {status === "alive" ? messages.statusAlive : messages.statusDiedBefore}
+         </label>)}
++        {person.state !== "died_before" && (view.case.deaths.length >= 2
++          ? <p>{messages.laterDeathLimit}</p>
++          : <label className="flex min-h-11 items-center gap-2">
++            <input type="radio" name="edit-status" value="died_later" data-focus="editStatus:died_later"
++              checked={false} aria-disabled={frozen}
++              onChange={() => { if (!frozen) { setIssue(null); onMarkLater?.(); } }} />
++            {messages.statusDiedLater}
++          </label>)}
+         <FieldError id="edit-status-error" text={statusError} />
++        {sheetAlert && <p role="alert">{sheetAlert}</p>}
++        {orderQuestion}
+       </fieldset>}
++      {person.state === "died_later" && <button type="button" data-focus="openEstate"
++        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-accent px-4 py-2 text-base font-semibold text-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-disabled:opacity-60"
++        aria-disabled={frozen} onClick={() => { if (!frozen) onOpenEstate?.(); }}>
++        <WithHeir template={messages.openOwnEstate} heir={label} /></button>}
+       <AddHere messages={messages} anchor={person.personId} personLabel={label} entries={entries}
+         frozen={frozen} atLimit={atLimit} alert={addAlert} onChoose={entry => onAddHere?.(entry)} />
+       {person.state !== "died_later" && <button type="button" className={buttonClass} aria-disabled={frozen}
+         onClick={() => { if (!frozen) onRemove(false); }}><WithHeir template={messages.heirRemove} heir={label} /></button>}
+     </>}
+-    <FormError messages={messages} errors={view.errors} fields={["name", "relationship", "status", "heirs"]} />
++    <FormError messages={messages} errors={view.errors} fields={["name", "relationship", "status", "heirs", "death", "empty", "relatives"]} />
+     <SaveNotice messages={messages} notice={view.notice} saving={view.saving} />
+   </div>;
+ 
+diff --git a/web/src/app/[locale]/interview/family-tree.test.tsx b/web/src/app/[locale]/interview/family-tree.test.tsx
+index ebac2aa..5487326 100644
+--- a/web/src/app/[locale]/interview/family-tree.test.tsx
++++ b/web/src/app/[locale]/interview/family-tree.test.tsx
+@@ -133,3 +133,30 @@ test("no action row while a person is being edited, and focusing a card clears a
+     assert.deepEqual([...node.querySelectorAll('[data-add-row] [role="group"] button')].map(b => (b as HTMLElement).dataset.focus), ["addHere:father", "addHere:wife"]);
+   } finally { await act(async () => root.unmount()); await teardownDom(dom); }
+ });
++
++test("a died-later card opens its estate, the heading is focusable and names the estate, and the breadcrumb slot sits above the canvas", async () => {
++  const dom = installDom(), node = document.createElement("div"); document.body.append(node); const root = createRoot(node);
++  const text = messages.en.interview;
++  const model: EstateModel = { placement: {}, people: [
++    { id: "r1", personId: "p1", relationship: "son", gender: "male", name: null, parentId: null, state: "died_later" },
++    { id: "r2", personId: "p2", relationship: "daughter", gender: "female", name: null, parentId: null, state: "normal" },
++  ] };
++  const opened: string[] = [], edited: string[] = [];
++  try {
++    await act(async () => root.render(<FamilyTree messages={text} model={model} locale="en" editingId={null} onAnnounce={() => {}}
++      rootText="Son (2nd death)" breadcrumb={<nav data-slot aria-label="x" />} onOpenEstate={id => opened.push(id)} onEdit={id => edited.push(id)} />));
++    const heading = node.querySelector<HTMLElement>('[data-focus="treeHeading"]')!;
++    assert.equal(heading.tagName, "H3");
++    assert.equal(heading.tabIndex, -1);
++    assert.equal(heading.textContent, "Son (2nd death)");
++    const area = node.querySelector("[data-tree-area]")!;
++    assert.equal(node.querySelector("[data-slot]")!.nextElementSibling, area);
++    await act(async () => node.querySelector<HTMLButtonElement>('[data-node="r1"]')!.click());
++    assert.deepEqual(opened, ["p1"]);
++    assert.deepEqual(edited, []);
++    await act(async () => node.querySelector<HTMLButtonElement>('[data-node="r2"]')!.click());
++    assert.deepEqual(edited, ["r2"]);
++    await act(async () => root.render(<FamilyTree messages={text} model={model} locale="en" editingId={null} onAnnounce={() => {}} />));
++    assert.equal(node.querySelector('[data-focus="treeHeading"]')!.textContent, text.treeHeading);
++  } finally { await act(async () => root.unmount()); await teardownDom(dom); }
++});
+diff --git a/web/src/app/[locale]/interview/family-tree.tsx b/web/src/app/[locale]/interview/family-tree.tsx
+index 6a8e56f..727cd0e 100644
+--- a/web/src/app/[locale]/interview/family-tree.tsx
++++ b/web/src/app/[locale]/interview/family-tree.tsx
+@@ -7,7 +7,7 @@ import { dropEntry, fitZoom, layoutTree, pinBox, placeholders, treeDescription,
+ import { focusRing, focusRingOnAccent, secondaryButton } from "../ui";
+ import { AddHere } from "./add-here";
+ 
+-export function FamilyTree({ messages, model, rootText, editingId, locale, onAnnounce, frozen = false, onEdit, onRemoveRequest, dragging = null, atLimit = false, addOutcome = null, dropAlert = null, onAddHere }: {
++export function FamilyTree({ messages, model, rootText, editingId, locale, onAnnounce, frozen = false, onEdit, onRemoveRequest, dragging = null, atLimit = false, addOutcome = null, dropAlert = null, onAddHere, onOpenEstate, breadcrumb = null }: {
+   messages: Messages["interview"]; model: EstateModel; rootText?: string;
+   frozen?: boolean; onEdit?: (id: string) => void; onRemoveRequest?: (id: string) => void;
+   editingId: string | null; locale: string; onAnnounce: (note: string) => void;
+@@ -19,6 +19,10 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
+   /** The alert of a drop the placement does not allow. */
+   dropAlert?: string | null;
+   onAddHere?: (anchor: string, entry: PlacementOption) => void;
++  /** A died-later card opens that person's own estate (by their person id). */
++  onOpenEstate?: (personId: string) => void;
++  /** The "Estate level" breadcrumb, shown directly above the canvas. */
++  breadcrumb?: React.ReactNode;
+ }) {
+   const heading = useId();
+   const area = useRef<HTMLDivElement>(null);
+@@ -70,7 +74,13 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
+     return <button key={id} data-focus={`card:${id}`} data-drop-anchor={person?.personId ?? "root"} data-drop={target ?? undefined} aria-disabled={editable && frozen} type="button" data-node={id} data-state={state}
+       ref={el => { if (el) buttons.current.set(id, el); else buttons.current.delete(id); }}
+       tabIndex={current === id ? 0 : -1} aria-current={(editingId ?? selected) === id ? "true" : undefined}
+-      onClick={() => { if (editable && frozen) return; setRootLink(null); setSelected(id); if (editable) onEdit?.(id); }}
++      onClick={() => {
++        if (editable && frozen) return;
++        setRootLink(null);
++        if (state === "died_later" && person && onOpenEstate) { onOpenEstate(person.personId); return; }
++        setSelected(id);
++        if (editable) onEdit?.(id);
++      }}
+       onFocus={event => { setRootLink(null); setSelected(id); if (id !== "root") event.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }}
+       onKeyDown={event => {
+         // Modified arrows keep their browser meaning, such as Alt+Left for back.
+@@ -102,7 +112,7 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
+     </button>;
+   };
+   return <section data-tree aria-labelledby={heading} data-wide className="flex w-full flex-col gap-2">
+-    <h3 id={heading} className="text-lg font-semibold">{messages.treeHeading}</h3>
++    <h3 id={heading} tabIndex={-1} data-focus="treeHeading" className={`text-lg font-semibold ${focusRing}`}>{rootText ?? messages.treeHeading}</h3>
+     <p className="text-sm text-muted">{messages.treeHint}</p>
+     <div className="flex gap-2">
+       <button type="button" className={`${secondaryButton} motion-reduce:transition-none`} onClick={() => {
+@@ -111,6 +121,7 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
+       }}>{messages.treeFit}</button>
+       {([1, -1] as const).map(delta => <button key={delta} type="button" className={`${secondaryButton} motion-reduce:transition-none`} disabled={zoom === (delta === 1 ? 1.5 : 0.6)} onClick={() => announceZoom(ZOOM_LEVELS[ZOOM_LEVELS.indexOf(zoom as typeof ZOOM_LEVELS[number]) + delta])}><span aria-hidden="true">{delta === 1 ? "+" : "−"}</span><span className="sr-only">{delta === 1 ? messages.treeZoomIn : messages.treeZoomOut}</span></button>)}
+     </div>
++    {breadcrumb}
+     <div ref={area} data-tree-area role="group" aria-labelledby={heading}
+       className="relative h-[45vh] min-h-[200px] w-full select-none overflow-auto border-y border-line bg-surface p-2"
+       style={{ touchAction: "pan-y pinch-zoom", backgroundImage: "radial-gradient(var(--color-line) 1px, transparent 1px)", backgroundSize: "18px 18px" }}
+diff --git a/web/src/app/[locale]/interview/heir-list.tsx b/web/src/app/[locale]/interview/heir-list.tsx
+index ed557f6..1dff004 100644
+--- a/web/src/app/[locale]/interview/heir-list.tsx
++++ b/web/src/app/[locale]/interview/heir-list.tsx
+@@ -204,7 +204,7 @@ export function HeirList({
+                       >
+                         <WithHeir template={messages.heirEdit} heir={label} />
+                       </button>
+-                      {onAlsoDied && heir && !dead && (
++                      {onAlsoDied && heir && !dead && (deceasedIds?.size ?? 0) < 2 && (
+                         <button
+                           type="button"
+                           className={buttonClass}
+@@ -227,7 +227,7 @@ export function HeirList({
+                             if (!saving) onOpenLayer(person);
+                           }}
+                         >
+-                          <WithHeir template={messages.heirOpenLayer} heir={label} />
++                          <WithHeir template={messages.openOwnEstate} heir={label} />
+                         </button>
+                       )}
+                       {onDidNotDie && dead && (
+diff --git a/web/src/app/[locale]/interview/share-preview.tsx b/web/src/app/[locale]/interview/share-preview.tsx
+index e3abc35..0774f6c 100644
+--- a/web/src/app/[locale]/interview/share-preview.tsx
++++ b/web/src/app/[locale]/interview/share-preview.tsx
+@@ -19,7 +19,7 @@ import {
+ } from "@/interview/preview";
+ 
+ import { InheritanceTable } from "../results/inheritance-table";
+-import { buttonClass } from "./form-bits";
++import { buttonClass, WithHeir } from "./form-bits";
+ import { RelationshipText } from "./relationship-text";
+ import { SchoolChoice } from "./school-choice";
+ 
+@@ -37,6 +37,7 @@ export function SharePreview({
+   failed = null,
+   onChooseSchool,
+   onPresented,
++  estate = null,
+ }: {
+   messages: Messages["interview"];
+   /** The results dictionary: the table's captions and the side note's. */
+@@ -52,6 +53,11 @@ export function SharePreview({
+   onPresented?: (p: PresentedResult | null) => void;
+   /** Saves the school the visitor chose when the schools differ for this family. */
+   onChooseSchool?: (madhab: SunniId) => void;
++  /**
++   * A later estate that is open: its label, its place among the estates the server computed
++   * (null while its own estate is still empty) and its deceased's label. Null at the root.
++   */
++  estate?: { order: number | null; label: string; personLabel: string } | null;
+ }) {
+   const key = previewKey(kase);
+   const ready = previewReady(kase);
+@@ -95,9 +101,11 @@ export function SharePreview({
+     const proofs = Object.fromEntries(Object.entries(evidenceNotes(preview)).map(([id, notes]) => [id, notes[0].proof]));
+     const relations = relationsOf(kase);
+     const data = tableOf(preview);
++    const entry = estate && estate.order !== null ? preview.presented?.evidence.find((item) => item.order === estate.order) : undefined;
++    const shownRows = estate && entry ? rows.filter((row) => entry.heirs.some((heir) => heir.person === row.heirId)) : rows;
+     const list = (
+         <ul aria-label={messages.previewHeading} className="flex flex-col gap-2">
+-          {rows.map((row) => (
++          {shownRows.map((row) => (
+             <li
+               key={row.heirId}
+               className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-md border border-current/60 p-3"
+@@ -126,9 +134,22 @@ export function SharePreview({
+           ))}
+         </ul>
+     );
+-    body = (
++    body = estate && !entry ? (
++      <p>{messages.estatePreviewEmpty.split("{heir}").join(estate.personLabel)}</p>
++    ) : (
+       <>
+-        {data ? (
++        {estate && entry ? (
++          <>
++            {entry.inherited && (
++              <p>
++                {messages.estateInherited.split("{share}")[0]}
++                <bdi dir="ltr">{entry.inherited.text}</bdi>
++                {messages.estateInherited.split("{share}")[1]}
++              </p>
++            )}
++            {list}
++          </>
++        ) : data ? (
+           <InheritanceTable
+             text={results}
+             relationships={messages.relationships}
+@@ -141,7 +162,7 @@ export function SharePreview({
+         ) : (
+           list
+         )}
+-        {unallocated && (
++        {!estate && unallocated && (
+           <p>
+             {messages.previewUnallocated}: <bdi dir="ltr">{unallocated.fraction}</bdi>
+             {unallocated.amount !== null && <>{" "}(<bdi dir="auto">{unallocated.amount}</bdi>)</>}
+@@ -208,6 +229,7 @@ export function SharePreview({
+     );
+   }
+ 
++  const pending = !estate && preview && preview.status !== "not_ready" ? preview.pending ?? [] : [];
+   return (
+     <section
+       data-wide
+@@ -216,13 +238,18 @@ export function SharePreview({
+       className="flex w-full flex-col gap-3"
+     >
+       <h3 id="preview-heading" className="text-lg font-semibold">
+-        {messages.previewHeading}
++        {estate ? estate.label : messages.previewHeading}
+       </h3>
+       {/* Present before its text changes, so screen readers announce it once; it never moves focus. */}
+       <p role="status" aria-live="polite" className="sr-only">
+         {status}
+       </p>
+       {body}
++      {pending.map((id) => (
++        <p key={id} className="text-sm text-muted">
++          <WithHeir template={messages.estatePending} heir={labels[id] ?? id} />
++        </p>
++      ))}
+     </section>
+   );
+ }
+diff --git a/web/src/app/[locale]/interview/start-case.tsx b/web/src/app/[locale]/interview/start-case.tsx
+index 2087cf3..c404170 100644
+--- a/web/src/app/[locale]/interview/start-case.tsx
++++ b/web/src/app/[locale]/interview/start-case.tsx
+@@ -62,6 +62,7 @@ import {
+ } from "@/interview/flow";
+ import {
+   breadcrumb,
++  estatePath,
+   hasDeaths,
+   layerAt,
+   linkCandidates,
+@@ -103,8 +104,8 @@ const deps: Deps = {
+   addHeirs,
+   updateHeir: (signal, caseId, revision, heirId, fields) => updateHeir(signal, caseId, revision, heirId, fields),
+   removeHeir,
+-  markDeceased: (signal, caseId, revision, heirId, first, answers) =>
+-    markDeceased(signal, caseId, revision, heirId, first, {}, answers),
++  markDeceased: (signal, caseId, revision, heirId, first, answers, empty) =>
++    markDeceased(signal, caseId, revision, heirId, first, {}, answers, empty),
+   unmarkDeceased: (signal, caseId, revision, heirId) => unmarkDeceased(signal, caseId, revision, heirId),
+   restoreCase,
+   selection: selectionStore(),
+@@ -300,7 +301,9 @@ export function StartCase({
+   const reportPresented = useCallback((value: PresentedResult | null) => setPresented({ key: currentPreviewKey, value }), [currentPreviewKey]);
+   const layer = started ? layerAt(started.case, started.layer) : null;
+   const layered = started ? hasDeaths(started.case) : false;
+-  const crumbs = started && layered ? breadcrumb(started.case, messages.relationships, messages.heirNumbered) : [];
++  const allCrumbs = started && layered ? breadcrumb(started.case, messages.relationships, messages.heirNumbered) : [];
++  const path = started && layered ? estatePath(started.case, layer?.id ?? null) : [];
++  const crumbs = path.flatMap((id) => allCrumbs.find((crumb) => crumb.id === id) ?? []);
+   const activeCrumb = crumbs.find((crumb) => crumb.id === (layer?.id ?? null));
+   const layerText = activeCrumb && activeCrumb.id !== null ? crumbTextOf(messages, activeCrumb) : undefined;
+   const model = started ? estateModel(started.case, layer?.id ?? null, presented?.key === previewKey(started.case) ? presented.value : null) : { people: [], placement: {} };
+@@ -337,10 +340,25 @@ export function StartCase({
+         "{reason}", messages.positionNotAllowed.replace("{relationship}", messages.relationships[chip])));
+     }
+   };
++  // One way to open an estate: from a card, a row, the sheet or the breadcrumb.
++  const openEstate = (id: string | null) => edit((current) => openLayer(current, id, deps, "treeHeading"));
++  // The single preview follows the open estate: its place among the estates the server computed
++  // (a later death with no heirs yet is left out of the computation), or null while it is empty.
++  const computed = started ? started.case.deaths.filter((death) => death.heirs.length > 0) : [];
++  const estate = started && layer && layer.id !== null && activeCrumb
++    ? {
++        order: (() => {
++          const at = computed.findIndex((death) => death.heir_id === layer.id);
++          return at < 0 ? null : at + 2;
++        })(),
++        label: layerText ?? "",
++        personLabel: activeCrumb.label ?? "",
++      }
++    : null;
+   // The heir form is for an edit, and for linking a later death's heir to someone already in the case.
+   const showHeirForm = started?.editingHeir === null && layer?.id != null && candidates.length > 0;
+   const orderQuestion = (() => {
+-    if (!started || !layer || started.ordering === null) return null;
++    if (!started || !layer || started.ordering === null || started.sheetDeath) return null;
+     const row = rowsOf(started.case).get(started.ordering)?.row;
+     if (!row) return null;
+     const names = rowLabels(started.case, messages.relationships, messages.heirNumbered, messages.previewOf);
+@@ -373,7 +391,26 @@ export function StartCase({
+       ),
+     };
+   })();
+-  const deathError = started?.ordering === null
++  // The order question of a later death chosen in the edit sheet is asked in the sheet.
++  const sheetOrder = (() => {
++    if (!started || started.ordering === null || !started.sheetDeath) return null;
++    const row = rowsOf(started.case).get(started.ordering)?.row;
++    if (!row) return null;
++    const names = rowLabels(started.case, messages.relationships, messages.heirNumbered, messages.previewOf);
++    const ids = [...started.case.deaths.map((death) => death.heir_id), personOf(row)];
++    return (
++      <OrderQuestion
++        messages={messages}
++        selected={started.deathFirst}
++        choices={ids.map((id) => ({ id, label: names[id] ?? id }))}
++        saving={frozen}
++        error={started.errors?.death ? errorText(messages, "death", started.errors) : null}
++        onChoose={(first) => submit((from) => ({ kind: "markDeath", from, rowId: row.id, first, origin: "sheet" }))}
++        onCancel={() => edit((current) => cancelOrder(current))}
++      />
++    );
++  })();
++  const deathError = started?.ordering === null && !started.sheetDeath
+     ? [errorText(messages, "death", started.errors), errorText(messages, "relatives", started.errors)].filter(Boolean).join(" ") || null
+     : null;
+ 
+@@ -384,15 +421,20 @@ export function StartCase({
+     updated: "heirUpdated",
+     removed: "heirRemoved",
+     deathMarked: "deathMarked",
++    laterDeath: "laterDeathAddedMale",
+     deathUnmarked: "deathUnmarked",
+     undone: "undoDone",
+   } as const;
++  const noteTemplate = (note: NonNullable<typeof announced>) =>
++    note.kind === "laterDeath"
++      ? (note.gender === "female" ? messages.laterDeathAddedFemale : messages.laterDeathAddedMale)
++      : messages[announcementTemplates[note.kind]];
+   const announcement = announced
+     ? {
+         seq: announced.seq,
+         template: groupCount > 1 && announced.kind === "added"
+           ? messages.heirsAdded.replace("{count}", String(groupCount)).replace("{relationship}", "{heir}")
+-          : messages[announcementTemplates[announced.kind]],
++          : noteTemplate(announced),
+         heir: announced.kind === "undone" ? "" : groupCount > 1 && announced.kind === "added"
+           ? messages.relationships[announced.heir.relationship]
+           : heirLabel(announced.heir, messages.relationships, messages.heirNumbered, announced.ordinal),
+@@ -556,15 +598,6 @@ export function StartCase({
+             disabled={frozen}
+             onEdit={() => edit((current) => startEditDeceased(current, deps))}
+           />
+-          {layered && (
+-            <DeathBreadcrumb
+-              messages={messages}
+-              crumbs={crumbs}
+-              active={layer?.id ?? null}
+-              disabled={frozen}
+-              onOpen={(id) => edit((current) => openLayer(current, id, deps))}
+-            />
+-          )}
+           <div
+             data-wide
+             className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)_340px]"
+@@ -639,6 +672,14 @@ export function StartCase({
+                 addOutcome={treeText && started.tree && !treeInSheet ? { anchor: started.tree.anchor, text: treeText } : null}
+                 dropAlert={dropAlert}
+                 onAddHere={addAt}
++                onOpenEstate={openEstate}
++                breadcrumb={<DeathBreadcrumb
++                  messages={messages}
++                  crumbs={crumbs}
++                  active={layer?.id ?? null}
++                  disabled={frozen}
++                  onOpen={openEstate}
++                />}
+                 onEdit={id => edit(current => startEditHeir(current, id, deps, `card:${id}`))}
+                 onRemoveRequest={id => edit(current => requestCardRemoval(current, id, deps))}
+               />
+@@ -647,6 +688,9 @@ export function StartCase({
+                 frozen={frozen} onClose={() => edit(current => cancelEditHeir(current, deps))}
+                 entries={model.placement[editingPerson.personId] ?? []} atLimit={remaining <= 0}
+                 addAlert={treeInSheet ? treeText : null} onAddHere={entry => addAt(editingPerson.personId, entry)}
++                orderQuestion={sheetOrder}
++                onMarkLater={() => submit(from => ({ kind: "markDeath", from, rowId: editingPerson.id, origin: "sheet" }))}
++                onOpenEstate={() => openEstate(editingPerson.personId)}
+                 onSave={(fields, field, close) => submit(from => ({ kind: "saveHeir", from, heirId: editingPerson.id,
+                   values: { relationship: fields.relationship, name: fields.name ?? "" }, status: fields.status, field, close }))}
+                 onRemove={confirm => submit(from => ({ kind: "removeHeir", from, heirId: editingPerson.id, confirm }))}
+@@ -673,7 +717,7 @@ export function StartCase({
+                 onEdit={(heirId) => edit((current) => startEditHeir(current, heirId, deps))}
+                 onRemove={(heirId) => submit((from) => ({ kind: "removeHeir", from, heirId, fromRow: true, confirm: false }))}
+                 onAlsoDied={(rowId) => submit((from) => ({ kind: "markDeath", from, rowId }))}
+-                onOpenLayer={(personId) => edit((current) => openLayer(current, personId, deps))}
++                onOpenLayer={openEstate}
+                 onDidNotDie={(personId, rowId) =>
+                   submit((from) => ({ kind: "unmarkDeath", from, heirId: personId, rowId }))
+                 }
+@@ -684,7 +728,7 @@ export function StartCase({
+                   <WithHeir
+                     template={toastCount > 1
+                       ? messages.heirsAdded.replace("{count}", String(toastCount)).replace("{relationship}", "{heir}")
+-                      : messages[announcementTemplates[toast.announcement.kind]]}
++                      : noteTemplate(toast.announcement)}
+                     heir={toastCount > 1
+                       ? messages.relationships[toast.announcement.heir.relationship]
+                       : heirLabel(toast.announcement.heir, messages.relationships, messages.heirNumbered, toast.announcement.ordinal)}
+@@ -702,6 +746,7 @@ export function StartCase({
+                 saving={frozen}
+                 failed={choiceFailed && (started.notice === "failed" || started.notice === "throttled") ? started.notice : null}
+                 onChooseSchool={(madhab) => void perform("choose", { madhab, from: started })}
++                estate={estate}
+               />
+             </div>
+           </div>
+diff --git a/web/src/i18n/messages.ts b/web/src/i18n/messages.ts
+index 4559c93..aaed092 100644
+--- a/web/src/i18n/messages.ts
++++ b/web/src/i18n/messages.ts
+@@ -136,6 +136,16 @@ export type Messages = {
+     statusLegend: string;
+     statusAlive: string;
+     statusDiedBefore: string;
++    /** Story 9.8: later-death estates. Arabic and French await native review. */
++    statusDiedLater: string;
++    laterDeathLimit: string;
++    openOwnEstate: string;
++    laterDeathAddedMale: string;
++    laterDeathAddedFemale: string;
++    estateLevel: string;
++    estatePending: string;
++    estateInherited: string;
++    estatePreviewEmpty: string;
+     removeImpactIntro: string;
+     removeImpactEstate: string;
+     heirAdded: string;
+@@ -192,7 +202,7 @@ export type Messages = {
+     relationships: Record<RelationshipId, string>;
+     /** Field name, then the error code the form or the server reports. */
+     fieldErrors: Record<string, Record<string, string>> & Record<
+-      "gender" | "estate" | "relationship" | "name" | "heirs" | "case" | "same_as" | "death" | "status" | "anchor",
++      "gender" | "estate" | "relationship" | "name" | "heirs" | "case" | "same_as" | "death" | "status" | "anchor" | "empty",
+       Record<string, string>
+     >;
+     madhabLabel: string;
+@@ -419,6 +429,15 @@ export const messages: Record<Locale, Messages> = {
+       statusLegend: "الحالة عند الوفاة",
+       statusAlive: "على قيد الحياة عند الوفاة",
+       statusDiedBefore: "توفي قبل المتوفى",
++      statusDiedLater: "توفي بعد المتوفى وقبل القسمة",
++      laterDeathLimit: "يمكن أن تتضمن الحالة وفاتين لاحقتين على الأكثر.",
++      openOwnEstate: "افتح التركة المستقلة: {heir}",
++      laterDeathAddedMale: "توفي {heir} لاحقًا. افتح تركته المستقلة لإضافة ورثته.",
++      laterDeathAddedFemale: "توفيت {heir} لاحقًا. افتحي تركتها المستقلة لإضافة ورثتها.",
++      estateLevel: "مستوى التركة",
++      estatePending: "تُحسب تركة {heir} المستقلة على حدة. أضف ورثته لعرضها.",
++      estateInherited: "تحوز هذه التركة {share} من التركة الأولى.",
++      estatePreviewEmpty: "أضف ورثة {heir} لعرض أنصبة هذه التركة.",
+       removeImpactIntro: "سيُحذف معه أيضًا:",
+       removeImpactEstate: "تركة {heir}",
+       heirEditHeading: "تعديل بيانات الوارث",
+@@ -515,6 +534,7 @@ export const messages: Record<Locale, Messages> = {
+         },
+         // Native-language review pending.
+         relatives: { required: "يرجى الإجابة عن أسئلة القرابة.", invalid: "اختر إجابة من الخيارات المعروضة." },
++        empty: { invalid: "تعذرت قراءة هذا الطلب." },
+         same_as: {
+           gender_mismatch: "جنس الشخص المختار مختلف. يرجى اختيار شخص من الجنس نفسه أو تصحيح صلة القرابة.",
+           not_alive: "لم يكن الشخص المختار على قيد الحياة عند هذه الوفاة. يرجى اختيار شخص كان حيًا آنذاك.",
+@@ -744,6 +764,15 @@ export const messages: Record<Locale, Messages> = {
+       statusLegend: "Status at the death",
+       statusAlive: "Alive at death",
+       statusDiedBefore: "Died before the deceased",
++      statusDiedLater: "Died after the deceased, before division",
++      laterDeathLimit: "A case can hold up to two later deaths.",
++      openOwnEstate: "Open own estate: {heir}",
++      laterDeathAddedMale: "{heir} died later. Open own estate to add his heirs.",
++      laterDeathAddedFemale: "{heir} died later. Open own estate to add her heirs.",
++      estateLevel: "Estate level",
++      estatePending: "{heir}'s own estate is calculated separately. Add their heirs to see it.",
++      estateInherited: "This estate holds {share} of the first estate.",
++      estatePreviewEmpty: "Add {heir}'s heirs to see this estate's shares.",
+       removeImpactIntro: "This also removes:",
+       removeImpactEstate: "The estate of {heir}",
+       heirEditHeading: "Edit heir",
+@@ -838,6 +867,7 @@ export const messages: Record<Locale, Messages> = {
+           wife_of_female: "The deceased is recorded as female, and a female has no wife. Choose husband if you meant the spouse, or correct the gender of the deceased.",
+         },
+         relatives: { required: "Please answer the relationship questions.", invalid: "Choose one of the offered answers." },
++        empty: { invalid: "That request could not be read." },
+         same_as: {
+           gender_mismatch: "The selected person has a different gender. Choose a person with the same gender, or correct the relationship.",
+           not_alive: "The selected person was not alive at this death. Choose someone who was alive then.",
+@@ -1070,6 +1100,15 @@ export const messages: Record<Locale, Messages> = {
+       statusLegend: "Situation au décès",
+       statusAlive: "En vie au décès",
+       statusDiedBefore: "Décédé avant le défunt",
++      statusDiedLater: "Décédé après le défunt, avant le partage",
++      laterDeathLimit: "Un dossier peut comporter au plus deux décès ultérieurs.",
++      openOwnEstate: "Ouvrir la succession propre : {heir}",
++      laterDeathAddedMale: "{heir} est décédé plus tard. Ouvrez sa succession propre pour ajouter ses héritiers.",
++      laterDeathAddedFemale: "{heir} est décédée plus tard. Ouvrez sa succession propre pour ajouter ses héritiers.",
++      estateLevel: "Niveau de succession",
++      estatePending: "La succession propre de {heir} est calculée séparément. Ajoutez ses héritiers pour la voir.",
++      estateInherited: "Cette succession détient {share} de la première succession.",
++      estatePreviewEmpty: "Ajoutez les héritiers de {heir} pour voir les parts de cette succession.",
+       removeImpactIntro: "Cela supprime aussi :",
+       removeImpactEstate: "La succession de {heir}",
+       heirEditHeading: "Modifier l'héritier",
+@@ -1166,6 +1205,7 @@ export const messages: Record<Locale, Messages> = {
+         },
+         // Native-language review pending.
+         relatives: { required: "Veuillez répondre aux questions de parenté.", invalid: "Choisissez une des réponses proposées." },
++        empty: { invalid: "Cette demande n'a pas pu être lue." },
+         same_as: {
+           gender_mismatch: "Le sexe de la personne choisie est différent. Choisissez une personne du même sexe ou corrigez le lien de parenté.",
+           not_alive: "La personne choisie ne vivait plus lors de ce décès. Choisissez une personne encore en vie à ce moment-là.",
+diff --git a/web/src/interview/flow.test.ts b/web/src/interview/flow.test.ts
+index 1ab6c5f..d43a6d0 100644
+--- a/web/src/interview/flow.test.ts
++++ b/web/src/interview/flow.test.ts
+@@ -94,6 +94,7 @@ function deps(options: {
+     selection: options.selection ?? (null as Selection | null),
+     form: options.form ?? (null as FormRecord | null),
+     answers: [] as { call: string; caseId: string; fields?: unknown; heirId?: string }[],
++    empties: [] as (boolean | undefined)[],
+   };
+   const answerWith = (call: string, caseId: string, extra: { fields?: unknown; heirId?: string }, revision: number | null) => {
+     log.revisions.push(revision);
+@@ -127,8 +128,10 @@ function deps(options: {
+       log.confirmations.push(confirm);
+       return answerWith("removeHeir", caseId, { heirId }, revision);
+     },
+-    markDeceased: async (_signal, caseId, revision, heirId, first) =>
+-      answerWith("markDeceased", caseId, { heirId, ...(first === undefined ? {} : { fields: { first } }) }, revision),
++    markDeceased: async (_signal, caseId, revision, heirId, first, _answers, empty) => {
++      log.empties.push(empty);
++      return answerWith("markDeceased", caseId, { heirId, ...(first === undefined ? {} : { fields: { first } }) }, revision);
++    },
+     unmarkDeceased: async (_signal, caseId, revision, heirId) => answerWith("unmarkDeceased", caseId, { heirId }, revision),
+     restoreCase: async (_signal, caseId, revision, snapshot) => answerWith("restoreCase", caseId, { fields: snapshot }, revision),
+     seen: { get: () => log.seen, set: (next) => (log.seen = next) },
+@@ -1569,6 +1572,76 @@ test("a limit or already-deceased refusal closes the question and focuses the bu
+   }
+ });
+ 
++test("a later death marked from the sheet sends empty, keeps the sheet and layer and focuses Open own estate", async () => {
++  const from = startedOf({ ...FAMILY, snapshot: { prior: true } }, true, { editingHeir: "s1", opener: "card:s1" });
++  const marked: Case = { ...FAMILY, deaths: [{ ...S1_DEATH, heirs: [] }] };
++  const { value, log } = deps({ answer: () => ({ kind: "saved", case: marked }), form: BLANK_RECORD(FAMILY.id, "s1") });
++  const view = (await runAction("markDeath", signal, value, FAMILY, undefined, {
++    kind: "markDeath", from, rowId: "s1", origin: "sheet",
++  })) as StartedView;
++  assert.deepEqual(log.empties, [true]);
++  assert.equal(view.layer, null);
++  assert.equal(view.editingHeir, "s1");
++  assert.equal(view.formEpoch, from.formEpoch);
++  assert.equal(view.focus?.target, "openEstate");
++  assert.equal(view.announcement?.kind, "laterDeath");
++  assert.equal(view.announcement?.gender, "male");
++  assert.equal(view.history?.length, 1, "one Undo entry");
++});
++
++test("a row death is not sent as empty", async () => {
++  const { value, log } = deps({ answer: () => ({ kind: "saved", case: TWO_LAYERS }) });
++  await runAction("markDeath", signal, value, FAMILY, undefined, { kind: "markDeath", from: startedOf(FAMILY, true), rowId: "s1" });
++  assert.deepEqual(log.empties, [false]);
++});
++
++test("a sheet order refusal keeps the question for the sheet and resends first with empty", async () => {
++  const from = startedOf(TWO_LAYERS, true, { editingHeir: "s2" });
++  const asked = deps({ answer: () => ({ kind: "invalid", errors: { death: "order_required" } }) });
++  const refused = (await runAction("markDeath", signal, asked.value, TWO_LAYERS, undefined, {
++    kind: "markDeath", from, rowId: "s2", origin: "sheet",
++  })) as StartedView;
++  assert.equal(refused.ordering, "s2");
++  assert.equal(refused.sheetDeath, true);
++  assert.equal(refused.editingHeir, "s2");
++  assert.equal(refused.focus?.target, "death-order");
++  const three: Case = { ...TWO_LAYERS, deaths: [S1_DEATH, { ...S1_DEATH, heir_id: "s2", order: 3, heirs: [] }] };
++  const resent = deps({ answer: () => ({ kind: "saved", case: three }) });
++  const done = (await runAction("markDeath", signal, resent.value, TWO_LAYERS, undefined, {
++    kind: "markDeath", from: { ...refused, saving: false }, rowId: "s2", first: "s1", origin: "sheet",
++  })) as StartedView;
++  assert.deepEqual(resent.log.empties, [true]);
++  assert.deepEqual(resent.log.answers[0].fields, { first: "s1" });
++  assert.equal(done.ordering, null);
++  assert.equal(done.sheetDeath, undefined);
++  assert.equal(done.editingHeir, "s2");
++});
++
++test("any other sheet refusal shows its error, keeps the sheet and focuses the radio", async () => {
++  const from = startedOf(TWO_LAYERS, true, { editingHeir: "s2" });
++  const { value } = deps({ answer: () => ({ kind: "invalid", errors: { death: "limit" } }) });
++  const view = (await runAction("markDeath", signal, value, TWO_LAYERS, undefined, {
++    kind: "markDeath", from, rowId: "s2", origin: "sheet",
++  })) as StartedView;
++  assert.equal(view.ordering, null);
++  assert.equal(view.sheetDeath, true);
++  assert.deepEqual(view.errors, { death: "limit" });
++  assert.equal(view.editingHeir, "s2");
++  assert.equal(view.focus?.target, "editStatus:died_later");
++  assert.deepEqual(view.case, TWO_LAYERS);
++});
++
++test("openLayer can focus the tree heading, closes editing and falls back to the root for a gone estate", () => {
++  const { value } = deps({});
++  const from = startedOf(TWO_LAYERS, true, { editingHeir: "w", opener: "card:w" });
++  const opened = openLayer(from, "s1", value, "treeHeading");
++  assert.equal(opened.layer, "s1");
++  assert.equal(opened.editingHeir, null);
++  assert.equal(opened.focus?.target, "treeHeading");
++  assert.equal(openLayer(from, "s1", value).focus?.target, "relationship");
++  assert.equal(openLayer(opened, "gone", value, "treeHeading").layer, null);
++});
++
+ test("taking back a death falls back to the first layer when the active one is gone", async () => {
+   const from = startedOf(TWO_LAYERS, true, { layer: "s1" });
+   const { value, log } = deps({ answer: () => ({ kind: "saved", case: FAMILY }) });
+diff --git a/web/src/interview/flow.ts b/web/src/interview/flow.ts
+index bfc9df4..6de09ac 100644
+--- a/web/src/interview/flow.ts
++++ b/web/src/interview/flow.ts
+@@ -54,12 +54,14 @@ export type Notice = "throttled" | "failed" | "heirGone";
+ 
+ /** What the screen-reader live region says; `seq` makes a repeat count as new. */
+ export type Announcement = {
+-  kind: "added" | "updated" | "removed" | "deathMarked" | "deathUnmarked" | "undone";
++  kind: "added" | "updated" | "removed" | "deathMarked" | "laterDeath" | "deathUnmarked" | "undone";
+   /** The id of the heir the change was about. */
+   id: string;
+   heir: { name: string | null; relationship: RelationshipId };
+   /** The heir number among unnamed heirs of the same relationship, when there are several. */
+   ordinal: number | null;
++  /** The person's gender, for a later death marked from the edit sheet. */
++  gender?: "male" | "female";
+   /** Present on a successful panel add, including a one-press add. */
+   panelCount?: number;
+   seq: number;
+@@ -82,6 +84,8 @@ export const FOCUS_TARGETS = [
+   "relativeMother",
+   "relativesSubmit",
+   "addHere",
++  "openEstate",
++  "treeHeading",
+ ] as const;
+ export const FOCUS_PREFIXES = ["card", "editRelationship", "editStatus", "editHeir", "remove", "alsoDied", "relative", "add", "addHere"] as const;
+ export type FocusTarget =
+@@ -142,6 +146,8 @@ export type StartedView = {
+   deathAnswers?: RelativeAnswers;
+   deathFirst?: string;
+   deathOrderNeeded?: boolean;
++  /** The open death question or refusal belongs to the edit sheet's later-death choice, not to a row. */
++  sheetDeath?: boolean;
+   /** Counts the times the heir form had to be cleared, so only those rebuild it. */
+   formEpoch: number;
+   notice: Notice | null;
+@@ -193,7 +199,7 @@ export type Deps = {
+     fields: HeirFields,
+   ) => Promise<AnswerResult>;
+   removeHeir: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, confirm: boolean) => Promise<AnswerResult>;
+-  markDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, first?: string, answers?: RelativeAnswers) => Promise<AnswerResult>;
++  markDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string, first?: string, answers?: RelativeAnswers, empty?: boolean) => Promise<AnswerResult>;
+   unmarkDeceased: (signal: AbortSignal, caseId: string, revision: number | null, heirId: string) => Promise<AnswerResult>;
+   restoreCase: (signal: AbortSignal, caseId: string, revision: number | null, snapshot: Record<string, unknown>) => Promise<AnswerResult>;
+   /** Whether this browser has seen a case before; the only way to tell expired from new. */
+@@ -389,7 +395,7 @@ export function cancelEditDeceased(view: StartedView, deps: Deps): StartedView {
+  * Moves the heirs screen to another layer (null is the first deceased's), ending any edit. A new
+  * heir's draft stays, so nothing typed is lost. Refused mid-save, and for a death that is gone.
+  */
+-export function openLayer(view: StartedView, id: string | null, deps: Deps): StartedView {
++export function openLayer(view: StartedView, id: string | null, deps: Deps, focus: "relationship" | "treeHeading" = "relationship"): StartedView {
+   if (view.saving) return view;
+   const target = keepLayer(id, view.case);
+   if (view.editingHeir !== null) restoreHeirForm(deps, view.case.id);
+@@ -409,13 +415,14 @@ export function openLayer(view: StartedView, id: string | null, deps: Deps): Sta
+     deathAnswers: undefined,
+     deathFirst: undefined,
+     deathOrderNeeded: undefined,
++    sheetDeath: undefined,
+     editingHeir: null,
+     confirming: undefined,
+     conflict: false,
+     formEpoch: view.formEpoch + 1,
+     notice: null,
+     errors: null,
+-    focus: nextFocus(view, "relationship"),
++    focus: nextFocus(view, focus),
+   };
+   delete opened.panel;
+   delete opened.tree;
+@@ -426,7 +433,14 @@ export function openLayer(view: StartedView, id: string | null, deps: Deps): Sta
+ export function cancelOrder(view: StartedView): StartedView {
+   if (view.saving || view.ordering === null) return view;
+   const row = view.ordering;
+-  return { ...view, ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, errors: null, notice: null, focus: nextFocus(view, `alsoDied:${row}`) };
++  return { ...view, ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, sheetDeath: undefined, errors: null, notice: null, focus: nextFocus(view, view.sheetDeath ? "openEstate" : `alsoDied:${row}`) };
++}
++
++/** Drops the death question or refusal that belongs to the edit sheet, when the sheet is leaving. */
++function clearSheetDeath(view: StartedView): Partial<StartedView> {
++  return view.sheetDeath
++    ? { ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, sheetDeath: undefined }
++    : {};
+ }
+ 
+ /** Fills the heir form with the heir's details. */
+@@ -439,6 +453,7 @@ export function startEditHeir(view: StartedView, heirId: string, deps: Deps, ope
+   if (record) deps.forms.set({ ...record, layer: view.layer });
+   return {
+     ...view,
++    ...clearSheetDeath(view),
+     editingHeir: heirId,
+     confirming: undefined,
+     conflict: false,
+@@ -458,6 +473,7 @@ export function cancelEditHeir(view: StartedView, deps: Deps): StartedView {
+   restoreHeirForm(deps, view.case.id);
+   return {
+     ...view,
++    ...clearSheetDeath(view),
+     confirming: undefined,
+     conflict: false,
+     editingHeir: null,
+@@ -602,7 +618,7 @@ export type Answer =
+   | { kind: "saveHeir"; from: StartedView; heirId: string; values: HeirValues; status?: HeirFields["status"]; field?: FocusTarget; close?: boolean }
+   | { kind: "removeHeir"; from: StartedView; heirId: string; confirm?: boolean; fromRow?: boolean }
+   /** `rowId` is the row whose person died; `first` answers the order question. */
+-  | { kind: "markDeath"; from: StartedView; rowId: string; first?: string; answers?: RelativeAnswers }
++  | { kind: "markDeath"; from: StartedView; rowId: string; first?: string; answers?: RelativeAnswers; origin?: "sheet" }
+   | { kind: "unmarkDeath"; from: StartedView; heirId: string; rowId: string }
+   /** Takes back the latest family change with one restore at the current revision. */
+   | { kind: "undo"; from: StartedView };
+@@ -836,7 +852,7 @@ function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerRe
+       const pending = answer.from.ordering === answer.rowId;
+       return deps.markDeceased(signal, caseId, revision, answer.rowId,
+         answer.first ?? (pending ? answer.from.deathFirst : undefined),
+-        { ...(pending ? openAnswers(answer.from) : {}), ...answer.answers });
++        { ...(pending ? openAnswers(answer.from) : {}), ...answer.answers }, answer.origin === "sheet");
+     }
+     case "unmarkDeath":
+       return deps.unmarkDeceased(signal, caseId, revision, answer.heirId);
+@@ -901,6 +917,21 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
+   const base = { ...started(kase, from.resumed), formEpoch: from.formEpoch, layer };
+   switch (answer.kind) {
+     case "markDeath": {
++      if (answer.origin === "sheet") {
++        // The sheet stays open on the person; the active estate does not change.
++        const known = layerHeirs(from.case, from.layer).find((heir) => heir.id === answer.rowId);
++        const note = announce(from, "laterDeath", layerHeirs(from.case, from.layer), answer.rowId);
++        return settle(
++          {
++            ...base,
++            editingHeir: from.editingHeir,
++            opener: from.opener,
++            announcement: note && known ? { ...note, gender: known.gender } : note,
++            focus: nextFocus(from, "openEstate"),
++          },
++          deps,
++        );
++      }
+       // The new layer opens: the person's death is stored under their earliest row.
+       const row = rowsOf(from.case).get(answer.rowId)?.row;
+       const person = row ? (row.same_as ?? row.id) : null;
+@@ -999,7 +1030,7 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
+       if (answer.close) {
+         restoreHeirForm(deps, kase.id);
+         return {
+-          ...from, case: kase, saving: false, errors: null, notice: null, conflict: false,
++          ...from, ...clearSheetDeath(from), case: kase, saving: false, errors: null, notice: null, conflict: false,
+           editingHeir: null, confirming: undefined, formEpoch: from.formEpoch + 1,
+           announcement: announce(from, "updated", people, answer.heirId),
+           focus: nextFocus(from, from.opener ?? `editHeir:${answer.heirId}`),
+@@ -1060,12 +1091,14 @@ function deathRefused(answer: Extract<Answer, { kind: "markDeath" }>, errors: Er
+     ordering: asks || questions?.length ? answer.rowId : null,
+     relativeQuestions: questions,
+     deathOrderNeeded: asks,
++    sheetDeath: answer.origin === "sheet",
+     deathAnswers: { ...(answer.from.ordering === answer.rowId ? answer.from.deathAnswers : {}), ...answer.answers },
+     deathFirst: answer.first ?? (answer.from.ordering === answer.rowId ? answer.from.deathFirst : undefined),
+     notice: null,
+     saving: false,
+     errors,
+-    focus: nextFocus(answer.from, asks ? "death-order" : questions?.length ? "relatives" : `alsoDied:${answer.rowId}`),
++    focus: nextFocus(answer.from, asks ? "death-order" : questions?.length ? "relatives"
++      : answer.origin === "sheet" ? "editStatus:died_later" : `alsoDied:${answer.rowId}`),
+   };
+ }
+ 
+diff --git a/web/src/interview/layers.test.ts b/web/src/interview/layers.test.ts
+index b974a47..7bdcb68 100644
+--- a/web/src/interview/layers.test.ts
++++ b/web/src/interview/layers.test.ts
+@@ -10,6 +10,7 @@ import {
+   breadcrumb,
+   deathOf,
+   deceasedLabel,
++  estatePath,
+   hasDeaths,
+   keepLayer,
+   layerAt,
+@@ -232,9 +233,22 @@ test("the key follows the deaths, and a result for another layering is not kept"
+   assert.deepEqual(reconcile(previewKey(other), other.id, outcome), { kind: "replaced" });
+ });
+ 
+-test("a preview waits for every person who died to have heirs", () => {
++test("the estate path runs from the first deceased through the earlier estate that holds the person", () => {
++  const row = (id: string, same_as?: string) => ({ id, relationship: "son" as const, gender: "male" as const, name: null, ...(same_as ? { same_as } : {}), edit_options: NONE });
++  const death = (heir_id: string, order: 2 | 3, heirs: ReturnType<typeof row>[]) => ({ heir_id, order, gender: "male" as const, heir_options: NONE, heirs });
++  const nested = { deaths: [death("a", 2, [row("x")]), death("x", 3, [])] };
++  assert.deepEqual(estatePath(nested, null), [null]);
++  assert.deepEqual(estatePath(nested, "a"), [null, "a"]);
++  assert.deepEqual(estatePath(nested, "x"), [null, "a", "x"]);
++  const siblings = { deaths: [death("a", 2, []), death("b", 3, [])] };
++  assert.deepEqual(estatePath(siblings, "b"), [null, "b"]);
++  assert.deepEqual(estatePath(siblings, "gone"), [null]);
++});
++
++test("a preview no longer waits for a later death to have heirs: the server leaves it pending", () => {
+   assert.equal(previewReady(CASE), true);
+-  assert.equal(previewReady({ ...CASE, deaths: [{ ...CASE.deaths[0], heirs: [] }] }), false);
++  assert.equal(previewReady({ ...CASE, deaths: [{ ...CASE.deaths[0], heirs: [] }] }), true);
++  assert.equal(previewReady({ ...CASE, heirs: [] }), false);
+   assert.equal(previewReady({ ...CASE, deaths: [] }), true);
+ });
+ 
+diff --git a/web/src/interview/layers.ts b/web/src/interview/layers.ts
+index c011db5..9db9a43 100644
+--- a/web/src/interview/layers.ts
++++ b/web/src/interview/layers.ts
+@@ -179,3 +179,22 @@ export function deceasedLabel(
+ export function deathLayerText(template: string, label: string, order: string): string {
+   return template.replace(/\{label\}|\{order\}/g, (token) => token === "{label}" ? label : order);
+ }
++
++/**
++ * The estate levels from the first deceased down to the active one, as layer ids (null is the
++ * first deceased). The parent of a later death is the latest earlier death whose estate holds a
++ * row of that person, else the first deceased, so a path has at most three levels.
++ */
++export function estatePath(kase: Pick<Case, "deaths">, activeId: string | null): (string | null)[] {
++  const path: (string | null)[] = [];
++  let at = keepLayer(activeId, kase);
++  while (at !== null) {
++    path.unshift(at);
++    const death = deathOf(kase, at)!;
++    const parent = kase.deaths
++      .filter((earlier) => earlier.order < death.order && earlier.heirs.some((row) => personOf(row) === death.heir_id))
++      .sort((a, b) => b.order - a.order)[0];
++    at = parent ? parent.heir_id : null;
++  }
++  return [null, ...path];
++}
+diff --git a/web/src/interview/preview.test.ts b/web/src/interview/preview.test.ts
+index 8381377..53e29f0 100644
+--- a/web/src/interview/preview.test.ts
++++ b/web/src/interview/preview.test.ts
+@@ -219,6 +219,23 @@ test("the key follows what changes a share and ignores names", () => {
+   assert.equal(new Set(changes.map(previewKey)).size, changes.length);
+ });
+ 
++test("a later death with no heirs yet is left out of the key and does not stop the preview", () => {
++  const death = { heir_id: "h2", order: 2 as const, gender: "male" as const, heir_options: { blocked: [], invalid: {} }, heirs: [] };
++  const pending: Case = { ...BASE, deaths: [death] };
++  assert.equal(previewKey(pending), previewKey(BASE));
++  assert.equal(previewReady(pending), true);
++  const full = { ...death, heirs: [{ id: "r1", relationship: "mother" as const, gender: "female" as const, name: null, same_as: "h1", edit_options: noHeirOptions() }] };
++  assert.notEqual(previewKey({ ...BASE, deaths: [full] }), previewKey(BASE));
++});
++
++test("pending ids are kept when they are an array of strings and ignored otherwise", () => {
++  const available = fixtures.find((fixture) => (fixture.response as { status?: string }).status === "available")!.response as Record<string, unknown>;
++  const kept = parsePreview({ ...available, pending: ["h2"] }) as Extract<Preview, { status: "available" }>;
++  assert.deepEqual(kept.pending, ["h2"]);
++  assert.equal("pending" in (parsePreview({ ...available, pending: [1] }) as object), false);
++  assert.equal("pending" in (parsePreview(available) as object), false);
++});
++
+ test("a case is ready with a deceased and an heir, whether or not it has a school", () => {
+   assert.equal(previewReady(BASE), true);
+   assert.equal(previewReady({ ...BASE, madhab: null }), true);
+diff --git a/web/src/interview/preview.ts b/web/src/interview/preview.ts
+index dbf6a3d..9031479 100644
+--- a/web/src/interview/preview.ts
++++ b/web/src/interview/preview.ts
+@@ -13,11 +13,15 @@ export function previewKey(kase: Case): string {
+     estate: kase.deceased?.estate ?? null,
+     heirs: kase.heirs,
+     // A shared fixture's case may leave `deaths` out: that reads as none.
+-    deaths: (kase.deaths ?? []).map((death) => ({
+-      heir_id: death.heir_id,
+-      order: death.order,
+-      heirs: death.heirs,
+-    })),
++    // A later death whose own estate is empty is left out, as the server's basis does: its
++    // person is an ordinary first-estate heir, and the later estates are numbered again.
++    deaths: (kase.deaths ?? [])
++      .filter((death) => death.heirs.length > 0)
++      .map((death, index) => ({
++        heir_id: death.heir_id,
++        order: index + 2,
++        heirs: death.heirs,
++      })),
+   });
+ }
+ 
+@@ -96,15 +100,11 @@ export function previewForCase(kase: Case, fetched: PreviewResult): PreviewResul
+ }
+ 
+ /**
+- * Whether the case has what the engine needs: a deceased and at least one heir, and every person
+- * who died has heirs of their own. A school is not needed: without one the server compares the four.
++ * Whether the case has what the engine needs: a deceased and at least one heir. A later death
++ * with no heirs of its own yet is pending, and the server computes without it. A school is not needed: without one the server compares the four.
+  */
+ export function previewReady(kase: Case): boolean {
+-  return (
+-    kase.deceased !== null &&
+-    kase.heirs.length > 0 &&
+-    (kase.deaths ?? []).every((death) => death.heirs.length > 0)
+-  );
++  return kase.deceased !== null && kase.heirs.length > 0;
+ }
+ 
+ /** One heir's row as the server presented it: every field is a display string, never a number to format. */

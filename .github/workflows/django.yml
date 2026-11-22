@@ -91,7 +91,7 @@ jobs:
       - name: Install PDF fonts
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends fonts-noto-core fontconfig
+          sudo apt-get install -y --no-install-recommends fonts-noto-core fontconfig poppler-utils
 
       - name: PDF glyph check
         run: python -m i18n.glyphs

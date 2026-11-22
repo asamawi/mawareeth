@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { noHeirOptions, parsePreview, PREVIEW_REASONS, type Case, type Preview } from "../api/case.ts";
 import { locales, messages } from "../i18n/messages.ts";
 import { previewFixtures } from "../test/preview-fixtures.ts";
-import { acceptRevision, basisKey, previewKey, previewReady, previewRows, reconcile, shown } from "./preview.ts";
+import { acceptRevision, basisKey, previewKey, previewReady, previewRows, reconcile, shown, isPending } from "./preview.ts";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const read = (name: string) => JSON.parse(readFileSync(join(dir, "..", "..", "..", "api", "contracts", name), "utf8"));
@@ -339,4 +339,12 @@ test("a preview is kept only for the revision of the case on screen", () => {
 
 test("every locale words the offline block", () => {
   for (const locale of locales) assert.ok(messages[locale].interview.offlineEditing.length > 0, locale);
+});
+
+test("a same-family revision change leaves the request pending", () => {
+  const settled = { key: "k", attempt: 0, revision: 1, outcome: "x" };
+  assert.equal(isPending(true, { key: "k", attempt: 0, revision: 1 }, settled), false);
+  assert.equal(isPending(true, { key: "k", attempt: 0, revision: 2 }, settled), true);
+  assert.equal(isPending(true, { key: "k", attempt: 1, revision: 1 }, settled), true);
+  assert.equal(isPending(false, { key: "k", attempt: 1, revision: 1 }, settled), false);
 });

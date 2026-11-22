@@ -1,10 +1,11 @@
 """Successive-death matrix and exact evidence tests, without Django."""
+import copy
 import unittest
 from contextlib import nullcontext
 from dataclasses import replace, FrozenInstanceError
 from fractions import Fraction as F
 
-from engine import evaluate, final_shares, school_rule_set, thaw, contracts as c
+from engine import calculate, evaluate, final_shares, school_rule_set, thaw, contracts as c
 from engine.tests.test_core import family_document, person, SCHOOLS, MALIKIYYA
 
 
@@ -129,9 +130,30 @@ class LayeredCoreTests(unittest.TestCase):
         doc['estates'][1]['deceased'] = 'outsider'
         fam = c.parse_family(doc)
         self.assertEqual(evaluate(fam, school_rule_set('hanbali')).result.refusal, 'manasikhat_unsupported')
+        with_bequest = copy.deepcopy(doc)
+        with_bequest['bequests'].append({'branch': 'W', 'amount_minor': 1000})
+        self.assertEqual(calculate(c.parse_family(with_bequest), school_rule_set('hanbali')).refusal, 'invalid_family')
         self.assertEqual(evaluate(fam, school_rule_set('jafari')).result.refusal, 'school_not_supported')
         doc['estates'][1]['heirs'] = [{'person': 'W', 'relationship': 'husband'}]
         self.assertEqual(evaluate(c.parse_family(doc), school_rule_set('jafari')).result.refusal, 'invalid_family')
+
+    def test_later_estate_gender_mismatch_is_refused(self):
+        base = layered_document([('S', 'son'), ('W', 'wife')], [('S', [('N', 'son')])])
+        for school in SCHOOLS:
+            result = evaluate(c.parse_family(base), school_rule_set(school)).result
+            self.assertEqual((result.status, result.refusal),
+                             ('refused', 'school_not_supported') if school == 'jafari' else ('calculated', None))
+        only = layered_document([('S', 'son'), ('W', 'wife')], [('S', [('N', 'son')])])
+        next(p for p in only['persons'] if p['id'] == 'N')['gender'] = 'female'
+        aliased = layered_document([('S', 'son'), ('W', 'wife')], [('S', [('W', 'mother')])])
+        aliased['estates'][1]['heirs'] = [{'person': 'W', 'relationship': 'son'}]
+        third = layered_document([('S', 'son'), ('W', 'wife')], [('S', [('W', 'mother'), ('N', 'son')]),
+                                                                  ('W', [('N', 'daughter')])])
+        for name, doc in (('only', only), ('aliased', aliased), ('third_estate', third)):
+            for school in SCHOOLS:
+                with self.subTest(name=name, school=school):
+                    result = evaluate(c.parse_family(doc), school_rule_set(school)).result
+                    self.assertEqual((result.status, result.refusal), ('refused', 'invalid_family'))
 
     def test_inherited_mismatch_and_frozen_evidence(self):
         ev = evaluate(c.parse_family(layered_cases()['fixture_True_False']), school_rule_set('hanbali'))

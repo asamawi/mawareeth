@@ -5,6 +5,7 @@ import { locales, messages } from "../i18n/messages.ts";
 import { previewFixture } from "../test/preview-fixtures.ts";
 import {
   addHeir,
+  addHeirs,
   fetchCase,
   fetchPreview,
   markDeceased,
@@ -17,6 +18,7 @@ import {
   MADHAB_IDS,
   readCsrfToken,
   removeHeir,
+  restoreCase,
   saveDeceased,
   setMadhab,
   startCase,
@@ -41,7 +43,7 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-const CASE = { id: "abc123", revision: 4, started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} }, deaths: [] };
+const CASE = { id: "abc123", revision: 4, started_at: "2026-11-06T10:00:00Z", madhab: null, deceased: null, heirs: [], heir_options: { blocked: [], invalid: {} }, deaths: [], persons: [], edges: [], placement: {} };
 const signal = () => new AbortController().signal;
 const withToken = { cookie: () => "other=1; csrftoken=tok%3D1" };
 const header = (call: Call, name: string) => (call.init?.headers as Record<string, string>)[name];
@@ -185,19 +187,24 @@ test("every locale has its own interview text", () => {
     const translatable = /\p{L}/u.test(String(texts[0]).replace(/\{[^}]*\}/g, ""));
     for (let i = 0; translatable && i < locales.length; i++) {
       for (let j = i + 1; j < locales.length; j++) {
+        // The spec deliberately uses the same Zoom status sentence in English and French.
+        if (path === "interview.treeZoomStatus" && locales[i] === "en" && locales[j] === "fr") {
+          assert.equal(byLocale[i].get(path), "Zoom {percent}");
+          assert.equal(byLocale[j].get(path), "Zoom {percent}");
+          continue;
+        }
+        // "Parents" is the same word in English and French.
+        if (path === "interview.addGroupParents" && locales[i] === "en" && locales[j] === "fr") {
+          assert.equal(byLocale[i].get(path), byLocale[j].get(path));
+          continue;
+        }
         assert.notEqual(byLocale[i].get(path), byLocale[j].get(path), `${path} [${locales[i]} vs ${locales[j]}]`);
       }
     }
   }
   assert.ok(byLocale[0].has("interview.madhabs.hanbali.name"));
-  for (const key of ["treeHeading", "treeDeceasedMale", "treeDeceasedFemale", "treePrompt", "treeSummary", "treeCount"]) {
+  for (const key of ["treeHeading", "treeDeceased", "treeNoShare", "treeFit", "treeZoomStatus", "addRelativesHeading", "addGroupSpouse", "addGroupParents", "addGroupChildren", "addGroupSiblings", "addRelative", "conflictNotice"]) {
     assert.ok(byLocale[0].has(`interview.${key}`), key);
-  }
-  for (const locale of locales) {
-    const template = messages[locale].interview.treeSummary;
-    assert.ok(template.includes("{deceased}") && template.includes("{heirs}"), locale);
-    const count = messages[locale].interview.treeCount;
-    assert.ok(count.includes("{relationship}") && count.includes("{n}"), locale);
   }
   assert.deepEqual(
     byLocale.map((map) => [...map.keys()].sort()),
@@ -301,6 +308,9 @@ test("parseCase reads deceased and heirs, and tolerates the older shape", async 
     heirs: [],
     heir_options: { blocked: [], invalid: {} },
     deaths: [],
+    persons: [],
+    edges: [],
+    placement: {},
   });
   stubFetch(async () =>
     Response.json({
@@ -336,18 +346,104 @@ test("addHeir posts, updateHeir puts and removeHeir deletes, each with the case 
   const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
   await addHeir(signal(), "abc123", 4, { relationship: "son", name: "A" }, withToken);
   await updateHeir(signal(), "abc123", 4, "h 1", { relationship: "wife", name: null }, withToken);
-  await removeHeir(signal(), "abc123", 4, "h1", withToken);
+  await removeHeir(signal(), "abc123", 4, "h1", false, withToken);
   assert.deepEqual(
     calls.map((call) => [call.init?.method, call.url]),
     [
       ["POST", "/api/v1/case/heirs/"],
       ["PUT", "/api/v1/case/heirs/h%201/"],
-      ["DELETE", "/api/v1/case/heirs/h1/?case_id=abc123&expected_revision=4&confirm_cascade=true"],
+      ["DELETE", "/api/v1/case/heirs/h1/?case_id=abc123&expected_revision=4"],
     ],
   );
   assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { relationship: "son", name: "A", case_id: "abc123", expected_revision: 4 });
   assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { relationship: "wife", name: null, case_id: "abc123", expected_revision: 4 });
   assert.equal(calls[2].init?.body, undefined, "a DELETE body may be dropped on the way, so there is none");
+});
+
+test("bulk add sends one revision-checked POST of unnamed rows to the active layer", async () => {
+  for (const layer of [undefined, "h1"]) {
+    const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
+    const result = await addHeirs(signal(), "abc123", 4, "daughter", 4, layer, withToken);
+    assert.deepEqual(result, { kind: "saved", case: FULL_CASE });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "/api/v1/case/heirs/bulk/");
+    assert.equal(calls[0].init?.method, "POST");
+    assert.equal(header(calls[0], "X-CSRFToken"), "tok=1");
+    assert.deepEqual(JSON.parse(String(calls[0].init?.body)), {
+      case_id: "abc123", expected_revision: 4, ...(layer ? { layer } : {}),
+      heirs: Array(4).fill({ relationship: "daughter", name: null }),
+    });
+  }
+});
+
+test("bulk add maps capacity and the lowest indexed refusal, and rejects malformed bodies", async () => {
+  const send = () => addHeirs(signal(), "abc123", 4, "father", 12, undefined, withToken);
+  for (const [status, body, expected] of [
+    [400, { error: "over_capacity" }, { kind: "invalid", errors: { heirs: "limit" } }],
+    [400, { error: "invalid_input", errors: { "10": { heirs: "limit" }, "2": { relationship: "second_father" } } },
+      { kind: "invalid", errors: { relationship: "second_father" } }],
+    [404, { case: null }, { kind: "gone" }],
+    [404, { case: FULL_CASE }, { kind: "missing", case: FULL_CASE }],
+    [409, { case: FULL_CASE }, { kind: "replaced", case: FULL_CASE }],
+    [429, {}, { kind: "throttled" }],
+    [201, {}, { kind: "failed" }],
+    [409, {}, { kind: "failed" }],
+  ] as const) {
+    stubFetch(async () => Response.json(body, { status }));
+    assert.deepEqual(await send(), expected);
+  }
+  for (const errors of [null, [], {}, { relationship: "invalid" }, { "1": {} }, { "0": { name: 5 } }]) {
+    stubFetch(async () => Response.json({ error: "invalid_input", errors }, { status: 400 }));
+    assert.deepEqual(await send(), { kind: "failed" });
+  }
+});
+
+test("parseCase keeps a plain-object snapshot opaque and drops anything else", () => {
+  const snapshot = { madhab: "hanbali", heirs: [{ id: "h1" }] };
+  assert.deepEqual(parseCase({ case: { ...CASE, snapshot } })?.snapshot, snapshot);
+  for (const bad of [null, [], "x", 5]) {
+    assert.equal("snapshot" in (parseCase({ case: { ...CASE, snapshot: bad } }) ?? {}), false);
+  }
+  assert.equal("snapshot" in (parseCase({ case: CASE }) ?? {}), false);
+});
+
+test("restoreCase posts the snapshot at the revision and maps its outcomes", async () => {
+  const snapshot = { madhab: "hanbali", heirs: [] };
+  const calls = stubFetch(async () => Response.json({ case: FULL_CASE }));
+  assert.deepEqual(await restoreCase(signal(), "abc123", 7, snapshot, withToken), { kind: "saved", case: FULL_CASE });
+  assert.equal(calls[0].url, "/api/v1/case/restore/");
+  assert.equal(calls[0].init?.method, "POST");
+  assert.equal(header(calls[0], "X-CSRFToken"), "tok=1");
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { snapshot, case_id: "abc123", expected_revision: 7 });
+  const send = () => restoreCase(signal(), "abc123", 7, snapshot, withToken);
+  for (const [status, body, expected] of [
+    [409, { error: "conflict", case: FULL_CASE }, { kind: "replaced", case: FULL_CASE }],
+    [404, { case: null }, { kind: "gone" }],
+    [400, { error: "invalid_snapshot" }, { kind: "failed" }],
+    [400, { error: "invalid_revision" }, { kind: "failed" }],
+    [429, {}, { kind: "throttled" }],
+    [200, {}, { kind: "failed" }],
+  ] as const) {
+    stubFetch(async () => Response.json(body, { status }));
+    assert.deepEqual(await send(), expected);
+  }
+  stubFetch(async () => {
+    throw new TypeError("fetch failed");
+  });
+  assert.deepEqual(await send(), { kind: "failed" });
+});
+
+test("confirmed removal uses the impact revision and validates a cascade response", async () => {
+  const impact = { persons: ["h2"], estates: [2] };
+  const cascade = { error: "cascade_unconfirmed", impact, case: FULL_CASE };
+  const calls = stubFetch(async () => Response.json(cascade, { status: 409 }));
+  const remove = () => removeHeir(signal(), "abc123", 5, "h1", true, withToken);
+  assert.deepEqual(await remove(), { kind: "cascade", impact, case: FULL_CASE });
+  assert.match(String(calls[0].url), /expected_revision=5&confirm_cascade=true$/);
+  for (const bad of [{ persons: [1], estates: [] }, { persons: [], estates: ["2"] }, null]) {
+    stubFetch(async () => Response.json({ ...cascade, impact: bad }, { status: 409 }));
+    assert.deepEqual(await remove(), { kind: "failed" });
+  }
 });
 
 test("answer writes map 400, 404, 409 and 429", async () => {
@@ -372,7 +468,7 @@ test("answer writes make exactly one attempt and report failure", async () => {
   const calls = stubFetch(async () => {
     throw new TypeError("fetch failed");
   });
-  assert.deepEqual(await removeHeir(signal(), "abc123", 4, "h1", withToken), { kind: "failed" });
+  assert.deepEqual(await removeHeir(signal(), "abc123", 4, "h1", false, withToken), { kind: "failed" });
   assert.equal(calls.length, 1);
   stubFetch(
     ({ init }) =>
@@ -880,6 +976,19 @@ const LAYERED = {
   ],
 };
 
+test("parseCase keeps gender_locked in root and later-estate edit options", () => {
+  const locked = { blocked: [], invalid: { daughter: "gender_locked" } };
+  const kase = parseCase({
+    case: {
+      ...LAYERED,
+      heirs: [LAYERED.heirs[0], { ...LAYERED.heirs[2], edit_options: locked }],
+      deaths: [{ ...LAYERED.deaths[0], heir_id: "w", heirs: [{ ...LAYERED.deaths[0].heirs[1], edit_options: locked }] }],
+    },
+  });
+  assert.deepEqual(kase?.heirs[1].edit_options, locked);
+  assert.deepEqual(kase?.deaths[0].heirs[0].edit_options, locked);
+});
+
 async function parsed(value: unknown) {
   stubFetch(async () => Response.json({ case: value }));
   return fetchCase(signal());
@@ -951,6 +1060,14 @@ test("markDeceased posts the row and the answer to the order question; unmarkDec
   assert.equal(calls[2].url, "/api/v1/case/deaths/s%201/?case_id=abc123&expected_revision=4&confirm_cascade=true");
   assert.equal(calls[2].init?.method, "DELETE");
   assert.equal(calls[2].init?.body, undefined);
+});
+
+test("markDeceased sends empty: true only when asked", async () => {
+  const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
+  await markDeceased(signal(), "abc123", 4, "s1", undefined, withToken, {}, true);
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { heir_id: "s1", empty: true, case_id: "abc123", expected_revision: 4 });
+  await markDeceased(signal(), "abc123", 4, "s1", undefined, withToken, {}, false);
+  assert.equal("empty" in JSON.parse(String(calls[1].init?.body)), false);
 });
 
 test("a refused death comes back as its codes", async () => {
@@ -1066,4 +1183,142 @@ test("startCase names the revision of the case it replaces", async () => {
   const calls = stubFetch(async () => Response.json({ case: CASE }, { status: 201 }));
   await startCase(signal(), { ...withToken, replace: true, caseId: "abc123", revision: 4 });
   assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { replace: true, case_id: "abc123", expected_revision: 4 });
+});
+
+// Story 9.1b: lineage, statuses and placement
+
+const LINEAGE = {
+  ...FULL_CASE,
+  persons: [
+    { id: "w", gender: "female", name: null, relationship: "wife", status: "alive", death_order: null },
+    { id: "s1", gender: "male", name: "Ali", relationship: "son", status: "died_later", death_order: 2 },
+    { id: "omar", gender: "male", name: "Omar", relationship: "son", status: "died_before_or_with", death_order: null },
+    { id: "g", gender: "male", name: null, relationship: null, status: "alive", death_order: null },
+  ],
+  edges: [
+    { kind: "parent_of", from: "root", to: "omar" },
+    { kind: "parent_of", from: "omar", to: "g" },
+    { kind: "spouse_of", from: "root", to: "w" },
+  ],
+  placement: {
+    root: [
+      { relationship: "father", link: "parent", blocked: false },
+      { relationship: "son", link: "child", blocked: false },
+    ],
+    omar: [{ relationship: "son_of_son", link: "child", blocked: true }],
+    w: [],
+  },
+};
+
+test("parseCase round-trips persons, edges and placement and reads them as absent when missing", async () => {
+  const placement = { root: [{ relationship: "husband", link: "spouse", blocked: false }] };
+  const kase = await parsed({ ...LAYERED, persons: LINEAGE.persons, edges: LINEAGE.edges, placement: LINEAGE.placement, deaths: [{ ...LAYERED.deaths[0], placement }] });
+  assert.deepEqual(kase?.persons, LINEAGE.persons);
+  assert.deepEqual(kase?.edges, LINEAGE.edges);
+  assert.deepEqual(kase?.placement, LINEAGE.placement);
+  assert.deepEqual(kase?.deaths[0]?.placement, placement);
+  const bare = await parsed({ id: "a", started_at: "t" });
+  assert.deepEqual([bare?.persons, bare?.edges, bare?.placement], [[], [], {}]);
+  const older = await parsed({ ...LAYERED });
+  assert.deepEqual(older?.deaths[0].placement, {});
+});
+
+test("parseCase keeps a valid placement gender and reads the entry without an invalid one", async () => {
+  const kase = await parsed({
+    ...LINEAGE,
+    placement: {
+      root: [
+        { relationship: "son", link: "child", blocked: false, gender: "male" },
+        { relationship: "daughter", link: "child", blocked: false, gender: "robot" },
+        { relationship: "wife", link: "spouse", blocked: false },
+      ],
+    },
+  });
+  assert.deepEqual(kase?.placement?.root, [
+    { relationship: "son", link: "child", blocked: false, gender: "male" },
+    { relationship: "daughter", link: "child", blocked: false },
+    { relationship: "wife", link: "spouse", blocked: false },
+  ]);
+});
+
+test("parseCase keeps a valid gender in a later death's placement and drops an invalid one", async () => {
+  const placement = { root: [
+    { relationship: "husband", link: "spouse", blocked: false, gender: "male" },
+    { relationship: "son", link: "child", blocked: false, gender: "robot" },
+  ] };
+  const kase = await parsed({ ...LAYERED, deaths: [{ ...LAYERED.deaths[0], placement }] });
+  assert.deepEqual(kase?.deaths[0]?.placement?.root, [
+    { relationship: "husband", link: "spouse", blocked: false, gender: "male" },
+    { relationship: "son", link: "child", blocked: false },
+  ]);
+});
+
+test("addHeir sends anchor only when set", async () => {
+  const calls = stubFetch(async () => Response.json({ case: FULL_CASE }, { status: 201 }));
+  await addHeir(signal(), "abc123", 4, { relationship: "son_of_son", name: null, anchor: "p1" }, withToken);
+  await addHeir(signal(), "abc123", 4, { relationship: "son", name: null }, withToken);
+  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { relationship: "son_of_son", name: null, anchor: "p1", case_id: "abc123", expected_revision: 4 });
+  assert.equal("anchor" in JSON.parse(String(calls[1].init?.body)), false);
+});
+
+test("parseCase keeps a __proto__ placement anchor as an own entry", async () => {
+  const body = JSON.parse(JSON.stringify({ ...LINEAGE, placement: {} }).replace('"placement":{}', '"placement":{"__proto__":[{"relationship":"son","link":"child","blocked":false}]}'));
+  const kase = await parsed(body);
+  assert.deepEqual(Object.keys(kase?.placement ?? {}), ["__proto__"]);
+  assert.equal(Object.getPrototypeOf(kase?.placement), Object.prototype);
+});
+
+test("parseCase rejects malformed persons, edges and placement like the other fields", async () => {
+  const kase = await parsed({
+    ...LINEAGE,
+    persons: [
+      ...LINEAGE.persons,
+      { id: "w", gender: "female", name: null, relationship: "wife", status: "alive", death_order: null },
+      { id: "x", gender: "other", name: null, relationship: "son", status: "alive", death_order: null },
+      { id: "y", gender: "male", name: null, relationship: "cousin", status: "alive", death_order: null },
+      { id: "z", gender: "male", name: null, relationship: "son", status: "gone", death_order: null },
+      { id: "late", gender: "male", name: null, relationship: "son", status: "died_later", death_order: null },
+      { id: "early", gender: "male", name: null, relationship: "son", status: "alive", death_order: 2 },
+      { id: "root", gender: "male", name: null, relationship: null, status: "alive", death_order: null },
+      { id: "extra", gender: "male", name: null, relationship: null, status: "alive", death_order: null, more: 1 },
+      "text",
+    ],
+    edges: [
+      ...LINEAGE.edges,
+      { kind: "friend_of", from: "root", to: "w" },
+      { kind: "parent_of", from: "w", to: "w" },
+      { kind: "parent_of", from: "ghost", to: "w" },
+      { kind: "parent_of", from: "root", to: "w", extra: 1 },
+      { kind: "parent_of", from: 1, to: "w" },
+    ],
+    placement: {
+      ...LINEAGE.placement,
+      bad: [{ relationship: "cousin", link: "child", blocked: false }],
+      worse: [{ relationship: "son", link: "sideways", blocked: false }],
+      flag: [{ relationship: "son", link: "child", blocked: "no" }],
+      notAList: { relationship: "son" },
+    },
+  });
+  assert.deepEqual(kase?.persons, LINEAGE.persons);
+  assert.deepEqual(kase?.edges, LINEAGE.edges);
+  assert.deepEqual(kase?.placement, { ...LINEAGE.placement, bad: [], worse: [], flag: [], notAList: [] });
+  for (const bad of [null, [], "x", 3]) {
+    const none = await parsed({ ...LINEAGE, persons: bad, edges: bad, placement: bad });
+    assert.deepEqual([none?.persons, none?.edges, none?.placement], [[], [], {}]);
+  }
+});
+
+test("parseCase keeps link_candidates on later rows that point at earlier people and drops the rest", () => {
+  const options = { blocked: [], invalid: {} };
+  const parsed = parseCase({ case: {
+    id: "c", revision: 1, started_at: "2026-11-22T10:00:00Z", madhab: null, deceased: { gender: "male", estate: null },
+    heirs: [{ id: "w", relationship: "wife", gender: "female", name: null, edit_options: options }],
+    heir_options: options,
+    deaths: [{ heir_id: "w", order: 2, gender: "female", heir_options: options, heirs: [
+      { id: "r1", relationship: "mother", gender: "female", name: null, edit_options: options, link_candidates: ["w", "nobody", 4] },
+      { id: "r2", relationship: "sister", gender: "female", name: null, edit_options: options, link_candidates: "w" },
+    ] }],
+  } });
+  assert.deepEqual(parsed?.deaths[0].heirs[0].link_candidates, ["w"]);
+  assert.equal(parsed?.deaths[0].heirs[1].link_candidates, undefined);
 });

@@ -8,7 +8,7 @@ example="$root/deploy/host-baseline.env.example"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 need() { grep -Fq -- "$2" "$1" || fail "missing $2 in $1"; }
 
-bash -n "$provision" "$bootstrap" "$0"
+for f in "$provision" "$bootstrap" "$0"; do bash -n "$f" || fail "bash -n failed for ${f##*/} (syntax error or unreadable file)"; done
 need "$provision" '--type cx33'
 need "$provision" '--location nbg1'
 need "$provision" '--image ubuntu-24.04'
@@ -101,18 +101,8 @@ cf_csv="$(IFS=','; printf '%s' "${cf_ranges[*]}")"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-printf 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest baseline@test\n' > "$tmp/id.pub"
-printf 'placeholder\n' > "$tmp/id"
-cat > "$tmp/config" <<EOF
-HETZNER_TOKEN=redacted
-SERVER_NAME=baseline-test
-HETZNER_SSH_KEY_NAME=baseline-test-key
-SSH_PUBLIC_KEY=$tmp/id.pub
-ADMIN_SSH_PRIVATE_KEY=$tmp/id
-SSH_ALLOWED_CIDRS=not-a-cidr
-EOF
-chmod 600 "$tmp/config"
-if HOST_BASELINE_CONFIG="$tmp/config" bash "$provision" >/dev/null 2>&1; then fail 'malformed CIDR was accepted'; fi
+ssh-keygen -q -t ed25519 -N '' -C baseline@test -f "$tmp/idpair" >/dev/null || fail 'ssh-keygen could not create the sample admin key'
+{ cut -d' ' -f1,2 "$tmp/idpair.pub" | tr -d '\n'; printf ' baseline@test\n'; } > "$tmp/id.pub"
 printf '%s\n' 'host baseline offline checks passed'
 
 # PUBLIC_WEB_SOURCES on the guest: bootstrap's public-web block, exercised with
@@ -136,6 +126,283 @@ line_of() { grep -nx -- "$1" "$bootstrap" | head -n 1 | cut -d: -f1; }
 (($(line_of converge_docker_web_rules) < $(line_of 'ufw --force reset'))) || fail 'DOCKER-USER must be verified before UFW changes'
 (($(line_of require_ufw_ipv6) < $(line_of 'docker_firewall_script > /usr/local/sbin/mawareeth-docker-firewall'))) || fail 'the UFW IPv6 check must come before any firewall change'
 (($(line_of 'install -d -o root -g root -m 0700 /etc/mawareeth') < $(line_of persist_web_sources))) || fail 'the mode must be persisted inside /etc/mawareeth'
+# Guest input validation: bootstrap's guest-inputs block (validate_cidrs and
+# validate_admin), run in fresh child shells with explicit env. Nothing on the
+# host is touched.
+for step_name in validate_cidrs validate_admin; do
+  [[ "$(grep -cx "$step_name" "$bootstrap")" == 1 ]] || fail "bootstrap must call $step_name exactly once"
+done
+(($(line_of validate_cidrs) < $(line_of validate_web_sources))) || fail 'validate_cidrs must run before validate_web_sources'
+(($(line_of validate_web_sources) < $(line_of validate_admin))) || fail 'validate_admin must run after validate_web_sources'
+(($(line_of validate_admin) < $(line_of 'apt-get update'))) || fail 'validate_admin must run before any host change'
+guest_lib="$tmp/guest-inputs.sh"
+# Exactly one marker pair, opening first: a lost closing marker would make sed
+# copy the rest of bootstrap, whose top level changes the host when sourced.
+[[ "$(grep -c '^# >>> guest inputs' "$bootstrap"):$(grep -c '^# <<< guest inputs' "$bootstrap")" == 1:1 ]] || fail 'bootstrap must have exactly one guest inputs marker pair'
+(($(grep -n '^# >>> guest inputs' "$bootstrap" | cut -d: -f1) < $(grep -n '^# <<< guest inputs' "$bootstrap" | cut -d: -f1))) || fail 'the guest inputs markers are out of order'
+{
+  printf '%s\n' 'die() { printf "bootstrap: %s\n" "$*" >&2; exit 1; }'
+  sed -n '/^# >>> guest inputs/,/^# <<< guest inputs/p' "$bootstrap"
+} > "$guest_lib"
+grep -q '^validate_cidrs() {' "$guest_lib" || fail 'bootstrap guest inputs block not found'
+grep -q '^validate_admin() {' "$guest_lib" || fail 'bootstrap validate_admin not found in the guest inputs block'
+guest_accepts() { # function env-assignment...
+  local fn="$1"
+  shift
+  env -u SSH_ALLOWED_CIDRS -u ADMIN_USER -u ADMIN_PUBLIC_KEY "$@" \
+    bash -c 'set -Eeuo pipefail; source "$1"; "$2"' _ "$guest_lib" "$fn" >/dev/null 2>&1 \
+    || fail "bootstrap $fn refused: $*"
+}
+guest_refuses() { # function expected-message env-assignment...
+  local fn="$1" want="$2" out
+  shift 2
+  if out="$(env -u SSH_ALLOWED_CIDRS -u ADMIN_USER -u ADMIN_PUBLIC_KEY "$@" \
+    bash -c 'set -Eeuo pipefail; source "$1"; "$2"' _ "$guest_lib" "$fn" 2>&1)"; then
+    fail "bootstrap $fn accepted: $*"
+  fi
+  [[ "$out" == *"bootstrap: "*"$want"* ]] || fail "bootstrap $fn refusal for $* does not say '$want': $out"
+}
+for cidrs in 203.0.113.0/24 198.51.100.7/32,2001:db8::/48 10.0.0.0/8 2001:db8::/32 203.0.113.5/24; do
+  guest_accepts validate_cidrs "SSH_ALLOWED_CIDRS=$cidrs"
+done
+guest_refuses validate_cidrs 'SSH_ALLOWED_CIDRS is required'
+guest_refuses validate_cidrs 'SSH_ALLOWED_CIDRS is required' SSH_ALLOWED_CIDRS=
+guest_refuses validate_cidrs 'contains an empty CIDR' SSH_ALLOWED_CIDRS=203.0.113.0/24,,198.51.100.0/24
+for cidrs in '203.0.113.0/24,' ',203.0.113.0/24'; do
+  guest_refuses validate_cidrs 'contains an empty CIDR' "SSH_ALLOWED_CIDRS=$cidrs"
+done
+for cidrs in $'203.0.113.0/24\n198.51.100.0/24' '203.0.113.0/24, 198.51.100.0/24' $'203.0.113.0/24\n'; do
+  guest_refuses validate_cidrs 'without spaces or newlines' "SSH_ALLOWED_CIDRS=$cidrs"
+done
+for cidrs in not-a-cidr 10.0.0.0/7 0.0.0.0/0 2001:db8::/31 ::/0 203.0.113.0/24,10.0.0.0/7 203.0.113.0/24,2001:db8::/31; do
+  guest_refuses validate_cidrs 'invalid or excessively broad CIDR' "SSH_ALLOWED_CIDRS=$cidrs"
+done
+good_key="$(cat "$tmp/id.pub")"
+for admin in deploy _svc a-b_1 abcdefghijklmnopqrstuvwxyz012345; do
+  guest_accepts validate_admin "ADMIN_USER=$admin" "ADMIN_PUBLIC_KEY=$good_key"
+done
+# Structure-aware key builder: one well-formed key per supported type and the
+# malformed variants validate_admin must refuse. EC and RSA bodies are taken
+# from real ssh-keygen keys so their points are on the curve.
+for kind in ecdsa-256 ecdsa-384 ecdsa-521 rsa-3072; do
+  ssh-keygen -q -t "${kind%-*}" -b "${kind#*-}" -N '' -C baseline@test -f "$tmp/key-$kind" >/dev/null || fail "ssh-keygen could not create a $kind key"
+done
+cat > "$tmp/mkkey.py" <<'PY'
+import base64
+import sys
+
+def s(data):
+    return len(data).to_bytes(4, 'big') + data
+
+def mp(value):
+    raw = value.to_bytes((value.bit_length() + 7) // 8, 'big')
+    return s((b'\0' + raw) if raw and raw[0] & 0x80 else raw)
+
+def fields(path):
+    blob = base64.b64decode(open(path).read().split()[1])
+    out, pos = [], 0
+    while pos < len(blob):
+        size = int.from_bytes(blob[pos:pos + 4], 'big')
+        out.append(blob[pos + 4:pos + 4 + size])
+        pos += 4 + size
+    return out
+
+tmp, name = sys.argv[1], sys.argv[2]
+ec = {n: fields(f'{tmp}/key-ecdsa-{n}.pub') for n in (256, 384, 521)}
+rsa = fields(f'{tmp}/key-rsa-3072.pub')
+t256, c256, q256 = ec[256]
+rsa_n = int.from_bytes(rsa[2], 'big')
+rsa_e = int.from_bytes(rsa[1], 'big')
+pk = bytes(range(32))
+app = b'ssh:baseline'
+big = (1 << 1023) | 12345
+bad_y = q256[:-1] + bytes([q256[-1] ^ 1])
+ktype, body = None, None
+def put(t, *parts):
+    global ktype, body
+    ktype, body = t, s(t.encode()) + b''.join(parts)
+
+if name == 'sk-ed25519': put('sk-ssh-ed25519@openssh.com', s(pk), s(app))
+elif name == 'sk-ed25519-canonical': put('sk-ssh-ed25519@openssh.com', s(pk), s(b'ss\0'))
+elif name == 'sk-ed25519-noapp': put('sk-ssh-ed25519@openssh.com', s(pk))
+elif name == 'sk-ed25519-emptyapp': put('sk-ssh-ed25519@openssh.com', s(pk), s(b''))
+elif name == 'sk-ed25519-shortpk': put('sk-ssh-ed25519@openssh.com', s(pk[:31]), s(app))
+elif name == 'sk-ed25519-trailing': put('sk-ssh-ed25519@openssh.com', s(pk), s(app), b'\0')
+elif name == 'ed25519-1': put('ssh-ed25519', s(b'\0'))
+elif name == 'ed25519-33': put('ssh-ed25519', s(pk + b'\0'))
+elif name == 'ed25519-trailing': put('ssh-ed25519', s(pk), b'\0')
+elif name == 'ed25519-truncated': ktype, body = 'ssh-ed25519', s(b'ssh-ed25519') + (64).to_bytes(4, 'big') + pk
+elif name == 'ed25519-cutlen': ktype, body = 'ssh-ed25519', s(b'ssh-ed25519') + b'\0\0'
+elif name == 'ecdsa-curve-mismatch': put('ecdsa-sha2-nistp256', s(b'nistp384'), s(q256))
+elif name == 'ecdsa-off-curve': put('ecdsa-sha2-nistp256', s(c256), s(bad_y))
+elif name == 'ecdsa-compressed': put('ecdsa-sha2-nistp256', s(c256), s(bytes([2]) + q256[1:33]))
+elif name == 'ecdsa-short': put('ecdsa-sha2-nistp256', s(c256), s(q256[:-1]))
+elif name == 'ecdsa-coord-ge-p': put('ecdsa-sha2-nistp256', s(c256), s(b'\4' + b'\xff' * 64))
+elif name == 'ecdsa-trailing': put('ecdsa-sha2-nistp256', s(c256), s(q256), b'\0')
+elif name == 'ecdsa-nistp192': put('ecdsa-sha2-nistp192', s(b'nistp192'), s(b'\4' + bytes(48)))
+elif name == 'sk-ecdsa': put('sk-ecdsa-sha2-nistp256@openssh.com', s(c256), s(q256), s(app))
+elif name == 'sk-ecdsa-emptyapp': put('sk-ecdsa-sha2-nistp256@openssh.com', s(c256), s(q256), s(b''))
+elif name == 'sk-ecdsa-noapp': put('sk-ecdsa-sha2-nistp256@openssh.com', s(c256), s(q256))
+elif name == 'sk-ecdsa-p384': put('sk-ecdsa-sha2-nistp256@openssh.com', s(ec[384][1]), s(ec[384][2]), s(app))
+elif name == 'rsa-512': put('ssh-rsa', mp(65537), mp((1 << 511) | 12345))
+elif name == 'rsa-16400': put('ssh-rsa', mp(65537), mp((1 << 16399) | 12345))
+elif name == 'rsa-negative': put('ssh-rsa', mp(65537), s(big.to_bytes(128, 'big')))
+elif name == 'rsa-e0': put('ssh-rsa', s(b''), mp(rsa_n))
+elif name == 'rsa-trailing': put('ssh-rsa', mp(rsa_e), mp(rsa_n), b'\0')
+elif name == 'rsa-leading-zeros': put('ssh-rsa', s(b'\0\0' + rsa[1]), s(b'\0\0\0' + rsa[2].lstrip(b'\0')))
+elif name == 'rsa-1024': put('ssh-rsa', mp(65537), mp((1 << 1023) | 1))
+elif name == 'rsa-16384': put('ssh-rsa', mp(65537), mp((1 << 16383) | 1))
+elif name == 'rsa-overlong': put('ssh-rsa', mp(rsa_e), s(bytes(2050 - len(rsa[2])) + rsa[2]))
+elif name == 'sk-ed25519-nul': put('sk-ssh-ed25519@openssh.com', s(pk), s(b'ss\0h:x'))
+elif name == 'sk-ecdsa-nul': put('sk-ecdsa-sha2-nistp256@openssh.com', s(c256), s(q256), s(b'ss\0h:x'))
+elif name == 'ecdsa-small-coord':
+    p256 = 2**256 - 2**224 + 2**192 + 2**96 - 1
+    b256 = 0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b
+    y0 = pow(b256, (p256 + 1) // 4, p256)
+    assert y0 * y0 % p256 == b256
+    put('ecdsa-sha2-nistp256', s(c256), s(b'\4' + bytes(32) + y0.to_bytes(32, 'big')))
+elif name == 'ssh-dss': put('ssh-dss', mp(big), mp((1 << 159) | 1), mp(big), mp(big))
+else: sys.exit('unknown key variant ' + name)
+print(ktype, base64.b64encode(body).decode(), 'baseline@test')
+PY
+mkkey() { python3 "$tmp/mkkey.py" "$tmp" "$1" || fail "could not build key variant $1"; }
+b64_ed="${good_key#ssh-ed25519 }"; b64_ed="${b64_ed%% *}"
+tab_key="ssh-ed25519"$'\t'"$b64_ed"$'\t'"baseline@test"
+canonical_key="$(mkkey sk-ed25519-canonical)" || fail 'could not build the canonical key'
+noncanonical_key="$(python3 -c 'import sys
+ktype, payload, comment = sys.argv[1].split()
+if not payload.endswith("AA=="):
+    sys.exit("expected AA== padding for the canonical key")
+print(ktype, payload[:-4] + "AB==", comment)' "$canonical_key")"
+accepted_keys=("$good_key" "$tab_key" "$canonical_key" "ssh-ed25519 $b64_ed")
+for variant in sk-ed25519 sk-ecdsa rsa-leading-zeros rsa-1024 rsa-16384; do
+  key="$(mkkey "$variant")" || fail "could not build key variant $variant"
+  [[ -n "$key" ]] || fail "key variant $variant is empty"
+  accepted_keys+=("$key")
+done
+for kind in ecdsa-256 ecdsa-384 ecdsa-521 rsa-3072; do
+  accepted_keys+=("$(cut -d' ' -f1,2 "$tmp/key-$kind.pub") baseline@test")
+done
+for key in "${accepted_keys[@]}"; do
+  guest_accepts validate_admin ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
+done
+# The accepted values reach the rest of bootstrap unchanged (sudoers, authorized_keys).
+for key in "$good_key" "$tab_key"; do
+  kept="$(env ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key" \
+    bash -c 'set -Eeuo pipefail; source "$1"; validate_admin; printf "%s|%s" "$ADMIN_USER" "$ADMIN_PUBLIC_KEY"' _ "$guest_lib")" \
+    || fail 'bootstrap validate_admin refused the suite key'
+  [[ "$kept" == "deploy|$key" ]] || fail "validate_admin changed the admin values: $kept"
+done
+for admin in '' Deploy 1deploy abcdefghijklmnopqrstuvwxyz0123456 'de ploy'; do
+  guest_refuses validate_admin 'ADMIN_USER is required and must be valid' "ADMIN_USER=$admin" "ADMIN_PUBLIC_KEY=$good_key"
+done
+guest_refuses validate_admin 'ADMIN_USER is required and must be valid' "ADMIN_PUBLIC_KEY=$good_key"
+for key in '' ssh-ed25519 'AAAAC3NzaC1lZDI1NTE5AAAAITest c' 'rsa AAAAB3NzaC1yc2E c' \
+  'ssh-ed25519 ' 'ssh-ed25519  ' 'ssh-ed25519 not*base64 c' 'ssh-ed25519 AAAACw=' 'ssh-ed25519 AAAACw==' \
+  'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5' "ssh-rsa $b64_ed c" "$good_key"$'\n'"ssh-ed25519 $b64_ed evil" "$good_key"$'\r' \
+  "ssh-ed25519"$'\v'"$b64_ed baseline@test" "ssh-ed25519 $b64_ed"$'\xc2\xa0'"baseline@test" "$noncanonical_key"; do
+  guest_refuses validate_admin 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
+done
+# A matching header with a body OpenSSH cannot load is never installed.
+for variant in ed25519-1 ed25519-33 ed25519-trailing ed25519-truncated ed25519-cutlen \
+  sk-ed25519-noapp sk-ed25519-emptyapp sk-ed25519-shortpk sk-ed25519-trailing \
+  ecdsa-curve-mismatch ecdsa-off-curve ecdsa-compressed ecdsa-short ecdsa-coord-ge-p ecdsa-trailing ecdsa-nistp192 \
+  sk-ecdsa-emptyapp sk-ecdsa-noapp sk-ecdsa-p384 \
+  sk-ed25519-nul sk-ecdsa-nul rsa-overlong ecdsa-small-coord \
+  rsa-512 rsa-16400 rsa-negative rsa-e0 rsa-trailing ssh-dss; do
+  key="$(mkkey "$variant")" || fail "could not build key variant $variant"
+  [[ -n "$key" ]] || fail "key variant $variant is empty"
+  guest_refuses validate_admin 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ADMIN_USER=deploy "ADMIN_PUBLIC_KEY=$key"
+done
+printf '%s\n' 'bootstrap guest input checks passed'
+# Sandboxed run of bootstrap-host.sh itself: a copy that differs only in the root
+# check and the /etc/os-release path, run with stub executables for every
+# host-mutating command. Each stub logs its call and exits with a sentinel, so a
+# run stops at the first host change (nothing after it, including redirections
+# into /etc that a PATH stub cannot intercept, ever runs, even as root).
+sandbox="$tmp/bootstrap-sandbox"
+mkdir -p "$sandbox/bin"
+sbx_osrel="$sandbox/os-release"
+printf -v sbx_osrel_q '%q' "$sbx_osrel"
+sbx_sentinel=97
+root_check="[[ \${EUID:-999} -eq 0 ]] || die 'must run as root'"
+[[ "$(grep -cxF -- "$root_check" "$bootstrap")" == 1 ]] || fail 'bootstrap root check not found exactly once'
+osrel_lines="$(grep -cF -- '/etc/os-release' "$bootstrap" || true)"
+((osrel_lines >= 2)) || fail 'bootstrap must read /etc/os-release at least twice'
+while IFS= read -r line || [[ -n "$line" ]]; do
+  if [[ "$line" == "$root_check" ]]; then
+    printf '%s\n' ':'
+  else
+    printf '%s\n' "${line//\/etc\/os-release/"$sbx_osrel_q"}"
+  fi
+done < "$bootstrap" > "$sandbox/bootstrap-host.sh"
+! grep -qF -- '/etc/os-release' "$sandbox/bootstrap-host.sh" || fail 'the sandbox copy still reads /etc/os-release'
+sbx_diff="$(diff "$bootstrap" "$sandbox/bootstrap-host.sh" || true)"
+[[ "$(grep -c '^<' <<<"$sbx_diff")" == "$((osrel_lines + 1))" && "$(grep -c '^>' <<<"$sbx_diff")" == "$((osrel_lines + 1))" ]] \
+  || fail "the sandbox copy differs from bootstrap beyond the root check and os-release path: $sbx_diff"
+cat > "$sandbox/stub" <<'STUB'
+#!/usr/bin/env bash
+{ printf '%s' "${0##*/}"; for a in "$@"; do printf ' %s' "$a"; done; printf '\n'; } >> "$MUTATION_LOG"
+exit 97
+STUB
+chmod +x "$sandbox/stub"
+for stub_name in apt-get install curl gpg chmod chown dpkg systemctl useradd visudo sshd ufw iptables ip6tables mv rm; do
+  cp "$sandbox/stub" "$sandbox/bin/$stub_name"
+done
+sbx_base=("SSH_ALLOWED_CIDRS=203.0.113.0/24" "ADMIN_USER=deploy" "ADMIN_PUBLIC_KEY=$good_key")
+sbx_run() { # case-name os-id[:version] override...: sets sbx_status, sbx_err, sbx_log. "NAME=v" replaces a base value, "-NAME" unsets it, other NAME=v adds one.
+  local name="$1" os_release="$2" version=24.04 entry key over skip
+  local envs=()
+  shift 2
+  [[ "$os_release" != *:* ]] || version="${os_release#*:}"
+  printf 'ID=%s\nVERSION_ID=%s\nVERSION_CODENAME=noble\n' "${os_release%%:*}" "$version" > "$sbx_osrel"
+  for entry in "${sbx_base[@]}"; do
+    key="${entry%%=*}" skip=
+    for over in "$@"; do
+      [[ "${over%%=*}" == "$key" || "$over" == "-$key" ]] && skip=1
+    done
+    [[ -n "$skip" ]] || envs+=("$entry")
+  done
+  for over in "$@"; do
+    [[ "$over" == -* ]] || envs+=("$over")
+  done
+  : > "$sandbox/log"
+  sbx_status=0
+  env -i PATH="$sandbox/bin:$PATH" MUTATION_LOG="$sandbox/log" \
+    MAWAREETH_PUBLIC_WEB_STATE="$tmp/public-web-sources" MAWAREETH_UFW_DEFAULTS="$tmp/ufw-defaults" \
+    "${envs[@]}" "$BASH" "$sandbox/bootstrap-host.sh" >"$sandbox/out" 2>"$sandbox/err" || sbx_status=$?
+  sbx_err="$(cat "$sandbox/err")"
+  sbx_log="$(cat "$sandbox/log")"
+  : "$name"
+}
+sbx_accepts() { # case-name os-id[:version] override...
+  local name="$1"
+  sbx_run "$@"
+  [[ "$sbx_status" == "$sbx_sentinel" && "$sbx_log" == 'apt-get update' ]] \
+    || fail "sandbox case '$name': expected the first host change to be 'apt-get update' (status $sbx_sentinel), got status $sbx_status, log '$sbx_log', stderr '$sbx_err'"
+}
+sbx_refuses() { # case-name expected-message os-id[:version] override...
+  local name="$1" want="$2"
+  shift 2
+  sbx_run "$name" "$@"
+  [[ "$sbx_status" == 1 && "$sbx_err" == *"bootstrap: "*"$want"* && -z "$sbx_log" ]] \
+    || fail "sandbox case '$name': expected exit 1 with '$want' and no host change, got status $sbx_status, stderr '$sbx_err', log '$sbx_log'"
+}
+sbx_accepts 'valid input' ubuntu
+sbx_accepts 'valid Cloudflare input' ubuntu PUBLIC_WEB_SOURCES=cloudflare "PUBLIC_WEB_RANGES=$cf_csv"
+sbx_refuses 'missing CIDRs' 'SSH_ALLOWED_CIDRS is required' ubuntu -SSH_ALLOWED_CIDRS
+sbx_refuses 'trailing comma CIDR' 'contains an empty CIDR' ubuntu 'SSH_ALLOWED_CIDRS=203.0.113.0/24,'
+sbx_refuses 'broad CIDR' 'invalid or excessively broad CIDR' ubuntu SSH_ALLOWED_CIDRS=0.0.0.0/0
+sbx_refuses 'bad web mode' 'PUBLIC_WEB_SOURCES must be any or cloudflare' ubuntu PUBLIC_WEB_SOURCES=bogus
+sbx_refuses 'cloudflare without ranges' 'PUBLIC_WEB_RANGES' ubuntu PUBLIC_WEB_SOURCES=cloudflare
+sbx_refuses 'bad admin user' 'ADMIN_USER is required and must be valid' ubuntu ADMIN_USER=Root
+sbx_refuses 'bad admin key' 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ubuntu 'ADMIN_PUBLIC_KEY=ssh-ed25519 AAAA'
+short_key="$(mkkey ed25519-1)" || fail 'could not build the one-byte ed25519 key'
+[[ -n "$short_key" ]] || fail 'the one-byte ed25519 key is empty'
+sbx_refuses 'incomplete admin key body' 'ADMIN_PUBLIC_KEY is required and must be a valid OpenSSH public key' ubuntu "ADMIN_PUBLIC_KEY=$short_key"
+sbx_refuses 'wrong OS' 'Ubuntu 24.04 is required' debian
+sbx_refuses 'wrong Ubuntu version' 'Ubuntu 24.04 is required' ubuntu:22.04
+printf '%s\n' 'bootstrap sandboxed run checks passed'
 # The sudoers file stays today's: sudo's NOPASSWD ALL already admits the
 # command-line variables that provisioning passes.
 need "$bootstrap" "\\nDefaults:%s env_keep += \"SSH_ALLOWED_CIDRS ADMIN_USER ADMIN_PUBLIC_KEY\"\\n' \"\$ADMIN_USER\" \"\$ADMIN_USER\" > \"/etc/sudoers.d/90-\$ADMIN_USER\""
@@ -366,18 +633,45 @@ stub="$tmp/stub"
 mkdir -p "$stub"
 state="$tmp/state" log="$tmp/log"
 mkdir -p "$state"
+touch "$state/firewall"
 cat > "$stub/hcloud" <<'EOF'
 #!/usr/bin/env bash
 set -e
 echo "hcloud $*" >> "$TEST_LOG"
+# Fixture switches: LOOKUP_FAIL / LOOKUP_BAD / LOOKUP_DUP name a resource whose
+# list call fails, answers with a non-array, or returns the match twice;
+# FW_LIST_ATTACH=selector attaches the firewall by label selector at lookup time;
+# FW_PRE=selector attaches it by label selector before the server is protected;
+# FW_FINAL=selector|foreign changes its attachments once the server is protected.
+if [[ "${2:-}" == list ]]; then
+  if [[ "${LOOKUP_FAIL:-}" == "$1" ]]; then echo 'Error: unauthorized' >&2; exit 1; fi
+  if [[ "${LOOKUP_BAD:-}" == "$1" ]]; then printf '{"error":"unexpected"}\n'; exit 0; fi
+  attached='[]'
+  if [[ "${FW_LIST_ATTACH:-}" == selector ]]; then attached='[{"type":"label_selector","label_selector":{"selector":"env=prod"}}]'; fi
+  entry=''
+  case "$1" in
+    server) if [[ -e "$TEST_STATE/server" ]]; then entry='{"id":2,"name":"baseline-test","server_type":{"name":"cx33"},"location":{"name":"nbg1"},"image":{"name":"ubuntu-24.04"},"labels":{"mawareeth_host_baseline":"1"}}'; fi ;;
+    ssh-key) if [[ -e "$TEST_STATE/key" ]]; then entry="{\"id\":3,\"name\":\"baseline-test-key\",\"public_key\":\"$TEST_PUBLIC_KEY\"}"; fi ;;
+    firewall) if [[ -e "$TEST_STATE/firewall" ]]; then entry="{\"id\":1,\"name\":\"baseline-test-edge\",\"applied_to\":$attached}"; fi ;;
+  esac
+  if [[ "${LOOKUP_DUP:-}" == "$1" && -n "$entry" ]]; then entry="$entry,$entry"; fi
+  printf '[{"id":9,"name":"unrelated","applied_to":[]}%s]\n' "${entry:+,$entry}"
+  exit 0
+fi
 case "$1 $2 $3" in
-  "ssh-key describe baseline-test-key") [[ -e "$TEST_STATE/key" ]] || exit 1; printf '{"ssh_key":{"public_key":"%s"}}\n' "$TEST_PUBLIC_KEY" ;;
   "ssh-key create --name") touch "$TEST_STATE/key" ;;
-  "firewall describe baseline-test-edge") printf '{"firewall":{"id":1,"applied_to":[]}}\n' ;;
-  "firewall create --name") : ;;
+  "firewall describe baseline-test-edge")
+    attached='[]'
+    if [[ ( ! -e "$TEST_STATE/protected" && "${FW_PRE:-}" == selector ) ||
+          ( -e "$TEST_STATE/protected" && "${FW_FINAL:-}" == selector ) ]]; then
+      attached='[{"type":"label_selector","label_selector":{"selector":"env=prod"}}]'
+    fi
+    if [[ -e "$TEST_STATE/protected" && "${FW_FINAL:-}" == foreign ]]; then attached='[{"type":"server","server":{"id":99}}]'; fi
+    printf '{"firewall":{"id":1,"applied_to":%s}}\n' "$attached" ;;
+  "firewall create --name") touch "$TEST_STATE/firewall" ;;
   "server describe baseline-test") [[ -e "$TEST_STATE/server" ]] || exit 1; printf '{"server":{"id":2,"server_type":{"name":"cx33"},"datacenter":{"location":{"name":"nbg1"}},"image":{"name":"ubuntu-24.04"},"labels":{"mawareeth_host_baseline":"1"}}}\n' ;;
   "server create --name") touch "$TEST_STATE/server" ;;
-  "server enable-protection baseline-test") : ;;
+  "server enable-protection baseline-test") touch "$TEST_STATE/protected" ;;
   "server apply-to-resource baseline-test-edge") : ;;
   "server ip baseline-test") printf '203.0.113.10\n' ;;
   "action wait 1") : ;;
@@ -393,26 +687,91 @@ cat > "$stub/jq" <<'EOF'
 #!/usr/bin/env bash
 args="$*"
 case "$args" in
-  # Piped from hcloud: drain stdin so the writer never gets SIGPIPE under pipefail.
-  *'(.ssh_key // .).public_key'*) cat >/dev/null; printf '%s\n' "$TEST_PUBLIC_KEY" ;;
-  *'(.firewall // .).id'*) printf '1\n' ;;
-  *'(.server // .).server_type.name'*) printf 'cx33\n' ;;
-  *'(.location.name // .datacenter.location.name)'*) printf 'nbg1\n' ;;
-  *'(.server // .).image.name'*) printf 'ubuntu-24.04\n' ;;
-  *'(.server // .).labels.mawareeth_host_baseline'*) printf '1\n' ;;
-  *'.actions[]?.id'*) printf '1\n' ;;
-  *'length > 0'*) exit 1 ;;
-  *'all((.firewall // .).applied_to'*) exit 0 ;;
-  *'applied_to'*) exit 1 ;;
   # The rules payload: record the arguments, and render it with real jq when available.
   *'--argjson ssh_sources'*)
     printf '%s\n' "$@" > "$TEST_STATE/payload-args"
     if [[ -n "${REAL_JQ:-}" ]]; then "$REAL_JQ" "$@" | tee "$TEST_STATE/payload.json"
-    else printf '{"rules": [{"port": "80"}, {"port": "443"}, {"port": "22"}]}'; fi ;;
-  *'-R .'*) cat | sed 's/.*/"&"/' ;;
-  *'-s .'*) cat >/dev/null; printf '["198.51.100.0/24"]' ;;
-  *) cat ;;
+    else printf '{"rules": [{"port": "80"}, {"port": "443"}, {"port": "22"}]}'; fi
+    exit ;;
+  *'-R .'*) cat | sed 's/.*/"&"/'; exit ;;
+  *'-s .'*) cat >/dev/null; printf '["198.51.100.0/24"]'; exit ;;
 esac
+# Everything else runs the real program on the fixtures; without jq, a stand-in
+# that knows exactly the programs provision-host.sh uses.
+if [[ -n "${REAL_JQ:-}" ]]; then exec "$REAL_JQ" "$@"; fi
+fallback="$(cat <<'PY'
+import json
+import sys
+
+argv = sys.argv[1:]
+named = {}
+program = None
+i = 0
+while i < len(argv):
+    arg = argv[i]
+    if arg == '--arg':
+        named[argv[i + 1]] = argv[i + 2]
+        i += 3
+        continue
+    if arg in ('-c', '-r', '-e'):
+        i += 1
+        continue
+    program = arg
+    i += 1
+try:
+    data = json.loads(sys.stdin.read())
+except ValueError:
+    sys.exit(2)
+
+
+def unwrap(doc, key):
+    return doc[key] if isinstance(doc, dict) and doc.get(key) else doc
+
+
+if 'select(.name == $name)' in program:
+    if data is None:
+        data = []
+    if not isinstance(data, list):
+        sys.exit(5)
+    print(json.dumps([d for d in data if d.get('name') == named['name']], separators=(',', ':')))
+elif program == 'length':
+    print(len(data))
+elif program == '.[0]':
+    print(json.dumps(data[0], separators=(',', ':')))
+elif program.startswith('all((.firewall // .).applied_to'):
+    firewall = unwrap(data, 'firewall')
+    ok = all(a.get('type') == 'server' and str(a['server']['id']) == named['server_id'] for a in firewall.get('applied_to') or [])
+    sys.exit(0 if ok else 1)
+elif program.startswith('(.firewall // .).applied_to[]? | select'):
+    firewall = unwrap(data, 'firewall')
+    hit = [a for a in firewall.get('applied_to') or [] if a.get('type') == 'server' and str(a['server']['id']) == named['server_id']]
+    sys.exit(0 if hit else 1)
+elif program == '(.firewall // .).id':
+    print(unwrap(data, 'firewall')['id'])
+elif program == '(.server // .).id':
+    print(unwrap(data, 'server')['id'])
+elif program == '.id':
+    print(data['id'])
+elif program == '.public_key':
+    print(data['public_key'])
+elif program == '.server_type.name':
+    print(data['server_type']['name'])
+elif program == '.location.name // .datacenter.location.name':
+    print((data.get('location') or data['datacenter']['location'])['name'])
+elif program == '.image.name':
+    print(data['image']['name'])
+elif program == '.labels.mawareeth_host_baseline // empty':
+    value = (data.get('labels') or {}).get('mawareeth_host_baseline')
+    if value is not None:
+        print(value)
+elif program.startswith('[.actions[]?.id'):
+    print(1)
+else:
+    sys.stderr.write('jq stub: unsupported program: %s\n' % program)
+    sys.exit(3)
+PY
+)"
+exec python3 -c "$fallback" "$@"
 EOF
 cat > "$stub/ssh" <<'EOF'
 #!/usr/bin/env bash
@@ -437,7 +796,7 @@ SSH_ALLOWED_CIDRS=198.51.100.0/24
 EOF
 chmod 600 "$tmp/valid-config"
 provision_with() { # config [provision script], stubbed; extra arguments are ignored
-  TEST_LOG="$log" TEST_STATE="$state" TEST_PUBLIC_KEY="$pub" REAL_JQ="$real_jq" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$1" bash "${2:-$provision}"
+  TEST_LOG="$log" TEST_STATE="${CASE_STATE:-$state}" TEST_PUBLIC_KEY="$pub" REAL_JQ="$real_jq" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$1" bash "${2:-$provision}"
 }
 provision_with "$tmp/valid-config"
 provision_with "$tmp/valid-config"
@@ -502,6 +861,30 @@ provision_refuses() { # expected-name config [provision script]
 { cat "$tmp/valid-config"; printf 'PUBLIC_WEB_SOURCES=other\n'; } > "$tmp/bad-mode-config"
 chmod 600 "$tmp/bad-mode-config"
 provision_refuses PUBLIC_WEB_SOURCES "$tmp/bad-mode-config"
+for bad in 'not-a-cidr:invalid or excessively broad CIDR' '203.0.113.0/24,:contains an empty CIDR' ',203.0.113.0/24:contains an empty CIDR' $'203.0.113.0/24\n198.51.100.0/24:without spaces or newlines' '203.0.113.0/24, 198.51.100.0/24:without spaces or newlines'; do
+  { sed '/^SSH_ALLOWED_CIDRS=/d' "$tmp/valid-config"; printf 'SSH_ALLOWED_CIDRS=%q\n' "${bad%:*}"; } > "$tmp/bad-cidr-config"
+  chmod 600 "$tmp/bad-cidr-config"
+  provision_refuses "${bad##*:}" "$tmp/bad-cidr-config"
+done
+for bad in SERVER_NAME=12345 HETZNER_SSH_KEY_NAME=42 FIREWALL_NAME=7; do
+  { sed "/^${bad%%=*}=/d" "$tmp/valid-config"; printf '%s\n' "$bad"; } > "$tmp/digit-config"
+  chmod 600 "$tmp/digit-config"
+  provision_refuses "${bad%%=*} must not be all digits" "$tmp/digit-config"
+done
+{ sed -e '/^SERVER_NAME=/d' -e '/^HETZNER_SSH_KEY_NAME=/d' "$tmp/valid-config"; printf 'SERVER_NAME=web1\nHETZNER_SSH_KEY_NAME=2026-key\nFIREWALL_NAME=1-edge\n'; } > "$tmp/digit-ok-config"
+chmod 600 "$tmp/digit-ok-config"
+# The hcloud stub only knows the baseline-test names, so this run proves only
+# that names with a non-digit pass validation and that the configured names, not
+# defaults, reach the Hetzner create calls.
+: > "$log"
+CASE_STATE="$tmp/digit-ok-state"
+mkdir -p "$CASE_STATE"
+out="$(provision_with "$tmp/digit-ok-config" 2>&1)" || true
+unset CASE_STATE
+[[ "$out" != *'must not be all digits'* && "$out" != *' is invalid'* ]] || fail "names with a non-digit were refused: $out"
+for call in 'hcloud ssh-key create --name 2026-key ' 'hcloud firewall create --name 1-edge'; do
+  grep -Fq -- "$call" "$log" || fail "names with a non-digit did not reach '$call': $out"
+done
 copy="$tmp/ranges-copy"
 mkdir -p "$copy"
 cp "$provision" "$copy/provision-host.sh"
@@ -544,31 +927,15 @@ set -e
 echo "hcloud $*" >> "$TEST_LOG"
 server_type=cx33; [[ "${MISMATCH_MODE:-}" == server ]] && server_type=cx22
 key_value="$TEST_PUBLIC_KEY"; [[ "${MISMATCH_MODE:-}" == key ]] && key_value='ssh-ed25519 AAAADIFFERENTKEYDATA different@test'
+attached='[]'; [[ "${MISMATCH_MODE:-}" == firewall ]] && attached='[{"type":"server","server":{"id":99}}]'
 case "$1 $2 $3" in
-  "ssh-key describe baseline-test-key") printf '{"ssh_key":{"public_key":"%s"}}\n' "$key_value" ;;
-  "firewall describe baseline-test-edge") printf '{"firewall":{"id":1,"applied_to":[]}}\n' ;;
-  "server describe baseline-test") printf '{"server":{"id":2,"server_type":{"name":"%s"},"datacenter":{"location":{"name":"nbg1"}},"image":{"name":"ubuntu-24.04"},"labels":{"mawareeth_host_baseline":"1"}}}\n' "$server_type" ;;
+  "ssh-key list -o") printf '[{"id":3,"name":"baseline-test-key","public_key":"%s"}]\n' "$key_value" ;;
+  "firewall list -o") printf '[{"id":1,"name":"baseline-test-edge","applied_to":%s}]\n' "$attached" ;;
+  "server list -o") printf '[{"id":2,"name":"baseline-test","server_type":{"name":"%s"},"location":{"name":"nbg1"},"image":{"name":"ubuntu-24.04"},"labels":{"mawareeth_host_baseline":"1"}}]\n' "$server_type" ;;
   *) exit 0 ;;
 esac
 EOF
-cat > "$mismatch_stub/jq" <<'EOF'
-#!/usr/bin/env bash
-args="$*"
-server_type=cx33; [[ "${MISMATCH_MODE:-}" == server ]] && server_type=cx22
-key_value="$TEST_PUBLIC_KEY"; [[ "${MISMATCH_MODE:-}" == key ]] && key_value='ssh-ed25519 AAAADIFFERENTKEYDATA different@test'
-case "$args" in
-  # Piped from hcloud: drain stdin so the writer never gets SIGPIPE under pipefail.
-  *'(.ssh_key // .).public_key'*) cat >/dev/null; printf '%s\n' "$key_value" ;;
-  *'(.server // .).server_type.name'*) printf '%s\n' "$server_type" ;;
-  *'(.location.name // .datacenter.location.name)'*) printf 'nbg1\n' ;;
-  *'(.server // .).image.name'*) printf 'ubuntu-24.04\n' ;;
-  *'(.server // .).labels.mawareeth_host_baseline'*) printf '1\n' ;;
-  *'(.server // .).id'*) printf '1\n' ;;
-  *'length > 0'*) exit 1 ;;
-  *'all((.firewall // .).applied_to'*) if [[ "${MISMATCH_MODE:-}" == firewall ]]; then exit 1; else exit 0; fi ;;
-  *) cat ;;
-esac
-EOF
+cp "$stub/jq" "$mismatch_stub/jq"
 cat > "$mismatch_stub/curl" <<'EOF'
 #!/usr/bin/env bash
 echo "curl $*" >> "$TEST_LOG"
@@ -577,9 +944,163 @@ EOF
 chmod +x "$mismatch_stub"/*
 for mode in server key firewall; do
   mismatch_log="$tmp/mismatch-log-$mode"
-  if MISMATCH_MODE="$mode" TEST_LOG="$mismatch_log" TEST_PUBLIC_KEY="$pub" PATH="$mismatch_stub:$PATH" HOST_BASELINE_CONFIG="$tmp/valid-config" bash "$provision" >/dev/null 2>&1; then
+  if out="$(MISMATCH_MODE="$mode" TEST_LOG="$mismatch_log" TEST_PUBLIC_KEY="$pub" PATH="$mismatch_stub:$PATH" HOST_BASELINE_CONFIG="$tmp/valid-config" bash "$provision" 2>&1)"; then
     fail "conflicting $mode was accepted instead of aborting for an operator decision"
   fi
-  grep -Eq -- 'server create|enable-protection|apply-to-resource|^curl ' "$mismatch_log" 2>/dev/null && fail "conflict detection for $mode mutated provider state instead of aborting first"
+  case "$mode" in
+    server) expected='existing server is conflicting or not managed by this baseline; operator decision required' ;;
+    key) expected='existing SSH-key identity has different public key; operator decision required' ;;
+    firewall) expected='configured firewall is shared with another server; operator decision required' ;;
+  esac
+  [[ "$out" == *"$expected"* ]] || fail "expected \"$expected\", got: $out"
+  grep -Eq -- 'ssh-key create|firewall create|server create|enable-protection|apply-to-resource|^curl ' "$mismatch_log" 2>/dev/null && fail "conflict detection for $mode mutated provider state instead of aborting first"
 done
 printf '%s\n' 'conflict/drift detection checks passed'
+
+# Hetzner lookups, shared-firewall detection and SSH key file checks. Each case
+# gets its own state directory; the stub log records every provider call.
+case_n=0
+fresh_state() { # [existing...]: a new state directory holding marker files for resources that already exist
+  case_n=$((case_n + 1))
+  CASE_STATE="$tmp/case-state-$case_n"
+  mkdir -p "$CASE_STATE"
+  local marker
+  for marker in "$@"; do touch "$CASE_STATE/$marker"; done
+  : > "$log"
+}
+# The run must have failed with the message, without the token in it.
+stops_with() { # expected-message output
+  [[ "$2" == *"$1"* ]] || fail "expected \"$1\", got: $2"
+  [[ "$2" != *redacted* ]] || fail 'refusal printed the Hetzner token'
+}
+no_changes() { # label: nothing changed at the provider or reached the host
+  ! grep -Eq "^(hcloud (ssh-key create|firewall create|server create|server enable-protection|server apply-to-resource|firewall apply-to-resource)|curl |ssh |scp )" "$log" \
+    || fail "$1 changed provider state or reached the host: $(grep -E '^(hcloud (ssh-key create|firewall create|server create|server enable-protection|server apply-to-resource|firewall apply-to-resource)|curl |ssh |scp )' "$log" | head -n 1)"
+}
+lookup_msg() { printf 'could not look up Hetzner %s "%s"; check HETZNER_TOKEN and connectivity' "$1" "$2"; }
+
+# An auth failure, or output that is not an array, on any of the three lookups
+# stops the run before every provider change; absence is never assumed.
+for lookup in 'server:server:baseline-test' 'ssh-key:SSH key:baseline-test-key' 'firewall:firewall:baseline-test-edge'; do
+  IFS=: read -r resource label name <<<"$lookup"
+  for failure in LOOKUP_FAIL LOOKUP_BAD; do
+    fresh_state
+    out="$(env "$failure=$resource" CASE_STATE="$CASE_STATE" TEST_LOG="$log" TEST_STATE="$CASE_STATE" TEST_PUBLIC_KEY="$pub" REAL_JQ="$real_jq" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$tmp/valid-config" bash "$provision" 2>&1)" \
+      && fail "$failure on the $resource lookup was accepted"
+    stops_with "$(lookup_msg "$label" "$name")" "$out"
+    no_changes "$failure on the $resource lookup"
+  done
+done
+# Two entries with the name: an operator decision, not a guess.
+for lookup in 'server:server' 'ssh-key:SSH key' 'firewall:firewall'; do
+  IFS=: read -r resource label <<<"$lookup"
+  fresh_state server key firewall
+  out="$(env LOOKUP_DUP="$resource" TEST_LOG="$log" TEST_STATE="$CASE_STATE" TEST_PUBLIC_KEY="$pub" REAL_JQ="$real_jq" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$tmp/valid-config" bash "$provision" 2>&1)" \
+    && fail "an ambiguous $resource name was accepted"
+  stops_with "Hetzner $label" "$out"
+  stops_with 'is ambiguous' "$out"
+  no_changes "the ambiguous $resource name"
+done
+# A firewall attached through a label selector is shared, even for an existing
+# server, and refused before the rules are replaced.
+fresh_state server key firewall
+out="$(FW_LIST_ATTACH=selector provision_with "$tmp/valid-config" 2>&1)" && fail 'a selector-attached firewall was accepted for an existing server'
+stops_with 'configured firewall is shared with another server; operator decision required' "$out"
+no_changes 'the selector firewall on an existing server'
+# With no server yet, any attachment at all is another server's.
+fresh_state firewall
+out="$(FW_LIST_ATTACH=selector provision_with "$tmp/valid-config" 2>&1)" && fail 'a selector-attached firewall was accepted for a new server'
+stops_with 'configured firewall is already attached to another server; operator decision required' "$out"
+no_changes 'the selector firewall on a new server'
+# A selector that appears after lookup is refused before the rules are replaced.
+fresh_state server key firewall
+out="$(FW_PRE=selector provision_with "$tmp/valid-config" 2>&1)" && fail 'a selector attachment on the pre-set_rules refresh was accepted'
+stops_with 'configured firewall is shared with another server; operator decision required' "$out"
+! grep -q '^curl ' "$log" || fail 'the selector attachment on the pre-set_rules refresh still reached set_rules'
+# A selector or a foreign server that appears only on the final refresh stops
+# the run before the firewall is applied.
+for final in selector foreign; do
+  fresh_state server key firewall
+  out="$(FW_FINAL="$final" provision_with "$tmp/valid-config" 2>&1)" && fail "a $final attachment on the final refresh was accepted"
+  stops_with 'configured firewall is shared with another server; operator decision required' "$out"
+  ! grep -q 'apply-to-resource' "$log" || fail "the $final attachment on the final refresh still reached apply-to-resource"
+done
+unset CASE_STATE
+# A fresh project creates the key, firewall and server; a repeat run creates none.
+fresh_state
+provision_with "$tmp/valid-config" >/dev/null
+for created in 'ssh-key create --name baseline-test-key' 'firewall create --name baseline-test-edge' 'server create --name baseline-test'; do need "$log" "$created"; done
+awk '/^hcloud firewall create --name baseline-test-edge$/ { created = 1 } /^curl / { ordered = created; exit } END { exit !ordered }' "$log" \
+  || fail 'the firewall was not created before the first curl call'
+: > "$log"
+provision_with "$tmp/valid-config" >/dev/null
+! grep -Eq '(ssh-key|firewall|server) create' "$log" || fail 'a repeat run created a resource that already exists'
+unset CASE_STATE
+
+# SSH key files: the private key must be a private regular file, the public key
+# must not be writable by others, and an encrypted key is refused without a prompt.
+key_config() { # name private-key public-key -> config path
+  sed -e "s|^ADMIN_SSH_PRIVATE_KEY=.*|ADMIN_SSH_PRIVATE_KEY=$2|" -e "s|^SSH_PUBLIC_KEY=.*|SSH_PUBLIC_KEY=$3|" "$tmp/valid-config" > "$tmp/$1-config"
+  chmod 600 "$tmp/$1-config"
+  printf '%s' "$tmp/$1-config"
+}
+cp "$tmp/pair" "$tmp/loose-pair"
+chmod 644 "$tmp/loose-pair"
+provision_refuses 'ADMIN_SSH_PRIVATE_KEY must be a regular file not accessible by group or others (chmod 600)' "$(key_config loose-private "$tmp/loose-pair" "$tmp/pair.pub")"
+chmod 640 "$tmp/loose-pair"
+provision_refuses 'ADMIN_SSH_PRIVATE_KEY must be a regular file not accessible by group or others (chmod 600)' "$(key_config loose-private "$tmp/loose-pair" "$tmp/pair.pub")"
+mkdir -p "$tmp/key-dir"
+provision_refuses 'ADMIN_SSH_PRIVATE_KEY must be a regular file not accessible by group or others (chmod 600)' "$(key_config dir-private "$tmp/key-dir" "$tmp/pair.pub")"
+cp "$tmp/pair.pub" "$tmp/loose.pub"
+chmod 664 "$tmp/loose.pub"
+provision_refuses 'SSH_PUBLIC_KEY must be a regular file not writable by group or others' "$(key_config loose-public "$tmp/pair" "$tmp/loose.pub")"
+provision_refuses 'SSH_PUBLIC_KEY must be a regular file not writable by group or others' "$(key_config dir-public "$tmp/pair" "$tmp/key-dir")"
+# A read-only public key is fine (0644 is the usual mode of a .pub file).
+chmod 644 "$tmp/pair.pub"
+fresh_state server key firewall
+provision_with "$tmp/valid-config" >/dev/null || fail 'a 0644 public key was refused'
+unset CASE_STATE
+# An encrypted private key gets its own refusal, with no prompt and no hang.
+ssh-keygen -q -t ed25519 -N testpass -f "$tmp/encrypted-pair"
+fresh_state
+out="$(TEST_LOG="$log" TEST_STATE="$CASE_STATE" TEST_PUBLIC_KEY="$pub" REAL_JQ="$real_jq" PATH="$stub:$PATH" HOST_BASELINE_CONFIG="$(key_config encrypted "$tmp/encrypted-pair" "$tmp/encrypted-pair.pub")" timeout 20 bash "$provision" </dev/null 2>&1)" \
+  && fail 'an encrypted private key was accepted'
+stops_with 'ADMIN_SSH_PRIVATE_KEY is passphrase-protected; provisioning needs a key usable without a prompt' "$out"
+! grep -Eq '^(hcloud|curl|ssh|scp) ' "$log" || fail 'the encrypted-key refusal contacted Hetzner first'
+unset CASE_STATE
+# Any other unusable key keeps the existing message.
+printf 'not a key\n' > "$tmp/garbage-key"
+chmod 600 "$tmp/garbage-key"
+provision_refuses 'ADMIN_SSH_PRIVATE_KEY is not a usable private key' "$(key_config garbage "$tmp/garbage-key" "$tmp/pair.pub")"
+printf '%s\n' 'hetzner lookup and key file checks passed'
+
+# Apt signing-key pin: bootstrap's apt key pin block, run against the committed
+# copies of the real vendor keys (no network).
+fixtures="$root/deploy/tests/fixtures"
+[[ "$(grep -c '^# >>> apt key pin' "$bootstrap"):$(grep -c '^# <<< apt key pin' "$bootstrap")" == 1:1 ]] || fail 'bootstrap must have exactly one apt key pin marker pair'
+(($(grep -n '^# >>> apt key pin' "$bootstrap" | cut -d: -f1) < $(grep -n '^# <<< apt key pin' "$bootstrap" | cut -d: -f1))) || fail 'the apt key pin markers are out of order'
+pin_lib="$tmp/apt-key-pin.sh"
+sed -n '/^# >>> apt key pin/,/^# <<< apt key pin/p' "$bootstrap" > "$pin_lib"
+grep -q '^key_fingerprint_matches() {' "$pin_lib" || fail 'bootstrap apt key pin block not found'
+need "$pin_lib" 'docker_key_fingerprint=9DC858229FC7DD38854AE2D88D81803C0EBFCD88'
+pin_matches() { bash -c 'set -Eeuo pipefail; source "$1"; key_fingerprint_matches "$2" "$3"' _ "$pin_lib" "$@" >/dev/null 2>&1; }
+docker_pin=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+pin_matches "$fixtures/docker-archive-keyring.asc" "$docker_pin" || fail 'the genuine Docker key was refused'
+pin_matches "$fixtures/tailscale-archive-keyring.gpg" 2596A99EAAB33821893C0A79458CA832957F5868 || fail 'the helper refused the genuine Tailscale key against its own pin'
+pin_matches "$fixtures/tailscale-archive-keyring.gpg" "$docker_pin" && fail 'a different valid key was accepted as the Docker key'
+gpg --batch --dearmor < "$fixtures/docker-archive-keyring.asc" > "$tmp/two-keys.gpg"
+cat "$fixtures/tailscale-archive-keyring.gpg" >> "$tmp/two-keys.gpg"
+pin_matches "$tmp/two-keys.gpg" "$docker_pin" && fail 'a file with an extra key was accepted'
+: > "$tmp/empty.key"
+pin_matches "$tmp/empty.key" "$docker_pin" && fail 'an empty file was accepted as a key'
+printf 'not a key\n' > "$tmp/text.key"
+pin_matches "$tmp/text.key" "$docker_pin" && fail 'a text file was accepted as a key'
+pin_matches "$tmp/missing.key" "$docker_pin" && fail 'a missing file was accepted as a key'
+(($(line_of 'apt-get install -y --no-install-recommends ca-certificates curl gnupg sudo ufw unattended-upgrades') < $(grep -n 'key_fingerprint_matches "\$docker_key_dir' "$bootstrap" | cut -d: -f1))) || fail 'the Docker key check must come after gnupg is installed'
+key_check_line="$(grep -n 'key_fingerprint_matches "\$docker_key_dir' "$bootstrap" | cut -d: -f1)"
+[[ "$(grep -cE '^key_fingerprint_matches "\$docker_key_dir/docker\.key" "\$docker_key_fingerprint" \|\| die ' "$bootstrap")" == 1 ]] || fail 'bootstrap must call key_fingerprint_matches on the Docker key exactly once, followed by || die'
+(($(grep -n 'download.docker.com/linux/ubuntu/gpg' "$bootstrap" | cut -d: -f1) < key_check_line)) || fail 'the Docker key must be downloaded before it is checked'
+(($(grep -n 'gpg --dearmor' "$bootstrap" | cut -d: -f1) > key_check_line)) || fail 'the Docker key must be checked before gpg --dearmor'
+(($(grep -n 'docker.list' "$bootstrap" | head -n 1 | cut -d: -f1) > key_check_line)) || fail 'the Docker key must be checked before docker.list is written'
+! grep -Eq 'curl .*\| *gpg' "$bootstrap" || fail 'bootstrap must not pipe a downloaded key straight into gpg'
+printf '%s\n' 'apt key pin checks passed'

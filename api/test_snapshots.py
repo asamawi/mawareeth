@@ -1,5 +1,9 @@
 """Release compatibility gate and reader integration coverage."""
 import json
+import os
+import shutil
+import subprocess
+import tempfile
 from copy import deepcopy
 from datetime import timedelta
 from decimal import Decimal
@@ -132,6 +136,49 @@ class SnapshotTests(InterviewHelpers, TestCase):
             self.assertEqual(normalized_body(bodies[0]), normalized_body(bodies[1]))
             self.assertEqual(pdf_calls[0], pdf_calls[1])
 
+    def require_pdf_tools(self, what, error=None):
+        # CI must never skip silently; other hosts skip when the native tools are missing.
+        if os.environ.get('GITHUB_ACTIONS') == 'true':
+            self.fail(f'{what} is required in CI' + (f' ({type(error).__name__}: {error})' if error else ''))
+        self.skipTest(f'{type(error).__name__ if error else "missing"}: {what} unavailable')
+
+    def test_schema_2_saved_cases_render_real_pdfs(self):
+        try:
+            import weasyprint  # noqa: F401
+        except (OSError, ImportError) as error:
+            self.require_pdf_tools('WeasyPrint native libraries', error)
+        if not shutil.which('pdftotext'):
+            self.require_pdf_tools('pdftotext')
+
+        def flat(text):
+            return ' '.join(text.split())
+
+        for name, extra in (('estate', []), ('no-estate', []), ('compare', []),
+                            ('later-deaths', ["Old jami'a multiplier", "New jami'a"])):
+            with self.subTest(name=name):
+                row, share, token, invite = self.readers(fixture(name, 2), 2)
+                headers = {**self.csrf(self.client), 'Accept-Language': 'en'}
+                view = self.client.post('/api/v1/shares/view/', {'token': token}, format='json',
+                                        secure=True, headers=headers)
+                self.assertEqual(view.status_code, 200)
+                rows = view.json()['preview']['presented']['rows']
+                self.assertTrue(rows)
+                response = self.client.post('/api/v1/shares/report/', {'token': token}, format='json',
+                                            secure=True, headers=headers)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response['Content-Type'], 'application/pdf')
+                self.assertTrue(response.content.startswith(b'%PDF'))
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / 'draft.pdf'
+                    path.write_bytes(response.content)
+                    result = subprocess.run(['pdftotext', str(path), '-'], capture_output=True, check=True)
+                text = flat(result.stdout.decode('utf-8'))
+                expected = ['Ali', 'Draft / not certified', *extra]
+                for item in rows:
+                    expected += [item['relationship']['translated']['text'], item['percent']['text']]
+                for needle in expected:
+                    self.assertIn(flat(needle), text)
+
     def invalids(self):
         valid = fixture('estate', 2)
         for basis, code in [({'kind':'school'}, 'invalid_basis'),
@@ -141,7 +188,7 @@ class SnapshotTests(InterviewHelpers, TestCase):
         yield 1, [], 'invalid_snapshot'
         yield 2, {**valid, 'extra': True}, 'invalid_snapshot'
         yield 2, {**valid, 'family': {}}, 'invalid_snapshot'
-        for mutate in ('gifts','currency','answers','edges','bequests','root','no-deceased','zero'):
+        for mutate in ('gifts','currency','answers','bequests','root','no-deceased','zero'):
             value = deepcopy(valid)
             family = value['family']
             if mutate in ('gifts','bequests'):
@@ -150,8 +197,6 @@ class SnapshotTests(InterviewHelpers, TestCase):
                 family['estate']['currency']['code'] = 'USD'
             elif mutate == 'answers':
                 family['answers'] = [{'question':'test', 'person':None, 'value':True}]
-            elif mutate == 'edges':
-                family['edges'] = [{'kind':'parent_of','from':'root','to':'son'}]
             elif mutate == 'root':
                 family['root'] = 'other'; family['estates'][0]['deceased'] = 'other'
             elif mutate == 'no-deceased':
@@ -159,6 +204,94 @@ class SnapshotTests(InterviewHelpers, TestCase):
             else:
                 family['estate']['amount_minor'] = 0
             yield 2, value, 'unsupported_content'
+
+    def lineage(self, name):
+        return fixture(f'lineage-{name}', 2)
+
+    def test_lineage_fixtures_are_lossless_in_v2(self):
+        for name in ('died-before', 'later-deaths'):
+            v2 = self.lineage(name)
+            case = decode(2, v2, 'id', 'time')
+            exported = anonymous_case.export_snapshot(case)
+            self.assertTrue(exported['edges'] and exported['died_before'])
+            self.assertEqual(encode_v2(exported), v2)
+            self.assertEqual(
+                [p['id'] for p in case['persons'] if p['status'] == 'died_before_or_with'],
+                [p['id'] for p in exported['died_before']])
+            self.assertEqual(case['edges'], exported['edges'])
+            self.assertNotIn('omar', [row['id'] for row in case['heirs']])
+        # Exact re-encoding still guards the decoder: a hand-edited edge that the case would drop is refused.
+        broken = self.lineage('died-before')
+        broken['family']['edges'].append({'kind': 'parent_of', 'from': 'omar', 'to': 'omar'})
+        with self.assertRaises(SnapshotError) as error:
+            decode(2, broken, 'id', 'time')
+        self.assertEqual(error.exception.code, 'invalid_snapshot')
+
+    def test_matrix_has_the_lineage_image(self):
+        matrix = json.loads((FIXTURES / 'matrix.json').read_text())
+        self.assertIn('9.1b', matrix[-1]['image'])
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_lineage_round_trips_through_session_saved_case_share_and_invite(self):
+        for name in ('died-before', 'later-deaths'):
+            v2 = self.lineage(name)
+            self.send('post', '/api/v1/case/', {'replace': True})
+            stored = self.put_session(2, v2)
+            case = self.live()
+            self.assertEqual(self.client.session[anonymous_case.SESSION_KEY], stored)
+            self.assertEqual(encode_v2(anonymous_case.export_snapshot(case)), v2)
+            # a session edit writes the lineage back, and a second read sees the same Case
+            edited = self.send('patch', '/api/v1/case/', {'case_id': case['id'], 'madhab': 'hanbali'})
+            self.assertEqual(edited.status_code, 200)
+            again = self.live()
+            self.assertEqual({k: again[k] for k in ('persons', 'edges', 'placement')},
+                             {k: case[k] for k in ('persons', 'edges', 'placement')})
+            saved = self.send('post', '/api/v1/saved-cases/', {'case_id': case['id']})
+            self.assertEqual(saved.status_code, 201, saved.content)
+            row = SavedCase.objects.get(pk=saved.json()['id'])
+            self.assertEqual((row.schema_version, row.snapshot), (2, v2))
+            opened = self.send('post', f'/api/v1/saved-cases/{row.pk}/open/', {})
+            self.assertEqual(opened.status_code, 200)
+            self.assertEqual(encode_v2(anonymous_case.export_snapshot(opened.json()['case'])), v2)
+            row, share, token, invite = self.readers(v2, 2)
+            for response in (self.send('post', '/api/v1/shares/view/', {'token': token}),
+                             self.send('post', f'/api/v1/received/{invite.pk}/view/', {}, self.reader)):
+                self.assertEqual(response.status_code, 200, response.content)
+                body = response.json()['case']
+                self.assertEqual(encode_v2(anonymous_case.export_snapshot(body)), v2)
+                self.assertTrue(body['edges'])
+                self.assertEqual(response.json()['preview']['status'], 'available')
+            SavedCase.objects.all().delete()
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=1)
+    def test_writer_1_refuses_lineage_everywhere_and_changes_nothing(self):
+        v2 = self.lineage('died-before')
+        decode(2, v2, 'id', 'time')
+        self.start()
+        before = deepcopy(self.client.session[anonymous_case.SESSION_KEY])
+        row = SavedCase.objects.create(owner=self.owner, snapshot=v2, schema_version=2)
+        opened = self.send('post', f'/api/v1/saved-cases/{row.pk}/open/', {})
+        self.assertEqual((opened.status_code, opened.json()['code']), (400, 'unsupported_content'))
+        self.assertEqual(self.client.session[anonymous_case.SESSION_KEY], before)
+        with self.assertRaises(SnapshotError) as error:
+            anonymous_case.load_snapshot(self.request_for_session(), anonymous_case.export_snapshot(decode(2, v2, 'id', 'time')))
+        self.assertEqual(error.exception.code, 'unsupported_content')
+        self.assertEqual(self.client.session[anonymous_case.SESSION_KEY], before)
+        # reading is allowed: only persisting is refused
+        self.put_session(2, v2)
+        self.assertTrue(self.live()['edges'])
+        case = self.live()
+        refused = self.send('post', '/api/v1/saved-cases/', {'case_id': case['id']})
+        self.assertEqual((refused.status_code, refused.json()['code']), (400, 'unsupported_content'))
+        self.assertEqual(SavedCase.objects.count(), 1)
+
+    def request_for_session(self):
+        from django.contrib.sessions.backends.db import SessionStore
+        from django.test import RequestFactory
+        request = RequestFactory().get('/')
+        request.session = SessionStore(self.client.session.session_key)
+        request.user = self.owner
+        return request
 
     def test_typed_errors_preserve_rows_and_sessions(self):
         self.start()

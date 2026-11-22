@@ -8,13 +8,14 @@ The release image also contains the Next.js static export (`web-dist/`, built fr
 
 Run runtime operations as root with `sudo`; Docker-group access is root-equivalent and is not the supported operator boundary. Copy the directly installable `runtime.env.example` to `/etc/mawareeth/runtime.env`, keep it `root:root` mode `0600`, and edit it with `sudoedit`. Values use a strict raw `KEY=VALUE` schema: no comments, blank lines, control characters, shell expansion, or extra keys. Compose consumes the generated app snapshot with `env_file.format: raw`, so values are passed literally rather than interpolated. PostgreSQL passwords must contain only URL-safe unreserved characters (`A-Z`, `a-z`, `0-9`, `.`, `_`, `~`, `-`) because the same value is embedded in `DATABASE_URL` without lossy transformation. Keep `DOMAIN` lowercase and within DNS label/total-length limits; `BREVO_SMTP_LOGIN` must also be a valid hostname.
 
-Five optional keys carry the sites-framework ID and social-login credentials. They are left out of `runtime.env.example` so the example stays directly installable without fake OAuth credentials. Any that are present are appended to the app snapshot under the same names, after the standard lines, in this order:
+Six optional keys carry the sites-framework ID, social-login credentials and the Saved-case snapshot writer version. They are left out of `runtime.env.example` so the example stays directly installable without fake OAuth credentials. Any that are present are appended to the app snapshot under the same names, after the standard lines, in this order:
 
 - `SITE_ID`: a positive integer without leading zeros (`^[1-9][0-9]{0,9}$`) and at most `2147483647`, because Django's `Site.id` is a PostgreSQL `integer`. `mawareeth/settings.py` falls back to `1` when it is absent.
 - `FACEBOOK_KEY`: the Facebook **App ID**, 1–32 digits (`^[0-9]{1,32}$`), because settings cast it to `int`.
 - `FACEBOOK_SECRET`: the Facebook **App Secret**.
 - `LINKEDIN_KEY`: the LinkedIn OpenID Connect **Client ID**.
 - `LINKEDIN_SECRET`: the LinkedIn OpenID Connect **Client Secret**.
+- `SNAPSHOT_WRITE_VERSION`: `1` or `2`, the SavedCase snapshot schema new saves are written in. Absent, settings use `1`. Set `2` only with a `--rotate-config` deploy whose rollback slot reads schema 2; `release_check` refuses otherwise (see [Capacity evidence](#capacity-evidence)). Then run `backfill_saved_cases`.
 
 `FACEBOOK_SECRET`, `LINKEDIN_KEY` and `LINKEDIN_SECRET` must each be at most 256 characters with no whitespace (an empty value is refused for every key). `FACEBOOK_KEY` and `FACEBOOK_SECRET` must both be set or both be absent, and so must `LINKEDIN_KEY` and `LINKEDIN_SECRET`. Errors name only the key, never the value. `settings.py` reads them as `SITE_ID`, `SOCIAL_AUTH_FACEBOOK_KEY`/`SOCIAL_AUTH_FACEBOOK_SECRET` and `SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_KEY`/`SOCIAL_AUTH_LINKEDIN_OPENIDCONNECT_SECRET`, and without them falls back to placeholder credentials that break social login.
 
@@ -132,7 +133,7 @@ Compose mounts the Origin certificate directory at `/etc/caddy/origin-tls` in `c
 
 **Refreshing the ranges and roots.** Nothing is fetched at runtime. Check both sources at least quarterly, and whenever Cloudflare announces a change.
 
-- Ranges: `deploy/cloudflare-ips.txt` is the single source, one CIDR per line (IPv4 first, then IPv6; `#` comments allowed). Compare it with <https://www.cloudflare.com/ips-v4> and <https://www.cloudflare.com/ips-v6>. Update the file and its date comment, copy the same ranges in the same order onto the `trusted_proxies static` line of `deploy/caddy/edge/cloudflare/global.caddy` (the offline tests fail while the two differ), then ship it as a normal release, so Caddy picks up the new list. If the host runs with `PUBLIC_WEB_SOURCES=cloudflare`, also rerun provisioning from the same commit (see [Locking the origin to Cloudflare](#locking-the-origin-to-cloudflare)), so the firewalls follow; until then a new Cloudflare range cannot reach the origin. A range missing from the list makes Caddy replace the forwarded headers on that range's connections, so logs show a Cloudflare address instead of the visitor's. A stale range that Cloudflare has given up stays trusted, and whoever holds it can set the forwarded headers. The offline tests and provisioning refuse any range broader than `/8` (IPv4) or `/12` (IPv6).
+- Ranges: `deploy/cloudflare-ips.txt` is the single source, one CIDR per line (IPv4 first, then IPv6; `#` comments allowed). Compare it with <https://www.cloudflare.com/ips-v4> and <https://www.cloudflare.com/ips-v6>. The Cloudflare IP Drift workflow compares the file with the published lists weekly and fails on a difference; `bash deploy/cloudflare-ips-check.sh` runs the same check by hand (exit 0 match, 1 drift, 2 fetch failure). Update the file and its date comment, copy the same ranges in the same order onto the `trusted_proxies static` line of `deploy/caddy/edge/cloudflare/global.caddy` (the offline tests fail while the two differ), then ship it as a normal release, so Caddy picks up the new list. If the host runs with `PUBLIC_WEB_SOURCES=cloudflare`, also rerun provisioning from the same commit (see [Locking the origin to Cloudflare](#locking-the-origin-to-cloudflare)), so the firewalls follow; until then a new Cloudflare range cannot reach the origin. A range missing from the list makes Caddy replace the forwarded headers on that range's connections, so logs show a Cloudflare address instead of the visitor's. A stale range that Cloudflare has given up stays trusted, and whoever holds it can set the forwarded headers. The offline tests and provisioning refuse any range broader than `/8` (IPv4) or `/12` (IPv6).
 - Roots: download `origin_ca_rsa_root.pem` and `origin_ca_ecc_root.pem` from the page above. Check them with `openssl x509 -noout -subject -enddate -fingerprint -sha256`, update the bundle and the table, and ship it as a release before the old roots expire.
 
 ### Locking the origin to Cloudflare
@@ -607,7 +608,7 @@ Mawareeth reuses SCDF's monitoring stack instead of running its own. This host r
 ### Host setup
 
 1. **Install.** `sudo deploy/monitor.sh install` first requires `ufw status` to report `Status: active` (otherwise it exits 1 before changing anything; run the host baseline first). It then does the following:
-   - Adds Tailscale's official signed noble repository (`/etc/apt/keyrings/tailscale-archive-keyring.gpg`, `/etc/apt/sources.list.d/tailscale.list`).
+   - Adds Tailscale's official signed noble repository (`/etc/apt/keyrings/tailscale-archive-keyring.gpg`, `/etc/apt/sources.list.d/tailscale.list`). It downloads the signing key to a temporary file first and installs it only if it holds exactly one primary key with the pinned fingerprint `2596A99EAAB33821893C0A79458CA832957F5868` (Tailscale Inc. package repository signing key); otherwise it exits 1 naming the pin and installs nothing new: a fresh host gets no keyring, apt source, or temporary file, and an existing keyring and source stay unchanged. `bootstrap-host.sh` does the same for Docker's key, pinned to `9DC858229FC7DD38854AE2D88D81803C0EBFCD88` (Docker Release (CE deb)) and refusing before `docker.list` is written. To rotate a pin, check the new key's fingerprint against the vendor's published one, then update the constant (`tailscale_key_fingerprint` in `monitor.sh`, `docker_key_fingerprint` in `bootstrap-host.sh`), the matching key in `deploy/tests/fixtures/`, and the fingerprint literals in `deploy/tests/test_host_baseline.sh` and `deploy/tests/test_monitor.sh`.
    - Installs `tailscale` and `prometheus-node-exporter` (the exporter comes from the Ubuntu archive).
    - Writes `/usr/local/sbin/mawareeth-node-exporter` and the drop-in `/etc/systemd/system/prometheus-node-exporter.service.d/10-mawareeth.conf` (`After=tailscaled.service`, `Restart=always`, `RestartSec=15`). The wrapper reads `tailscale ip -4` and starts the exporter with `--web.listen-address=<that IP>:9100 --collector.textfile.directory=/var/lib/prometheus/node-exporter --collector.systemd`. The systemd collector (off by default in node_exporter) publishes `node_systemd_unit_state` for `MawareethSystemdUnitFailed`; its default exclude list already drops automount, device, mount, scope, and slice units. It adds about 5 series per unit (one per state), a few hundred on this host. Without a Tailscale IPv4 in `100.64.0.0/10` it exits 1 and systemd retries every 15 seconds. It never falls back to `0.0.0.0` or another address. The drop-in replaces the packaged `ExecStart`, so `ARGS` in `/etc/default/prometheus-node-exporter` is ignored.
    - Adds the UFW rule `allow in on tailscale0 from 100.64.0.0/10 to any port 9100 proto tcp`.
@@ -699,6 +700,7 @@ The steps:
 | `MawareethOOMKill` | The kernel OOM killer ran within the last 10 minutes (`increase(node_vmstat_oom_kill[10m]) > 0`); fires at once and resolves 10 minutes after the last kill | warning |
 | `MawareethSystemdUnitFailed` | A systemd unit in the `failed` state for 5 minutes (labelled with the unit `name`), or no `node_systemd_unit_state` series at all for 5 minutes (the exporter runs without `--collector.systemd`; the alert then has no `name`) | warning |
 | `MawareethClockUnsynced` | `node_timex_sync_status == 0`, or `abs(node_timex_offset_seconds) > 0.5`, for 10 minutes | warning |
+| `MawareethHostMetricsMissing` | a `filesystem`, `meminfo`, `vmstat`, or `timex` collector reports `node_scrape_collector_success == 0`, a monitored filesystem reports `node_filesystem_device_error == 1`, or a series the host-health alerts read is absent, for 5 minutes | warning |
 | `MawareethWatchdog` | Always (`vector(1)`). Routed only to the `mawareeth-heartbeat` webhook, never emailed, never inhibited; see [Better Stack heartbeat](#better-stack-heartbeat) | heartbeat |
 
 `deploy/tests/test_monitor.sh` unit-tests these rules with `promtool test rules` and checks the route snippet with `amtool check-config` and `amtool config routes test`. Those checks run only when `promtool` and `amtool` are installed (otherwise only static checks run); with `CI` set, a missing tool fails the suite. The end-to-end path is proven by the operator's [alert-path drill](#alert-path-drill), which must pass on a new host and then every quarter.
@@ -884,6 +886,14 @@ A missing metric fires only after 5 minutes, so a single failed scrape does not 
 2. Make sure exactly one time daemon is active and can reach its NTP servers (UDP 123 outbound), then restart the one in use: `sudo systemctl restart systemd-timesyncd` for systemd-timesyncd, or `sudo systemctl restart chrony` for chrony.
 3. A wrong clock also skews the backup, restore, and drill age rules (and may close `backup.sh gate` as future-dated). Re-check those alerts once the clock is synchronised.
 
+<a id="runbook-mawareethhostmetricsmissing"></a>
+**MawareethHostMetricsMissing.**
+The scrape works, but a node_exporter `filesystem`, `meminfo`, `vmstat`, or `timex` collector is failing, a monitored filesystem reports a device error, or a series the host-health alerts read is absent. Until it is fixed the disk, inode, read-only, memory, OOM, and clock alerts can stay silent. (If the whole scrape is down, `MawareethHostDown` fires instead and suppresses this alert.)
+1. Check which collector fails: `curl -s http://$(tailscale ip -4):9100/metrics | grep node_scrape_collector_success`. A `0` names the failing collector (the alert's `collector` label); a missing line means the exporter is not running that collector.
+2. Read the exporter log: `sudo journalctl -u prometheus-node-exporter -n 100`. Then restart it with `sudo systemctl restart prometheus-node-exporter`, or re-run `sudo deploy/monitor.sh install` if the flags or wrapper are out of date.
+3. With a `mountpoint` label (a device error): run `sudo dmesg -T | tail -50` and `findmnt <mountpoint>` for I/O errors, and check the disk (`smartctl -a`, the provider console). Treat it like the [read-only runbook](#runbook-mawareethfilesystemreadonly).
+4. With neither label, one host-health series is absent: `curl -s http://$(tailscale ip -4):9100/metrics | grep -E '^node_(filesystem_(avail_bytes|size_bytes|files_free|files|readonly)|memory_(MemAvailable|MemTotal|SwapFree|SwapTotal)_bytes|vmstat_oom_kill|timex_(sync_status|offset_seconds))' | grep -E 'fstype="(ext4|xfs|btrfs)"|^node_(memory|vmstat|timex)'` shows which one is missing. A host without swap must still report `node_memory_SwapTotal_bytes 0`.
+
 <a id="runbook-mawareethwatchdog"></a>
 **MawareethWatchdog.**
 This alert always fires by design and is never emailed. If an email for it arrives, the `mawareeth-heartbeat` route is missing or below the project route on `p1`: fix the order (see [Wiring `p1`](#wiring-p1)). If Better Stack reports the heartbeat down:
@@ -1053,9 +1063,9 @@ To remove the mechanism entirely, run `sudo rm -f /etc/sudoers.d/91-mawareeth-de
 
 Run provisioning only from an administrator workstation, never from CI (CI's only production access is the SHA-only deploy in [Deploying from GitHub Actions](#deploying-from-github-actions)), with `bash`, `python3`, `jq`, OpenSSH, and the Hetzner `hcloud` CLI installed. Use a minimally scoped Hetzner token that can manage the one SSH key, firewall, and server. Agree the server name, key identity, SSH source CIDRs, and a weekly maintenance window before running.
 
-Copy `host-baseline.env.example` to `host-baseline.env`; it is ignored by Git. Fill the token, server and key identity, paths to the matching public/private SSH keys, and comma-separated administrator CIDRs. `PUBLIC_WEB_SOURCES` is optional; leave it empty (`any`) unless you are [locking the origin to Cloudflare](#locking-the-origin-to-cloudflare). Keep the config mode 0600. The script refuses missing or malformed input before contacting Hetzner.
+Copy `host-baseline.env.example` to `host-baseline.env`; it is ignored by Git. Fill the token, server and key identity, paths to the matching public/private SSH keys, and comma-separated administrator CIDRs. `PUBLIC_WEB_SOURCES` is optional; leave it empty (`any`) unless you are [locking the origin to Cloudflare](#locking-the-origin-to-cloudflare). Keep the config mode 0600. The private key must be a regular file with mode 600 or stricter (no access for group or others) and must have no passphrase, because provisioning cannot answer a prompt; the public key must be a regular file that is not writable by group or others. The script refuses missing or malformed input, and key files that break these rules, before contacting Hetzner.
 
-Run `bash deploy/provision-host.sh`. The first run creates Ubuntu 24.04 CX33 in `nbg1`, an edge firewall, delete and rebuild protection (the API sets them together), then bootstraps the guest. Re-runs reconcile the firewall, protection, and guest baseline without creating another matching server. An existing server with a different size, location, image, or baseline ownership label aborts for an explicit operator decision.
+Run `bash deploy/provision-host.sh`. The first run creates Ubuntu 24.04 CX33 in `nbg1`, an edge firewall, delete and rebuild protection (the API sets them together), then bootstraps the guest. Re-runs reconcile the firewall, protection, and guest baseline without creating another matching server. An existing server with a different size, location, image, or baseline ownership label aborts for an explicit operator decision. Before any change the script looks up the server, SSH key, and firewall by exact name; a failed lookup (an invalid token, no connectivity, a rate limit) stops the run before anything is created or changed, and a name that matches more than one resource aborts for an operator decision. A firewall attached to any other server, or through a label selector (even one that matches only this host today), also needs an operator decision; detach it yourself first.
 
 ## Access, patching, and break-glass
 
@@ -1148,25 +1158,32 @@ Use the active slot in the same Compose/runtime environment as deployment
 (replace `app-blue` below with `app-green` if green is active):
 
 ```console
-docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --dry-run --expect 1146
+docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --dry-run --expect 1145
 ```
 
-Check `no_deceased=841 no_heirs=305 total=1146`, the ascending ids, and that
-2402 appears in `no_heirs_ids`.
+Check `no_deceased=841 no_heirs=304 total=1145` (the production dry run of
+2026-11-18 found exactly this) and the ascending ids.
 Output contains only reason keys, counts and integer ids; no family data.
 If the expected count differs, the command fails without deleting anything;
 resolve the difference before proceeding (legacy pages can still create drafts).
 After confirming the backup and dry-run counts, run:
 
 ```console
-docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --expect 1146
+docker compose -p mawareeth exec -T app-blue python manage.py purge_empty_legacy_drafts --expect 1145
 ```
 
-Check `deleted=1146`. The command reclassifies candidates under root-row locks
+Check `deleted=1145`. The command reclassifies candidates under root-row locks
 and deletes matching roots and their dependent legacy rows in one transaction.
 Selection requires an unconvertible root with no root Deceased or no root Heir.
-Populated roots are kept even if a later layer is broken. Calculation 2402 is
-an empty draft and is included (owner decision 2026-11-18);
-Saved cases, shares, invites and users are untouched. Record the production purge
-date and deleted count in the legacy-import entry in
+Populated roots are kept even if a later layer is broken. Saved cases, shares,
+invites and users are untouched.
+
+Calculation 2402 (owner 1829) is not selected: it has heirs (a mother and three
+daughters). Its second, unlinked deceased row (11034) was deleted on 2026-11-19 by
+owner decision, keeping the deceased the family is attached to (11033); the
+removed row is kept root-only in
+`deploy/runtime/backup/calc-2402-deceased-11034-20261119.txt`. 2402 now converts
+and was turned into Saved case 2055 for its owner the same day.
+
+Record the production purge date and deleted count in the legacy-import entry in
 `_bmad-output/implementation-artifacts/deferred-work.md`.
