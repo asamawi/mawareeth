@@ -1951,7 +1951,8 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
       await page.locator('[data-node="root"]').focus();
       for (const key of ["ArrowDown", "End", "Home"]) {
         await page.keyboard.press(key);
-        const inside = await page.evaluate(() => {
+        // Focus re-renders the selection and scrolls; check once the canvas has settled.
+        await expect.poll(() => page.evaluate(() => {
           const area = document.querySelector<HTMLElement>("[data-tree-area]")!;
           const a = area.getBoundingClientRect();
           const focused = document.activeElement as HTMLElement;
@@ -1959,8 +1960,7 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
           const style = getComputedStyle(focused);
           const grow = (parseFloat(style.outlineWidth) || 0) + (parseFloat(style.outlineOffset) || 0);
           return r.left - grow >= a.left - 0.5 && r.right + grow <= a.left + area.clientWidth + 0.5 && r.top - grow >= a.top - 0.5 && r.bottom + grow <= a.top + area.clientHeight + 0.5;
-        });
-        expect(inside).toBe(true);
+        })).toBe(true);
       }
       const editable = page.locator('[data-node]:not([data-node="root"]):not([data-state="died_later"])').first();
       await editable.focus();
