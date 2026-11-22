@@ -442,7 +442,7 @@ UX-DR2: [new] Implement the phase-2 colour properties graphic, accent-soft, bloc
 
 UX-DR3: [kept] Verify typography.body, heading-xl, heading-lg, label and small, the inherited rounded.sm/md/lg/xl and spacing scale, using system fonts without web-font loading; retain public-page layout tokens. _(DESIGN tokens typography.*, rounded.*, spacing.*; Typography; Shapes; Layout & Spacing)_
 
-UX-DR4: [new] Implement phase-2 typography.node-name/node-meta/badge/body-rtl, rounded.node/sheet/full and Interview spacing/breakpoint tokens; preserve their source assumptions and open Urdu-font decision rather than treating deferred suggestions as approved changes. _(DESIGN tokens typography.*, rounded.*, spacing.*; Typography; Shapes; EXPERIENCE Gaps and open items)_
+UX-DR4: [new] Implement phase-2 typography.node-name/node-meta/badge/body-rtl, rounded.node/sheet/full and Interview spacing/breakpoint tokens (Interview breakpoints are 640px and 1024px; the 1280px three-column breakpoint was dropped 2026-11-22); preserve their source assumptions and open Urdu-font decision rather than treating deferred suggestions as approved changes. _(DESIGN tokens typography.*, rounded.*, spacing.*; Typography; Shapes; EXPERIENCE Gaps and open items)_
 
 **Shared components & shell**
 
@@ -514,9 +514,9 @@ UX-DR35: [new] Implement undo-toast using components.undo-toast.* after each add
 
 UX-DR36: [changed] Implement share-row using components.share-row.*: label, optional muted sub-line, bold end-aligned value; blocked rows are dimmed with smaller values and explicit no-share status. Show the teal agreement line above rows when all four Schools agree. _(DESIGN Components; EXPERIENCE Component Patterns)_
 
-UX-DR37: [changed] Implement share-preview using components.share-preview.*: desktop third column and identical summary-sheet content, fraction/percentage/estate amount per Heir, FR-13 rounding line, blocked rows, agreement line, Basis link, Beta, disclaimer and primary Full results button. Synchronize tree, list and shares after every change; name School/Country only per FR-10. _(DESIGN Components; EXPERIENCE Component Patterns; Key Flows UJ-2)_
+UX-DR37: [changed] Implement share-preview using components.share-preview.*: one Share preview body shown in the summary-sheet, fraction/percentage/estate amount per Heir, FR-13 rounding line, blocked rows, agreement line, Basis link, Beta, disclaimer and primary Full results button. Synchronize tree, list and shares after every change; name School/Country only per FR-10. _(DESIGN Components; EXPERIENCE Component Patterns; Key Flows UJ-2)_
 
-UX-DR38: [new] Implement sticky-summary-bar using components.sticky-summary-bar.* below 1280px: fixed full-viewport width, 2px foreground top border and token shadow, heir count/shares-ready text, primary Full results and 44px expand toggle. Hide until shares exist; visible without scrolling at 375px; bar tap or chevron opens summary-sheet. _(DESIGN Components; EXPERIENCE Component Patterns)_
+UX-DR38: [new] Implement sticky-summary-bar using components.sticky-summary-bar.* at every width (hidden while a later-death estate is open): fixed full-viewport width, 2px foreground top border and token shadow, heir count/shares-ready text, primary Full results and 44px expand toggle. Hide until shares exist; visible without scrolling at 375px; bar tap or chevron opens summary-sheet. _(DESIGN Components; EXPERIENCE Component Patterns)_
 
 UX-DR39: [new] Implement summary-sheet using components.summary-sheet.*: full Share preview, top-only rounded corners, 78% maximum height, token shadow/scrim and 2px foreground separation; heading and Close title bar has hairline divider and no shadow. Modal dialog makes sticky bar inert; Close, Escape or scrim closes and returns focus to chevron. _(DESIGN Components; Elevation & Depth; EXPERIENCE Component Patterns)_
 
@@ -608,9 +608,9 @@ UX-DR76: [changed] Implement 300ms node reflow and disable node motion, sheet sl
 
 UX-DR77: [changed] Implement below-1024px single-column Interview in Add relatives/tree/Heirs list order with 16px gutter; under 640px use narrow 108px cards and phone bottom edit sheet, 640–1023px use 136px cards and wrapping buttons; preview remains full-width sticky bar/sheet. Other phone surfaces are single column with labelled horizontal results-table scroll; tablet surfaces use max-w-5xl. _(DESIGN Layout & Spacing; EXPERIENCE Responsive & Platform)_
 
-UX-DR78: [changed] Implement 1024–1279px two columns: 380px Add relatives/Heirs list plus flexible tree at least 596px (two 136px cards), side edit panel and sticky preview/sheet without a third preview column. _(DESIGN Layout & Spacing; EXPERIENCE Responsive & Platform)_
+UX-DR78: [changed] Implement >=1024px two columns inside a 1360px maximum Interview: 380px Add relatives/Heirs list plus flexible tree at least 596px (two 136px cards), side edit panel and sticky preview bar/sheet; there is no preview column. _(DESIGN Layout & Spacing; EXPERIENCE Responsive & Platform)_
 
-UX-DR79: [changed] Implement >=1280px three columns in a 1360px maximum Interview: 380px relatives/list, flexible tree and 340px preview with 24px padding and 1px dividers; no sticky bar, Full results in preview and side edit panel. Preserve public 1024px max content, 24px gutters and 48px/64px vertical rhythm. _(DESIGN Layout & Spacing; Components; EXPERIENCE Responsive & Platform)_
+UX-DR79: [removed 2026-11-22] The >=1280px three-column layout is withdrawn; >=1280px follows UX-DR78. Preserve public 1024px max content, 24px gutters and 48px/64px vertical rhythm on non-Interview pages.
 
 UX-DR80: [new] Implement WCAG 1.4.10 reflow at 320px/400% zoom: bar wraps below 360px into text then button/chevron rows; bar plus toast <=25% viewport height with equal scroll-padding-block-end. Page scrolls, canvas alone is labelled nested 2D scroll region with >=6px focus padding. Under 480px landscape height replace bar with in-flow Share preview button. Test 320px/400% LTR/RTL with text-spacing overrides. _(DESIGN Layout & Spacing; EXPERIENCE Accessibility Floor)_
 
@@ -637,6 +637,8 @@ UX-DR88: [new] Implement shared-case-banner using components.shared-case-banner.
 UX-DR89: [new] Implement UJ-7 prefilled arrival: token-only URL loads Interview family/Basis with matching tree and assistant fractions/preview, disclaimer, agreement fact and draft PDF path; expired token uses Expired case and unsupported rules return reason without numbers. Assistant looks up relationship codes and clarifies ambiguous relatives before calculate_inheritance. _(EXPERIENCE Key Flows UJ-7)_
 
 UX-DR90: [new] Implement API information surface /{locale}/api/ [ASSUMPTION: route] linked from footer/rate-limit message: OpenAPI, MCP setup, usage terms and key request via API access Ticket. Retain responsive web on Next.js 16/React 19/Tailwind CSS 4 with handwritten shared ui.ts components, static export served by Django and prefetch=false on every Link. _(EXPERIENCE Information Architecture; Foundation; Key Flows UJ-7)_
+
+UX-DR91: [new] Implement a 'Same person as…' field in the edit-sheet for a later-estate person when the server offers link candidates: a native select with 'Nobody else (a new person)' and candidates by tree label, saved on change through the revision-aware edit, undoable, with field-level refusal reasons. There is no separate add form in the Interview. _(EXPERIENCE Component Patterns; Key Flows UJ-2)_
 
 ### FR Coverage Map
 
@@ -708,7 +710,7 @@ Registered users open a Saved case from *My cases* straight into the Interview w
 **FRs covered:** FR-7, FR-8
 
 ### Epic 11: Clearer results
-Results name the School only when it matters, Full results is a primary button, users understand "estate to divide" and see which facts they supplied, amounts add up to the estate, and phones get the sticky summary bar and sheet.
+Results name the School only when it matters, Full results is a primary button, users understand "estate to divide" and see which facts they supplied, amounts add up to the estate, and every screen gets the sticky summary bar and sheet, leaving the Interview to family entry.
 **FRs covered:** FR-10, FR-11, FR-12, FR-13
 
 ### Epic 12: Honest pages and privacy-safe measurement
@@ -1504,6 +1506,39 @@ So that I can keep editing comfortably at every supported layout.
 **Then** ordinary node reflow is 300 ms, while reduced motion disables node movement, sheet slides, scrim fades, toast entry, skeleton shimmer, zoom animation and smooth scrolling without losing any action (UX-DR76)
 **And** light/dark contrast checks retain text >=4.5:1 and graphics/focus >=3:1, including accent/accent-soft 4.71:1 light/10.29:1 dark and toast-focus/fill 17.93:1 light/16.91:1 dark; badge typography is not shrunk or its fill tinted to fit (UX-DR70, UX-DR71).
 
+### Story 9.13: Link a later-estate heir to someone already in the Case from the edit sheet, and retire the old add form
+
+As a family member entering successive deaths,
+I want to mark a relative in a later estate as a person already in the Case,
+So that the same person is not counted twice, and adding relatives stays on the one-press buttons.
+
+**Acceptance Criteria:**
+
+**Given** Stories 9.3–9.5 and 9.8 and any estate open in the Interview
+**When** Add relatives renders
+**Then** only the relationship-button groups and count stepper appear. The old "Add an heir" form (relationship radios, More relatives `<select>`, optional name, "Someone already in this case" select) is not rendered anywhere in the Interview (UX-DR27)
+**And** every relationship, group adds and the open-estate scope remain available on the buttons and "Add relative here".
+
+**Given** a person in a later-death estate and a non-empty server list of link candidates for them (same gender, alive in the earlier estate, not already linked in this estate)
+**When** I open their edit sheet or panel
+**Then** a "Same person as…" native select appears after the relationship field, offering "Nobody else (a new person)" and each candidate by tree label (`treeDescription`, names in `bdi dir=auto`), with at least a 44px target and the shipped form styling (UX-DR29, UX-DR91)
+**And** the field is absent in the first estate and when there are no candidates; candidates come only from the server, without browser kinship inference (AD-19).
+
+**Given** I choose a candidate, or choose "Nobody else" for a linked person
+**When** the revision-aware edit command succeeds with `same_as` set or cleared
+**Then** the card and Heirs row show the linked person's name and the existing linked hint (or drop them), the tree, list and Share preview stay on the accepted revision, the shared status region announces one sentence, and Undo restores the previous link state (FR-3, FR-4, UX-DR75, AD-20)
+**And** a refused (`not_alive`, `already_linked`, `gender_mismatch`), conflicting or offline edit changes nothing, shows the reason at the field through the existing field-error and recovery handling, and does not claim the link was made.
+
+**Given** the server's `update_heir` command
+**When** it receives `same_as` for a later-estate row
+**Then** it applies the same validation as adding with `same_as`, sets or clears the link atomically against the Case revision, and refuses `same_as` on a first-estate row
+**And** Python tests cover set, clear, each refusal and a stale revision. The snapshot format is unchanged.
+
+**Given** keyboard, screen-reader, RTL, 320px/400% zoom and reduced-motion use, on the phone bottom sheet and the desktop side panel
+**When** the field is used in en/ar/fr
+**Then** it is reachable by Tab, has a visible label, mirrors through logical properties and passes the existing axe and reflow checks (NFR-1, UX-DR74, UX-DR80)
+**And** `HeirForm`'s add wrapper, form-only state and validation branch and unused i18n keys are removed, with `heir-form.test.tsx` retired or folded into the edit-sheet tests.
+
 ### Story 9.12: Prove the complete family-entry journey meets capacity and speed gates
 
 As the owner/maintainer,
@@ -1517,13 +1552,13 @@ So that the editable tree can ship without slowing the foundation calculation pa
 **Then** Share preview updates in under 1 s at p95 end to end, including command/network/lock waits and browser rendering, and the standard-family engine remains under 200 ms (NFR-3, AD-27)
 **And** evidence records device/network/workload and latency samples for School and all-four-School comparison plus supported two-later-death Cases, reusing the foundation harness without rebuilding its engine, locks or budget enforcement.
 
-**Given** 50-Heir Cases at 375px and 1280px with wide/deep lineage, long names and blocked/predeceased people
+**Given** 50-Heir Cases at 375px and 1280px (two-column layout with the summary bar visible) with wide/deep lineage, long names and blocked/predeceased people
 **When** Fit tree, pan/zoom, arrow navigation and edit/Undo are exercised
 **Then** the deceased stays visible and every person/action remains reachable with >=44px targets, correct 108/136px base card widths and unclipped focus (NFR-1, NFR-X1, UX-DR13, UX-DR16)
 **And** adding beyond capacity or creating a third later death is refused without partial mutation, with existing relatives/estates still editable and no browser fiqh or limit authority replacing Epic 8's service.
 
 **Given** Yusuf's eleven-relative Arabic desktop UJ-2 family and equivalent phone/keyboard paths
-**When** he adds without typing names, bulk-adds a group, adds nephews at a node, corrects a half-sister's relationship, removes a duplicate and undoes a mistaken removal
+**When** he adds without typing names, bulk-adds a group, adds nephews at a node, corrects a half-sister's relationship, removes a duplicate, marks a later-estate son as the same person as the first estate's son from his edit sheet, and undoes a mistaken removal
 **Then** tree, canonical Heirs outline and current-revision preview agree after every accepted change, and equivalent drag/Add relative here paths yield the same family (FR-1–5, UJ-2)
 **And** cancelling a descendant cascade changes nothing, later-death navigation returns through the breadcrumb, stale/offline/refused responses cannot report success, and the journey ends at the existing save integration without adding Epic 10's naming flow.
 
@@ -1695,7 +1730,7 @@ So that I can inspect the owner's current saved estate without confusing it with
 
 ## Epic 11: Clearer results
 
-Results name the School only when it matters, Full results is a primary button, users understand "estate to divide" and see which facts they supplied, amounts add up to the estate, and phones get the sticky summary bar and sheet.
+Results name the School only when it matters, Full results is a primary button, users understand "estate to divide" and see which facts they supplied, amounts add up to the estate, and every screen gets the sticky summary bar and sheet, leaving the Interview to family entry.
 
 ### Story 11.1: Show School agreement and ask for a School only when shares differ
 
@@ -1730,18 +1765,18 @@ So that I understand why my result depends on a School.
 **Then** it also runs the four-School comparison (extending Epic 8.6's presentation) so the agreement line is backed by an actual comparison, never inferred from the selected School (owner decision, 2026-11-16) (FR-10, AD-19)
 **And** the extra comparison stays within the NFR-3 p95 1 s preview budget and does not change the selected School's shares.
 
-### Story 11.2: Present one readable Share preview in the desktop slot
+### Story 11.2: Give the Interview's space to family entry and build one readable Share preview body
 
-As a family member editing a Case,
-I want readable shares beside my family on a wide screen,
-So that I can review the latest result and open Full results easily.
+As a family member adding relatives,
+I want the relationship buttons and the Family tree to have the room, and the shares one tap away,
+So that I can build my family quickly and still check the latest result.
 
 **Acceptance Criteria:**
 
-**Given** Story 11.1, Epic 8's presented output and Epic 9's reserved preview slot
-**When** the Interview is at least 1280px wide
-**Then** the Share preview occupies the 340px third column inside the existing maximum 1360px shell, with 24px padding, background token and a 1px inline-start decorative divider (UX-DR37, UX-DR79)
-**And** it uses the existing editor layout without rebuilding the 380px relatives column or flexible tree, and no sticky summary bar is shown.
+**Given** Epic 8's presented output and Epic 9's Interview shell
+**When** the Interview renders at any width
+**Then** no Share preview pane appears in the page: the >=1280px 340px third column and the below-1280px in-flow preview are removed, and at 1024px and up the layout is two columns (380px Add relatives/Heirs list · flexible tree) inside the 1360px shell, with the side edit panel placed as at 1024–1279px (UX-DR78, UX-DR79)
+**And** the Share preview body is one component rendered only inside Story 11.3's summary-sheet, while its fetching, revision reconciliation, tree evidence and announcements stay mounted when the sheet is closed; the later-estate rule from 9.8 (no preview while a later-death estate is open) is kept.
 
 **Given** an available presentation with inheriting and blocked people
 **When** share-rows render
@@ -1756,7 +1791,7 @@ So that I can review the latest result and open Full results easily.
 **Given** the preview has shares
 **When** I activate its Full results action by touch, mouse or keyboard
 **Then** a primary button styled action opens /{locale}/results/, replacing the old text link under the table, with at least a 44px target and WCAG AA contrast (FR-11, UX-DR37)
-**And** the shared content can also render inside Story 11.3's sheet without duplicating result meaning or numeric formatting; navigation Links retain prefetch=false.
+**And** the same primary Full results action also appears in Story 11.3's bar; neither duplicates result meaning or numeric formatting, and navigation Links retain prefetch=false.
 
 **Given** an edit, Undo or active-estate navigation from Epic 9
 **When** the preview updates, fails or receives an obsolete response
@@ -1765,16 +1800,16 @@ So that I can review the latest result and open Full results easily.
 
 ### Story 11.3: Open the full preview from a sticky summary bar and modal sheet
 
-As a family member using a phone or tablet,
+As a family member on any screen,
 I want a persistent Full results action and an expandable preview,
 So that reviewing shares does not require scrolling back through my family.
 
 **Acceptance Criteria:**
 
-**Given** Story 11.2's shared preview content and an Interview below 1280px
-**When** shares become available
-**Then** a fixed bottom bar spans the full viewport width, including the 1024–1279px two-column layout, and shows heir count, “shares ready”, primary Full results and a 44px expand toggle (FR-11, UX-DR38, UX-DR77, UX-DR78)
-**And** it has a 2px foreground top border and 0 -6px 16px rgba(0,0,0,.12) token shadow; it is hidden before shares exist and Full results is visible without scrolling at 375px.
+**Given** Story 11.2's Share preview body and an Interview at any width
+**When** shares become available in the first estate
+**Then** a fixed bottom bar spans the full viewport width at every breakpoint and shows heir count, “shares ready”, primary Full results and a 44px expand toggle (FR-11, UX-DR38, UX-DR77–79)
+**And** it has a 2px foreground top border and 0 -6px 16px rgba(0,0,0,.12) token shadow; it is hidden before shares exist and while a later-death estate is open, and Full results is visible without scrolling at 375px.
 
 **Given** the bar is visible
 **When** I tap its expandable area or activate its chevron
@@ -1793,7 +1828,7 @@ So that reviewing shares does not require scrolling back through my family.
 
 **Given** a pending update or preview error while the bar or sheet is present
 **When** existing Epic 8–9 state handling updates the preview
-**Then** the sheet shows the same accepted presentation and pending/error handling as the desktop preview (UX-DR37, UX-DR38, UX-DR39)
+**Then** the sheet shows the same accepted presentation and pending/error handling as the accepted Share preview state (UX-DR37, UX-DR38, UX-DR39)
 **And** the bar never describes old shares as a newly completed result, the family is retained and no duplicate row announcements are emitted.
 
 ### Story 11.4: Keep summary controls reachable at narrow widths and high zoom
@@ -1819,10 +1854,10 @@ So that I can reach both family editing and results.
 **Then** an in-flow “Share preview” button replaces the fixed bar and opens the same sheet (UX-DR77, UX-DR80)
 **And** [ASSUMPTION: EXPERIENCE specifies return to the opener; use the in-flow button as the return-focus target when no chevron exists] closing returns focus to that button, retaining the 78% sheet height limit and 44px targets.
 
-**Given** below-1024px, 1024–1279px and at-least-1280px layouts
-**When** the viewport crosses a preview breakpoint
-**Then** preview placement follows bar/sheet, bar/sheet and desktop column respectively, using logical properties and preserving the accepted result (UX-DR77, UX-DR78, UX-DR79)
-**And** the existing 16px mobile gutters, editor column structure and labelled canvas-only 2D scrolling with at least 6px focus padding remain intact; [ASSUMPTION: sources do not specify focus on a breakpoint change] focus stays on an equivalent visible preview control if its original control is removed.
+**Given** below-1024px and at-least-1024px layouts
+**When** the viewport crosses the 1024px or 640px breakpoint, or the 480px landscape-height threshold
+**Then** the preview stays in the bar/sheet (or the in-flow “Share preview” button under 480px landscape height), preserving the accepted result and any open sheet (UX-DR77–80)
+**And** the existing 16px mobile gutters, editor column structure and labelled canvas-only 2D scrolling with at least 6px focus padding remain intact; when the bar is swapped for the in-flow button, focus moves to whichever opener is visible.
 
 **Given** the summary and results surfaces in published ar/en/fr Locales
 **When** acceptance checks exercise 320px/400% zoom, text-spacing overrides, keyboard use, RTL and light/dark modes
@@ -1832,7 +1867,7 @@ So that I can reach both family editing and results.
 **Given** the wrapped bar plus the undo toast would exceed 25% of viewport height
 **When** both are shown
 **Then** the toast is placed in the page flow above the bar instead of overlaying content, keeping both reachable and the 44px targets unchanged (owner decision, 2026-11-16) (UX-DR35, UX-DR80)
-**And** focus retention across breakpoint changes follows the draft assumptions, with copy reviewed in Epic 12.
+**And** focus retention follows the AC above, with copy reviewed in Epic 12.
 
 ### Story 11.5: Preserve the results table and make result actions clear
 
@@ -1905,7 +1940,7 @@ So that I can account for the whole estate across preview, results and PDF.
 
 **Given** Stories 11.2, 11.3 and 11.5 and Epic 8.6's half-up allocations and signed rounding output
 **When** an estate produces a non-zero rounding remainder
-**Then** desktop Share preview, summary-sheet, Full results and draft PDF show a separate labelled “rounding” line with its server-presented signed amount (FR-13, UX-DR37)
+**Then** summary-sheet, Full results and draft PDF show a separate labelled “rounding” line with its server-presented signed amount (FR-13, UX-DR37)
 **And** it is kept distinct from any legal unallocated/treasury share and from Heir shares; every consumer renders the same presentation without redistributing the adjustment (AD-19).
 
 **Given** the same estate, currency and presentation on screen and PDF
