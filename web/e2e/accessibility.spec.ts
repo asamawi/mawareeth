@@ -129,7 +129,8 @@ for (const locale of ["ar", "en", "fr"] as const) {
 }
 
 for (const locale of ["en", "ar"] as const) {
-  test(`the pending preview in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+  // 11.3: the Share preview returns with the summary sheet.
+  test.fixme(`the pending preview in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
     const kase = fullCase(agree.case) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     const options = { blocked: [], invalid: {} };
     const returned = { ...kase, revision: 2, heirs: [...kase.heirs, { id: "new-son", relationship: "son", gender: "male", name: null, edit_options: options }] };

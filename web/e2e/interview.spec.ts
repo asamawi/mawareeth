@@ -231,7 +231,8 @@ test.describe("without JavaScript", () => {
 });
 
 test.describe("the school of law, asked only when it matters", () => {
-  test("a family on which the four schools agree shows one result with no school", async ({ page, api }) => {
+  // 11.3: the Share preview returns with the summary sheet.
+  test.fixme("a family on which the four schools agree shows one result with no school", async ({ page, api }) => {
     const agree = fixture("Agree: wife, son and daughter in every school");
     api.set({ session: sessionAnonymous, getCase: json(200, { case: fullCase(agree.case) }), getPreview: json(200, agree.response) });
     await page.goto("/en/interview/");
@@ -243,7 +244,8 @@ test.describe("the school of law, asked only when it matters", () => {
     expect(api.casePatches).toHaveLength(0);
   });
 
-  test("schools that differ show the rules and each result, and choosing one saves the school", async ({ page, api }) => {
+  // 11.3: the Share preview returns with the summary sheet.
+  test.fixme("schools that differ show the rules and each result, and choosing one saves the school", async ({ page, api }) => {
     const differ = fixture("Differ: grandfather and full brother");
     const stored = fullCase(differ.case, { madhab: "hanafi" });
     let chosen = false;
@@ -285,7 +287,8 @@ test.describe("the school of law, asked only when it matters", () => {
     expect(JSON.parse(api.casePatches[0].body)).toEqual({ madhab: "hanafi", case_id: differ.case.id, expected_revision: 1 });
   });
 
-  test("a refusal in one school is shown in that school's summary", async ({ page, api }) => {
+  // 11.3: the Share preview returns with the summary sheet.
+  test.fixme("a refusal in one school is shown in that school's summary", async ({ page, api }) => {
     const refusal = fixture("Refusal: Malikiyya makes the schools differ");
     api.set({ session: sessionAnonymous, getCase: json(200, { case: fullCase(refusal.case) }), getPreview: json(200, refusal.response) });
     await page.goto("/en/interview/");
@@ -297,7 +300,8 @@ test.describe("the school of law, asked only when it matters", () => {
 });
 
 test.describe("revisions and connection", () => {
-  test("a preview computed for an older revision is never shown", async ({ page, api }) => {
+  // 11.3: the Share preview returns with the summary sheet.
+  test.fixme("a preview computed for an older revision is never shown", async ({ page, api }) => {
     const agree = fixture("Agree: wife, son and daughter in every school");
     api.set({
       session: sessionAnonymous,
@@ -326,8 +330,8 @@ test.describe("revisions and connection", () => {
     await expect(page.getByText(en.offlineEditing)).toBeVisible();
     await expect(add).toHaveAttribute("aria-disabled", "true");
     await add.click({ force: true });
-    // The family and the last preview stay visible, and no write was attempted (an unstubbed request fails the test).
-    await expect(page.getByText(en.schoolsAgree)).toBeVisible();
+    // The family stays visible, and no write was attempted (an unstubbed request fails the test).
+    // 11.3: the last preview stays visible (the Share preview returns with the summary sheet).
     expect(api.casePosts).toHaveLength(0);
 
     await context.setOffline(false);
@@ -412,8 +416,10 @@ test.describe("add relatives", () => {
       return json(201, { case: returned })(route);
     } });
     await open(page, api, kase, (route) => (revision === returned.revision ? after : before)(route));
-    const preview = page.locator("section[aria-labelledby='preview-heading']");
-    await expect(preview.getByText("7/8", { exact: true })).toBeVisible();
+    // 11.3: the share rows (7/8 before, 7/48 after) are asserted again in the summary sheet; until then wait on the settled signal.
+    const settled = page.locator("[data-preview-state]");
+    await expect(settled).toHaveAttribute("data-preview-state", "ready");
+    await expect(settled).toHaveAttribute("data-preview-revision", String(kase.revision));
     const more = page.getByRole("button", { name: "One more Daughter", exact: true });
     const count = page.getByLabel("Number of Daughter to add", { exact: true });
     const list = page.locator("section[aria-labelledby='heirs-heading']");
@@ -430,8 +436,9 @@ test.describe("add relatives", () => {
       await expect(list.getByText(label, { exact: true }).first()).toBeVisible();
       await expect(page.locator(`[data-node="${daughter.id}"]`)).toContainText(label);
     }
-    await expect(preview.getByRole("listitem").filter({ hasText: "Daughter 4" }).getByText("7/48", { exact: true })).toBeVisible();
-    await expect(preview.getByText("7/8", { exact: true })).toHaveCount(0);
+    // 11.3: the 7/48 row for Daughter 4 and the absence of 7/8 return with the summary sheet.
+    await expect(settled).toHaveAttribute("data-preview-state", "ready");
+    await expect(settled).toHaveAttribute("data-preview-revision", String(returned.revision));
     await expect(count).toHaveText("1");
     await expect(add).toBeFocused();
     expect(api.bulkPosts).toHaveLength(1);
@@ -877,7 +884,7 @@ test.describe("interview shell", () => {
     expect(order).toBe(true);
   });
 
-  test("at 1100px a 380px column sits beside the tree; the preview spans below", async ({ page, api }) => {
+  test("at 1100px a 380px column sits beside the tree, with no Share preview", async ({ page, api }) => {
     await page.setViewportSize({ width: 1100, height: 900 });
     await openHeirsScreen(page, api, "en");
     const { add, tree, list } = regions(page);
@@ -888,14 +895,10 @@ test.describe("interview shell", () => {
     expect(t.x).toBeGreaterThan(a.x + a.width - 1);
     expect(l.y).toBeGreaterThan(a.y);
     expect(Math.abs(l.x - a.x)).toBeLessThan(1);
-    const pv = await box(page.locator("section[aria-labelledby='preview-heading']"));
-    expect(Math.abs(pv.x - a.x)).toBeLessThan(1);
-    expect(pv.x + pv.width).toBeCloseTo(t.x + t.width, 0);
-    expect(pv.y).toBeGreaterThanOrEqual(l.y + l.height - 1);
-    expect(pv.y).toBeGreaterThanOrEqual(t.y + t.height - 1);
+    await expect(page.locator("section[aria-labelledby='preview-heading']")).toHaveCount(0);
   });
 
-  test("at 1366px the shell is at most 1360px with a 340px preview column", async ({ page, api }) => {
+  test("at 1366px the shell is at most 1360px: a 380px column and a flexible tree, with no Share preview", async ({ page, api }) => {
     await page.setViewportSize({ width: 1366, height: 900 });
     await openHeirsScreen(page, api, "en");
     const { add, tree } = regions(page);
@@ -903,14 +906,21 @@ test.describe("interview shell", () => {
     expect(grid.width).toBeLessThanOrEqual(1360);
     const [a, t] = [await box(add), await box(tree)];
     expect(a.width).toBeCloseTo(380, 0);
-    expect(grid.x + grid.width - (t.x + t.width)).toBeGreaterThanOrEqual(340);
-    const pv = await box(page.locator("section[aria-labelledby='preview-heading']").locator(".."));
-    expect(pv.width).toBeCloseTo(340, 0);
-    expect(pv.x).toBeGreaterThanOrEqual(t.x + t.width - 1);
-    // Read both tops in one frame: the page may still be finishing its smooth focus scroll.
-    const tops = await page.evaluate(() => ["section[data-tree]", "section[aria-labelledby='preview-heading']"].map((s) => (s.includes("preview") ? document.querySelector(s)!.parentElement! : document.querySelector(s)!).getBoundingClientRect().y));
-    expect(Math.abs(tops[1] - tops[0])).toBeLessThan(2);
+    // The tree takes the rest of the shell: no third column.
+    expect(Math.abs(grid.x + grid.width - (t.x + t.width))).toBeLessThan(2);
+    await expect(page.locator("section[aria-labelledby='preview-heading']")).toHaveCount(0);
   });
+
+  for (const locale of ["en", "ar"] as const) for (const width of [375, 1100, 1366]) {
+    test(`no Share preview region is on the Interview at ${width}px in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openHeirsScreen(page, api, locale);
+      await expect(page.locator("section[aria-labelledby='preview-heading'], #preview-heading, [data-preview-body]")).toHaveCount(0);
+      await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "ready");
+      // Names and terms on the tree cards keep their own direction markup.
+      expect(await page.locator("[data-node] bdi").count()).toBeGreaterThan(0);
+    });
+  }
 
   test("in Arabic the 380px column is at the inline-start (right) side", async ({ page, api }) => {
     await page.setViewportSize({ width: 1100, height: 900 });
@@ -1061,8 +1071,8 @@ test.describe("later-death estates", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const kase = layeredCase();
     await open(page, api, kase, layered.response);
-    const preview = page.locator("section[aria-labelledby='preview-heading']");
-    await expect(preview).toBeVisible();
+    // 11.3: the visible Share preview (and its absence in a later estate) returns with the summary sheet.
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
     const card = page.locator('[data-node="s1"]');
     await card.focus();
     await card.press("Enter");
@@ -1072,8 +1082,7 @@ test.describe("later-death estates", () => {
     const nav = page.getByRole("navigation", { name: en.estateLevel });
     await expect(nav.getByRole("link")).toHaveCount(1);
     await expect(nav.locator("[aria-current='page']")).toContainText(en.deathSecond);
-    await expect(preview).toBeHidden();
-    await expect(page.locator("#preview-heading")).toBeHidden();
+    await expect(page.locator("#preview-heading")).toHaveCount(0);
     // The first wife is the later deceased's mother here, never "Wife".
     const mother = page.locator('[data-node="r1"]');
     await expect(mother).toContainText(en.relationships.mother);
@@ -1082,7 +1091,7 @@ test.describe("later-death estates", () => {
     await expect(heading).toBeFocused();
     await expect(heading).toHaveText(en.treeHeading);
     await expect(nav).toHaveCount(0);
-    await expect(page.locator("section[aria-labelledby='preview-heading']")).toBeVisible();
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
     await expect(page.locator('[data-node="w"]')).toContainText(en.relationships.wife);
   });
 
@@ -1265,10 +1274,8 @@ test.describe("lineage canvas", () => {
       await expect(group.getByText(t.treeAddSpouse, { exact: true })).toBeVisible();
       await expect(group.locator("button")).toHaveCount(3);
       await expect(page.getByText(t.heirsEmpty, { exact: true })).toBeVisible();
-      // Matrix "empty estate": the preview shows its prompt and no share rows.
-      const preview = page.locator("section[aria-labelledby='preview-heading']");
-      await expect(preview).toContainText(t.previewPrompt);
-      await expect(preview.locator("ul li, table")).toHaveCount(0);
+      // 11.3: the preview's prompt and absence of share rows return with the summary sheet; until then it is idle.
+      await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "idle");
     });
     for (const width of [375, 1280]) test(`50 heirs stay reachable and deceased stays inside in ${locale} at ${width}`, async ({ page, api }) => {
       await page.setViewportSize({ width, height: 900 }); await openCanvasFixture(page, api, locale, "many");
@@ -1505,8 +1512,8 @@ test.describe("add relative here", () => {
   });
 
   const drag = async (page: Page, to: string) => {
-    // Let the preview settle first: it shifts the layout, and so the chip.
-    await page.locator("section[aria-labelledby='preview-heading']").locator("table, ul").first().waitFor();
+    // Let the calculation settle first (it can still update the tree), then press the chip.
+    await page.locator("[data-preview-state='ready']").waitFor();
     await expect(page.locator('[data-focus="add:son"]')).toHaveAttribute("aria-disabled", "false");
     // hover() waits for the chip to hold still, so the press lands on it and not on a neighbour.
     await page.locator('[data-focus="add:son"]').hover();
@@ -1651,14 +1658,15 @@ test.describe("one status and pending shares (story 9.10)", () => {
       postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
     });
     await resume(page);
-    await expect(rowsOf(page).first()).toBeVisible();
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
     await page.getByRole("button", { name: "Add Son", exact: true }).click();
     await expect(status(page)).toHaveText(`Son 2 added. ${en.previewReadyCount.replace("{count}", String(returned.heirs.length))}`);
     await expect(page.locator("[role='status'][aria-atomic='true']")).toHaveCount(1);
     await expect(page.locator("section[aria-labelledby='preview-heading'] [role='status'], section[aria-labelledby='heirs-heading'] [role='status']")).toHaveCount(0);
   });
 
-  test("a slow preview keeps the old shares muted and busy, shows the box after 3s, then swaps", async ({ page, api }) => {
+  // 11.3: the Share preview returns with the summary sheet.
+  test.fixme("a slow preview keeps the old shares muted and busy, shows the box after 3s, then swaps", async ({ page, api }) => {
     const kase = base();
     const returned = grown(kase);
     let added = false;
@@ -1693,7 +1701,8 @@ test.describe("one status and pending shares (story 9.10)", () => {
     await expect(status(page)).toHaveText(en.previewReadyCount.replace("{count}", String(returned.heirs.length)));
   });
 
-  test("a response for an older revision never becomes the shown answer", async ({ page, api }) => {
+  // 11.3: the Share preview returns with the summary sheet.
+  test.fixme("a response for an older revision never becomes the shown answer", async ({ page, api }) => {
     const kase = base();
     const returned = grown(kase);
     api.set({
@@ -1713,7 +1722,8 @@ test.describe("one status and pending shares (story 9.10)", () => {
     await expect(section.locator("[data-preview-body]")).toHaveAttribute("data-pending", "");
   });
 
-  test("a rename is busy until its preview settles", async ({ page, api }) => {
+  // 11.3: the Share preview returns with the summary sheet.
+  test.fixme("a rename is busy until its preview settles", async ({ page, api }) => {
     const kase = base();
     api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, previewOf(kase)) });
     await resume(page);
@@ -1729,7 +1739,8 @@ test.describe("one status and pending shares (story 9.10)", () => {
     await expect(section).toHaveAttribute("aria-busy", "false", { timeout: 6000 });
   });
 
-  test("a failed preview keeps the family, says so once and Retry starts a pending state", async ({ page, api }) => {
+  // 11.3: the Share preview returns with the summary sheet.
+  test.fixme("a failed preview keeps the family, says so once and Retry starts a pending state", async ({ page, api }) => {
     const kase = base();
     api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(500, {}) });
     await resume(page);
@@ -1758,7 +1769,8 @@ test.describe("one status and pending shares (story 9.10)", () => {
     await expect(skeleton).toHaveCount(0);
   });
 
-  test("offline mid-refresh keeps the old shares muted after the request fails, and reconnecting asks again", async ({ page, context, api }) => {
+  // 11.3: the Share preview returns with the summary sheet.
+  test.fixme("offline mid-refresh keeps the old shares muted after the request fails, and reconnecting asks again", async ({ page, context, api }) => {
     const kase = base();
     const returned = grown(kase);
     let added = false;
@@ -1807,6 +1819,24 @@ test.describe("one status and pending shares (story 9.10)", () => {
     await expect(status(page)).toHaveText(new RegExp(`^[A-Za-z]+ added[.] ${en.previewReadyCount.replace("{count}", String(base().heirs.length)).replace(".", "[.]")}$`));
   });
 
+  test("a failed preview after an add keeps the family and reaches the one status", async ({ page, api }) => {
+    const kase = base();
+    const returned = grown(kase);
+    let added = false;
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, { case: kase }),
+      getPreview: (route) => (added ? json(500, {})(route) : json(200, previewOf(kase))(route)),
+      postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
+    });
+    await resume(page);
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(page.locator("section[aria-labelledby='heirs-heading']").getByText("Son 2", { exact: true }).first()).toBeVisible();
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "error", { timeout: 10000 });
+    await expect(status(page)).toContainText(en.previewFailed);
+  });
+
   test("a refusal stays an alert and never reaches the status", async ({ page, api }) => {
     const kase = base();
     api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, previewOf(kase)), postHeir: json(422, { code: "invalid", errors: { relationship: "not_allowed" } }) });
@@ -1845,7 +1875,8 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
         const add = page.locator("section[aria-labelledby='add-relatives-heading']");
         const tree = page.locator("section[data-tree]");
         const list = page.locator("section[aria-labelledby='heirs-heading']");
-        const preview = page.locator("section[aria-labelledby='preview-heading']");
+        // The Share preview is not on the Interview at any width (story 11.2).
+        await expect(page.locator("section[aria-labelledby='preview-heading']")).toHaveCount(0);
         expect(await noOverflow(page)).toBe(true);
         const [a, tr, l] = [await box(add), await box(tree), await box(list)];
         // Cards are 108px below 640px and 136px from there.
@@ -1862,20 +1893,9 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
           const column = treeColumn(page);
           const cb = await box(column);
           if (width === 1024) expect(cb.width).toBeGreaterThanOrEqual(596);
-          if (width < 1280) {
-            expect(await column.evaluate((el) => getComputedStyle(el).borderInlineStartWidth + " " + getComputedStyle(el).borderInlineStartStyle)).toBe("1px solid");
-            expect(Math.abs(edge(cb) - (edge(a) + 380))).toBeLessThan(1);
-          }
-        }
-        if (width >= 1280) {
-          const wrapper = preview.locator("..");
-          const pb = await box(wrapper);
-          expect(pb.width).toBeCloseTo(340, 0);
-          expect(await wrapper.evaluate((el) => { const s = getComputedStyle(el); return [s.borderInlineStartWidth, s.paddingInlineStart, s.paddingInlineEnd].join(" "); })).toBe("1px 24px 24px");
-          const middle = tree.locator("xpath=ancestor::div[contains(@class,'xl:col-start-2')][1]");
-          const tb = await box(middle);
-          expect(Math.abs(edge(pb) - (edge(tb) + tb.width))).toBeLessThan(1);
-          expect(await middle.evaluate((el) => getComputedStyle(el).borderInlineStartWidth)).toBe("1px");
+          // Two columns from 1024px, the tree flexible to the shell's edge: no third column at 1280px.
+          expect(await column.evaluate((el) => getComputedStyle(el).borderInlineStartWidth + " " + getComputedStyle(el).borderInlineStartStyle)).toBe("1px solid");
+          expect(Math.abs(edge(cb) - (edge(a) + 380))).toBeLessThan(1);
         }
         // The edit surface: a bottom sheet below 640px, a non-modal panel from there.
         const editable = page.locator('[data-node]:not([data-node="root"]):not([data-state="died_later"])').first();
@@ -1887,19 +1907,11 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
           const panel = page.locator("section[data-edit-sheet]");
           await expect(panel).toBeVisible();
           const pn = await box(panel);
-          if (width >= 1280) {
-            // The inline-end column, above the still-mounted Share preview.
-            const pv = await box(preview.locator(".."));
-            expect(pn.x).toBeGreaterThanOrEqual(pv.x - 1);
-            expect(pn.x + pn.width).toBeLessThanOrEqual(pv.x + pv.width + 1);
-            expect(pn.y + pn.height).toBeLessThanOrEqual((await box(preview)).y + 1);
-            await expect(preview).toBeVisible();
-          } else {
-            const tb = await box(tree);
-            expect(pn.y).toBeGreaterThanOrEqual(tb.y + tb.height - 1);
-            expect(pn.x).toBeGreaterThanOrEqual(tb.x - 1);
-            expect(pn.x + pn.width).toBeLessThanOrEqual(tb.x + tb.width + 1);
-          }
+          // The panel sits below the tree, inside its column, at every width from 640px.
+          const tb = await box(tree);
+          expect(pn.y).toBeGreaterThanOrEqual(tb.y + tb.height - 1);
+          expect(pn.x).toBeGreaterThanOrEqual(tb.x - 1);
+          expect(pn.x + pn.width).toBeLessThanOrEqual(tb.x + tb.width + 1);
           expect(await panel.evaluate((el) => !el.matches(":modal"))).toBe(true);
           // Escape closes it and returns focus to the opening card.
           await panel.getByLabel(t.heirNameLabel).press("Escape");
@@ -1910,14 +1922,14 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
     }
   }
 
-  test("1280px in a later estate: the panel stays in the tree column and the preview is hidden", async ({ page, api }) => {
+  test("1280px in a later estate: the panel stays in the tree column", async ({ page, api }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await openCanvasFixture(page, api, "en");
     const later = page.locator('[data-node][data-state="died_later"]').first();
     await later.focus();
     await later.press("Enter");
     await expect(page.locator("[data-breadcrumb]")).toBeVisible();
-    await expect(page.locator("section[aria-labelledby='preview-heading']")).toBeHidden();
+    await expect(page.locator("section[aria-labelledby='preview-heading']")).toHaveCount(0);
     const editable = page.locator('[data-node][data-state="normal"], [data-node][data-state="blocked"], [data-node][data-state="died_before"]').first();
     await editable.focus();
     await editable.press("Enter");
@@ -2174,7 +2186,8 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
   }
 
   for (const locale of ["en", "ar"] as const) {
-    test(`names, terms and fractions keep their own direction markup in ${locale}`, async ({ page, api }) => {
+    // 11.3: the Share preview returns with the summary sheet.
+    test.fixme(`names, terms and fractions keep their own direction markup in ${locale}`, async ({ page, api }) => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await openHeirsScreen(page, api, locale);
       const preview = page.locator("section[aria-labelledby='preview-heading']");
@@ -2184,7 +2197,6 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
       const fractions = await preview.evaluate((el) => [...el.querySelectorAll("*")].filter((n) => n.children.length === 0 && /^\d+\/\d+$/.test(n.textContent?.trim() ?? "")).map((n) => n.closest("[dir]")?.getAttribute("dir")));
       expect(fractions.length).toBeGreaterThan(0);
       expect(fractions.every((dir) => dir === "ltr")).toBe(true);
-      expect(await page.locator("[data-node] bdi").count()).toBeGreaterThan(0);
     });
   }
 });
@@ -2255,12 +2267,11 @@ test.describe("Story 9.13: link a later-estate heir from the edit sheet", () => 
       await expect(page.locator("[role='status']").filter({ hasText: "linked to a person already in the case" }).first()).toBeAttached();
       await page.locator("[data-edit-sheet]").getByRole("button", { name: en.editClose }).click();
       await expect(page.locator("section[aria-labelledby='heirs-heading']")).toContainText("Amal");
-      // The Share preview of the accepted revision is the one shown, not the earlier not-ready one.
+      // The calculation of the accepted revision is the one settled, not the earlier not-ready one.
       await page.locator("[data-breadcrumb] a").click();
-      if (size.width >= 1280) {
-        const preview = page.locator("section[aria-labelledby='preview-heading']");
-        await expect(preview.locator("table, ul").first()).toBeVisible();
-      }
+      // 11.3: the visible shares of that revision return with the summary sheet.
+      await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "ready");
+      await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-revision", "2");
       // Undo restores the unlinked row, with the prior snapshot at the current revision.
       await headerUndo(page).first().click();
       await expect.poll(() => api.restorePosts.length).toBe(1);

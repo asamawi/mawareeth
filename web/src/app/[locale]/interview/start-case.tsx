@@ -84,7 +84,7 @@ import { MadhabSelector } from "./madhab-selector";
 import { useOnline } from "./online";
 import { RelativesQuestion } from "./relatives-question";
 import { OrderQuestion } from "./order-question";
-import { SharePreview } from "./share-preview";
+import { SharePreviewController, type PreviewSignal } from "./share-preview";
 import { isUndoShortcut, UndoButton, UndoToast } from "./undo-toast";
 
 const SEEN_KEY = "mawareeth.case-seen";
@@ -125,14 +125,13 @@ const deps: Deps = {
 
 export function StartCase({
   messages,
-  results,
   locale,
 }: {
   messages: Messages["interview"];
-  results: Messages["results"];
   locale: string;
 }) {
   const [view, setView] = useState<View>({ name: "loading" });
+  const [previewSignal, setPreviewSignal] = useState<PreviewSignal>({ state: "idle", revision: null });
   const [presented, setPresented] = useState<{ key: string; value: PresentedResult | null } | null>(null);
   // The one polite status: what it says now, and a counter so an identical sentence is spoken again.
   const [spoken, setSpoken] = useState<{ text: string; seq: number }>({ text: "", seq: 0 });
@@ -334,8 +333,6 @@ export function StartCase({
   const editingPerson = model.people.find(p => p.id === started?.editingHeir);
   const relativeGroups = started && layer ? addGroups(placementRootOf(started.case, layer.id), layer.options) : [];
   const remaining = MAX_HEIRS - (layer?.heirs.length ?? 0);
-  // From 1280px the first estate has a third column for the Share preview; a later estate keeps two.
-  const previewColumn = layer?.id == null;
   const treeText = started?.tree ? outcomeText(messages, started.tree) : null;
   const treeInSheet = !!editingPerson && started?.tree?.anchor === editingPerson.personId;
   // One positioned add, by touch, keyboard or drop: the same request for each.
@@ -491,7 +488,7 @@ export function StartCase({
   ) : null;
 
   return (
-    <div data-js-only ref={target} tabIndex={-1} className="relative flex flex-col gap-4 outline-none [&>*:not(form,[data-wide])]:mx-auto [&>*:not(form,[data-wide])]:w-full [&>*:not(form,[data-wide])]:max-w-xl">
+    <div data-js-only data-preview-state={previewSignal.state} data-preview-revision={previewSignal.revision ?? undefined} ref={target} tabIndex={-1} className="relative flex flex-col gap-4 outline-none [&>*:not(form,[data-wide])]:mx-auto [&>*:not(form,[data-wide])]:w-full [&>*:not(form,[data-wide])]:max-w-xl">
       {/* The one routine status of the Interview; always mounted so its changes are spoken. */}
       <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {spoken.text !== "" && <span key={spoken.seq}>{spoken.text}</span>}
@@ -656,7 +653,7 @@ export function StartCase({
           />
           <div
             data-wide
-            className={`grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-0 ${previewColumn ? "xl:grid-cols-[380px_minmax(0,1fr)_340px]" : ""}`}
+            className={`grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-0`}
           >
             <section
               aria-labelledby="add-relatives-heading"
@@ -688,9 +685,8 @@ export function StartCase({
               {started.conflict && !editingPerson && <p role="alert">{messages.conflictNotice}</p>}
               {!editingPerson && <SaveNotice messages={messages} notice={started.notice} saving={frozen} />}
             </section>
-            {/* One column down to 1280px; from there, with the preview column, its children are grid items so the panel can sit in the inline-end column. */}
-            <div className={`min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-s lg:border-line lg:ps-4 ${previewColumn ? "xl:contents" : ""}`}>
-              <div className={`min-w-0 ${previewColumn ? "xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:border-s xl:border-line xl:px-4" : ""}`}>
+            <div className={`min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-s lg:border-line lg:ps-4`}>
+              <div className="min-w-0">
               <FamilyTree
                 messages={messages}
                 model={model}
@@ -719,7 +715,7 @@ export function StartCase({
                   : edit(current => requestCardRemoval(current, id, deps))}
               />
               </div>
-              {editingPerson && <div className={`min-w-0 sm:mt-3 ${previewColumn ? "xl:col-start-3 xl:row-start-1 xl:mt-0 xl:border-s xl:border-line xl:p-6" : ""}`}><EditSheet key={editingPerson.id} messages={messages} view={started}
+              {editingPerson && <div className="min-w-0 sm:mt-3"><EditSheet key={editingPerson.id} messages={messages} view={started}
                 person={editingPerson} label={description.people.find(p => p.id === editingPerson.id)!.label}
                 frozen={frozen} onClose={() => edit(current => cancelEditHeir(current, deps))}
                 entries={model.placement[editingPerson.personId] ?? []} atLimit={remaining <= 0}
@@ -772,24 +768,17 @@ export function StartCase({
                 </UndoToast>
               )}
             </div>
-            {/* Kept mounted while a later estate is open, so evidence keeps reaching the tree; just not shown. */}
-            {(
-              <div hidden={layer?.id != null} className={`min-w-0 lg:col-span-2 lg:col-start-1 lg:row-start-3 lg:mt-4 xl:col-span-1 xl:col-start-3 xl:mt-0 xl:border-s xl:border-line xl:p-6 ${editingPerson ? "xl:row-start-2" : "xl:row-span-2 xl:row-start-1"}`}>
-                <SharePreview
-                  messages={messages}
-                  results={results}
-                  locale={locale}
-                  onPresented={reportPresented}
-                  post={post}
-                  drop={drop}
-                  heirCount={layer?.heirs.length ?? started.case.heirs.length}
-                  kase={started.case}
-                  saving={frozen}
-                  failed={choiceFailed && (started.notice === "failed" || started.notice === "throttled") ? started.notice : null}
-                  onChooseSchool={(madhab) => void perform("choose", { madhab, from: started })}
-                />
-              </div>
-            )}
+            {/* The preview lifecycle stays mounted, including while a later estate is open, so evidence keeps reaching the tree; it draws nothing (11.3 renders the body in the summary sheet). */}
+            <SharePreviewController
+              messages={messages}
+              locale={locale}
+              onPresented={reportPresented}
+              onSignal={setPreviewSignal}
+              post={post}
+              drop={drop}
+              heirCount={layer?.heirs.length ?? started.case.heirs.length}
+              kase={started.case}
+            />
           </div>
         </>
       )}

@@ -2,13 +2,13 @@
 
 import type { PresentedResult } from "@/contracts/presented";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import { fetchPreview, type Case, type Preview, type PreviewResult, type SunniId } from "@/api/case";
+import { terms } from "@/i18n/catalog.generated";
 import type { Messages } from "@/i18n/messages";
 import type { AnnounceKind } from "@/interview/announce";
 import { rowLabels } from "@/interview/layers";
-import { evidenceNotes, relationsOf, tableOf, tableView } from "@/interview/table";
 import {
   acceptRevision,
   isPending,
@@ -20,51 +20,72 @@ import {
   type Settled,
 } from "@/interview/preview";
 
-import { InheritanceTable } from "../results/inheritance-table";
+import { primaryButton } from "../ui";
 import { buttonClass } from "./form-bits";
 import { useOnline } from "./online";
 import { RelationshipText } from "./relationship-text";
 import { SchoolChoice } from "./school-choice";
 
+type Available = Extract<Preview, { status: "available" }>;
+
+/** The settled signal the Interview root exposes as `data-preview-state`. */
+export type PreviewState = "idle" | "pending" | "ready" | "choose-school" | "refused" | "error";
+
+/** What the body draws, already decided by the lifecycle. */
+export type PreviewContent =
+  | { kind: "prompt"; layered: boolean }
+  | { kind: "waiting" }
+  | { kind: "none" }
+  | { kind: "available"; preview: Available; labels: Record<string, string> }
+  | { kind: "choose"; preview: Extract<Preview, { status: "choose_school" }>; labels: Record<string, string> }
+  | { kind: "refused"; reason: string | null }
+  | { kind: "error"; text: string; retry: boolean };
+
+/** Everything `SharePreviewBody` needs from the lifecycle; 11.3 renders `<SharePreviewBody {...view} />`. */
+export type SharePreviewView = {
+  state: PreviewState;
+  /** The revision of the accepted calculation, or null while none is accepted. */
+  revision: number | null;
+  pending: boolean;
+  /** Whether the content is the last available answer, kept (muted) while the next is awaited. */
+  kept: boolean;
+  slowLevel: 0 | 1 | 2;
+  /** The heirs of the active estate, for the summary bar. */
+  heirCount: number;
+  content: PreviewContent;
+  /** Height held while an answer is awaited, so the swap does not move the page. */
+  reserve: number;
+  bodyRef: RefObject<HTMLDivElement | null>;
+  retry: () => void;
+};
+
 /**
- * The shares of the saved case under its school, as the engine gives them. It asks once after
- * each saved change that matters to a share, and shows a result only while it matches the
- * current case; until then it shows a waiting line. It never moves focus and blocks nothing.
+ * The lifecycle of the shares of the saved case under its school, as the engine gives them. It asks
+ * once after each saved change that matters to a share, and yields a result only while it matches the
+ * current case; until then it is waiting. It never moves focus and blocks nothing.
  */
-export function SharePreview({
+export function useSharePreview({
   messages,
-  results,
   locale,
   kase,
-  saving = false,
-  failed = null,
-  onChooseSchool,
   onPresented,
   post,
   drop,
-  heirCount,
+  heirCount = 0,
 }: {
   messages: Messages["interview"];
-  /** The results dictionary: the table's captions and the side note's. */
-  results: Messages["results"];
   locale: string;
   /** The saved case: it changes only when a save succeeds, so a save in flight changes nothing. */
   kase: Case;
-  /** A save is in flight, so choosing a school waits. */
-  saving?: boolean;
-  /** The last choice of a school could not be saved. */
-  failed?: "failed" | "throttled" | null;
   /** Receives the shown PresentedResult of an available preview for the current case, or null. */
   onPresented?: (p: PresentedResult | null) => void;
-  /** Saves the school the visitor chose when the schools differ for this family. */
-  onChooseSchool?: (madhab: SunniId) => void;
   /** Posts to the Interview's one polite status; the preview speaks only through it. */
   post?: (kind: AnnounceKind, text: string) => void;
   /** Drops pending messages of these kinds: a request that is over must not speak late. */
   drop?: (...kinds: AnnounceKind[]) => void;
   /** The heirs of the active estate, for the "shares ready" sentence. */
   heirCount?: number;
-}) {
+}): SharePreviewView {
   const key = previewKey(kase);
   const ready = previewReady(kase);
   const [attempt, setAttempt] = useState(0);
@@ -74,9 +95,9 @@ export function SharePreview({
   // Which request the slow status belongs to, and how far along it is.
   const [slow, setSlow] = useState<{ id: string; level: 1 | 2 } | null>(null);
   const [reserve, setReserve] = useState(0);
-  const body_ = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const loaded = useRef(false);
-  const names = useRef<{ labels: Record<string, string>; relations: Record<string, string> }>({ labels: {}, relations: {} });
+  const names = useRef<{ labels: Record<string, string> }>({ labels: {} });
   const online = useOnline();
   const caseId = kase.id;
   const revision = kase.revision;
@@ -104,7 +125,7 @@ export function SharePreview({
     const own = new AbortController();
     const say = (text: string) => latest.current.post?.("progress", text);
     // The slow status is a quiet line after three seconds, and a firmer one after ten.
-    setReserve(body_.current?.offsetHeight ?? 0);
+    setReserve(bodyRef.current?.offsetHeight ?? 0);
     const slower = setTimeout(() => {
       setSlow({ id: requestId, level: 1 });
       if (navigator.onLine) say(latest.current.messages.previewWaiting);
@@ -160,128 +181,132 @@ export function SharePreview({
     [kase, messages.relationships, messages.heirNumbered, messages.previewOf],
   );
 
-  const relations = useMemo(() => relationsOf(kase), [kase]);
-  useEffect(() => { names.current = { labels, relations }; });
+  useEffect(() => { names.current = { labels }; });
   const kept = (pending || (!online && outcome?.kind === "failed")) && last !== null && last.caseId === caseId ? last : null;
 
-  const available = (shownPreview: Extract<Preview, { status: "available" }>, names: Record<string, string>, relationOf: Record<string, string>) => {
-    const { rows, unallocated } = previewRows(shownPreview);
-    const proofs = Object.fromEntries(Object.entries(evidenceNotes(shownPreview)).map(([id, notes]) => [id, notes[0].proof]));
-    const data = tableOf(shownPreview);
-    const list = (
-        <ul aria-label={messages.previewHeading} className="flex flex-col gap-2">
-          {rows.map((row) => (
-            <li
-              key={row.heirId}
-              className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-md border border-current/60 p-3"
-            >
-              <strong>
-                <bdi>{names[row.heirId] ?? row.heirId}</bdi>
-                {" "}
-                <small className="font-normal"><RelationshipText relationship={row.relationship} /></small>
-              </strong>
-              {row.blocked || row.fraction === null || row.percent === null ? (
-                <span>{messages.previewNoShare}</span>
-              ) : (
-                <span className="flex flex-wrap gap-x-3">
-                  <span>
-                    {messages.previewShare}: <bdi dir="ltr">{row.fraction}</bdi>{" "}
-                    (<bdi dir="ltr">{row.percent}</bdi>)
-                  </span>
-                  {row.amount !== null && (
-                    <span>
-                      {messages.previewAmount}: <bdi dir="auto">{row.amount}</bdi>
-                    </span>
-                  )}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-    );
-    return (
-      <>
-        {data ? (
-          <InheritanceTable
-            text={results}
-            relationships={messages.relationships}
-            view={tableView(data, shownPreview)}
-            labels={names}
-            relations={relationOf}
-            segments={Object.fromEntries(rows.map((row) => [row.heirId, row.relationship]))}
-            proofs={proofs}
-          />
-        ) : (
-          list
-        )}
-        {unallocated && (
-          <p>
-            {messages.previewUnallocated}: <bdi dir="ltr">{unallocated.fraction}</bdi>
-            {unallocated.amount !== null && <>{" "}(<bdi dir="auto">{unallocated.amount}</bdi>)</>}
-          </p>
-        )}
-        <p className="text-sm">
-          {shownPreview.presented?.school_line?.code === "school"
-            ? messages.previewSchool.split("{school}").join(shownPreview.presented.school_line.text)
-            : shownPreview.presented?.school_line?.text}
-        </p>
-        <p>
-          <Link href={`/${locale}/results/`} prefetch={false} className="underline underline-offset-4">
-            {messages.previewResultsLink}
-          </Link>
-        </p>
-      </>
-    );
-  };
-
-  const slowLevel = pending && online && slow?.id === requestId ? slow.level : 0;
-  let body: React.ReactNode = null;
+  const slowLevel: 0 | 1 | 2 = pending && online && slow?.id === requestId ? slow.level : 0;
+  let content: PreviewContent;
   if (!ready) {
-    body = <p>{kase.deaths.length > 0 && kase.heirs.length > 0 ? messages.previewLayerPrompt : messages.previewPrompt}</p>;
+    content = { kind: "prompt", layered: kase.deaths.length > 0 && kase.heirs.length > 0 };
   } else if (kept) {
-    body = available(kept.preview, kept.labels, kept.relations);
+    content = { kind: "available", preview: kept.preview, labels: kept.labels };
   } else if (outcome === null) {
-    body = slowLevel === 0 ? <p>{messages.previewWaiting}</p> : null;
+    content = slowLevel === 0 ? { kind: "waiting" } : { kind: "none" };
   } else if (outcome.kind === "preview" && preview?.status === "available") {
-    body = available(preview, labels, relations);
+    content = { kind: "available", preview, labels };
   } else if (outcome.kind === "preview" && preview?.status === "choose_school") {
+    content = { kind: "choose", preview, labels };
+  } else if (outcome.kind === "preview" && preview?.status === "unavailable") {
+    // A code with no sentence shows the generic text alone.
+    content = { kind: "refused", reason: (messages.previewReasons as Record<string, string | undefined>)[preview.reason] ?? null };
+  } else if (outcome.kind === "preview") {
+    // Not reachable: a "not ready" answer is reconciled into "replaced" before it is stored.
+    content = { kind: "prompt", layered: false };
+  } else {
+    content = {
+      kind: "error",
+      text:
+        outcome.kind === "throttled"
+          ? messages.previewThrottled
+          : outcome.kind === "replaced"
+            ? messages.previewGone
+            : outcome.kind === "gone"
+              ? messages.previewExpired
+              : messages.previewFailed,
+      retry: outcome.kind !== "throttled" && outcome.kind !== "gone",
+    };
+  }
+
+  let state: PreviewState = "idle";
+  if (ready) {
+    if (pending || outcome === null) state = "pending";
+    else if (outcome.kind !== "preview") state = "error";
+    else if (preview?.status === "available") state = "ready";
+    else if (preview?.status === "choose_school") state = "choose-school";
+    else if (preview?.status === "unavailable") state = "refused";
+  }
+
+  return {
+    state,
+    revision: ready && outcome !== null && settled ? settled.revision ?? null : null,
+    pending,
+    kept: kept !== null,
+    slowLevel,
+    heirCount,
+    content,
+    reserve,
+    bodyRef,
+    retry: () => setAttempt((count) => count + 1),
+  };
+}
+
+/** A notice's text: the served one, else the catalog's `notice.<code>`, else none. */
+function noticeText(presented: PresentedResult | undefined, code: "disclaimer" | "locale_beta", locale: string): string | null {
+  const served = presented?.notices.find((notice) => notice.code === code)?.text;
+  if (served) return served;
+  const catalog = (terms as Record<string, Record<string, string> | undefined>)[locale];
+  return catalog?.[`notice.${code}`] ?? null;
+}
+
+/**
+ * The shares as the server presented them, with no request of its own: it draws the view the
+ * lifecycle hands it, so it can sit in any container. It is silent (no live region).
+ */
+export function SharePreviewBody({
+  messages,
+  locale,
+  content,
+  pending,
+  kept,
+  slowLevel,
+  reserve,
+  bodyRef,
+  saving = false,
+  failed = null,
+  onRetry,
+  onChooseSchool,
+  retry,
+}: SharePreviewView & {
+  messages: Messages["interview"];
+  locale: string;
+  saving?: boolean;
+  failed?: "failed" | "throttled" | null;
+  /** Defaults to the view's own `retry`. */
+  onRetry?: () => void;
+  onChooseSchool?: (madhab: SunniId) => void;
+}) {
+  let body: React.ReactNode = null;
+  if (content.kind === "prompt") {
+    body = <p>{content.layered ? messages.previewLayerPrompt : messages.previewPrompt}</p>;
+  } else if (content.kind === "waiting") {
+    body = <p>{messages.previewWaiting}</p>;
+  } else if (content.kind === "available") {
+    body = <AvailableShares messages={messages} locale={locale} preview={content.preview} labels={content.labels} />;
+  } else if (content.kind === "choose") {
     body = (
       <SchoolChoice
         messages={messages}
-        preview={preview}
-        labels={labels}
-        disabled={saving}
+        preview={content.preview}
+        labels={content.labels}
+        disabled={saving || !onChooseSchool}
         failed={failed}
         onChoose={(madhab) => onChooseSchool?.(madhab)}
       />
     );
-  } else if (outcome.kind === "preview" && preview?.status === "unavailable") {
-    // A code with no sentence shows the generic text alone.
-    const reason = (messages.previewReasons as Record<string, string | undefined>)[preview.reason] ?? null;
+  } else if (content.kind === "refused") {
     body = (
       <>
         <p>{messages.previewUnavailable}</p>
-        {reason && <p>{reason}</p>}
+        {content.reason && <p>{content.reason}</p>}
       </>
     );
-  } else if (outcome.kind === "preview") {
-    // Not reachable: a "not ready" answer is reconciled into "replaced" before it is stored.
-    body = <p>{messages.previewPrompt}</p>;
-  } else {
-    const text =
-      outcome.kind === "throttled"
-        ? messages.previewThrottled
-        : outcome.kind === "replaced"
-          ? messages.previewGone
-          : outcome.kind === "gone"
-            ? messages.previewExpired
-            : messages.previewFailed;
+  } else if (content.kind === "error") {
     body = (
       <>
-        <p>{text}</p>
-        {outcome.kind !== "throttled" && outcome.kind !== "gone" && (
+        <p>{content.text}</p>
+        {content.retry && (
           <div>
-            <button type="button" className={buttonClass} onClick={() => setAttempt((count) => count + 1)}>
+            <button type="button" className={buttonClass} onClick={onRetry ?? retry}>
               {messages.previewRetry}
             </button>
           </div>
@@ -291,13 +316,13 @@ export function SharePreview({
   }
 
   const slowText = slowLevel === 2 ? messages.previewStillWorking : messages.previewWaiting;
+  // The disclaimer is always present; a supplied Beta notice comes with its explanation.
+  const presented = content.kind === "available" || content.kind === "choose" ? content.preview.presented : undefined;
+  const disclaimer = noticeText(presented, "disclaimer", locale);
+  const beta = presented?.notices.some((notice) => notice.code === "locale_beta") ? noticeText(presented, "locale_beta", locale) : null;
+  const box = "rounded-[6px] border border-current/60 p-3";
   return (
-    <section
-      data-wide
-      aria-labelledby="preview-heading"
-      aria-busy={pending}
-      className="flex w-full flex-col gap-3"
-    >
+    <section data-wide aria-labelledby="preview-heading" aria-busy={pending} className="flex w-full flex-col gap-3 bg-surface p-6">
       <h3 id="preview-heading" className="text-lg font-semibold">
         {messages.previewHeading}
       </h3>
@@ -305,14 +330,16 @@ export function SharePreview({
           are the last good ones, in the muted pair (no opacity). It is silent: the Interview's one
           status region speaks for it. */}
       <div
-        ref={body_}
+        ref={bodyRef}
         data-preview-body
         data-pending={kept ? "" : undefined}
         style={pending && reserve > 0 ? { minHeight: reserve } : undefined}
-        className={`flex flex-col gap-3 ${kept ? "bg-surface text-muted" : ""}`}
+        className={`flex flex-col gap-3 ${kept ? "text-muted" : ""}`}
       >
         {body}
       </div>
+      {disclaimer && <p data-notice="disclaimer" className={`${box} font-semibold`}>{disclaimer}</p>}
+      {beta && <p data-notice="locale_beta" className={box}>{beta}</p>}
       {slowLevel > 0 && (
         <p data-slow className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-muted">
           {slowText}
@@ -322,15 +349,75 @@ export function SharePreview({
   );
 }
 
+function AvailableShares({
+  messages,
+  locale,
+  preview,
+  labels,
+}: {
+  messages: Messages["interview"];
+  locale: string;
+  preview: Available;
+  labels: Record<string, string>;
+}) {
+  const { rows, unallocated } = previewRows(preview);
+  const presented = preview.presented;
+  return (
+    <>
+      <ul aria-label={messages.previewHeading} className="flex flex-col">
+        {rows.map((row) => {
+          const blocked = row.blocked || row.fraction === null || row.percent === null;
+          return (
+            <li
+              key={row.heirId}
+              data-blocked={blocked ? "" : undefined}
+              className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line py-3 last:border-b-0"
+            >
+              <span className={`flex min-w-0 flex-col ${blocked ? "text-muted" : ""}`}>
+                <bdi>{labels[row.heirId] ?? row.heirId}</bdi>
+                <small className="text-muted"><RelationshipText relationship={row.relationship} /></small>
+              </span>
+              {blocked ? (
+                <span className="text-sm text-muted">{messages.treeNoShare}</span>
+              ) : (
+                <span className="ms-auto flex flex-wrap items-baseline justify-end gap-x-3 font-semibold">
+                  <bdi dir="ltr">{row.fraction}</bdi>
+                  <bdi dir="ltr">{row.percent}</bdi>
+                  {row.amount !== null && <bdi dir="auto">{row.amount}</bdi>}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {unallocated && (
+        <p>
+          {messages.previewUnallocated}: <bdi dir="ltr">{unallocated.fraction}</bdi>
+          {unallocated.amount !== null && <>{" "}(<bdi dir="auto">{unallocated.amount}</bdi>)</>}
+        </p>
+      )}
+      <p className="text-sm">
+        {presented?.school_line?.code === "school"
+          ? messages.previewSchool.split("{school}").join(presented.school_line.text)
+          : presented?.school_line?.text}
+      </p>
+      <p>
+        <Link href={`/${locale}/results/`} prefetch={false} className={primaryButton}>
+          {messages.previewResultsLink}
+        </Link>
+      </p>
+    </>
+  );
+}
+
 const SLOW_AFTER = 3000;
 const STILL_AFTER = 10000;
 
 /** The shares last shown, with the names and relationships they were shown under. */
 type Last = {
   caseId: string;
-  preview: Extract<Preview, { status: "available" }>;
+  preview: Available;
   labels: Record<string, string>;
-  relations: Record<string, string>;
 };
 
 /** The one sentence a settled preview adds to the status. */
@@ -352,4 +439,21 @@ function settledText(outcome: PreviewResult, messages: Messages["interview"], co
       : outcome.kind === "gone"
         ? messages.previewExpired
         : messages.previewFailed;
+}
+
+/** The settled signal the Interview root carries, so tests can wait for an accepted calculation. */
+export type PreviewSignal = { state: PreviewState; revision: number | null };
+
+/**
+ * Runs the lifecycle on the Interview and draws nothing: the body renders only in the summary
+ * sheet (story 11.3). It reports the settled signal for the root's `data-preview-*` attributes.
+ */
+export function SharePreviewController({
+  onSignal,
+  ...options
+}: Parameters<typeof useSharePreview>[0] & { onSignal: (signal: PreviewSignal) => void }) {
+  const { state, revision } = useSharePreview(options);
+  useEffect(() => { onSignal({ state, revision }); }, [onSignal, state, revision]);
+  useEffect(() => () => onSignal({ state: "idle", revision: null }), [onSignal]);
+  return null;
 }

@@ -26,7 +26,8 @@ export async function openHeirsScreen(page: Page, api: Api, locale: "en" | "ar" 
   await page.goto(`/${locale}/interview/`);
   await page.getByRole("button", { name: messages[locale].interview.resume }).click();
   await page.locator("section[aria-labelledby='add-relatives-heading']").waitFor();
-  await page.locator("section[aria-labelledby='preview-heading']").locator("table, ul").first().waitFor();
+  // The Share preview is not on the Interview (story 11.2): wait for the accepted calculation instead.
+  await page.locator("[data-preview-state='ready']").waitFor();
 }
 
 /** Shared lineage and blocked-evidence fixture, validated by the production readers. */
