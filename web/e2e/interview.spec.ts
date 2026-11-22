@@ -883,7 +883,8 @@ test.describe("interview shell", () => {
     const { add, tree, list } = regions(page);
     const [a, t, l] = [await box(add), await box(tree), await box(list)];
     expect(a.width).toBeCloseTo(380, 0);
-    expect(l.width).toBeCloseTo(380, 0);
+    // The column is 380px; the list sits inside its 16px inline-end padding.
+    expect(l.width).toBeCloseTo(364, 0);
     expect(t.x).toBeGreaterThan(a.x + a.width - 1);
     expect(l.y).toBeGreaterThan(a.y);
     expect(Math.abs(l.x - a.x)).toBeLessThan(1);
@@ -903,11 +904,11 @@ test.describe("interview shell", () => {
     const [a, t] = [await box(add), await box(tree)];
     expect(a.width).toBeCloseTo(380, 0);
     expect(grid.x + grid.width - (t.x + t.width)).toBeGreaterThanOrEqual(340);
-    const pv = await box(page.locator("section[aria-labelledby='preview-heading']"));
+    const pv = await box(page.locator("section[aria-labelledby='preview-heading']").locator(".."));
     expect(pv.width).toBeCloseTo(340, 0);
     expect(pv.x).toBeGreaterThanOrEqual(t.x + t.width - 1);
     // Read both tops in one frame: the page may still be finishing its smooth focus scroll.
-    const tops = await page.evaluate(() => ["section[data-tree]", "section[aria-labelledby='preview-heading']"].map((s) => document.querySelector(s)!.getBoundingClientRect().y));
+    const tops = await page.evaluate(() => ["section[data-tree]", "section[aria-labelledby='preview-heading']"].map((s) => (s.includes("preview") ? document.querySelector(s)!.parentElement! : document.querySelector(s)!).getBoundingClientRect().y));
     expect(Math.abs(tops[1] - tops[0])).toBeLessThan(2);
   });
 
@@ -1812,4 +1813,376 @@ test.describe("one status and pending shares (story 9.10)", () => {
     await expect(page.getByRole("alert").first()).toBeVisible();
     await expect(status(page)).not.toContainText(/not allowed|added/i);
   });
+});
+
+test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions", () => {
+  const agree = fixture("Agree: wife, son and daughter in every school");
+  const stamp = (kase: Record<string, any>, revision: number): Record<string, any> => ({ ...kase, revision, snapshot: { at: revision } }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const start = () => stamp(fullCase(agree.case) as Record<string, any>, 5); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const added = (kase: Record<string, any>) => stamp({ ...kase, heirs: [...kase.heirs, { id: "new-son", relationship: "son", gender: "male", name: null, edit_options: { blocked: [], invalid: {} } }] }, kase.revision + 1); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const openAgree = async (page: Page, api: Parameters<typeof openHeirsScreen>[1], locale: "en" | "ar", kase = start()) => {
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, agree.response) });
+    await page.goto(`/${locale}/interview/`);
+    await page.getByRole("button", { name: messages[locale].interview.resume }).click();
+    await page.locator("#add-relatives-heading").waitFor();
+  };
+  const box = async (locator: ReturnType<Page["locator"]>) => (await locator.boundingBox())!;
+  const rtlLocales = locales.filter((locale) => directionOf(locale) === "rtl");
+  /** WCAG 1.4.12 text-spacing overrides. */
+  const spacing = "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
+  const treeColumn = (page: Page) => page.locator("section[data-tree]").locator("xpath=ancestor::div[contains(@class,'lg:col-start-2')][1]");
+  const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+
+  for (const locale of ["en", "ar"] as const) {
+    const t = messages[locale].interview;
+    for (const width of [320, 639, 640, 1023, 1024, 1279, 1280]) {
+      test(`geometry at ${width}px in ${locale}`, async ({ page, api }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await openCanvasFixture(page, api, locale);
+        const rtl = locale === "ar";
+        const add = page.locator("section[aria-labelledby='add-relatives-heading']");
+        const tree = page.locator("section[data-tree]");
+        const list = page.locator("section[aria-labelledby='heirs-heading']");
+        const preview = page.locator("section[aria-labelledby='preview-heading']");
+        expect(await noOverflow(page)).toBe(true);
+        const [a, tr, l] = [await box(add), await box(tree), await box(list)];
+        // Cards are 108px below 640px and 136px from there.
+        const card = page.locator('[data-node]:not([data-node="root"])').first();
+        expect((await box(card)).width).toBeCloseTo(width < 640 ? 108 : 136, 0);
+        const edge = (b: { x: number; width: number }) => (rtl ? width - (b.x + b.width) : b.x);
+        if (width < 1024) {
+          expect(edge(a)).toBeCloseTo(16, 0);
+          expect(a.y).toBeLessThan(tr.y);
+          expect(tr.y).toBeLessThan(l.y);
+        } else {
+          expect(edge(a)).toBeCloseTo(24, 0);
+          expect(a.width).toBeCloseTo(380, 0);
+          const column = treeColumn(page);
+          const cb = await box(column);
+          if (width === 1024) expect(cb.width).toBeGreaterThanOrEqual(596);
+          if (width < 1280) {
+            expect(await column.evaluate((el) => getComputedStyle(el).borderInlineStartWidth + " " + getComputedStyle(el).borderInlineStartStyle)).toBe("1px solid");
+            expect(Math.abs(edge(cb) - (edge(a) + 380))).toBeLessThan(1);
+          }
+        }
+        if (width >= 1280) {
+          const wrapper = preview.locator("..");
+          const pb = await box(wrapper);
+          expect(pb.width).toBeCloseTo(340, 0);
+          expect(await wrapper.evaluate((el) => { const s = getComputedStyle(el); return [s.borderInlineStartWidth, s.paddingInlineStart, s.paddingInlineEnd].join(" "); })).toBe("1px 24px 24px");
+          const middle = tree.locator("xpath=ancestor::div[contains(@class,'xl:col-start-2')][1]");
+          const tb = await box(middle);
+          expect(Math.abs(edge(pb) - (edge(tb) + tb.width))).toBeLessThan(1);
+          expect(await middle.evaluate((el) => getComputedStyle(el).borderInlineStartWidth)).toBe("1px");
+        }
+        // The edit surface: a bottom sheet below 640px, a non-modal panel from there.
+        const editable = page.locator('[data-node]:not([data-node="root"]):not([data-state="died_later"])').first();
+        await editable.focus();
+        await editable.press("Enter");
+        if (width < 640) {
+          await expect(page.locator("dialog[data-edit-sheet]:modal")).toBeVisible();
+        } else {
+          const panel = page.locator("section[data-edit-sheet]");
+          await expect(panel).toBeVisible();
+          const pn = await box(panel);
+          if (width >= 1280) {
+            // The inline-end column, above the still-mounted Share preview.
+            const pv = await box(preview.locator(".."));
+            expect(pn.x).toBeGreaterThanOrEqual(pv.x - 1);
+            expect(pn.x + pn.width).toBeLessThanOrEqual(pv.x + pv.width + 1);
+            expect(pn.y + pn.height).toBeLessThanOrEqual((await box(preview)).y + 1);
+            await expect(preview).toBeVisible();
+          } else {
+            const tb = await box(tree);
+            expect(pn.y).toBeGreaterThanOrEqual(tb.y + tb.height - 1);
+            expect(pn.x).toBeGreaterThanOrEqual(tb.x - 1);
+            expect(pn.x + pn.width).toBeLessThanOrEqual(tb.x + tb.width + 1);
+          }
+          expect(await panel.evaluate((el) => !el.matches(":modal"))).toBe(true);
+          // Escape closes it and returns focus to the opening card.
+          await panel.getByLabel(t.heirNameLabel).press("Escape");
+          await expect(panel).toHaveCount(0);
+          await expect(editable).toBeFocused();
+        }
+      });
+    }
+  }
+
+  test("1280px in a later estate: the panel stays in the tree column and the preview is hidden", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openCanvasFixture(page, api, "en");
+    const later = page.locator('[data-node][data-state="died_later"]').first();
+    await later.focus();
+    await later.press("Enter");
+    await expect(page.locator("[data-breadcrumb]")).toBeVisible();
+    await expect(page.locator("section[aria-labelledby='preview-heading']")).toBeHidden();
+    const editable = page.locator('[data-node][data-state="normal"], [data-node][data-state="blocked"], [data-node][data-state="died_before"]').first();
+    await editable.focus();
+    await editable.press("Enter");
+    const panel = page.locator("section[data-edit-sheet]");
+    await expect(panel).toBeVisible();
+    // Both boxes in one frame: the page may still be finishing its smooth focus scroll.
+    const [tree, pn] = await page.evaluate(() => ["section[data-tree]", "section[data-edit-sheet]"].map((s) => { const r = document.querySelector(s)!.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }));
+    expect(pn.x).toBeGreaterThanOrEqual(tree.x - 1);
+    expect(pn.x + pn.width).toBeLessThanOrEqual(tree.x + tree.width + 1);
+    expect(pn.y).toBeGreaterThanOrEqual(tree.y + tree.height - 1);
+  });
+
+  for (const locale of ["en", "ar"] as const) {
+    test(`320px with text spacing in ${locale}: reflow, one 2D scroller, focus inside, no clipped cards, edit`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 320, height: 800 });
+      await openCanvasFixture(page, api, locale, "many");
+      await page.addStyleTag({ content: spacing });
+      const t = messages[locale].interview;
+      expect(await noOverflow(page)).toBe(true);
+      const group = page.getByRole("group", { name: t.treeHeading });
+      await expect(group).toBeVisible();
+      const scrollers = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("body *")].filter((el) => {
+        const s = getComputedStyle(el);
+        return /auto|scroll/.test(s.overflowX) && /auto|scroll/.test(s.overflowY);
+      }).map((el) => el.hasAttribute("data-tree-area")));
+      expect(scrollers).toEqual([true]);
+      expect(await group.evaluate((el) => parseFloat(getComputedStyle(el).paddingInlineStart))).toBeGreaterThanOrEqual(6);
+      const clipped = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-tree-area] [data-node]")].filter((el) => el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth).map((el) => el.dataset.node));
+      expect(clipped).toEqual([]);
+      // Reaching each card keeps its outline inside the canvas's visible box.
+      await page.locator('[data-node="root"]').focus();
+      for (const key of ["ArrowDown", "End", "Home"]) {
+        await page.keyboard.press(key);
+        const inside = await page.evaluate(() => {
+          const area = document.querySelector<HTMLElement>("[data-tree-area]")!;
+          const a = area.getBoundingClientRect();
+          const focused = document.activeElement as HTMLElement;
+          const r = focused.getBoundingClientRect();
+          const style = getComputedStyle(focused);
+          const grow = (parseFloat(style.outlineWidth) || 0) + (parseFloat(style.outlineOffset) || 0);
+          return r.left - grow >= a.left - 0.5 && r.right + grow <= a.left + area.clientWidth + 0.5 && r.top - grow >= a.top - 0.5 && r.bottom + grow <= a.top + area.clientHeight + 0.5;
+        });
+        expect(inside).toBe(true);
+      }
+      const editable = page.locator('[data-node]:not([data-node="root"]):not([data-state="died_later"])').first();
+      await editable.focus();
+      await editable.press("Enter");
+      const sheet = page.locator("dialog[data-edit-sheet]:modal");
+      await expect(sheet).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(sheet).toHaveCount(0);
+      await expect(editable).toBeFocused();
+    });
+
+    test(`320px with text spacing in ${locale}: add, toast obstruction and Undo`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 320, height: 800 });
+      const kase = start();
+      await openAgree(page, api, locale, kase);
+      await page.addStyleTag({ content: spacing });
+      api.set({ postHeir: json(201, { case: added(kase) }) });
+      await page.locator('[data-focus="add:son"]').click();
+      const toast = page.locator("[data-undo-toast]");
+      await expect(toast).toBeVisible();
+      expect(await noOverflow(page)).toBe(true);
+      const height = (await box(toast)).height;
+      const padding = () => page.evaluate(() => ({ variable: document.documentElement.style.getPropertyValue("--interview-obstruction"), computed: getComputedStyle(document.documentElement).scrollPaddingBlockEnd }));
+      await expect.poll(async () => parseFloat((await padding()).computed)).toBeCloseTo(Math.min(height, 200), 0);
+      const now = await padding();
+      expect(now.variable).toBe(now.computed);
+      const clipped = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-tree-area] [data-node]")].filter((el) => el.scrollHeight > el.clientHeight).map((el) => el.dataset.node));
+      expect(clipped).toEqual([]);
+      api.set({ postRestore: json(200, { case: stamp(kase, 7) }) });
+      await toast.getByRole("button", { name: messages[locale].interview.undoAction, exact: true }).click();
+      await expect(page.locator("[data-node='new-son']")).toHaveCount(0);
+      expect(api.restorePosts).toHaveLength(1);
+    });
+  }
+
+  test("the obstruction follows the mounted toast when its height changes", async ({ page, api }) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    const kase = start();
+    await openAgree(page, api, "en", kase);
+    api.set({ postHeir: json(201, { case: added(kase) }) });
+    await page.locator('[data-focus="add:son"]').click();
+    const toast = page.locator("[data-undo-toast]");
+    await expect(toast).toBeVisible();
+    const variable = () => page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue("--interview-obstruction")));
+    const before = (await box(toast)).height;
+    await expect.poll(variable).toBeCloseTo(before, 0);
+    await page.addStyleTag({ content: "[data-undo-toast] { padding-block: 40px !important; }" });
+    await expect.poll(async () => (await box(toast)).height).toBeGreaterThan(before + 20);
+    const after = (await box(toast)).height;
+    expect(after).toBeLessThan(225);
+    await expect.poll(variable).toBeCloseTo(after, 0);
+  });
+
+  for (const scheme of ["light", "dark"] as const) {
+    test(`the rendered toast uses the foreground fill and the toast-focus ring in ${scheme} mode`, async ({ page, api }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width: 800, height: 900 });
+      const kase = start();
+      await openAgree(page, api, "en", kase);
+      api.set({ postHeir: json(201, { case: added(kase) }) });
+      await page.locator('[data-focus="add:son"]').click();
+      const toast = page.locator("[data-undo-toast]");
+      await expect(toast).toBeVisible();
+      const css = readFileSync(join(process.cwd(), "src", "app", "[locale]", "globals.css"), "utf8");
+      const block = scheme === "light" ? css.slice(css.indexOf(":root {"), css.indexOf("@media (prefers-color-scheme: dark)")) : css.slice(css.indexOf("@media (prefers-color-scheme: dark)"), css.indexOf("@theme inline"));
+      const rgb = (name: string) => {
+        const hex = new RegExp(`--${name}:\\s*#([0-9a-f]{6})`, "i").exec(block)![1];
+        return `rgb(${[0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
+      };
+      const button = toast.getByRole("button", { name: en.undoAction, exact: true });
+      let reached = false;
+      for (let step = 0; step < 80 && !reached; step += 1) {
+        await page.keyboard.press("Tab");
+        reached = await button.evaluate((el) => el === document.activeElement);
+      }
+      expect(reached).toBe(true);
+      await expect(toast).toHaveCSS("background-color", rgb("foreground"));
+      await expect(button).toHaveCSS("outline-color", rgb("toast-focus"));
+      await expect(button).toHaveCSS("outline-style", "solid");
+    });
+  }
+
+  test("an edit that moves an existing card past the canvas edge ends with it inside the canvas", async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 900 });
+    await openCanvasFixture(page, api, "en", "many");
+    const kase = fullCase(agree.case, {
+      deaths: [],
+      heirs: Array.from({ length: 50 }, (_, i) => ({ id: `many${i}`, relationship: "son", gender: "male", name: null, edit_options: { blocked: [], invalid: {} } })),
+      placement: { root: [{ relationship: "father", link: "parent", blocked: false }, { relationship: "wife", link: "spouse", blocked: false }] },
+    }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const [first, ...rest] = kase.heirs;
+    // The first son comes back last: its card moves to the far end of the tree.
+    api.set({ putHeir: json(200, { case: { ...kase, revision: kase.revision + 1, heirs: [...rest, { ...first, name: "Moved" }] } }) });
+    const card = page.locator('[data-node="many0"]');
+    await card.focus();
+    await card.press("Enter");
+    const name = page.locator("[data-edit-sheet]").getByLabel(en.heirNameLabel);
+    await name.fill("Moved");
+    await name.press("Tab");
+    await expect(page.locator('[data-node="many0"]')).toContainText("Moved");
+    await expect.poll(() => page.evaluate(() => {
+      const area = document.querySelector<HTMLElement>("[data-tree-area]")!;
+      const a = area.getBoundingClientRect();
+      const r = document.querySelector<HTMLElement>('[data-node="many0"]')!.getBoundingClientRect();
+      return r.left >= a.left - 0.5 && r.right <= a.left + area.clientWidth + 0.5 && r.top >= a.top - 0.5 && r.bottom <= a.top + area.clientHeight + 0.5;
+    }), { timeout: 3000 }).toBe(true);
+  });
+
+  test("the obstruction follows the toast, is capped at a quarter of the viewport, and returns to 0px", async ({ page, api }) => {
+    await page.clock.install();
+    await page.setViewportSize({ width: 320, height: 240 });
+    const kase = start();
+    await openAgree(page, api, "en", kase);
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollPaddingBlockEnd)).toBe("0px");
+    api.set({ postHeir: json(201, { case: added(kase) }) });
+    await page.locator('[data-focus="add:son"]').click();
+    const toast = page.locator("[data-undo-toast]");
+    await expect(toast).toBeVisible();
+    expect((await box(toast)).height).toBeGreaterThan(60);
+    await expect.poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue("--interview-obstruction"))).toBe("60px");
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollPaddingBlockEnd)).toBe("60px");
+    // Taller than the cap: the toast's own height applies once a quarter of the viewport is at least that.
+    const natural = (await box(toast)).height;
+    await page.setViewportSize({ width: 320, height: 800 });
+    await expect.poll(() => page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue("--interview-obstruction")))).toBeCloseTo(Math.min(natural, 200), 0);
+    await page.clock.fastForward(10_500);
+    await expect(toast).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).scrollPaddingBlockEnd)).toBe("0px");
+  });
+
+  test.describe("reduced motion", () => {
+    test.describe("reduce", () => {
+      test.use({ reducedMotion: "reduce" });
+      test("nothing in the Interview transitions or animates, and every action still works", async ({ page, api }) => {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        const kase = start();
+        await openAgree(page, api, "en", kase);
+        api.set({ postHeir: json(201, { case: added(kase) }) });
+        await page.locator('[data-focus="add:son"]').click();
+        await expect(page.locator("[data-undo-toast]")).toBeVisible();
+        await expect(page.locator("[data-node='new-son']")).toBeVisible();
+        await page.locator('[data-node]:not([data-node="root"]):not([data-state="died_later"])').first().press("Enter");
+        await expect(page.locator("section[data-edit-sheet]")).toBeVisible();
+        const moving = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-js-only], [data-js-only] *")].filter((el) => {
+          const s = getComputedStyle(el);
+          return (s.transitionProperty !== "none" && s.transitionDuration.split(",").some((d) => parseFloat(d) > 0)) || (s.animationName !== "none" && s.animationDuration.split(",").some((d) => parseFloat(d) > 0));
+        }).map((el) => el.tagName));
+        expect(moving).toEqual([]);
+        await expect(page.locator('[data-node="new-son"]')).toHaveCSS("transition-duration", "0s");
+      });
+    });
+    test.describe("no-preference", () => {
+      test.use({ reducedMotion: "no-preference" });
+      test("positioned cards transition inset and top over 300ms", async ({ page, api }) => {
+        const kase = start();
+        await openAgree(page, api, "en", kase);
+        const card = page.locator("[data-node]:not([data-node='root'])").first();
+        await expect(card).toHaveCSS("transition-duration", /^0\.3s(, 0\.3s)?$/);
+        await expect(card).toHaveCSS("transition-property", "inset-inline-start, top");
+        api.set({ postHeir: json(201, { case: added(kase) }) });
+        await page.locator('[data-focus="add:son"]').click();
+        await expect(page.locator("[data-node='new-son']")).toHaveCSS("transition-duration", /^0\.3s(, 0\.3s)?$/);
+      });
+    });
+  });
+
+  test("the registry, not a literal ar, decides direction", async () => {
+    const { directionFrom } = await import("../src/i18n/messages");
+    const registry = { locales: [{ code: "ur", direction: "rtl" as const }, { code: "en", direction: "ltr" as const }] };
+    expect(directionFrom(registry, "ur")).toBe("rtl");
+    expect(directionFrom(registry, "zz")).toBe("ltr");
+    expect(rtlLocales.length).toBeGreaterThan(0);
+    const published = { locales: locales.map((code) => ({ code, direction: directionOf(code) })) };
+    for (const locale of locales) expect(directionFrom(published, locale)).toBe(directionOf(locale));
+  });
+
+  for (const locale of locales) {
+    test(`RTL derives from the registry in ${locale}: arrows, connector, text and order`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await openCanvasFixture(page, api, locale as "en" | "ar" | "fr");
+      const rtl = directionOf(locale) === "rtl";
+      await expect(page.locator("html")).toHaveAttribute("lang", locale);
+      await expect(page.locator("html")).toHaveAttribute("dir", rtl ? "rtl" : "ltr");
+      const group = page.locator("[data-tree-area]");
+      // Only the connector SVG is transformed.
+      expect(await group.locator("svg").first().evaluate((el) => getComputedStyle(el).scale)).toBe(rtl ? "-1 1" : "none");
+      const flat = await group.evaluate((el) => [...el.querySelectorAll<HTMLElement>("button, button strong, button span:not([aria-hidden='true'])")].filter((n) => getComputedStyle(n).transform !== "none" || getComputedStyle(n).scale !== "none").map((n) => n.tagName));
+      expect(flat).toEqual([]);
+      const chevron = group.locator("[data-state='died_later'] span[aria-hidden='true']").first();
+      expect(await chevron.evaluate((el) => getComputedStyle(el).scale)).toBe(rtl ? "-1 1" : "none");
+      // Inline arrows are mirrored: the next sibling lies at the inline-end side.
+      await page.locator('[data-node="root"]').focus();
+      await page.keyboard.press("ArrowDown");
+      const first = await page.evaluate(() => (document.activeElement as HTMLElement).dataset.node);
+      await page.keyboard.press(rtl ? "ArrowLeft" : "ArrowRight");
+      const second = await page.evaluate(() => (document.activeElement as HTMLElement).dataset.node);
+      expect(second).not.toBe(first);
+      await page.keyboard.press(rtl ? "ArrowRight" : "ArrowLeft");
+      expect(await page.evaluate(() => (document.activeElement as HTMLElement).dataset.node)).toBe(first);
+    });
+
+    test(`the count stepper reads from the inline-start side in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await openHeirsScreen(page, api, locale as "en" | "ar" | "fr");
+      const rtl = directionOf(locale) === "rtl";
+      const stepper = page.locator("[data-focus='add:son']").locator("xpath=following-sibling::div[1]");
+      const buttons = stepper.locator("button");
+      const [fewer, more] = [await box(buttons.nth(0)), await box(buttons.nth(1))];
+      expect(rtl ? fewer.x > more.x : fewer.x < more.x).toBe(true);
+    });
+  }
+
+  for (const locale of ["en", "ar"] as const) {
+    test(`names, terms and fractions keep their own direction markup in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await openHeirsScreen(page, api, locale);
+      const preview = page.locator("section[aria-labelledby='preview-heading']");
+      expect(await preview.locator("span[lang][dir]").count()).toBe(0);
+      expect(await preview.locator("bdi[lang][dir]").count()).toBeGreaterThan(0);
+      if (locale === "en") expect(await preview.locator("bdi[lang='ar'][dir='rtl']").count()).toBeGreaterThan(0);
+      const fractions = await preview.evaluate((el) => [...el.querySelectorAll("*")].filter((n) => n.children.length === 0 && /^\d+\/\d+$/.test(n.textContent?.trim() ?? "")).map((n) => n.closest("[dir]")?.getAttribute("dir")));
+      expect(fractions.length).toBeGreaterThan(0);
+      expect(fractions.every((dir) => dir === "ltr")).toBe(true);
+      expect(await page.locator("[data-node] bdi").count()).toBeGreaterThan(0);
+    });
+  }
 });

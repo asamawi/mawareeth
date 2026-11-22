@@ -34,6 +34,8 @@
 }
 
 @theme inline {
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
   --color-muted: var(--muted);
   --color-surface: var(--surface);
   --color-line: var(--border);
@@ -57,6 +59,8 @@
 
 html {
   scroll-behavior: smooth;
+  /* The Undo toast and, later, the summary bar: set by useObstruction, capped at 25% of the viewport. */
+  scroll-padding-block-end: var(--interview-obstruction, 0px);
 }
 
 @media (prefers-reduced-motion: reduce) {

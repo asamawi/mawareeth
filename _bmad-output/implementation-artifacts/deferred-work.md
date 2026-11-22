@@ -195,7 +195,7 @@ Completed and obsolete items are removed; their history is in git.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-4-family-tree-visualization-basic-render-updates.md`
   summary: Add repeatable browser tests for the tree's rendering, reveal scrolling, RTL mirroring and keyboard path.
-  evidence: The repo has no browser test tool, so these were checked once with a throwaway headless Edge script that is not in the repo, and a regression would pass lint, typecheck, unit tests and build.
+  evidence: The repo has no browser test tool, so these were checked once with a throwaway headless Edge script that is not in the repo, and a regression would pass lint, typecheck, unit tests and build. Addressed by Story 9.11: Playwright now covers the tree's geometry, reflow, RTL mirroring and reduced motion in en and ar.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-4-family-tree-visualization-basic-render-updates.md`
   summary: Decide how to keep the deceased visible once the tree outgrows its 45% viewport cap.
@@ -207,7 +207,7 @@ Completed and obsolete items are removed; their history is in git.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-5-real-time-share-preview-from-supported-engine-cases.md`
   summary: Add browser tests (Playwright with axe) for the heir screen with the share preview: add, edit, remove, change school, a refused case, a failed request, RTL at 320px, dark mode, forced colors and a keyboard-only run.
-  evidence: The suite has no browser runner yet. The staleness and display rules are covered by pure tests against the shared fixtures, and the component's effects, focus behavior and layout were not run in a browser.
+  evidence: The suite has no browser runner yet. The staleness and display rules are covered by pure tests against the shared fixtures, and the component's effects, focus behavior and layout were not run in a browser. Addressed by Story 9.11 for RTL at 320px with text spacing and dark mode (axe and geometry); forced colors stay unproven.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-5-real-time-share-preview-from-supported-engine-cases.md`
   summary: Have a native reviewer check the preview's refusal sentences, especially the Malikiyya sentence, which in Arabic reads like a repeat of the school's name.
@@ -215,7 +215,7 @@ Completed and obsolete items are removed; their history is in git.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
   summary: Add browser tests (Playwright with axe) for the add form's labels on blocked relatives, the hint, the second-father and spouse errors, a changed gender with a saved spouse, Arabic at 320px, and a keyboard-only run.
-  evidence: The labels, hint and error display were covered by pure tests and a built export only; no browser runner exists yet.
+  evidence: The labels, hint and error display were covered by pure tests and a built export only; no browser runner exists yet. Addressed by Story 9.11 for Arabic at 320px (reflow and axe with text spacing); the other clauses are covered by the earlier Interview specs.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-fiqh-aware-validation-hajb-blocking-heirs.md`
   summary: Have a native Arabic and French speaker and a fiqh reviewer check the new text: the kinship messages, the "does not inherit with the family so far" label and the hint under the relationship list.
@@ -566,3 +566,13 @@ Native review of the new Interview status copy in Arabic and French, and screen-
 | `previewStillWorking` | Still working on the preview… | ما زال تحديث المعاينة جاريًا… | Mise à jour de l'aperçu toujours en cours… |
 
 Screen-reader check still owed: that the one polite atomic status speaks once per change (an add, a zoom, a slow preview and its result) with NVDA/Chrome, VoiceOver/Safari iOS and TalkBack, in Arabic and English. Each finding records browser, reader and action.
+
+## Story 9.11
+
+Automated and proven in Playwright: column geometry at 320, 639, 640, 1023, 1024, 1279 and 1280px in en and ar, 320px reflow with WCAG 1.4.12 text spacing, the obstruction contract, 300ms motion-safe card transitions, reduced motion, RTL derived from the registry, and axe at 320px and with the side panel open in light and dark.
+
+Still pending for a person:
+
+- Real 400% browser zoom of the Interview at 1280px (the 320px CSS-width run is a stand-in, not the same engine path).
+- Real-device NVDA/Chrome, VoiceOver/Safari iOS and TalkBack runs over the responsive layouts, including the edit panel in the inline-end column and the modal sheet. Each finding records browser, reader and action.
+- Epic 11 will register the sticky summary under the key `summary` in `useObstruction`; until then only the in-flow toast registers.

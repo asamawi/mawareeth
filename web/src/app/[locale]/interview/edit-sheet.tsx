@@ -197,6 +197,6 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
   return phone ? <dialog ref={dialog} aria-labelledby={heading} data-edit-sheet {...pressHandlers}
     className="fixed start-0 end-0 top-auto bottom-0 m-0 max-h-[85dvh] w-full max-w-none overflow-y-auto rounded-t-sheet border border-graphic bg-surface p-4 text-[var(--foreground)] backdrop:bg-scrim"
     onCancel={event => { event.preventDefault(); close(); }}>{content}</dialog>
-    : <section ref={panel} aria-labelledby={heading} data-edit-sheet {...pressHandlers} className="mt-3 rounded-sheet border border-graphic bg-surface p-4"
+    : <section ref={panel} aria-labelledby={heading} data-edit-sheet {...pressHandlers} className="rounded-sheet border border-graphic bg-surface p-4"
       onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); close(); } }}>{content}</section>;
 }

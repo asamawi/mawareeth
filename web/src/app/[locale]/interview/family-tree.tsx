@@ -85,7 +85,7 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
         setSelected(id);
         if (editable) onEdit?.(id);
       }}
-      onFocus={event => { setRootLink(null); setSelected(id); if (id !== "root") event.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }}
+      onFocus={event => { setRootLink(null); setSelected(id); if (id !== "root") event.currentTarget.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "instant" }); }}
       onKeyDown={event => {
         // Modified arrows keep their browser meaning, such as Alt+Left for back.
         if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -107,7 +107,7 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
         const next = treeNeighbour(model, ids, id, dir);
         if (next !== id) { setSelected(next); buttons.current.get(next)?.focus(); }
       }}
-      className={`absolute scroll-m-2 flex flex-col items-center justify-center gap-1 rounded-node p-2 text-center [overflow-wrap:anywhere] ${editingId === id ? "outline-3 -outline-offset-3 outline-current" : "aria-[current=true]:outline aria-[current=true]:outline-offset-2 aria-[current=true]:outline-accent"} ${target === "illegal" ? `bg-surface text-muted ${focusRing}` : state === "deceased" ? `bg-accent text-accent-foreground ${focusRingOnAccent}` : focusRing} ${target !== "illegal" && (state === "normal" || state === "died_later") ? "bg-[var(--background)]" : ""} ${target !== "illegal" && (state === "died_before" || state === "blocked") ? "bg-surface" : ""}`}
+      className={`absolute ${id === "root" ? "" : "motion-safe:transition-[inset-inline-start,top] motion-safe:duration-300"} scroll-m-2 flex flex-col items-center justify-center gap-1 rounded-node p-2 text-center [overflow-wrap:anywhere] ${editingId === id ? "outline-3 -outline-offset-3 outline-current" : "aria-[current=true]:outline aria-[current=true]:outline-offset-2 aria-[current=true]:outline-accent"} ${target === "illegal" ? `bg-surface text-muted ${focusRing}` : state === "deceased" ? `bg-accent text-accent-foreground ${focusRingOnAccent}` : focusRing} ${target !== "illegal" && (state === "normal" || state === "died_later") ? "bg-[var(--background)]" : ""} ${target !== "illegal" && (state === "died_before" || state === "blocked") ? "bg-surface" : ""}`}
       style={{ insetInlineStart: box.x, top: box.y, width: box.width, height: box.height,
         border: target === "legal" ? "2px solid var(--accent)" : state === "deceased" || state === "died_before" ? "none" : state === "died_later" ? "2px solid var(--accent)" : "1.5px solid var(--graphic)",
         backgroundImage: state === "blocked" ? "repeating-linear-gradient(135deg, var(--surface) 0 6px, var(--blocked-stripe) 6px 12px)" : undefined }}>

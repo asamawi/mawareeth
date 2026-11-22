@@ -25,6 +25,9 @@ for (const locale of ["en", "ar"] as const) test(`cards, reading keys, badges an
     assert.equal(cards.length, 4);
     assert.equal(cards.filter(b => b.tabIndex === 0).length, 1);
     const deceased = cards.find(b => b.dataset.node === "root")!;
+    // Positioned cards glide over 300ms, motion-safe only; the pinned deceased never lags the scroll.
+    for (const card of cards.filter(b => b.dataset.node !== "root")) assert.ok(card.className.includes("motion-safe:duration-300") && card.className.includes("motion-safe:transition-[inset-inline-start,top]"));
+    assert.ok(!deceased.className.includes("transition"));
     // Nothing is current until a card is pressed; the deceased is only the tab stop.
     assert.equal(node.querySelectorAll('[aria-current="true"]').length, 0);
     assert.equal(deceased.tabIndex, 0);

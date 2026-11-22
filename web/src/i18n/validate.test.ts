@@ -19,6 +19,14 @@ const entry = (code: string, direction: "rtl" | "ltr" = "ltr") => ({
   code, direction, babel_locale: code, numbering_system: "latn", default_currency: "USD", own_name: code.toUpperCase(),
   pdf_font_stack: ["Noto Sans"], published: true, review: "pending" as const,
 });
+test("direction comes from the registry: an RTL ur fixture reads rtl, a non-locale ltr", async () => {
+  const { directionFrom } = await import("./messages.ts");
+  const fixture = { locales: [entry("ar", "rtl"), entry("en"), entry("ur", "rtl")] };
+  assert.equal(directionFrom(fixture, "ur"), "rtl");
+  assert.equal(directionFrom(fixture, "en"), "ltr");
+  assert.equal(directionFrom(fixture, "xx"), "ltr");
+});
+
 const registry = (): Registry => ({
   schema_version: 1, default_locale: "ar", fallback_locale: "en",
   locales: [entry("ar", "rtl"), entry("en"), entry("fr")],

@@ -10,7 +10,12 @@ export function isLocale(value: string): value is Locale {
 
 /** The reading direction of a Locale; a string that is no Locale reads left to right. */
 export function directionOf(locale: string): "rtl" | "ltr" {
-  return isLocale(locale) ? localeConfig[locale].direction : "ltr";
+  return directionFrom({ locales: locales.map((code) => ({ code, direction: localeConfig[code].direction })) }, locale);
+}
+
+/** The direction a registry gives a code, so tests can prove it is derived from the registry and not a literal `ar`. */
+export function directionFrom(registry: { locales: readonly { code: string; direction: "rtl" | "ltr" }[] }, code: string): "rtl" | "ltr" {
+  return registry.locales.find((entry) => entry.code === code)?.direction ?? "ltr";
 }
 
 // The ids in the order the screens list them. The catalog owns the text of every one.

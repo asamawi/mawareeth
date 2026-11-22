@@ -5,11 +5,11 @@ export function RelationshipText({ relationship }: { relationship: PreviewRow["r
   const { translated, original } = relationship;
   return (
     <>
-      <span lang={translated.lang} dir={translated.dir}>{translated.text}</span>
+      <bdi lang={translated.lang} dir={translated.dir}>{translated.text}</bdi>
       {original.text !== translated.text && (
         <>
           {" "}
-          <span lang={original.lang} dir={original.dir}>({original.text})</span>
+          <bdi lang={original.lang} dir={original.dir}>({original.text})</bdi>
         </>
       )}
     </>

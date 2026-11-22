@@ -164,3 +164,27 @@ for (const locale of ["en", "ar"] as const) {
     expect(await serious(page)).toEqual([]);
   });
 }
+
+const spacing = "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
+
+for (const locale of ["en", "ar"] as const) {
+  test(`the lineage canvas at 320px with text spacing in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await openCanvasFixture(page, api, locale);
+    await page.addStyleTag({ content: spacing });
+    expect(await serious(page)).toEqual([]);
+  });
+
+  for (const scheme of ["light", "dark"] as const) {
+    test(`the side edit panel at 1280px in ${locale} ${scheme} mode has no serious or critical axe violations`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.emulateMedia({ colorScheme: scheme });
+      await openCanvasFixture(page, api, locale);
+      const card = page.locator('[data-node]:not([data-node="root"]):not([data-state="died_later"])').first();
+      await card.focus();
+      await card.press("Enter");
+      await expect(page.locator("section[data-edit-sheet]")).toBeVisible();
+      expect(await serious(page)).toEqual([]);
+    });
+  }
+}

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
+import { useObstruction } from "@/interview/obstruction";
+
 import type { Messages } from "@/i18n/messages";
 
 import { focusRingOnToast } from "../ui";
@@ -66,6 +68,8 @@ export function UndoToast({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const paused = hovered || focused;
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
+  useObstruction("toast", box);
 
   useEffect(() => {
     if (!visible || paused) return;
@@ -76,6 +80,7 @@ export function UndoToast({
   if (!visible) return null;
   return (
     <div
+      ref={setBox}
       data-undo-toast
       className="flex flex-wrap items-center justify-between gap-3 rounded-sheet bg-foreground px-4 py-3 text-background"
       onMouseEnter={() => setHovered(true)}

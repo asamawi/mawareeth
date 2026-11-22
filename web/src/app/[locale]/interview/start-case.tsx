@@ -281,6 +281,8 @@ export function StartCase({
   // After a successful add or edit the tree and the heir's node come into view, once. It runs
   // after the focus effect above, so focus stays in the form. Returning from another screen
   // finds the same announcement and does nothing.
+  const pendingReveal = useRef<(() => void) | null>(null);
+  useEffect(() => () => pendingReveal.current?.(), []);
   useEffect(() => {
     if (view.name !== "started" || screenOf(view) !== "heirs") return;
     const heirId = revealOf(view);
@@ -295,12 +297,28 @@ export function StartCase({
     const behavior: ScrollBehavior = calm ? "instant" : "smooth";
     // Only the canvas scrolls, by the least amount on each axis; browser geometry includes the
     // canvas scale. `scrollIntoView` on the node would also scroll the page.
-    const a = area.getBoundingClientRect();
-    const n = node.getBoundingClientRect();
-    const top = scrollDelta(n.top, n.bottom, a.top, a.top + area.clientHeight);
-    const left = scrollDelta(n.left, n.right, a.left, a.left + area.clientWidth);
-    if (top !== 0 || left !== 0) area.scrollBy({ top, left, behavior });
-    section.scrollIntoView({ block: "nearest", behavior });
+    const reveal = () => {
+      const a = area.getBoundingClientRect();
+      const n = node.getBoundingClientRect();
+      const top = scrollDelta(n.top, n.bottom, a.top, a.top + area.clientHeight);
+      const left = scrollDelta(n.left, n.right, a.left, a.left + area.clientWidth);
+      if (top !== 0 || left !== 0) area.scrollBy({ top, left, behavior });
+      section.scrollIntoView({ block: "nearest", behavior });
+    };
+    if (calm) { reveal(); return; }
+    // The card may still be gliding to its new place: measure once its reflow ends, or after 350ms.
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      node.removeEventListener("transitionend", finish);
+      pendingReveal.current = null;
+      reveal();
+    };
+    const timer = setTimeout(finish, 350);
+    node.addEventListener("transitionend", finish);
+    pendingReveal.current = () => { done = true; clearTimeout(timer); node.removeEventListener("transitionend", finish); };
   }, [view]);
 
   const resumable = view.name === "throttled" || view.name === "failed" ? view.resumable : null;
@@ -328,6 +346,8 @@ export function StartCase({
   const editingPerson = model.people.find(p => p.id === started?.editingHeir);
   const relativeGroups = started && layer ? addGroups(placementRootOf(started.case, layer.id), layer.options) : [];
   const remaining = MAX_HEIRS - (layer?.heirs.length ?? 0);
+  // From 1280px the first estate has a third column for the Share preview; a later estate keeps two.
+  const previewColumn = layer?.id == null;
   const treeText = started?.tree ? outcomeText(messages, started.tree) : null;
   const treeInSheet = !!editingPerson && started?.tree?.anchor === editingPerson.personId;
   // One positioned add, by touch, keyboard or drop: the same request for each.
@@ -483,7 +503,7 @@ export function StartCase({
   ) : null;
 
   return (
-    <div data-js-only ref={target} tabIndex={-1} className="flex flex-col gap-4 outline-none [&>*:not(form,[data-wide])]:mx-auto [&>*:not(form,[data-wide])]:w-full [&>*:not(form,[data-wide])]:max-w-xl">
+    <div data-js-only ref={target} tabIndex={-1} className="relative flex flex-col gap-4 outline-none [&>*:not(form,[data-wide])]:mx-auto [&>*:not(form,[data-wide])]:w-full [&>*:not(form,[data-wide])]:max-w-xl">
       {/* The one routine status of the Interview; always mounted so its changes are spoken. */}
       <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {spoken.text !== "" && <span key={spoken.seq}>{spoken.text}</span>}
@@ -648,11 +668,11 @@ export function StartCase({
           />
           <div
             data-wide
-            className={`grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)] ${layer?.id == null ? "xl:grid-cols-[380px_minmax(0,1fr)_340px]" : ""}`}
+            className={`grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-0 ${previewColumn ? "xl:grid-cols-[380px_minmax(0,1fr)_340px]" : ""}`}
           >
             <section
               aria-labelledby="add-relatives-heading"
-              className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1"
+              className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1 lg:pe-4 lg:pb-4"
             >
               {started.notice === "heirGone" && <p role="alert">{messages.heirGone}</p>}
               <AddRelatives
@@ -706,7 +726,9 @@ export function StartCase({
                 onCancel={() => edit((current) => cancelEditHeir(current, deps))}
               />}
             </section>
-            <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+            {/* One column down to 1280px; from there, with the preview column, its children are grid items so the panel can sit in the inline-end column. */}
+            <div className={`min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-s lg:border-line lg:ps-4 ${previewColumn ? "xl:contents" : ""}`}>
+              <div className={`min-w-0 ${previewColumn ? "xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:border-s xl:border-line xl:px-4" : ""}`}>
               <FamilyTree
                 messages={messages}
                 model={model}
@@ -734,7 +756,8 @@ export function StartCase({
                   ? submit(from => ({ kind: "removeHeir", from, heirId: id, fromRow: true, confirm: false }))
                   : edit(current => requestCardRemoval(current, id, deps))}
               />
-              {editingPerson && <EditSheet key={editingPerson.id} messages={messages} view={started}
+              </div>
+              {editingPerson && <div className={`min-w-0 sm:mt-3 ${previewColumn ? "xl:col-start-3 xl:row-start-1 xl:mt-0 xl:border-s xl:border-line xl:p-6" : ""}`}><EditSheet key={editingPerson.id} messages={messages} view={started}
                 person={editingPerson} label={description.people.find(p => p.id === editingPerson.id)!.label}
                 frozen={frozen} onClose={() => edit(current => cancelEditHeir(current, deps))}
                 entries={model.placement[editingPerson.personId] ?? []} atLimit={remaining <= 0}
@@ -746,9 +769,9 @@ export function StartCase({
                 onSave={(fields, field, close) => submit(from => ({ kind: "saveHeir", from, heirId: editingPerson.id,
                   values: { relationship: fields.relationship, name: fields.name ?? "" }, status: fields.status, field, close }))}
                 onRemove={confirm => submit(from => ({ kind: "removeHeir", from, heirId: editingPerson.id, confirm }))}
-              />}
+              /></div>}
             </div>
-            <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+            <div className="min-w-0 lg:col-start-1 lg:row-start-2 lg:pe-4">
               <HeirList
                 key={layer?.id ?? "first"}
                 messages={messages}
@@ -788,7 +811,7 @@ export function StartCase({
             </div>
             {/* Kept mounted while a later estate is open, so evidence keeps reaching the tree; just not shown. */}
             {(
-              <div hidden={layer?.id != null} className="min-w-0 lg:col-span-2 lg:col-start-1 lg:row-start-3 xl:col-span-1 xl:col-start-3 xl:row-span-2 xl:row-start-1">
+              <div hidden={layer?.id != null} className={`min-w-0 lg:col-span-2 lg:col-start-1 lg:row-start-3 lg:mt-4 xl:col-span-1 xl:col-start-3 xl:mt-0 xl:border-s xl:border-line xl:p-6 ${editingPerson ? "xl:row-start-2" : "xl:row-span-2 xl:row-start-1"}`}>
                 <SharePreview
                   messages={messages}
                   results={results}

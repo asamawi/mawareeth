@@ -50,3 +50,23 @@ test("contrast of the new tokens", () => {
     assert.ok(ratio(t["toast-focus"], t.foreground) >= 3, `${mode} toast-focus/toast fill`);
   }
 });
+
+test("the pinned contrast ratios hold in light and dark", () => {
+  const pins = { light: { accentSoft: 4.71, toast: 17.93 }, dark: { accentSoft: 10.29, toast: 16.91 } };
+  for (const [mode, t] of [["light", expected.light], ["dark", expected.dark]] as const) {
+    assert.equal(ratio(t.accent, t["accent-soft"]).toFixed(2), pins[mode].accentSoft.toFixed(2), `${mode} accent/accent-soft`);
+    assert.equal(ratio(t["toast-focus"], t.foreground).toFixed(2), pins[mode].toast.toFixed(2), `${mode} toast-focus/foreground`);
+    for (const text of [t.foreground, t.muted]) {
+      assert.ok(ratio(text, t.background) >= 4.5, `${mode} text/background`);
+      assert.ok(ratio(text, t.surface) >= 4.5, `${mode} text/surface`);
+    }
+    assert.ok(ratio(t.graphic, t.surface) >= 3 && ratio(t.graphic, t.background) >= 3, `${mode} graphic`);
+  }
+});
+
+test("the toast utilities and the obstruction padding are defined", () => {
+  const theme = css.slice(css.indexOf("@theme inline"));
+  assert.ok(theme.includes("--color-foreground: var(--foreground)"));
+  assert.ok(theme.includes("--color-background: var(--background)"));
+  assert.match(css, /scroll-padding-block-end:\s*var\(--interview-obstruction, 0px\)/);
+});
