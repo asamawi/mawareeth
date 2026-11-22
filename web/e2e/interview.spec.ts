@@ -520,6 +520,51 @@ test.describe("add relatives", () => {
     expect(api.heirPosts).toHaveLength(1);
   });
 
+  test("a stale revision on the deceased form keeps the form and typed value and shows an alert", async ({ page, api }) => {
+    const kase = base();
+    await open(page, api, kase);
+    const live = { ...kase, revision: (kase.revision as number) + 4, heirs: [...kase.heirs, son("other-tab")] };
+    api.set({ putDeceased: json(409, { error: "conflict", case: live }) });
+    await page.getByRole("button", { name: en.deceasedEdit }).click();
+    const estate = page.getByLabel(en.estateLabel);
+    await estate.fill("4321");
+    await page.getByRole("button", { name: en.deceasedSave }).click();
+    await expect(page.getByRole("alert").filter({ hasText: en.conflictNotice })).toBeVisible();
+    await expect(page.getByRole("heading", { name: en.deceasedHeading })).toBeVisible();
+    await expect(estate).toHaveValue("4321");
+    await expect(page.getByText(en.existing)).toHaveCount(0);
+    expect(api.deceasedPuts).toHaveLength(1);
+
+    api.set({ putDeceased: json(200, { case: { ...live, revision: live.revision + 1, deceased: { ...kase.deceased, estate: "4321" } } }) });
+    await page.getByRole("button", { name: en.deceasedSave }).click();
+    await expect(page.getByRole("heading", { name: en.deceasedHeading })).toHaveCount(0);
+    expect(api.deceasedPuts).toHaveLength(2);
+    expect(JSON.parse(api.deceasedPuts[1].body)).toMatchObject({ expected_revision: live.revision, estate: "4321" });
+    await expect(page.getByRole("alert").filter({ hasText: en.conflictNotice })).toHaveCount(0);
+  });
+
+  test("a stale revision on the school choice keeps the selector and the pick and shows an alert", async ({ page, api }) => {
+    const kase = { ...base(), madhab: "hanafi" } as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    await open(page, api, kase);
+    const live = { ...kase, revision: (kase.revision as number) + 4 };
+    api.set({ patchCase: json(409, { error: "conflict", case: live }) });
+    await page.getByRole("button", { name: en.madhabChange }).click();
+    const group = page.getByRole("radiogroup", { name: en.madhabLegend });
+    await group.getByRole("radio", { name: en.madhabs.maliki.name }).check();
+    await page.getByRole("button", { name: en.madhabContinue }).click();
+    await expect(page.getByRole("alert").filter({ hasText: en.conflictNotice })).toBeVisible();
+    await expect(group.getByRole("radio", { name: en.madhabs.maliki.name })).toBeChecked();
+    await expect(page.getByText(en.existing)).toHaveCount(0);
+    expect(api.casePatches).toHaveLength(1);
+
+    api.set({ patchCase: json(200, { case: { ...live, revision: live.revision + 1, madhab: "maliki" } }) });
+    await page.getByRole("button", { name: en.madhabContinue }).click();
+    await expect(group).toHaveCount(0);
+    expect(api.casePatches).toHaveLength(2);
+    expect(JSON.parse(api.casePatches[1].body)).toMatchObject({ expected_revision: live.revision, madhab: "maliki" });
+    await expect(page.getByRole("alert").filter({ hasText: en.conflictNotice })).toHaveCount(0);
+  });
+
   test("at 50 heirs the limit shows and every add button is aria-disabled", async ({ page, api }) => {
     const kase = { ...base(), heirs: Array.from({ length: 50 }, (_, i) => son(`m${i}`)) };
     await open(page, api, kase);

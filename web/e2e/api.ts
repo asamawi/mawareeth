@@ -18,6 +18,7 @@ export type Stubs = {
   getCase?: Answer;
   postCase?: Answer;
   patchCase?: Answer;
+  putDeceased?: Answer;
   postHeir?: Answer;
   postBulk?: Answer;
   postRestore?: Answer;
@@ -47,6 +48,7 @@ export class Api {
   caseGets = 0;
   casePosts: { body: string; csrf: string | undefined }[] = [];
   casePatches: { body: string; csrf: string | undefined }[] = [];
+  deceasedPuts: { body: string; csrf: string | undefined }[] = [];
   heirPosts: { body: string; csrf: string | undefined }[] = [];
   bulkPosts: { body: string; csrf: string | undefined }[] = [];
   restorePosts: { body: string; csrf: string | undefined }[] = [];
@@ -81,6 +83,10 @@ export class Api {
       if (pathname === "/api/v1/case/" && method === "PATCH") {
         this.casePatches.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
         return this.answer(route, this.stubs.patchCase, "patch case");
+      }
+      if (pathname === "/api/v1/case/deceased/" && method === "PUT") {
+        this.deceasedPuts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.putDeceased, "put deceased");
       }
       if (pathname === "/api/v1/case/heirs/" && method === "POST") {
         this.heirPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });

@@ -584,6 +584,7 @@ export function StartCase({
         </>
       )}
 
+      {started && screen === "selector" && started.conflict && <p role="alert">{messages.conflictNotice}</p>}
       {started && screen === "selector" && (
         <MadhabSelector
           key={started.case.id}
@@ -608,6 +609,7 @@ export function StartCase({
       {started && screen === "deceased" && (
         <>
           {madhabBar}
+          {started.conflict && <p role="alert">{messages.conflictNotice}</p>}
           <DeceasedForm
             key={`deceased-${started.case.id}`}
             messages={messages}

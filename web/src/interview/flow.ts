@@ -789,7 +789,7 @@ async function choose(
   // Continuing with the stored school selected writes nothing.
   if (from.case.madhab === madhab) {
     deps.selection.set(null);
-    return { ...from, changing: false, notice: null, saving: false };
+    return { ...from, changing: false, notice: null, saving: false, conflict: false };
   }
   const result = await deps.setMadhab(signal, madhab, from.case.id, from.case.revision);
   switch (result.kind) {
@@ -814,6 +814,13 @@ async function choose(
       return { name: "none", expired: true };
     }
     case "replaced":
+      if (result.case.id === from.case.id) {
+        // Same case, newer revision: adopt it, keep the screen and the visitor's pick, never resend.
+        return reconcileFresh({
+          ...from, case: result.case, layer: keepLayer(from.layer, result.case), confirming: undefined,
+          notice: null, errors: null, saving: false, conflict: true, history: [], undoToast: undefined, undoFailed: undefined,
+        }, from, result.case, deps);
+      }
       deps.selection.set(null);
       deps.forms.set(null);
       deps.seen.set(true);
@@ -1303,6 +1310,35 @@ async function settled(answer: Answer, result: Exclude<AnswerResult, { kind: "sa
           ...reconciled,
           focus: nextFocus(from, isTree(answer) ? `addHere:${answer.values.relationship}` : `add:${answer.values.relationship}`),
         };
+      }
+      if (result.case.id === from.case.id) {
+        // The same case at a newer revision: keep the screen and the visitor's input, adopt the live case, never resend.
+        const fresh = result.case;
+        const layer = keepLayer(from.layer, fresh);
+        const { people } = estateModel(fresh, layer, null);
+        const gone = from.editingHeir !== null && !people.some((p) => p.id === from.editingHeir);
+        if (gone) restoreHeirForm(deps, fresh.id);
+        const death = answer.kind === "markDeath" || answer.kind === "unmarkDeath";
+        const reconciled = reconcileFresh({
+          ...from,
+          case: fresh,
+          layer,
+          confirming: undefined,
+          notice: null,
+          errors: null,
+          saving: false,
+          conflict: true,
+          ...(answer.kind === "saveDeceased" ? { editingDeceased: true } : {}),
+          ...(death
+            ? { ordering: null, relativeQuestions: undefined, deathAnswers: undefined, deathFirst: undefined, deathOrderNeeded: undefined, sheetDeath: undefined }
+            : {}),
+          ...(gone ? { editingHeir: null, formEpoch: from.formEpoch + 1 } : {}),
+        }, from, fresh, deps);
+        if (!death) return reconciled;
+        const target: FocusTarget = answer.kind === "markDeath" && answer.origin === "sheet" && reconciled.editingHeir !== null
+          ? "editStatus:died_later"
+          : people.some((p) => p.id === answer.rowId) ? `alsoDied:${answer.rowId}` : "card:root";
+        return { ...reconciled, focus: nextFocus(from, target) };
       }
       deps.selection.set(null);
       deps.forms.set(null);

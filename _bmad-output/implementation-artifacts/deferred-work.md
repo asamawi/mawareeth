@@ -410,7 +410,8 @@ Completed and obsolete items are removed; their history is in git.
 - The limit stays 50 Heirs per layer (AD-26 says 50 Heirs).
 - A web bundle opened across the deploy gets 400 `invalid_revision` on writes until it reloads.
 - The case lock measurements are `mawareeth.case_lock` log records, not metrics yet.
-- A same-Case revision conflict (another tab edited first) uses the existing "replaced" path, so the web shows the existing-case screen and clears the unsent form. Epic 9's conflict outcome handling should refresh it in place instead.
+- Resolved: a same-Case revision conflict now refreshes the Interview in place for the deceased form, the legacy heir form, mark and unmark death and the school choice (as it already did for the panel, bulk, tree adds, sheet edit/delete and Undo). The screen, the open form and the visitor's school pick stay, the live Case is adopted and the conflict alert shows. A conflict with a different case id still shows the existing-case screen.
+- The edit sheet's unsent draft is still dropped on a same-Case conflict. It saves on blur, so keeping a stale value could resend it and overwrite the other tab's change. Keeping it needs an explicit-retry design.
 - A live guest session created before this release has no `changed_at`, so its expiry runs from `started_at`. A guest who started more than 24 hours ago and is still editing at deploy time sees the Case expire once.
 - The 503 `busy` response is shown as the generic failed notice. The web does not retry using `Retry-After`.
 
