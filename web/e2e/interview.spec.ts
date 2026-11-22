@@ -419,12 +419,12 @@ test.describe("add relatives", () => {
     const list = page.locator("section[aria-labelledby='heirs-heading']");
     for (let press = 0; press < 3; press++) await more.click();
     await expect(count).toHaveText("4");
-    await expect(list.getByRole("status")).toBeEmpty();
+    await expect(page.locator("[role='status'][aria-atomic='true']")).toBeEmpty();
     expect(api.bulkPosts).toHaveLength(0);
     const add = page.getByRole("button", { name: "Add Daughter", exact: true });
     await expect(add).toHaveAccessibleDescription(/\b4$/);
     await add.click();
-    await expect(list.getByRole("status")).toHaveText("4 × Daughter added.");
+    await expect(page.locator("[role='status'][aria-atomic='true']")).toHaveText(/^4 × Daughter added\./);
     for (const [index, daughter] of daughters.entries()) {
       const label = `Daughter ${index + 1}`;
       await expect(list.getByText(label, { exact: true }).first()).toBeVisible();
@@ -782,7 +782,7 @@ test.describe("undo", () => {
     expect(api.restorePosts).toHaveLength(1);
     expect(JSON.parse(api.restorePosts[0].body)).toEqual({ case_id: kase.id, expected_revision: 6, snapshot: kase.snapshot });
     await expect(page.locator("[data-focus='card:b']")).toBeFocused();
-    await expect(page.locator("section[aria-labelledby='heirs-heading'] [role='status']")).toHaveText(en.undoDone);
+    await expect(page.locator("[role='status'][aria-atomic='true']")).toHaveText(new RegExp(`^${en.undoDone}`));
   });
 
   test("the toast follows the Heirs list, is not a live region, and Undo outlives it", async ({ page, api }) => {
@@ -1208,7 +1208,7 @@ test.describe("lineage canvas", () => {
       await expect(before).toHaveCount(1);
       await expect(before.locator("button")).toHaveCount(2);
       await page.getByRole("button", { name: t.treeZoomIn, exact: true }).click();
-      await expect(page.locator("section[aria-labelledby='heirs-heading'] [role='status']")).toHaveText(t.treeZoomStatus.replace("{percent}", new Intl.NumberFormat(locale, { style: "percent" }).format(1.25)));
+      await expect(page.locator("[role='status'][aria-atomic='true']")).toHaveText(t.treeZoomStatus.replace("{percent}", new Intl.NumberFormat(locale, { style: "percent" }).format(1.25)));
     });
   }
   for (const locale of ["en", "ar"] as const) {
@@ -1282,7 +1282,7 @@ test.describe("lineage canvas", () => {
       await page.keyboard.press("ArrowUp"); await page.keyboard.press(next);
       expect(await area.evaluate(el => [el.scrollLeft, el.scrollTop, window.scrollX, window.scrollY])).toEqual(before);
       // Zoom keys behave like the toolbar and are ignored beyond the limits.
-      const status = page.locator("section[aria-labelledby='heirs-heading'] [role='status']");
+      const status = page.locator("[role='status'][aria-atomic='true']");
       const percent = (z: number) => t.treeZoomStatus.replace("{percent}", new Intl.NumberFormat(locale, { style: "percent" }).format(z));
       const canvasWidth = () => page.locator("[data-tree-area] > div").first().evaluate(el => el.getBoundingClientRect().width);
       const startingWidth = await canvasWidth();
@@ -1307,7 +1307,7 @@ test.describe("lineage canvas", () => {
       await page.keyboard.press("Enter");
       const sheet = page.locator("[data-edit-sheet]");
       const input = sheet.getByLabel(messages[locale].interview.heirNameLabel);
-      const status = page.locator("section[aria-labelledby='heirs-heading'] [role='status']");
+      const status = page.locator("[role='status'][aria-atomic='true']");
       const zoomStatus = await status.textContent();
       await input.focus();
       await input.pressSequentially("ab+-=_");
@@ -1565,5 +1565,206 @@ test.describe("add relative here", () => {
     await choice.click();
     await expect(page.locator("[data-add-row] [role='alert']")).toHaveText(en.fieldErrors.anchor.not_allowed);
     await expect(choice).toBeFocused();
+  });
+});
+
+test.describe("one status and pending shares (story 9.10)", () => {
+  const agree = fixture("Agree: wife, son and daughter in every school");
+  const base = () => fullCase(agree.case) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const status = (page: Page) => page.locator("[role='status'][aria-atomic='true']");
+  const heirsOf = (kase: Record<string, any>) => kase.heirs.map(({ id, relationship }: { id: string; relationship: string }) => ({ id, relationship })); // eslint-disable-line @typescript-eslint/no-explicit-any
+  /** The agree preview as the server would answer for `kase`: same rows, its own revision and family. */
+  const previewOf = (kase: Record<string, any>) => ({ ...agree.response, revision: kase.revision, basis: { ...agree.response.basis, heirs: heirsOf(kase) } }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  /** Revision 2's answer: the same rows with a different percent for the first heir, so old and new shares can be told apart. */
+  const distinct = (kase: Record<string, any>) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const body = previewOf(kase) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ...body, presented: { ...body.presented, rows: body.presented.rows.map((row: Record<string, any>, i: number) => (i === 0 ? { ...row, percent: { ...row.percent, text: "77.7%" } } : row)) } }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  };
+  const grown = (kase: Record<string, any>) => ({ ...kase, revision: kase.revision + 1, heirs: [...kase.heirs, { id: "new-son", relationship: "son", gender: "male", name: null, edit_options: { blocked: [], invalid: {} } }] }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const delayed = (ms: number, body: unknown): NonNullable<Stubs["getPreview"]> => async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    try { await json(200, body)(route); } catch {}
+  };
+  const resume = async (page: Page) => {
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    await page.locator("#add-relatives-heading").waitFor();
+  };
+  const rowsOf = (page: Page) => page.locator("section[aria-labelledby='preview-heading']").locator("tbody tr, ul > li");
+
+  test("a fast add is spoken as one sentence by the one status region", async ({ page, api }) => {
+    const kase = base();
+    const returned = grown(kase);
+    let added = false;
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, { case: kase }),
+      getPreview: (route) => json(200, previewOf(added ? returned : kase))(route),
+      postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
+    });
+    await resume(page);
+    await expect(rowsOf(page).first()).toBeVisible();
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(status(page)).toHaveText(`Son 2 added. ${en.previewReadyCount.replace("{count}", String(returned.heirs.length))}`);
+    await expect(page.locator("[role='status'][aria-atomic='true']")).toHaveCount(1);
+    await expect(page.locator("section[aria-labelledby='preview-heading'] [role='status'], section[aria-labelledby='heirs-heading'] [role='status']")).toHaveCount(0);
+  });
+
+  test("a slow preview keeps the old shares muted and busy, shows the box after 3s, then swaps", async ({ page, api }) => {
+    const kase = base();
+    const returned = grown(kase);
+    let added = false;
+    const slow = delayed(4500, distinct(returned));
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, { case: kase }),
+      getPreview: (route) => (added ? slow(route) : json(200, previewOf(kase))(route)),
+      postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
+    });
+    await resume(page);
+    const section = page.locator("section[aria-labelledby='preview-heading']");
+    await expect(rowsOf(page).first()).toBeVisible();
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(section).toHaveAttribute("aria-busy", "true");
+    const body = section.locator("[data-preview-body]");
+    await expect(body).toHaveAttribute("data-pending", "");
+    await expect(rowsOf(page).first()).toBeVisible();
+    await expect(section.getByText("12.5%", { exact: true }).first()).toBeVisible();
+    await expect(section.getByText("77.7%", { exact: true })).toHaveCount(0);
+    await expect(body).toHaveClass(/text-muted/);
+    await expect(body).not.toHaveClass(/opacity/);
+    expect(await body.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
+    await expect(section.locator("[data-slow]")).toHaveCount(0);
+    await expect(section.locator("[data-slow]")).toHaveText(en.previewWaiting, { timeout: 5000 });
+    await expect(section.locator("[data-slow]")).toHaveClass(/bg-surface/);
+    await expect(status(page)).toHaveText(new RegExp(en.previewWaiting));
+    await expect(section).toHaveAttribute("aria-busy", "false", { timeout: 8000 });
+    await expect(section.locator("[data-slow]")).toHaveCount(0);
+    await expect(body).not.toHaveAttribute("data-pending", "");
+    await expect(section.getByText("77.7%", { exact: true }).first()).toBeVisible();
+    await expect(status(page)).toHaveText(en.previewReadyCount.replace("{count}", String(returned.heirs.length)));
+  });
+
+  test("a response for an older revision never becomes the shown answer", async ({ page, api }) => {
+    const kase = base();
+    const returned = grown(kase);
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, { case: kase }),
+      getPreview: json(200, previewOf(kase)),
+      postHeir: json(201, { case: returned }),
+    });
+    await resume(page);
+    const section = page.locator("section[aria-labelledby='preview-heading']");
+    await expect(rowsOf(page).first()).toBeVisible();
+    const gets = api.previewGets;
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect.poll(() => api.previewGets).toBeGreaterThan(gets);
+    await page.waitForTimeout(500);
+    await expect(section).toHaveAttribute("aria-busy", "true");
+    await expect(section.locator("[data-preview-body]")).toHaveAttribute("data-pending", "");
+  });
+
+  test("a rename is busy until its preview settles", async ({ page, api }) => {
+    const kase = base();
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, previewOf(kase)) });
+    await resume(page);
+    const section = page.locator("section[aria-labelledby='preview-heading']");
+    await expect(section).toHaveAttribute("aria-busy", "false");
+    const named = { ...kase, revision: kase.revision + 1, heirs: kase.heirs.map((h: Record<string, unknown>, i: number) => (i === 0 ? { ...h, name: "Zaid" } : h)) };
+    api.set({ putHeir: json(200, { case: named }), getPreview: delayed(1500, previewOf(named)) });
+    await page.locator("[data-node]").nth(1).click();
+    const sheet = page.locator("[data-edit-sheet]");
+    await sheet.getByLabel(en.heirNameLabel).fill("Zaid");
+    await sheet.getByLabel(en.heirNameLabel).press("Enter");
+    await expect(section).toHaveAttribute("aria-busy", "true");
+    await expect(section).toHaveAttribute("aria-busy", "false", { timeout: 6000 });
+  });
+
+  test("a failed preview keeps the family, says so once and Retry starts a pending state", async ({ page, api }) => {
+    const kase = base();
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(500, {}) });
+    await resume(page);
+    const section = page.locator("section[aria-labelledby='preview-heading']");
+    await expect(section.getByText(en.previewFailed)).toBeVisible();
+    await expect(status(page)).toHaveText(en.previewFailed);
+    api.set({ getPreview: delayed(1200, previewOf(kase)) });
+    await section.getByRole("button", { name: en.previewRetry }).click();
+    await expect(section).toHaveAttribute("aria-busy", "true");
+    await expect(section).toHaveAttribute("aria-busy", "false", { timeout: 6000 });
+  });
+
+  test("a delayed case shows a busy skeleton, then the Interview", async ({ page, api }) => {
+    const kase = base();
+    api.set({
+      session: sessionAnonymous,
+      getCase: async (route) => { await new Promise((resolve) => setTimeout(resolve, 1500)); await json(200, { case: kase })(route); },
+      getPreview: json(200, previewOf(kase)),
+    });
+    await page.goto("/en/interview/");
+    const skeleton = page.locator("[data-skeleton]");
+    await expect(skeleton).toHaveAttribute("aria-busy", "true");
+    await expect(skeleton.getByText(en.loading)).toHaveCount(1);
+    expect(await skeleton.locator("div.h-3").first().evaluate((el) => getComputedStyle(el).height)).toBe("12px");
+    await expect(page.getByRole("button", { name: en.resume })).toBeVisible();
+    await expect(skeleton).toHaveCount(0);
+  });
+
+  test("offline mid-refresh keeps the old shares muted after the request fails, and reconnecting asks again", async ({ page, context, api }) => {
+    const kase = base();
+    const returned = grown(kase);
+    let added = false;
+    let reconnected = false;
+    const slow = delayed(6000, distinct(returned));
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, { case: kase }),
+      getPreview: (route) => (!added ? json(200, previewOf(kase))(route) : reconnected ? json(200, distinct(returned))(route) : slow(route)),
+      postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
+    });
+    await resume(page);
+    const section = page.locator("section[aria-labelledby='preview-heading']");
+    await expect(rowsOf(page).first()).toBeVisible();
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(section).toHaveAttribute("aria-busy", "true");
+    await context.setOffline(true);
+    await expect(page.getByText(en.offlineEditing)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add Son", exact: true })).toHaveAttribute("aria-disabled", "true");
+    // Long enough for the slow box and the five-second request limit: the request has failed by now.
+    await page.waitForTimeout(5500);
+    await expect(section.locator("[data-slow]")).toHaveCount(0);
+    await expect(section.getByText(en.previewFailed)).toHaveCount(0);
+    await expect(section.getByText("12.5%", { exact: true }).first()).toBeVisible();
+    await expect(section.locator("[data-preview-body]")).toHaveClass(/text-muted/);
+    const gets = api.previewGets;
+    reconnected = true;
+    await context.setOffline(false);
+    await expect.poll(() => api.previewGets).toBeGreaterThan(gets);
+    await expect(section.getByText("77.7%", { exact: true }).first()).toBeVisible();
+    await expect(section).toHaveAttribute("aria-busy", "false");
+  });
+
+  test("the first heir added to an empty estate is spoken with its shares summary", async ({ page, api }) => {
+    const kase = fullCase(agree.case, { heirs: [] }) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const returned = { ...kase, revision: kase.revision + 1, heirs: base().heirs };
+    let added = false;
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, { case: kase }),
+      getPreview: (route) => json(200, previewOf(added ? returned : kase))(route),
+      postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
+    });
+    await resume(page);
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(status(page)).toHaveText(new RegExp(`^[A-Za-z]+ added[.] ${en.previewReadyCount.replace("{count}", String(base().heirs.length)).replace(".", "[.]")}$`));
+  });
+
+  test("a refusal stays an alert and never reaches the status", async ({ page, api }) => {
+    const kase = base();
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, previewOf(kase)), postHeir: json(422, { code: "invalid", errors: { relationship: "not_allowed" } }) });
+    await resume(page);
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(page.getByRole("alert").first()).toBeVisible();
+    await expect(status(page)).not.toContainText(/not allowed|added/i);
   });
 });

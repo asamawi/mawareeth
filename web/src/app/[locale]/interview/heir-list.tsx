@@ -58,14 +58,11 @@ export function DeceasedSummary({
 
 type ListProps = {
   description: ReturnType<typeof treeDescription>;
-  zoomNote?: string | null;
   messages: Messages["interview"];
   heirs: Heir[];
   /** The heir whose details are in the form, if any. */
   editingId: string | null;
   saving: boolean;
-  /** The sentence for the live region, replaced each time an heir is added, updated or removed. */
-  announcement: { template: string; heir: string; seq: number } | null;
   /** The heading text; a later layer names its deceased. */
   heading?: string;
   /** The people (by earliest row id) who have a death of their own; empty in a case without deaths. */
@@ -87,15 +84,13 @@ type ListProps = {
 /** What a row's inline question is about: removing the row, or taking back the person's death. */
 type Confirm = { id: string };
 
-/** The heirs of the active layer. Removal asks on the row, and every change is announced. */
+/** The heirs of the active layer. Removal asks on the row; changes are spoken by the Interview's one status. */
 export function HeirList({
   description,
-  zoomNote,
   messages,
   heirs,
   editingId,
   saving,
-  announcement,
   heading,
   deceasedIds,
   deathError = null,
@@ -131,14 +126,6 @@ export function HeirList({
         </h3>
         {undo && <UndoButton messages={messages} disabled={undo.disabled} onUndo={undo.onUndo} />}
       </div>
-      {/* Present before its text changes, so screen readers announce the change. */}
-      <p role="status" aria-live="polite" className="sr-only">
-        {zoomNote ?? (announcement && (
-          <span key={announcement.seq}>
-            <WithHeir template={announcement.template} heir={announcement.heir} />
-          </span>
-        ))}
-      </p>
       {deathError !== null && <p role="alert">{deathError}</p>}
       <div data-focus="list" tabIndex={-1} className="outline-none">
         {heirs.length === 0 && <p>{messages.heirsEmpty}</p>}

@@ -222,6 +222,10 @@ export type Messages = {
     /** Shown while the case has no heir yet. */
     previewPrompt: string;
     previewWaiting: string;
+    /** `{count}` is the number of heirs in the active estate. Spoken once the shares settle. */
+    previewReadyCount: string;
+    /** Shown from ten seconds into a preview request. */
+    previewStillWorking: string;
     /** Shown while the browser is offline and every edit is disabled. */
     offlineEditing: string;
     /** `{school}` is the school's name. */
@@ -565,6 +569,8 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "معاينة الأنصبة",
       previewPrompt: "أضف وارثًا لتظهر الأنصبة هنا.",
       previewWaiting: "جارٍ تحديث المعاينة…",
+      previewReadyCount: "عدد الورثة: {count}. الأنصبة جاهزة.",
+      previewStillWorking: "ما زال تحديث المعاينة جاريًا…",
       offlineEditing: "أنت غير متصل بالإنترنت. أعد الاتصال لمتابعة التعديل.",
       previewSchool: "محسوبة وفق المذهب {school}. هذه معاينة وليست حكمًا نهائيًا.",
       schoolsAgree: "النتيجة نفسها في المذاهب السنية الأربعة",
@@ -898,6 +904,8 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "Share preview",
       previewPrompt: "Add an heir to see the shares here.",
       previewWaiting: "Updating the preview…",
+      previewReadyCount: "Heirs: {count}. Shares ready.",
+      previewStillWorking: "Still working on the preview…",
       offlineEditing: "You're offline. Reconnect to keep editing.",
       previewSchool: "Calculated under the {school} school. This is a preview, not a final ruling.",
       schoolsAgree: "Same result in all four Sunni schools",
@@ -1233,6 +1241,8 @@ export const messages: Record<Locale, Messages> = {
       previewHeading: "Aperçu des parts",
       previewPrompt: "Ajoutez un héritier pour voir les parts ici.",
       previewWaiting: "Mise à jour de l'aperçu…",
+      previewReadyCount: "Héritiers : {count}. Parts prêtes.",
+      previewStillWorking: "Mise à jour de l'aperçu toujours en cours…",
       offlineEditing: "Vous êtes hors ligne. Reconnectez-vous pour continuer à modifier.",
       previewSchool: "Calculé selon l'école {school}. Il s'agit d'un aperçu, pas d'une décision définitive.",
       schoolsAgree: "Même résultat dans les quatre écoles sunnites",

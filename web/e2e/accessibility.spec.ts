@@ -127,3 +127,40 @@ for (const locale of ["ar", "en", "fr"] as const) {
     expect(await serious(page)).toEqual([]);
   });
 }
+
+for (const locale of ["en", "ar"] as const) {
+  test(`the pending preview in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+    const kase = fullCase(agree.case) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const options = { blocked: [], invalid: {} };
+    const returned = { ...kase, revision: 2, heirs: [...kase.heirs, { id: "new-son", relationship: "son", gender: "male", name: null, edit_options: options }] };
+    let added = false;
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, { case: kase }),
+      getPreview: async (route) => {
+        if (!added) return json(200, agree.response)(route);
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        try { await json(200, agree.response)(route); } catch {}
+      },
+      postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
+    });
+    await page.goto(`/${locale}/interview/`);
+    await page.getByRole("button", { name: messages[locale].interview.resume }).click();
+    await page.locator("section[aria-labelledby='add-relatives-heading']").waitFor();
+    await page.locator("[data-focus='add:son']").click();
+    const section = page.locator("section[aria-labelledby='preview-heading']");
+    await expect(section).toHaveAttribute("aria-busy", "true");
+    await expect(section.locator("[data-slow]")).toBeVisible({ timeout: 5000 });
+    expect(await serious(page)).toEqual([]);
+  });
+
+  test(`the cold-load skeleton in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+    api.set({
+      session: sessionAnonymous,
+      getCase: async (route) => { await new Promise((resolve) => setTimeout(resolve, 2500)); try { await json(200, { case: null })(route); } catch {} },
+    });
+    await page.goto(`/${locale}/interview/`);
+    await expect(page.locator("[data-skeleton]")).toHaveAttribute("aria-busy", "true");
+    expect(await serious(page)).toEqual([]);
+  });
+}

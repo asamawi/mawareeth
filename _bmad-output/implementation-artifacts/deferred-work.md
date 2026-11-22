@@ -554,3 +554,14 @@ Arabic and French copy for later-death estates awaits native review.
 ## Story 9.9: manual screen-reader release evidence (pending)
 
 Keyboard and axe coverage is automated (unit, Playwright lineage navigation in en and ar, axe in ar, en and fr). Screen-reader verification is not claimed and stays a manual release item. Still owed: Arabic NVDA/Chrome, VoiceOver/Safari iOS and TalkBack runs over the canonical outline (add, edit, delete with cascade, Undo, open and return to an estate) with normal, blocked, died-before and died-later people. Each finding records browser, reader and action.
+
+## Story 9.10
+
+Native review of the new Interview status copy in Arabic and French, and screen-reader checks of the coalesced status, stay pending for a person.
+
+| Key | English | Arabic | French |
+| --- | --- | --- | --- |
+| `previewReadyCount` | Heirs: {count}. Shares ready. | عدد الورثة: {count}. الأنصبة جاهزة. | Héritiers : {count}. Parts prêtes. |
+| `previewStillWorking` | Still working on the preview… | ما زال تحديث المعاينة جاريًا… | Mise à jour de l'aperçu toujours en cours… |
+
+Screen-reader check still owed: that the one polite atomic status speaks once per change (an add, a zoom, a slow preview and its result) with NVDA/Chrome, VoiceOver/Safari iOS and TalkBack, in Arabic and English. Each finding records browser, reader and action.

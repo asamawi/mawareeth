@@ -73,6 +73,7 @@ import {
 } from "@/interview/layers";
 import { initialPick, selectionStore } from "@/interview/madhabs";
 import { dropEntry, estateModel, scrollDelta, treeDescription } from "@/interview/tree";
+import { createCoalescer, type AnnounceKind } from "@/interview/announce";
 import { previewKey } from "@/interview/preview";
 import { addGroups } from "@/interview/relatives";
 
@@ -138,7 +139,8 @@ export function StartCase({
 }) {
   const [view, setView] = useState<View>({ name: "loading" });
   const [presented, setPresented] = useState<{ key: string; value: PresentedResult | null } | null>(null);
-  const [zoomNote, setZoomNote] = useState<{ text: string; announcement: unknown } | null>(null);
+  // The one polite status: what it says now, and a counter so an identical sentence is spoken again.
+  const [spoken, setSpoken] = useState<{ text: string; seq: number }>({ text: "", seq: 0 });
   const [choiceFailed, setChoiceFailed] = useState(false);
   // Story 9.7: the relationship chip being dragged, and the alert of a drop the placement refuses.
   const [dragChip, setDragChip] = useState<RelationshipId | null>(null);
@@ -152,6 +154,13 @@ export function StartCase({
   // The announcement last brought into view, compared by identity because `seq` restarts
   // with a new case.
   const revealed = useRef<unknown>(null);
+  const coalescer = useRef<ReturnType<typeof createCoalescer> | null>(null);
+  const post = useCallback((kind: AnnounceKind, text: string) => {
+    coalescer.current ??= createCoalescer((sentence) => setSpoken((was) => ({ text: sentence, seq: was.seq + 1 })));
+    coalescer.current.post(kind, text);
+  }, []);
+  const drop = useCallback((...kinds: AnnounceKind[]) => coalescer.current?.drop(...kinds), []);
+  useEffect(() => () => coalescer.current?.cancel(), []);
 
   // Every click makes exactly one attempt; a failure offers a retry and never retries by itself.
   const perform = useCallback(
@@ -435,7 +444,6 @@ export function StartCase({
       : messages[announcementTemplates[note.kind]];
   const announcement = announced
     ? {
-        seq: announced.seq,
         template: groupCount > 1 && announced.kind === "added"
           ? messages.heirsAdded.replace("{count}", String(groupCount)).replace("{relationship}", "{heir}")
           : noteTemplate(announced),
@@ -444,6 +452,14 @@ export function StartCase({
           : heirLabel(announced.heir, messages.relationships, messages.heirNumbered, announced.ordinal),
       }
     : null;
+
+  // Each new change is posted once, by identity; returning to a screen finds the same one and says nothing.
+  const posted = useRef<unknown>(null);
+  useEffect(() => {
+    if (!announced || announced === posted.current) return;
+    posted.current = announced;
+    if (announcement) post("action", announcement.template.split("{heir}").join(announcement.heir));
+  });
 
   const undoOffer = started !== null && historyOf(started).length > 0;
   const undoDisabled = started !== null && (started.saving || !online);
@@ -468,7 +484,33 @@ export function StartCase({
 
   return (
     <div data-js-only ref={target} tabIndex={-1} className="flex flex-col gap-4 outline-none [&>*:not(form,[data-wide])]:mx-auto [&>*:not(form,[data-wide])]:w-full [&>*:not(form,[data-wide])]:max-w-xl">
-      {view.name === "loading" && <p role="status">{messages.loading}</p>}
+      {/* The one routine status of the Interview; always mounted so its changes are spoken. */}
+      <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {spoken.text !== "" && <span key={spoken.seq}>{spoken.text}</span>}
+      </p>
+      {view.name === "loading" && (
+        <div data-wide data-skeleton aria-busy="true" className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
+          <p className="sr-only">{messages.loading}</p>
+          <div aria-hidden="true" className="flex flex-col gap-3">
+            <div className="h-3 w-1/2 rounded-full bg-surface" />
+            <div className="h-3 w-full rounded-full bg-surface" />
+            <div className="h-3 w-5/6 rounded-full bg-surface" />
+            <div className="h-3 w-2/3 rounded-full bg-surface" />
+          </div>
+          <div aria-hidden="true" className="flex flex-col gap-3">
+            <div className="h-3 w-1/3 rounded-full bg-surface" />
+            <div className="h-3 w-full rounded-full bg-surface" />
+            <div className="h-3 w-full rounded-full bg-surface" />
+            <div className="h-3 w-3/4 rounded-full bg-surface" />
+            <div className="h-3 w-full rounded-full bg-surface" />
+          </div>
+          <div aria-hidden="true" className="flex flex-col gap-3">
+            <div className="h-3 w-1/3 rounded-full bg-surface" />
+            <div className="h-3 w-full rounded-full bg-surface" />
+            <div className="h-3 w-5/6 rounded-full bg-surface" />
+          </div>
+        </div>
+      )}
       {view.name === "starting" && <p role="status">{messages.starting}</p>}
 
       {view.name === "none" && (
@@ -667,7 +709,7 @@ export function StartCase({
                 messages={messages}
                 model={model}
                 locale={locale}
-                onAnnounce={text => setZoomNote({ text, announcement: started.announcement })}
+                onAnnounce={text => post("zoom", text)}
                 rootText={layerText}
                 editingId={started.editingHeir}
                 frozen={frozen}
@@ -712,8 +754,6 @@ export function StartCase({
                 editingId={started.editingHeir}
                 saving={frozen}
                 description={description}
-                zoomNote={zoomNote?.announcement === started.announcement ? zoomNote.text : null}
-                announcement={announcement}
                 heading={
                   activeCrumb && activeCrumb.label !== null
                     ? messages.heirsOfHeading.split("{heir}").join(activeCrumb.label)
@@ -752,6 +792,9 @@ export function StartCase({
                   results={results}
                   locale={locale}
                   onPresented={reportPresented}
+                  post={post}
+                  drop={drop}
+                  heirCount={layer?.heirs.length ?? started.case.heirs.length}
                   kase={started.case}
                   saving={frozen}
                   failed={choiceFailed && (started.notice === "failed" || started.notice === "throttled") ? started.notice : null}
