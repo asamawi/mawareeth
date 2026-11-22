@@ -1,6 +1,9 @@
 // Serves the static export (web/out) for the browser tests. Only node: built-ins.
 // It mirrors the two behaviours the export relies on: `dir/` serves `dir/index.html`, and a
 // missing file is a real 404 (no SPA fallback). It does not reimplement Django's CSP.
+// With E2E_CSP=1 it also sends the production headers of each HTML page, computed once at
+// startup by e2e/csp_headers.py from mawareeth/web_headers.py (E2E_PYTHON picks the interpreter).
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
@@ -13,6 +16,25 @@ const port = Number(process.env.E2E_PORT ?? 4173);
 if (!existsSync(join(root, "en", "index.html"))) {
   console.error(`No export at ${root}. Run \`npm run build\` before \`npm run test:e2e\`.`);
   process.exit(1);
+}
+
+let pageHeaders = {};
+if (process.env.E2E_CSP === "1") {
+  const python = process.env.E2E_PYTHON || (process.platform === "win32" ? "python" : "python3");
+  const helper = join(dirname(fileURLToPath(import.meta.url)), "csp_headers.py");
+  const run = spawnSync(python, [helper, root], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  const fail = (reason) => {
+    console.error(`E2E_CSP=1: cannot compute the production headers: ${reason}`);
+    process.exit(1);
+  };
+  if (run.error) fail(`could not run ${python}: ${run.error.message}`);
+  if (run.status !== 0) fail(`${python} ${helper} exited with ${run.status}: ${(run.stderr ?? "").trim()}`);
+  try {
+    pageHeaders = JSON.parse(run.stdout);
+  } catch (error) {
+    fail(`unparseable helper output: ${error.message}`);
+  }
+  if (!pageHeaders || typeof pageHeaders !== "object" || Object.keys(pageHeaders).length === 0) fail("the helper returned no pages");
 }
 
 const TYPES = {
@@ -76,7 +98,8 @@ const server = createServer(async (request, response) => {
       return reply(response, 404, "Not found");
     }
     const type = TYPES[extname(file).toLowerCase()] ?? "application/octet-stream";
-    response.writeHead(200, { "Content-Type": type, "Content-Length": data.length });
+    const extra = extname(file).toLowerCase() === ".html" ? (pageHeaders[pathname] ?? {}) : {};
+    response.writeHead(200, { ...extra, "Content-Type": type, "Content-Length": data.length });
     response.end(request.method === "HEAD" ? undefined : data);
   } catch {
     reply(response, 500, "Server error");

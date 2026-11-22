@@ -36,7 +36,7 @@ npm run test:e2e
 
 ## Browser tests
 
-`npm run test:e2e` runs the Playwright suite in `e2e/` against the built export in `out/`, so run `npm run build` first; locally, `npx playwright install chromium` is enough. A small static server (`e2e/serve.mjs`) serves the export, and every `/api/v1/` request is answered by stubs in `e2e/api.ts`, so neither Django nor PostgreSQL is needed. The suite covers hydration, the interview's states, no automatic retry, RTL, keyboard use, reduced motion, the no-JavaScript fallback, axe accessibility checks, the school comparison, and recovery from failed or stale script chunks.
+`npm run test:e2e` runs the Playwright suite in `e2e/` against the built export in `out/`, so run `npm run build` first; locally, `npx playwright install chromium` is enough. A small static server (`e2e/serve.mjs`) serves the export, and every `/api/v1/` request is answered by stubs in `e2e/api.ts`, so neither Django nor PostgreSQL is needed. The suite covers hydration, the interview's states, no automatic retry, RTL, keyboard use, reduced motion, the no-JavaScript fallback, axe accessibility checks, the school comparison, and recovery from failed or stale script chunks. The `csp` project starts a second server that sends the production Content-Security-Policy, so it needs Python 3 on PATH (`python` on Windows, `python3` elsewhere, or set `E2E_PYTHON`).
 
 ## Limits of a static export
 

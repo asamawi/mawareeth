@@ -173,10 +173,6 @@ Completed and obsolete items are removed; their history is in git.
   summary: Check with real screen readers (NVDA, JAWS, VoiceOver, TalkBack) that the tree edit sheet's relationship alert is spoken on a refused or rejected pick, and again on an identical retry.
   evidence: The alert (`role="alert"` on `#heir-relationship-error`, inner span re-keyed per refusal) is tested in jsdom only; whether each screen reader speaks a replaced span with identical text is unverified.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-deferred-browser-tests.md`
-  summary: Run a browser hydration check under the production Content-Security-Policy, for example a Playwright project that serves the export through Django/WhiteNoise (or sends the CSP computed by `mawareeth/web_headers.py`) and fails on any CSP console violation.
-  evidence: The Playwright suite serves `web/out` with a plain Node server and no CSP. The hash-based CSP from `9d2e3ff` is covered by Django header tests and by one manual headless-Edge run. A hash mismatch that blocks Next's inline bootstrap scripts would therefore pass every automated test while breaking hydration in production.
-
 - source_spec: none
   summary: Have a native Arabic and French speaker review the new "Cancel" label added to calc/templates/calc/calculation_confirm_delete.html — AR msgstr is empty.
   evidence: Added as msgid "Cancel" with msgstr "" in locale/ar and locale/fr as part of the case-delete confirmation story; EN is self-translating.
