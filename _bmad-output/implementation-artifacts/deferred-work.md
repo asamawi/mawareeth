@@ -417,8 +417,7 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Story 8.10
 
-- Ops order: take a fresh restic backup, then flip `SNAPSHOT_WRITE_VERSION=2` and run the backfill only once every rollback-eligible image reads schema 2. Do not switch in the deploy that first ships 8.8.
-- **Switch the writer to schema 2 once Epic 9 is merged to master and deployed** (owner decision 2026-11-19). The live image (`8b5d91b`, deployed 2026-11-18) already reads schema 2, but production cannot set the key until a release carries the `deploy/runtime.sh` allow-list entry for `SNAPSHOT_WRITE_VERSION` (on `development` since 2026-11-19), so the switch waits for the Epic 9 release. On the host, after that deploy: copy `/etc/mawareeth/runtime.env` to a root-only file, add `SNAPSHOT_WRITE_VERSION=2`, run `deploy/runtime.sh prepare`, then `deploy/release.sh deploy --rotate-config` (its `release_check --rollback-reads` must pass), confirm a new save is stored with `schema_version=2`, then take a fresh restic backup and run `backfill_saved_cases` (dry run first). Procedure: `deploy/README.md`, "Rotating runtime configuration" and the `SNAPSHOT_WRITE_VERSION` optional key.
+- Resolved 2026-11-22: production writes schema 2. After the Epic 8 + 9 release (`05ecadd`, PRs #110 and #111) deployed, `SNAPSHOT_WRITE_VERSION=2` was added to `/etc/mawareeth/runtime.env` and rotated with `release.sh deploy --rotate-config` (the rollback-reads check passed; app-blue serves and reports `snapshot_writes: 2`). A fresh restic backup ran (`20261122T165832Z`), then `backfill_saved_cases` (dry run first) converted 2,055 rows and named 2,054, with 0 malformed; every row decodes as schema 2. Images older than 8.8 (such as `02d3627`) can no longer serve: they read only schema 1. On the host, `runtime.sh prepare` and `release.sh deploy` both need `MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json`.
 - The new name msgids need native review.
 - Backfill names use the site default Locale, not each user's.
 - Legacy `Calculation.name` is not carried into names.
@@ -458,7 +457,7 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
 
 - source_spec: none
   summary: Country writes must wait until every rollback-eligible image reads schema 2.
-  evidence: Declared in `epic-8-context.md` (Cross-Story Dependencies) and carried by no story. Today Country Basis resolution is unavailable and `api/snapshots.py` rejects Country bases, so nothing writes them yet. The Country epic must check this before enabling writes.
+  evidence: Declared in `epic-8-context.md` (Cross-Story Dependencies) and carried by no story. Today Country Basis resolution is unavailable and `api/snapshots.py` rejects Country bases, so nothing writes them yet. The Country epic must check this before enabling writes. Status 2026-11-22: production writes and reads schema 2 and every rollback-eligible image reads it, so the prerequisite holds while no image older than 8.8 is redeployed.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert.md`
   summary: Before the production purge, check that no row outside the purged trees references a heir inside them through `Heir.same_person` or `Deceased.heir`; both cascade on delete.
