@@ -8,7 +8,7 @@ import { layerAt } from "@/interview/layers";
 import { estateModel, treeDescription, type TreePerson } from "@/interview/tree";
 import { AddHere } from "./add-here";
 import { buttonClass, errorText, FieldError, FormError, inputClass, SaveNotice, WithHeir } from "./form-bits";
-import { RelationshipFields } from "./heir-form";
+import { RelationshipFields } from "./relationship-fields";
 
 const phoneQuery = "(width < 640px)";
 function subscribePhone(notify: () => void) {
@@ -41,9 +41,8 @@ type Props = {
   orderQuestion?: ((name?: string | null) => React.ReactNode) | null;
 };
 
-function ImpactList({ view, messages }: Pick<Props, "view" | "messages">) {
-  const impact = view.confirming?.impact;
-  if (!impact || !(impact.persons.length || impact.estates.length)) return null;
+/** One label per person across every estate, from the same description the tree and the Heirs list use. */
+function personLabels(view: StartedView, messages: Copy) {
   const labels = new Map<string, string>();
   for (const layer of [null, ...view.case.deaths.map(d => d.heir_id)]) {
     const model = estateModel(view.case, layer, null);
@@ -53,6 +52,13 @@ function ImpactList({ view, messages }: Pick<Props, "view" | "messages">) {
         person.name ? `${words.relationship} · ${person.name}` : words.label);
     }
   }
+  return labels;
+}
+
+function ImpactList({ view, messages }: Pick<Props, "view" | "messages">) {
+  const impact = view.confirming?.impact;
+  if (!impact || !(impact.persons.length || impact.estates.length)) return null;
+  const labels = personLabels(view, messages);
   return <>
     <p>{messages.removeImpactIntro}</p>
     <ul className="list-disc ps-6">
@@ -84,16 +90,22 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
   // A picked relationship the server already marks impossible: explained at once, never sent.
   const [issue, setIssue] = useState<{ code: string; basis: typeof view.case; id: string } | null>(null);
   const [seq, setSeq] = useState(0);
+  const [linkSeq, setLinkSeq] = useState(0);
   const localIssue = issue?.basis === view.case && issue.id === person.id ? issue.code : null;
   const accepted = person.name ?? "";
   const text = draft?.basis === view.case ? draft.text : accepted;
   const confirmation = view.confirming;
   const layer = layerAt(view.case, view.layer);
-  const options = layer.heirs.find(h => h.id === person.id)?.edit_options ?? view.case.heir_options;
+  const row = layer.heirs.find(h => h.id === person.id);
+  const options = row?.edit_options ?? view.case.heir_options;
+  // The server decides who this row could be; an empty list (first estate, referenced row) shows no field.
+  const linkIds = row?.link_candidates ?? [];
+  const linkLabels = linkIds.length > 0 ? personLabels(view, messages) : null;
   const draftName = text.trim() || null;
   const dirty = draftName !== (person.name ?? null);
   const fields = { relationship: person.relationship, name: draftName };
   const nameError = errorText(messages, "name", view.errors);
+  const linkError = errorText(messages, "same_as", view.errors);
   const deathAlert = view.sheetDeath && view.ordering === null
     ? errorText(messages, "death", view.errors) ?? errorText(messages, "empty", view.errors) ?? errorText(messages, "relatives", view.errors)
     : null;
@@ -161,6 +173,23 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
           if (code) { setIssue({ code, basis: view.case, id: person.id }); setSeq(n => n + 1); return; }
           save({ ...fields, relationship: relationship as HeirFields["relationship"] }, `editRelationship:${control}`);
         }} />
+      {linkLabels && <div>
+        <label htmlFor="edit-same-as">{messages.linkSameAsLabel}</label>
+        <select id="edit-same-as" data-focus="same_as" className={`${inputClass} min-h-11`} value={row?.same_as ?? ""}
+          aria-disabled={frozen} aria-invalid={!!linkError} aria-describedby="edit-same-as-error"
+          onChange={event => {
+            if (frozen) return;
+            const target = event.target.value || null;
+            if (target === (row?.same_as ?? null)) return;
+            setLinkSeq(n => n + 1);
+            save({ ...fields, same_as: target }, "same_as");
+          }}>
+          <option value="">{messages.linkNobody}</option>
+          {/* An option holds text only, so the label is isolated with first-strong isolates, as `bdi dir="auto"` would. */}
+          {linkIds.map(id => <option key={id} value={id}>{`⁨${linkLabels.get(id) ?? id}⁩`}</option>)}
+        </select>
+        <FieldError id="edit-same-as-error" text={linkError} live announce={linkSeq} />
+      </div>}
       {person.state !== "died_later" && <fieldset aria-describedby="edit-status-error">
         <legend>{messages.statusLegend}</legend>
         {(view.layer === null ? ["alive", "died_before_or_with"] as const : ["alive"] as const).map(status => <label key={status} className="flex min-h-11 items-center gap-2">
@@ -190,7 +219,7 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
       {person.state !== "died_later" && <button type="button" className={buttonClass} aria-disabled={frozen}
         onClick={() => { if (!frozen) onRemove(false); }}><WithHeir template={messages.heirRemove} heir={label} /></button>}
     </>}
-    <FormError messages={messages} errors={view.errors} fields={["name", "relationship", "status", "heirs", "death", "empty", "relatives"]} />
+    <FormError messages={messages} errors={view.errors} fields={["name", "relationship", "same_as", "status", "heirs", "death", "empty", "relatives"]} />
     <SaveNotice messages={messages} notice={view.notice} saving={view.saving} />
   </div>;
 

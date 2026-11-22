@@ -2186,3 +2186,140 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
     });
   }
 });
+
+test.describe("Story 9.13: link a later-estate heir from the edit sheet", () => {
+  const layered = fixture("Agree layered: wife and two sons, a son dies");
+  const options = { blocked: [], invalid: {} };
+  type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const later = (kase: Row, rows: Row[], revision: number): Row => ({
+    ...kase, revision, snapshot: { at: revision, r1: rows.find(row => row.id === "r1")?.same_as ?? null }, deaths: [{ ...kase.deaths[0], heirs: rows }],
+  });
+  const unlinked = (): Row[] => [
+    { id: "r1", relationship: "mother", gender: "female", name: null, edit_options: options, link_candidates: ["w"] },
+    { id: "r2", relationship: "brother", gender: "male", name: null, same_as: "s2", edit_options: options, link_candidates: ["s2"] },
+  ];
+  const base = (): Row => {
+    const kase = fullCase(layered.case, { snapshot: { at: 1 } }) as Row;
+    kase.deaths = [{ ...(layered.case.deaths as Row[])[0], heir_options: options, heirs: [] }];
+    return later(kase, unlinked(), 1);
+  };
+  const namedWife = (kase: Row, rows: Row[], revision: number) => ({
+    ...later(kase, rows, revision), heirs: kase.heirs.map((row: Row) => row.id === "w" ? { ...row, name: "Amal" } : row),
+  });
+  const openEstate = async (page: Page, api: Parameters<typeof openHeirsScreen>[1], kase: Row, locale: "en" | "ar" = "en") => {
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, { status: "not_ready", revision: kase.revision }) });
+    await page.goto(`/${locale}/interview/`);
+    await page.getByRole("button", { name: messages[locale].interview.resume }).click();
+    await page.locator("section[data-tree] [data-tree-area]").waitFor();
+    await page.locator('[data-node="s1"]').press("Enter");
+    await expect(page.locator("[data-focus='treeHeading']")).toBeFocused();
+  };
+  const sameAs = (page: Page) => page.locator("[data-edit-sheet] #edit-same-as");
+  const headerUndo = (page: Page) => page.getByRole("button", { name: en.undoLastChange, exact: true });
+
+  test("the old add form is absent in the first and a later estate", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openEstate(page, api, base());
+    for (const selector of ["#heir-form-heading", "#heir-name", "#heir-same-as", "input[name='heir-link']"]) await expect(page.locator(selector)).toHaveCount(0);
+    await expect(page.locator("section[aria-labelledby='add-relatives-heading'] form")).toHaveCount(0);
+    await page.locator("[data-breadcrumb] a").click();
+    for (const selector of ["#heir-form-heading", "#heir-name", "input[name='heir-link']"]) await expect(page.locator(selector)).toHaveCount(0);
+  });
+
+  for (const [name, size] of [["phone sheet", { width: 390, height: 800 }], ["desktop panel", { width: 1280, height: 900 }]] as const) {
+    test(`link, unlink, refusal and Undo on the ${name}`, async ({ page, api }) => {
+      await page.setViewportSize(size);
+      const kase = base();
+      await openEstate(page, api, kase);
+      await page.locator('[data-node="r1"]').press("Enter");
+      const field = sameAs(page);
+      await expect(field).toBeVisible();
+      await expect(page.locator("[data-edit-sheet] label[for='edit-same-as']")).toHaveText(en.linkSameAsLabel);
+      expect((await field.locator("option").allTextContents()).map(text => text.replace(/[⁨⁩]/g, ""))).toEqual([en.linkNobody, "Wife"]);
+      expect((await field.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      // Refused: nothing changes and the reason shows at the field.
+      api.set({ putHeir: json(400, { errors: { same_as: "not_alive" } }) });
+      await field.selectOption("w");
+      await expect(page.locator("#edit-same-as-error")).toHaveText(en.fieldErrors.same_as.not_alive);
+      await expect(field).toBeFocused();
+      expect(JSON.parse(api.heirPuts[0])).toMatchObject({ relationship: "mother", same_as: "w", expected_revision: 1 });
+      // Accepted: the card shows the person's name.
+      const linked = namedWife(kase, [{ ...unlinked()[0], same_as: "w", name: "Amal" }, unlinked()[1]], 2);
+      const availablePreview = { ...layered.response, revision: 2, presented: served.presented[layered.title] };
+      api.set({ putHeir: json(200, { case: linked }), getPreview: json(200, availablePreview), postRestore: json(200, { case: namedWife(kase, unlinked(), 3) }) });
+      await field.selectOption("w");
+      await expect(page.locator('[data-node="r1"]')).toContainText("Amal");
+      await expect(field).toHaveValue("w");
+      await expect(page.locator("[role='status']").filter({ hasText: "linked to a person already in the case" }).first()).toBeAttached();
+      await page.locator("[data-edit-sheet]").getByRole("button", { name: en.editClose }).click();
+      await expect(page.locator("section[aria-labelledby='heirs-heading']")).toContainText("Amal");
+      // The Share preview of the accepted revision is the one shown, not the earlier not-ready one.
+      await page.locator("[data-breadcrumb] a").click();
+      if (size.width >= 1280) {
+        const preview = page.locator("section[aria-labelledby='preview-heading']");
+        await expect(preview.locator("table, ul").first()).toBeVisible();
+      }
+      // Undo restores the unlinked row, with the prior snapshot at the current revision.
+      await headerUndo(page).first().click();
+      await expect.poll(() => api.restorePosts.length).toBe(1);
+      expect(JSON.parse(api.restorePosts[0].body)).toMatchObject({ expected_revision: 2, snapshot: { at: 1, r1: null } });
+      await page.locator('[data-node="s1"]').press("Enter");
+      await expect(page.locator('[data-node="r1"]')).not.toContainText("Amal");
+      // Unlink the other row: Nobody else sends null.
+      const cleared = later(kase, [unlinked()[0], { ...unlinked()[1], same_as: undefined, name: null }], 4);
+      api.set({ putHeir: json(200, { case: cleared }) });
+      await page.locator('[data-node="r2"]').press("Enter");
+      await expect(field).toHaveValue("s2");
+      await field.selectOption("");
+      await expect.poll(() => api.heirPuts.length).toBe(3);
+      expect(JSON.parse(api.heirPuts[2]).same_as).toBeNull();
+    });
+  }
+
+  test("a stale link edit shows the conflict notice and the field stays", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = base();
+    await openEstate(page, api, kase);
+    await page.locator('[data-node="r1"]').press("Enter");
+    api.set({ putHeir: json(409, { error: "conflict", case: later(kase, unlinked(), 5) }) });
+    await sameAs(page).selectOption("w");
+    await expect(page.locator("[data-edit-sheet]").getByText(en.conflictNotice)).toBeVisible();
+  });
+
+  test("Tab reaches the field, and a person with no candidates has none", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const kase = base();
+    kase.deaths[0].heirs[0].link_candidates = [];
+    kase.deaths[0].heirs.push({ id: "r3", relationship: "sister", gender: "female", name: null, edit_options: options, link_candidates: ["w"] });
+    await openEstate(page, api, kase);
+    await page.locator('[data-node="r1"]').press("Enter");
+    await expect(sameAs(page)).toHaveCount(0);
+    await page.locator('[data-node="r3"]').press("Enter");
+    await page.locator("[data-edit-sheet] input[name='relationship']").first().focus();
+    for (let step = 0; step < 12 && !(await sameAs(page).evaluate(el => el === document.activeElement)); step += 1) await page.keyboard.press("Tab");
+    await expect(sameAs(page)).toBeFocused();
+  });
+
+  test("the first estate edit sheet has no link field", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openEstate(page, api, base());
+    await page.locator("[data-breadcrumb] a").click();
+    await page.locator('[data-node="w"]').press("Enter");
+    await expect(page.locator("section[data-edit-sheet]")).toBeVisible();
+    await expect(sameAs(page)).toHaveCount(0);
+  });
+
+  test("Arabic mirrors the field and 320px reflows without horizontal scroll", async ({ page, api }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await openEstate(page, api, base(), "ar");
+    await page.locator('[data-node="r1"]').press("Enter");
+    const field = sameAs(page);
+    await expect(field).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+    await expect(page.locator("label[for='edit-same-as']")).toHaveText(messages.ar.interview.linkSameAsLabel);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    const box = (await field.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(320);
+  });
+});

@@ -15,7 +15,6 @@ import {
   keepLayer,
   layerAt,
   layersOf,
-  linkCandidates,
   personOf,
   placementRootOf,
   rowLabels,
@@ -92,28 +91,6 @@ test("rows are found in any layer, and a person is their earliest row", () => {
   assert.equal(personOf(rows.get("w")!.row), "w");
   assert.equal(deathOf(CASE, "w")?.order, 3);
   assert.equal(deathOf(CASE, "s2"), undefined);
-});
-
-test("link candidates: earlier layers only, minus the deceased, people already there and the earlier dead", () => {
-  // The first layer has nobody to link to.
-  assert.deepEqual(linkCandidates(CASE, null), []);
-  // S1's layer: W and S2 are in it already, and S1 is its deceased.
-  assert.deepEqual(linkCandidates(CASE, "s1"), []);
-  // Without the two links, W and S2 are offered, and S1 is not.
-  const bare: Case = { ...CASE, deaths: [{ ...CASE.deaths[0], heirs: [CASE.deaths[0].heirs[2]] }] };
-  assert.deepEqual(linkCandidates(bare, "s1").map((row) => row.id), ["w", "s2"]);
-  // W's layer: S1 died before W, W is the deceased, S2 is in it already, so only R3 (a layer-2 person).
-  assert.deepEqual(linkCandidates(CASE, "w").map((row) => row.id), ["r3"]);
-  // A person who dies later than this layer is still offered.
-  const later: Case = {
-    ...CASE,
-    deaths: [
-      { ...CASE.deaths[0], heirs: [CASE.deaths[0].heirs[2]] },
-      { ...CASE.deaths[1], heir_id: "s2", heirs: [] },
-    ],
-  };
-  assert.ok(linkCandidates(later, "s1").some((row) => row.id === "s2"));
-  assert.equal(linkCandidates(later, "nobody").length, 0);
 });
 
 test("labels name every row of every layer by the person's earliest row", () => {

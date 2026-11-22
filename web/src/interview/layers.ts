@@ -81,32 +81,6 @@ export function deathOf(kase: Pick<Case, "deaths">, personId: string): Death | u
   return kase.deaths.find((death) => death.heir_id === personId);
 }
 
-/**
- * The people an added row in this layer could be: those whose earliest row is in an earlier layer,
- * minus this layer's deceased, people already in the layer, and people who died before this layer's
- * death. Gender and aliveness are left to the server's codes.
- */
-export function linkCandidates(
-  kase: Pick<Case, "deceased" | "heirs" | "heir_options" | "deaths">,
-  layerId: string | null,
-): Heir[] {
-  const layers = layersOf(kase);
-  const at = layers.findIndex((layer) => layer.id === layerId);
-  if (at <= 0) return [];
-  const layer = layers[at];
-  const inLayer = new Set(layer.heirs.map(personOf));
-  const candidates: Heir[] = [];
-  for (const earlier of layers.slice(0, at)) {
-    for (const row of earlier.heirs) {
-      if (row.same_as !== undefined || row.id === layer.id || inLayer.has(row.id)) continue;
-      const death = deathOf(kase, row.id);
-      if (death && death.order < layer.order) continue;
-      candidates.push(row);
-    }
-  }
-  return candidates;
-}
-
 /** Puts the two names into the "{heir} of {deceased}" sentence, with no replacer patterns. */
 export function ofDeceased(template: string, heir: string, deceased: string): string {
   return template.replace(/\{heir\}|\{deceased\}/g, (token) => token === "{heir}" ? heir : deceased);

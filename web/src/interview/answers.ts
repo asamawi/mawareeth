@@ -15,13 +15,8 @@ export type FormName = "deceased" | "heir";
 
 /** What the visitor has typed: always strings, as the inputs hold them. */
 export type DeceasedValues = { gender: string; estate: string };
-/**
- * `same_as` is only in an add form of a later layer: empty for a new person, `LINK_PENDING`
- * while "someone already in this case" is chosen but nobody is picked, else the person's id.
- */
+/** `same_as` is empty for a new person, else the id of the person a later-estate row stands for. */
 export type HeirValues = { relationship: string; name: string; same_as?: string };
-
-export const LINK_PENDING = "pending";
 
 /** A field name to the code of its broken rule; the dictionary turns codes into text. */
 export type Errors = Record<string, string>;
@@ -134,7 +129,6 @@ export function validateHeir(values: HeirValues): Checked<HeirFields> {
   // A linked row has no name of its own: the person's name is the server's to resolve.
   const name = linked ? { value: null, code: null } : parseName(values.name);
   if (name.code) errors.name = name.code;
-  if (values.same_as === LINK_PENDING) errors.same_as = "required";
   if (Object.keys(errors).length > 0 || !isRelationshipId(values.relationship)) {
     return { errors, fields: null };
   }
@@ -373,12 +367,3 @@ export function heirValues(heir: Pick<Heir, "relationship" | "name"> | undefined
   return heir ? { relationship: heir.relationship, name: heir.name ?? "" } : BLANK_HEIR;
 }
 
-/** Keep a stale link visible and require the visitor to choose again. */
-export function linkChoice(editing: boolean, candidates: readonly { id: string }[], values: HeirValues) {
-  const id = values.same_as ?? "";
-  return {
-    visible: !editing && (candidates.length > 0 || id !== ""),
-    values: id !== "" && id !== LINK_PENDING && !candidates.some((candidate) => candidate.id === id)
-      ? { ...values, same_as: LINK_PENDING } : values,
-  };
-}

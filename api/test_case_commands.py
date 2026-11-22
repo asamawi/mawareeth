@@ -190,6 +190,12 @@ class HeirStatusTests(CommandBase):
         self.assertEqual(restored['heirs'][-1]['id'], self.s1)
         self.assertEqual(restored['edges'], [edge])
 
+    def test_a_link_is_not_allowed_on_a_died_before_row(self):
+        self.setup_family()
+        self.edit(self.s1, status='died_before_or_with')
+        self.refused_edit(self.s1, {'same_as': 'not_allowed'}, same_as=self.s2)
+        self.refused_edit(self.s1, {'same_as': 'not_allowed'}, same_as=None, status='alive')
+
     @override_settings(SNAPSHOT_WRITE_VERSION=1)
     def test_old_writer_refuses_status_before_storing(self):
         self.setup_family()

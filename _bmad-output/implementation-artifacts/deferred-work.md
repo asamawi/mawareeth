@@ -576,3 +576,10 @@ Still pending for a person:
 - Real 400% browser zoom of the Interview at 1280px (the 320px CSS-width run is a stand-in, not the same engine path).
 - Real-device NVDA/Chrome, VoiceOver/Safari iOS and TalkBack runs over the responsive layouts, including the edit panel in the inline-end column and the modal sheet. Each finding records browser, reader and action.
 - Epic 11 will register the sticky summary under the key `summary` in `useObstruction`; until then only the in-flow toast registers.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-13-link-a-later-estate-heir-from-the-edit-sheet-and-retire-the-old-add-form.md`
+  summary: Remove the dormant add-form draft machinery in `web/src/interview/flow.ts` (`heirFormKey`, `resetHeirForm`, `restoreHeirForm`, parked heir drafts, `formEpoch`) now that the old "Add an heir" form is gone.
+  evidence: Story 9.13 removed the form but kept this state, because edit-sheet close/restore runs through it (about 17 call sites) and roughly 2,650 lines of `flow.test.ts` exercise it; it now maintains drafts no UI can resume.
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-13-link-a-later-estate-heir-from-the-edit-sheet-and-retire-the-old-add-form.md`
+  summary: An Interview tab opened before a deploy that adds a Case row field (e.g. 9.13's `link_candidates`) rejects the new rows in its strict parser and drops later-estate heirs until reload.
+  evidence: The old bundle's strict `ROW_KEYS` (`web/src/api/case.ts`) refuses unknown row keys; every additive contract change has this skew. A build-version reload prompt, or a tolerant parse for unknown row keys, would settle it (medium, unverified in a live deploy).

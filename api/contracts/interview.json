@@ -36,7 +36,7 @@
     "case": ["deceased_required"],
     "relatives": ["required", "invalid"],
     "empty": ["invalid"],
-    "same_as": ["gender_mismatch", "not_alive", "already_linked"],
+    "same_as": ["gender_mismatch", "not_alive", "already_linked", "not_allowed"],
     "status": ["invalid", "schema_unsupported", "first_estate_only", "status_locked"],
     "anchor": ["not_allowed", "schema_unsupported"],
     "death": ["order_required", "simultaneous", "unknown", "order_conflict", "limit", "already_deceased"]
@@ -47,7 +47,8 @@
     "gender": "male | female (derived by server)",
     "name": "string | null",
     "same_as": "earliest row id (later layers only)",
-    "edit_options": "HeirOptions — computed without this heir; same shape as heir_options"
+    "edit_options": "HeirOptions — computed without this heir; same shape as heir_options",
+    "link_candidates": "later-estate rows only: person ids this row could be linked to (same_as), server-decided"
   },
   "relativeQuestion": {
     "id": "question id (person id for relative questions)",

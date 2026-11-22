@@ -54,7 +54,7 @@ export type Notice = "throttled" | "failed" | "heirGone";
 
 /** What the screen-reader live region says; `seq` makes a repeat count as new. */
 export type Announcement = {
-  kind: "added" | "updated" | "removed" | "deathMarked" | "laterDeath" | "deathUnmarked" | "undone";
+  kind: "added" | "updated" | "linked" | "unlinked" | "removed" | "deathMarked" | "laterDeath" | "deathUnmarked" | "undone";
   /** The id of the heir the change was about. */
   id: string;
   heir: { name: string | null; relationship: RelationshipId };
@@ -395,7 +395,7 @@ export function cancelEditDeceased(view: StartedView, deps: Deps): StartedView {
  * Moves the heirs screen to another layer (null is the first deceased's), ending any edit. A new
  * heir's draft stays, so nothing typed is lost. Refused mid-save, and for a death that is gone.
  */
-export function openLayer(view: StartedView, id: string | null, deps: Deps, focus: "relationship" | "treeHeading" = "relationship"): StartedView {
+export function openLayer(view: StartedView, id: string | null, deps: Deps, focus: "relationship" | "treeHeading" = "treeHeading"): StartedView {
   if (view.saving) return view;
   const target = keepLayer(id, view.case);
   if (view.editingHeir !== null) restoreHeirForm(deps, view.case.id);
@@ -615,7 +615,7 @@ export type Answer =
    * `origin: "tree"` is a positioned add of one person at `anchor` (a person id or "root").
    */
   | { kind: "addHeir"; from: StartedView; values: HeirValues; origin?: "panel" | "tree"; count?: number; anchor?: string }
-  | { kind: "saveHeir"; from: StartedView; heirId: string; values: HeirValues; status?: HeirFields["status"]; field?: FocusTarget; close?: boolean; openEstate?: string }
+  | { kind: "saveHeir"; from: StartedView; heirId: string; values: HeirValues; status?: HeirFields["status"]; link?: string | null; field?: FocusTarget; close?: boolean; openEstate?: string }
   | { kind: "removeHeir"; from: StartedView; heirId: string; confirm?: boolean; fromRow?: boolean }
   /** `rowId` is the row whose person died; `first` answers the order question. */
   | { kind: "markDeath"; from: StartedView; rowId: string; first?: string; answers?: RelativeAnswers; origin?: "sheet"; name?: string | null }
@@ -852,6 +852,7 @@ function send(answer: Answer, signal: AbortSignal, deps: Deps): Promise<AnswerRe
       return deps.updateHeir(signal, caseId, revision, answer.heirId, {
         relationship: answer.values.relationship as RelationshipId, name: answer.values.name.trim() || null,
         ...(answer.status ? { status: answer.status } : {}),
+        ...(answer.link !== undefined ? { same_as: answer.link } : {}),
       });
     case "removeHeir":
       return deps.removeHeir(signal, caseId, revision, answer.heirId, answer.confirm === true);
@@ -889,7 +890,7 @@ function openAnswers(from: StartedView): RelativeAnswers {
 export function revealOf(view: View): string | null {
   if (view.name !== "started") return null;
   const note = view.announcement;
-  if (!note || (note.kind !== "added" && note.kind !== "updated")) return null;
+  if (!note || (note.kind !== "added" && note.kind !== "updated" && note.kind !== "linked" && note.kind !== "unlinked")) return null;
   return layerAt(view.case, view.layer).heirs.some((heir) => heir.id === note.id) ? note.id : null;
 }
 
@@ -1046,7 +1047,7 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
       const stayed: StartedView = {
         ...from, case: kase, saving: false, errors: null, notice: null, conflict: false,
         editingHeir: answer.heirId,
-        announcement: announce(from, "updated", people, answer.heirId),
+        announcement: announce(from, answer.link === undefined ? "updated" : answer.link === null ? "unlinked" : "linked", people, answer.heirId),
         focus: nextFocus(from, answer.field ?? "relationship"),
       };
       // "Open own estate" with an uncommitted name: the name is saved, then the estate opens.
@@ -1120,7 +1121,7 @@ function reconcileFresh(view: StartedView, from: StartedView, fresh: Case, deps:
     case: fresh,
     layer,
     ordering: view.ordering !== null && rowsOf(fresh).has(view.ordering) ? view.ordering : null,
-    ...(changed ? { editingHeir: null, formEpoch: from.formEpoch + 1, focus: nextFocus(from, "relationship") } : {}),
+    ...(changed ? { editingHeir: null, formEpoch: from.formEpoch + 1, focus: nextFocus(from, "treeHeading") } : {}),
   };
 }
 

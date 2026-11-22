@@ -660,6 +660,38 @@ test("saveHeir with a status passes it to updateHeir, and close:true closes onto
   assert.equal(closed.focus?.target, "card:h2");
 });
 
+test("saveHeir with a link sends same_as (null clears), announces it once, and focuses the picker", async () => {
+  const { value, log } = deps({ answer: () => ({ kind: "saved", case: WITH_TWO }) });
+  const editing = startEditHeir(startedOf(WITH_TWO, true), "h2", value);
+  const linked = (await runAction("saveHeir", signal, value, WITH_TWO, undefined, {
+    kind: "saveHeir", from: editing, heirId: "h2", field: "same_as", link: "h1",
+    values: { relationship: "daughter", name: "Amal" },
+  })) as StartedView;
+  assert.deepEqual(log.answers[0].fields, { relationship: "daughter", name: "Amal", same_as: "h1" });
+  assert.equal(linked.announcement?.kind, "linked");
+  assert.equal(linked.editingHeir, "h2");
+  assert.deepEqual(linked.focus, { target: "same_as", seq: 2 });
+  const cleared = (await runAction("saveHeir", signal, value, WITH_TWO, undefined, {
+    kind: "saveHeir", from: editing, heirId: "h2", field: "same_as", link: null,
+    values: { relationship: "daughter", name: "Amal" },
+  })) as StartedView;
+  assert.deepEqual(log.answers[1].fields, { relationship: "daughter", name: "Amal", same_as: null });
+  assert.equal(cleared.announcement?.kind, "unlinked");
+});
+
+test("a refused link keeps the editor open on the picker with the code", async () => {
+  const { value } = deps({ answer: () => ({ kind: "invalid", errors: { same_as: "not_alive" } }) });
+  const editing = startEditHeir(startedOf(WITH_TWO, true), "h2", value);
+  const view = (await runAction("saveHeir", signal, value, WITH_TWO, undefined, {
+    kind: "saveHeir", from: editing, heirId: "h2", field: "same_as", link: "h1",
+    values: { relationship: "daughter", name: "Amal" },
+  })) as StartedView;
+  assert.equal(view.editingHeir, "h2");
+  assert.deepEqual(view.errors, { same_as: "not_alive" });
+  assert.equal(view.focus?.target, "same_as");
+  assert.equal(view.case, editing.case);
+});
+
 test("a status_locked refusal keeps the editor on the status radio with the family unchanged", async () => {
   const { value } = deps({ answer: () => ({ kind: "invalid", errors: { status: "status_locked" } }) });
   const editing = startEditHeir(startedOf(WITH_TWO, true), "h2", value);
@@ -1268,7 +1300,7 @@ test("Removing the heir being edited ends the edit; removing another keeps it an
 
 test("every focus target flow.ts can emit is a data-focus value in the components", () => {
   const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "app", "[locale]", "interview");
-  const source = ["family-tree.tsx", "edit-sheet.tsx", "deceased-form.tsx", "heir-form.tsx", "add-relatives.tsx", "heir-list.tsx", "form-bits.tsx", "order-question.tsx", "relatives-question.tsx", "death-breadcrumb.tsx", "add-here.tsx"]
+  const source = ["family-tree.tsx", "edit-sheet.tsx", "deceased-form.tsx", "relationship-fields.tsx", "add-relatives.tsx", "heir-list.tsx", "form-bits.tsx", "order-question.tsx", "relatives-question.tsx", "death-breadcrumb.tsx", "add-here.tsx"]
     .map((file) => readFileSync(join(dir, file), "utf8"))
     .join("\n");
   for (const target of FOCUS_TARGETS) {
@@ -1744,7 +1776,7 @@ test("openLayer can focus the tree heading, closes editing and falls back to the
   assert.equal(opened.layer, "s1");
   assert.equal(opened.editingHeir, null);
   assert.equal(opened.focus?.target, "treeHeading");
-  assert.equal(openLayer(from, "s1", value).focus?.target, "relationship");
+  assert.equal(openLayer(from, "s1", value).focus?.target, "treeHeading");
   assert.equal(openLayer(opened, "gone", value, "treeHeading").layer, null);
 });
 
@@ -1810,16 +1842,6 @@ test("adding in a later layer sends the layer, and a link sends same_as with no 
   assert.deepEqual(log.answers[2].fields, { relationship: "wife", name: null });
 });
 
-test("a link with nobody picked is refused before anything is sent, focusing the picker", () => {
-  const blocked = precheck({
-    kind: "addHeir",
-    from: startedOf(TWO_LAYERS, true, { layer: "s1" }),
-    values: { relationship: "brother", name: "", same_as: "pending" },
-  });
-  assert.deepEqual(blocked?.errors, { same_as: "required" });
-  assert.equal(blocked?.focus?.target, "same_as");
-});
-
 test("a refused link is shown on the picker with its code, and nothing entered is lost", async () => {
   const from = startedOf(TWO_LAYERS, true, { layer: "s1" });
   const { value } = deps({ answer: () => ({ kind: "invalid", errors: { same_as: "gender_mismatch", heirs: "limit" } }) });
@@ -1843,7 +1865,7 @@ test("openLayer moves the screen, ends an edit, keeps the draft and refuses a de
   assert.equal(opened.editingHeir, null);
   assert.equal(opened.ordering, null);
   assert.equal(opened.errors, null);
-  assert.equal(opened.focus?.target, "relationship");
+  assert.equal(opened.focus?.target, "treeHeading");
   assert.deepEqual(log.form?.values, { ...BLANK_RECORD(FAMILY.id).values, name: "draft", same_as: "" });
   // Not mid-save, and not a layer that does not exist.
   const saving = startedOf(TWO_LAYERS, true, { saving: true });
@@ -1983,7 +2005,7 @@ test("every refreshed save drops stale ordering and resets a deleted layer's dra
     assert.equal(view.layer, null);
     assert.equal(view.ordering, null);
     assert.equal(view.formEpoch, 8);
-    assert.equal(view.focus?.target, "relationship");
+    assert.equal(view.focus?.target, "treeHeading");
     assert.equal(log.form?.values.name, "");
   }
 });

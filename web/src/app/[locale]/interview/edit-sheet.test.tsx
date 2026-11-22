@@ -493,3 +493,70 @@ test("Open own estate passes an uncommitted name so it is saved first", async ()
     assert.deepEqual(t.later, ["open:Newer"]);
   } finally { await t.stop(); }
 });
+
+const LATER: Case = {
+  ...KASE,
+  heirs: [
+    { id: "w", relationship: "wife", gender: "female", name: "Amal", edit_options: NONE },
+    { id: "s1", relationship: "son", gender: "male", name: "Sami", edit_options: NONE },
+    { id: "s2", relationship: "son", gender: "male", name: "عمر", edit_options: NONE },
+  ],
+  deaths: [{
+    heir_id: "s1", order: 2, gender: "male", heir_options: NONE,
+    heirs: [
+      { id: "r1", relationship: "mother", gender: "female", name: null, edit_options: NONE, link_candidates: ["w"] },
+      { id: "r2", relationship: "brother", gender: "male", name: "عمر", same_as: "s2", edit_options: NONE, link_candidates: ["s2"] },
+      { id: "r3", relationship: "sister", gender: "female", name: null, edit_options: NONE, link_candidates: [] },
+    ],
+  }],
+};
+const laterView = (editingHeir: string, extra: Partial<StartedView> = {}) => viewOf({ case: LATER, editingHeir, ...extra }, "s1");
+const sameAs = (node: Element) => node.querySelector<HTMLSelectElement>("#edit-same-as");
+
+test("the Same person as field follows the relationship field with Nobody else plus the server candidates", async () => {
+  for (const phone of [false, true]) {
+    const t = await mount({ phone, view: laterView("r1") });
+    try {
+      const select = sameAs(t.node)!;
+      assert.equal(t.node.querySelector('label[for="edit-same-as"]')!.textContent, messages.en.interview.linkSameAsLabel);
+      assert.deepEqual([...select.options].map(o => o.text), [messages.en.interview.linkNobody, "⁨Wife · Amal⁩"]);
+      assert.equal(select.value, "");
+      assert.ok(select.classList.contains("min-h-11"));
+      const relationship = t.node.querySelector('fieldset [role="radiogroup"]')!.closest("fieldset")!;
+      assert.ok(relationship.compareDocumentPosition(select) & 4, "after the relationship field");
+    } finally { await t.stop(); }
+  }
+});
+
+test("the field is absent without candidates and in the first estate", async () => {
+  const none = await mount({ view: laterView("r3") });
+  try { assert.equal(sameAs(none.node), null); } finally { await none.stop(); }
+  const first = await mount();
+  try { assert.equal(sameAs(first.node), null); } finally { await first.stop(); }
+});
+
+test("choosing a person saves same_as at once; Nobody else sends null; the linked row shows its target selected", async () => {
+  const t = await mount({ view: laterView("r1") });
+  try {
+    const select = sameAs(t.node)!;
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(select), "value")!.set!;
+    await act(async () => { setter.call(select, "w"); select.dispatchEvent(new t.dom.Event("change", { bubbles: true }) as unknown as Event); });
+    assert.deepEqual(t.saves, [{ fields: { relationship: "mother", name: null, same_as: "w" }, focus: "same_as" }]);
+  } finally { await t.stop(); }
+  const linked = await mount({ view: laterView("r2") });
+  try {
+    const select = sameAs(linked.node)!;
+    assert.equal(select.value, "s2");
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(select), "value")!.set!;
+    await act(async () => { setter.call(select, ""); select.dispatchEvent(new linked.dom.Event("change", { bubbles: true }) as unknown as Event); });
+    assert.deepEqual(linked.saves.map(s => (s as { fields: unknown }).fields), [{ relationship: "brother", name: "عمر", same_as: null }]);
+  } finally { await linked.stop(); }
+});
+
+test("a refused link shows its reason at the field", async () => {
+  const t = await mount({ view: laterView("r1", { errors: { same_as: "not_alive" } }) });
+  try {
+    assert.equal(t.node.querySelector("#edit-same-as-error")!.textContent, messages.en.interview.fieldErrors.same_as.not_alive);
+    assert.equal(sameAs(t.node)!.getAttribute("aria-invalid"), "true");
+  } finally { await t.stop(); }
+});

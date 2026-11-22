@@ -123,10 +123,6 @@ export type Messages = {
     conflictNotice: string;
     /** Under the add form's list, when an option is labelled. */
     heirNameLabel: string;
-    heirNameHint: string;
-    heirAdd: string;
-    heirSave: string;
-    heirCancel: string;
     /** The `{heir}` placeholder is the heir's name or relationship. */
     heirEdit: string;
     heirRemove: string;
@@ -135,7 +131,6 @@ export type Messages = {
     heirRemoveNo: string;
     /** `{heir}` is the relationship and `{n}` the number among unnamed heirs of that relationship. */
     heirNumbered: string;
-    heirAddHeading: string;
     heirEditHeading: string;
     editClose: string;
     statusLegend: string;
@@ -160,6 +155,10 @@ export type Messages = {
     stepperMore: string;
     stepperCount: string;
     heirUpdated: string;
+    heirLinked: string;
+    heirUnlinked: string;
+    linkSameAsLabel: string;
+    linkNobody: string;
     heirRemoved: string;
     deathMarked: string;
     deathUnmarked: string;
@@ -188,13 +187,6 @@ export type Messages = {
     deathOrderSimultaneous: string;
     deathOrderUnknown: string;
     deathOrderCancel: string;
-    heirLinkLegend: string;
-    heirLinkNew: string;
-    heirLinkExisting: string;
-    heirLinkPickLabel: string;
-    heirLinkPickPlaceholder: string;
-    heirLinkRequired: string;
-    heirLinkedHint: string;
     previewOf: string;
     previewLayerPrompt: string;
     formSaving: string;
@@ -420,17 +412,12 @@ export const messages: Record<Locale, Messages> = {
       positionNotAllowed: "لا يمكن إضافة {relationship} عند هذا الشخص.",
       conflictNotice: "تغيّرت هذه الحالة في نافذة أخرى. تُعرض الآن أحدث نسخة، ولم يُحفظ تغييرك الأخير.",
       heirNameLabel: "الاسم (اختياري)",
-      heirNameHint: "يمكنك ترك الاسم فارغًا، وسيظهر الوارث بصلة القرابة.",
-      heirAdd: "إضافة وارث",
-      heirSave: "حفظ التعديل",
-      heirCancel: "إلغاء التعديل",
       heirEdit: "تعديل {heir}",
       heirRemove: "حذف {heir}",
       heirRemoveConfirm: "هل تريد حذف {heir}؟",
       heirRemoveYes: "نعم، احذف",
       heirRemoveNo: "إبقاء",
       heirNumbered: "{heir} رقم {n}",
-      heirAddHeading: "إضافة وارث جديد",
       editClose: "إغلاق",
       statusLegend: "الحالة عند الوفاة",
       statusAlive: "على قيد الحياة عند الوفاة",
@@ -454,6 +441,10 @@ export const messages: Record<Locale, Messages> = {
       stepperMore: "زيادة عدد {relationship}",
       stepperCount: "عدد من سيُضاف ({relationship})",
       heirUpdated: "تم تعديل {heir}.",
+      heirLinked: "تم ربط {heir} بشخص موجود في الحالة.",
+      heirUnlinked: "أصبح {heir} شخصًا جديدًا.",
+      linkSameAsLabel: "الشخص نفسه مثل…",
+      linkNobody: "لا أحد آخر (شخص جديد)",
       heirRemoved: "تم حذف {heir}.",
       heirGone: "هذا الوارث لم يعد موجودًا. تم تحديث القائمة.",
       // Native-language review pending.
@@ -482,13 +473,6 @@ export const messages: Record<Locale, Messages> = {
       deathOrderSimultaneous: "في الوقت نفسه",
       deathOrderUnknown: "غير معروف",
       deathOrderCancel: "إلغاء",
-      heirLinkLegend: "من هو هذا القريب؟",
-      heirLinkNew: "شخص جديد",
-      heirLinkExisting: "شخص موجود في هذه الحالة",
-      heirLinkPickLabel: "الشخص الموجود في هذه الحالة",
-      heirLinkPickPlaceholder: "اختر شخصًا",
-      heirLinkRequired: "اختر شخصًا من القائمة، أو أدخل شخصًا جديدًا.",
-      heirLinkedHint: "هذا هو الشخص نفسه المسجّل في إدخال سابق. لا يمكن تغيير اسمه إلا هناك.",
       previewOf: "{heir} لدى {deceased}",
       previewLayerPrompt: "أضف ورثة لكل شخص متوفى لتظهر الأنصبة هنا.",
       formSaving: "جارٍ الحفظ…",
@@ -542,6 +526,7 @@ export const messages: Record<Locale, Messages> = {
           gender_mismatch: "جنس الشخص المختار مختلف. يرجى اختيار شخص من الجنس نفسه أو تصحيح صلة القرابة.",
           not_alive: "لم يكن الشخص المختار على قيد الحياة عند هذه الوفاة. يرجى اختيار شخص كان حيًا آنذاك.",
           already_linked: "هذا الشخص موجود بالفعل ضمن هؤلاء الورثة. يرجى تعديل السجل الموجود أو اختيار شخص آخر.",
+          not_allowed: "لا يمكن ربط هذا القريب بشخص آخر هنا.",
         },
         death: {
           order_required: "يلزم تحديد ترتيب هاتين الوفاتين. يرجى تحديد الشخص الذي توفي أولًا.",
@@ -754,17 +739,12 @@ export const messages: Record<Locale, Messages> = {
       positionNotAllowed: "{relationship} cannot be added at this person.",
       conflictNotice: "This case changed in another tab. The latest version is shown, and your last change was not saved.",
       heirNameLabel: "Name (optional)",
-      heirNameHint: "You can leave the name empty. The heir will be shown by relationship.",
-      heirAdd: "Add heir",
-      heirSave: "Save changes",
-      heirCancel: "Cancel editing",
       heirEdit: "Edit {heir}",
       heirRemove: "Remove {heir}",
       heirRemoveConfirm: "Remove {heir}?",
       heirRemoveYes: "Yes, remove",
       heirRemoveNo: "Keep",
       heirNumbered: "{heir} {n}",
-      heirAddHeading: "Add an heir",
       editClose: "Close",
       statusLegend: "Status at the death",
       statusAlive: "Alive at death",
@@ -788,6 +768,10 @@ export const messages: Record<Locale, Messages> = {
       stepperMore: "One more {relationship}",
       stepperCount: "Number of {relationship} to add",
       heirUpdated: "{heir} updated.",
+      heirLinked: "{heir} linked to a person already in the case.",
+      heirUnlinked: "{heir} is now a new person.",
+      linkSameAsLabel: "Same person as…",
+      linkNobody: "Nobody else (a new person)",
       heirRemoved: "{heir} removed.",
       heirGone: "That heir no longer exists. The list has been refreshed.",
       // Successive deaths (Story 1.7b).
@@ -816,13 +800,6 @@ export const messages: Record<Locale, Messages> = {
       deathOrderSimultaneous: "At the same time",
       deathOrderUnknown: "Not known",
       deathOrderCancel: "Cancel",
-      heirLinkLegend: "Who is this relative?",
-      heirLinkNew: "A new person",
-      heirLinkExisting: "Someone already in this case",
-      heirLinkPickLabel: "Person already in this case",
-      heirLinkPickPlaceholder: "Choose a person",
-      heirLinkRequired: "Choose a person from the list, or enter a new person.",
-      heirLinkedHint: "This is the same person as in an earlier entry. Their name can only be changed there.",
       previewOf: "{heir} of {deceased}",
       previewLayerPrompt: "Add heirs for each person who died to see the shares here.",
       formSaving: "Saving…",
@@ -874,6 +851,7 @@ export const messages: Record<Locale, Messages> = {
           gender_mismatch: "The selected person has a different gender. Choose a person with the same gender, or correct the relationship.",
           not_alive: "The selected person was not alive at this death. Choose someone who was alive then.",
           already_linked: "This person is already included among these heirs. Edit the existing entry, or choose another person.",
+          not_allowed: "This relative cannot be linked to another person here.",
         },
         death: {
           order_required: "The order of these deaths is needed. Choose which person died first.",
@@ -1089,17 +1067,12 @@ export const messages: Record<Locale, Messages> = {
       positionNotAllowed: "Impossible d’ajouter {relationship} à cette personne.",
       conflictNotice: "Ce dossier a été modifié dans un autre onglet. La dernière version est affichée et votre dernière modification n'a pas été enregistrée.",
       heirNameLabel: "Nom (facultatif)",
-      heirNameHint: "Vous pouvez laisser le nom vide. L'héritier sera affiché par son lien de parenté.",
-      heirAdd: "Ajouter l'héritier",
-      heirSave: "Enregistrer les modifications",
-      heirCancel: "Annuler la modification",
       heirEdit: "Modifier {heir}",
       heirRemove: "Supprimer {heir}",
       heirRemoveConfirm: "Supprimer l'héritier {heir} ?",
       heirRemoveYes: "Oui, supprimer",
       heirRemoveNo: "Garder",
       heirNumbered: "{heir} n° {n}",
-      heirAddHeading: "Ajouter un héritier",
       editClose: "Fermer",
       statusLegend: "Situation au décès",
       statusAlive: "En vie au décès",
@@ -1123,6 +1096,10 @@ export const messages: Record<Locale, Messages> = {
       stepperMore: "Augmenter le nombre ({relationship})",
       stepperCount: "Nombre à ajouter ({relationship})",
       heirUpdated: "Héritier modifié : {heir}",
+      heirLinked: "{heir} lié à une personne déjà présente dans le dossier.",
+      heirUnlinked: "{heir} est maintenant une nouvelle personne.",
+      linkSameAsLabel: "Même personne que…",
+      linkNobody: "Personne d'autre (une nouvelle personne)",
       heirRemoved: "Héritier supprimé : {heir}",
       heirGone: "Cet héritier n'existe plus. La liste a été actualisée.",
       // Native-language review pending.
@@ -1151,13 +1128,6 @@ export const messages: Record<Locale, Messages> = {
       deathOrderSimultaneous: "En même temps",
       deathOrderUnknown: "On ne sait pas",
       deathOrderCancel: "Annuler",
-      heirLinkLegend: "Qui est ce parent ?",
-      heirLinkNew: "Une nouvelle personne",
-      heirLinkExisting: "Quelqu'un déjà présent dans ce dossier",
-      heirLinkPickLabel: "Personne déjà présente dans ce dossier",
-      heirLinkPickPlaceholder: "Choisissez une personne",
-      heirLinkRequired: "Choisissez une personne dans la liste, ou saisissez une nouvelle personne.",
-      heirLinkedHint: "C'est la même personne que dans une saisie précédente. Son nom ne peut être modifié que là.",
       previewOf: "{heir} de {deceased}",
       previewLayerPrompt: "Ajoutez des héritiers pour chaque personne décédée afin de voir les parts ici.",
       formSaving: "Enregistrement…",
@@ -1211,6 +1181,7 @@ export const messages: Record<Locale, Messages> = {
           gender_mismatch: "Le sexe de la personne choisie est différent. Choisissez une personne du même sexe ou corrigez le lien de parenté.",
           not_alive: "La personne choisie ne vivait plus lors de ce décès. Choisissez une personne encore en vie à ce moment-là.",
           already_linked: "Cette personne figure déjà parmi ces héritiers. Modifiez l'entrée existante ou choisissez une autre personne.",
+          not_allowed: "Ce proche ne peut pas être lié à une autre personne ici.",
         },
         death: {
           order_required: "L'ordre de ces décès est nécessaire. Indiquez quelle personne est décédée en premier.",

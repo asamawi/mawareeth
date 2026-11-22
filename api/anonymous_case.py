@@ -18,6 +18,7 @@ from api import heir_rules
 from api.kinship import derive
 from engine.contracts.errors import ContractError
 from engine.contracts.family import EDGE_KINDS
+from engine.contracts.values import ID_RE
 from engine.queries import placement_options
 from engine.rule_set import school_rule_set
 
@@ -382,12 +383,13 @@ def read_snapshot(snapshot, case_id, started_at):
         'deaths': [],
     }
     _read_deaths(result, snapshot.get('deaths'))
-    _decorate(result)
     died_before = _read_died_before(snapshot.get('died_before'), set(_rows(result)))
     if died_before:
         result['died_before'] = died_before
     known = {'root'} | {_person(row) for row in _rows(result).values()} | {p['id'] for p in died_before}
     result['edges'] = _read_edges(snapshot.get('edges'), known)
+    # After the edges: they decide which rows can be linked.
+    _decorate(result)
     _describe(result)
     return result
 
@@ -434,6 +436,7 @@ def _save(request, **changes):
         death.pop('placement', None)
         for heir in death.get('heirs', []):
             heir.pop('edit_options', None)
+            heir.pop('link_candidates', None)
     # Reassign: changing the nested dict would not mark the session modified.
     request.session[SESSION_KEY] = stored
     touch(request)
@@ -510,6 +513,54 @@ def _edit_options(case, rows, deceased, layer, i):
                         row['gender'] if _is_locked(case, rows, row) else None)
 
 
+def _is_referenced(case, rows, row):
+    """True when another row links to this one or it owns a later death: it cannot itself be linked."""
+    return (any(r.get('same_as') == row['id'] for r in rows.values())
+            or any(d['heir_id'] == row['id'] for d in case['deaths'])
+            or any(row['id'] in (e['from'], e['to']) for e in case.get('edges') or []))
+
+
+def _link_context(case):
+    """Estate position of every row and the order of every death, computed once per call."""
+    positions = {r['id']: i for i, (_, _, rs) in enumerate(_layers(case), 1) for r in rs}
+    return positions, {d['heir_id']: d['order'] for d in case['deaths']}
+
+
+def _link_issue(case, rows, layer, heirs, link, relationship, skip=None, context=None):
+    """The refusal code for linking a row of estate `layer` to the person `link`, or None when it is allowed.
+
+    One rule for add, update and the candidates served to the browser. `skip` is the row being edited,
+    which does not count as already representing the person."""
+    if not isinstance(link, str) or link not in rows:
+        return 'not_alive'
+    person = _person(rows[link])
+    positions, orders = context or _link_context(case)
+    order = orders.get(layer, 1)
+    died = orders.get(person, 4)
+    if any(_person(r) == person for r in heirs if r is not skip):
+        return 'already_linked'
+    if positions[person] >= order or died <= order:
+        return 'not_alive'
+    if (isinstance(relationship, str) and relationship in RELATIONSHIPS
+            and rows[person]['gender'] != RELATIONSHIPS[relationship]):
+        return 'gender_mismatch'
+    return None
+
+
+def _link_candidates(case, rows, layer, heirs, row):
+    """Person ids the later-estate row could be linked to: server-decided, current target always included."""
+    if _is_referenced(case, rows, row):
+        return []
+    context = _link_context(case)
+    found = [r['id'] for r in rows.values() if not r.get('same_as') and r is not row
+             and _link_issue(case, rows, layer, heirs, r['id'], row['relationship'], skip=row,
+                             context=context) is None]
+    current = row.get('same_as')
+    if current and current not in found:
+        found.append(current)
+    return found
+
+
 def _decorate(case):
     rows = _rows(case)
     for i, row in enumerate(case['heirs']):
@@ -519,6 +570,7 @@ def _decorate(case):
         death['heir_options'] = heir_options(case['madhab'], death, death['heirs'])
         for i, row in enumerate(death['heirs']):
             row['edit_options'] = _edit_options(case, rows, death, death['heirs'], i)
+            row['link_candidates'] = _link_candidates(case, rows, death['heir_id'], death['heirs'], row)
             if row.get('same_as'):
                 row['name'] = rows[row['same_as']]['name']
 
@@ -806,17 +858,10 @@ def _add_heir(case, data, layer=None, same_as=None):
         if not isinstance(link, str) or link not in rows:
             errors['same_as'] = 'not_alive'
         else:
+            issue = _link_issue(case, rows, layer, heirs, link, relationship)
+            if issue:
+                errors['same_as'] = issue
             link = _person(rows[link])
-            positions = {r['id']: i for i, (key, _, rs) in enumerate(_layers(case), 1) for r in rs}
-            order = next((d['order'] for d in case['deaths'] if d['heir_id'] == layer), 1)
-            died = next((d['order'] for d in case['deaths'] if d['heir_id'] == link), 4)
-            if any(_person(r) == link for r in heirs):
-                errors['same_as'] = 'already_linked'
-            elif positions[link] >= order or died <= order:
-                errors['same_as'] = 'not_alive'
-            elif (isinstance(relationship, str) and relationship in RELATIONSHIPS
-                  and rows[link]['gender'] != RELATIONSHIPS[relationship]):
-                errors['same_as'] = 'gender_mismatch'
     edge = None
     if 'anchor' in data:
         edge = _anchor_edge(case, layer, data['anchor'], relationship, link, errors)
@@ -910,9 +955,38 @@ def update_heir(request, heir_id, data, case_id):
                     rel, deceased['gender'], heir_rules.counts(r for r in heirs if r is not row))
                 if issue:
                     errors['relationship'] = issue
+    link_changes = False
+    if 'same_as' in data:
+        link = data['same_as']
+        layer_entry = None if was_before else next(e for e in _layers(case) if row in e[2])
+        if layer_entry is None or layer_entry[0] is None:
+            errors['same_as'] = 'not_allowed'
+        elif link is None:
+            link_changes = 'same_as' in row
+        elif _is_referenced(case, rows, row):
+            errors['same_as'] = 'already_linked'
+        else:
+            issue = _link_issue(case, rows, layer_entry[0], layer_entry[2], link,
+                                rel if isinstance(rel, str) and rel in RELATIONSHIPS else row['relationship'],
+                                skip=row)
+            if issue:
+                errors['same_as'] = issue
+            else:
+                link = _person(rows[link])
+                link_changes = link != row.get('same_as')
     if errors:
         raise FieldErrors(errors)
-    rows.get(person, row)['name'] = fields['name']
+    if not link_changes:
+        rows.get(person, row)['name'] = fields['name']
+    elif data['same_as'] is None:
+        row.pop('same_as')
+        row['name'] = None
+        if not ID_RE.fullmatch(row['id']):
+            # A reopened snapshot names an alias `{person}~{order}`; as its own person it needs a valid id.
+            row['id'] = uuid.uuid4().hex
+    else:
+        row['same_as'] = link
+        row['name'] = None
     row.update(relationship=rel, gender=RELATIONSHIPS[rel])
     if moving_before:
         case['heirs'].remove(row)

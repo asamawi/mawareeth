@@ -1307,3 +1307,18 @@ test("parseCase rejects malformed persons, edges and placement like the other fi
     assert.deepEqual([none?.persons, none?.edges, none?.placement], [[], [], {}]);
   }
 });
+
+test("parseCase keeps link_candidates on later rows that point at earlier people and drops the rest", () => {
+  const options = { blocked: [], invalid: {} };
+  const parsed = parseCase({ case: {
+    id: "c", revision: 1, started_at: "2026-11-22T10:00:00Z", madhab: null, deceased: { gender: "male", estate: null },
+    heirs: [{ id: "w", relationship: "wife", gender: "female", name: null, edit_options: options }],
+    heir_options: options,
+    deaths: [{ heir_id: "w", order: 2, gender: "female", heir_options: options, heirs: [
+      { id: "r1", relationship: "mother", gender: "female", name: null, edit_options: options, link_candidates: ["w", "nobody", 4] },
+      { id: "r2", relationship: "sister", gender: "female", name: null, edit_options: options, link_candidates: "w" },
+    ] }],
+  } });
+  assert.deepEqual(parsed?.deaths[0].heirs[0].link_candidates, ["w"]);
+  assert.equal(parsed?.deaths[0].heirs[1].link_candidates, undefined);
+});

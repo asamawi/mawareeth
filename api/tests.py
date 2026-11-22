@@ -3022,6 +3022,162 @@ class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, Transaction
             self.assertEqual([r['name'] for r in identity], ['Renamed'] * 3)
 
 
+    def link_family(self):
+        """A wife and three sons; the first son dies. Returns his id, with an empty later estate."""
+        case = self.build('hanbali', 'male', None, ['wife', 'son', 'son', 'son'], ['W1', 'S1', 'S2', 'S3'])
+        self.case_id = case['id']
+        self.w1, self.s1, self.s2, self.s3 = [r['id'] for r in case['heirs']]
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        for row in self.live()['deaths'][0]['heirs']:
+            self.send('delete', HEIRS_URL + row['id'] + '/', {'case_id': self.case_id})
+        return self.s1
+
+    def later_rows(self):
+        return self.live()['deaths'][0]['heirs']
+
+    def put_link(self, row, **fields):
+        return self.send('put', HEIRS_URL + row + '/', {'case_id': self.case_id, **fields})
+
+    def test_update_sets_clears_and_retargets_a_link(self):
+        layer = self.link_family()
+        self.add_layer(layer, 'brother', name='Own name')
+        row = self.later_rows()[0]['id']
+        revision = self.live()['revision']
+        response = self.put_link(row, relationship='brother', name='Ignored', same_as=self.s2)
+        self.assertEqual(response.status_code, 200)
+        case = response.json()['case']
+        self.assertEqual(case['revision'], revision + 1)
+        self.assertEqual(case['deaths'][0]['heirs'][0]['same_as'], self.s2)
+        self.assertEqual(case['deaths'][0]['heirs'][0]['name'], 'S2')
+        self.assertEqual(self.put_link(row, relationship='brother', same_as=self.s3).status_code, 200)
+        self.assertEqual(self.later_rows()[0]['same_as'], self.s3)
+        self.assertEqual(self.later_rows()[0]['name'], 'S3')
+        cleared = self.put_link(row, relationship='brother', same_as=None)
+        self.assertEqual(cleared.status_code, 200)
+        cleared_row = cleared.json()['case']['deaths'][0]['heirs'][0]
+        self.assertNotIn('same_as', cleared_row)
+        self.assertIsNone(cleared_row['name'])
+
+    def test_update_without_same_as_leaves_the_link_alone(self):
+        layer = self.link_family()
+        self.add_layer(layer, 'mother', same_as=self.w1)
+        row = self.later_rows()[0]['id']
+        self.assertEqual(self.put_link(row, relationship='mother', name='Renamed').status_code, 200)
+        self.assertEqual(self.later_rows()[0]['same_as'], self.w1)
+        self.assertEqual(self.put_link(row, relationship='mother', same_as=self.w1).status_code, 200)
+        self.assertEqual(self.later_rows()[0]['same_as'], self.w1)
+
+    def test_update_link_refusals_change_nothing(self):
+        layer = self.link_family()
+        self.add_layer(layer, 'mother')
+        mother = self.later_rows()[0]['id']
+        before = self.stored()
+        self.refused(self.put_link(mother, relationship='mother', same_as=self.s2),
+                     {'same_as': 'gender_mismatch'}, before)
+        self.refused(self.put_link(mother, relationship='mother', same_as=layer), {'same_as': 'not_alive'}, before)
+        self.refused(self.put_link(mother, relationship='mother', same_as='missing'),
+                     {'same_as': 'not_alive'}, before)
+        self.refused(self.put_link(mother, relationship='son', same_as=self.w1),
+                     {'same_as': 'gender_mismatch'}, before)
+        self.add_layer(layer, 'brother', same_as=self.s2)
+        brother = self.add_layer(layer, 'brother', name='New')
+        self.assertEqual(brother.status_code, 201)
+        before = self.stored()
+        self.refused(self.put_link(self.later_rows()[-1]['id'], relationship='brother', same_as=self.s2),
+                     {'same_as': 'already_linked'}, before)
+
+    def test_update_link_refuses_a_row_that_is_referenced(self):
+        layer = self.link_family()
+        self.add_layer(layer, 'brother')
+        brother = self.later_rows()[0]['id']
+        self.assertEqual(self.mark(brother).status_code, 201)
+        before = self.stored()
+        self.refused(self.put_link(brother, relationship='brother', same_as=self.s2),
+                     {'same_as': 'already_linked'}, before)
+        self.assertEqual(self.later_rows()[0]['link_candidates'], [])
+
+    def test_update_link_is_not_allowed_in_the_first_estate(self):
+        self.setup_family()
+        before = self.stored()
+        self.refused(self.put_link(self.s2, relationship='son', same_as=self.w), {'same_as': 'not_allowed'}, before)
+        self.refused(self.put_link(self.s2, relationship='son', same_as=None), {'same_as': 'not_allowed'}, before)
+
+    def test_update_link_with_a_stale_revision_changes_nothing(self):
+        layer = self.link_family()
+        self.add_layer(layer, 'mother')
+        row = self.later_rows()[0]['id']
+        before = self.stored()
+        response = self.put_link(row, relationship='mother', same_as=self.w1,
+                                 expected_revision=self.live()['revision'] - 1)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(self.stored(), before)
+
+    def test_link_candidates_are_decided_by_the_server(self):
+        layer = self.link_family()
+        for row in self.live()['heirs']:
+            self.assertNotIn('link_candidates', row)
+        self.add_layer(layer, 'mother')
+        self.add_layer(layer, 'brother')
+        mother, brother = self.later_rows()
+        # Gender decides: the wife for the mother, sons for the brother; the deceased son is not alive here.
+        self.assertEqual(mother['link_candidates'], [self.w1])
+        self.assertEqual(brother['link_candidates'], [self.s2, self.s3])
+        # A represented person drops out for another row, and a row keeps its own target.
+        self.put_link(brother['id'], relationship='brother', same_as=self.s2)
+        self.add_layer(layer, 'brother')
+        linked, other = [r for r in self.later_rows() if r['relationship'] == 'brother']
+        self.assertEqual(linked['link_candidates'], [self.s2, self.s3])
+        self.assertEqual(other['link_candidates'], [self.s3])
+
+    def test_link_candidates_leave_out_a_person_who_died_before_the_estate(self):
+        self.link_family()
+        self.assertEqual(self.mark(self.s2, first=self.s1).status_code, 201)
+        self.add_layer(self.s2, 'brother')
+        row = next(d for d in self.live()['deaths'] if d['heir_id'] == self.s2)['heirs'][-1]
+        self.assertNotIn(self.s2, row['link_candidates'])
+        # The first son died in the earlier estate, so he is not alive at the second death.
+        self.assertNotIn(self.s1, row['link_candidates'])
+
+    def test_update_link_refuses_a_row_that_is_an_edge_end(self):
+        layer = self.link_family()
+        self.add_layer(layer, 'brother')
+        brother = self.later_rows()[0]['id']
+        self.plant(edges=[{'kind': 'spouse_of', 'from': brother, 'to': self.w1}])
+        self.assertEqual(self.later_rows()[0]['link_candidates'], [])
+        before = self.stored()
+        self.refused(self.put_link(brother, relationship='brother', same_as=self.s2),
+                     {'same_as': 'already_linked'}, before)
+
+    def test_unlinking_a_reopened_alias_gives_it_a_valid_person_id(self):
+        from api.snapshots import decode, encode_v2
+        self.two()
+        snapshot = anonymous_case.export_snapshot(self.stored())
+        for row in snapshot['deaths'][0]['heirs']:
+            row['id'] = f"{row['same_as']}~2"
+        restored = self.send('post', '/api/v1/case/restore/', {'case_id': self.case_id, 'snapshot': snapshot})
+        self.assertEqual(restored.status_code, 200, restored.content)
+        alias = f'{self.s2}~2'
+        self.assertIn(alias, [r['id'] for r in self.later_rows()])
+        response = self.put_link(alias, relationship='brother', same_as=None)
+        self.assertEqual(response.status_code, 200, response.content)
+        unlinked = next(r for r in self.later_rows() if r['relationship'] == 'brother')
+        self.assertRegex(unlinked['id'], r'^[A-Za-z0-9_-]{1,64}$')
+        self.assertNotIn('same_as', unlinked)
+        self.assertEqual(self.preview(self.case_id).status_code, 200)
+        reopened = decode(2, encode_v2(anonymous_case.export_snapshot(self.stored())), 'x', 'y')
+        ids = {r['id'] for r in reopened['heirs']} | {r['id'] for d in reopened['deaths'] for r in d['heirs']}
+        self.assertIn(self.s2, ids)
+        self.assertIn(unlinked['id'], ids)
+        self.assertEqual(len([r for d in reopened['deaths'] for r in d['heirs'] if r.get('same_as') == self.s2]), 0)
+
+    def test_a_link_leaves_the_exported_snapshot_format_unchanged(self):
+        layer = self.link_family()
+        self.add_layer(layer, 'mother')
+        self.put_link(self.later_rows()[0]['id'], relationship='mother', same_as=self.w1)
+        exported = anonymous_case.export_snapshot(self.stored())
+        self.assertEqual(set(exported['deaths'][0]['heirs'][0]), {'id', 'relationship', 'gender', 'name', 'same_as'})
+
+
 class AutomaticRelativesTests(InterviewDeathsHelpers, InterviewHelpers, TransactionTestCase):
     """The 1.7c matrix exercises the public atomic write, not engine substitutes."""
 

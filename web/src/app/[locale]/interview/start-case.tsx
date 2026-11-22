@@ -25,10 +25,8 @@ import {
   deceasedValues,
   formStore,
   heirLabel,
-  heirValues,
   valuesFor,
   type DeceasedValues,
-  type HeirValues,
 } from "@/interview/answers";
 import {
   askStartOver,
@@ -39,7 +37,6 @@ import {
   cancelEditHeir,
   cancelOrder,
   cancelStartOver,
-  heirFormKey,
   historyOf,
   openChange,
   openLayer,
@@ -65,7 +62,6 @@ import {
   estatePath,
   hasDeaths,
   layerAt,
-  linkCandidates,
   personOf,
   placementRootOf,
   rowLabels,
@@ -84,7 +80,6 @@ import { EditSheet } from "./edit-sheet";
 import { FamilyTree } from "./family-tree";
 import { buttonClass, errorText, SaveNotice, WithHeir } from "./form-bits";
 import { DeceasedSummary, HeirList } from "./heir-list";
-import { HeirForm } from "./heir-form";
 import { MadhabSelector } from "./madhab-selector";
 import { useOnline } from "./online";
 import { RelativesQuestion } from "./relatives-question";
@@ -336,13 +331,6 @@ export function StartCase({
   const model = started ? estateModel(started.case, layer?.id ?? null, presented?.key === previewKey(started.case) ? presented.value : null) : { people: [], placement: {} };
   const description = treeDescription(messages, model, layerText);
   const deceasedIds = new Set(started?.case.deaths.map((death) => death.heir_id) ?? []);
-  const candidates =
-    started && layer && layer.id !== null
-      ? (() => {
-          const names = rowLabels(started.case, messages.relationships, messages.heirNumbered, messages.previewOf);
-          return linkCandidates(started.case, layer.id).map((row) => ({ id: row.id, label: names[row.id] ?? row.id }));
-        })()
-      : [];
   const editingPerson = model.people.find(p => p.id === started?.editingHeir);
   const relativeGroups = started && layer ? addGroups(placementRootOf(started.case, layer.id), layer.options) : [];
   const remaining = MAX_HEIRS - (layer?.heirs.length ?? 0);
@@ -371,8 +359,6 @@ export function StartCase({
   };
   // One way to open an estate: from a card, a row, the sheet or the breadcrumb.
   const openEstate = (id: string | null) => edit((current) => openLayer(current, id, deps, "treeHeading"));
-  // The heir form is for an edit, and for linking a later death's heir to someone already in the case.
-  const showHeirForm = started?.editingHeir === null && layer?.id != null && candidates.length > 0;
   const orderQuestion = (() => {
     if (!started || !layer || started.ordering === null || started.sheetDeath) return null;
     const row = rowsOf(started.case).get(started.ordering)?.row;
@@ -452,6 +438,8 @@ export function StartCase({
   const announcementTemplates = {
     added: "heirAdded",
     updated: "heirUpdated",
+    linked: "heirLinked",
+    unlinked: "heirUnlinked",
     removed: "heirRemoved",
     deathMarked: "deathMarked",
     laterDeath: "laterDeathAddedMale",
@@ -698,33 +686,7 @@ export function StartCase({
                 }
               />
               {started.conflict && !editingPerson && <p role="alert">{messages.conflictNotice}</p>}
-              {!editingPerson && !showHeirForm && <SaveNotice messages={messages} notice={started.notice} saving={frozen} />}
-              {showHeirForm && <HeirForm
-                key={heirFormKey(started)}
-                messages={messages}
-                initial={valuesFor(
-                  deps.forms.get(),
-                  started.case.id,
-                  "heir",
-                  started.editingHeir,
-                  heirValues(undefined),
-                )}
-                errors={started.errors}
-                notice={started.notice}
-                saving={frozen}
-                editing={false}
-                options={layer?.options ?? started.case.heir_options}
-                deceasedGender={layer?.gender ?? started.case.deceased.gender}
-                candidates={candidates}
-                onChange={(values, field) =>
-                  track((current) => remember(current, "heir", values, field, deps.forms))
-                }
-                onBlur={(field, values) => track((current) => blurField(current, "heir", field, values))}
-                onSubmit={(values: HeirValues) =>
-                  submit((from) => ({ kind: "addHeir", from, values }))
-                }
-                onCancel={() => edit((current) => cancelEditHeir(current, deps))}
-              />}
+              {!editingPerson && <SaveNotice messages={messages} notice={started.notice} saving={frozen} />}
             </section>
             {/* One column down to 1280px; from there, with the preview column, its children are grid items so the panel can sit in the inline-end column. */}
             <div className={`min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-s lg:border-line lg:ps-4 ${previewColumn ? "xl:contents" : ""}`}>
@@ -767,7 +729,8 @@ export function StartCase({
                 onOpenEstate={name => name === undefined ? openEstate(editingPerson.personId)
                   : submit(from => ({ kind: "saveHeir", from, heirId: editingPerson.id, values: { relationship: editingPerson.relationship, name: name ?? "" }, field: "name", openEstate: editingPerson.personId }))}
                 onSave={(fields, field, close) => submit(from => ({ kind: "saveHeir", from, heirId: editingPerson.id,
-                  values: { relationship: fields.relationship, name: fields.name ?? "" }, status: fields.status, field, close }))}
+                  values: { relationship: fields.relationship, name: fields.name ?? "" }, status: fields.status,
+                  ...(fields.same_as !== undefined ? { link: fields.same_as } : {}), field, close }))}
                 onRemove={confirm => submit(from => ({ kind: "removeHeir", from, heirId: editingPerson.id, confirm }))}
               /></div>}
             </div>

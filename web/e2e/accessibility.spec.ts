@@ -188,3 +188,26 @@ for (const locale of ["en", "ar"] as const) {
     });
   }
 }
+
+for (const locale of ["en", "ar"] as const) {
+  test(`the Same person as field open in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const layered = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: { title: string; case: Record<string, unknown> }[] })
+      .fixtures.find((item) => item.title === "Agree layered: wife and two sons, a son dies")!;
+    const options = { blocked: [], invalid: {} };
+    const kase = fullCase(layered.case, {
+      deaths: [{
+        ...(layered.case.deaths as Record<string, unknown>[])[0], heir_options: options,
+        heirs: [{ id: "r1", relationship: "mother", gender: "female", name: null, edit_options: options, link_candidates: ["w"] }],
+      }],
+    });
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, { status: "not_ready", revision: 1 }) });
+    await page.goto(`/${locale}/interview/`);
+    await page.getByRole("button", { name: messages[locale].interview.resume }).click();
+    await page.locator("section[data-tree] [data-tree-area]").waitFor();
+    await page.locator('[data-node="s1"]').press("Enter");
+    await page.locator('[data-node="r1"]').press("Enter");
+    await expect(page.locator("[data-edit-sheet] #edit-same-as")).toBeVisible();
+    expect(await serious(page)).toEqual([]);
+  });
+}

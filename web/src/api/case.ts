@@ -66,6 +66,8 @@ export type Heir = {
   name: string | null;
   /** In a later layer: the id of the person's earliest row. The server resolves `name` from it. */
   same_as?: string;
+  /** In a later layer: the people this row could be linked to, decided by the server. */
+  link_candidates?: string[];
   /**
    * What adding a relative would meet if this heir were removed — computed server-side without
    * this heir in the family. Used for the blur check in the edit form.
@@ -290,7 +292,7 @@ function parseHeirs(value: unknown): Heir[] {
 
 const DEATH_KEYS = ["heir_id", "order", "gender", "heir_options", "heirs", "placement"];
 const DEATH_REQUIRED_KEYS = ["heir_id", "order", "gender", "heir_options", "heirs"];
-const ROW_KEYS = ["id", "relationship", "gender", "name", "same_as", "edit_options"];
+const ROW_KEYS = ["id", "relationship", "gender", "name", "same_as", "edit_options", "link_candidates"];
 
 function onlyKeys(value: object, allowed: readonly string[]): boolean {
   return Object.keys(value).every((key) => allowed.includes(key));
@@ -318,10 +320,14 @@ function parseDeaths(value: unknown, first: readonly Heir[]): Death[] {
     const earliest: string[] = [];
     for (const raw of heirs as unknown[]) {
       if (typeof raw !== "object" || raw === null || Array.isArray(raw) || !onlyKeys(raw, ROW_KEYS)) continue;
-      const { id, relationship, gender: rowGender, name, same_as, edit_options: rowEditOptions } = raw as Record<string, unknown>;
+      const { id, relationship, gender: rowGender, name, same_as, edit_options: rowEditOptions, link_candidates } = raw as Record<string, unknown>;
       if (typeof id !== "string" || ids.has(id) || !isRelationshipId(relationship) || !isGender(rowGender)) continue;
       if (name !== undefined && name !== null && typeof name !== "string") continue;
       const row: Heir = { id, relationship, gender: rowGender, name: typeof name === "string" ? name : null, edit_options: parseHeirOptions(rowEditOptions) };
+      // Only people from earlier estates can be offered; anything else reads as no candidates.
+      if (Array.isArray(link_candidates)) {
+        row.link_candidates = link_candidates.filter((candidate): candidate is string => typeof candidate === "string" && people.has(candidate));
+      }
       if (same_as !== undefined) {
         if (typeof same_as !== "string" || !people.has(same_as) || same_as === heir_id || linked.has(same_as)) continue;
         if (deaths.some((death) => death.heir_id === same_as)) continue;
@@ -707,8 +713,8 @@ export type HeirFields = {
   name: string | null;
   /** The death (a person's heir id) whose heirs this row joins; left out for the first deceased. */
   layer?: string;
-  /** Joins an earlier person instead of entering a new one. */
-  same_as?: string;
+  /** Joins an earlier person instead of entering a new one. On an edit, `null` clears the link. */
+  same_as?: string | null;
   /** The person (or `root`) this relative is added at; sent only when set. */
   anchor?: string;
 };
