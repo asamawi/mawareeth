@@ -2,13 +2,16 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { messages } from "../src/i18n/messages";
-import { lineageFixture, openCanvasFixture, openHeirsScreen } from "./family";
+import { lineageFixture, openCanvasFixture, openHeirsScreen, openPreview, sheetOf } from "./family";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, fullCase, json, noCase, sessionAnonymous, startedCase, test } from "./api";
 
 const agree = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[] })
   .fixtures.find((item) => item.title === "Agree: wife, son and daughter in every school")!;
+
+const served = JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-presented-fixtures.json"), "utf8")) as { presented: Record<string, unknown> };
+const agreeResponse = { ...agree.response, presented: served.presented[agree.title] };
 
 async function serious(page: Page) {
   const { violations } = await new AxeBuilder({ page }).analyze();
@@ -129,8 +132,7 @@ for (const locale of ["ar", "en", "fr"] as const) {
 }
 
 for (const locale of ["en", "ar"] as const) {
-  // 11.3: the Share preview returns with the summary sheet.
-  test.fixme(`the pending preview in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+  test(`the pending preview in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
     const kase = fullCase(agree.case) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     const options = { blocked: [], invalid: {} };
     const returned = { ...kase, revision: 2, heirs: [...kase.heirs, { id: "new-son", relationship: "son", gender: "male", name: null, edit_options: options }] };
@@ -139,19 +141,37 @@ for (const locale of ["en", "ar"] as const) {
       session: sessionAnonymous,
       getCase: json(200, { case: kase }),
       getPreview: async (route) => {
-        if (!added) return json(200, agree.response)(route);
+        if (!added) return json(200, agreeResponse)(route);
         await new Promise((resolve) => setTimeout(resolve, 5000));
-        try { await json(200, agree.response)(route); } catch {}
+        try { await json(200, agreeResponse)(route); } catch {}
       },
       postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
     });
     await page.goto(`/${locale}/interview/`);
     await page.getByRole("button", { name: messages[locale].interview.resume }).click();
     await page.locator("section[aria-labelledby='add-relatives-heading']").waitFor();
+    await page.locator("[data-preview-state='ready']").waitFor();
     await page.locator("[data-focus='add:son']").click();
-    const section = page.locator("section[aria-labelledby='preview-heading']");
+    await page.locator("[data-preview-state='pending']").waitFor();
+    await openPreview(page);
+    const section = sheetOf(page).locator("section[aria-labelledby='preview-heading']");
     await expect(section).toHaveAttribute("aria-busy", "true");
     await expect(section.locator("[data-slow]")).toBeVisible({ timeout: 5000 });
+    expect(await serious(page)).toEqual([]);
+  });
+
+  test(`the open Share preview sheet in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await openHeirsScreen(page, api, locale);
+    await openPreview(page);
+    await expect(sheetOf(page).locator("[data-notice='disclaimer']")).toBeVisible();
+    expect(await serious(page)).toEqual([]);
+  });
+
+  test(`the summary bar in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await openHeirsScreen(page, api, locale);
+    await expect(page.locator("[data-summary-bar]")).toBeVisible();
     expect(await serious(page)).toEqual([]);
   });
 

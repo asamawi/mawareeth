@@ -2,6 +2,7 @@
 import type { PresentedResult } from "@/contracts/presented";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   addHeir,
@@ -136,6 +137,7 @@ export function StartCase({
   // The one polite status: what it says now, and a counter so an identical sentence is spoken again.
   const [spoken, setSpoken] = useState<{ text: string; seq: number }>({ text: "", seq: 0 });
   const [choiceFailed, setChoiceFailed] = useState(false);
+  const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
   // Story 9.7: the relationship chip being dragged, and the alert of a drop the placement refuses.
   const [dragChip, setDragChip] = useState<RelationshipId | null>(null);
   const [dropAlert, setDropAlert] = useState<string | null>(null);
@@ -315,6 +317,7 @@ export function StartCase({
     pendingReveal.current = () => { done = true; clearTimeout(timer); node.removeEventListener("transitionend", finish); };
   }, [view]);
 
+  const focusRoot = useCallback(() => target.current?.focus(), []);
   const resumable = view.name === "throttled" || view.name === "failed" ? view.resumable : null;
 
   // Every part of the heirs screen works on the active layer.
@@ -487,12 +490,18 @@ export function StartCase({
     </div>
   ) : null;
 
+  // While the preview sheet is open the one status node lives inside its dialog, so updates are heard
+  // over the inert background; it moves back on close.
+  const statusNode = (
+    <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+      {spoken.text !== "" && <span key={spoken.seq}>{spoken.text}</span>}
+    </p>
+  );
+
   return (
     <div data-js-only data-preview-state={previewSignal.state} data-preview-revision={previewSignal.revision ?? undefined} ref={target} tabIndex={-1} className="relative flex flex-col gap-4 outline-none [&>*:not(form,[data-wide])]:mx-auto [&>*:not(form,[data-wide])]:w-full [&>*:not(form,[data-wide])]:max-w-xl">
       {/* The one routine status of the Interview; always mounted so its changes are spoken. */}
-      <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-        {spoken.text !== "" && <span key={spoken.seq}>{spoken.text}</span>}
-      </p>
+      {statusSlot ? createPortal(statusNode, statusSlot) : statusNode}
       {view.name === "loading" && (
         <div data-wide data-skeleton aria-busy="true" className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
           <p className="sr-only">{messages.loading}</p>
@@ -768,8 +777,14 @@ export function StartCase({
                 </UndoToast>
               )}
             </div>
-            {/* The preview lifecycle stays mounted, including while a later estate is open, so evidence keeps reaching the tree; it draws nothing (11.3 renders the body in the summary sheet). */}
+            {/* The one preview owner stays mounted, including while a later estate is open, so evidence keeps reaching the tree; it draws the summary bar (root estate with shares) and the sheet. */}
             <SharePreviewController
+              showBar={layer?.id === null}
+              saving={frozen}
+              failed={choiceFailed && (started.notice === "failed" || started.notice === "throttled") ? started.notice : null}
+              onChooseSchool={(madhab) => void perform("choose", { madhab, from: started })}
+              focusRoot={focusRoot}
+              onStatusSlot={setStatusSlot}
               messages={messages}
               locale={locale}
               onPresented={reportPresented}

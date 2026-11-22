@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -26,8 +26,25 @@ export async function openHeirsScreen(page: Page, api: Api, locale: "en" | "ar" 
   await page.goto(`/${locale}/interview/`);
   await page.getByRole("button", { name: messages[locale].interview.resume }).click();
   await page.locator("section[aria-labelledby='add-relatives-heading']").waitFor();
-  // The Share preview is not on the Interview (story 11.2): wait for the accepted calculation instead.
+  // The accepted calculation is on the root's signal; the summary bar and sheet (story 11.3) draw from it.
   await page.locator("[data-preview-state='ready']").waitFor();
+}
+
+/** The Share preview's modal sheet (the only place its body is drawn). */
+export const sheetOf = (page: Page): Locator => page.locator("dialog[data-summary-sheet]");
+
+/** Opens the Share preview sheet from the summary bar's chevron and waits for its heading. */
+export async function openPreview(page: Page): Promise<Locator> {
+  await page.locator("[data-summary-expand]").click();
+  const sheet = sheetOf(page);
+  await sheet.locator("h2#preview-heading").waitFor();
+  return sheet;
+}
+
+/** Closes the sheet with its Close button; focus returns to the chevron. */
+export async function closePreview(page: Page, locale: "en" | "ar" | "fr" = "en"): Promise<void> {
+  await sheetOf(page).getByRole("button", { name: messages[locale].interview.editClose, exact: true }).click();
+  await sheetOf(page).waitFor({ state: "hidden" });
 }
 
 /** Shared lineage and blocked-evidence fixture, validated by the production readers. */

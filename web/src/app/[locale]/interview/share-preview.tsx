@@ -2,13 +2,14 @@
 
 import type { PresentedResult } from "@/contracts/presented";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import { fetchPreview, type Case, type Preview, type PreviewResult, type SunniId } from "@/api/case";
 import { terms } from "@/i18n/catalog.generated";
 import type { Messages } from "@/i18n/messages";
 import type { AnnounceKind } from "@/interview/announce";
 import { rowLabels } from "@/interview/layers";
+import { useObstruction } from "@/interview/obstruction";
 import {
   acceptRevision,
   isPending,
@@ -266,9 +267,13 @@ export function SharePreviewBody({
   onRetry,
   onChooseSchool,
   retry,
+  state,
+  hideHeading = false,
 }: SharePreviewView & {
   messages: Messages["interview"];
   locale: string;
+  /** The hosting sheet supplies the heading (`#preview-heading`), so the body omits its own. */
+  hideHeading?: boolean;
   saving?: boolean;
   failed?: "failed" | "throttled" | null;
   /** Defaults to the view's own `retry`. */
@@ -315,6 +320,21 @@ export function SharePreviewBody({
     );
   }
 
+  // Kept rows stay on screen through an offline failure: the error and Retry come with them.
+  if (state === "error" && kept && content.kind === "available") {
+    body = (
+      <>
+        {body}
+        <p data-kept-error>{messages.previewFailed}</p>
+        <div>
+          <button type="button" className={buttonClass} onClick={onRetry ?? retry}>
+            {messages.previewRetry}
+          </button>
+        </div>
+      </>
+    );
+  }
+
   const slowText = slowLevel === 2 ? messages.previewStillWorking : messages.previewWaiting;
   // The disclaimer is always present; a supplied Beta notice comes with its explanation.
   const presented = content.kind === "available" || content.kind === "choose" ? content.preview.presented : undefined;
@@ -323,9 +343,11 @@ export function SharePreviewBody({
   const box = "rounded-[6px] border border-current/60 p-3";
   return (
     <section data-wide aria-labelledby="preview-heading" aria-busy={pending} className="flex w-full flex-col gap-3 bg-surface p-6">
-      <h3 id="preview-heading" className="text-lg font-semibold">
-        {messages.previewHeading}
-      </h3>
+      {!hideHeading && (
+        <h3 id="preview-heading" className="text-lg font-semibold">
+          {messages.previewHeading}
+        </h3>
+      )}
       {/* Held at its height while an answer is awaited, so the swap does not move the page. The shares
           are the last good ones, in the muted pair (no opacity). It is silent: the Interview's one
           status region speaks for it. */}
@@ -444,16 +466,218 @@ function settledText(outcome: PreviewResult, messages: Messages["interview"], co
 /** The settled signal the Interview root carries, so tests can wait for an accepted calculation. */
 export type PreviewSignal = { state: PreviewState; revision: number | null };
 
+/** The bar's one sentence, from existing messages only; it never says "ready" unless shares are settled. */
+function barText(view: SharePreviewView, messages: Messages["interview"]): string {
+  if (view.state === "pending") return messages.previewWaiting;
+  if (view.state === "error") return view.content.kind === "error" ? view.content.text : messages.previewFailed;
+  // Only behind an open sheet: the bar is kept while the content no longer has shares.
+  if (view.state === "refused") return messages.previewUnavailable;
+  if (view.state === "idle") return messages.previewPrompt;
+  return messages.previewReadyCount.split("{count}").join(String(view.heirCount));
+}
+
 /**
- * Runs the lifecycle on the Interview and draws nothing: the body renders only in the summary
- * sheet (story 11.3). It reports the settled signal for the root's `data-preview-*` attributes.
+ * The fixed bottom bar: heir count, readiness, Full results and a separate expand control. It adds no
+ * live region; the Interview's one status speaks.
+ */
+function SummaryBar({
+  view,
+  messages,
+  locale,
+  inert,
+  open,
+  onOpen,
+  chevronRef,
+}: {
+  view: SharePreviewView;
+  messages: Messages["interview"];
+  locale: string;
+  inert: boolean;
+  open: boolean;
+  onOpen: () => void;
+  chevronRef: RefObject<HTMLButtonElement | null>;
+}) {
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
+  useObstruction("bar", box);
+  return (
+    <div
+      ref={setBox}
+      data-summary-bar
+      inert={inert}
+      className="fixed inset-x-0 bottom-0 z-30 flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t-2 border-foreground bg-background px-4 py-2 shadow-summary-bar"
+    >
+      <span data-summary-text className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center" onClick={onOpen}>
+        {barText(view, messages)}
+      </span>
+      <div className="flex items-center gap-2">
+        <Link href={`/${locale}/results/`} prefetch={false} className={primaryButton}>
+          {messages.previewResultsLink}
+        </Link>
+        <button
+          ref={chevronRef}
+          type="button"
+          data-summary-expand
+          aria-label={messages.previewHeading}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={onOpen}
+          className={`${buttonClass} inline-flex min-w-11 items-center justify-center px-2`}
+        >
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12l5-5 5 5" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The summary bar and modal sheet of one lifecycle view. The bar shows only for the root estate with
+ * shares (`showBar`); the sheet hosts `SharePreviewBody` and keeps no request of its own.
+ */
+export function SharePreviewSummary({
+  view,
+  messages,
+  locale,
+  showBar,
+  onChooseSchool,
+  saving = false,
+  failed = null,
+  focusRoot,
+  onStatusSlot,
+}: {
+  view: SharePreviewView;
+  messages: Messages["interview"];
+  locale: string;
+  /** The root estate is open. */
+  showBar: boolean;
+  onChooseSchool?: (madhab: SunniId) => void;
+  saving?: boolean;
+  failed?: "failed" | "throttled" | null;
+  /** Where focus goes when the chevron is gone at close. */
+  focusRoot?: () => void;
+  /** Receives the slot inside the open dialog that hosts the Interview's one status node, or null. */
+  onStatusSlot?: (slot: HTMLElement | null) => void;
+}) {
+  const { content } = view;
+  const hasShares = content.kind === "available" || content.kind === "choose";
+  const [open, setOpen] = useState(false);
+  // The bar appears with shares; an open sheet keeps itself and the bar through every later state of
+  // the root estate, and ends only on Close, Escape, a scrim click or when the root estate is left.
+  if (open && !showBar) setOpen(false);
+  const visible = showBar && (hasShares || open);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const chevron = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  const sheetOpen = open && showBar;
+  const openSheet = useCallback(() => setOpen(true), []);
+
+  useEffect(() => {
+    onStatusSlot?.(slot);
+    return () => onStatusSlot?.(null);
+  }, [slot, onStatusSlot]);
+
+  useEffect(() => {
+    const modal = dialog.current;
+    if (sheetOpen) {
+      if (modal && !modal.open) modal.showModal();
+      heading.current?.focus();
+      wasOpen.current = true;
+    } else {
+      if (modal?.open) modal.close();
+      if (wasOpen.current) {
+        wasOpen.current = false;
+        if (chevron.current) chevron.current.focus();
+        else focusRoot?.();
+      }
+    }
+  }, [sheetOpen, focusRoot]);
+
+  if (!visible) return null;
+  return (
+    <>
+      <SummaryBar view={view} messages={messages} locale={locale} inert={sheetOpen} open={sheetOpen} onOpen={openSheet} chevronRef={chevron} />
+      <dialog
+        ref={dialog}
+        aria-labelledby="preview-heading"
+        data-summary-sheet
+        // Escape and the native close both end here; the effect above restores focus.
+        onClose={() => setOpen(false)}
+        // A click on the dialog itself (not its content) is a click on the scrim.
+        onClick={(event) => { if (event.target === event.currentTarget) setOpen(false); }}
+        className="fixed inset-x-0 top-auto bottom-0 m-0 max-h-[78dvh] w-full max-w-none flex-col overflow-hidden rounded-t-sheet border-0 border-t-2 border-foreground bg-background p-0 text-foreground shadow-summary-sheet backdrop:bg-scrim open:flex summary-sheet"
+      >
+        {/* Nothing is rendered while the sheet is closed: no heading, rows or body outside it. */}
+        {sheetOpen && (
+          <>
+            <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-3">
+              <h2 id="preview-heading" ref={heading} tabIndex={-1} className="text-lg font-semibold outline-none">
+                {messages.previewHeading}
+              </h2>
+              <button type="button" className={buttonClass} onClick={() => setOpen(false)}>
+                {messages.editClose}
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {/* The Interview's one status node is moved here while the sheet is open. */}
+              <div ref={setSlot} data-status-slot />
+              <SharePreviewBody
+                {...view}
+                messages={messages}
+                locale={locale}
+                hideHeading
+                saving={saving}
+                failed={failed}
+                onChooseSchool={onChooseSchool}
+              />
+            </div>
+          </>
+        )}
+      </dialog>
+    </>
+  );
+}
+
+/**
+ * Runs the lifecycle on the Interview and reports the settled signal for the root's `data-preview-*`
+ * attributes. It is the one owner of the hook; the summary bar and sheet draw from its one view.
  */
 export function SharePreviewController({
   onSignal,
+  showBar,
+  onChooseSchool,
+  saving,
+  failed,
+  focusRoot,
+  onStatusSlot,
   ...options
-}: Parameters<typeof useSharePreview>[0] & { onSignal: (signal: PreviewSignal) => void }) {
-  const { state, revision } = useSharePreview(options);
+}: Parameters<typeof useSharePreview>[0] & {
+  onSignal: (signal: PreviewSignal) => void;
+  showBar: boolean;
+  onChooseSchool?: (madhab: SunniId) => void;
+  saving?: boolean;
+  failed?: "failed" | "throttled" | null;
+  focusRoot?: () => void;
+  onStatusSlot?: (slot: HTMLElement | null) => void;
+}) {
+  const view = useSharePreview(options);
+  const { state, revision } = view;
   useEffect(() => { onSignal({ state, revision }); }, [onSignal, state, revision]);
   useEffect(() => () => onSignal({ state: "idle", revision: null }), [onSignal]);
-  return null;
+  return (
+    <SharePreviewSummary
+      view={view}
+      messages={options.messages}
+      locale={options.locale}
+      showBar={showBar}
+      onChooseSchool={onChooseSchool}
+      saving={saving}
+      failed={failed}
+      focusRoot={focusRoot}
+      onStatusSlot={onStatusSlot}
+    />
+  );
 }
