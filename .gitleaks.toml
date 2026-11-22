@@ -30,6 +30,8 @@ regexes = [
   'user:pw@host',
   # Historical inventory redaction test URL example.
   'user:super-secret-value@host',
+  # Tailscale's public package-signing key fingerprint in deploy/monitor.sh.
+  'tailscale_key_fingerprint=2596A99EAAB33821893C0A79458CA832957F5868',
 ]
 
 [[allowlists]]

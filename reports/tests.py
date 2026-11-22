@@ -288,7 +288,10 @@ class ReportContentTests(SimpleTestCase):
         self.assertGreater(len(pages), 1)
         for page in pages:
             self.assertIn('Draft / not certified', page)
-            self.assertIn('DRAFT', page)
+            # The watermark is rotated, so pdftotext may emit it one letter per
+            # line and bottom-up depending on the Poppler version.
+            letters = ''.join(page.split())
+            self.assertTrue('DRAFT' in letters or 'TFARD' in letters, page)
 
 
 class DraftEndpointTests(TransactionTestCase):

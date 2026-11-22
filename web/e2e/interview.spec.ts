@@ -1575,6 +1575,8 @@ test.describe("add relative here", () => {
   });
 
   test("died-before son: keyboard choice and a Son chip drop send the same single add", async ({ page, api }) => {
+    // Cards slide for 300ms after the first add; measure the drop target only once it is still.
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.setViewportSize({ width: 1280, height: 1400 });
     const kase = placed();
     kase.heirs = kase.heirs.filter((h: { id: string }) => h.id !== "h2");
