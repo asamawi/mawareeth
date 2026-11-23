@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 21:00
-last_updated: 11-23-2026 03:26
+last_updated: 11-23-2026 12:00
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
@@ -67,6 +67,7 @@ development_status:
   11-2-present-one-readable-share-preview-in-the-desktop-slot: done
   11-3-open-the-full-preview-from-a-sticky-summary-bar-and-modal-sh: done
   9-12-prove-the-complete-family-entry-journey-meets-capacity-and-s: review
+  9-14-keep-each-generation-on-one-row-and-let-the-tree-grow-sideways: ready-for-dev
   epic-9-retrospective: optional
 
   epic-10: backlog

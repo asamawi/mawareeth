@@ -464,7 +464,7 @@ UX-DR12: [changed] Update dialog to follow colors.background/foreground in dark 
 
 **Family tree & Interview**
 
-UX-DR13: [changed] Build tree-canvas using components.tree-canvas.*: dotted surface at 18px spacing, 1px top/bottom lines, token padding with at least 6px on every logical side, hint and toolbar above; labelled 2D scrolling, drag/swipe pan with touch-action: pan-y pinch-zoom, pinch zoom and Fit tree reset. Show one estate level; keep the deceased visible with up to 50 Heirs at 375px and 1280px. _(DESIGN Components; EXPERIENCE Component Patterns)_
+UX-DR13: [changed] Build tree-canvas using components.tree-canvas.*: dotted surface at 18px spacing, 1px top/bottom lines, token padding with at least 6px on every logical side, hint and toolbar above; labelled 2D scrolling, drag/swipe pan with touch-action: pan-y pinch-zoom, pinch zoom and Fit tree reset. Each generation line is one horizontal row that never wraps; the canvas grows sideways past the visible width and is reached by scrolling, pan and zoom. Show one estate level; keep the deceased visible with up to 50 Heirs at 375px and 1280px. _(DESIGN Components; EXPERIENCE Component Patterns)_
 
 UX-DR14: [changed] Implement tree-connector using components.tree-connector.*: 2px graphic strokes; mirror only the connector layer in RTL, placing cards by logical order without mirroring their text or badges. _(DESIGN Components; Do's and Don'ts)_
 
@@ -1566,6 +1566,33 @@ So that the editable tree can ship without slowing the foundation calculation pa
 **When** the Epic 9 gate is assessed
 **Then** failed p95/root-visibility/keyboard/axe/RTL/reflow/contrast or required Arabic screen-reader checks block acceptance rather than being waived by the passing backend budget alone (NFR-1, NFR-3, NFR-X1, UX-DR69–81)
 **And** results distinguish automated from manual evidence and record remaining source assumptions/open product questions; measurements contain no names or family payloads and no new telemetry product or FR-45 usability protocol is created here.
+
+### Story 9.14: Keep each generation on one row and let the tree grow sideways
+
+As a family member entering a large family,
+I want all relatives of one generation side by side on one line,
+So that the tree reads as a family tree and I can pan to anyone instead of scrolling down through rows of two.
+
+**Acceptance Criteria:**
+
+**Given** an active estate with more relatives on one generation line than fit in the visible canvas (for example six sons at 375px, or ten at 1024px)
+**When** `layoutTree` in `web/src/interview/tree.ts` places them
+**Then** every generation line is exactly one row, split across the deceased's spine with the odd card on the inline-start side, at every width; the layout's width is the larger of the visible canvas and the widest row plus logical padding, the spine is centred in it and no card has a negative or clipped position (UX-DR13)
+**And** a relative with a recorded parent still sits under that parent when the slot is free, and adding a relative never moves the relatives of another line relative to the spine.
+
+**Given** the one-row layout in `family-tree.tsx`
+**When** I add, remove, undo, drop or open a later-death estate
+**Then** the canvas grows or shrinks sideways in its existing labelled 2D scroll region, the deceased keeps its on-screen position (scroll is adjusted when the spine shifts) and stays visible during free pan and zoom (NFR-X1)
+**And** the first render and Fit tree centre the deceased horizontally, Fit tree zooms no lower than the existing 0.6 floor, and the rest of the row stays reachable by drag/swipe pan, pinch, plus/minus and keyboard.
+
+**Given** keyboard and screen-reader users
+**When** Start/End arrows move along a long row in LTR and RTL
+**Then** the focused card scrolls into view with its focus ring unclipped, RTL mirrors only the connector layer, and the tree's role=group, roving tab stop and Heirs outline order are unchanged (UX-DR73, UX-DR81).
+
+**Given** the existing tests
+**When** the story is complete
+**Then** the wrapping assertions in `web/src/interview/tree.test.ts` ("phones wrap", `columns === 2`) are replaced by tests that a line stays one row at 288px, 600px and 1280px in both reading directions, and that no node overlaps another
+**And** `web/e2e/capacity-journey.spec.ts` (50 Heirs at 375px and 1280px), the Story 9.7 drop and 9.9 keyboard tests and the Story 9.11 responsive/RTL checks pass unchanged in intent.
 
 ## Epic 10: Named Saved cases that open directly
 
