@@ -1315,7 +1315,8 @@ test.describe("lineage canvas", () => {
           await pinned();
         }
       }
-      await canvas.evaluate(el => { el.scrollTop = el.scrollHeight; });
+      // Story 9.14: the 50 sons are one row, so the last one is reached at the inline end.
+      await canvas.evaluate((el, rtl) => { el.scrollTop = el.scrollHeight; const max = el.scrollWidth - el.clientWidth; el.scrollLeft = rtl ? -max : max; }, locale === "ar");
       await expect(canvas.locator('[data-node="many49"]')).toBeInViewport(); await pinned();
     });
   }
@@ -1891,6 +1892,56 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
   const spacing = "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
   const treeColumn = (page: Page) => page.locator("section[data-tree]").locator("xpath=ancestor::div[contains(@class,'lg:col-start-2')][1]");
   const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+
+  // Story 9.14: a generation line is one row at every width and the deceased does not jump.
+  for (const locale of ["en", "ar"] as const) {
+    test(`six sons: one row, sideways scroll, centred and steady deceased on add and shrink in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 375, height: 900 });
+      const sons = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `row${i}`, relationship: "son", gender: "male", name: null, edit_options: { blocked: [], invalid: {} } }));
+      const kase = stamp(fullCase(agree.case, { deaths: [], heirs: sons(6) }) as Record<string, any>, 5); // eslint-disable-line @typescript-eslint/no-explicit-any
+      await openAgree(page, api, locale, kase);
+      const t = messages[locale].interview, canvas = page.getByRole("group", { name: t.treeHeading });
+      const root = canvas.locator('[data-node="root"]');
+      await canvas.scrollIntoViewIfNeeded();
+      const tops = async () => Promise.all(Array.from({ length: 6 }, async (_, i) => Math.round((await box(canvas.locator(`[data-node="row${i}"]`))).y)));
+      await expect.poll(async () => new Set(await tops()).size).toBe(1);
+      expect(await canvas.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+      const centred = async () => {
+        const c = await canvas.evaluate((el) => { const r = el.getBoundingClientRect(); return r.left + el.clientLeft + el.clientWidth / 2; });
+        const r = await box(root);
+        return Math.abs(r.x + r.width / 2 - c);
+      };
+      const settled = async () => {
+        let last = (await box(root)).x;
+        await expect.poll(async () => { await page.waitForTimeout(200); const x = (await box(root)).x; const same = x === last; last = x; return same; }).toBe(true);
+        return last;
+      };
+      const inside = async () => {
+        const outer = (await box(canvas)), r = await box(root);
+        expect(r.x).toBeGreaterThanOrEqual(outer.x + 5); expect(r.x + r.width).toBeLessThanOrEqual(outer.x + outer.width - 5);
+      };
+      // Centred on entry, and again after Fit tree from a panned position.
+      await expect.poll(centred).toBeLessThanOrEqual(2);
+      await canvas.evaluate((el) => { el.scrollLeft += el.scrollLeft < 100 ? 100 : -100; });
+      await page.getByRole("button", { name: t.treeFit, exact: true }).click();
+      await expect.poll(centred).toBeLessThanOrEqual(2);
+      // Adding a seventh son: once the reveal has finished, the deceased is still inside the canvas.
+      const after = stamp({ ...kase, heirs: sons(7) }, 6);
+      api.set({ postHeir: json(201, { case: after }) });
+      await page.getByRole("button", { name: t.addRelative.replace("{relationship}", t.relationships.son), exact: true }).click();
+      await expect(canvas.locator('[data-node="row6"]')).toBeInViewport();
+      await settled();
+      await inside();
+      // Shrink without a reveal: pan 40px toward inline start, remove the son next to the spine (focus then stays in view), the deceased does not move.
+      await canvas.evaluate((el) => { el.scrollLeft += el.scrollLeft < 0 || el.clientWidth < 0 ? 40 : (getComputedStyle(el).direction === "rtl" ? 40 : -40); });
+      const before = await settled();
+      api.set({ deleteHeir: json(200, { case: stamp({ ...kase, heirs: sons(7).filter((h) => h.id !== "row3") }, 7) }) });
+      await canvas.locator('[data-node="row3"]').press("Delete");
+      await page.locator("[data-edit-sheet]").getByRole("button", { name: t.heirRemoveYes }).click();
+      await expect(canvas.locator('[data-node="row3"]')).toHaveCount(0);
+      expect(Math.abs((await settled()) - before)).toBeLessThanOrEqual(1);
+    });
+  }
 
   for (const locale of ["en", "ar"] as const) {
     const t = messages[locale].interview;

@@ -1,10 +1,10 @@
 # Epic 9 Context: Build a family fast on an editable Family tree
 
-<!-- Compiled from planning artifacts. Edit freely. Regenerate with compile-epic-context if planning docs change. -->
+<!-- Generated from planning artifacts. Regenerate with compile-epic-context if planning docs change. -->
 
 ## Goal
 
-Make the Interview a fast, editable family workspace where users add relatives without typing names, correct the family on its tree, navigate linked estates and undo mistakes. Tree, Heirs outline and Share preview must represent the same accepted family across phone, desktop, keyboard and screen-reader use. The Interview has no preview pane at any width; the sticky summary bar and sheet (Epic 11) carry the Share preview.
+Let families enter relatives in a few actions, see their lineage and estate status, and correct mistakes directly in the Interview. One-press and group adds, editing at a person, and multi-step Undo keep the Family tree, Heirs list and Share preview in sync. A wide family stays readable by generation and editable on phone and desktop with touch, mouse, keyboard or a screen reader.
 
 ## Stories
 
@@ -22,38 +22,32 @@ Make the Interview a fast, editable family workspace where users add relatives w
 - Story 9.11: Verify responsive, RTL and reduced-motion tree interactions
 - Story 9.13: Link a later-estate heir to someone already in the Case from the edit sheet, and retire the old add form
 - Story 9.12: Prove the complete family-entry journey meets capacity and speed gates
+- Story 9.14: Keep each generation on one row and let the tree grow sideways
 
 ## Requirements & Constraints
 
-- Support immediate/bulk adds, localized numbered defaults, optional names, positioned relatives, relationship/death-status edits, confirmed cascade removal and multi-step Undo. Impossible relationships are unavailable; blocked-but-valid relatives remain addable.
-- Limit each Case to 50 Heirs and two later deaths. Keep the deceased visible during pan/zoom at 375px and 1280px; every person/action remains reachable with targets at least 44px.
-- Meet WCAG 2.1 AA across published Locales, RTL, 320px reflow, 400% zoom and text-spacing overrides. Release requires keyboard, axe, contrast, root-visibility and Arabic NVDA/Chrome, VoiceOver/Safari iOS and TalkBack evidence.
-- Preview p95 stays under one second end to end on a mid-range phone over 4G with up to 50 Heirs; standard-family engine time stays under 200ms. Measure command/network/lock waits and rendering with both deployment slots, School/comparison and supported later-death workloads. Record no names or family payloads.
-- A person in a later estate can be marked "same person as" someone already in the Case, so successive-death estates do not count them twice.
+- Add one relative or a group from relationship buttons with optional names and numbered labels in the current Locale. Offer eligible relationships for the current estate and position. Touch and keyboard users can reproduce every valid drop through Add relative here.
+- Edit names, relationships and death status in place. Confirm removals that affect descendants or later estates and show exactly who will be removed. Show one estate at a time, with breadcrumb navigation and editing scoped to the open estate. An eligible later-estate Heir can be linked to or unlinked from an existing person through the edit surface.
+- Support 50 Heirs and two later deaths per Case. Reject invalid changes and over-limit batches atomically. Undo restores the exact previous family, one accepted change at a time for the current visit.
+- Keep every generation on one horizontal row at every width. The canvas expands sideways beyond its viewport. Keep the deceased visible during free pan and zoom and verify reachability with 50 Heirs at 375px and 1280px.
+- Release gates include WCAG 2.1 AA, 44px targets, unclipped keyboard focus, and reflow at 320px and 400% zoom. Verify both reading directions, reduced motion, light and dark contrast, axe and the Arabic screen-reader path. With both deployment slots running, the 50-Heir Share preview must update in under 1 s at p95 end to end on a mid-range phone over 4G, including lock waits and rendering. The standard-family engine budget is under 200 ms.
 
 ## Technical Decisions
 
-- The Case response (read and every command) carries each person once with a stable id (`same_as` aliases resolved), status (alive, died before/with, died later with order), `parent_of`/`spouse_of` edges, and engine-computed allowed relationships per person and for the deceased. Existing Cases without edges or died-before statuses read unchanged (no migration). The v2 snapshot writer stores edges/died-before losslessly; the v1 writer keeps refusing them. Relatives with no recorded parent hang from the deceased; links are created only by positioned add or edit, never guessed.
-- The server owns Case inputs. Every mutation uses one atomic command service with `expected_revision`; success advances the revision and returns the whole Case. Conflicts return the current Case without silent overwrite. Reject invalid batches/cascades without partial mutation. Offline edits and Undo are disabled.
-- Engine queries alone determine allowed relationships/positions, edit validity, link candidates, deletion impact and refusal reasons; the command service enforces capacity. Do not duplicate fiqh, kinship or cascade logic in the browser.
-- `update_heir` accepts `same_as` for later-estate rows only, with the same validation as add (`not_alive`, `already_linked`, `gender_mismatch`), set or clear atomically; no snapshot change.
-- Render stable person ids and lineage edges; one active estate at a time. Tree and Heirs outline share `treeDescription`; preview renders server `PresentedResult` without browser share arithmetic. Discard older-revision previews.
-- Undo retains prior accepted Case snapshots for the page visit only; each atomic change is one entry; restore preserves ids while advancing revision. Names commit on blur/Enter as one change.
-- Shared catalogs own terms/refusals; isolate names with `bdi dir=auto`, Arabic terms with Arabic/RTL metadata, fractions LTR, English fallbacks with English language metadata. Handwritten React components and shared `ui.ts` styles are reused; no new web font.
+- The server owns the Case. The engine supplies placement eligibility, refusal reasons and cascade impact for the applicable rule set. The Case command service enforces capacity, checks the expected revision, applies each accepted change atomically and returns the complete Case at a new revision. Conflicts return the current Case. Offline edits and Undo are disabled while the last accepted family stays visible.
+- Use stable person IDs with aliases resolved, explicit death status and parent/spouse edges. A person without a recorded parent connects to the deceased on their generation line. Snapshot schema 2 preserves lineage and predeceased status across session, saved and shared Case readers. Legacy Cases keep their existing meaning, and new lineage/status writes require schema 2 support across active and rollback-eligible releases.
+- Keep the tree, outline and presented shares on the accepted revision. Discard stale preview results. Use the shared presentation contract, term catalog and Locale registry. Store prior accepted snapshots in a page-local Undo stack and restore through the command service against the current revision, preserving IDs. A bulk add or cascade is one history entry.
+- Size the canvas from the greater of the viewport width and the widest padded generation row. Centre the deceased's spine, preserve recorded parent alignment where space permits, and compensate for spine shifts so edits do not move the deceased on screen. Layout coordinates support drop targets and keyboard navigation as well as painting the cards.
 
 ## UX & Interaction Patterns
 
-- Add relatives contains only the one-press relationship button groups and count stepper (the old "Add an heir" form is retired). Below 1024px the order is Add relatives, tree, Heirs list with 16px gutters; from 1024px there are two columns: a 380px relatives/Heirs list column beside a flexible tree (1360px maximum shell). No preview column or in-flow preview at any width. At 1280px and up the editor uses the side-panel placement.
-- Cards are 108px below 640px, otherwise 136px, at least 76px tall. Died-before is a dashed border, died-later solid accent, blocked stripes plus a readable text plate. Root is labelled only as the deceased. Canvas uses an 18px dotted grid and 2px connectors; mirror connectors and layout in RTL, never text. Fit tree, pan and zoom preserve root visibility.
-- Count starts at one; Add submits atomically. "Add relative here" and placeholders give touch/keyboard equivalents to drag. Editing uses a phone modal sheet or desktop non-modal panel; a later-estate person with server link candidates shows a "Same person as…" native select after the relationship field. Confirm exact engine-supplied cascade impact. Close restores opener focus; removal selects next sibling, previous sibling, then deceased; Undo focuses the restored card.
-- Later-death cards open their estate; a breadcrumb above the canvas returns to earlier estates. The preview is hidden while a later-death estate is open.
-- Card buttons form one labelled group with roving tabindex; selection uses `aria-current`. Arrows move by lineage (inline arrows mirrored in RTL), Home/End reach deceased/last card, Enter edits/opens, Delete confirms, Escape closes, +/- zoom. Preserve text-input keystrokes.
-- Focus ring is a 2px outline with 2px offset, never a box-shadow; text contrast 4.5:1, essential boundaries 3:1. Graphic/accent-soft/blocked-stripe/scrim/toast-focus tokens have light/dark values; derived dark colours remain assumptions.
-- Undo controls and Ctrl/Cmd+Z supplement a toast of at least ten seconds, paused on hover/focus. One polite status region coalesces messages around 800ms; refusals use alerts. Pending shares stay muted and busy. Reduced motion disables movement, slides, fades, shimmer and smooth scrolling. Scroll padding accounts for toast and summary-bar obstruction, jointly capped at 25% of viewport height.
+- Stack Add relatives, Family tree and Heirs list below 1024px. At 1024px and above, put entry and list in one column and the flexible tree in the other. Edit in a modal bottom sheet on phone and a non-modal side panel on desktop.
+- Use a labelled two-dimensional scroll region inside the reflowing page. Drag or swipe to pan while allowing vertical page swipes. Pinch and plus/minus zoom. Centre the deceased horizontally on entry and with Fit tree, which has a 0.6 zoom floor. Scroll a focused card into view with its ring visible.
+- Make the canvas a labelled group of native buttons with one roving tab stop. Tab exits, Up/Down follow parent and first child, and logical Start/End arrows move between siblings. Home goes to the deceased and End to the last card. Mirror connectors and directional controls in RTL, using logical card placement. Keep card text upright and bidi-isolate names. The Heirs list is the canonical screen-reader outline and shares the cards’ visible relationship and status descriptions.
+- Use text alongside styling to distinguish the deceased, died-before, died-later and no-share states. Restore focus after closing or Undo, move to an adjacent card or the deceased after removal, and focus the canvas heading on estate navigation. Disable animated transitions and smooth scrolling in reduced motion.
+- Keep Undo in the Interview and Heirs list headers while history remains, with Ctrl/Cmd+Z and a toast lasting at least 10 seconds that pauses on hover or focus. Use one polite status region for accepted changes and localized alerts for refusals. Mark the previous preview pending during recalculation.
 
 ## Cross-Story Dependencies
 
-- 9.1b is backend-only and lands before 9.2; 9.2, 9.3, 9.4 and 9.7 consume its persons/edges/statuses and placement options. Establish shell/tokens and lineage rendering before mutation surfaces; integrate history, focus and announcements before final accessibility/responsive/capacity verification.
-- 9.13 extends 9.4's edit sheet and retires the old form; it runs before 9.12.
-- Sprint change 2026-11-22: Epic 11 stories 11.2 (remove the desktop preview column, build one shared preview body) and 11.3 (sticky summary bar and sheet at every width) are pulled ahead of 9.12, so its 1280px 50-Heir check runs on the two-column layout with the bar visible. The preview fetcher and single live region stay mounted while the sheet is closed.
-- Epic 8 supplies contracts, lineage queries, catalog/registry, revision commands, successive-death composition, presentation and the capacity harness. Epic 10 owns saved-case naming; Epic 11 owns results redesign. New relationship classes and Country rules belong to later scope.
+- Epic 8 provides Case and Family contracts, engine queries, revision-aware commands, snapshot compatibility, presentation, localization and the capacity harness. Adds, edits, drops, linking and Undo share these foundations.
+- The capacity journey exercises the final add/link controls and the every-width summary bar and sheet delivered by Epic 11. Epic 10 owns Saved case naming. The one-row layout must preserve the positioned-drop, keyboard, responsive/RTL and 50-Heir journey checks.

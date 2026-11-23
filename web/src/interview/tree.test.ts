@@ -110,10 +110,10 @@ for (const width of WIDTHS) {
   });
 }
 
-test("a phone keeps one node each side", () => {
+test("a phone keeps two sons one each side on one row", () => {
   const layout = layoutTree(heirs("son", "daughter"), 272);
-  assert.equal(layout.columns, 2);
   assert.deepEqual(layout.nodes.map((node) => node.side), ["start", "end"]);
+  assert.equal(layout.nodes[0].y, layout.nodes[1].y);
 });
 
 test("the odd node goes on the inline-start side", () => {
@@ -121,11 +121,62 @@ test("the odd node goes on the inline-start side", () => {
   assert.deepEqual(layout.nodes.map((node) => node.side), ["start", "start", "end"]);
 });
 
-test("wide screens put more nodes in a row and phones wrap", () => {
-  const phone = layoutTree(many(8), 272);
-  const desktop = layoutTree(many(8), 1104);
-  assert.ok(phone.height > desktop.height);
-  assert.ok(desktop.columns > phone.columns);
+for (const width of [288, 600, 1280]) {
+  for (const count of [6, 10, 50]) {
+    test(`${count} sons stay on one row at ${width}px`, () => {
+      const rows = heirs(...Array.from({ length: count }, () => "son" as RelationshipId));
+      const layout = layoutTree(rows, width);
+      check(layout, count);
+      assert.equal(new Set(layout.nodes.map((node) => node.y)).size, 1, "one y");
+      assert.ok(layout.width >= width);
+      assert.equal(layout.spineX, layout.width / 2);
+      for (const node of layout.nodes) assert.ok(node.x >= 8 && node.x + node.width <= layout.width - 8, "padding");
+      // Direction-free: the first ceil(n/2) are inline-start, so a mirrored view reads the same order.
+      const start = Math.ceil(count / 2);
+      assert.deepEqual(layout.nodes.map((node) => node.side), layout.nodes.map((_, i) => (i < start ? "start" : "end")));
+      assert.ok(layout.nodes.every((node, i) => i === 0 || node.x > layout.nodes[i - 1].x), "reading order");
+    });
+  }
+}
+
+test("six sons at 288px make a wider layout with a centred spine", () => {
+  const layout = layoutTree(heirs("son", "son", "son", "son", "son", "son"), 288);
+  assert.equal(layout.width, 720);
+  assert.equal(layout.spineX, 360);
+  assert.equal(layout.nodes[0].x, 8);
+});
+
+test("a layout that fits is exactly the viewport wide", () => {
+  const layout = layoutTree(heirs("son", "son"), 1280);
+  assert.equal(layout.width, 1280);
+  assert.equal(layout.spineX, 640);
+});
+
+test("a child sits under its parent when the slot is free", () => {
+  const people = [
+    { id: "a", personId: "a", relationship: "son" as const, gender: "male" as const, name: null, state: "normal" as const, parentId: null },
+    { id: "b", personId: "b", relationship: "son" as const, gender: "male" as const, name: null, state: "normal" as const, parentId: null },
+    { id: "c", personId: "c", relationship: "son_of_son" as const, gender: "male" as const, name: null, state: "normal" as const, parentId: "b" },
+  ];
+  const layout = layoutModel({ people, placement: {} }, 1104);
+  assert.equal(layout.nodes.find((n) => n.id === "c")!.x, layout.nodes.find((n) => n.id === "b")!.x);
+});
+
+test("a second child of the same parent keeps its row slot when the parent's slot is taken", () => {
+  const person = (id: string, relationship: RelationshipId, parentId: string | null) =>
+    ({ id, personId: id, relationship, gender: "male" as const, name: null, state: "normal" as const, parentId });
+  const people = [person("a", "son", null), person("b", "son", null), person("c", "son_of_son", "b"), person("d", "son_of_son", "b")];
+  const model = { people, placement: {} };
+  const layout = layoutModel(model, 1104);
+  const plain = layoutModel({ people: people.map(p => ({ ...p, parentId: null })), placement: {} }, 1104);
+  const x = (l: TreeLayout, id: string) => l.nodes.find((n) => n.id === id)!.x;
+  // One child takes the parent's slot; the other, finding it taken, keeps its own row slot.
+  const under = ["c", "d"].filter((id) => x(layout, id) === x(layout, "b"));
+  assert.equal(under.length, 1);
+  const other = under[0] === "c" ? "d" : "c";
+  assert.equal(x(layout, other), x(plain, other));
+  const boxes = [layout.deceased, ...layout.nodes];
+  for (let i = 0; i < boxes.length; i += 1) for (let j = i + 1; j < boxes.length; j += 1) assert.ok(!overlaps(boxes[i], boxes[j]), `${i} overlaps ${j}`);
 });
 
 test("lines run top to bottom around the deceased", () => {
@@ -167,7 +218,7 @@ test("a new heir never changes x on other lines, and only moves y of lines below
         const same = after.nodes.find((item) => item.id === node.id);
         assert.ok(same);
         if (node.line !== own) {
-          assert.equal(same.x, node.x, `${relationship} x of line ${node.line}`);
+          assert.equal(same.x - after.spineX, node.x - before.spineX, `${relationship} x of line ${node.line}`);
           assert.equal(same.side, node.side);
         }
         if (node.line < own) assert.equal(same.y, node.y, `${relationship} y of line ${node.line}`);
