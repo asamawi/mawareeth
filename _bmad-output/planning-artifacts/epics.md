@@ -1594,6 +1594,36 @@ So that the tree reads as a family tree and I can pan to anyone instead of scrol
 **Then** the wrapping assertions in `web/src/interview/tree.test.ts` ("phones wrap", `columns === 2`) are replaced by tests that a line stays one row at 288px, 600px and 1280px in both reading directions, and that no node overlaps another
 **And** `web/e2e/capacity-journey.spec.ts` (50 Heirs at 375px and 1280px), the Story 9.7 drop and 9.9 keyboard tests and the Story 9.11 responsive/RTL checks pass unchanged in intent.
 
+### Story 9.15: Bring two-later-death Interview actions under the one-second budget
+
+As a family member entering a large family with later deaths,
+I want Undo and group add to update the Share preview as fast as every other change,
+So that the Interview stays responsive on a phone, and the deploy can block a release that makes it slow.
+
+Background: Story 9.12 measured the Interview action mix with `capacity_check`. On the `two_later_deaths` Case, `undo` p95 was 999.9, 1069 and 1080 ms over three runs, and `bulk_add` reached 1077 ms. The budget is 1000 ms. `delete` (989 ms) and `add` (939 ms) are close to it. An Undo uploads the whole Case snapshot, and every write answers with the whole Case (about 42 KB) plus a preview. Until this is fixed, the Interview mix is report-only in the deploy, and row 1 of `epic-9-gate-evidence.md` is a blocking NFR-3 failure (`deferred-work.md`, Story 9.12).
+
+**Acceptance Criteria:**
+
+**Given** the School, all-four-School comparison and two-later-death Interview Cases of up to 50 Heirs in `capacity_check`, with the contention writer running
+**When** `uv run python manage.py capacity_check --samples 20 --json <file>` runs three times in a row
+**Then** in every run, `add`, `bulk_add`, `edit`, `delete`, `drop` and `undo` each have an end-to-end p95 under 1000 ms in all three Cases, `interview_passed` is true, and the five 8.11 workloads and the standard-family engine (under 200 ms) still pass (NFR-3, AD-27)
+**And** the gain comes from less work or fewer bytes per action (for example a smaller Undo request, or write responses that leave out what the browser already holds). The modelled network, device and render constants, the sample count and the budget stay as they are.
+
+**Given** the browser Interview with any change made to the request or response shape
+**When** I add, group add, edit, delete, drop or Undo, including in a later-death estate, from a stale tab, or offline
+**Then** the tree, the canonical Heirs outline and the current-revision Share preview agree after every accepted change, exactly as before
+**And** Undo still restores the earlier family across the page visit, a conflict (409) still refreshes to the newer Case, a refused or failed action still reports no success and changes nothing, and the server stays the only authority on family content, limits and revisions (Epic 8 command service).
+
+**Given** the deploy in `deploy/release.sh`
+**When** the candidate slot runs its capacity check
+**Then** it runs `capacity_check` with `--enforce-interview`, so an Interview budget miss aborts the candidate, and `deploy/tests/test_release.sh` expects the new command line
+**And** `deploy/README.md` (Capacity evidence) no longer calls the Interview mix report-only, and row 1 of `epic-9-gate-evidence.md` records the three passing runs (date, commit, p95 per action) with its blocking failure cleared.
+
+**Given** the existing tests
+**When** the story is complete
+**Then** `api.test_capacity`, `api.test_case_commands` and the Interview unit, Playwright (`e2e/interview.spec.ts`, `e2e/capacity-journey.spec.ts`) and live journey (`npm run test:e2e:live`) checks pass, with tests added for any new request or response shape
+**And** no user-facing text changes, and the manual gate rows (real phone over 4G, Arabic screen readers, 400% zoom, native ar/fr review) stay pending for the owner.
+
 ## Epic 10: Named Saved cases that open directly
 
 Registered users open a Saved case from *My cases* straight into the Interview with its family loaded, and name or rename it.

@@ -603,5 +603,5 @@ The pending manual items are now one list, with runbooks and the blocking flag, 
 Epic 9's gate and retrospective stay open until the owner records them.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-9-12-prove-the-complete-family-entry-journey-meets-capacity-and-speed-gates.md`
-  summary: Follow-up performance story: shrink the Undo (`restore`) request and the whole-Case write responses so Undo with two later deaths meets p95 under 1 s in `capacity_check`, then switch the deploy to `--enforce-interview`.
+  summary: Follow-up performance story: shrink the Undo (`restore`) request and the whole-Case write responses so Undo with two later deaths meets p95 under 1 s in `capacity_check`, then switch the deploy to `--enforce-interview`. Planned as Story 9.15 in `epics.md` (2026-11-23).
   evidence: The modelled `two_later_deaths` `undo` p95 was 999.9, 1069 and 1080 ms over three runs, and `bulk_add` reached 1077 ms (budget 1000 ms). The other two-later-death actions ran 865 to 989 ms. An Undo uploads the whole snapshot and every write answers with the whole Case (about 42 KB) plus a preview. Until it passes, the Interview mix is report-only in the deploy and `epic-9-gate-evidence.md` row 1 is a blocking NFR-3 failure.
