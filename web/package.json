@@ -13,6 +13,7 @@
     "i18n:write": "node --import ./src/test/loader.mjs scripts/i18n.mjs --write",
     "typecheck": "next typegen && tsc --noEmit",
     "test:e2e": "playwright test",
+    "test:e2e:live": "node e2e-live/run.mjs",
     "test": "node --import ./src/test/loader.mjs --test \"src/**/*.test.{ts,tsx}\""
   },
   "dependencies": {

@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { messages } from "../src/i18n/messages";
-import { lineageFixture, openCanvasFixture, openHeirsScreen, openPreview, sheetOf } from "./family";
+import { lineageFixture, openCanvasFixture, openFiftyHeirs, openHeirsScreen, openPreview, sheetOf } from "./family";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, fullCase, json, noCase, sessionAnonymous, startedCase, test } from "./api";
@@ -229,6 +229,17 @@ for (const locale of ["en", "ar"] as const) {
     await page.locator('[data-node="s1"]').press("Enter");
     await page.locator('[data-node="r1"]').press("Enter");
     await expect(page.locator("[data-edit-sheet] #edit-same-as")).toBeVisible();
+    expect(await serious(page)).toEqual([]);
+  });
+}
+
+// Story 9.12: the full 50-Heir Case, with the summary bar showing its ready preview.
+for (const locale of ["en", "ar"] as const) for (const width of [375, 1280]) for (const scheme of ["light", "dark"] as const) {
+  test(`the 50-Heir Case at ${width}px in ${locale} ${scheme} mode has no serious or critical axe violations`, async ({ page, api }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ colorScheme: scheme });
+    await openFiftyHeirs(page, api, locale);
+    await expect(page.locator("[data-summary-bar]")).toBeVisible();
     expect(await serious(page)).toEqual([]);
   });
 }

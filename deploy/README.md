@@ -1123,15 +1123,41 @@ answer cannot be read. So switching the writer to 2 (and then running
 first; a deploy that sets writer 2 over a schema-1-only slot aborts before the route
 moves. A first (bootstrap) deploy has no rollback target and skips this check.
 
-The capacity log contains a JSON object with the image commit, network model and
-five workloads: `standard_school`, `standard_compare`, `fifty_compare`,
-`later_deaths_compare` and `disagree_compare`. Each phase reports n, p50, p95, max (milliseconds), busy/conflict
-counts and `passed`. Standard engine p95 must be below 200 ms; every end-to-end
-p95 (server plus modeled client time) must be below 1000 ms. Other engine timings
-are informational. Retries and session lock waits remain in measured samples.
-The model uses 150 ms RTT, 1600 kbps down, 750 kbps up and 100 ms rendering.
-Response bodies are counted gzip-compressed (level 5), as Caddy's `encode zstd gzip`
-sends them; Story 9.12 measures the real device.
+The capacity log contains a JSON object with the image commit, the network model and
+two groups of workloads. `workloads` holds the five 8.11 workloads: `standard_school`,
+`standard_compare`, `fifty_compare`, `later_deaths_compare` and `disagree_compare`. Each
+phase reports n, p50, p95, max (milliseconds), busy/conflict counts and `passed`. Standard
+engine p95 must be below 200 ms; every end-to-end p95 (server plus modeled client time) must
+be below 1000 ms. Other engine timings are informational. Retries and session lock waits
+remain in measured samples. The model uses 150 ms RTT, 1600 kbps down, 750 kbps up and 100 ms
+rendering. Response bodies are counted gzip-compressed (level 5), as Caddy's `encode zstd gzip`
+sends them.
+
+`interview` (Story 9.12) holds the Interview action mix. For each of `school` (the five-heir
+standard family, Hanbali, grown to 47 Heirs), `compare` (all four Schools) and
+`two_later_deaths` (two later estates), it times `add`, `bulk_add` (three more Heirs), `edit`,
+`delete` (the cascade probe, then the confirmed removal; the later-death case removes the
+person whose estate goes with them), `drop` (an anchored add; a drop onto the deceased while
+the writer is schema 1) and `undo` (a restore of the earlier snapshot) through to a validated
+current-revision preview. Each action runs from a restored Case, so the Case ends at up to 50
+Heirs; the restore and any change an Undo reverses happen outside the timer. The contention
+writer runs against the same Case in every workload. Each action reports the same fields as
+above plus `samples_ms`, the raw end-to-end latencies. Each must stay below 1000 ms at p95, and
+`interview_passed` is true only when all do.
+The JSON also carries `device` and `network` (labels, `model` unless `--device` and `--network`
+say otherwise; `network` also holds the modeled figures) and `workload` (the base Heirs, later
+deaths, School and actions of each Interview Case). It holds no names, ids or family payloads.
+`--no-interview` skips the mix, and then `interview`, `workload` and `interview_passed` are absent.
+
+The Interview mix is report-only in the deploy: `passed` and the exit code depend only on the five
+8.11 workloads. A missed Interview budget is still named in the output
+(`budget missed: interview school add`) and in `interview_passed`, but exits 0. `--enforce-interview`
+makes it exit 1; switch the deploy to it once the Undo payload fix in `deferred-work.md` (Story 9.12)
+brings the `two_later_deaths` actions under 1000 ms. As of 2026-11-23, Undo misses (up to 1080 ms) and `bulk_add` can miss (1077 ms).
+
+The model does not replace a device. The real mid-range phone over 4G, the screen-reader runs
+and real 400% zoom are manual gate items listed in
+`_bmad-output/implementation-artifacts/epic-9-gate-evidence.md`.
 
 To repeat in a slot, using the same Compose/runtime environment as the deployment:
 

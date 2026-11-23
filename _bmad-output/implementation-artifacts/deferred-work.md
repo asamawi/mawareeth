@@ -591,3 +591,17 @@ Still pending for a person:
 - source_spec: `_bmad-output/implementation-artifacts/spec-11-3-open-the-full-preview-from-a-sticky-summary-bar-and-modal-sheet.md`
   summary: A full refusal, or a first-load or online error with no shares to keep, has no visible summary bar, so the user sees no refusal text, no Retry and no Full results link there; it is status-only (the one polite status announces it). Review in 11.4/11.1.
   evidence: The UX rule hides the bar until the Share preview has shares (`available` or `choose`), so `refused` and an online `error` without kept rows show nothing visible. Retry is in the sheet whenever the sheet is open (an offline error with kept rows, or an online failure while it is open); only a first-load failure with the sheet closed has no bar and no Retry. The e2e test "a failed first preview keeps the family, says so once in the status and shows no bar" pins this.
+
+## Story 9.12
+
+The pending manual items are now one list, with runbooks and the blocking flag, in `_bmad-output/implementation-artifacts/epic-9-gate-evidence.md`:
+
+- Real mid-range phone over 4G, p95 under one second with up to 50 Heirs (the 8.11 note that the network and render constants stand in for this run).
+- Arabic NVDA/Chrome, VoiceOver/Safari iOS and TalkBack runs (the 9.9, 9.10 and 9.11 items above).
+- Real 400% browser zoom at 1280px (the 9.11 item above).
+
+Epic 9's gate and retrospective stay open until the owner records them.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-12-prove-the-complete-family-entry-journey-meets-capacity-and-speed-gates.md`
+  summary: Follow-up performance story: shrink the Undo (`restore`) request and the whole-Case write responses so Undo with two later deaths meets p95 under 1 s in `capacity_check`, then switch the deploy to `--enforce-interview`.
+  evidence: The modelled `two_later_deaths` `undo` p95 was 999.9, 1069 and 1080 ms over three runs, and `bulk_add` reached 1077 ms (budget 1000 ms). The other two-later-death actions ran 865 to 989 ms. An Undo uploads the whole snapshot and every write answers with the whole Case (about 42 KB) plus a preview. Until it passes, the Interview mix is report-only in the deploy and `epic-9-gate-evidence.md` row 1 is a blocking NFR-3 failure.
