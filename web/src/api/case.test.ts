@@ -12,6 +12,8 @@ import {
   unmarkDeceased,
   noHeirOptions,
   parseCase,
+  hasUnsavedChanges,
+  savedBehind,
   parseHeirOptions,
   parsePreview,
   parseQuestions,
@@ -1355,4 +1357,33 @@ test("parseCase keeps link_candidates on later rows that point at earlier people
   } });
   assert.deepEqual(parsed?.deaths[0].heirs[0].link_candidates, ["w"]);
   assert.equal(parsed?.deaths[0].heirs[1].link_candidates, undefined);
+});
+
+test("parseCase reads the saved state: absent or malformed is unknown", () => {
+  const base = { id: "c", started_at: "now", revision: 3, deceased: { gender: "male", estate: null }, heirs: [] };
+  const read = (saved?: unknown) => parseCase({ case: { ...base, ...(saved === undefined ? {} : { saved }) } })!;
+  assert.equal(read().saved, undefined);
+  assert.equal(read("x").saved, undefined);
+  assert.equal(read({ revision: "2" }).saved, undefined);
+  assert.equal(read({ revision: 0 }).saved, undefined);
+  assert.equal(read(null).saved, null);
+  assert.deepEqual(read({ revision: null }).saved, { revision: null });
+  assert.deepEqual(read({ revision: 3 }).saved, { revision: 3 });
+});
+
+test("hasUnsavedChanges and savedBehind follow the revision, never-saved content and unreadable state", () => {
+  const base = { id: "c", started_at: "now", revision: 3, deceased: { gender: "male", estate: null }, heirs: [] };
+  const read = (saved?: unknown, extra: object = {}) => parseCase({ case: { ...base, ...extra, ...(saved === undefined ? {} : { saved }) } });
+  assert.equal(hasUnsavedChanges(null), false);
+  assert.equal(hasUnsavedChanges(read({ revision: 3 })), false);
+  assert.equal(hasUnsavedChanges(read({ revision: 2 })), true);
+  assert.equal(hasUnsavedChanges(read({ revision: null })), true);
+  assert.equal(hasUnsavedChanges(read()), true);
+  assert.equal(hasUnsavedChanges(read(null)), true);
+  assert.equal(hasUnsavedChanges(read(null, { deceased: null })), false);
+  assert.equal(savedBehind(read({ revision: 2 })), true);
+  assert.equal(savedBehind(read({ revision: null })), true);
+  assert.equal(savedBehind(read({ revision: 3 })), false);
+  assert.equal(savedBehind(read(null)), false);
+  assert.equal(savedBehind(read()), false);
 });

@@ -204,7 +204,8 @@ class CaseTests(TestCase):
         case = response.json()['case']
         self.assertEqual(
             set(case), {'id', 'revision', 'started_at', 'madhab', 'deceased', 'heirs', 'heir_options', 'deaths',
-                        'persons', 'edges', 'placement', 'snapshot'})
+                        'persons', 'edges', 'placement', 'snapshot', 'saved'})
+        self.assertIsNone(case['saved'])
         self.assertIsNone(case['madhab'])
         self.assertAlmostEqual(self.remaining(), 24 * 3600, delta=60)
         self.assertEqual(self.client.get(CASE_URL, secure=True).json(), {'case': case})
@@ -3581,7 +3582,8 @@ class SavedCaseTests(InterviewBase):
         self.assertEqual(opened.status_code, 200)
         loaded = opened.json()['case']
         self.assertEqual(device.session[anonymous_case.SAVED_LINK_KEY], {
-            'case_id': loaded['id'], 'saved_id': row.pk, 'base_revision': row.revision})
+            'case_id': loaded['id'], 'saved_id': row.pk, 'base_revision': row.revision,
+            'case_revision': loaded['revision']})
         self.assertNotEqual(loaded['id'], case['id'])
         self.assertEqual(anonymous_case.export_snapshot(loaded), row.snapshot)
         locked_root = next(r for r in loaded['heirs'] if r['id'] == 'father-row')

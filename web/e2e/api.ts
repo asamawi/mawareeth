@@ -26,6 +26,9 @@ export type Stubs = {
   putHeir?: Answer;
   deleteHeir?: Answer;
   getPreview?: Answer;
+  getSavedCases?: Answer;
+  getReceived?: Answer;
+  postOpen?: Answer;
 };
 
 export const sessionAnonymous = json(200, { authenticated: false });
@@ -58,6 +61,7 @@ export class Api {
   writes: string[] = [];
   heirDeletes: URL[] = [];
   previewGets = 0;
+  openPosts: { url: string; body: string }[] = [];
 
   set(stubs: Stubs): void {
     Object.assign(this.stubs, stubs);
@@ -119,6 +123,16 @@ export class Api {
       if (pathname === "/api/v1/case/preview/" && method === "GET") {
         this.previewGets += 1;
         return this.answer(route, this.stubs.getPreview, "get preview");
+      }
+      if (pathname === "/api/v1/saved-cases/" && method === "GET") {
+        return this.answer(route, this.stubs.getSavedCases, "get saved cases");
+      }
+      if (pathname === "/api/v1/received/" && method === "GET") {
+        return this.answer(route, this.stubs.getReceived, "get received");
+      }
+      if (/^\/api\/v1\/saved-cases\/\d+\/open\/$/.test(pathname) && method === "POST") {
+        this.openPosts.push({ url: pathname, body: request.postData() ?? "" });
+        return this.answer(route, this.stubs.postOpen, "post open");
       }
       this.unstubbed.push(`${method} ${pathname}`);
       await route.abort("failed");

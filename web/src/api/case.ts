@@ -139,7 +139,35 @@ export type Case = {
   placement?: Placement;
   /** The server's own export of this case, kept opaque: it is what a restore sends back. Absent when not sent. */
   snapshot?: Record<string, unknown>;
+  /**
+   * The Case revision the linked Saved case holds: null when there is no link, `{ revision: null }` for an old link
+   * with no recorded revision, absent when the server did not say (older server or malformed): unknown.
+   */
+  saved?: SavedState | null;
 };
+
+export type SavedState = { revision: number | null };
+
+/** The notice's test: a linked Saved case that does not hold this Case revision. */
+export function savedBehind(value: Case | null): boolean {
+  return !!value && !!value.saved && value.saved.revision !== value.revision;
+}
+
+/** Whether leaving this working copy could lose changes; true when the state cannot be read. */
+export function hasUnsavedChanges(value: Case | null): boolean {
+  if (!value) return false;
+  if (value.saved === undefined) return true;
+  if (value.saved === null) return value.deceased !== null || value.heirs.length > 0;
+  return value.saved.revision !== value.revision;
+}
+
+function parseSaved(value: unknown): SavedState | null | undefined {
+  if (value === null) return null;
+  if (!isPlainObject(value) || !("revision" in value)) return undefined;
+  if (value.revision === null) return { revision: null };
+  const revision = parseRevision(value.revision);
+  return revision === null ? undefined : { revision };
+}
 
 export type PersonStatus = "alive" | "died_before_or_with" | "died_later";
 
@@ -256,6 +284,7 @@ type CaseBody = {
   edges?: unknown;
   placement?: unknown;
   snapshot?: unknown;
+  saved?: unknown;
 };
 
 function isCaseBody(value: unknown): value is CaseBody {
@@ -468,6 +497,7 @@ export function parseCase(body: unknown): Case | null {
     edges: parseEdges(value.edges, persons),
     placement: parsePlacement(value.placement),
     ...(isPlainObject(value.snapshot) ? { snapshot: value.snapshot } : {}),
+    ...(parseSaved(value.saved) === undefined ? {} : { saved: parseSaved(value.saved) }),
   };
 }
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { saveCase, listSavedCases, openSavedCase } from "./saved-cases.ts";
+import { saveCase, listSavedCases, openSavedCase, OPEN_CONFLICT } from "./saved-cases.ts";
 const original = globalThis.fetch;
 afterEach(() => { globalThis.fetch = original; });
 const signal = () => new AbortController().signal;
@@ -47,7 +47,19 @@ test("open loads a fresh session case and rejects missing or foreign records", a
     assert.equal(init?.method, "POST");
     return Response.json({ case: { id: "fresh", started_at: "now", madhab: "hanafi", heirs: [] } });
   };
-  assert.equal((await openSavedCase(signal(), 42, options))?.id, "fresh");
+  assert.equal(((await openSavedCase(signal(), 42, options)) as { id: string }).id, "fresh");
   globalThis.fetch = async () => new Response("", { status: 404 });
   assert.equal(await openSavedCase(signal(), 42, options), null);
+});
+test("open sends the optional check, and a 409 is a conflict outcome", async () => {
+  const bodies: string[] = [];
+  globalThis.fetch = async (_url, init) => { bodies.push(String(init?.body)); return new Response("{}", { status: 409 }); };
+  assert.equal(await openSavedCase(signal(), 42, { ...options, check: { caseId: "c1", revision: 3 } }), OPEN_CONFLICT);
+  assert.equal(await openSavedCase(signal(), 42, { ...options, check: { caseId: null, revision: null } }), OPEN_CONFLICT);
+  assert.equal(await openSavedCase(signal(), 42, options), OPEN_CONFLICT);
+  assert.deepEqual(bodies.map((b) => JSON.parse(b)), [{ case_id: "c1", expected_revision: 3 }, { case_id: null }, {}]);
+});
+test("a 409 whose case is null (no live case) is still a conflict", async () => {
+  globalThis.fetch = async () => Response.json({ error: "conflict", case: null }, { status: 409 });
+  assert.equal(await openSavedCase(signal(), 42, { ...options, check: { caseId: "gone", revision: 2 } }), OPEN_CONFLICT);
 });

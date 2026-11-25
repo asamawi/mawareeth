@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 
 import { closePreview, lineageFixture, openCanvasFixture, openHeirsScreen, openPreview, sheetOf } from "./family";
-import { abort, expect, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors, type Stubs } from "./api";
+import { abort, CASE, expect, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors, type Stubs } from "./api";
 
 const en = messages.en.interview;
 
@@ -104,6 +104,23 @@ test.describe("rendered states", () => {
     await expect(page.getByRole("heading", { name: en.started })).toBeVisible();
     expect(api.casePosts).toHaveLength(1);
     expect(JSON.parse(api.casePosts[0].body)).toEqual({ replace: true, case_id: "0123456789abcdef", expected_revision: 1 });
+  });
+
+  test("a Saved case ahead of its save shows the notice, and start over warns and focuses the safe choice", async ({ page, api }) => {
+    const ahead = (saved: unknown) => json(200, { case: { ...CASE, saved } });
+    api.set({ session: sessionAnonymous, getCase: ahead({ revision: 1 }), postCase: startedCase("fedcba9876543210") });
+    await page.goto("/en/interview/");
+    await expect(page.getByText(en.unsavedNotice)).toHaveCount(0);
+    await page.getByRole("button", { name: en.resume }).click();
+    await expect(page.getByText(en.unsavedNotice)).toHaveCount(0);
+    api.set({ getCase: ahead({ revision: null }) });
+    await page.goto("/en/interview/");
+    // The case was seen on this browser, so it resumes without asking.
+    await expect(page.getByText(en.unsavedNotice)).toBeVisible();
+    await expect(page.getByRole("link", { name: en.unsavedLink })).toHaveAttribute("href", "/en/results/");
+    await page.getByRole("button", { name: en.startOver }).click();
+    await expect(page.getByText(en.startOverUnsaved)).toBeVisible();
+    await expect(page.getByRole("button", { name: en.startOverNo })).toBeFocused();
   });
 
   test("an expired case shows the notice and waits for the visitor", async ({ page, api }) => {

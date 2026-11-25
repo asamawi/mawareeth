@@ -446,7 +446,7 @@ class SavedCasesView(ApiView):
             if is_lock_timeout(error):
                 return busy_response()
             raise
-        anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision)
+        anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision, case['revision'])
         return Response({'id': row.pk, 'updated_at': row.updated_at, 'revision': row.revision},
                         status=201 if created else 200)
 
@@ -455,6 +455,23 @@ class SavedCasesView(ApiView):
 class OpenSavedCaseView(ApiView):
     def post(self, request, id):
         row = get_object_or_404(SavedCase, owner=request.user, pk=id)
+        data = request.data if isinstance(request.data, dict) else {}
+        if 'case_id' in data or 'expected_revision' in data:
+            meant, revision = data.get('case_id'), data.get('expected_revision')
+            if (meant is not None and not isinstance(meant, str)) or (
+                    revision is not None and not case_commands.valid_revision(revision)):
+                return Response({'detail': 'Invalid case_id or expected_revision.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            try:
+                current = anonymous_case.get(request)
+            except SnapshotError as error:
+                # An unreadable working copy is not "no case": nothing is replaced.
+                return Response({'detail': 'The current case cannot be read.', 'code': error.code},
+                                status=422)
+            live_id = current['id'] if current else None
+            # A revision names a case that exists, so with no live case it is stale too.
+            if meant != live_id or (revision is not None and (current is None or revision != current['revision'])):
+                return conflict_response(current)
         try:
             decoded = decode(row.schema_version, row.snapshot, str(row.pk), row.updated_at.isoformat())
         except SnapshotError as error:
@@ -463,8 +480,9 @@ class OpenSavedCaseView(ApiView):
             case = anonymous_case.load_snapshot(request, anonymous_case.export_snapshot(decoded))
         except SnapshotError as error:
             return Response({'detail': 'This saved case version is unsupported.', 'code': error.code}, status=400)
-        anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision)
-        return Response({'case': _with_snapshot(case)})
+        anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision, case['revision'])
+        # Read again: the answer carries the link's state.
+        return Response({'case': _with_snapshot(anonymous_case.get(request))})
 
 
 def _visibility(data, creating):

@@ -330,6 +330,14 @@ def is_expired(request):
     return (timezone.now() - moment).total_seconds() >= settings.ANONYMOUS_CASE_IDLE_SECONDS
 
 
+def _saved_state(request, case_id):
+    """Derived, never stored or exported: None without a saved link, else the Case revision the link holds."""
+    if get_saved_link(request, case_id) is None:
+        return None
+    value = request.session[SAVED_LINK_KEY].get('case_revision')
+    return {'revision': value if type(value) is int and value >= 1 else None}
+
+
 def _decode(request):
     case = _stored(request)
     if case is None:
@@ -349,6 +357,7 @@ def _decode(request):
             logging.getLogger('mawareeth.snapshots').warning(
                 'normalized_on_read', extra={'code': 'normalized_on_read'})
     result['revision'] = revision_of(case)
+    result['saved'] = _saved_state(request, case['id'])
     return result
 
 
@@ -423,6 +432,7 @@ def _save(request, **changes):
         stored['changed_at'] = raw['changed_at']
     stored['revision'] = revision_of(raw)
     stored.pop('heir_options', None)
+    stored.pop('saved', None)
     stored.pop('persons', None)
     stored.pop('placement', None)
     for key in ('edges', 'died_before'):
@@ -1091,9 +1101,10 @@ def get_saved_base_revision(request, case_id):
     return None
 
 
-def set_saved_link(request, case_id, saved_id, base_revision):
+def set_saved_link(request, case_id, saved_id, base_revision, case_revision=None):
     request.session[SAVED_LINK_KEY] = {
-        'case_id': case_id, 'saved_id': saved_id, 'base_revision': base_revision}
+        'case_id': case_id, 'saved_id': saved_id, 'base_revision': base_revision,
+        'case_revision': case_revision}
 
 
 def load_snapshot(request, snapshot):

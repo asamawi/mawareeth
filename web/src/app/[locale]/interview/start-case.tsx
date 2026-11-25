@@ -2,6 +2,7 @@
 import type { PresentedResult } from "@/contracts/presented";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 
 import {
@@ -9,6 +10,7 @@ import {
   addHeirs,
   MAX_HEIRS,
   fetchCase,
+  savedBehind,
   markDeceased,
   removeHeir,
   restoreCase,
@@ -253,6 +255,12 @@ export function StartCase({
     if (settledOnce.current) target.current?.focus();
     settledOnce.current = true;
   }, [view]);
+
+  const safeChoice = useRef<HTMLButtonElement>(null);
+  // The safe choice has the focus when start over asks for confirmation.
+  useEffect(() => {
+    if (view.name === "confirmStartOver") safeChoice.current?.focus();
+  }, [view.name]);
 
   const screen = screenOf(view);
   const started = view.name === "started" ? view : null;
@@ -558,12 +566,15 @@ export function StartCase({
 
       {view.name === "confirmStartOver" && (
         <>
-          <p role="alert">{messages.startOverConfirm}</p>
+          <p role="alert">
+            {savedBehind(view.case) && <>{messages.startOverUnsaved}{" "}</>}
+            {messages.startOverConfirm}
+          </p>
           <div className="flex flex-wrap gap-3">
             <button type="button" className={buttonClass} onClick={() => void perform("startOver")}>
               {messages.startOverYes}
             </button>
-            <button type="button" className={buttonClass} onClick={() => setView(cancelStartOver(view))}>
+            <button type="button" ref={safeChoice} className={buttonClass} onClick={() => setView(cancelStartOver(view))}>
               {messages.startOverNo}
             </button>
           </div>
@@ -595,6 +606,14 @@ export function StartCase({
             {undoOffer && <span className="ms-3"><UndoButton messages={messages} disabled={undoDisabled} onUndo={undo} /></span>}
           </div>
           {started.undoFailed && <p role="alert">{messages.undoFailed}</p>}
+          {savedBehind(started.case) && (
+            <p data-unsaved-notice>
+              {messages.unsavedNotice}{" "}
+              <Link href={`/${locale}/results/`} prefetch={false} className="inline-flex min-h-11 items-center underline">
+                {messages.unsavedLink}
+              </Link>
+            </p>
+          )}
         </>
       )}
 

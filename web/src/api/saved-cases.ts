@@ -17,9 +17,18 @@ export async function saveCase(signal: AbortSignal, caseId: string, options: Wri
     return Number.isInteger(body.id) && body.id > 0 && typeof body.updated_at === "string" ? { id: body.id, updated_at: body.updated_at } : null;
   });
 }
-export async function openSavedCase(signal: AbortSignal, id: number, options: WriteOptions = {}): Promise<Case | null> {
+/** `conflict`: the working copy changed since the prompt, so nothing was replaced. */
+export const OPEN_CONFLICT = "conflict";
+export type OpenResult = Case | typeof OPEN_CONFLICT | null;
+/** With `check`, the server refuses (409) when the working copy is no longer that Case at that revision; a null `caseId` means none. */
+export async function openSavedCase(signal: AbortSignal, id: number, options: WriteOptions & { check?: { caseId: string | null; revision: number | null } } = {}): Promise<OpenResult> {
   if (!Number.isInteger(id) || id < 1) return null;
-  return write(signal, options, { method: "POST", url: `${url}${id}/open/`, body: "{}" }, async (response) => response.ok ? parseCase(await response.json()) : null);
+  const { check, ...rest } = options;
+  const body = check ? JSON.stringify({ case_id: check.caseId, ...(check.revision === null ? {} : { expected_revision: check.revision }) }) : "{}";
+  return write(signal, rest, { method: "POST", url: `${url}${id}/open/`, body }, async (response) => {
+    if (response.status === 409) return OPEN_CONFLICT;
+    return response.ok ? parseCase(await response.json()) : null;
+  });
 }
 export async function listSavedCases(signal: AbortSignal): Promise<SavedCase[]> {
   const controller = new AbortController();

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 21:00
-last_updated: 11-25-2026 23:41
+last_updated: "11-26-2026 01:40"
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
@@ -71,8 +71,8 @@ development_status:
   9-15-bring-two-later-death-interview-actions-under-the-one-second-budget: done
   epic-9-retrospective: done
 
-  epic-10: backlog
-  10-0-warn-before-unsaved-changes-are-discarded: ready-for-dev
+  epic-10: in-progress
+  10-0-warn-before-unsaved-changes-are-discarded: review
   10-1-name-a-case-and-show-whether-saving-succeeded: backlog
   10-2-find-and-rename-named-cases-in-my-cases: backlog
   10-3-open-saved-cases-directly-and-keep-guest-recovery-separate: backlog
@@ -314,7 +314,7 @@ action_items:
       (son to daughter with a son_of_son); add a regression test and check live data
       for such edges."
     owner: "dev"
-    status: in-progress
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
   - id: "epic-9-retro-item-12-dirty-name-add-here"
     epic: 9
