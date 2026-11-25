@@ -117,7 +117,7 @@ Behavioural. Visual specs are in DESIGN.md Components, under the same names.
 | Later death added | Interview | The person's card gains `badge-died-later`; the live-region says "Wife marked as died after the deceased. Open her estate to add her heirs." Her estate level starts empty (placeholders only). |
 | Later-death estate open | Interview | The death-breadcrumb shows above the tree; the tree, Heirs list and preview now show that person's estate, and the heading names it ("Wife's estate"). The Add relatives panel adds to this estate. |
 | Later-death limit | Edit sheet | At two later deaths in the Case the later-death choice is not offered; a line says "A case can hold up to two later deaths." The existing ones stay editable. |
-| Saving, saved, save failed | Results, Interview | Inline status-line: "Saving", "Saved to My cases", or "Could not save. Your family is still here. Try again." with a Retry button. PDF generating or failed and share-link created or copied use the same line. (Wording drafts.) |
+| Saving, saved, save failed | Results, Interview | Inline status-line: "Saving", "Saved to My cases", or "Could not save. Your family is still here. Try again." with a Retry button. For an opened Saved case these states also follow autosave. Not saved yet: "Changes not saved to My cases yet" (wording draft). PDF generating or failed and share-link created or copied use the same line. (Wording drafts.) |
 | Preview error | Share preview | Plain message with a Retry button (shipped pattern); the family is never lost. |
 | Refusal | Preview, results, API | The engine's reason in the current Locale, in a notice, with no numbers (FR-21). Offers Contact us. Cases: unsupported school, Malikiyya case, impossible family, Lebanon with a Shia or non-Muslim Deceased (the Interview asks "Was the deceased Sunni?" under that preset). |
 | Impossible drop or add | Tree, buttons | Tree unchanged, message states why (FR-2); focus stays. |
@@ -211,7 +211,7 @@ Failure: a third later death is refused with "A case can hold up to two later de
 
 1. He opens My cases and sees "Mother's estate, 2026" sorted by last change.
 2. He taps it.
-3. **Climax:** the Case opens straight into the Interview with his family loaded; there is no "resume or start over" screen (FR-7).
+3. **Climax:** the Case opens straight into the Interview with his family loaded; there is no "resume or start over" screen (FR-7). His changes are saved to the case as he makes them.
 4. He renames it "Mother's estate (final)" in My cases.
 
 Failure: if the Country preset changed since saving, the stored version is shown with "A newer version exists. Recalculate?" and nothing recalculates silently (FR-19). A session expiry sends him to sign-in and then back to the same Case.

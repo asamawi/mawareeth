@@ -72,10 +72,12 @@ development_status:
   epic-9-retrospective: done
 
   epic-10: backlog
+  10-0-warn-before-unsaved-changes-are-discarded: ready-for-dev
   10-1-name-a-case-and-show-whether-saving-succeeded: backlog
   10-2-find-and-rename-named-cases-in-my-cases: backlog
   10-3-open-saved-cases-directly-and-keep-guest-recovery-separate: backlog
   10-4-preserve-received-invitations-and-label-shared-cases-as-read: backlog
+  10-5-save-an-opened-saved-case-automatically: backlog
   epic-10-retrospective: optional
 
   epic-11: in-progress

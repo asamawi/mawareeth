@@ -331,7 +331,7 @@ NFR-X7: Screen/PDF numeric and date formats must agree, including RTL; CI reject
 - AD-19: **Formatting.** Formatting happens once, on the server, with Babel, passing `numbering_system` from the Locale registry explicitly. The browser and PDF show the server's strings, and the browser no longer formats amounts with `Intl`.
 - AD-20: **Ownership.** A Case's inputs live only on the server: family, estate, currency, Basis, eligibility answers and FR-14 prompt dismissal.
   - **Guest Case:** in the session, expiring 24 hours after its last change. Expiry is enforced on every read and edit, and an expired Case returns no family.
-  - **Opened SavedCase:** the session holds a working copy linked to the SavedCase id and its base revision. Save writes back with a compare-and-swap on that revision, and a conflict is reported, never overwritten.
+  - **Opened SavedCase:** the session holds a working copy linked to the SavedCase id and its base revision. Accepted changes are written back automatically, in a separate request after the command, with a compare-and-swap on that revision. Autosave only updates the linked SavedCase: it never creates one, never changes the Case revision or a pinned version, and a conflict is reported, never overwritten. A never-saved Case is saved only by an explicit Save (sprint change 2026-11-25).
 - AD-20: **Command service.** Every input mutation goes through one Case command service: add, bulk add, tree drop, edit, delete with cascade, Basis, currency, answers, restore and redeem (AD-22). Each takes the expected revision and applies atomically. On success it bumps one monotonic revision and returns the whole Case with the new revision. On a mismatch it returns a conflict carrying the current Case.
 - AD-20: **Previews.** Preview responses carry the revision they were computed for, and the browser discards results for any older revision.
 - AD-20: **Undo.** Undo is multi-step and page-only. The browser keeps a stack of prior Case snapshots for the visit, and each Undo is a `restore` command against the current revision. The stack is lost on reload. Stable person ids survive restore, so focus can return to the restored node.
@@ -570,7 +570,7 @@ UX-DR59: [new] Implement Later-death limit state: at two later deaths hide the a
 
 UX-DR60: [new] Implement status-line using components.status-line.*: plain one-line boxed muted Updating/Still working/offline variants, no modal or focus theft and no animation under reduced motion; the line itself never blocks input. _(DESIGN Components; EXPERIENCE Component Patterns)_
 
-UX-DR61: [new] Implement Saving/saved/save-failed states with inline Saving/Saved to My cases/failure text and Retry, retaining the family; use the same line for PDF generating/failed and share-link created/copied states, preserving draft wording status. _(EXPERIENCE State Patterns)_
+UX-DR61: [new] Implement Saving/saved/save-failed states with inline Saving/Saved to My cases/failure text and Retry, retaining the family; for an opened Saved case these states also follow autosave, with "Changes not saved to My cases yet" (wording draft) before a save; use the same line for PDF generating/failed and share-link created/copied states, preserving draft wording status. _(EXPERIENCE State Patterns)_
 
 UX-DR62: [kept] Verify Preview error uses the shipped plain message and Retry pattern without losing family data. _(EXPERIENCE State Patterns)_
 
@@ -1628,6 +1628,35 @@ Background: Story 9.12 measured the Interview action mix with `capacity_check`. 
 
 Registered users open a Saved case from *My cases* straight into the Interview with its family loaded, and name or rename it.
 
+### Story 10.0: Warn before unsaved changes to a Saved case are discarded
+
+As a registered family member,
+I want to know that my changes are not yet in My cases and be asked before they are discarded,
+So that I do not lose work.
+
+**Acceptance Criteria:**
+
+**Given** a working copy opened from a Saved case
+**When** its Case revision differs from the revision last loaded from or written to that SavedCase
+**Then** the Case response says it has unsaved changes, and the Interview shows "Changes not saved to My cases yet" with a link to the existing Save on Full results
+**And** a successful Save or a fresh open clears the notice, and a never-saved Case does not show it.
+
+**Given** unsaved changes
+**When** I open a Saved case from My cases, or confirm Start over in the Interview
+**Then** I am asked "Discard unsaved changes?", with the safe choice focused; cancelling sends no request and keeps the working copy, and confirming discards only the working copy (owner decision, 2026-11-16, moved from 10.3)
+**And** if the working copy changes in another tab between the prompt and the confirmation, I am asked again instead of losing the newer change
+**And** if the unsaved state cannot be read, the prompt is shown.
+
+**Given** a session link written before this release, with no recorded Case revision
+**When** the Case is read
+**Then** it is treated as having unsaved changes until the next Save or open.
+
+**Given** the release
+**When** old and new images both serve requests
+**Then** the open endpoint's request and response stay compatible with the old client, and no migration is needed.
+
+Leaving the page does not discard the working copy, so no browser leave warning is added.
+
 ### Story 10.1: Name a Case and show whether saving succeeded
 
 As a registered family member,
@@ -1657,7 +1686,7 @@ So that I can recognise it later and know whether my work reached My cases.
 **And** the family and entered name survive failure, success makes the Case available in My cases, and these source strings retain their wording-draft status rather than being marked owner-reviewed.
 
 **Given** an opened SavedCase working copy linked to its SavedCase id and base revision
-**When** I save edits, including after another working copy has saved
+**When** I save edits, or autosave writes them (10.5), including after another working copy has saved
 **Then** the UI uses Epic 8.10's compare-and-swap outcome: a matching revision updates that SavedCase, while a conflict is visibly reported and never shown as "Saved to My cases" (AD-20, FR-7, UX-DR61)
 **And** conflict retains my working inputs and the stored Case is not overwritten; Retry does not silently rebase and resubmit stale inputs over the current revision.
 
@@ -1749,8 +1778,7 @@ So that I can continue the same estate without a resume-or-start-over detour.
 
 **Given** the current working Case has unsaved changes
 **When** I open a Saved case or start a new Case from My cases
-**Then** I am asked "Discard unsaved changes?" first, and cancelling keeps the current working Case untouched (owner decision, 2026-11-16) (FR-7, UX-DR85)
-**And** confirming discards only the unsaved working copy, never any Saved case.
+**Then** the 10.0 discard prompt still applies when a direct open would replace unsaved changes (FR-7, UX-DR85).
 
 ### Story 10.4: Preserve received invitations and label shared Cases as read-only
 
@@ -1770,9 +1798,9 @@ So that I can inspect the owner's current saved estate without confusing it with
 **Then** a shared-case-banner at the top explicitly states that the view is read-only, using components.shared-case-banner colors.accent-soft, 1px colors.accent border, rounded.node and 12px padding (UX-DR88, non-Country scope)
 **And** the banner invents no Country name/version for that Basis, and editing/renaming the owner's Case is not exposed by this read-only view.
 
-**Given** the owner has a saved family and then changes only its working copy
+**Given** the owner has a saved family and its working copy has a change that is not yet saved
 **When** a valid shared link is opened before and after the owner successfully saves
-**Then** the view reads the current persisted SavedCase through Epic 8's live-view reader and shared presentation, reflecting only accepted saves (AD-18, AD-20, UX-DR88)
+**Then** the view reads the current persisted SavedCase through Epic 8's live-view reader and shared presentation, reflecting only accepted saves, whether explicit or automatic (AD-18, AD-20, UX-DR88)
 **And** it does not expose unsaved working inputs or treat a cached result as canonical; preset-version messaging and switching remain Epic 14 work.
 
 **Given** a shared link or received/invite entry is expired, revoked, invalid or inaccessible
@@ -1784,6 +1812,56 @@ So that I can inspect the owner's current saved estate without confusing it with
 **When** progress, success or failure is presented
 **Then** those outcomes use the same inline status-line as Story 10.1's save states, including PDF generating/failed and share-link created/copied states (UX-DR61)
 **And** the family stays available on failure, "copied" appears only after a successful copy, source wording retains draft status, and this story does not redesign Full results actions or regenerate the PDF calculation pipeline.
+
+### Story 10.5: Save an opened Saved case automatically
+
+As a returning family member,
+I want my changes to an opened Saved case saved without pressing Save,
+So that My cases always holds my latest work.
+
+**Acceptance Criteria:**
+
+**Given** an opened Saved case, signed in and online
+**When** a change or Undo is accepted
+**Then** one save request follows shortly after the last accepted change, with at most one in flight and the newest state sent next
+**And** the request names the Case revision it means to save, so a save that reaches the server before an edit cannot be reported as covering it,
+**And** the status line shows "Saving", then "Saved to My cases" only when the answer covers the latest Case revision, and one status announcement is made per settled save.
+
+**Given** an autosave request
+**When** the linked SavedCase is missing, belongs to another account or the link is absent
+**Then** nothing is created or written, the working copy is kept and the outcome is visible.
+
+**Given** the SavedCase changed elsewhere
+**When** autosave meets the conflict
+**Then** autosave stops and the 10.1 message and its two choices appear; nothing is merged, overwritten or discarded until I choose, and I can keep editing.
+
+**Given** a working copy that cannot be saved yet (no heirs, or Schools differ and none is chosen)
+**When** autosave runs
+**Then** the line says what is missing, the edits stay, and the next change tries again.
+
+**Given** a network failure, a timeout, or an expired sign-in
+**When** autosave fails
+**Then** "Could not save. Your family is still here. Try again." and Retry appear, or sign-in which returns to the same Case; there is no endless automatic retry.
+
+**Given** a save is pending or failed
+**When** I open another Case, start a new one or sign out in the app
+**Then** the pending save is sent first; if it does not succeed, the 10.0 prompt appears before anything is discarded.
+
+**Given** a never-saved Case
+**When** I edit it
+**Then** nothing is autosaved; Save with naming and sign-in (10.1) stays the first save, after which autosave applies.
+
+**Given** a Case pinned to a preset version or with no School chosen
+**When** autosave runs
+**Then** the stored Basis intent and pinned version are unchanged by the save itself (AD-18, FR-19).
+
+**Given** the capacity gate
+**When** autosave runs alongside the six Interview actions on the two-later-death Case
+**Then** every action stays under the 1000 ms p95 budget with the contention writer running.
+
+**Given** tests
+**When** the story is complete
+**Then** they cover: edit then reopen from My cases shows the edit; rapid edits; Undo; two tabs; deleted case; other account; no heirs; school required; offline; sign-in expiry; and a Case never saved.
 
 ## Epic 11: Clearer results
 
