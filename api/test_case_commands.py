@@ -199,6 +199,92 @@ class HeirStatusTests(CommandBase):
         self.refused_edit(self.s1, {'same_as': 'not_allowed'}, same_as=self.s2)
         self.refused_edit(self.s1, {'same_as': 'not_allowed'}, same_as=None, status='alive')
 
+    def lineage(self, relationship='son', anchored='son_of_son'):
+        """A hanbali estate with one `relationship` row and a row anchored to it by a parent_of edge."""
+        case = self.build('hanbali', 'male', None, [relationship], ['S'])
+        self.case_id = case['id']
+        parent = case['heirs'][0]['id']
+        body = self.heir(case, anchored, anchor=parent).json()['case']
+        child = next(h['id'] for h in body['heirs'] if h['relationship'] == anchored)
+        self.assertEqual(body['edges'], [{'kind': 'parent_of', 'from': parent, 'to': child}])
+        return parent, child
+
+    def test_a_relationship_edit_that_breaks_a_lineage_edge_is_refused(self):
+        parent, child = self.lineage()
+        self.refused_edit(parent, {'relationship': 'lineage_locked'}, relationship='daughter')
+        self.refused_edit(parent, {'relationship': 'lineage_locked'}, relationship='daughter', name='X')
+        stored = self.stored()
+        self.assertEqual([h['relationship'] for h in stored['heirs']], ['son', 'son_of_son'])
+        self.assertEqual(len(stored['edges']), 1)
+
+    def test_a_rename_and_a_compatible_edit_are_still_allowed(self):
+        parent, child = self.lineage()
+        renamed = self.edit(parent, name='Ali')
+        self.assertEqual(renamed.status_code, 200, renamed.content)
+        compatible = self.edit(child, 'daughter_of_son', name='G')
+        self.assertEqual(compatible.status_code, 200, compatible.content)
+        case = compatible.json()['case']
+        self.assertEqual([h['relationship'] for h in case['heirs']], ['son', 'daughter_of_son'])
+        self.assertEqual(len(case['edges']), 1)
+
+    def test_editing_the_child_end_of_an_edge_is_refused(self):
+        parent, child = self.lineage()
+        self.refused_edit(child, {'relationship': 'lineage_locked'}, relationship='brother')
+
+    def test_other_field_errors_are_reported_together_and_gender_locked_wins(self):
+        parent, child = self.lineage()
+        self.refused_edit(parent, {'relationship': 'lineage_locked', 'name': 'too_long'},
+                          relationship='daughter', name='x' * 500)
+        marked = self.mark(parent, relatives={child: 'son'})
+        self.assertEqual(marked.status_code, 201, marked.content)
+        self.refused_edit(parent, {'relationship': 'gender_locked'}, relationship='daughter')
+
+    def test_a_died_before_anchor_is_locked_and_so_is_returning_with_a_new_relationship(self):
+        parent, child = self.lineage()
+        self.assertEqual(self.edit(parent, status='died_before_or_with').status_code, 200)
+        self.refused_edit(parent, {'relationship': 'lineage_locked'},
+                          relationship='daughter', status='died_before_or_with')
+        self.refused_edit(parent, {'relationship': 'lineage_locked'}, relationship='daughter', status='alive')
+        self.assertEqual(self.edit(parent, name='Ali', status='died_before_or_with').status_code, 200)
+        self.assertEqual(self.edit(parent, status='alive').status_code, 200)
+
+    def test_a_status_change_in_the_same_request_does_not_bypass_the_check(self):
+        parent, child = self.lineage()
+        self.refused_edit(parent, {'relationship': 'lineage_locked'},
+                          relationship='daughter', status='died_before_or_with')
+
+    @override_settings(SNAPSHOT_WRITE_VERSION=2)
+    def test_a_later_estate_edge_is_locked(self):
+        self.setup_family()
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        death = self.live()['deaths'][0]
+        anchor, entries = next((a, e) for a, e in death['placement'].items() if a != 'root' and e)
+        self.assertEqual(self.add_layer(death['heir_id'], 'wife').status_code, 201)
+        entry = entries[0]
+        added = self.add_layer(death['heir_id'], entry['relationship'], anchor=anchor)
+        self.assertEqual(added.status_code, 201, added.content)
+        layer = next(d for d in added.json()['case']['deaths'] if d['heir_id'] == death['heir_id'])
+        edge = added.json()['case']['edges'][0]
+        ends = {row['id']: row for row in layer['heirs']}
+        mine = edge['from'] if edge['from'] in ends else edge['to']
+        self.refused_edit(mine, {'relationship': 'lineage_locked'},
+                          relationship='husband' if ends[mine]['gender'] == 'male' else 'wife')
+
+    def test_an_already_mismatched_edge_can_be_repaired(self):
+        parent, child = self.lineage()
+        self.plant(heirs=[dict(h, relationship='daughter', gender='female') if h['id'] == parent else h
+                          for h in self.stored()['heirs']])
+        self.assertEqual(self.edit(parent, 'daughter', name='Fine').status_code, 200)
+        self.assertEqual(self.edit(parent, 'son').status_code, 200)
+
+    def test_the_edit_succeeds_once_the_anchored_relative_is_removed(self):
+        parent, child = self.lineage()
+        self.refused_edit(parent, {'relationship': 'lineage_locked'}, relationship='daughter')
+        removed = self.send('delete', f'{HEIRS_URL}{child}/', {'case_id': self.case_id})
+        self.assertEqual(removed.status_code, 200, removed.content)
+        done = self.edit(parent, 'daughter')
+        self.assertEqual(done.status_code, 200, done.content)
+
     @override_settings(SNAPSHOT_WRITE_VERSION=1)
     def test_old_writer_refuses_status_before_storing(self):
         self.setup_family()

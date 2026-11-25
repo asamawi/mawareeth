@@ -19,6 +19,7 @@ from api.kinship import derive
 from engine.contracts.errors import ContractError
 from engine.contracts.family import EDGE_KINDS
 from engine.contracts.values import ID_RE
+from engine.placement import ANCHORS
 from engine.queries import placement_options
 from engine.rule_set import school_rule_set
 
@@ -904,6 +905,41 @@ def _anchor_edge(case, layer, anchor, relationship, link, errors):
     return 'spouse_of', anchor, 'from'
 
 
+def _edge_valid(kind, start, end):
+    """Whether the placement table allows an edge between two relationships (start -> end)."""
+    if kind == 'parent_of':
+        return (('child', end) in ANCHORS.get(start, ())) or (('parent', start) in ANCHORS.get(end, ()))
+    return ('spouse', end) in ANCHORS.get(start, ())
+
+
+def _breaks_lineage(case, row, was_before, rel):
+    """True when changing the row to `rel` would break a lineage edge that is valid today.
+
+    Only edges to a relative in the row's own estate layer count, and only a pair the placement table
+    allows now and not afterwards: data that is already mismatched can still be repaired.
+    """
+    person = _person(row)
+    if was_before or row in case['heirs']:
+        layer = list(case['heirs']) + list(case.get('died_before') or [])
+    else:
+        layer = next(rows for _, _, rows in _layers(case) if row in rows)
+    relationships = {}
+    for other in layer:
+        relationships.setdefault(_person(other), other['relationship'])
+    for edge in case.get('edges') or []:
+        if person not in (edge['from'], edge['to']):
+            continue
+        other = edge['to'] if edge['from'] == person else edge['from']
+        if other == person or other not in relationships:
+            continue
+        pair = lambda mine: ((mine, relationships[other]) if edge['from'] == person
+                             else (relationships[other], mine))
+        if (_edge_valid(edge['kind'], *pair(row['relationship']))
+                and not _edge_valid(edge['kind'], *pair(rel))):
+            return True
+    return False
+
+
 def update_heir(request, heir_id, data, case_id):
     """Edit a row in any layer and rename all its links. Raises StaleCase, HeirNotFound or FieldErrors."""
     case = _live(request, case_id)
@@ -955,6 +991,9 @@ def update_heir(request, heir_id, data, case_id):
                     rel, deceased['gender'], heir_rules.counts(r for r in heirs if r is not row))
                 if issue:
                     errors['relationship'] = issue
+        if ('relationship' not in errors and rel != row['relationship']
+                and _breaks_lineage(case, row, was_before, rel)):
+            errors['relationship'] = 'lineage_locked'
     link_changes = False
     if 'same_as' in data:
         link = data['same_as']

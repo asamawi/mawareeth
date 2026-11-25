@@ -2095,7 +2095,7 @@ class HeirRulesTests(HeirRulesEngine, TransactionTestCase):
 
     def test_every_code_is_in_the_contract(self):
         codes = CONTRACT['errorCodes']
-        self.assertEqual(set(codes['relationship']), set(heir_rules.RELATIONSHIP_CODES) | {'required', 'invalid', 'gender_locked'})
+        self.assertEqual(set(codes['relationship']), set(heir_rules.RELATIONSHIP_CODES) | {'required', 'invalid', 'gender_locked', 'lineage_locked'})
         self.assertEqual(set(codes['gender']), set(heir_rules.GENDER_CODES) | {'required', 'invalid'})
 
     def test_the_shared_fixtures_give_the_same_options(self):

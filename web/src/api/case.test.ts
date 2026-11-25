@@ -469,6 +469,17 @@ test("confirmed removal uses the impact revision and validates a cascade respons
   }
 });
 
+test("an edit refused as lineage_locked reads as an invalid answer with text in every locale", async () => {
+  stubFetch(async () => Response.json({ errors: { relationship: "lineage_locked" } }, { status: 400 }));
+  assert.deepEqual(
+    await updateHeir(signal(), "abc123", 4, "h1", { relationship: "daughter", name: null }, withToken),
+    { kind: "invalid", errors: { relationship: "lineage_locked" } },
+  );
+  for (const locale of locales) {
+    assert.ok(messages[locale].interview.fieldErrors.relationship.lineage_locked, locale);
+  }
+});
+
 test("answer writes map 400, 404, 409 and 429", async () => {
   const send = () => addHeir(signal(), "abc123", 4, { relationship: "son", name: null }, withToken);
   stubFetch(async () => Response.json({ errors: { name: "too_long", x: 5 } }, { status: 400 }));
