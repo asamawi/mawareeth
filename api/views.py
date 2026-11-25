@@ -1,9 +1,11 @@
 import base64
 import binascii
 import gzip
+import io
 import json
 import logging
 import traceback
+import zlib
 
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
@@ -32,6 +34,10 @@ from mawareeth.middleware import busy_response, is_lock_timeout
 from reports.status import report_status
 
 logger = logging.getLogger(__name__)
+
+# The largest decompressed restore snapshot accepted: a 50-Heir Case is about 42 KB raw, so this is
+# a generous ceiling that still stops a small `snapshot_gz` body from expanding without bound.
+MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
 
 
 @method_decorator(login_not_required, name='dispatch')
@@ -262,12 +268,18 @@ class RestoreView(CaseWriteView):
 def _restore_snapshot(data):
     """The snapshot to restore: the gzipped+base64 `snapshot_gz` when sent (a smaller Undo
     request), else the plain `snapshot`. A malformed `snapshot_gz` reads as no snapshot, so the
-    command refuses it as an invalid snapshot rather than restoring the wrong Case."""
+    command refuses it as an invalid snapshot rather than restoring the wrong Case. The decompressed
+    size is capped at MAX_SNAPSHOT_BYTES so a small compressed body cannot expand to exhaust memory."""
     if 'snapshot_gz' in data:
         try:
-            raw = gzip.decompress(base64.b64decode(data['snapshot_gz'], validate=True))
+            packed = base64.b64decode(data['snapshot_gz'], validate=True)
+            with gzip.GzipFile(fileobj=io.BytesIO(packed)) as stream:
+                raw = stream.read(MAX_SNAPSHOT_BYTES + 1)
+            if len(raw) > MAX_SNAPSHOT_BYTES:
+                return None
             value = json.loads(raw)
-        except (ValueError, TypeError, binascii.Error, gzip.BadGzipFile, json.JSONDecodeError):
+        except (ValueError, TypeError, binascii.Error, gzip.BadGzipFile, EOFError, zlib.error,
+                json.JSONDecodeError):
             return None
         return value if isinstance(value, dict) else None
     return data.get('snapshot')

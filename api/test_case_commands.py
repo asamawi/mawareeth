@@ -19,6 +19,7 @@ from rest_framework.test import APIClient
 
 from api import anonymous_case, case_commands
 from api import preview as case_preview
+from api import views
 from api.models import SavedCase
 from api.tests import (
     CASE_URL, DEATHS_URL, HEIRS_URL, InterviewDeathsHelpers, InterviewHelpers,
@@ -538,13 +539,30 @@ class RestoreTests(CommandBase):
 
     def test_a_malformed_gzipped_snapshot_is_refused_as_invalid(self):
         self.setup_family()
+        good = gzip.compress(json.dumps(self.snapshot()).encode())
+        corrupt = bytearray(good)
+        # Flip a byte in the DEFLATE body (past the 10-byte header) so the stream is corrupt, not truncated.
+        corrupt[12] ^= 0xFF
         for packed in ('not base64!!', base64.b64encode(b'not gzip').decode(),
-                       base64.b64encode(gzip.compress(b'"text"')).decode()):
+                       base64.b64encode(gzip.compress(b'"text"')).decode(),
+                       base64.b64encode(good[:-4]).decode(),          # truncated: missing trailer -> EOFError
+                       base64.b64encode(bytes(corrupt)).decode()):    # corrupt DEFLATE -> zlib.error
             with self.subTest(packed=packed[:24]):
                 raw, stored = self.raw_session(), self.stored()
                 response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot_gz': packed})
                 self.assert_untouched(response, 400, raw, stored)
                 self.assertEqual(response.json()['error'], 'invalid_snapshot')
+
+    def test_an_oversized_decompressed_snapshot_is_refused_as_invalid(self):
+        self.setup_family()
+        # A tiny compressed body that expands past MAX_SNAPSHOT_BYTES must be refused, not decompressed whole.
+        bomb = gzip.compress(b'x' * (views.MAX_SNAPSHOT_BYTES + 1))
+        self.assertLess(len(bomb), views.MAX_SNAPSHOT_BYTES)
+        packed = base64.b64encode(bomb).decode()
+        raw, stored = self.raw_session(), self.stored()
+        response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot_gz': packed})
+        self.assert_untouched(response, 400, raw, stored)
+        self.assertEqual(response.json()['error'], 'invalid_snapshot')
 
 
 class ExpiryTests(CommandBase):
