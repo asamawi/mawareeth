@@ -507,6 +507,7 @@ export const messages: Record<Locale, Messages> = {
         relationship: {
           // Native-language review pending.
           gender_locked: "هذا الشخص مرتبط بسجل آخر أو مسجل ضمن الوفيات، لذا لا يمكن تغيير جنسه. يرجى اختيار صلة قرابة من الجنس نفسه.",
+          lineage_locked: "هناك قريب آخر مسجّل من خلال هذا الشخص، لذا لا يمكن اختيار هذه الصلة. أزل ذلك القريب أولًا.",
           required: "اختر صلة القرابة.",
           invalid: "اختر صلة قرابة من القائمة.",
           second_father: "يمكن تسجيل أب واحد فقط. عدّل الأب المسجّل، أو اختر صلة قرابة أخرى لهذا القريب.",
@@ -833,6 +834,7 @@ export const messages: Record<Locale, Messages> = {
         },
         relationship: {
           gender_locked: "This person is linked or recorded as deceased, so their gender cannot change. Choose a relationship with the same gender.",
+          lineage_locked: "Another relative is recorded through this person, so this relationship cannot be chosen. Remove that relative first.",
           required: "Choose a relationship.",
           invalid: "Choose a relationship from the list.",
           second_father: "Only one father can be recorded. Edit the saved father, or choose another relationship for this relative.",
@@ -1162,6 +1164,7 @@ export const messages: Record<Locale, Messages> = {
         relationship: {
           // Native-language review pending.
           gender_locked: "Cette personne est liée à une autre entrée ou son décès est enregistré ; son sexe ne peut pas changer. Choisissez un lien de parenté du même sexe.",
+          lineage_locked: "Un autre proche est enregistré par l'intermédiaire de cette personne ; ce lien de parenté ne peut donc pas être choisi. Retirez d'abord ce proche.",
           required: "Choisissez un lien de parenté.",
           invalid: "Choisissez un lien dans la liste.",
           second_father: "Un seul père peut être enregistré. Modifiez le père enregistré, ou choisissez un autre lien pour ce parent.",

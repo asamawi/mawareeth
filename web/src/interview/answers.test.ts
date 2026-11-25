@@ -475,11 +475,15 @@ test("the shared fixtures are read as they are, and the kinship codes match the 
   ) as { families: { name: string; heirs: string[]; heir_options: unknown }[] };
   assert.deepEqual(
     [...KINSHIP_CODES].sort(),
-    contract.errorCodes.relationship.filter((code: string) => code !== "required" && code !== "invalid" && code !== "gender_locked").sort(),
+    contract.errorCodes.relationship.filter((code: string) => code !== "required" && code !== "invalid" && code !== "gender_locked" && code !== "lineage_locked").sort(),
   );
   // gender_locked depends on a person's links/death, not family counts, so it is
   // not a kinship code, but the case API reports it in edit_options.invalid.
   assert.ok(contract.errorCodes.relationship.includes("gender_locked"));
+  // lineage_locked is only ever a refusal of an edit; edit_options never carries it, so a client
+  // that reads edit_options must not accept it there.
+  assert.ok(contract.errorCodes.relationship.includes("lineage_locked"));
+  assert.deepEqual(parseHeirOptions({ blocked: [], invalid: { son: "lineage_locked" } }), { blocked: [], invalid: {} });
   assert.deepEqual(parseHeirOptions({ blocked: [], invalid: { son: "gender_locked" } }), {
     blocked: [], invalid: { son: "gender_locked" },
   });
