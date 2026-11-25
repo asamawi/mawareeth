@@ -152,3 +152,6 @@ web/blob-report/
 
 # Local Windows Python install created in the repo root
 /Python/
+
+# Qwen Code local state
+.qwen/
