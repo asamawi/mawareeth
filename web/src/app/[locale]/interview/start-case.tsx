@@ -728,7 +728,17 @@ export function StartCase({
                 person={editingPerson} label={description.people.find(p => p.id === editingPerson.id)!.label}
                 frozen={frozen} onClose={() => edit(current => cancelEditHeir(current, deps))}
                 entries={model.placement[editingPerson.personId] ?? []} atLimit={remaining <= 0}
-                addAlert={treeInSheet ? treeText : null} onAddHere={entry => addAt(editingPerson.personId, entry)}
+                addAlert={treeInSheet ? treeText : null} onAddHere={(entry, name) => {
+                  // A positioned add closes the sheet, so an uncommitted name is saved first (and awaited,
+                  // so the add does not abort the save in flight), then the relative is added.
+                  const current = latest.current;
+                  if (name === undefined || current.name !== "started") { addAt(editingPerson.personId, entry); return; }
+                  void (async () => {
+                    await perform("saveHeir", undefined, { kind: "saveHeir", from: current, heirId: editingPerson.id,
+                      values: { relationship: editingPerson.relationship, name: name ?? "" }, field: "name" });
+                    addAt(editingPerson.personId, entry);
+                  })();
+                }}
                 orderQuestion={sheetOrder}
                 onMarkLater={name => submit(from => ({ kind: "markDeath", from, rowId: editingPerson.id, origin: "sheet", ...(name === undefined ? {} : { name }) }))}
                 onOpenEstate={name => name === undefined ? openEstate(editingPerson.personId)

@@ -59,6 +59,7 @@ async function mount(props: { locale?: Locale; atLimit?: boolean; outcome?: Pane
     async click(el: Element) {
       await act(async () => { el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); });
     },
+    async unmount() { await act(async () => root.unmount()); },
     async close() { await act(async () => root.unmount()); await teardownDom(dom); },
   };
 }
@@ -245,6 +246,20 @@ test("a cancelled pointer, a release away from any target and a disabled button 
     await act(async () => pointer(ui.dom, "pointerdown", son, { x: 0, y: 0 }));
     await act(async () => pointer(ui.dom, "pointermove", window, { x: 30, y: 0 }));
     assert.deepEqual(ui.drags, []);
+  } finally { await ui.close(); }
+});
+
+test("a drag still in flight is cancelled when the panel unmounts", async () => {
+  const ui = await mount();
+  try {
+    const son = ui.button("son");
+    await act(async () => pointer(ui.dom, "pointerdown", son, { x: 0, y: 0 }));
+    await act(async () => pointer(ui.dom, "pointermove", window, { x: 30, y: 0 }));
+    assert.deepEqual(ui.drags, ["start:son"]);
+    // Unmount mid-drag: the window listeners must be gone, so a later pointerup does nothing.
+    await ui.unmount();
+    await act(async () => pointer(ui.dom, "pointerup", window, { x: 30, y: 0 }));
+    assert.deepEqual(ui.drags, ["start:son"], "no drop or end fires after unmount");
   } finally { await ui.close(); }
 });
 

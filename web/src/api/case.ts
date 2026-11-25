@@ -764,7 +764,8 @@ async function gzipBase64(text: string): Promise<string> {
 
 /** Replaces the case's inputs with a snapshot the server exported. One attempt; never throws.
  * The snapshot is sent gzipped+base64 (`snapshot_gz`): an Undo uploads the whole snapshot, and
- * compression cuts that request to about a quarter of its raw size. */
+ * compression cuts that request to about a quarter of its raw size. When the runtime cannot
+ * compress (no `CompressionStream`, or it rejects), the plain `snapshot` is sent instead. */
 export async function restoreCase(
   signal: AbortSignal,
   caseId: string,
@@ -772,8 +773,13 @@ export async function restoreCase(
   snapshot: Record<string, unknown>,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  const snapshot_gz = await gzipBase64(JSON.stringify(snapshot));
-  return answer(signal, options, "POST", RESTORE_URL, caseId, revision, { snapshot_gz });
+  let fields: Record<string, unknown>;
+  try {
+    fields = { snapshot_gz: await gzipBase64(JSON.stringify(snapshot)) };
+  } catch {
+    fields = { snapshot };
+  }
+  return answer(signal, options, "POST", RESTORE_URL, caseId, revision, fields);
 }
 
 export function addHeirs(

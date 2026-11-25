@@ -440,6 +440,22 @@ test("restoreCase posts the snapshot at the revision and maps its outcomes", asy
   assert.deepEqual(await send(), { kind: "failed" });
 });
 
+test("restoreCase falls back to a plain snapshot when CompressionStream is unavailable", async () => {
+  const snapshot = { madhab: "hanafi", heirs: [] };
+  const Original = globalThis.CompressionStream;
+  // Simulate a runtime without CompressionStream: gzipBase64 throws, and restoreCase must still send.
+  (globalThis as { CompressionStream: unknown }).CompressionStream = undefined;
+  try {
+    const calls = stubFetch(async () => Response.json({ case: FULL_CASE }));
+    assert.deepEqual(await restoreCase(signal(), "abc123", 7, snapshot, withToken), { kind: "saved", case: FULL_CASE });
+    const body = JSON.parse(String(calls[0].init?.body));
+    assert.deepEqual(body.snapshot, snapshot, "the plain snapshot is sent when compression is unavailable");
+    assert.equal("snapshot_gz" in body, false);
+  } finally {
+    (globalThis as { CompressionStream: unknown }).CompressionStream = Original;
+  }
+});
+
 test("confirmed removal uses the impact revision and validates a cascade response", async () => {
   const impact = { persons: ["h2"], estates: [2] };
   const cascade = { error: "cascade_unconfirmed", impact, case: FULL_CASE };

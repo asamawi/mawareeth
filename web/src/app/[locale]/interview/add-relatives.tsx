@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import type { RelationshipId } from "@/api/case";
 import type { Messages } from "@/i18n/messages";
@@ -83,13 +83,23 @@ export function AddRelatives({ messages, groups, remaining, atLimit, disabled, c
   const alert = outcomeText(messages, outcome);
   // The click that follows a drag must not also add through the panel.
   const dragged = useRef(false);
+  // Removes the window listeners of a drag still in flight; called on unmount and before a new drag.
+  const stopDrag = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopDrag.current?.(), []);
   const press = (event: ReactPointerEvent<HTMLButtonElement>, id: RelationshipId) => {
     dragged.current = false;
     if (event.button !== 0 || unavailable) return;
+    stopDrag.current?.();
     const { pointerId, clientX, clientY } = event;
     // Pressing a button moves focus to it; a drag leaves focus where it was.
     const before = document.activeElement;
     let active = false;
+    const detach = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      if (stopDrag.current === detach) stopDrag.current = null;
+    };
     const move = (next: PointerEvent) => {
       if (next.pointerId !== pointerId || active) return;
       if (Math.hypot(next.clientX - clientX, next.clientY - clientY) <= DRAG_DISTANCE) return;
@@ -99,9 +109,7 @@ export function AddRelatives({ messages, groups, remaining, atLimit, disabled, c
     };
     const finish = (next: PointerEvent, cancelled: boolean) => {
       if (next.pointerId !== pointerId) return;
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", cancel);
+      detach();
       if (!active) return;
       onDragEnd?.();
       if (before instanceof HTMLElement && before !== document.body && before.isConnected) before.focus();
@@ -114,6 +122,7 @@ export function AddRelatives({ messages, groups, remaining, atLimit, disabled, c
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
+    stopDrag.current = detach;
   };
 
   return (
