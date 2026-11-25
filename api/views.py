@@ -1,3 +1,7 @@
+import base64
+import binascii
+import gzip
+import json
 import logging
 import traceback
 
@@ -251,7 +255,22 @@ class RestoreView(CaseWriteView):
 
     def post(self, request):
         return self.write(
-            request, 'restore', lambda data, case_id: case_commands.restore(request, data.get('snapshot'), case_id))
+            request, 'restore', lambda data, case_id: case_commands.restore(
+                request, _restore_snapshot(data), case_id))
+
+
+def _restore_snapshot(data):
+    """The snapshot to restore: the gzipped+base64 `snapshot_gz` when sent (a smaller Undo
+    request), else the plain `snapshot`. A malformed `snapshot_gz` reads as no snapshot, so the
+    command refuses it as an invalid snapshot rather than restoring the wrong Case."""
+    if 'snapshot_gz' in data:
+        try:
+            raw = gzip.decompress(base64.b64decode(data['snapshot_gz'], validate=True))
+            value = json.loads(raw)
+        except (ValueError, TypeError, binascii.Error, gzip.BadGzipFile, json.JSONDecodeError):
+            return None
+        return value if isinstance(value, dict) else None
+    return data.get('snapshot')
 
 
 class HeirView(CaseWriteView):

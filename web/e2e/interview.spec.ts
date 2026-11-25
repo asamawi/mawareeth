@@ -3,11 +3,24 @@ import type { Page } from "@playwright/test";
 import { messages, locales, directionOf } from "../src/i18n/messages";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 
 import { closePreview, lineageFixture, openCanvasFixture, openHeirsScreen, openPreview, sheetOf } from "./family";
 import { abort, expect, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors, type Stubs } from "./api";
 
 const en = messages.en.interview;
+
+/** A restore POST body with its `snapshot_gz` (gzipped+base64) decoded back to `snapshot`, so an
+ * assertion reads the snapshot the Undo sent. A body that still carries a plain `snapshot` is
+ * returned unchanged. */
+function restoreBody(raw: string): Record<string, unknown> {
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  if (typeof parsed.snapshot_gz === "string") {
+    const { snapshot_gz, ...rest } = parsed;
+    return { ...rest, snapshot: JSON.parse(gunzipSync(Buffer.from(snapshot_gz, "base64")).toString("utf8")) };
+  }
+  return parsed;
+}
 
 /** Whether focus is inside the interview container and not on the page body. */
 async function focusInScreen(page: Page): Promise<boolean> {
@@ -750,7 +763,7 @@ test.describe("undo", () => {
     await headerUndo(page).first().click();
     await expect(page.locator("[data-node='new-son']")).toHaveCount(0);
     expect(api.restorePosts).toHaveLength(1);
-    expect(JSON.parse(api.restorePosts[0].body)).toEqual({
+    expect(restoreBody(api.restorePosts[0].body)).toEqual({
       case_id: kase.id, expected_revision: after.revision, snapshot: kase.snapshot,
     });
     await expect(page.locator("[data-focus='card:root']")).toBeFocused();
@@ -775,7 +788,7 @@ test.describe("undo", () => {
     api.set({ postRestore: json(200, { case: stamp(kase, two.revision + 2) }) });
     await page.keyboard.press("Control+z");
     await expect(page.locator("[data-node='new-son']")).toHaveCount(0);
-    expect(api.restorePosts.map((post) => JSON.parse(post.body).snapshot)).toEqual([one.snapshot, kase.snapshot]);
+    expect(api.restorePosts.map((post) => restoreBody(post.body).snapshot)).toEqual([one.snapshot, kase.snapshot]);
     await expect(headerUndo(page)).toHaveCount(0);
   });
 
@@ -846,7 +859,7 @@ test.describe("undo", () => {
     await headerUndo(page).first().click();
     await expect(page.locator("[data-node='b']")).toBeVisible();
     expect(api.restorePosts).toHaveLength(1);
-    expect(JSON.parse(api.restorePosts[0].body)).toEqual({ case_id: kase.id, expected_revision: 6, snapshot: kase.snapshot });
+    expect(restoreBody(api.restorePosts[0].body)).toEqual({ case_id: kase.id, expected_revision: 6, snapshot: kase.snapshot });
     await expect(page.locator("[data-focus='card:b']")).toBeFocused();
     await expect(page.locator("[role='status'][aria-atomic='true']")).toHaveText(new RegExp(`^${en.undoDone}`));
   });
@@ -2368,7 +2381,7 @@ test.describe("Story 9.13: link a later-estate heir from the edit sheet", () => 
       // Undo restores the unlinked row, with the prior snapshot at the current revision.
       await headerUndo(page).first().click();
       await expect.poll(() => api.restorePosts.length).toBe(1);
-      expect(JSON.parse(api.restorePosts[0].body)).toMatchObject({ expected_revision: 2, snapshot: { at: 1, r1: null } });
+      expect(restoreBody(api.restorePosts[0].body)).toMatchObject({ expected_revision: 2, snapshot: { at: 1, r1: null } });
       await page.locator('[data-node="s1"]').press("Enter");
       await expect(page.locator('[data-node="r1"]')).not.toContainText("Amal");
       // Unlink the other row: Nobody else sends null.

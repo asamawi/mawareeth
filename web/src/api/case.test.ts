@@ -414,7 +414,14 @@ test("restoreCase posts the snapshot at the revision and maps its outcomes", asy
   assert.equal(calls[0].url, "/api/v1/case/restore/");
   assert.equal(calls[0].init?.method, "POST");
   assert.equal(header(calls[0], "X-CSRFToken"), "tok=1");
-  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { snapshot, case_id: "abc123", expected_revision: 7 });
+  const body = JSON.parse(String(calls[0].init?.body));
+  assert.equal(body.case_id, "abc123");
+  assert.equal(body.expected_revision, 7);
+  assert.equal("snapshot" in body, false);
+  // The snapshot is sent gzipped+base64; decoding it must give back the exact snapshot.
+  const bytes = Uint8Array.from(atob(body.snapshot_gz), (c) => c.charCodeAt(0));
+  const decoded = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+  assert.deepEqual(JSON.parse(decoded), snapshot);
   const send = () => restoreCase(signal(), "abc123", 7, snapshot, withToken);
   for (const [status, body, expected] of [
     [409, { error: "conflict", case: FULL_CASE }, { kind: "replaced", case: FULL_CASE }],

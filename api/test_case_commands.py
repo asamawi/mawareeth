@@ -1,4 +1,6 @@
 """Story 8.9: Case commands apply atomically against one revision."""
+import base64
+import gzip
 import json
 import threading
 import time
@@ -517,6 +519,30 @@ class RestoreTests(CommandBase):
             with self.subTest(snapshot=str(snapshot)[:40]):
                 raw, stored = self.raw_session(), self.stored()
                 response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot': snapshot})
+                self.assert_untouched(response, 400, raw, stored)
+                self.assertEqual(response.json()['error'], 'invalid_snapshot')
+
+    def test_a_gzipped_snapshot_restores_the_same_family_as_the_plain_one(self):
+        self.setup_family()
+        old = self.snapshot()
+        old_ids = [row['id'] for row in old['heirs']]
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        before = self.live()
+        packed = base64.b64encode(gzip.compress(
+            json.dumps(old, separators=(',', ':')).encode())).decode()
+        response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot_gz': packed})
+        self.assertEqual(response.status_code, 200, response.content)
+        case = response.json()['case']
+        self.assertEqual(case['revision'], before['revision'] + 1)
+        self.assertEqual([row['id'] for row in case['heirs']], old_ids)
+
+    def test_a_malformed_gzipped_snapshot_is_refused_as_invalid(self):
+        self.setup_family()
+        for packed in ('not base64!!', base64.b64encode(b'not gzip').decode(),
+                       base64.b64encode(gzip.compress(b'"text"')).decode()):
+            with self.subTest(packed=packed[:24]):
+                raw, stored = self.raw_session(), self.stored()
+                response = self.send('post', RESTORE_URL, {'case_id': self.case_id, 'snapshot_gz': packed})
                 self.assert_untouched(response, 400, raw, stored)
                 self.assertEqual(response.json()['error'], 'invalid_snapshot')
 

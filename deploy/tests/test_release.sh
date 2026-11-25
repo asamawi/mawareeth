@@ -156,7 +156,7 @@ if [[ "${1:-}" == compose ]]; then
         exit 0
       fi
       if [[ "$*" == 'python manage.py release_check' || "$*" == 'python manage.py release_check --rollback-reads '* \
-            || "$*" == 'python manage.py capacity_check --json /tmp/capacity.json' ]]; then
+            || "$*" == 'python manage.py capacity_check --enforce-interview --json /tmp/capacity.json' ]]; then
         printf '%s %s\n' "$service" "$*" >> "$S/checks"
         [[ ! -e "$S/fail-$3" ]] || exit 1
         exit 0
@@ -580,11 +580,11 @@ route_is green; caddy_is green
 ! running blue || fail 'old slot was not drained'
 [[ "$(migrations)" == $((before_migrations + 1)) ]] || fail 'migrations did not run exactly once'
 # The active slot (blue) reports no snapshot_reads, as the phase-1 image does: it reads schema 1 only.
-[[ "$(tail -n 2 "$S/checks")" == $'app-green python manage.py release_check --rollback-reads 1\napp-green python manage.py capacity_check --json /tmp/capacity.json' ]] \
+[[ "$(tail -n 2 "$S/checks")" == $'app-green python manage.py release_check --rollback-reads 1\napp-green python manage.py capacity_check --enforce-interview --json /tmp/capacity.json' ]] \
   || fail 'release_check and capacity_check did not run in the candidate, in that order'
 grep -Fq 'release: rollback target app-blue reads snapshot versions 1' "$(journal_field deploy_log)" || fail 'the rollback target reads were not logged'
 check_line="$(line_of 'exec -T app-green python manage.py release_check --rollback-reads 1$')"
-capacity_line="$(line_of 'exec -T app-green python manage.py capacity_check --json /tmp/capacity.json$')"
+capacity_line="$(line_of 'exec -T app-green python manage.py capacity_check --enforce-interview --json /tmp/capacity.json$')"
 [[ -n "$check_line" && "$(line_of 'exec -T app-green python manage.py migrate --noinput$')" -lt "$check_line" \
   && "$check_line" -lt "$capacity_line" && "$capacity_line" -lt "$(line_of 'caddy reload')" ]] \
   || fail 'the release checks did not run after the migration and before the switch'

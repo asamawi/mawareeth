@@ -1108,7 +1108,7 @@ The final state of the Heroku database is kept in the restic repository as snaps
 ## Capacity evidence
 
 After candidate readiness and identity checks, `release.sh deploy` runs `release_check`
-and `capacity_check --json /tmp/capacity.json` with `exec -T`, before switching the route.
+and `capacity_check --enforce-interview --json /tmp/capacity.json` with `exec -T`, before switching the route.
 Each check is bounded by `MAWAREETH_DEPLOY_CHECK_TIMEOUT` (default 600 seconds).
 Either failure aborts the candidate while the prior slot remains serving. Output is
 kept in the root-only deploy log. Both slots are running during this measurement.
@@ -1149,11 +1149,12 @@ say otherwise; `network` also holds the modeled figures) and `workload` (the bas
 deaths, School and actions of each Interview Case). It holds no names, ids or family payloads.
 `--no-interview` skips the mix, and then `interview`, `workload` and `interview_passed` are absent.
 
-The Interview mix is report-only in the deploy: `passed` and the exit code depend only on the five
-8.11 workloads. A missed Interview budget is still named in the output
-(`budget missed: interview school add`) and in `interview_passed`, but exits 0. `--enforce-interview`
-makes it exit 1; switch the deploy to it once the Undo payload fix in `deferred-work.md` (Story 9.12)
-brings the `two_later_deaths` actions under 1000 ms. As of 2026-11-23, Undo misses (up to 1080 ms) and `bulk_add` can miss (1077 ms).
+The deploy runs the Interview mix with `--enforce-interview`, so a missed Interview budget aborts
+the candidate: the command exits 1 and the candidate is not switched. A miss is named in the output
+(`budget missed: interview school add`) and sets `interview_passed: false`. Story 9.15 shrank the Undo
+request (the snapshot is uploaded gzipped+base64 as `snapshot_gz`), bringing the `two_later_deaths`
+actions, Undo included, under 1000 ms; `--no-interview` skips the mix, and then `interview`,
+`workload` and `interview_passed` are absent.
 
 The model does not replace a device. The real mid-range phone over 4G, the screen-reader runs
 and real 400% zoom are manual gate items listed in
@@ -1162,7 +1163,7 @@ and real 400% zoom are manual gate items listed in
 To repeat in a slot, using the same Compose/runtime environment as the deployment:
 
 ```console
-docker compose -p mawareeth exec -T app-blue python manage.py capacity_check --samples 20 --json /tmp/capacity.json
+docker compose -p mawareeth exec -T app-blue python manage.py capacity_check --enforce-interview --samples 20 --json /tmp/capacity.json
 docker compose -p mawareeth exec -T app-blue cat /tmp/capacity.json
 ```
 

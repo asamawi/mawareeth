@@ -1,4 +1,5 @@
 """Repeatable release-image capacity workloads; no saved-case writes."""
+import base64
 import gzip
 import json
 import math
@@ -248,6 +249,10 @@ class Harness:
         if drop is None:
             raise SetupError()
         base = "/api/v1/case/"
+        # Undo uploads its snapshot gzipped+base64 (`snapshot_gz`), as the browser does, so the
+        # harness measures the smaller request the Interview actually sends.
+        snapshot_gz = base64.b64encode(
+            gzip.compress(json.dumps(snapshot, separators=(",", ":")).encode(), 5)).decode()
         return dict(
             add=lambda c: ("POST", base + "heirs/", dict(relationship="son")),
             bulk_add=lambda c: ("POST", base + "heirs/bulk/", dict(heirs=[dict(relationship="daughter")]*3)),
@@ -255,7 +260,7 @@ class Harness:
             edit=lambda c: ("PUT", base + "heirs/" + daughter + "/", dict(relationship="sister", name="Edited")),
             delete=lambda c: ("DELETE", base + "heirs/" + target + "/", {}),
             drop=lambda c: ("POST", base + "heirs/", dict(relationship=drop[1], anchor=drop[0])),
-            undo=lambda c: ("POST", base + "restore/", dict(snapshot=snapshot)),
+            undo=lambda c: ("POST", base + "restore/", dict(snapshot_gz=snapshot_gz)),
         ), snapshot
 
     def run_interview(self, samples, contention):

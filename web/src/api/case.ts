@@ -752,15 +752,28 @@ export function addHeir(
   return answer(signal, options, "POST", HEIRS_URL, caseId, revision, fields);
 }
 
-/** Replaces the case's inputs with a snapshot the server exported. One attempt; never throws. */
-export function restoreCase(
+/** gzip + base64 of a string, so a large Undo snapshot uploads smaller. Uses the platform
+ * CompressionStream (browser and the Node test runtime both provide it). */
+async function gzipBase64(text: string): Promise<string> {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+/** Replaces the case's inputs with a snapshot the server exported. One attempt; never throws.
+ * The snapshot is sent gzipped+base64 (`snapshot_gz`): an Undo uploads the whole snapshot, and
+ * compression cuts that request to about a quarter of its raw size. */
+export async function restoreCase(
   signal: AbortSignal,
   caseId: string,
   revision: number | null,
   snapshot: Record<string, unknown>,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  return answer(signal, options, "POST", RESTORE_URL, caseId, revision, { snapshot });
+  const snapshot_gz = await gzipBase64(JSON.stringify(snapshot));
+  return answer(signal, options, "POST", RESTORE_URL, caseId, revision, { snapshot_gz });
 }
 
 export function addHeirs(
