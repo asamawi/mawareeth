@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 21:00
-last_updated: 11-25-2026 06:53
+last_updated: 11-25-2026 23:41
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
@@ -288,7 +288,7 @@ action_items:
     action: "Pass the dirty draftName into onAddHere and persist it before the positioned
       add closes the edit sheet; add the combined dirty-name + Add-relative-here test."
     owner: "dev"
-    status: done
+    status: open
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
   - id: "epic-9-retro-item-9-cleanup-drag-listeners-on-unmount"
     epic: 9
@@ -303,6 +303,53 @@ action_items:
       re-validation on edit (anonymous_case.py:990), died_before cardinality on bulk
       add (anonymous_case.py:851), resumable name draft (edit-sheet.tsx:154), long-name
       card overflow (family-tree.tsx:137), per-entry stepper cardinality (add-relatives.tsx:138)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-11-lineage-edit-validation"
+    epic: 9
+    action: "Make update_heir refuse or repair lineage edges a relationship edit breaks
+      (son to daughter with a son_of_son); add a regression test and check live data
+      for such edges."
+    owner: "dev"
+    status: in-progress
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-12-dirty-name-add-here"
+    epic: 9
+    action: "Make dirty-name Add relative here send the add after a successful save
+      and stop on any other outcome; add a browser test (reopens item 8)."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-13-died-before-cardinality"
+    epic: 9
+    action: "Apply died-before cardinality to plain and bulk adds, with tests."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-14-restore-recursion-error"
+    epic: 9
+    action: "Treat RecursionError in _restore_snapshot as invalid_snapshot; make the
+      oversize test use valid JSON."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-15-replaced-drag-end"
+    epic: 9
+    action: "Call onDragEnd when a new press replaces an active drag; test it."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-16-ci-run-and-gate-evidence"
+    epic: 9
+    action: "Get a green Django CI run on the final Epic 9 commit and correct epic-9-gate-evidence.md
+      (rows 5-7, 9, row 8 re-run, header)."
+    owner: "Ahmad"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-17-stale-e2e-export"
+    epic: 9
+    action: "Make local test:e2e fail or rebuild when web/out is older than the source."
     owner: "dev"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
