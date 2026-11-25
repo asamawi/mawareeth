@@ -28,7 +28,7 @@
     "gender": ["required", "invalid", "has_husband", "has_wife", "has_both_spouses"],
     "estate": ["invalid", "not_positive", "too_large", "decimals"],
     "relationship": [
-      "required", "invalid", "gender_locked", "second_father", "second_mother", "second_husband",
+      "required", "invalid", "gender_locked", "lineage_locked", "second_father", "second_mother", "second_husband",
       "second_grandfather", "second_paternal_grandmother", "second_maternal_grandmother", "fifth_wife", "husband_of_male", "wife_of_female"
     ],
     "name": ["invalid", "too_long"],
