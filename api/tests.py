@@ -3724,7 +3724,7 @@ class SavedCaseTests(InterviewBase):
             request.COOKIES[settings.SESSION_COOKIE_NAME] = 'session-to-lock'
             with mock.patch.object(middleware, 'lock') as lock:
                 self.assertEqual(middleware(request).status_code, 200)
-                lock.assert_called_once_with('session-to-lock')
+                lock.assert_called_once_with('session-to-lock', request)
 
     def test_unsupported_schema_version_is_not_listed_or_opened(self):
         self.client.force_login(self.owner)

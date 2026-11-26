@@ -24,7 +24,8 @@ class Conflict(Exception):
 
     def __init__(self, case):
         super().__init__('That case is no longer the current one.')
-        self.case = case
+        # The case was read without the browser-only extras; the reply carries the full one.
+        self.case = anonymous_case.decorate_case(case)
 
 
 class InvalidRevision(Exception):
@@ -37,7 +38,7 @@ class CascadeUnconfirmed(Exception):
     def __init__(self, impact, case):
         super().__init__('The change needs confirmation.')
         self.impact = impact
-        self.case = case
+        self.case = anonymous_case.decorate_case(case)
 
 
 class OverCapacity(Exception):
@@ -73,7 +74,9 @@ def execute(request, command, *, case_id, expected_revision, run, impact=None, c
     or None, and a non-empty impact needs `confirm`. Raises Conflict, InvalidRevision,
     CascadeUnconfirmed, or whatever `run` raises, after the stored Case has been restored.
     """
-    current = anonymous_case.get(request)
+    # Read once without the browser-only extras: a refusal decorates the case it carries, and a write
+    # decorates once, on the way out.
+    current = anonymous_case.get(request, decorate=False)
     if current is None:
         return None
     if case_id is not None and case_id != current['id']:
@@ -83,6 +86,8 @@ def execute(request, command, *, case_id, expected_revision, run, impact=None, c
     if expected_revision != current['revision']:
         raise Conflict(current)
     backup = copy.deepcopy(request.session.get(anonymous_case.SESSION_KEY))
+    request._in_command = True
+    request._command_case = current
     try:
         if impact is not None and not confirm:
             found = impact(current)
@@ -93,10 +98,14 @@ def execute(request, command, *, case_id, expected_revision, run, impact=None, c
         stored['revision'] = current['revision'] + 1
         stored['changed_at'] = timezone.now().isoformat()
         request.session[anonymous_case.SESSION_KEY] = stored
+        request._in_command = False
         return anonymous_case.get(request)
     except BaseException:
         _restore(request, backup)
         raise
+    finally:
+        request._in_command = False
+        request.__dict__.pop('_command_case', None)
 
 
 # Impact
@@ -188,7 +197,7 @@ def restore(request, snapshot, case_id):
     if not isinstance(snapshot, dict):
         raise InvalidSnapshot()
     try:
-        value = anonymous_case.read_snapshot(snapshot, case['id'], case['started_at'])
+        value = anonymous_case.read_snapshot(snapshot, case['id'], case['started_at'], decorate=False)
         same = _canonical(anonymous_case.export_snapshot(value)) == _canonical(snapshot)
     except (TypeError, ValueError, KeyError):
         raise InvalidSnapshot()

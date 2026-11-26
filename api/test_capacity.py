@@ -162,6 +162,35 @@ class CapacityTests(TransactionTestCase):
                 self.assertEqual(phase["n"], 2)
                 self.assertEqual(len(phase["samples_ms"]), 2)
                 self.assertTrue(all(isinstance(v, float) for v in phase["samples_ms"]))
+                # One list of attempt records per sample: the write (with any retry or cascade probe), then the preview.
+                self.assertEqual(len(phase["attempts"]), 2)
+                for attempts in phase["attempts"]:
+                    self.assertEqual(attempts[0]["kind"], "write")
+                    self.assertEqual(attempts[-1]["kind"], "preview")
+                    for attempt in attempts:
+                        self.assertTrue({"status", "lock_wait_ms", "request_bytes", "response_bytes"} <= set(attempt))
+                        self.assertGreater(attempt["request_bytes"], 0)
+                        self.assertGreater(attempt["response_bytes"], 0)
+                    self.assertTrue(all(isinstance(a["write_ms"], float) for a in attempts if a["kind"] == "write"))
+                    self.assertTrue(all(isinstance(a["preview_ms"], float) and isinstance(a["validation_ms"], float)
+                                        for a in attempts if a["kind"] == "preview"))
+                    # The write ran under the case lock, so its wait is reported.
+                    self.assertTrue(all(isinstance(a["lock_wait_ms"], int) for a in attempts if a["kind"] == "write"))
+        # A delete that drops a later estate meets the cascade probe, then succeeds, then previews.
+        for attempts in result["interview"]["two_later_deaths"]["delete"]["attempts"]:
+            outcomes = [(a["kind"], a["outcome"]) for a in attempts]
+            probe = outcomes.index(("write", "cascade_probe"))
+            self.assertEqual(attempts[probe]["status"], 409)
+            done = outcomes.index(("write", "ok"))
+            self.assertLess(probe, done)
+            self.assertEqual(outcomes[-1], ("preview", "ok"))
+            self.assertLess(done, len(outcomes) - 1)
+            for attempt in attempts:
+                if attempt["outcome"] == "ok":
+                    self.assertGreater(attempt.get("write_ms", attempt.get("preview_ms")), 0)
+            preview = attempts[-1]
+            self.assertNotEqual(preview["request_bytes"], preview["response_bytes"])
+            self.assertLess(preview["request_bytes"], preview["response_bytes"])
         text = json.dumps(result)
         for key in harness.keys:
             self.assertNotIn(key, text)

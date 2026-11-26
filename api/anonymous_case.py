@@ -70,7 +70,7 @@ class StaleCase(Exception):
 
     def __init__(self, case):
         super().__init__('The live case is not the one the caller meant.')
-        self.case = case
+        self.case = decorate_case(case)
 
 
 class FieldErrors(Exception):
@@ -87,7 +87,7 @@ class HeirNotFound(Exception):
 
     def __init__(self, case):
         super().__init__('No such heir.')
-        self.case = case
+        self.case = decorate_case(case)
 
 
 def clean_estate(value):
@@ -338,7 +338,7 @@ def _saved_state(request, case_id):
     return {'revision': value if type(value) is int and value >= 1 else None}
 
 
-def _decode(request):
+def _decode(request, decorate=True):
     case = _stored(request)
     if case is None:
         return None
@@ -348,7 +348,7 @@ def _decode(request):
     if version == 2:
         snapshot = {key: value for key, value in case.items()
                     if key not in ('id', 'started_at', 'schema_version', 'revision', 'changed_at')}
-    result = decode(version, snapshot, case['id'], case['started_at'])
+    result = decode(version, snapshot, case['id'], case['started_at'], decorate=decorate)
     if version == 1:
         inputs = {key: value for key, value in case.items()
                   if key not in ('id', 'started_at', 'schema_version', 'revision', 'changed_at')}
@@ -361,22 +361,27 @@ def _decode(request):
     return result
 
 
-def get(request):
+def get(request, decorate=True):
     """The current case as {'id', 'revision', 'started_at', 'madhab', 'deceased', 'heirs', 'heir_options'}, or None.
 
     A stored madhab that is not one of MADHABS reads as None, an invalid deceased as None,
     and invalid heirs are left out. `heir_options` is worked out here and never stored. An expired
     guest case reads as None (it is not deleted).
+
+    `decorate=False` skips the browser-only extras (`edit_options`, `link_candidates`, per-death
+    `heir_options`, `persons`, `placement`) for a caller that only needs the inputs; `decorate_case(case)`
+    adds them later, to exactly what a decorated read would have returned.
     """
     if is_expired(request):
         return None
-    return _decode(request)
+    return _decode(request, decorate)
 
 
-def read_snapshot(snapshot, case_id, started_at):
+def read_snapshot(snapshot, case_id, started_at, decorate=True):
     """Parse stored case data (a session case or a saved snapshot) into the case dict `get` returns.
 
     Session-free: it reads nothing but its arguments. Invalid parts are dropped as in `get`.
+    `decorate=False` leaves out what `decorate_case(case)` adds.
     """
     madhab = snapshot.get('madhab') if isinstance(snapshot, dict) else None
     madhab = madhab if isinstance(madhab, str) and madhab in MADHABS else None
@@ -398,10 +403,18 @@ def read_snapshot(snapshot, case_id, started_at):
         result['died_before'] = died_before
     known = {'root'} | {_person(row) for row in _rows(result).values()} | {p['id'] for p in died_before}
     result['edges'] = _read_edges(snapshot.get('edges'), known)
-    # After the edges: they decide which rows can be linked.
-    _decorate(result)
-    _describe(result)
+    _link_names(result)
+    if decorate:
+        # After the edges: they decide which rows can be linked.
+        decorate_case(result)
     return result
+
+
+def decorate_case(case):
+    """Add the browser-only extras to a case in place and return it. Safe to repeat."""
+    _decorate(case)
+    _describe(case)
+    return case
 
 
 def start(request):
@@ -415,8 +428,13 @@ def start(request):
 
 
 def _live(request, case_id):
-    """The live case, None when there is none. Raises StaleCase when case_id is another case."""
-    current = get(request)
+    """The live case (undecorated), None when there is none. Raises StaleCase when case_id is another case.
+
+    Inside a command, `execute` has already read the case under the same lock: it is handed over once
+    instead of being decoded again."""
+    current = request.__dict__.pop('_command_case', None)
+    if current is None:
+        current = get(request, decorate=False)
     if current is None:
         return None
     if case_id is not None and case_id != current['id']:
@@ -424,9 +442,12 @@ def _live(request, case_id):
     return current
 
 
-def _save(request, **changes):
+def _save(request, _base=None, **changes):
+    """Store `_base` (a case read in this request) updated with `changes`, or the stored case when no base.
+
+    Returns the stored case read back, except inside a command, whose `execute` reads it once itself."""
     raw = _stored(request)
-    stored = _decode(request)
+    stored = dict(_base) if _base is not None else _decode(request)
     stored.update(changes)
     if isinstance(raw.get('changed_at'), str):
         stored['changed_at'] = raw['changed_at']
@@ -451,6 +472,8 @@ def _save(request, **changes):
     # Reassign: changing the nested dict would not mark the session modified.
     request.session[SESSION_KEY] = stored
     touch(request)
+    if getattr(request, '_in_command', False):
+        return None
     return _decode(request)
 
 
@@ -462,9 +485,10 @@ def set_madhab(request, madhab, case_id=None):
     """
     if not isinstance(madhab, str) or madhab not in MADHABS:
         raise ValueError('Unknown madhab.')
-    if _live(request, case_id) is None:
+    current = _live(request, case_id)
+    if current is None:
         return None
-    return _save(request, madhab=madhab)
+    return _save(request, _base=current, madhab=madhab)
 
 
 def set_deceased(request, data, case_id):
@@ -488,7 +512,7 @@ def set_deceased(request, data, case_id):
             errors['gender'] = conflict
     if errors:
         raise FieldErrors(errors)
-    return _save(request, deceased=deceased, heirs=current['heirs'])
+    return _save(request, _base=current, deceased=deceased, heirs=current['heirs'])
 
 
 def touch(request):
@@ -518,10 +542,12 @@ def _is_locked(case, rows, row):
             or any(d['heir_id'] == person for d in case['deaths']))
 
 
-def _edit_options(case, rows, deceased, layer, i):
+def _edit_options(case, rows, deceased, layer, i, locked=None):
     row = layer[i]
+    if locked is None:
+        locked = _is_locked(case, rows, row)
     return heir_options(case['madhab'], deceased, layer[:i] + layer[i + 1:],
-                        row['gender'] if _is_locked(case, rows, row) else None)
+                        row['gender'] if locked else None)
 
 
 def _is_referenced(case, rows, row):
@@ -558,6 +584,66 @@ def _link_issue(case, rows, layer, heirs, link, relationship, skip=None, context
     return None
 
 
+class _Index:
+    """What `_decorate` asks of every row, answered from maps built once per decoration.
+
+    The same answers as `_is_locked`, `_is_referenced` and `_link_candidates` (which stay as the plain
+    reference), without rescanning every row, death and estate for each row and each candidate."""
+
+    def __init__(self, case):
+        self.rows = _rows(case)
+        self.positions, self.orders = _link_context(case)
+        self.people = {}
+        for row in self.rows.values():
+            person = _person(row)
+            self.people[person] = self.people.get(person, 0) + 1
+        self.deceased = {d['heir_id'] for d in case['deaths']}
+        self.linked = {r['same_as'] for r in self.rows.values() if r.get('same_as')}
+        self.ends = {end for e in case.get('edges') or [] for end in (e['from'], e['to'])}
+        self.sources = [r for r in self.rows.values() if not r.get('same_as')]
+        self.estates = {}
+
+    def locked(self, row):
+        return self.people[_person(row)] > 1 or _person(row) in self.deceased
+
+    def referenced(self, row):
+        return row['id'] in self.linked or row['id'] in self.deceased or row['id'] in self.ends
+
+    def estate_people(self, heirs):
+        counts = self.estates.get(id(heirs))
+        if counts is None:
+            counts = self.estates[id(heirs)] = {}
+            for r in heirs:
+                person = _person(r)
+                counts[person] = counts.get(person, 0) + 1
+        return counts
+
+    def candidates(self, layer, heirs, row):
+        if self.referenced(row):
+            return []
+        counts = self.estate_people(heirs)
+        own = _person(row)
+        order = self.orders.get(layer, 1)
+        relationship = row['relationship']
+        gender = RELATIONSHIPS[relationship] if isinstance(relationship, str) and relationship in RELATIONSHIPS else None
+        found = []
+        for r in self.sources:
+            if r is row:
+                continue
+            person = r['id']
+            if counts.get(person, 0) - (1 if own == person else 0) > 0:
+                continue
+            if self.positions[person] >= order or self.orders.get(person, 4) <= order:
+                continue
+            if gender is not None and r['gender'] != gender:
+                continue
+            found.append(person)
+        current = row.get('same_as')
+        if current and current not in found:
+            found.append(current)
+        return found
+
+
 def _link_candidates(case, rows, layer, heirs, row):
     """Person ids the later-estate row could be linked to: server-decided, current target always included."""
     if _is_referenced(case, rows, row):
@@ -572,18 +658,28 @@ def _link_candidates(case, rows, layer, heirs, row):
     return found
 
 
-def _decorate(case):
+def _link_names(case):
+    """A linked row shows its person's name."""
     rows = _rows(case)
-    for i, row in enumerate(case['heirs']):
-        row['edit_options'] = _edit_options(case, rows, case['deceased'], case['heirs'], i)
     for death in case['deaths']:
-        death['gender'] = rows[death['heir_id']]['gender']
-        death['heir_options'] = heir_options(case['madhab'], death, death['heirs'])
-        for i, row in enumerate(death['heirs']):
-            row['edit_options'] = _edit_options(case, rows, death, death['heirs'], i)
-            row['link_candidates'] = _link_candidates(case, rows, death['heir_id'], death['heirs'], row)
+        for row in death['heirs']:
             if row.get('same_as'):
                 row['name'] = rows[row['same_as']]['name']
+
+
+def _decorate(case):
+    index = _Index(case)
+    for i, row in enumerate(case['heirs']):
+        row['edit_options'] = _edit_options(case, index.rows, case['deceased'], case['heirs'], i,
+                                            index.locked(row))
+    for death in case['deaths']:
+        death['gender'] = index.rows[death['heir_id']]['gender']
+        death['heir_options'] = heir_options(case['madhab'], death, death['heirs'])
+        for i, row in enumerate(death['heirs']):
+            row['edit_options'] = _edit_options(case, index.rows, death, death['heirs'], i, index.locked(row))
+            row['link_candidates'] = index.candidates(death['heir_id'], death['heirs'], row)
+            if row.get('same_as'):
+                row['name'] = index.rows[row['same_as']]['name']
 
 
 def _placement(options):
@@ -667,8 +763,8 @@ def _read_deaths(case, value):
 
 
 def _store_case(request, case):
-    _decorate(case)
-    return _save(request, **case)
+    _link_names(case)
+    return _save(request, _base=case)
 
 
 def _order(case, first=None):
@@ -875,6 +971,9 @@ def _add_heir(case, data, layer=None, same_as=None):
             link = _person(rows[link])
     edge = None
     if 'anchor' in data:
+        if 'placement' not in case:
+            # The case was read without its placement, which an anchored add is checked against.
+            _describe(case)
         edge = _anchor_edge(case, layer, data['anchor'], relationship, link, errors)
     if errors:
         raise FieldErrors(errors)
