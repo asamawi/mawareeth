@@ -137,10 +137,14 @@ jobs:
             -c "ALTER SYSTEM SET full_page_writes = off" \
             -c "SELECT pg_reload_conf()"
 
+      # A hung test would otherwise sit silent until the job timeout. timeout
+      # signals the whole process group, so with PYTHONFAULTHANDLER every test
+      # worker prints its stack before the step fails.
       - name: Run tests
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
-        run: python manage.py test --parallel auto --durations 20 --exclude-tag slow
+          PYTHONFAULTHANDLER: "1"
+        run: timeout --signal=ABRT --kill-after=30s 20m python manage.py test --parallel auto --durations 20 --exclude-tag slow
 
   # The slow sweep tests (@tag('slow')) split across two shards. Shard b is the
   # tests also tagged slow_b; shard a is every other slow test. They need no
@@ -213,8 +217,10 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
           SHARD_ARGS: ${{ matrix.args }}
-        # SHARD_ARGS is intentionally unquoted so it splits into flags.
-        run: python manage.py test --parallel auto --durations 20 $SHARD_ARGS
+          PYTHONFAULTHANDLER: "1"
+        # SHARD_ARGS is intentionally unquoted so it splits into flags. The
+        # timeout dumps worker stacks on a hang, as in django-tests.
+        run: timeout --signal=ABRT --kill-after=30s 20m python manage.py test --parallel auto --durations 20 $SHARD_ARGS
 
   # Branch protection requires a check named exactly "validate", so this job
   # keeps that name and fails unless every Django test job succeeded. always()

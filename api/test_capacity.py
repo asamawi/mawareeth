@@ -198,7 +198,9 @@ class CapacityTests(TransactionTestCase):
         self.assertNotIn("workload", evidence)
 
     def test_json_file_with_the_interview_mix_passes(self):
-        with patch("api.capacity.WORKLOADS", ("standard_school",)):
+        # Keep the network model and budget checks while controlling elapsed server time.
+        with patch("api.capacity.WORKLOADS", ("standard_school",)), patch("api.capacity.time") as clock:
+            clock.perf_counter.return_value = 0
             code, evidence, _ = self.run_command()
         self.assertEqual(code, 0)
         self.assertIs(evidence["passed"], True)

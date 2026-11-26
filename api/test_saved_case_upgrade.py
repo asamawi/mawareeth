@@ -341,7 +341,7 @@ class SaveAsNewCaseCases:
         self.assertEqual((link['saved_id'], link['base_revision'], link['case_revision']),
                          (new['id'], 1, self.a['revision']))
         self.assertEqual(SavedCase.objects.filter(owner=self.owner).count(), 2)
-        listed = self.client.get('/api/v1/saved-cases/').json()['cases']
+        listed = self.client.get('/api/v1/saved-cases/', secure=True).json()['cases']
         self.assertEqual({entry['id'] for entry in listed}, {self.row.pk, new['id']})
         reopened = self.send('post', f'/api/v1/saved-cases/{new["id"]}/open/', {}).json()['case']
         self.assertGreater(len(reopened['heirs']), 0)
@@ -379,7 +379,7 @@ class SaveAsNewCaseCases:
         link = self.client.session[anonymous_case.SAVED_LINK_KEY]
         self.assertEqual((link['saved_id'], link['base_revision'], link['case_revision']),
                          (new['id'], 1, self.a['revision']))
-        working = self.client.get('/api/v1/case/').json()['case']
+        working = self.client.get('/api/v1/case/', secure=True).json()['case']
         self.assertGreater(working['revision'], working['saved']['revision'], 'the working copy still shows unsaved changes')
 
     def test_reused_key_for_another_case_is_stale_and_links_nothing(self):
