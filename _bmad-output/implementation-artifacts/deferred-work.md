@@ -129,6 +129,10 @@ Completed and obsolete items are removed; their history is in git.
   summary: Decide whether to bound the `compute()` row-lock wait (for example `SET LOCAL lock_timeout`) on the results pages, which run it on every GET.
   evidence: Overlapping results-page views of one case now wait on `select_for_update()` with no limit, so a slow or stuck run ties up web workers; the spec put any lock timeout under Ask First.
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-perf-two-later-death-preview-server-time.md`
+  summary: Capacity headroom: give two-later-death Interview actions headroom under the release capacity gate (p95 < 1,000 ms); options are (a) solve the four Sunni schools once when no school-specific rule can apply to any estate (~70 ms on production; owner declined on 2026-11-26 for legal-correctness risk) or (b) shrink the preview response (~16 KB gzipped vs ~5 KB for `compare`; changes the API contract and the web parser).
+  evidence: The 957742e0 deploy (PR #115, 2026-11-26) passed `capacity_check --enforce-interview` with two_later_deaths p95 858–998 ms, 2 ms under budget (preview median 132 ms, write ~55 ms, network model ~530 ms). A slower host moment can fail a later deploy's gate; a failed gate leaves the route unchanged.
+
 ## Calculation engine & proof
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
