@@ -312,7 +312,11 @@ class DraftEndpointTests(TransactionTestCase):
 
     def test_missing_absent_and_stale(self):
         self.assertEqual(self.get(None).status_code, 400)
-        self.assertEqual(self.get('different').status_code, 409)
+        stale = self.get('different')
+        self.assertEqual(stale.status_code, 409)
+        live = self.client.get('/api/v1/case/', secure=True).json()['case']
+        live.pop('snapshot', None)
+        self.assertEqual(stale.json()['case'], live)
         self.client = APIClient()
         self.assertEqual(self.get().status_code, 404)
 

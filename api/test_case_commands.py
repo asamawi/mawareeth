@@ -6,6 +6,7 @@ import threading
 import time
 import traceback
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -946,3 +947,90 @@ class PositionedAddTests(CommandBase):
         response = self.heir(case, 'father', anchor='root')
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()['errors']['anchor'], 'not_allowed')
+
+
+@override_settings(SNAPSHOT_WRITE_VERSION=2)
+class DecorationPerformanceTests(CommandBase):
+    maxDiff = None
+
+    """The indexed decoration answers like the plain reference, and a request decodes and decorates little."""
+
+    def three_estates(self):
+        """A wife and three sons; two sons die later, each with an extra relative; plus a lineage edge."""
+        case = self.build('hanbali', 'male', None, ['wife', 'son', 'son', 'son'], ['W', 'S1', 'S2', 'S3'])
+        self.case_id = case['id']
+        self.w, self.s1, self.s2, self.s3 = [r['id'] for r in case['heirs']]
+        self.assertEqual(self.mark(self.s1).status_code, 201)
+        self.assertEqual(self.mark(self.s2, first=self.s1).status_code, 201)
+        self.assertEqual(self.add_layer(self.s1, 'brother', name='B').status_code, 201)
+        self.assertEqual(self.add_layer(self.s2, 'brother').status_code, 201)
+        self.assertEqual(self.add_layer(self.s2, 'son').status_code, 201)
+        later = self.live()['deaths'][1]['heirs']
+        self.assertTrue(any(row.get('same_as') for row in later))
+        self.plant(edges=[{'kind': 'spouse_of', 'from': later[-1]['id'], 'to': self.w}])
+        return self.live()
+
+    def test_indexed_options_match_the_reference_on_a_three_estate_case(self):
+        case = self.three_estates()
+        rows = anonymous_case._rows(case)
+        checked = 0
+        for i, row in enumerate(case['heirs']):
+            self.assertEqual(row['edit_options'],
+                             anonymous_case._edit_options(case, rows, case['deceased'], case['heirs'], i))
+        for death in case['deaths']:
+            for i, row in enumerate(death['heirs']):
+                self.assertEqual(row['edit_options'],
+                                 anonymous_case._edit_options(case, rows, death, death['heirs'], i))
+                self.assertEqual(row['link_candidates'], anonymous_case._link_candidates(
+                    case, rows, death['heir_id'], death['heirs'], row))
+                checked += 1
+        self.assertGreaterEqual(checked, 5)
+        self.assertTrue(any(row['link_candidates'] for d in case['deaths'] for row in d['heirs']))
+        self.assertTrue(any(row['link_candidates'] == [] for d in case['deaths'] for row in d['heirs']))
+        # Placement and every other extra come from the same decoration of the inputs.
+        again = anonymous_case.read_snapshot(anonymous_case.export_snapshot(case), case['id'], case['started_at'],
+                                             decorate=False)
+        anonymous_case.decorate_case(again)
+        for key in ('persons', 'placement', 'heir_options'):
+            self.assertEqual(case[key], again[key])
+        for mine, theirs in zip(case['deaths'], again['deaths']):
+            self.assertEqual(mine['placement'], theirs['placement'])
+            self.assertEqual(mine['heir_options'], theirs['heir_options'])
+
+    def test_one_write_decodes_at_most_twice_and_decorates_once(self):
+        case = self.three_estates()
+        from api import snapshots
+        with patch.object(snapshots, 'decode', wraps=snapshots.decode) as decode, \
+                patch.object(anonymous_case, '_decorate', wraps=anonymous_case._decorate) as decorate:
+            response = self.heir(case, 'son')
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertLessEqual(decode.call_count, 2)
+        self.assertEqual(decorate.call_count, 1)
+        # The body is the whole decorated case.
+        body = response.json()['case']
+        self.assertIn('edit_options', body['heirs'][0])
+        self.assertIn('link_candidates', body['deaths'][0]['heirs'][0])
+        self.assertIn('placement', body)
+        self.assertEqual(body, self.live())
+
+    def test_one_restore_decorates_once(self):
+        case = self.three_estates()
+        snapshot = self.live()['snapshot']
+        with patch.object(anonymous_case, '_decorate', wraps=anonymous_case._decorate) as decorate:
+            response = self.send('post', RESTORE_URL, {'case_id': case['id'], 'snapshot': snapshot})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(decorate.call_count, 1)
+
+    def test_a_matching_preview_decorates_nothing_and_a_stale_one_still_answers_the_full_case(self):
+        case = self.three_estates()
+        from api import snapshots
+        with patch.object(anonymous_case, '_decorate', wraps=anonymous_case._decorate) as decorate,                 patch.object(snapshots, 'decode', wraps=snapshots.decode) as decode:
+            response = self.client.get(f'{PREVIEW_URL}?case_id={case["id"]}', secure=True)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(decorate.call_count, 0)
+        self.assertEqual(decode.call_count, 1)
+        self.assertEqual(response.json()['status'], 'available')
+        self.assertEqual(response.json()['revision'], self.live()['revision'])
+        stale = self.client.get(f'{PREVIEW_URL}?case_id=other', secure=True)
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(stale.json()['case'], self.live())

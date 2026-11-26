@@ -91,14 +91,14 @@ def encode_v2(snapshot_v1):
     from calc.adapters import family_from_session
 
     resolved = basis_for_snapshot(snapshot_v1, {})
-    case = anonymous_case.read_snapshot(snapshot_v1, 'snapshot', '')
+    case = anonymous_case.read_snapshot(snapshot_v1, 'snapshot', '', decorate=False)
     family_case = {**case, 'deceased': case['deceased'] or {'estate': None}}
     family, _ = family_from_session(family_case)
     return {'deceased': {'gender': case['deceased']['gender']} if case['deceased'] else None,
             'family': dump_family(family), 'basis': dump_basis(resolved.basis)}
 
 
-def decode(version, snapshot, case_id, started_at):
+def decode(version, snapshot, case_id, started_at, decorate=True):
     from api import anonymous_case
     from presentation.money import PresentationError
 
@@ -111,7 +111,8 @@ def decode(version, snapshot, case_id, started_at):
             resolved = basis_for_snapshot(snapshot, {})
         except ContractError as error:
             raise SnapshotError(error.code, str(error)) from error
-        return anonymous_case.read_snapshot({**snapshot, 'madhab': resolved.school}, case_id, started_at)
+        return anonymous_case.read_snapshot({**snapshot, 'madhab': resolved.school}, case_id, started_at,
+                                            decorate=decorate)
     if set(snapshot) != {'deceased', 'family', 'basis'}:
         raise SnapshotError('invalid_snapshot', 'Invalid snapshot keys.')
     deceased = snapshot['deceased']
@@ -166,7 +167,7 @@ def decode(version, snapshot, case_id, started_at):
     for estate in family.estates[1:]:
         value['deaths'].append({'heir_id': estate.deceased, 'order': estate.order,
                                 'gender': people[estate.deceased].gender, 'heirs': rows(estate)})
-    case = anonymous_case.read_snapshot(value, case_id, started_at)
+    case = anonymous_case.read_snapshot(value, case_id, started_at, decorate=decorate)
     try:
         if encode_v2(anonymous_case.export_snapshot(case)) != snapshot:
             unsupported()

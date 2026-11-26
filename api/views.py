@@ -339,12 +339,14 @@ class PreviewView(ApiView):
         case_id = request.query_params.get('case_id')
         if not case_id:
             return Response({'detail': 'case_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
-        case = anonymous_case.get(request)
+        # The shares need only the inputs: no options, candidates or placement.
+        case = anonymous_case.get(request, decorate=False)
         if case is None:
             return no_case_response(request)
         if case['id'] != case_id:
             return Response(
-                {'detail': 'That case is no longer the current one.', 'case': _with_snapshot(case)},
+                {'detail': 'That case is no longer the current one.',
+                 'case': _with_snapshot(anonymous_case.decorate_case(case))},
                 status=status.HTTP_409_CONFLICT)
         try:
             with translation.override(_asked_language(request)):

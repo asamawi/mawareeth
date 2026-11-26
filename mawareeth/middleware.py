@@ -90,14 +90,15 @@ class CaseWriteLockMiddleware:
             return self.get_response(request)
         try:
             with transaction.atomic():
-                self.lock(key)
+                # Read by the capacity harness through the test client's `wsgi_request`.
+                self.lock(key, request)
                 return self.get_response(request)
         except OperationalError as error:
             if is_lock_timeout(error):
                 return busy_response()
             raise
 
-    def lock(self, key):
+    def lock(self, key, request=None):
         """Take the session row lock, waiting at most CASE_LOCK_TIMEOUT_MS.
 
         The wait limit is local to the transaction, so it also bounds the saved-case row lock
@@ -118,10 +119,13 @@ class CaseWriteLockMiddleware:
             raise
         finally:
             wait_ms = int((time.monotonic() - started) * 1000)
+            if request is not None:
+                request.case_lock_wait_ms = wait_ms
             logger.log(
                 logging.WARNING if outcome == "timeout" else logging.INFO,
                 "case lock outcome=%s wait_ms=%d", outcome, wait_ms,
                 extra={"outcome": outcome, "wait_ms": wait_ms})
+        return wait_ms
 
 
 def is_lock_timeout(error):

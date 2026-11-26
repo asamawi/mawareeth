@@ -48,6 +48,8 @@ def stats(values, busy=0, conflicts=0, budget=None):
 class Harness:
     def __init__(self):
         self.keys = set()
+        # The last request's timings, per thread: the contention writer shares this Harness.
+        self.seen = threading.local()
         hosts = [h for h in settings.ALLOWED_HOSTS if h != "*"]
         self.host = hosts[0].lstrip(".") if hosts else "localhost"
 
@@ -60,13 +62,16 @@ class Harness:
     def request(self, client, method, path, data=None):
         # Measure actual application bytes (JSON body, query and request/response headers).
         payload = json.dumps(data, separators=(",", ":")) if data is not None else ""
+        started = time.perf_counter()
         try:
             response = client.generic(method, path, payload, content_type="application/json", secure=True)
         finally:
+            self.seen.request_ms = (time.perf_counter() - started) * 1000
             morsel = client.cookies.get(settings.SESSION_COOKIE_NAME)
             if morsel:
                 self.keys.add(morsel.value)
         request = response.wsgi_request
+        self.seen.lock_wait_ms = getattr(request, "case_lock_wait_ms", None)
         request_bytes = len(payload.encode()) + len((method + " " + path + " HTTP/1.1\r\n").encode())
         request_bytes += sum(len(str(k).encode()) + len(str(v).encode()) + 4 for k, v in request.headers.items()) + 2
         response_bytes = len(f"HTTP/1.1 {response.status_code} {response.reason_phrase}\r\n".encode())
@@ -109,6 +114,8 @@ class Harness:
         Interview action; without it the write is the 8.11 estate-amount change."""
         started = time.perf_counter()
         counts = dict(busy=0, conflicts=0)
+        # One record per attempt (retries and the cascade probe included): where the time went.
+        attempts = counts["attempts"] = []
         up = down = 0
         confirm = False
         for attempt in range(200):
@@ -122,15 +129,21 @@ class Harness:
                 data = None
             response, sent, received = self.request(client, method, path, data)
             up += sent; down += received
+            attempt = dict(kind="write", outcome="ok", status=response.status_code, write_ms=round(self.seen.request_ms, 2),
+                                 lock_wait_ms=self.seen.lock_wait_ms, request_bytes=sent, response_bytes=received)
+            attempts.append(attempt)
             if response.status_code == 409:
                 body = response.json()
+                attempt["outcome"] = "conflict"
                 if method == "DELETE" and body.get("error") == "cascade_unconfirmed":
+                    attempt["outcome"] = "cascade_probe"
                     # The cascade probe: confirm the exact impact, as the Interview's dialog does.
                     confirm = True
                     continue
                 counts["conflicts"] += 1
                 case = body["case"]
             elif response.status_code == 503 and response.json().get("error") == "busy":
+                attempt["outcome"] = "busy"
                 counts["busy"] += 1
             elif response.status_code in (200, 201):
                 case = response.json()["case"]
@@ -142,7 +155,12 @@ class Harness:
         for attempt in range(200):
             response, sent, received = self.request(client, "GET", "/api/v1/case/preview/?case_id=" + case["id"])
             up += sent; down += received
+            attempt = dict(kind="preview", outcome="ok", status=response.status_code, preview_ms=round(self.seen.request_ms, 2),
+                           validation_ms=0.0, lock_wait_ms=self.seen.lock_wait_ms,
+                           request_bytes=sent, response_bytes=received)
+            attempts.append(attempt)
             if response.status_code == 200:
+                checked = time.perf_counter()
                 try:
                     body = response.json()
                     if not isinstance(body, dict) or body.get("status") != expected_status:
@@ -155,10 +173,14 @@ class Harness:
                     parse_presented_result(body.get("presented"))
                 except (ValueError, ContractError):
                     raise SetupError() from None
+                finally:
+                    attempt["validation_ms"] = round((time.perf_counter() - checked) * 1000, 2)
                 break
             if response.status_code == 409:
+                attempt["outcome"] = "conflict"
                 counts["conflicts"] += 1
             elif response.status_code == 503 and response.json().get("error") == "busy":
+                attempt["outcome"] = "busy"
                 counts["busy"] += 1
             else:
                 raise SetupError()
@@ -275,7 +297,7 @@ class Harness:
             evidence[name] = {}
             with self.contention(client, case, "available", contention):
                 for action in INTERVIEW_ACTIONS:
-                    values = []; busy = conflicts = 0
+                    values = []; busy = conflicts = 0; phases = []
                     for _ in range(samples):
                         # Resetting, and the change an Undo reverses, happen outside the timer.
                         case = self.command(client, case, "POST", "restore/", dict(snapshot=snapshot))
@@ -283,8 +305,10 @@ class Harness:
                             case = self.command(client, case, "POST", "heirs/", dict(relationship="son"))
                         case, duration, counts = self.sample(client, case, None, "available", steps[action])
                         values.append(duration); busy += counts["busy"]; conflicts += counts["conflicts"]
+                        phases.append(counts["attempts"])
                     evidence[name][action] = dict(
-                        stats(values, busy, conflicts, TOTAL_BUDGET_MS), samples_ms=[round(v, 2) for v in values])
+                        stats(values, busy, conflicts, TOTAL_BUDGET_MS), samples_ms=[round(v, 2) for v in values],
+                        attempts=phases)
         return evidence, meta
 
     def run(self, samples=20, contention=True, interview=False, device="model", network="model"):
