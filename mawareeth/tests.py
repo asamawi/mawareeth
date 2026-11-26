@@ -761,11 +761,18 @@ class WorkflowContractTests(SimpleTestCase):
             "python manage.py migrate --noinput",
             "python manage.py collectstatic --noinput",
             "python manage.py check --deploy --fail-level WARNING",
-            "python manage.py test --parallel auto --durations 20",
+            # The Django tests run as django-tests plus the slow-tests shards.
+            "python manage.py test --parallel auto --durations 20 --exclude-tag slow",
+            "python manage.py test --parallel auto --durations 20 $SHARD_ARGS",
         ]
+        # A test step may run under `timeout` so a hung worker dumps its stack.
+        timeout = r"(?:timeout [^\n]*?20m )?"
         for command in required_commands:
             with self.subTest(command=command):
-                executable_step = rf"- name: [^\n]+\n(?: +[^\n]+\n)*? +run: {re.escape(command)}(?:\n|$)"
+                # Each step line starts with spaces and then a non-space, so a
+                # failed search cannot backtrack exponentially over the file.
+                executable_step = (rf"- name: [^\n]+\n(?: +[^ \n][^\n]*\n)*? +run: "
+                                   rf"{timeout}{re.escape(command)}(?:\n|$)")
                 match = re.search(executable_step, workflow)
                 self.assertIsNotNone(match)
                 self.assertNotRegex(match.group(0), r"(?m)^ +if: false$")
