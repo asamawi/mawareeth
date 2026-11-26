@@ -9,7 +9,7 @@ Registered users open a Saved case from My cases straight into the Interview wit
 ## Stories
 
 - Story 10.0: Warn before unsaved changes to a Saved case are discarded
-- Story 10.1: Name a Case and show whether saving succeeded
+- Story 10.1: Name a Case and show whether saving succeeded (part A done: naming and truthful status; part B open: conflict choices)
 - Story 10.2: Find and rename named Cases in My cases
 - Story 10.3: Open Saved cases directly and keep guest recovery separate
 - Story 10.4: Preserve received invitations and label shared Cases as read-only
@@ -18,10 +18,10 @@ Registered users open a Saved case from My cases straight into the Interview wit
 ## Requirements & Constraints
 
 - Opening a Saved case goes straight to the Interview with no resume-or-start-over prompt. Starting a new Case is a separate explicit action in My cases and is never linked as a write-back to a previously opened Saved case. The resume/start-over prompt remains only for a returning guest with an unsaved Case under 24 hours old.
-- Saving prompts for a Case name, prefilled "Estate of {Deceased name or label}, {date}". Names accept any script up to 100 user-perceived characters (grapheme clusters, same count on client and server), are trimmed, fall back to the default when blank, and may be duplicated. An over-limit name is rejected by the server without mutation.
+- Save lives on Full results only (the Interview links to it). Only Save asks for a Case name, prefilled "Estate of {Deceased name or label}, {date}"; Share and WhatsApp save a first-time Case with the default name and never change an existing name. Names accept any script up to 100 user-perceived characters (grapheme clusters, same count on client and server), are trimmed, fall back to the default when blank, and may be duplicated. An over-limit or non-string name is rejected by the server (400) without mutation. Client and server count graphemes the same way.
 - My cases labels by Case name and last change, defaults to most recently changed first, and offers name sorting using the current Locale's collation. Inline rename must not touch family, Basis, identity or share/invite links.
 - Changes to an opened Saved case are saved automatically, and the user can see whether the latest change is saved. The status line reads Saving, then "Saved to My cases" only after success, with a failure message plus Retry that keeps the family. Wording is draft; ar/fr need native review.
-- Conflict (SavedCase changed elsewhere) offers exactly two choices, "Open latest version" or "Save as a new case"; no merge, no force-overwrite, nothing discarded until chosen.
+- Conflict (SavedCase changed elsewhere): part A already shows a distinct conflict message, never "Saved to My cases". Part B adds exactly two choices, "Open latest version" or "Save as a new case"; no merge, no force-overwrite, nothing discarded until chosen. "Save as a new case" needs a new explicit create operation that relinks the working copy under concurrency.
 - Unsaved working-copy changes show a notice, and opening another case or Start over asks "Discard unsaved changes?" with the safe choice focused; if the unsaved state cannot be read, ask anyway. No browser leave warning.
 - Accessibility and layout: 44px targets, labelled inputs, visible focus, bdi dir=auto for mixed-script names, 320px/400% reflow, light/dark tokens, skeleton loading with aria-busy, empty state distinct from failure.
 - Capacity: every Interview action stays under the 1000 ms p95 with autosave and the contention writer running; the two-later-death actions are already near budget (about 930-940 ms).
@@ -36,6 +36,7 @@ Registered users open a Saved case from My cases straight into the Interview wit
 - Basis is a discriminated compare/school/country value; saving never changes stored Basis intent or a pinned preset version. Results are never stored, always recomputed.
 - Share links are a live view of the persisted SavedCase (so autosaved edits become visible to recipients, owner-approved 2026-11-26); they never expose unsaved working inputs or cached results.
 - Guest Case expiry (24 hours after last change) is enforced by the Case service on every read and edit; an expired guest Case shows "This case has expired" with one new-Case action and no family data. A SavedCase is never treated as an expired guest Case.
+- SavedCase.name is an unlimited text column (owner, 2026-11-26; a fixed width could not hold 100 graphemes); the 100-grapheme rule is enforced in code, server by Unicode extended grapheme clusters and client by Intl.Segmenter.
 - Epic 8 foundations are consumed, not rebuilt: SavedCase name field and backfilled default names, schema-2 writers, command service, revision conflict outcomes, list readers, presentation layer.
 
 ## UX & Interaction Patterns
@@ -49,7 +50,7 @@ Registered users open a Saved case from My cases straight into the Interview wit
 ## Cross-Story Dependencies
 
 - 10.0 first (stopgap prompt); 10.3 reuses its discard prompt on direct open and new Case.
-- 10.1 provides the status line, naming flow and conflict choices that 10.5 reuses; 10.5 follows 10.1.
+- 10.1 part A (done) provides the status line and naming flow; part B (conflict choices) is open and 10.5 depends on it, so 10.5 follows part B.
 - 10.2 and 10.3 depend on Epic 8 (list readers, names, revision/conflict boundary, converted cases) and Epic 9's editor.
 - 10.4 reads the persisted SavedCase, so it reflects both explicit and automatic saves.
 - Epic 14 must keep autosave from changing a pinned preset version; preset-version messaging stays there.
