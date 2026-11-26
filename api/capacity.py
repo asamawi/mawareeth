@@ -1,4 +1,4 @@
-"""Repeatable release-image capacity workloads; no saved-case writes."""
+"""Repeatable release-image capacity workloads; the only saved-case writes are the autosave worker's."""
 import base64
 import gzip
 import json
@@ -11,6 +11,7 @@ from unittest.mock import patch
 from urllib.parse import urlencode
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.sessions.models import Session
 from django.db import connection, connections
 from django.test import Client
@@ -220,6 +221,68 @@ class Harness:
         if errors:
             raise SetupError()
 
+    @contextmanager
+    def autosaving(self, client, case, enabled=True):
+        """Link the Case to a Saved case of a throwaway account, then run an autosave worker on it.
+
+        It posts autosave for the latest working revision, as the Interview does after accepted changes,
+        beside the contention writer. Yields the counts it reached; the account and its row are removed."""
+        result = dict(attempts=0, saved=0, stale=0, conflicts=0, other=0)
+        if not enabled:
+            yield result
+            return
+        user = get_user_model().objects.create_user(username="capacity-" + secrets.token_hex(6))
+        stop = threading.Event()
+        errors = []
+        thread = None
+        try:
+            client.force_login(user)
+            self.keys.add(client.cookies[settings.SESSION_COOKIE_NAME].value)
+            response, _, _ = self.request(client, "POST", "/api/v1/saved-cases/", dict(case_id=case["id"]))
+            if response.status_code != 201:
+                raise SetupError()
+            worker = self.client(); worker.cookies = client.cookies.copy()
+            def run():
+                deadline = time.monotonic() + 30
+                try:
+                    # Until asked to stop and at least one save landed, so a short run still proves the write.
+                    while time.monotonic() < deadline and not (stop.is_set() and result["saved"]):
+                        current, _, _ = self.request(worker, "GET", "/api/v1/case/")
+                        working = current.json()["case"]
+                        answer, _, _ = self.request(worker, "POST", "/api/v1/saved-cases/autosave/",
+                                                    dict(case_id=working["id"], case_revision=working["revision"]))
+                        result["attempts"] += 1
+                        code = answer.status_code
+                        if code == 200:
+                            result["saved"] += 1
+                        elif code == 409 and answer.json().get("code") == "case_revision_stale":
+                            result["stale"] += 1
+                        elif code == 409:
+                            result["conflicts"] += 1
+                        elif code == 503 or code == 400:
+                            # Busy, or a state that cannot be saved right now: nothing was written.
+                            result["other"] += 1
+                        else:
+                            raise SetupError()
+                        stop.wait(.02)
+                except Exception:
+                    errors.append(True)
+                finally:
+                    connections.close_all()
+            thread = threading.Thread(target=run, daemon=True)
+            thread.start()
+            try:
+                yield result
+            finally:
+                stop.set()
+                thread.join(40)
+                if thread.is_alive():
+                    raise SetupError()
+            if errors or not result["saved"]:
+                raise SetupError()
+        finally:
+            user.delete()
+
     def command(self, client, case, method, suffix, body):
         """An untimed write that retries a conflict or busy answer; resets and seeding use it."""
         for _ in range(200):
@@ -289,13 +352,16 @@ class Harness:
         """Time the six family actions through to a validated current-revision preview."""
         evidence = {}
         meta = {}
+        autosave = {}
         for name in INTERVIEW_WORKLOADS:
             client, case = self.build_interview(name)
             steps, snapshot = self.interview_steps(name, case)
             meta[name] = dict(base_heirs=INTERVIEW_BASE_HEIRS, actions=list(INTERVIEW_ACTIONS),
                               later_deaths=len(case["deaths"]), school="hanbali" if name == "school" else "compare")
             evidence[name] = {}
-            with self.contention(client, case, "available", contention):
+            # The login comes first: the contention writer copies the session cookie the login issued.
+            with self.autosaving(client, case, contention) as saves,                     self.contention(client, case, "available", contention):
+                autosave[name] = saves
                 for action in INTERVIEW_ACTIONS:
                     values = []; busy = conflicts = 0; phases = []
                     for _ in range(samples):
@@ -309,7 +375,7 @@ class Harness:
                     evidence[name][action] = dict(
                         stats(values, busy, conflicts, TOTAL_BUDGET_MS), samples_ms=[round(v, 2) for v in values],
                         attempts=phases)
-        return evidence, meta
+        return evidence, meta, autosave
 
     def run(self, samples=20, contention=True, interview=False, device="model", network="model"):
         if connection.vendor != "postgresql" or samples < 1:
@@ -348,7 +414,9 @@ class Harness:
                             values.append(duration); busy += counts["busy"]; conflicts += counts["conflicts"]
                     result["workloads"][name] = dict(engine=engine, placement=placement, end_to_end=stats(values, busy, conflicts, TOTAL_BUDGET_MS))
                 if interview:
-                    result["interview"], result["workload"] = self.run_interview(samples, contention)
+                    result["interview"], result["workload"], autosave = self.run_interview(samples, contention)
+                    if contention:
+                        result["autosave"] = autosave
             # Only the 8.11 workloads decide `passed`; the Interview mix is reported beside it.
             result["passed"] = all(phase["passed"] for workload in result["workloads"].values() for phase in workload.values())
             if "interview" in result:

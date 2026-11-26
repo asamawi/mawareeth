@@ -57,6 +57,7 @@ export type Messages = {
     signup: string;
     cases: string;
     language: string;
+    discardAndSignOut: string;
   };
   interview: {
     heading: string;
@@ -255,6 +256,8 @@ export type Messages = {
     unsavedNotice: string;
     unsavedLink: string;
     startOverUnsaved: string;
+    autosaveNeedsHeirs: string;
+    autosaveUnavailable: string;
   };
   results: {
     save: string;
@@ -376,6 +379,7 @@ export const messages: Record<Locale, Messages> = {
       login: "تسجيل الدخول",
       signup: "إنشاء حساب",
       language: "اللغة",
+      discardAndSignOut: "نعم، تجاهلها وسجّل الخروج",
     },
     interview: {
       heading: "ابدأ حالة ميراث",
@@ -610,6 +614,8 @@ export const messages: Record<Locale, Messages> = {
       unsavedNotice: "التغييرات لم تُحفظ في حالاتي بعد.",
       unsavedLink: "عرض النتائج الكاملة للحفظ",
       startOverUnsaved: "وسيُفقد ما لم يُحفظ من تغييرات في حالتك المحفوظة.",
+      autosaveNeedsHeirs: "أضف وارثًا واحدًا على الأقل ليتم الحفظ في حالاتي.",
+      autosaveUnavailable: "لم تعد هذه الحالة المحفوظة متاحة، فلن تُحفظ التغييرات تلقائيًا.",
     },
     results: {
       save: "حفظ",
@@ -726,6 +732,7 @@ export const messages: Record<Locale, Messages> = {
       login: "Log in",
       signup: "Sign up",
       language: "Language",
+      discardAndSignOut: "Yes, discard and sign out",
     },
     interview: {
       heading: "Start an inheritance case",
@@ -961,6 +968,8 @@ export const messages: Record<Locale, Messages> = {
       unsavedNotice: "Changes not saved to My cases yet",
       unsavedLink: "Full results",
       startOverUnsaved: "Changes not saved to My cases will be lost.",
+      autosaveNeedsHeirs: "Add at least one heir to save to My cases.",
+      autosaveUnavailable: "This saved case is no longer available, so changes are not saved automatically.",
     },
     results: {
       save: "Save",
@@ -1077,6 +1086,7 @@ export const messages: Record<Locale, Messages> = {
       login: "Connexion",
       signup: "Créer un compte",
       language: "Langue",
+      discardAndSignOut: "Oui, abandonner et se déconnecter",
     },
     interview: {
       heading: "Commencer un dossier de succession",
@@ -1314,6 +1324,8 @@ export const messages: Record<Locale, Messages> = {
       unsavedNotice: "Modifications pas encore enregistrées dans Mes cas",
       unsavedLink: "Résultats complets",
       startOverUnsaved: "Les modifications non enregistrées dans Mes cas seront perdues.",
+      autosaveNeedsHeirs: "Ajoutez au moins un héritier pour enregistrer dans Mes cas.",
+      autosaveUnavailable: "Ce cas enregistré n’est plus disponible ; les modifications ne sont donc pas enregistrées automatiquement.",
     },
     results: {
       save: "Enregistrer",

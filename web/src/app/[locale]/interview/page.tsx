@@ -23,7 +23,7 @@ export default async function InterviewPage({
         <style>{"[data-js-only]{display:none}"}</style>
         <p className="mx-auto w-full max-w-xl">{text.noscript}</p>
       </noscript>
-      <StartCase messages={text} locale={locale} />
+      <StartCase messages={text} results={messages[locale].results} locale={locale} />
     </main>
   );
 }

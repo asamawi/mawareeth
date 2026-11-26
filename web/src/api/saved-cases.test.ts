@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { readFileSync } from "node:fs";
-import { renameSavedCase, saveCase, createSavedCase, cutGraphemes, listSavedCases, openSavedCase, suggestedName, graphemeCount, OPEN_AUTH, OPEN_CONFLICT, SAVE_CONFLICT, SCHOOL_REQUIRED, NAME_TOO_LONG, NAME_INVALID } from "./saved-cases.ts";
+import { autosaveCase, renameSavedCase, saveCase, createSavedCase, cutGraphemes, listSavedCases, openSavedCase, suggestedName, graphemeCount, OPEN_AUTH, OPEN_CONFLICT, SAVE_CONFLICT, SCHOOL_REQUIRED, NAME_TOO_LONG, NAME_INVALID } from "./saved-cases.ts";
 const original = globalThis.fetch;
 afterEach(() => { globalThis.fetch = original; });
 const signal = () => new AbortController().signal;
@@ -227,4 +227,49 @@ test("rename tells every outcome apart", async () => {
   globalThis.fetch = async () => { throw new Error("offline"); };
   assert.equal(await renameSavedCase(signal(), 7, { name: "x", expectedRevision: 3 }, options), null);
   assert.equal(await renameSavedCase(signal(), 0, { name: "x", expectedRevision: 3 }, options), null);
+});
+
+test("autosave sends the case id and revision and decodes every answer", async () => {
+  const answer = (status: number, body?: unknown) => { globalThis.fetch = async (url, init) => {
+    assert.equal(url, "/api/v1/saved-cases/autosave/");
+    assert.equal(init?.method, "POST");
+    assert.equal(init?.body, JSON.stringify({ case_id: "live", case_revision: 8 }));
+    assert.equal((init?.headers as Record<string, string>)["X-CSRFToken"], "token");
+    return body === undefined ? new Response("", { status }) : Response.json(body, { status });
+  }; };
+  const run = () => autosaveCase(signal(), "live", 8, options);
+  answer(200, { id: 4, name: "x", updated_at: "t", revision: 3, case_revision: 8 });
+  assert.deepEqual(await run(), { kind: "saved", caseRevision: 8, revision: 3 });
+  answer(200, { id: 4, revision: 3 });
+  assert.deepEqual(await run(), { kind: "failed" });
+  answer(409, { code: "case_revision_stale", case_revision: 9 });
+  assert.deepEqual(await run(), { kind: "stale", caseRevision: 9 });
+  const conflict = { code: "saved_case_conflict", saved_id: 4, revision: 5, saved_name: "n", working_case_id: "live", working_revision: 8 };
+  answer(409, conflict);
+  assert.deepEqual(await run(), { kind: "conflict", conflict: { code: SAVE_CONFLICT, savedId: 4, savedName: "n", savedRevision: 5, workingCaseId: "live", workingRevision: 8 } });
+  answer(409, { code: "saved_case_conflict" });
+  assert.deepEqual(await run(), { kind: "conflict", conflict: null });
+  answer(404, { code: "saved_case_unavailable" });
+  assert.deepEqual(await run(), { kind: "unavailable" });
+  answer(404, {});
+  assert.deepEqual(await run(), { kind: "failed" });
+  answer(400, { code: "case_incomplete" });
+  assert.deepEqual(await run(), { kind: "incomplete" });
+  answer(400, { code: "school_required" });
+  assert.deepEqual(await run(), { kind: "schoolRequired" });
+  answer(403);
+  assert.deepEqual(await run(), { kind: "forbidden" });
+  for (const status of [429, 500, 503]) { answer(status); assert.deepEqual(await run(), { kind: "failed" }); }
+});
+test("autosave makes one attempt and a network failure or timeout is failed", async () => {
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; throw new Error("offline"); };
+  assert.deepEqual(await autosaveCase(signal(), "live", 8, options), { kind: "failed" });
+  assert.equal(calls, 1);
+  globalThis.fetch = (_url, init) => new Promise((_resolve, reject) => { init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))); });
+  assert.deepEqual(await autosaveCase(signal(), "live", 8, { ...options, timeoutMs: 5 }), { kind: "failed" });
+});
+test("save answers null for the incomplete-case 400 envelope, as before the code was added", async () => {
+  globalThis.fetch = async () => Response.json({ detail: "Complete the case before saving.", code: "case_incomplete" }, { status: 400 });
+  assert.equal(await saveCase(signal(), "live", options), null);
 });

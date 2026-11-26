@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { NAME_INVALID, NAME_LIMIT, NAME_TOO_LONG, SAVE_CONFLICT, SCHOOL_REQUIRED, createSavedCase, cutGraphemes, graphemeCount, openSavedCase, saveCase, type SaveConflict } from "@/api/saved-cases";
 import { createShare, type CreatedShare } from "@/api/shares";
+import { autosave } from "@/interview/autosave";
 import type { Messages } from "@/i18n/messages";
 import { loginHref, signupHref, resultsResumePath, shareUrl } from "@/i18n/paths";
 import { buttonClass } from "../interview/form-bits";
@@ -57,6 +58,8 @@ export function AuthGate({ locale, text, share: shareText, caseId, linked = fals
     saving.current = true;
     setSaveState("saving");
     setRetry(null);
+    // A pending autosave is sent (or fails) first, so two writes never race.
+    await autosave.flush();
     const result = await saveCase(new AbortController().signal, caseId, { locale, ...(name === undefined ? {} : { name }) });
     if (result === NAME_TOO_LONG || result === NAME_INVALID) {
       setNameError(result === NAME_TOO_LONG ? text.nameTooLong : text.nameInvalid);
@@ -93,6 +96,7 @@ export function AuthGate({ locale, text, share: shareText, caseId, linked = fals
     setShareState({ status: "creating" });
     say(shareText.preparing);
     const signal = new AbortController().signal;
+    await autosave.flush();
     const saved = await saveCase(signal, caseId, { locale });
     if (saved === SCHOOL_REQUIRED || saved === SAVE_CONFLICT || isConflict(saved)) {
       setShareState(null);

@@ -54,6 +54,43 @@ export async function saveCase(signal: AbortSignal, caseId: string, options: Wri
     return Number.isInteger(body.id) && body.id > 0 && typeof body.updated_at === "string" && typeof body.name === "string" ? { id: body.id, name: body.name, updated_at: body.updated_at } : null;
   });
 }
+/** What an autosave request settled as. `failed` is any outcome that says nothing was saved and nothing more (network, timeout, 5xx, 429, a malformed answer). */
+export type AutosaveResult =
+  | { kind: "saved"; caseRevision: number; revision: number }
+  | { kind: "stale"; caseRevision: number | null }
+  | { kind: "unavailable" }
+  | { kind: "conflict"; conflict: SaveConflict | null }
+  | { kind: "incomplete" }
+  | { kind: "schoolRequired" }
+  | { kind: "forbidden" }
+  | { kind: "failed" };
+const whole = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 1;
+/** Updates the linked Saved case from the working copy at `caseRevision`. Update-only: the server never creates a row here. One attempt, never throws. */
+export async function autosaveCase(signal: AbortSignal, caseId: string, caseRevision: number, options: WriteOptions = {}): Promise<AutosaveResult> {
+  const body = JSON.stringify({ case_id: caseId, case_revision: caseRevision });
+  const result = await write<AutosaveResult>(signal, options, { method: "POST", url: `${url}autosave/`, body }, async (response) => {
+    if (response.status === 403) return { kind: "forbidden" };
+    if (response.status === 404) {
+      const refused = await response.json().catch(() => null);
+      return refused?.code === "saved_case_unavailable" ? { kind: "unavailable" } : { kind: "failed" };
+    }
+    if (response.status === 409) {
+      const refused = await response.json().catch(() => null);
+      if (refused?.code === "case_revision_stale") return { kind: "stale", caseRevision: whole(refused.case_revision) ? refused.case_revision : null };
+      if (refused?.code === SAVE_CONFLICT) return { kind: "conflict", conflict: parseConflict(refused) };
+      return { kind: "failed" };
+    }
+    if (response.status === 400) {
+      const refused = await response.json().catch(() => null);
+      if (refused?.code === SCHOOL_REQUIRED) return { kind: "schoolRequired" };
+      return refused?.code === "case_incomplete" ? { kind: "incomplete" } : { kind: "failed" };
+    }
+    if (response.status !== 200) return { kind: "failed" };
+    const saved = await response.json().catch(() => null);
+    return whole(saved?.case_revision) && whole(saved?.revision) ? { kind: "saved", caseRevision: saved.case_revision, revision: saved.revision } : { kind: "failed" };
+  });
+  return result ?? { kind: "failed" };
+}
 /** Save as a new case answered 409: the stored case or the working copy changed since the prompt. `stale` is the conflict as it holds now (null when none holds any more), `case` the current working copy (null when there is none). */
 export type CreateStale = { stale: SaveConflict | null; case: Case | null };
 export type CreateResult = (Saved & { revision: number }) | CreateStale | typeof SCHOOL_REQUIRED | typeof NAME_TOO_LONG | typeof NAME_INVALID | null;

@@ -115,7 +115,8 @@ test.describe("rendered states", () => {
     await expect(page.getByRole("button", { name: en.resume })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: en.started })).toBeVisible();
     await expect(page.getByText(en.unsavedNotice)).toHaveCount(0);
-    api.set({ getCase: ahead({ revision: null }) });
+    // Start over tries the unsaved revision first; here the save fails, so the question names what would be lost.
+    api.set({ getCase: ahead({ revision: null }), postAutosave: json(500, {}) });
     await page.goto("/en/interview/");
     await expect(page.getByText(en.unsavedNotice)).toBeVisible();
     await expect(page.getByRole("link", { name: en.unsavedLink })).toHaveAttribute("href", "/en/results/");

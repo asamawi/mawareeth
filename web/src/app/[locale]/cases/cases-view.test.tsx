@@ -48,6 +48,7 @@ const caseBody = { case: { id: "case-1", started_at: "2026-11-01T00:00:00Z" } };
 const firstOpen = () => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === text.cases.open) ?? null;
 
 const { CasesView } = await import("./cases-view.tsx");
+const { autosave } = await import("@/interview/autosave.ts");
 
 test("openSavedCase success: router.push called with interview URL", async () => {
   const pushCalls: string[] = [];
@@ -291,6 +292,18 @@ test("opening the linked row again while unsaved asks the same", async () => {
   await settle();
   assert.equal(container.querySelector("dialog h2")?.textContent, text.cases.discardTitle);
   assert.equal(run.opens.length, 0);
+});
+
+test("a pending autosave is tried first, and one that fails asks even when the server read looks clean", async () => {
+  // The coordinator holds a revision the Saved case does not; the autosave answer here is not a save.
+  autosave.attach({ id: "work-1", revision: 5, saved: { revision: 3 } } as never);
+  try {
+    const run = await runPrompt({ caseGet: () => ok(workingCase({ revision: 3 })), open: () => ok(caseBody) });
+    assert.equal(container.querySelector("dialog h2")?.textContent, text.cases.discardTitle);
+    assert.equal(run.opens.length, 0);
+  } finally {
+    autosave.detach();
+  }
 });
 
 // ---- Story 10.2: names, sort, rename, skeleton and retry ----

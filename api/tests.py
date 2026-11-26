@@ -3789,7 +3789,7 @@ class SavedCaseTests(InterviewBase):
         self.client.force_login(self.owner)
         case = self.ready()
         response = self.save(self.live())
-        self.assertEqual((response.status_code, response.json().get('code')), (400, None))
+        self.assertEqual((response.status_code, response.json().get('code')), (400, 'case_incomplete'))
 
     def test_save_updates_and_open_roundtrip_on_another_device(self):
         self.client.force_login(self.owner)
@@ -3917,6 +3917,132 @@ class SavedCaseTests(InterviewBase):
 
 def saved_case_test_status(case):
     return 'extension-status'
+
+
+class SavedCaseAutosaveTests(InterviewBase):
+    url = '/api/v1/saved-cases/autosave/'
+    saved_url = '/api/v1/saved-cases/'
+
+    def setUp(self):
+        super().setUp()
+        self.owner = get_user_model().objects.create_user(username='auto-owner', password='test')
+        self.other = get_user_model().objects.create_user(username='auto-other', password='test')
+        self.client.force_login(self.owner)
+        case = self.ready()
+        self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'})
+        self.heir(case, name='Family name')
+        self.saved_id = self.send('post', self.saved_url, {'case_id': self.live()['id'], 'name': 'Mine'}).json()['id']
+
+    def autosave(self, case=None, **changes):
+        case = case or self.live()
+        return self.send('post', self.url, {'case_id': case['id'], 'case_revision': case['revision'], **changes})
+
+    def test_it_covers_the_revision_and_advances_the_link(self):
+        self.heir(self.live(), 'daughter')
+        case = self.live()
+        response = self.autosave(case)
+        self.assertEqual(response.status_code, 200)
+        row = SavedCase.objects.get()
+        body = response.json()
+        self.assertEqual((body['id'], body['revision'], body['case_revision']), (row.pk, 2, case['revision']))
+        self.assertEqual(len(row.snapshot['heirs']), 2)
+        link = self.client.session[anonymous_case.SAVED_LINK_KEY]
+        self.assertEqual((link['base_revision'], link['case_revision']), (2, case['revision']))
+        self.assertEqual(self.autosave().status_code, 200)
+
+    def test_a_stale_revision_writes_nothing(self):
+        case = self.live()
+        self.heir(case, 'daughter')
+        response = self.autosave(case)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json(), {'code': 'case_revision_stale', 'detail': 'The case changed.',
+                                           'case_revision': self.live()['revision']})
+        row = SavedCase.objects.get()
+        self.assertEqual((row.revision, len(row.snapshot['heirs'])), (1, 1))
+
+    def test_an_unavailable_link_answers_one_404_and_creates_nothing(self):
+        case = self.live()
+        refusals = []
+        # Another case id.
+        refusals.append(self.send('post', self.url, {'case_id': 'other', 'case_revision': case['revision']}))
+        # A deleted row.
+        SavedCase.objects.all().delete()
+        refusals.append(self.autosave(case))
+        # A row of another account.
+        foreign = SavedCase.objects.create(owner=self.other, snapshot={}, name='Theirs')
+        session = self.client.session
+        session[anonymous_case.SAVED_LINK_KEY] = {'case_id': case['id'], 'saved_id': foreign.pk, 'base_revision': 1,
+                                                  'case_revision': case['revision']}
+        session.save()
+        refusals.append(self.autosave(case))
+        # No link at all.
+        session = self.client.session
+        del session[anonymous_case.SAVED_LINK_KEY]
+        session.save()
+        refusals.append(self.autosave(case))
+        for response in refusals:
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.json(), {'code': 'saved_case_unavailable',
+                                               'detail': 'This saved case is no longer available.'})
+        foreign.refresh_from_db()
+        self.assertEqual((SavedCase.objects.count(), foreign.snapshot, foreign.revision), (1, {}, 1))
+
+    def test_a_row_conflict_gives_the_existing_body_and_writes_nothing(self):
+        SavedCase.objects.filter(pk=self.saved_id).update(revision=4)
+        self.heir(self.live(), 'daughter')
+        response = self.autosave()
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['code'], 'saved_case_conflict')
+        self.assertEqual(response.json()['revision'], 4)
+        row = SavedCase.objects.get()
+        self.assertEqual((row.revision, len(row.snapshot['heirs'])), (4, 1))
+
+    def test_an_incomplete_case_and_a_missing_school_are_refused(self):
+        case = self.live()
+        for heir in case['heirs']:
+            self.send('delete', f'{HEIRS_URL}{heir["id"]}/', {'case_id': case['id']})
+        response = self.autosave()
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['code'], 'case_incomplete')
+        explicit = self.send('post', self.saved_url, {'case_id': self.live()['id']})
+        self.assertEqual((explicit.status_code, explicit.json()['code']), (400, 'case_incomplete'))
+        self.heir(self.live(), 'son')
+        self.heir(self.live(), 'daughter')
+        self.plant(madhab=None)
+        with mock.patch('api.views.preview.preview', return_value={'status': 'choose_school'}):
+            response = self.autosave()
+        self.assertEqual((response.status_code, response.json()['code']), (400, 'school_required'))
+        self.assertEqual(SavedCase.objects.get().revision, 1)
+
+    def test_it_needs_a_signed_in_user(self):
+        case = self.live()
+        self.client.logout()
+        self.assertEqual(self.send('post', self.url, {'case_id': case['id'], 'case_revision': 1}).status_code, 403)
+
+    def test_it_changes_neither_the_name_nor_the_basis_nor_the_case_revision(self):
+        self.heir(self.live(), 'daughter')
+        case = self.live()
+        self.assertEqual(self.autosave(case).status_code, 200)
+        row = SavedCase.objects.get()
+        self.assertEqual(row.name, 'Mine')
+        self.assertEqual(self.live()['revision'], case['revision'])
+        self.assertEqual(self.live()['madhab'], 'hanafi')
+        self.assertEqual(row.snapshot['madhab'], 'hanafi')
+        # The compare Basis stays a compare Basis.
+        self.plant(madhab=None)
+        with mock.patch('api.views.preview.preview', return_value={'status': 'available'}):
+            self.assertEqual(self.autosave().status_code, 200)
+        self.assertIsNone(SavedCase.objects.get().snapshot['madhab'])
+        self.assertEqual(SavedCase.objects.get().name, 'Mine')
+
+    def test_the_share_view_reflects_the_autosaved_family(self):
+        token = self.send('post', f'{self.saved_url}{self.saved_id}/shares/',
+                          {'visibility': 'public', 'accept_public_warning': True}).json()['token']
+        self.heir(self.live(), 'daughter')
+        self.assertEqual(self.autosave().status_code, 200)
+        shared = APIClient(enforce_csrf_checks=True)
+        body = self.send('post', '/api/v1/shares/view/', {'token': token}, shared).json()
+        self.assertEqual(len(body['case']['heirs']), 2)
 
 
 class ShareTests(InterviewBase):

@@ -31,6 +31,7 @@ export type Stubs = {
   postOpen?: Answer;
   postSaved?: Answer;
   postCreate?: Answer;
+  postAutosave?: Answer;
   getNameSuggestion?: Answer;
   getInvites?: Answer;
   postRename?: Answer;
@@ -77,6 +78,7 @@ export class Api {
   openPosts: { url: string; body: string }[] = [];
   savedPosts: { body: string; csrf: string | undefined }[] = [];
   createPosts: { body: string; csrf: string | undefined }[] = [];
+  autosavePosts: { body: string; csrf: string | undefined }[] = [];
   renamePosts: { url: string; body: string; csrf: string | undefined }[] = [];
   shareViewPosts: string[] = [];
   inviteAcceptPosts: string[] = [];
@@ -148,6 +150,10 @@ export class Api {
       if (pathname === "/api/v1/saved-cases/" && method === "POST") {
         this.savedPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
         return this.answer(route, this.stubs.postSaved, "post saved case");
+      }
+      if (pathname === "/api/v1/saved-cases/autosave/" && method === "POST") {
+        this.autosavePosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.postAutosave, "post autosave");
       }
       if (pathname === "/api/v1/saved-cases/create/" && method === "POST") {
         this.createPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });

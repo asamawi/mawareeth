@@ -455,7 +455,7 @@ def _prepare_save(case):
 
     The case is exported once and encoded once; never pass an encoded snapshot back to encode_v2."""
     if case is None or not case['deceased'] or not case['heirs']:
-        return None, None, Response({'detail': 'Complete the case before saving.'}, status=400)
+        return None, None, Response({'detail': 'Complete the case before saving.', 'code': 'case_incomplete'}, status=400)
     version = write_version()
     snapshot = anonymous_case.export_snapshot(case)
     try:
@@ -485,6 +485,57 @@ def _conflict_body(case, row):
             'detail': 'This saved case changed since it was opened.', 'revision': row.revision,
             'saved_id': row.pk, 'saved_name': row.name,
             'working_case_id': case['id'], 'working_revision': case['revision']}
+
+
+def _autosave_unavailable():
+    return Response({'code': 'saved_case_unavailable', 'detail': 'This saved case is no longer available.'}, status=404)
+
+
+@method_decorator(never_cache, name='dispatch')
+class SavedCaseAutosaveView(ApiView):
+    """Update the linked, owned Saved case from the working copy. Update-only: it never creates a row.
+
+    Runs inside the request's session lock (CaseWriteLockMiddleware holds it for saved-cases writes)."""
+
+    def post(self, request):
+        data = request.data
+        if not isinstance(data, dict):
+            return Response({'detail': 'Expected a JSON object.'}, status=400)
+        case_id, revision = data.get('case_id'), data.get('case_revision')
+        if not isinstance(case_id, str) or not case_id or not case_commands.valid_revision(revision):
+            return Response({'detail': 'case_id and case_revision are required.'}, status=400)
+        try:
+            case = anonymous_case.get(request)
+        except SnapshotError as error:
+            return Response({'detail': 'The current case cannot be read.', 'code': error.code}, status=422)
+        saved_id = anonymous_case.get_saved_link(request, case_id) if case is not None and case['id'] == case_id else None
+        if saved_id is None:
+            return _autosave_unavailable()
+        if case['revision'] != revision:
+            return Response({'code': 'case_revision_stale', 'detail': 'The case changed.',
+                             'case_revision': case['revision']}, status=409)
+        snapshot, version, refused = _prepare_save(case)
+        if refused is not None:
+            return refused
+        try:
+            with transaction.atomic():
+                row = SavedCase.objects.select_for_update().filter(owner=request.user, pk=saved_id).first()
+                if row is None:
+                    return _autosave_unavailable()
+                if row.revision != anonymous_case.get_saved_base_revision(request, case['id']):
+                    return Response(_conflict_body(case, row), status=409)
+                row.snapshot = snapshot
+                row.schema_version = version
+                row.revision = F('revision') + 1
+                row.save()
+                row.refresh_from_db(fields=['revision'])
+        except OperationalError as error:
+            if is_lock_timeout(error):
+                return busy_response()
+            raise
+        anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision, case['revision'])
+        return Response({'id': row.pk, 'name': row.name, 'updated_at': row.updated_at, 'revision': row.revision,
+                         'case_revision': case['revision']})
 
 
 @method_decorator(never_cache, name='dispatch')

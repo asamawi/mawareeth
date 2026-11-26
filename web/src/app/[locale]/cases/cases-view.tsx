@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchCase, hasUnsavedChanges, startCase, type Case } from "@/api/case";
 import { fetchSession, PROBE_TIMEOUT_MS } from "@/api/session";
 import { writeOpenHandoff } from "@/interview/open-handoff";
+import { autosave } from "@/interview/autosave";
 import { listSavedCases, openSavedCase, renameSavedCase, NAME_INVALID, NAME_LIMIT, NAME_TOO_LONG, OPEN_AUTH, OPEN_CONFLICT, graphemeCount, type SavedCase } from "@/api/saved-cases";
 import type { Messages } from "@/i18n/messages";
 import { listReceived, type Received } from "@/api/invites";
@@ -141,11 +142,14 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
     setOpening(action.kind === "new" ? "new" : action.id);
     setError(false);
     setNewFailed(false);
+    // A pending autosave is tried first; what it could not save is asked about, as an unreadable state is.
+    const flushed = await autosave.flush();
+    if (!mounted.current) return;
     let current: Case | null | undefined;
     try { current = await fetchCase(new AbortController().signal); } catch { current = undefined; }
     if (!mounted.current) return;
     // Unreadable state asks as well, and after a conflict it always asks again: never act on its own.
-    if (conflicted || current === undefined || hasUnsavedChanges(current)) { setPrompt({ action, current }); setOpening(null); return; }
+    if (conflicted || flushed === "unsaved" || current === undefined || hasUnsavedChanges(current)) { setPrompt({ action, current }); setOpening(null); return; }
     await go(action, current);
   }
   function failed(action: Pending) {

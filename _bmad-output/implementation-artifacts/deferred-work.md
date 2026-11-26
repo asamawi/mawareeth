@@ -637,3 +637,7 @@ Epic 9's gate and retrospective stay open until the owner records them.
 - source_spec: `_bmad-output/implementation-artifacts/spec-10-4-preserve-received-invitations-and-label-shared-cases-as-read-only.md`
   summary: Native review needed for the new `shared.readOnly` string in en, ar and fr (en "Read-only view of the owner's latest saved case. You cannot edit or rename it here."). Wording is draft; ar and fr are machine-written.
   evidence: Story 10.4 added it to web/src/i18n/messages.ts; it is the first line of the shared-case-banner on /shared/.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-5-save-an-opened-saved-case-automatically.md`
+  summary: Native review needed for the new strings in en, ar and fr (`interview.autosaveNeedsHeirs`, `interview.autosaveUnavailable`, `nav.discardAndSignOut`). Wording is draft; ar and fr are machine-written.
+  evidence: Story 10.5 added them to web/src/i18n/messages.ts. The Interview autosave line reuses the existing `results.saving/saved/saveError/saveRetry/saveConflict/saveNeedsSchool/conflict*` strings; the sign-out discard dialog reuses `cases.discardTitle/discardBody/discardNo` and confirms with `nav.discardAndSignOut`.

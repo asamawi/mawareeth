@@ -2,7 +2,6 @@
 import type { PresentedResult } from "@/contracts/presented";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { createPortal } from "react-dom";
 
 import {
@@ -19,6 +18,7 @@ import {
   startCase,
   unmarkDeceased,
   updateHeir,
+  type Case,
   type MadhabId,
   type PlacementOption,
   type RelationshipId,
@@ -74,9 +74,11 @@ import { initialPick, selectionStore } from "@/interview/madhabs";
 import { dropEntry, estateModel, scrollDelta, treeDescription } from "@/interview/tree";
 import { createCoalescer, type AnnounceKind } from "@/interview/announce";
 import { previewKey } from "@/interview/preview";
+import { autosave } from "@/interview/autosave";
 import { addGroups } from "@/interview/relatives";
 
 import { AddRelatives, outcomeText } from "./add-relatives";
+import { AutosaveLine } from "./autosave-line";
 import { DeathBreadcrumb, crumbTextOf } from "./death-breadcrumb";
 import { DeceasedForm } from "./deceased-form";
 import { EditSheet } from "./edit-sheet";
@@ -129,11 +131,27 @@ const deps: Deps = {
   },
 };
 
+/** Tell the autosave coordinator how the Case moved: a linked Case is followed, any other stops it. */
+function followAutosave(before: Case | null, view: View): void {
+  if (view.name !== "started") return;
+  const now = view.case;
+  if (!now.saved || now.revision === null) { autosave.detach(); return; }
+  // An accepted change of the tracked Case (a name write that succeeded before a later failure included).
+  if (before && before.id === now.id && autosave.tracks(now.id)) {
+    if (before.revision !== now.revision) autosave.notify(now.id, now.revision);
+    else autosave.attach(now);
+    return;
+  }
+  autosave.attach(now);
+}
+
 export function StartCase({
   messages,
+  results,
   locale,
 }: {
   messages: Messages["interview"];
+  results: Messages["results"];
   locale: string;
 }) {
   const [view, setView] = useState<View>({ name: "loading" });
@@ -186,6 +204,7 @@ export function StartCase({
       if (live.current && controller.current === own) {
         // A failure notice belongs to the school choice only when the choice made it.
         setChoiceFailed(action === "choose");
+        followAutosave(existing, next);
         setView(next);
       }
     },
@@ -264,6 +283,28 @@ export function StartCase({
     if (settledOnce.current) target.current?.focus();
     settledOnce.current = true;
   }, [view]);
+
+  // Leaving the Interview (for Full results, say) sends what is pending; the page does not wait for it.
+  useEffect(() => () => { void autosave.flush(); }, []);
+
+  // Start over asks only after the pending save was tried; what it could not save is named in the question.
+  const [unsavedAtAsk, setUnsavedAtAsk] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const askStart = useCallback(async () => {
+    const current = latest.current;
+    if (asking || current.name !== "started" || current.saving) return;
+    setAsking(true);
+    const outcome = await autosave.flush();
+    setAsking(false);
+    if (!live.current) return;
+    setUnsavedAtAsk(outcome === "unsaved");
+    const again = latest.current;
+    if (again.name === "started") setView(askStartOver(again));
+  }, [asking]);
+  const getWorking = useCallback(() => {
+    const current = caseOf(latest.current);
+    return current && current.revision !== null ? { caseId: current.id, revision: current.revision } : null;
+  }, []);
 
   const safeChoice = useRef<HTMLButtonElement>(null);
   // The safe choice has the focus when start over asks for confirmation.
@@ -591,7 +632,7 @@ export function StartCase({
       {view.name === "confirmStartOver" && (
         <>
           <p role="alert">
-            {savedBehind(view.case) && <>{messages.startOverUnsaved}{" "}</>}
+            {(autosave.tracks(view.case.id) ? unsavedAtAsk : savedBehind(view.case)) && <>{messages.startOverUnsaved}{" "}</>}
             {messages.startOverConfirm}
           </p>
           <div className="flex flex-wrap gap-3">
@@ -620,9 +661,9 @@ export function StartCase({
             <button
               type="button"
               className={buttonClass}
-              aria-disabled={started.saving}
+              aria-disabled={started.saving || asking}
               onClick={() => {
-                if (!started.saving) setView(askStartOver(latest.current));
+                if (!started.saving) void askStart();
               }}
             >
               {messages.startOver}
@@ -630,13 +671,9 @@ export function StartCase({
             {undoOffer && <span className="ms-3"><UndoButton messages={messages} disabled={undoDisabled} onUndo={undo} /></span>}
           </div>
           {started.undoFailed && <p role="alert">{messages.undoFailed}</p>}
-          {savedBehind(started.case) && (
-            <p data-unsaved-notice>
-              {messages.unsavedNotice}{" "}
-              <Link href={`/${locale}/results/`} prefetch={false} className="inline-flex min-h-11 items-center underline">
-                {messages.unsavedLink}
-              </Link>
-            </p>
+          {started.case.saved && (
+            <AutosaveLine locale={locale} messages={messages} text={results} caseId={started.case.id}
+              getWorking={getWorking} onReplaced={() => void perform("load")} onChanged={() => {}} />
           )}
         </>
       )}
