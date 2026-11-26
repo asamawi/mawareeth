@@ -3,11 +3,24 @@ import type { Page } from "@playwright/test";
 import { messages, locales, directionOf } from "../src/i18n/messages";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 
-import { lineageFixture, openCanvasFixture, openHeirsScreen } from "./family";
-import { abort, expect, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors, type Stubs } from "./api";
+import { closePreview, lineageFixture, openCanvasFixture, openHeirsScreen, openPreview, sheetOf } from "./family";
+import { abort, CASE, expect, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors, type Stubs } from "./api";
 
 const en = messages.en.interview;
+
+/** A restore POST body with its `snapshot_gz` (gzipped+base64) decoded back to `snapshot`, so an
+ * assertion reads the snapshot the Undo sent. A body that still carries a plain `snapshot` is
+ * returned unchanged. */
+function restoreBody(raw: string): Record<string, unknown> {
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  if (typeof parsed.snapshot_gz === "string") {
+    const { snapshot_gz, ...rest } = parsed;
+    return { ...rest, snapshot: JSON.parse(gunzipSync(Buffer.from(snapshot_gz, "base64")).toString("utf8")) };
+  }
+  return parsed;
+}
 
 /** Whether focus is inside the interview container and not on the page body. */
 async function focusInScreen(page: Page): Promise<boolean> {
@@ -91,6 +104,23 @@ test.describe("rendered states", () => {
     await expect(page.getByRole("heading", { name: en.started })).toBeVisible();
     expect(api.casePosts).toHaveLength(1);
     expect(JSON.parse(api.casePosts[0].body)).toEqual({ replace: true, case_id: "0123456789abcdef", expected_revision: 1 });
+  });
+
+  test("a Saved case ahead of its save shows the notice, and start over warns and focuses the safe choice", async ({ page, api }) => {
+    const ahead = (saved: unknown) => json(200, { case: { ...CASE, saved } });
+    api.set({ session: sessionAnonymous, getCase: ahead({ revision: 1 }), postCase: startedCase("fedcba9876543210") });
+    await page.goto("/en/interview/");
+    await expect(page.getByText(en.unsavedNotice)).toHaveCount(0);
+    await page.getByRole("button", { name: en.resume }).click();
+    await expect(page.getByText(en.unsavedNotice)).toHaveCount(0);
+    api.set({ getCase: ahead({ revision: null }) });
+    await page.goto("/en/interview/");
+    // The case was seen on this browser, so it resumes without asking.
+    await expect(page.getByText(en.unsavedNotice)).toBeVisible();
+    await expect(page.getByRole("link", { name: en.unsavedLink })).toHaveAttribute("href", "/en/results/");
+    await page.getByRole("button", { name: en.startOver }).click();
+    await expect(page.getByText(en.startOverUnsaved)).toBeVisible();
+    await expect(page.getByRole("button", { name: en.startOverNo })).toBeFocused();
   });
 
   test("an expired case shows the notice and waits for the visitor", async ({ page, api }) => {
@@ -236,7 +266,11 @@ test.describe("the school of law, asked only when it matters", () => {
     api.set({ session: sessionAnonymous, getCase: json(200, { case: fullCase(agree.case) }), getPreview: json(200, agree.response) });
     await page.goto("/en/interview/");
     await page.getByRole("button", { name: en.resume }).click();
-    await expect(page.getByText(en.schoolsAgree)).toBeVisible();
+    // The agreement line itself is story 11.1's; here the one result is in the sheet.
+    await expect(page.locator("[data-summary-bar]")).toBeVisible();
+    const sheet = await openPreview(page);
+    await expect(sheet.locator("ul > li").first()).toBeVisible();
+    await expect(sheet.locator("[data-school-choice]")).toHaveCount(0);
     await expect(page.getByText(en.schoolsDiffer)).toHaveCount(0);
     await expect(page.getByRole("radio", { name: en.madhabs.hanafi.name })).toHaveCount(0);
     await expect(page.getByText(`${en.madhabLabel}:`)).toHaveCount(0);
@@ -258,7 +292,8 @@ test.describe("the school of law, asked only when it matters", () => {
     });
     await page.goto("/en/interview/");
     await page.getByRole("button", { name: en.resume }).click();
-    const choice = page.locator("[data-school-choice]");
+    const sheet = await openPreview(page);
+    const choice = sheet.locator("[data-school-choice]");
     await expect(choice.getByText(en.schoolsDiffer)).toBeVisible();
     await expect(choice.getByText(en.schoolsDifferBecause)).toBeVisible();
     for (const rule of differ.response.rules) await expect(choice.getByText(rule.label, { exact: true })).toBeVisible();
@@ -269,16 +304,16 @@ test.describe("the school of law, asked only when it matters", () => {
         await expect(choice.getByText(share.share.text, { exact: false }).first()).toBeVisible();
       }
     }
-    const group = page.getByRole("radiogroup", { name: en.chooseSchool });
+    const group = sheet.getByRole("radiogroup", { name: en.chooseSchool });
     await expect(group.getByRole("radio")).toHaveCount(4);
     await expect(group.getByRole("radio", { name: en.madhabs.jafari.name })).toHaveCount(0);
     // Continue with nothing picked says what is needed and saves nothing.
-    await page.getByRole("button", { name: en.madhabContinue }).click();
+    await sheet.getByRole("button", { name: en.madhabContinue }).click();
     await expect(choice.getByRole("alert")).toHaveText(en.chooseSchool);
     expect(api.casePatches).toHaveLength(0);
     await group.getByRole("radio", { name: en.madhabs.hanafi.name }).check();
     await expect(choice.getByRole("alert")).toHaveCount(0);
-    await page.getByRole("button", { name: en.madhabContinue }).click();
+    await sheet.getByRole("button", { name: en.madhabContinue }).click();
     await expect(page.getByText(en.schoolsDiffer)).toHaveCount(0);
     await expect(page.getByText(`${en.madhabLabel}:`)).toBeVisible();
     expect(api.casePatches).toHaveLength(1);
@@ -290,7 +325,8 @@ test.describe("the school of law, asked only when it matters", () => {
     api.set({ session: sessionAnonymous, getCase: json(200, { case: fullCase(refusal.case) }), getPreview: json(200, refusal.response) });
     await page.goto("/en/interview/");
     await page.getByRole("button", { name: en.resume }).click();
-    const choice = page.locator("[data-school-choice]");
+    const sheet = await openPreview(page);
+    const choice = sheet.locator("[data-school-choice]");
     await expect(choice.getByText(en.schoolsDiffer)).toBeVisible();
     await expect(choice.getByText(en.previewReasons.malikiyya_disputed).first()).toBeVisible();
   });
@@ -307,9 +343,10 @@ test.describe("revisions and connection", () => {
     await page.goto("/en/interview/");
     await page.getByRole("button", { name: en.resume }).click();
     await expect.poll(() => api.previewGets).toBeGreaterThan(0);
-    await expect(page.getByText(en.previewWaiting)).toBeVisible();
-    await expect(page.getByText(en.schoolsAgree)).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: en.previewHeading })).toBeVisible();
+    // Nothing of the older answer is shown: no summary bar, no sheet, and the signal stays pending.
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "pending");
+    await expect(page.locator("[data-summary-bar]")).toHaveCount(0);
+    await expect(sheetOf(page).locator("ul > li")).toHaveCount(0);
     await expect(page.getByText(en.previewUpdated)).toHaveCount(0);
   });
 
@@ -326,9 +363,13 @@ test.describe("revisions and connection", () => {
     await expect(page.getByText(en.offlineEditing)).toBeVisible();
     await expect(add).toHaveAttribute("aria-disabled", "true");
     await add.click({ force: true });
-    // The family and the last preview stay visible, and no write was attempted (an unstubbed request fails the test).
-    await expect(page.getByText(en.schoolsAgree)).toBeVisible();
+    // The family stays visible, and no write was attempted (an unstubbed request fails the test).
     expect(api.casePosts).toHaveLength(0);
+    // The last preview stays reachable: the bar stays, and the sheet shows its rows.
+    await expect(page.locator("[data-summary-bar]")).toBeVisible();
+    const sheet = await openPreview(page);
+    await expect(sheet.locator("ul > li").first()).toBeVisible();
+    await closePreview(page);
 
     await context.setOffline(false);
     await expect(page.getByText(en.offlineEditing)).toHaveCount(0);
@@ -412,8 +453,13 @@ test.describe("add relatives", () => {
       return json(201, { case: returned })(route);
     } });
     await open(page, api, kase, (route) => (revision === returned.revision ? after : before)(route));
-    const preview = page.locator("section[aria-labelledby='preview-heading']");
-    await expect(preview.getByText("7/8", { exact: true })).toBeVisible();
+    const settled = page.locator("[data-preview-state]");
+    await expect(settled).toHaveAttribute("data-preview-state", "ready");
+    await expect(settled).toHaveAttribute("data-preview-revision", String(kase.revision));
+    // Before the add the sheet shows 7/8 for the son.
+    let sheet = await openPreview(page);
+    await expect(sheet.getByText("7/8", { exact: true }).first()).toBeVisible();
+    await closePreview(page);
     const more = page.getByRole("button", { name: "One more Daughter", exact: true });
     const count = page.getByLabel("Number of Daughter to add", { exact: true });
     const list = page.locator("section[aria-labelledby='heirs-heading']");
@@ -430,8 +476,8 @@ test.describe("add relatives", () => {
       await expect(list.getByText(label, { exact: true }).first()).toBeVisible();
       await expect(page.locator(`[data-node="${daughter.id}"]`)).toContainText(label);
     }
-    await expect(preview.getByRole("listitem").filter({ hasText: "Daughter 4" }).getByText("7/48", { exact: true })).toBeVisible();
-    await expect(preview.getByText("7/8", { exact: true })).toHaveCount(0);
+    await expect(settled).toHaveAttribute("data-preview-state", "ready");
+    await expect(settled).toHaveAttribute("data-preview-revision", String(returned.revision));
     await expect(count).toHaveText("1");
     await expect(add).toBeFocused();
     expect(api.bulkPosts).toHaveLength(1);
@@ -440,6 +486,11 @@ test.describe("add relatives", () => {
       heirs: Array(4).fill({ relationship: "daughter", name: null }),
     });
     expect(api.heirPosts).toHaveLength(0);
+    // After the add the sheet shows the 7/48 row for Daughter 4 and no 7/8.
+    sheet = await openPreview(page);
+    await expect(sheet.locator("ul > li").filter({ hasText: "Daughter 4" })).toContainText("7/48");
+    await expect(sheet.getByText("7/8", { exact: true })).toHaveCount(0);
+    await closePreview(page);
   });
 
   test("a refused pair of fathers keeps the count, focus and accepted family", async ({ page, api }) => {
@@ -729,7 +780,7 @@ test.describe("undo", () => {
     await headerUndo(page).first().click();
     await expect(page.locator("[data-node='new-son']")).toHaveCount(0);
     expect(api.restorePosts).toHaveLength(1);
-    expect(JSON.parse(api.restorePosts[0].body)).toEqual({
+    expect(restoreBody(api.restorePosts[0].body)).toEqual({
       case_id: kase.id, expected_revision: after.revision, snapshot: kase.snapshot,
     });
     await expect(page.locator("[data-focus='card:root']")).toBeFocused();
@@ -754,7 +805,7 @@ test.describe("undo", () => {
     api.set({ postRestore: json(200, { case: stamp(kase, two.revision + 2) }) });
     await page.keyboard.press("Control+z");
     await expect(page.locator("[data-node='new-son']")).toHaveCount(0);
-    expect(api.restorePosts.map((post) => JSON.parse(post.body).snapshot)).toEqual([one.snapshot, kase.snapshot]);
+    expect(api.restorePosts.map((post) => restoreBody(post.body).snapshot)).toEqual([one.snapshot, kase.snapshot]);
     await expect(headerUndo(page)).toHaveCount(0);
   });
 
@@ -825,7 +876,7 @@ test.describe("undo", () => {
     await headerUndo(page).first().click();
     await expect(page.locator("[data-node='b']")).toBeVisible();
     expect(api.restorePosts).toHaveLength(1);
-    expect(JSON.parse(api.restorePosts[0].body)).toEqual({ case_id: kase.id, expected_revision: 6, snapshot: kase.snapshot });
+    expect(restoreBody(api.restorePosts[0].body)).toEqual({ case_id: kase.id, expected_revision: 6, snapshot: kase.snapshot });
     await expect(page.locator("[data-focus='card:b']")).toBeFocused();
     await expect(page.locator("[role='status'][aria-atomic='true']")).toHaveText(new RegExp(`^${en.undoDone}`));
   });
@@ -877,7 +928,7 @@ test.describe("interview shell", () => {
     expect(order).toBe(true);
   });
 
-  test("at 1100px a 380px column sits beside the tree; the preview spans below", async ({ page, api }) => {
+  test("at 1100px a 380px column sits beside the tree, with no Share preview", async ({ page, api }) => {
     await page.setViewportSize({ width: 1100, height: 900 });
     await openHeirsScreen(page, api, "en");
     const { add, tree, list } = regions(page);
@@ -888,14 +939,10 @@ test.describe("interview shell", () => {
     expect(t.x).toBeGreaterThan(a.x + a.width - 1);
     expect(l.y).toBeGreaterThan(a.y);
     expect(Math.abs(l.x - a.x)).toBeLessThan(1);
-    const pv = await box(page.locator("section[aria-labelledby='preview-heading']"));
-    expect(Math.abs(pv.x - a.x)).toBeLessThan(1);
-    expect(pv.x + pv.width).toBeCloseTo(t.x + t.width, 0);
-    expect(pv.y).toBeGreaterThanOrEqual(l.y + l.height - 1);
-    expect(pv.y).toBeGreaterThanOrEqual(t.y + t.height - 1);
+    await expect(page.locator("section[aria-labelledby='preview-heading']")).toHaveCount(0);
   });
 
-  test("at 1366px the shell is at most 1360px with a 340px preview column", async ({ page, api }) => {
+  test("at 1366px the shell is at most 1360px: a 380px column and a flexible tree, with no Share preview", async ({ page, api }) => {
     await page.setViewportSize({ width: 1366, height: 900 });
     await openHeirsScreen(page, api, "en");
     const { add, tree } = regions(page);
@@ -903,14 +950,21 @@ test.describe("interview shell", () => {
     expect(grid.width).toBeLessThanOrEqual(1360);
     const [a, t] = [await box(add), await box(tree)];
     expect(a.width).toBeCloseTo(380, 0);
-    expect(grid.x + grid.width - (t.x + t.width)).toBeGreaterThanOrEqual(340);
-    const pv = await box(page.locator("section[aria-labelledby='preview-heading']").locator(".."));
-    expect(pv.width).toBeCloseTo(340, 0);
-    expect(pv.x).toBeGreaterThanOrEqual(t.x + t.width - 1);
-    // Read both tops in one frame: the page may still be finishing its smooth focus scroll.
-    const tops = await page.evaluate(() => ["section[data-tree]", "section[aria-labelledby='preview-heading']"].map((s) => (s.includes("preview") ? document.querySelector(s)!.parentElement! : document.querySelector(s)!).getBoundingClientRect().y));
-    expect(Math.abs(tops[1] - tops[0])).toBeLessThan(2);
+    // The tree takes the rest of the shell: no third column.
+    expect(Math.abs(grid.x + grid.width - (t.x + t.width))).toBeLessThan(2);
+    await expect(page.locator("section[aria-labelledby='preview-heading']")).toHaveCount(0);
   });
+
+  for (const locale of ["en", "ar"] as const) for (const width of [375, 1100, 1366]) {
+    test(`no Share preview region is on the Interview at ${width}px in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openHeirsScreen(page, api, locale);
+      await expect(page.locator("section[aria-labelledby='preview-heading'], #preview-heading, [data-preview-body]")).toHaveCount(0);
+      await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "ready");
+      // Names and terms on the tree cards keep their own direction markup.
+      expect(await page.locator("[data-node] bdi").count()).toBeGreaterThan(0);
+    });
+  }
 
   test("in Arabic the 380px column is at the inline-start (right) side", async ({ page, api }) => {
     await page.setViewportSize({ width: 1100, height: 900 });
@@ -1061,8 +1115,8 @@ test.describe("later-death estates", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const kase = layeredCase();
     await open(page, api, kase, layered.response);
-    const preview = page.locator("section[aria-labelledby='preview-heading']");
-    await expect(preview).toBeVisible();
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
+    await expect(page.locator("[data-summary-bar]")).toBeVisible();
     const card = page.locator('[data-node="s1"]');
     await card.focus();
     await card.press("Enter");
@@ -1072,8 +1126,8 @@ test.describe("later-death estates", () => {
     const nav = page.getByRole("navigation", { name: en.estateLevel });
     await expect(nav.getByRole("link")).toHaveCount(1);
     await expect(nav.locator("[aria-current='page']")).toContainText(en.deathSecond);
-    await expect(preview).toBeHidden();
-    await expect(page.locator("#preview-heading")).toBeHidden();
+    await expect(page.locator("#preview-heading")).toHaveCount(0);
+    await expect(page.locator("[data-summary-bar], dialog[data-summary-sheet]")).toHaveCount(0);
     // The first wife is the later deceased's mother here, never "Wife".
     const mother = page.locator('[data-node="r1"]');
     await expect(mother).toContainText(en.relationships.mother);
@@ -1082,7 +1136,8 @@ test.describe("later-death estates", () => {
     await expect(heading).toBeFocused();
     await expect(heading).toHaveText(en.treeHeading);
     await expect(nav).toHaveCount(0);
-    await expect(page.locator("section[aria-labelledby='preview-heading']")).toBeVisible();
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
+    await expect(page.locator("[data-summary-bar]")).toBeVisible();
     await expect(page.locator('[data-node="w"]')).toContainText(en.relationships.wife);
   });
 
@@ -1265,10 +1320,9 @@ test.describe("lineage canvas", () => {
       await expect(group.getByText(t.treeAddSpouse, { exact: true })).toBeVisible();
       await expect(group.locator("button")).toHaveCount(3);
       await expect(page.getByText(t.heirsEmpty, { exact: true })).toBeVisible();
-      // Matrix "empty estate": the preview shows its prompt and no share rows.
-      const preview = page.locator("section[aria-labelledby='preview-heading']");
-      await expect(preview).toContainText(t.previewPrompt);
-      await expect(preview.locator("ul li, table")).toHaveCount(0);
+      // No bar while the estate is empty: there are no shares to summarize.
+      await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "idle");
+      await expect(page.locator("[data-summary-bar], dialog[data-summary-sheet], [data-preview-body]")).toHaveCount(0);
     });
     for (const width of [375, 1280]) test(`50 heirs stay reachable and deceased stays inside in ${locale} at ${width}`, async ({ page, api }) => {
       await page.setViewportSize({ width, height: 900 }); await openCanvasFixture(page, api, locale, "many");
@@ -1291,7 +1345,8 @@ test.describe("lineage canvas", () => {
           await pinned();
         }
       }
-      await canvas.evaluate(el => { el.scrollTop = el.scrollHeight; });
+      // Story 9.14: the 50 sons are one row, so the last one is reached at the inline end.
+      await canvas.evaluate((el, rtl) => { el.scrollTop = el.scrollHeight; const max = el.scrollWidth - el.clientWidth; el.scrollLeft = rtl ? -max : max; }, locale === "ar");
       await expect(canvas.locator('[data-node="many49"]')).toBeInViewport(); await pinned();
     });
   }
@@ -1505,8 +1560,8 @@ test.describe("add relative here", () => {
   });
 
   const drag = async (page: Page, to: string) => {
-    // Let the preview settle first: it shifts the layout, and so the chip.
-    await page.locator("section[aria-labelledby='preview-heading']").locator("table, ul").first().waitFor();
+    // Let the calculation settle first (it can still update the tree), then press the chip.
+    await page.locator("[data-preview-state='ready']").waitFor();
     await expect(page.locator('[data-focus="add:son"]')).toHaveAttribute("aria-disabled", "false");
     // hover() waits for the chip to hold still, so the press lands on it and not on a neighbour.
     await page.locator('[data-focus="add:son"]').hover();
@@ -1638,7 +1693,7 @@ test.describe("one status and pending shares (story 9.10)", () => {
     await page.getByRole("button", { name: en.resume }).click();
     await page.locator("#add-relatives-heading").waitFor();
   };
-  const rowsOf = (page: Page) => page.locator("section[aria-labelledby='preview-heading']").locator("tbody tr, ul > li");
+  const rowsOf = (page: Page) => sheetOf(page).locator("section[aria-labelledby='preview-heading']").locator("tbody tr, ul > li");
 
   test("a fast add is spoken as one sentence by the one status region", async ({ page, api }) => {
     const kase = base();
@@ -1651,7 +1706,7 @@ test.describe("one status and pending shares (story 9.10)", () => {
       postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
     });
     await resume(page);
-    await expect(rowsOf(page).first()).toBeVisible();
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
     await page.getByRole("button", { name: "Add Son", exact: true }).click();
     await expect(status(page)).toHaveText(`Son 2 added. ${en.previewReadyCount.replace("{count}", String(returned.heirs.length))}`);
     await expect(page.locator("[role='status'][aria-atomic='true']")).toHaveCount(1);
@@ -1670,9 +1725,13 @@ test.describe("one status and pending shares (story 9.10)", () => {
       postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
     });
     await resume(page);
-    const section = page.locator("section[aria-labelledby='preview-heading']");
-    await expect(rowsOf(page).first()).toBeVisible();
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
     await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    // The bar keeps the family's summary and says it is waiting, never "ready".
+    await expect(page.locator("[data-summary-bar] [data-summary-text]")).toHaveText(en.previewWaiting);
+    await openPreview(page);
+    const section = sheetOf(page).locator("section[aria-labelledby='preview-heading']");
+    await expect(rowsOf(page).first()).toBeVisible();
     await expect(section).toHaveAttribute("aria-busy", "true");
     const body = section.locator("[data-preview-body]");
     await expect(body).toHaveAttribute("data-pending", "");
@@ -1691,6 +1750,7 @@ test.describe("one status and pending shares (story 9.10)", () => {
     await expect(body).not.toHaveAttribute("data-pending", "");
     await expect(section.getByText("77.7%", { exact: true }).first()).toBeVisible();
     await expect(status(page)).toHaveText(en.previewReadyCount.replace("{count}", String(returned.heirs.length)));
+    await expect(page.locator("[data-summary-bar] [data-summary-text]")).toHaveText(en.previewReadyCount.replace("{count}", String(returned.heirs.length)));
   });
 
   test("a response for an older revision never becomes the shown answer", async ({ page, api }) => {
@@ -1703,12 +1763,14 @@ test.describe("one status and pending shares (story 9.10)", () => {
       postHeir: json(201, { case: returned }),
     });
     await resume(page);
-    const section = page.locator("section[aria-labelledby='preview-heading']");
-    await expect(rowsOf(page).first()).toBeVisible();
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
     const gets = api.previewGets;
     await page.getByRole("button", { name: "Add Son", exact: true }).click();
     await expect.poll(() => api.previewGets).toBeGreaterThan(gets);
     await page.waitForTimeout(500);
+    await openPreview(page);
+    const section = sheetOf(page).locator("section[aria-labelledby='preview-heading']");
+    await expect(rowsOf(page).first()).toBeVisible();
     await expect(section).toHaveAttribute("aria-busy", "true");
     await expect(section.locator("[data-preview-body]")).toHaveAttribute("data-pending", "");
   });
@@ -1717,29 +1779,32 @@ test.describe("one status and pending shares (story 9.10)", () => {
     const kase = base();
     api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, previewOf(kase)) });
     await resume(page);
-    const section = page.locator("section[aria-labelledby='preview-heading']");
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
+    const section = sheetOf(page).locator("section[aria-labelledby='preview-heading']");
+    await openPreview(page);
     await expect(section).toHaveAttribute("aria-busy", "false");
+    await closePreview(page);
     const named = { ...kase, revision: kase.revision + 1, heirs: kase.heirs.map((h: Record<string, unknown>, i: number) => (i === 0 ? { ...h, name: "Zaid" } : h)) };
-    api.set({ putHeir: json(200, { case: named }), getPreview: delayed(1500, previewOf(named)) });
+    api.set({ putHeir: json(200, { case: named }), getPreview: delayed(2500, previewOf(named)) });
     await page.locator("[data-node]").nth(1).click();
     const sheet = page.locator("[data-edit-sheet]");
     await sheet.getByLabel(en.heirNameLabel).fill("Zaid");
     await sheet.getByLabel(en.heirNameLabel).press("Enter");
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "pending");
+    await openPreview(page);
     await expect(section).toHaveAttribute("aria-busy", "true");
     await expect(section).toHaveAttribute("aria-busy", "false", { timeout: 6000 });
   });
 
-  test("a failed preview keeps the family, says so once and Retry starts a pending state", async ({ page, api }) => {
+  test("a failed first preview keeps the family, says so once in the status and shows no bar", async ({ page, api }) => {
     const kase = base();
     api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(500, {}) });
     await resume(page);
-    const section = page.locator("section[aria-labelledby='preview-heading']");
-    await expect(section.getByText(en.previewFailed)).toBeVisible();
     await expect(status(page)).toHaveText(en.previewFailed);
-    api.set({ getPreview: delayed(1200, previewOf(kase)) });
-    await section.getByRole("button", { name: en.previewRetry }).click();
-    await expect(section).toHaveAttribute("aria-busy", "true");
-    await expect(section).toHaveAttribute("aria-busy", "false", { timeout: 6000 });
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "error");
+    // With no shares to summarize there is no bar (status-only, per the UX rule); the family stays.
+    await expect(page.locator("[data-summary-bar], dialog[data-summary-sheet]")).toHaveCount(0);
+    await expect(page.locator("section[aria-labelledby='heirs-heading'] ul > li").first()).toBeVisible();
   });
 
   test("a delayed case shows a busy skeleton, then the Interview", async ({ page, api }) => {
@@ -1771,17 +1836,22 @@ test.describe("one status and pending shares (story 9.10)", () => {
       postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
     });
     await resume(page);
-    const section = page.locator("section[aria-labelledby='preview-heading']");
-    await expect(rowsOf(page).first()).toBeVisible();
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
     await page.getByRole("button", { name: "Add Son", exact: true }).click();
-    await expect(section).toHaveAttribute("aria-busy", "true");
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "pending");
     await context.setOffline(true);
     await expect(page.getByText(en.offlineEditing)).toBeVisible();
     await expect(page.getByRole("button", { name: "Add Son", exact: true })).toHaveAttribute("aria-disabled", "true");
     // Long enough for the slow box and the five-second request limit: the request has failed by now.
     await page.waitForTimeout(5500);
+    // The failure is known offline, so the status says nothing of it; the bar and the sheet show it.
+    await expect(status(page)).not.toHaveText(new RegExp(en.previewFailed));
+    await expect(page.locator("[data-summary-bar] [data-summary-text]")).toHaveText(en.previewFailed);
+    await openPreview(page);
+    const section = sheetOf(page).locator("section[aria-labelledby='preview-heading']");
     await expect(section.locator("[data-slow]")).toHaveCount(0);
-    await expect(section.getByText(en.previewFailed)).toHaveCount(0);
+    await expect(section.getByText(en.previewFailed)).toBeVisible();
+    await expect(section.getByRole("button", { name: en.previewRetry })).toBeVisible();
     await expect(section.getByText("12.5%", { exact: true }).first()).toBeVisible();
     await expect(section.locator("[data-preview-body]")).toHaveClass(/text-muted/);
     const gets = api.previewGets;
@@ -1805,6 +1875,24 @@ test.describe("one status and pending shares (story 9.10)", () => {
     await resume(page);
     await page.getByRole("button", { name: "Add Son", exact: true }).click();
     await expect(status(page)).toHaveText(new RegExp(`^[A-Za-z]+ added[.] ${en.previewReadyCount.replace("{count}", String(base().heirs.length)).replace(".", "[.]")}$`));
+  });
+
+  test("a failed preview after an add keeps the family and reaches the one status", async ({ page, api }) => {
+    const kase = base();
+    const returned = grown(kase);
+    let added = false;
+    api.set({
+      session: sessionAnonymous,
+      getCase: json(200, { case: kase }),
+      getPreview: (route) => (added ? json(500, {})(route) : json(200, previewOf(kase))(route)),
+      postHeir: (route) => { added = true; return json(201, { case: returned })(route); },
+    });
+    await resume(page);
+    await expect(page.locator("[data-preview-state='ready']")).toBeAttached();
+    await page.getByRole("button", { name: "Add Son", exact: true }).click();
+    await expect(page.locator("section[aria-labelledby='heirs-heading']").getByText("Son 2", { exact: true }).first()).toBeVisible();
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "error", { timeout: 10000 });
+    await expect(status(page)).toContainText(en.previewFailed);
   });
 
   test("a refusal stays an alert and never reaches the status", async ({ page, api }) => {
@@ -1835,6 +1923,56 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
   const treeColumn = (page: Page) => page.locator("section[data-tree]").locator("xpath=ancestor::div[contains(@class,'lg:col-start-2')][1]");
   const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
 
+  // Story 9.14: a generation line is one row at every width and the deceased does not jump.
+  for (const locale of ["en", "ar"] as const) {
+    test(`six sons: one row, sideways scroll, centred and steady deceased on add and shrink in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 375, height: 900 });
+      const sons = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `row${i}`, relationship: "son", gender: "male", name: null, edit_options: { blocked: [], invalid: {} } }));
+      const kase = stamp(fullCase(agree.case, { deaths: [], heirs: sons(6) }) as Record<string, any>, 5); // eslint-disable-line @typescript-eslint/no-explicit-any
+      await openAgree(page, api, locale, kase);
+      const t = messages[locale].interview, canvas = page.getByRole("group", { name: t.treeHeading });
+      const root = canvas.locator('[data-node="root"]');
+      await canvas.scrollIntoViewIfNeeded();
+      const tops = async () => Promise.all(Array.from({ length: 6 }, async (_, i) => Math.round((await box(canvas.locator(`[data-node="row${i}"]`))).y)));
+      await expect.poll(async () => new Set(await tops()).size).toBe(1);
+      expect(await canvas.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+      const centred = async () => {
+        const c = await canvas.evaluate((el) => { const r = el.getBoundingClientRect(); return r.left + el.clientLeft + el.clientWidth / 2; });
+        const r = await box(root);
+        return Math.abs(r.x + r.width / 2 - c);
+      };
+      const settled = async () => {
+        let last = (await box(root)).x;
+        await expect.poll(async () => { await page.waitForTimeout(200); const x = (await box(root)).x; const same = x === last; last = x; return same; }).toBe(true);
+        return last;
+      };
+      const inside = async () => {
+        const outer = (await box(canvas)), r = await box(root);
+        expect(r.x).toBeGreaterThanOrEqual(outer.x + 5); expect(r.x + r.width).toBeLessThanOrEqual(outer.x + outer.width - 5);
+      };
+      // Centred on entry, and again after Fit tree from a panned position.
+      await expect.poll(centred).toBeLessThanOrEqual(2);
+      await canvas.evaluate((el) => { el.scrollLeft += el.scrollLeft < 100 ? 100 : -100; });
+      await page.getByRole("button", { name: t.treeFit, exact: true }).click();
+      await expect.poll(centred).toBeLessThanOrEqual(2);
+      // Adding a seventh son: once the reveal has finished, the deceased is still inside the canvas.
+      const after = stamp({ ...kase, heirs: sons(7) }, 6);
+      api.set({ postHeir: json(201, { case: after }) });
+      await page.getByRole("button", { name: t.addRelative.replace("{relationship}", t.relationships.son), exact: true }).click();
+      await expect(canvas.locator('[data-node="row6"]')).toBeInViewport();
+      await settled();
+      await inside();
+      // Shrink without a reveal: pan 40px toward inline start, remove the son next to the spine (focus then stays in view), the deceased does not move.
+      await canvas.evaluate((el) => { el.scrollLeft += el.scrollLeft < 0 || el.clientWidth < 0 ? 40 : (getComputedStyle(el).direction === "rtl" ? 40 : -40); });
+      const before = await settled();
+      api.set({ deleteHeir: json(200, { case: stamp({ ...kase, heirs: sons(7).filter((h) => h.id !== "row3") }, 7) }) });
+      await canvas.locator('[data-node="row3"]').press("Delete");
+      await page.locator("[data-edit-sheet]").getByRole("button", { name: t.heirRemoveYes }).click();
+      await expect(canvas.locator('[data-node="row3"]')).toHaveCount(0);
+      expect(Math.abs((await settled()) - before)).toBeLessThanOrEqual(1);
+    });
+  }
+
   for (const locale of ["en", "ar"] as const) {
     const t = messages[locale].interview;
     for (const width of [320, 639, 640, 1023, 1024, 1279, 1280]) {
@@ -1845,7 +1983,8 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
         const add = page.locator("section[aria-labelledby='add-relatives-heading']");
         const tree = page.locator("section[data-tree]");
         const list = page.locator("section[aria-labelledby='heirs-heading']");
-        const preview = page.locator("section[aria-labelledby='preview-heading']");
+        // The Share preview is not on the Interview at any width (story 11.2).
+        await expect(page.locator("section[aria-labelledby='preview-heading']")).toHaveCount(0);
         expect(await noOverflow(page)).toBe(true);
         const [a, tr, l] = [await box(add), await box(tree), await box(list)];
         // Cards are 108px below 640px and 136px from there.
@@ -1862,20 +2001,9 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
           const column = treeColumn(page);
           const cb = await box(column);
           if (width === 1024) expect(cb.width).toBeGreaterThanOrEqual(596);
-          if (width < 1280) {
-            expect(await column.evaluate((el) => getComputedStyle(el).borderInlineStartWidth + " " + getComputedStyle(el).borderInlineStartStyle)).toBe("1px solid");
-            expect(Math.abs(edge(cb) - (edge(a) + 380))).toBeLessThan(1);
-          }
-        }
-        if (width >= 1280) {
-          const wrapper = preview.locator("..");
-          const pb = await box(wrapper);
-          expect(pb.width).toBeCloseTo(340, 0);
-          expect(await wrapper.evaluate((el) => { const s = getComputedStyle(el); return [s.borderInlineStartWidth, s.paddingInlineStart, s.paddingInlineEnd].join(" "); })).toBe("1px 24px 24px");
-          const middle = tree.locator("xpath=ancestor::div[contains(@class,'xl:col-start-2')][1]");
-          const tb = await box(middle);
-          expect(Math.abs(edge(pb) - (edge(tb) + tb.width))).toBeLessThan(1);
-          expect(await middle.evaluate((el) => getComputedStyle(el).borderInlineStartWidth)).toBe("1px");
+          // Two columns from 1024px, the tree flexible to the shell's edge: no third column at 1280px.
+          expect(await column.evaluate((el) => getComputedStyle(el).borderInlineStartWidth + " " + getComputedStyle(el).borderInlineStartStyle)).toBe("1px solid");
+          expect(Math.abs(edge(cb) - (edge(a) + 380))).toBeLessThan(1);
         }
         // The edit surface: a bottom sheet below 640px, a non-modal panel from there.
         const editable = page.locator('[data-node]:not([data-node="root"]):not([data-state="died_later"])').first();
@@ -1887,19 +2015,11 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
           const panel = page.locator("section[data-edit-sheet]");
           await expect(panel).toBeVisible();
           const pn = await box(panel);
-          if (width >= 1280) {
-            // The inline-end column, above the still-mounted Share preview.
-            const pv = await box(preview.locator(".."));
-            expect(pn.x).toBeGreaterThanOrEqual(pv.x - 1);
-            expect(pn.x + pn.width).toBeLessThanOrEqual(pv.x + pv.width + 1);
-            expect(pn.y + pn.height).toBeLessThanOrEqual((await box(preview)).y + 1);
-            await expect(preview).toBeVisible();
-          } else {
-            const tb = await box(tree);
-            expect(pn.y).toBeGreaterThanOrEqual(tb.y + tb.height - 1);
-            expect(pn.x).toBeGreaterThanOrEqual(tb.x - 1);
-            expect(pn.x + pn.width).toBeLessThanOrEqual(tb.x + tb.width + 1);
-          }
+          // The panel sits below the tree, inside its column, at every width from 640px.
+          const tb = await box(tree);
+          expect(pn.y).toBeGreaterThanOrEqual(tb.y + tb.height - 1);
+          expect(pn.x).toBeGreaterThanOrEqual(tb.x - 1);
+          expect(pn.x + pn.width).toBeLessThanOrEqual(tb.x + tb.width + 1);
           expect(await panel.evaluate((el) => !el.matches(":modal"))).toBe(true);
           // Escape closes it and returns focus to the opening card.
           await panel.getByLabel(t.heirNameLabel).press("Escape");
@@ -1910,14 +2030,14 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
     }
   }
 
-  test("1280px in a later estate: the panel stays in the tree column and the preview is hidden", async ({ page, api }) => {
+  test("1280px in a later estate: the panel stays in the tree column", async ({ page, api }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await openCanvasFixture(page, api, "en");
     const later = page.locator('[data-node][data-state="died_later"]').first();
     await later.focus();
     await later.press("Enter");
     await expect(page.locator("[data-breadcrumb]")).toBeVisible();
-    await expect(page.locator("section[aria-labelledby='preview-heading']")).toBeHidden();
+    await expect(page.locator("section[aria-labelledby='preview-heading']")).toHaveCount(0);
     const editable = page.locator('[data-node][data-state="normal"], [data-node][data-state="blocked"], [data-node][data-state="died_before"]').first();
     await editable.focus();
     await editable.press("Enter");
@@ -2069,14 +2189,18 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
     }), { timeout: 3000 }).toBe(true);
   });
 
-  test("the obstruction follows the toast, is capped at a quarter of the viewport, and returns to 0px", async ({ page, api }) => {
+  test("the obstruction follows the summary bar plus the toast, is capped at a quarter of the viewport, and returns to the bar's height", async ({ page, api }) => {
     await page.clock.install();
     await page.setViewportSize({ width: 320, height: 240 });
     const kase = start();
     await openAgree(page, api, "en", kase);
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollPaddingBlockEnd)).toBe("0px");
+    // The fixed summary bar alone is the baseline (capped at a quarter of the 240px viewport).
+    const bar = page.locator("[data-summary-bar]");
+    await expect(bar).toBeVisible();
+    const barHeight = (await box(bar)).height;
+    await expect.poll(() => page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).scrollPaddingBlockEnd))).toBeCloseTo(Math.min(barHeight, 60), 0);
     api.set({ postHeir: json(201, { case: added(kase) }) });
-    await page.locator('[data-focus="add:son"]').click();
+    await page.locator('[data-focus="add:son"]').click({ force: true });
     const toast = page.locator("[data-undo-toast]");
     await expect(toast).toBeVisible();
     expect((await box(toast)).height).toBeGreaterThan(60);
@@ -2085,10 +2209,18 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
     // Taller than the cap: the toast's own height applies once a quarter of the viewport is at least that.
     const natural = (await box(toast)).height;
     await page.setViewportSize({ width: 320, height: 800 });
-    await expect.poll(() => page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue("--interview-obstruction")))).toBeCloseTo(Math.min(natural, 200), 0);
+    await expect.poll(() => page.evaluate((toastHeight) => {
+      const bar = document.querySelector("[data-summary-bar]");
+      const expected = Math.min(toastHeight + (bar?.getBoundingClientRect().height ?? 0), 0.25 * window.innerHeight);
+      return Math.abs(parseFloat(document.documentElement.style.getPropertyValue("--interview-obstruction")) - expected);
+    }, natural)).toBeLessThan(1);
     await page.clock.fastForward(10_500);
     await expect(toast).toHaveCount(0);
-    await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).scrollPaddingBlockEnd)).toBe("0px");
+    // Only the bar remains (this stub never answers the new revision, so the request may fail and the bar go too).
+    await expect.poll(() => page.evaluate(() => {
+      const bar = document.querySelector("[data-summary-bar]");
+      return Math.abs(parseFloat(getComputedStyle(document.documentElement).scrollPaddingBlockEnd) - Math.min(bar?.getBoundingClientRect().height ?? 0, 0.25 * window.innerHeight));
+    })).toBeLessThan(1);
   });
 
   test.describe("reduced motion", () => {
@@ -2177,14 +2309,14 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
     test(`names, terms and fractions keep their own direction markup in ${locale}`, async ({ page, api }) => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await openHeirsScreen(page, api, locale);
-      const preview = page.locator("section[aria-labelledby='preview-heading']");
+      const sheet = await openPreview(page);
+      const preview = sheet.locator("section[aria-labelledby='preview-heading']");
       expect(await preview.locator("span[lang][dir]").count()).toBe(0);
       expect(await preview.locator("bdi[lang][dir]").count()).toBeGreaterThan(0);
       if (locale === "en") expect(await preview.locator("bdi[lang='ar'][dir='rtl']").count()).toBeGreaterThan(0);
       const fractions = await preview.evaluate((el) => [...el.querySelectorAll("*")].filter((n) => n.children.length === 0 && /^\d+\/\d+$/.test(n.textContent?.trim() ?? "")).map((n) => n.closest("[dir]")?.getAttribute("dir")));
       expect(fractions.length).toBeGreaterThan(0);
       expect(fractions.every((dir) => dir === "ltr")).toBe(true);
-      expect(await page.locator("[data-node] bdi").count()).toBeGreaterThan(0);
     });
   }
 });
@@ -2255,16 +2387,18 @@ test.describe("Story 9.13: link a later-estate heir from the edit sheet", () => 
       await expect(page.locator("[role='status']").filter({ hasText: "linked to a person already in the case" }).first()).toBeAttached();
       await page.locator("[data-edit-sheet]").getByRole("button", { name: en.editClose }).click();
       await expect(page.locator("section[aria-labelledby='heirs-heading']")).toContainText("Amal");
-      // The Share preview of the accepted revision is the one shown, not the earlier not-ready one.
+      // The calculation of the accepted revision is the one settled, not the earlier not-ready one.
       await page.locator("[data-breadcrumb] a").click();
-      if (size.width >= 1280) {
-        const preview = page.locator("section[aria-labelledby='preview-heading']");
-        await expect(preview.locator("table, ul").first()).toBeVisible();
-      }
+      await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "ready");
+      await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-revision", "2");
+      // The shares of that revision are in the sheet.
+      const shares = await openPreview(page);
+      await expect(shares.locator("ul > li").first()).toBeVisible();
+      await closePreview(page);
       // Undo restores the unlinked row, with the prior snapshot at the current revision.
       await headerUndo(page).first().click();
       await expect.poll(() => api.restorePosts.length).toBe(1);
-      expect(JSON.parse(api.restorePosts[0].body)).toMatchObject({ expected_revision: 2, snapshot: { at: 1, r1: null } });
+      expect(restoreBody(api.restorePosts[0].body)).toMatchObject({ expected_revision: 2, snapshot: { at: 1, r1: null } });
       await page.locator('[data-node="s1"]').press("Enter");
       await expect(page.locator('[data-node="r1"]')).not.toContainText("Amal");
       // Unlink the other row: Nobody else sends null.
@@ -2324,4 +2458,215 @@ test.describe("Story 9.13: link a later-estate heir from the edit sheet", () => 
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(320);
   });
+});
+
+test.describe("Story 11.3: the summary bar and sheet", () => {
+  for (const locale of ["en", "ar"] as const) for (const width of [375, 1366]) {
+    test(`the fixed bar spans the viewport with its controls reachable at ${width}px in ${locale}`, async ({ page, api }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await openHeirsScreen(page, api, locale);
+      const t = messages[locale].interview;
+      const bar = page.locator("[data-summary-bar]");
+      await expect(bar).toBeVisible();
+      const frame = (await bar.boundingBox())!;
+      expect(frame.x).toBeCloseTo(0, 0);
+      expect(frame.width).toBeCloseTo(width, 0);
+      expect(frame.y + frame.height).toBeCloseTo(800, 0);
+      expect(frame.height).toBeGreaterThanOrEqual(44);
+      await expect(bar).toContainText(t.previewReadyCount.replace("{count}", "3"));
+      const results = bar.getByRole("link", { name: t.previewResultsLink });
+      const chevron = bar.getByRole("button", { name: t.previewHeading });
+      for (const control of [results, chevron]) {
+        const b = (await control.boundingBox())!;
+        expect(b.height).toBeGreaterThanOrEqual(44);
+        expect(b.width).toBeGreaterThanOrEqual(44);
+        expect(b.x).toBeGreaterThanOrEqual(0);
+        expect(b.x + b.width).toBeLessThanOrEqual(width);
+        expect(b.y + b.height).toBeLessThanOrEqual(800);
+      }
+      await expect(results).toHaveAttribute("href", `/${locale}/results/`);
+      await expect(chevron).toHaveAttribute("aria-haspopup", "dialog");
+      await expect(chevron).toHaveAttribute("aria-expanded", "false");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      // The bar's height is part of the block-end obstruction.
+      const obstruction = await page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue("--interview-obstruction")));
+      expect(obstruction).toBeGreaterThanOrEqual(44);
+      if (width >= 1024) {
+        const add = (await page.locator("section[aria-labelledby='add-relatives-heading']").boundingBox())!;
+        const tree = (await page.locator("section[data-tree]").boundingBox())!;
+        expect(add.width).toBeCloseTo(380, 0);
+        // The 380px column sits at the inline-start: left in English, right in Arabic.
+        if (locale === "ar") expect(tree.x + tree.width).toBeLessThan(add.x + 1);
+        else expect(tree.x).toBeGreaterThan(add.x + add.width - 1);
+      }
+    });
+  }
+
+  test("Escape, Close and a scrim click each close the sheet and return focus to the chevron", async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await openHeirsScreen(page, api, "en");
+    const chevron = page.locator("[data-summary-expand]");
+    const revision = () => page.locator("[data-preview-state]").getAttribute("data-preview-revision");
+    const before = await revision();
+    const writes = api.casePosts.length + api.heirPosts.length;
+    const sheet = await openPreview(page);
+    await expect(sheet.locator("h2#preview-heading")).toBeFocused();
+    await expect(sheet).toHaveAttribute("aria-labelledby", "preview-heading");
+    // The sheet sits at the block-end edge, under the scrim.
+    await expect.poll(async () => { const b = (await sheet.boundingBox())!; return Math.abs(b.y + b.height - 800); }).toBeLessThan(1);
+    await expect(page.locator("[data-summary-bar]")).toHaveAttribute("inert", "");
+    const frame = (await sheet.boundingBox())!;
+    expect(frame.height).toBeLessThanOrEqual(800 * 0.78 + 1);
+    expect(frame.width).toBeCloseTo(375, 0);
+    await expect(sheet.locator("[data-notice='disclaimer']")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    await expect(chevron).toBeFocused();
+    await expect(page.locator("[data-summary-bar]")).not.toHaveAttribute("inert", "");
+    await openPreview(page);
+    await sheet.getByRole("button", { name: en.editClose, exact: true }).click();
+    await expect(sheet).toBeHidden();
+    await expect(chevron).toBeFocused();
+    await openPreview(page);
+    await page.mouse.click(187, 20);
+    await expect(sheet).toBeHidden();
+    await expect(chevron).toBeFocused();
+    expect(await revision()).toBe(before);
+    expect(api.casePosts.length + api.heirPosts.length).toBe(writes);
+  });
+
+  test("the text area of the bar opens the sheet, and Full results does not", async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await openHeirsScreen(page, api, "en");
+    await page.locator("[data-summary-text]").click();
+    await expect(sheetOf(page)).toBeVisible();
+    await closePreview(page);
+    await expect(page.locator("[data-summary-bar]").getByRole("link", { name: en.previewResultsLink })).toHaveAttribute("href", "/en/results/");
+    await expect(sheetOf(page)).toBeHidden();
+  });
+
+  const differStubs = (api: Parameters<typeof openHeirsScreen>[1], opts: { afterChoice?: Stubs["getPreview"] } = {}) => {
+    const differ = fixture("Differ: grandfather and full brother");
+    const stored = fullCase(differ.case, { madhab: "hanafi" });
+    let chosen = false;
+    api.set({
+      session: sessionAnonymous,
+      getCase: (route) => json(200, { case: chosen ? stored : fullCase(differ.case) })(route),
+      patchCase: (route) => { chosen = true; return json(200, { case: stored })(route); },
+      getPreview: (route) => (chosen && opts.afterChoice ? opts.afterChoice(route) : json(200, chosen ? differ.response.schools.hanafi : differ.response)(route)),
+    });
+    return differ;
+  };
+
+  test("a School-comparison sheet that overflows a short viewport scrolls to Continue, and Continue works", async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 420 });
+    const differ = differStubs(api);
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    const sheet = await openPreview(page);
+    const scroller = sheet.locator("div.overflow-y-auto");
+    expect(await scroller.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    await sheet.getByRole("radio", { name: en.madhabs.hanafi.name }).check();
+    const next = sheet.getByRole("button", { name: en.madhabContinue });
+    await next.scrollIntoViewIfNeeded();
+    const [frame, view] = [(await next.boundingBox())!, (await sheet.boundingBox())!];
+    expect(frame.y + frame.height).toBeLessThanOrEqual(view.y + view.height + 1);
+    await next.click();
+    await expect.poll(() => api.casePatches.length).toBe(1);
+    expect(JSON.parse(api.casePatches[0].body)).toMatchObject({ madhab: "hanafi", case_id: differ.case.id });
+  });
+
+  test("an online failure with the sheet open keeps it open with the error, and Retry asks again and goes pending", async ({ page, api }) => {
+    differStubs(api, { afterChoice: json(500, {}) });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    const sheet = await openPreview(page);
+    await sheet.getByRole("radio", { name: en.madhabs.hanafi.name }).check();
+    await sheet.getByRole("button", { name: en.madhabContinue }).click();
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "error");
+    // No shares are left, yet the sheet stays with the error and Retry; the bar waits behind it.
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByText(en.previewFailed)).toBeVisible();
+    await expect(page.locator("[data-summary-bar]")).toHaveAttribute("inert", "");
+    const gets = api.previewGets;
+    const differ = fixture("Differ: grandfather and full brother");
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    api.set({ getPreview: async (route) => { await gate; try { await json(200, differ.response.schools.hanafi)(route); } catch {} } });
+    await sheet.getByRole("button", { name: en.previewRetry }).click();
+    await expect.poll(() => api.previewGets).toBeGreaterThan(gets);
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "pending");
+    await expect(sheet).toBeVisible();
+    release();
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "ready");
+  });
+
+  test("a whole-preview refusal arriving while the sheet is open keeps it open with the served reason", async ({ page, api }) => {
+    const differ = fixture("Differ: grandfather and full brother");
+    const chosen = differ.response.schools.hanafi;
+    // A whole-preview refusal for the chosen School, matching the saved revision and family.
+    const refusal = { status: "unavailable", madhab: "hanafi", reason: "malikiyya_disputed", revision: chosen.revision, basis: chosen.basis, presented: served.presented["Maliki Malikiyya is refused"] };
+    differStubs(api, { afterChoice: json(200, refusal) });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    const sheet = await openPreview(page);
+    await sheet.getByRole("radio", { name: en.madhabs.hanafi.name }).check();
+    await sheet.getByRole("button", { name: en.madhabContinue }).click();
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "refused");
+    await expect(page.locator("dialog[data-summary-sheet]:modal")).toBeVisible();
+    await expect(sheet.getByText(en.previewUnavailable)).toBeVisible();
+    await expect(sheet.getByText(en.previewReasons.malikiyya_disputed)).toBeVisible();
+    await expect(page.locator("[data-summary-bar]")).toHaveAttribute("inert", "");
+  });
+
+  test.describe("reduced motion", () => {
+    test("the summary sheet and its scrim do not animate, and Escape still returns focus to the chevron", async ({ page, api }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.setViewportSize({ width: 375, height: 800 });
+      await openHeirsScreen(page, api, "en");
+      const sheet = await openPreview(page);
+      expect(await sheet.evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+      expect(await sheet.evaluate((el) => getComputedStyle(el, "::backdrop").animationName)).toBe("none");
+      await page.keyboard.press("Escape");
+      await expect(sheet).toBeHidden();
+      await expect(page.locator("[data-summary-expand]")).toBeFocused();
+    });
+  });
+
+  test("the one status node is inside the open dialog and back in the Interview after Close", async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await openHeirsScreen(page, api, "en");
+    const status = page.locator("[role='status'][aria-atomic='true']");
+    await expect(status).toHaveCount(1);
+    await expect(sheetOf(page).locator("[role='status']")).toHaveCount(0);
+    const sheet = await openPreview(page);
+    await expect(page.locator("[role='status'][aria-atomic='true']")).toHaveCount(1);
+    await expect(sheet.locator("[role='status'][aria-atomic='true']")).toHaveCount(1);
+    await closePreview(page);
+    await expect(page.locator("[role='status'][aria-atomic='true']")).toHaveCount(1);
+    await expect(sheetOf(page).locator("[role='status']")).toHaveCount(0);
+  });
+
+  test("Full results in the bar navigates to the locale's results page", async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await openHeirsScreen(page, api, "en");
+    await page.route("**/en/results/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>results</title>" }));
+    await page.locator("[data-summary-bar]").getByRole("link", { name: en.previewResultsLink }).click();
+    await expect(page).toHaveURL(/\/en\/results\/$/);
+  });
+
+  for (const scheme of ["light", "dark"] as const) {
+    test(`the bar and sheet shadows and the scrim are drawn in ${scheme} mode`, async ({ page, api }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width: 375, height: 800 });
+      await openHeirsScreen(page, api, "en");
+      const bar = page.locator("[data-summary-bar]");
+      expect(await bar.evaluate((el) => getComputedStyle(el).boxShadow)).toMatch(/rgba\(0, 0, 0, 0\.12\) 0px -6px 16px 0px$/);
+      expect(await bar.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe("2px");
+      const sheet = await openPreview(page);
+      expect(await sheet.evaluate((el) => getComputedStyle(el).boxShadow)).toMatch(/rgba\(0, 0, 0, 0\.2\) 0px -8px 24px 0px$/);
+      expect(await sheet.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe("18px");
+      expect(await sheet.evaluate((el) => getComputedStyle(el, "::backdrop").backgroundColor)).toBe(scheme === "dark" ? "rgba(0, 0, 0, 0.6)" : "rgba(23, 23, 23, 0.4)");
+    });
+  }
 });

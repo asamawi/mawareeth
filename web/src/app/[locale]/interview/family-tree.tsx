@@ -49,6 +49,32 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
     return () => { observer?.disconnect(); window.removeEventListener("resize", resize); };
   }, []);
   const layout = layoutTree(model, Math.max(264, view.width - 16), wide ? 136 : 108);
+  // Scroll that centres the deceased horizontally, in inline coordinates (negative in RTL by the caller); the 8px is the canvas padding.
+  const centreInline = (z: number, viewWidth: number) => Math.max(0, (layout.deceased.x + layout.deceased.width / 2) * z + 8 - viewWidth / 2);
+  const settled = useRef(false);
+  const lastSpine = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = area.current;
+    if (!el) return;
+    const previous = lastSpine.current;
+    lastSpine.current = layout.spineX;
+    if (!settled.current) {
+      // First real measurement: centre the deceased when the tree is wider than the canvas.
+      if (el.clientWidth > 0 && view.width === el.clientWidth) {
+        settled.current = true;
+        const inline = centreInline(zoom, view.width);
+        if (inline > 0) { el.scrollLeft = rtl ? -inline : inline; measure(); }
+      }
+      return;
+    }
+    if (previous !== null && previous !== layout.spineX) {
+      // The spine moved inside the layout: keep the deceased where it was on screen.
+      const d = (layout.spineX - previous) * zoom;
+      el.scrollLeft = view.scrollLeft + (rtl ? -d : d);
+      measure();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout.spineX, zoom, rtl, view.width]);
   const text = treeDescription(messages, model, rootText);
   const ids = ["root", ...layout.nodes.map(n => n.id)];
   // The deceased is the tab stop until a card is pressed; only a pressed or edited card is current.
@@ -124,7 +150,7 @@ export function FamilyTree({ messages, model, rootText, editingId, locale, onAnn
     <div className="flex gap-2">
       <button type="button" className={`${secondaryButton} motion-reduce:transition-none`} onClick={() => {
         const z = fitZoom({ width: layout.width, height }, view); announceZoom(z);
-        requestAnimationFrame(() => { const el = area.current; if (el) { el.scrollTop = 0; const inline = Math.max(0, (layout.deceased.x + layout.deceased.width / 2) * z - view.width / 2); el.scrollLeft = rtl ? -inline : inline; measure(); } });
+        requestAnimationFrame(() => { const el = area.current; if (el) { el.scrollTop = 0; const inline = centreInline(z, view.width); el.scrollLeft = rtl ? -inline : inline; measure(); } });
       }}>{messages.treeFit}</button>
       {([1, -1] as const).map(delta => <button key={delta} type="button" className={`${secondaryButton} motion-reduce:transition-none`} disabled={zoom === (delta === 1 ? 1.5 : 0.6)} onClick={() => stepZoom(delta)}><span aria-hidden="true">{delta === 1 ? "+" : "−"}</span><span className="sr-only">{delta === 1 ? messages.treeZoomIn : messages.treeZoomOut}</span></button>)}
     </div>

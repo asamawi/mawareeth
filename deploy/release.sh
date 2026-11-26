@@ -560,7 +560,7 @@ deploy() {
   fi
   compose_bounded "$check_timeout" exec -T "app-$candidate_slot" "${check_args[@]}" >>"$deploy_log" 2>&1 \
     || abort_candidate "release_check failed; see root-only deploy log"
-  compose_bounded "$check_timeout" exec -T "app-$candidate_slot" python manage.py capacity_check --json /tmp/capacity.json >>"$deploy_log" 2>&1 \
+  compose_bounded "$check_timeout" exec -T "app-$candidate_slot" python manage.py capacity_check --enforce-interview --json /tmp/capacity.json >>"$deploy_log" 2>&1 \
     || abort_candidate "capacity_check failed; see root-only deploy log"
 
   journal switching || abort_candidate "cannot write $journal_file"

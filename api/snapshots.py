@@ -13,18 +13,39 @@ def write_version():
     return settings.SNAPSHOT_WRITE_VERSION
 
 
-def default_name(created_at):
+NAME_LIMIT = 100
+
+
+def grapheme_count(text):
+    """User-perceived characters (extended grapheme clusters), the client's Intl.Segmenter count."""
+    import regex
+    return len(regex.findall(r'\X', text))
+
+
+def cut_graphemes(text, limit=NAME_LIMIT):
+    import regex
+    return ''.join(regex.findall(r'\X', text)[:limit])
+
+
+def default_name(created_at, language=None):
+    """The suggested Case name in `language` (the site language by default), cut at 100 characters."""
     from zoneinfo import ZoneInfo
     from babel.dates import format_date
     from django.conf import settings
     from django.utils import timezone, translation
     from django.utils.translation import gettext
     from i18n import locale_config
-    with translation.override(settings.LANGUAGE_CODE):
+    code = language or settings.LANGUAGE_CODE
+    try:
+        config = locale_config(code)
+    except KeyError:
+        code = settings.LANGUAGE_CODE
+        config = locale_config(code)
+    with translation.override(code):
         date = format_date(timezone.localtime(created_at, ZoneInfo(settings.TIME_ZONE)).date(), format='long',
-                           locale=locale_config(settings.LANGUAGE_CODE)['babel_locale'])
-        return (gettext('Estate of %(deceased)s, %(date)s') % {
-            'deceased': gettext('the deceased'), 'date': date})[:100]
+                           locale=config['babel_locale'])
+        return cut_graphemes(gettext('Estate of %(deceased)s, %(date)s') % {
+            'deceased': gettext('the deceased'), 'date': date})
 
 
 def lossless_v1(snapshot):

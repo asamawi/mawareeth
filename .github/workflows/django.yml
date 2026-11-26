@@ -1,7 +1,9 @@
 name: Django CI
 
 # Feature branches are validated through their pull request; master is also
-# validated on push because that run gates Publish Release Image.
+# validated on push because that run gates Publish Release Image. The Django
+# tests run in three parallel jobs (django-tests plus the two slow-tests shards);
+# the validate job gates on all of them.
 on:
   push:
     branches: [master]
@@ -41,8 +43,9 @@ jobs:
         run: |
           "$RUNNER_TEMP/gitleaks" git --redact --no-banner --verbose --exit-code 1 --config .gitleaks.toml .
 
-  validate:
+  django-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17.11
@@ -134,10 +137,107 @@ jobs:
             -c "ALTER SYSTEM SET full_page_writes = off" \
             -c "SELECT pg_reload_conf()"
 
+      # A hung test would otherwise sit silent until the job timeout. timeout
+      # signals the whole process group, so with PYTHONFAULTHANDLER every test
+      # worker prints its stack before the step fails.
       - name: Run tests
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
-        run: python manage.py test --parallel auto --durations 20
+          PYTHONFAULTHANDLER: "1"
+        run: timeout --signal=ABRT --kill-after=30s 20m python manage.py test --parallel auto --durations 20 --exclude-tag slow
+
+  # The slow sweep tests (@tag('slow')) split across two shards. Shard b is the
+  # tests also tagged slow_b; shard a is every other slow test. They need no
+  # fonts, static files or release checks, only the database.
+  slow-tests:
+    name: slow-tests (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: a
+            args: --tag slow --exclude-tag slow_b
+          - shard: b
+            args: --tag slow_b
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mydb_test
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mydb_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DJANGO_ENV: production
+      DJANGO_KEY: ci-build-validation-key-with-sufficient-length-0123456789
+      DJANGO_ALLOWED_HOSTS: testserver,localhost,127.0.0.1,ci.example.com
+      DJANGO_CSRF_TRUSTED_ORIGINS: https://testserver,https://localhost,https://127.0.0.1,https://ci.example.com
+      DATABASE_SSL_MODE: disable
+      RELEASE_VERSION: ci
+      RELEASE_COMMIT_SHA: ${{ github.sha }}
+      BREVO_SMTP_KEY: dummy
+      BREVO_SMTP_LOGIN: dummy
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version-file: .python-version
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.9.28"
+
+      - name: Install dependencies
+        run: |
+          uv sync --locked --no-default-groups --group test
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Turn off durability on the throwaway database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p ${{ job.services.postgres.ports[5432] }} -U postgres -d mydb_test -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET fsync = off" \
+            -c "ALTER SYSTEM SET synchronous_commit = off" \
+            -c "ALTER SYSTEM SET full_page_writes = off" \
+            -c "SELECT pg_reload_conf()"
+
+      - name: Run slow tests (shard ${{ matrix.shard }})
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/mydb_test
+          SHARD_ARGS: ${{ matrix.args }}
+          PYTHONFAULTHANDLER: "1"
+        # SHARD_ARGS is intentionally unquoted so it splits into flags. The
+        # timeout dumps worker stacks on a hang, as in django-tests.
+        run: timeout --signal=ABRT --kill-after=30s 20m python manage.py test --parallel auto --durations 20 $SHARD_ARGS
+
+  # Branch protection requires a check named exactly "validate", so this job
+  # keeps that name and fails unless every Django test job succeeded. always()
+  # makes it report a failure, not a skip, when a needed job fails or is cancelled.
+  validate:
+    needs: [django-tests, slow-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every Django test job to succeed
+        env:
+          DJANGO_TESTS: ${{ needs.django-tests.result }}
+          SLOW_TESTS: ${{ needs.slow-tests.result }}
+        run: |
+          echo "django-tests: $DJANGO_TESTS; slow-tests: $SLOW_TESTS"
+          [ "$DJANGO_TESTS" = success ] && [ "$SLOW_TESTS" = success ]
 
   # Decides whether the slow deploy suites need to run. Anything unclear runs
   # them. On master the comparison starts from the last successful run, not the

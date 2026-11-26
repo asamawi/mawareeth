@@ -77,6 +77,17 @@ class RestoreTests(TestCase):
         self.assertIn("active=1 revoked=1 expired=1", out.getvalue())
         self.assertNotIn("sentinel", out.getvalue())
 
+    def test_a_long_name_within_100_graphemes_passes_and_one_beyond_fails(self):
+        name = "\u0645\u064e" * 100
+        self.assertGreater(len(name), 100)
+        SavedCase.objects.filter(pk=self.row.pk).update(name=name)
+        out = io.StringIO()
+        call_command("restore_check", stdout=out)
+        self.assertIn("failures=0", out.getvalue())
+        SavedCase.objects.filter(pk=self.row.pk).update(name="x" * 101)
+        with self.assertRaises(SystemExit):
+            call_command("restore_check", stdout=io.StringIO())
+
     def test_bad_snapshot(self):
         self.row.snapshot = {}; self.row.save()
         out = io.StringIO()

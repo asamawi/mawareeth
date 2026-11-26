@@ -7,12 +7,28 @@ class SavedCase(models.Model):
     snapshot = models.JSONField()
     schema_version = models.PositiveIntegerField(default=1)
     revision = models.PositiveIntegerField(default=1, db_default=1)
-    name = models.CharField(max_length=100, blank=True, default='', db_default='')
+    name = models.TextField(blank=True, default='', db_default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         indexes = [models.Index(fields=['owner', '-updated_at'], name='saved_owner_updated_idx')]
+
+
+class SavedCaseCreateRequest(models.Model):
+    """One accepted "Save as a new case", so a retried request returns the same row instead of a second one."""
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    request_key = models.UUIDField()
+    saved_case = models.ForeignKey(SavedCase, on_delete=models.CASCADE)
+    # What the create saw and answered: the working Case and its revision, and the new row's revision.
+    case_id = models.CharField(max_length=64)
+    case_revision = models.PositiveIntegerField()
+    saved_revision = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['owner', 'request_key'], name='saved_create_request_unique')]
 
 
 class ShareLink(models.Model):

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 21:00
-last_updated: 11-22-2026 17:08
+last_updated: "11-26-2026 02:45"
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
@@ -63,20 +63,24 @@ development_status:
   9-9-complete-keyboard-navigation-and-the-screen-reader-outline: done
   9-10-coordinate-interview-announcements-and-updating-states: done
   9-11-verify-responsive-rtl-and-reduced-motion-tree-interactions: done
-  9-13-link-a-later-estate-heir-from-the-edit-sheet-and-retire-the-o: review
-  11-2-present-one-readable-share-preview-in-the-desktop-slot: backlog
-  11-3-open-the-full-preview-from-a-sticky-summary-bar-and-modal-sh: backlog
-  9-12-prove-the-complete-family-entry-journey-meets-capacity-and-s: backlog
-  epic-9-retrospective: optional
+  9-13-link-a-later-estate-heir-from-the-edit-sheet-and-retire-the-o: done
+  11-2-present-one-readable-share-preview-in-the-desktop-slot: done
+  11-3-open-the-full-preview-from-a-sticky-summary-bar-and-modal-sh: done
+  9-12-prove-the-complete-family-entry-journey-meets-capacity-and-s: done
+  9-14-keep-each-generation-on-one-row-and-let-the-tree-grow-sideways: done
+  9-15-bring-two-later-death-interview-actions-under-the-one-second-budget: done
+  epic-9-retrospective: done
 
-  epic-10: backlog
-  10-1-name-a-case-and-show-whether-saving-succeeded: backlog
+  epic-10: in-progress
+  10-0-warn-before-unsaved-changes-are-discarded: review
+  10-1-name-a-case-and-show-whether-saving-succeeded: review
   10-2-find-and-rename-named-cases-in-my-cases: backlog
   10-3-open-saved-cases-directly-and-keep-guest-recovery-separate: backlog
   10-4-preserve-received-invitations-and-label-shared-cases-as-read: backlog
+  10-5-save-an-opened-saved-case-automatically: backlog
   epic-10-retrospective: optional
 
-  epic-11: backlog
+  epic-11: in-progress
   11-1-show-school-agreement-and-ask-for-a-school-only-when-shares: backlog
   11-4-keep-summary-controls-reachable-at-narrow-widths-and-high-zo: backlog
   11-5-preserve-the-results-table-and-make-result-actions-clear: backlog
@@ -226,3 +230,128 @@ action_items:
     owner: "dev"
     status: done
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-11-18.md"
+  - id: "epic-9-retro-item-1-flip-9-15-to-done"
+    epic: 9
+    action: "Set 9-15-bring-two-later-death-interview-actions-under-the-one-second-budget
+      to done in sprint-status.yaml (code + spec delivered in b27721d) so detect-epic
+      no longer reports Epic 9 unfinished."
+    owner: "Ahmad"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-2-record-manual-gate-checks"
+    epic: 9
+    action: "Record the four manual gate checks in epic-9-gate-evidence.md (real phone
+      over 4G p95; Arabic NVDA/Chrome + VoiceOver/iOS + TalkBack; real 400% zoom at
+      1280px; native ar/fr status-copy + screen-reader review). Gate and retrospective
+      stay open until they land."
+    owner: "Ahmad"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-3-run-bmad-review-on-range"
+    epic: 9
+    action: "Before any non-provisional acceptance, run bmad-review over b63ff9d^..b27721d
+      for the adversarial / edge-case / verification-gap lenses this provisional pass
+      narrowed."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-4-optional-split-large-files"
+    epic: 9
+    action: "(Optional, low) Consider splitting web/src/api/case.ts (1673 lines) and
+      web/e2e/interview.spec.ts (2655 lines) in a later refactor; no defect shown."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-5-bound-snapshot-gz-decompression"
+    epic: 9
+    action: "Bound snapshot_gz decompression in api/views.py _restore_snapshot (read
+      MAX+1, reject over-limit) so a small compressed request cannot exhaust worker
+      memory under the write lock."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-6-catch-truncated-corrupt-gzip"
+    epic: 9
+    action: "Catch EOFError and zlib.error in _restore_snapshot; add truncated-gzip
+      and corrupt-DEFLATE tests asserting HTTP 400 invalid_snapshot (not 500)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-7-restorecase-never-throws-fallback"
+    epic: 9
+    action: "Give restoreCase (web/src/api/case.ts) a try/catch fallback to the plain
+      {snapshot} payload so it never throws; add a test that stubs CompressionStream
+      to throw."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-8-preserve-dirty-name-on-add-here"
+    epic: 9
+    action: "Pass the dirty draftName into onAddHere and persist it before the positioned
+      add closes the edit sheet; add the combined dirty-name + Add-relative-here test."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-9-cleanup-drag-listeners-on-unmount"
+    epic: 9
+    action: "Add unmount cleanup for the window pointer listeners in add-relatives.tsx;
+      add an unmount-mid-drag test."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-10-confirm-reported-findings"
+    epic: 9
+    action: "Confirm or drop the five reported (not reverified) findings: lineage
+      re-validation on edit (anonymous_case.py:990), died_before cardinality on bulk
+      add (anonymous_case.py:851), resumable name draft (edit-sheet.tsx:154), long-name
+      card overflow (family-tree.tsx:137), per-entry stepper cardinality (add-relatives.tsx:138)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-11-lineage-edit-validation"
+    epic: 9
+    action: "Make update_heir refuse or repair lineage edges a relationship edit breaks
+      (son to daughter with a son_of_son); add a regression test and check live data
+      for such edges."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-12-dirty-name-add-here"
+    epic: 9
+    action: "Make dirty-name Add relative here send the add after a successful save
+      and stop on any other outcome; add a browser test (reopens item 8)."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-13-died-before-cardinality"
+    epic: 9
+    action: "Apply died-before cardinality to plain and bulk adds, with tests."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-14-restore-recursion-error"
+    epic: 9
+    action: "Treat RecursionError in _restore_snapshot as invalid_snapshot; make the
+      oversize test use valid JSON."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-15-replaced-drag-end"
+    epic: 9
+    action: "Call onDragEnd when a new press replaces an active drag; test it."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-16-ci-run-and-gate-evidence"
+    epic: 9
+    action: "Get a green Django CI run on the final Epic 9 commit and correct epic-9-gate-evidence.md
+      (rows 5-7, 9, row 8 re-run, header)."
+    owner: "Ahmad"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-9-retro-item-17-stale-e2e-export"
+    epic: 9
+    action: "Make local test:e2e fail or rebuild when web/out is older than the source."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"

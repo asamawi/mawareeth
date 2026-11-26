@@ -12,6 +12,8 @@ import {
   unmarkDeceased,
   noHeirOptions,
   parseCase,
+  hasUnsavedChanges,
+  savedBehind,
   parseHeirOptions,
   parsePreview,
   parseQuestions,
@@ -414,7 +416,14 @@ test("restoreCase posts the snapshot at the revision and maps its outcomes", asy
   assert.equal(calls[0].url, "/api/v1/case/restore/");
   assert.equal(calls[0].init?.method, "POST");
   assert.equal(header(calls[0], "X-CSRFToken"), "tok=1");
-  assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { snapshot, case_id: "abc123", expected_revision: 7 });
+  const body = JSON.parse(String(calls[0].init?.body));
+  assert.equal(body.case_id, "abc123");
+  assert.equal(body.expected_revision, 7);
+  assert.equal("snapshot" in body, false);
+  // The snapshot is sent gzipped+base64; decoding it must give back the exact snapshot.
+  const bytes = Uint8Array.from(atob(body.snapshot_gz), (c) => c.charCodeAt(0));
+  const decoded = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+  assert.deepEqual(JSON.parse(decoded), snapshot);
   const send = () => restoreCase(signal(), "abc123", 7, snapshot, withToken);
   for (const [status, body, expected] of [
     [409, { error: "conflict", case: FULL_CASE }, { kind: "replaced", case: FULL_CASE }],
@@ -431,6 +440,22 @@ test("restoreCase posts the snapshot at the revision and maps its outcomes", asy
     throw new TypeError("fetch failed");
   });
   assert.deepEqual(await send(), { kind: "failed" });
+});
+
+test("restoreCase falls back to a plain snapshot when CompressionStream is unavailable", async () => {
+  const snapshot = { madhab: "hanafi", heirs: [] };
+  const Original = globalThis.CompressionStream;
+  // Simulate a runtime without CompressionStream: gzipBase64 throws, and restoreCase must still send.
+  (globalThis as { CompressionStream: unknown }).CompressionStream = undefined;
+  try {
+    const calls = stubFetch(async () => Response.json({ case: FULL_CASE }));
+    assert.deepEqual(await restoreCase(signal(), "abc123", 7, snapshot, withToken), { kind: "saved", case: FULL_CASE });
+    const body = JSON.parse(String(calls[0].init?.body));
+    assert.deepEqual(body.snapshot, snapshot, "the plain snapshot is sent when compression is unavailable");
+    assert.equal("snapshot_gz" in body, false);
+  } finally {
+    (globalThis as { CompressionStream: unknown }).CompressionStream = Original;
+  }
 });
 
 test("confirmed removal uses the impact revision and validates a cascade response", async () => {
@@ -1332,4 +1357,33 @@ test("parseCase keeps link_candidates on later rows that point at earlier people
   } });
   assert.deepEqual(parsed?.deaths[0].heirs[0].link_candidates, ["w"]);
   assert.equal(parsed?.deaths[0].heirs[1].link_candidates, undefined);
+});
+
+test("parseCase reads the saved state: absent or malformed is unknown", () => {
+  const base = { id: "c", started_at: "now", revision: 3, deceased: { gender: "male", estate: null }, heirs: [] };
+  const read = (saved?: unknown) => parseCase({ case: { ...base, ...(saved === undefined ? {} : { saved }) } })!;
+  assert.equal(read().saved, undefined);
+  assert.equal(read("x").saved, undefined);
+  assert.equal(read({ revision: "2" }).saved, undefined);
+  assert.equal(read({ revision: 0 }).saved, undefined);
+  assert.equal(read(null).saved, null);
+  assert.deepEqual(read({ revision: null }).saved, { revision: null });
+  assert.deepEqual(read({ revision: 3 }).saved, { revision: 3 });
+});
+
+test("hasUnsavedChanges and savedBehind follow the revision, never-saved content and unreadable state", () => {
+  const base = { id: "c", started_at: "now", revision: 3, deceased: { gender: "male", estate: null }, heirs: [] };
+  const read = (saved?: unknown, extra: object = {}) => parseCase({ case: { ...base, ...extra, ...(saved === undefined ? {} : { saved }) } });
+  assert.equal(hasUnsavedChanges(null), false);
+  assert.equal(hasUnsavedChanges(read({ revision: 3 })), false);
+  assert.equal(hasUnsavedChanges(read({ revision: 2 })), true);
+  assert.equal(hasUnsavedChanges(read({ revision: null })), true);
+  assert.equal(hasUnsavedChanges(read()), true);
+  assert.equal(hasUnsavedChanges(read(null)), true);
+  assert.equal(hasUnsavedChanges(read(null, { deceased: null })), false);
+  assert.equal(savedBehind(read({ revision: 2 })), true);
+  assert.equal(savedBehind(read({ revision: null })), true);
+  assert.equal(savedBehind(read({ revision: 3 })), false);
+  assert.equal(savedBehind(read(null)), false);
+  assert.equal(savedBehind(read()), false);
 });

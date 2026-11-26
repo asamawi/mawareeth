@@ -43,6 +43,7 @@ async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedVi
   const saves: unknown[] = [];
   const removes: boolean[] = [];
   const added: string[] = [];
+  const addedNames: (string | null | undefined)[] = [];
   const later: (string | null | undefined)[] = [];
   let closed = 0;
   const node = document.createElement("div");
@@ -55,7 +56,7 @@ async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedVi
         frozen={opts.frozen ?? false} onClose={() => { closed += 1; }}
         onSave={(fields, focus) => saves.push({ fields, focus })} onRemove={c => removes.push(c)}
         entries={[{ relationship: "son_of_son", link: "child", blocked: false, gender: "male" }]} atLimit={false}
-        addAlert={opts.alert ?? null} onAddHere={entry => added.push(entry.relationship)}
+        addAlert={opts.alert ?? null} onAddHere={(entry, name) => { added.push(entry.relationship); addedNames.push(name); }}
         onMarkLater={() => later.push("mark")} onOpenEstate={name => later.push(name === undefined ? "open" : `open:${name}`)}
         orderQuestion={opts.alert === "order" ? () => <p id="order-stub">order</p> : null} />);
     });
@@ -63,7 +64,7 @@ async function mount(opts: { phone?: boolean; frozen?: boolean; view?: StartedVi
   void person;
   await draw(view);
   return {
-    draw, dom, node, shown, saves, removes, added, later, closed: () => closed,
+    draw, dom, node, shown, saves, removes, added, addedNames, later, closed: () => closed,
     async stop() { await act(async () => root.unmount()); await teardownDom(dom); },
   };
 }
@@ -259,6 +260,22 @@ for (const phone of [false, true]) test(`the edit sheet offers Add relative here
     await act(async () => ui.node.querySelector<HTMLButtonElement>('[data-focus="addHere:son_of_son"]')!.click());
     assert.deepEqual(ui.added, ["son_of_son"]);
   } finally { await ui.stop(); }
+});
+
+test("Add relative here carries an uncommitted name so it is saved before the sheet closes", async () => {
+  const t = await mount();
+  try {
+    const name = t.node.querySelector<HTMLInputElement>("#edit-name")!;
+    await act(async () => {
+      name.focus();
+      Object.getOwnPropertyDescriptor(Object.getPrototypeOf(name), "value")!.set!.call(name, "Omar");
+      for (const type of ["input", "keyup", "change"]) name.dispatchEvent(new t.dom.Event(type, { bubbles: true }) as unknown as Event);
+    });
+    await act(async () => t.node.querySelector<HTMLButtonElement>('[data-focus="addHere"]')!.click());
+    await act(async () => t.node.querySelector<HTMLButtonElement>('[data-focus="addHere:son_of_son"]')!.click());
+    assert.deepEqual(t.added, ["son_of_son"]);
+    assert.deepEqual(t.addedNames, ["Omar"], "the dirty name is passed so the caller saves it first");
+  } finally { await t.stop(); }
 });
 
 function withInvalid(invalid: Record<string, string>, deceasedGender: "male" | "female" = "male"): StartedView {

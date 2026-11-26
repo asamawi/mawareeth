@@ -1,5 +1,7 @@
 import io
 import json
+import tempfile
+from pathlib import Path
 from unittest import skipUnless
 from unittest.mock import patch
 from django.contrib.sessions.models import Session
@@ -135,3 +137,93 @@ class CapacityTests(TransactionTestCase):
 
     def test_percentile(self):
         self.assertEqual(stats(list(range(1,21)))["p95"], 19)
+
+    # Written out, so dropping a workload or an action from the harness fails here.
+    REQUIRED = {
+        "school": ("add", "bulk_add", "edit", "delete", "drop", "undo"),
+        "compare": ("add", "bulk_add", "edit", "delete", "drop", "undo"),
+        "two_later_deaths": ("add", "bulk_add", "edit", "delete", "drop", "undo"),
+    }
+
+    def test_interview_mix_reports_every_action_without_payloads(self):
+        before = set(Session.objects.values_list("pk", flat=True))
+        harness = Harness()
+        with patch("api.capacity.WORKLOADS", ()), patch("api.capacity.TOTAL_BUDGET_MS", 100000):
+            result = harness.run(2, True, True, device="phone", network="4g")
+        self.assertTrue(result["passed"])
+        self.assertTrue(result["interview_passed"])
+        self.assertEqual((result["device"], result["network"]["label"]), ("phone", "4g"))
+        self.assertEqual(set(result["interview"]), set(self.REQUIRED))
+        self.assertEqual(set(result["workload"]), set(self.REQUIRED))
+        for name, actions in self.REQUIRED.items():
+            self.assertEqual(set(result["interview"][name]), set(actions))
+            for action in actions:
+                phase = result["interview"][name][action]
+                self.assertEqual(phase["n"], 2)
+                self.assertEqual(len(phase["samples_ms"]), 2)
+                self.assertTrue(all(isinstance(v, float) for v in phase["samples_ms"]))
+        text = json.dumps(result)
+        for key in harness.keys:
+            self.assertNotIn(key, text)
+        for word in ("Edited", "heir_id", "case_id", "snapshot", "name"):
+            self.assertNotIn(f'"{word}"', text)
+        self.assertEqual(set(Session.objects.values_list("pk", flat=True)), before)
+
+    def run_command(self, **options):
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "capacity.json"
+            code = 0
+            try:
+                call_command("capacity_check", samples=1, no_contention=True, json_path=str(path), stdout=out, **options)
+            except SystemExit as exit_:
+                code = exit_.code
+            return code, json.loads(path.read_text(encoding="utf-8")), out.getvalue().splitlines()
+
+    def test_json_file_passes_without_the_interview_mix(self):
+        with patch("api.capacity.WORKLOADS", ("standard_school",)):
+            code, evidence, _ = self.run_command(no_interview=True)
+        self.assertEqual(code, 0)
+        self.assertIs(evidence["passed"], True)
+        self.assertNotIn("interview", evidence)
+        self.assertNotIn("workload", evidence)
+        self.assertNotIn("interview_passed", evidence)
+
+    def test_json_file_fails_without_the_interview_mix(self):
+        with patch("api.capacity.WORKLOADS", ("standard_school",)), patch("api.capacity.TOTAL_BUDGET_MS", 0):
+            code, evidence, _ = self.run_command(no_interview=True)
+        self.assertEqual(code, 1)
+        self.assertIs(evidence["passed"], False)
+        self.assertNotIn("interview", evidence)
+        self.assertNotIn("workload", evidence)
+
+    def test_json_file_with_the_interview_mix_passes(self):
+        # Keep the network model and budget checks while controlling elapsed server time.
+        with patch("api.capacity.WORKLOADS", ("standard_school",)), patch("api.capacity.time") as clock:
+            clock.perf_counter.return_value = 0
+            code, evidence, _ = self.run_command()
+        self.assertEqual(code, 0)
+        self.assertIs(evidence["passed"], True)
+        self.assertIs(evidence["interview_passed"], True)
+        self.assertEqual(set(evidence["interview"]), set(self.REQUIRED))
+        self.assertEqual(set(evidence["workload"]), set(self.REQUIRED))
+
+    def test_interview_miss_is_report_only_unless_enforced(self):
+        with patch("api.capacity.WORKLOADS", ()), patch("api.capacity.TOTAL_BUDGET_MS", 0):
+            code, evidence, lines = self.run_command()
+            self.assertEqual(code, 0)
+            self.assertIs(evidence["passed"], True)
+            self.assertIs(evidence["interview_passed"], False)
+            self.assertIn("budget missed: interview school add", lines)
+            code, evidence, _ = self.run_command(enforce_interview=True)
+            self.assertEqual(code, 1)
+            self.assertIs(evidence["passed"], True)
+            self.assertIs(evidence["interview_passed"], False)
+
+    def test_edit_step_changes_the_relationship(self):
+        case = {"heirs": [{"id": "d", "relationship": "daughter"}, {"id": "s", "relationship": "son"}],
+                "deaths": [], "snapshot": {}, "placement": {"x": [{"relationship": "son_of_son", "blocked": False}], "root": [{"relationship": "son", "blocked": False}]}}
+        steps, _ = Harness().interview_steps("school", case)
+        method, path, body = steps["edit"](case)
+        self.assertEqual((method, body["relationship"]), ("PUT", "sister"))
+        self.assertTrue(path.endswith("/d/"))

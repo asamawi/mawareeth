@@ -32,6 +32,8 @@ regexes = [
   'user:super-secret-value@host',
   # Tailscale's public package-signing key fingerprint in deploy/monitor.sh.
   'tailscale_key_fingerprint=2596A99EAAB33821893C0A79458CA832957F5868',
+  # Fixed request key (a UUID, not a secret) in the Save as a new case tests.
+  '3f2b8a5e-9d41-4c3a-8d0e-6a1b7c9d2e10',
 ]
 
 [[allowlists]]

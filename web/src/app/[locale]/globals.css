@@ -55,6 +55,8 @@
   --radius-node: 10px;
   --radius-sheet: 18px;
   --radius-full: 9999px;
+  --shadow-summary-bar: 0 -6px 16px rgb(0 0 0 / 0.12);
+  --shadow-summary-sheet: 0 -8px 24px rgb(0 0 0 / 0.2);
 }
 
 html {
@@ -63,9 +65,33 @@ html {
   scroll-padding-block-end: var(--interview-obstruction, 0px);
 }
 
+@keyframes summary-sheet-in {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes summary-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The summary sheet slides up and its scrim fades in, briefly. */
+.summary-sheet[open] {
+  animation: summary-sheet-in 200ms ease-out;
+}
+
+.summary-sheet[open]::backdrop {
+  animation: summary-scrim-in 200ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+
+  .summary-sheet[open],
+  .summary-sheet[open]::backdrop {
+    animation: none;
   }
 }
 

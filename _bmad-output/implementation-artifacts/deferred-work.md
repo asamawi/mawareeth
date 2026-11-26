@@ -417,8 +417,7 @@ Completed and obsolete items are removed; their history is in git.
 
 ## Story 8.10
 
-- Ops order: take a fresh restic backup, then flip `SNAPSHOT_WRITE_VERSION=2` and run the backfill only once every rollback-eligible image reads schema 2. Do not switch in the deploy that first ships 8.8.
-- **Switch the writer to schema 2 once Epic 9 is merged to master and deployed** (owner decision 2026-11-19). The live image (`8b5d91b`, deployed 2026-11-18) already reads schema 2, but production cannot set the key until a release carries the `deploy/runtime.sh` allow-list entry for `SNAPSHOT_WRITE_VERSION` (on `development` since 2026-11-19), so the switch waits for the Epic 9 release. On the host, after that deploy: copy `/etc/mawareeth/runtime.env` to a root-only file, add `SNAPSHOT_WRITE_VERSION=2`, run `deploy/runtime.sh prepare`, then `deploy/release.sh deploy --rotate-config` (its `release_check --rollback-reads` must pass), confirm a new save is stored with `schema_version=2`, then take a fresh restic backup and run `backfill_saved_cases` (dry run first). Procedure: `deploy/README.md`, "Rotating runtime configuration" and the `SNAPSHOT_WRITE_VERSION` optional key.
+- Resolved 2026-11-22: production writes schema 2. After the Epic 8 + 9 release (`05ecadd`, PRs #110 and #111) deployed, `SNAPSHOT_WRITE_VERSION=2` was added to `/etc/mawareeth/runtime.env` and rotated with `release.sh deploy --rotate-config` (the rollback-reads check passed; app-blue serves and reports `snapshot_writes: 2`). A fresh restic backup ran (`20261122T165832Z`), then `backfill_saved_cases` (dry run first) converted 2,055 rows and named 2,054, with 0 malformed; every row decodes as schema 2. Images older than 8.8 (such as `02d3627`) can no longer serve: they read only schema 1. On the host, `runtime.sh prepare` and `release.sh deploy` both need `MAWAREETH_RELEASE_MANIFEST=/etc/mawareeth/release-manifest.json`.
 - The new name msgids need native review.
 - Backfill names use the site default Locale, not each user's.
 - Legacy `Calculation.name` is not carried into names.
@@ -458,7 +457,7 @@ Items the Epic 8 stories deferred only in their own spec, collected by `_bmad-ou
 
 - source_spec: none
   summary: Country writes must wait until every rollback-eligible image reads schema 2.
-  evidence: Declared in `epic-8-context.md` (Cross-Story Dependencies) and carried by no story. Today Country Basis resolution is unavailable and `api/snapshots.py` rejects Country bases, so nothing writes them yet. The Country epic must check this before enabling writes.
+  evidence: Declared in `epic-8-context.md` (Cross-Story Dependencies) and carried by no story. Today Country Basis resolution is unavailable and `api/snapshots.py` rejects Country bases, so nothing writes them yet. The Country epic must check this before enabling writes. Status 2026-11-22: production writes and reads schema 2 and every rollback-eligible image reads it, so the prerequisite holds while no image older than 8.8 is redeployed.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-8-12-purge-the-empty-legacy-drafts-the-import-could-not-convert.md`
   summary: Before the production purge, check that no row outside the purged trees references a heir inside them through `Heir.same_person` or `Deceased.heir`; both cascade on delete.
@@ -583,3 +582,42 @@ Still pending for a person:
 - source_spec: `_bmad-output/implementation-artifacts/spec-9-13-link-a-later-estate-heir-from-the-edit-sheet-and-retire-the-old-add-form.md`
   summary: An Interview tab opened before a deploy that adds a Case row field (e.g. 9.13's `link_candidates`) rejects the new rows in its strict parser and drops later-estate heirs until reload.
   evidence: The old bundle's strict `ROW_KEYS` (`web/src/api/case.ts`) refuses unknown row keys; every additive contract change has this skew. A build-version reload prompt, or a tolerant parse for unknown row keys, would settle it (medium, unverified in a live deploy).
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-2-give-the-interviews-space-to-family-entry-and-build-one-readable-share-preview-body.md`
+  summary: DONE in story 11.3 (the fixme tests are re-enabled through the sheet; the failed-preview test became a no-bar status test, see below). Restore the preview e2e coverage in story 11.3, when `SharePreviewBody` renders in the summary sheet: the `test.fixme` tests (the schools-agree, differ and refusal tests, the older-revision test, the 9.10 slow, rename, failed, offline and reconnect tests in `interview.spec.ts`, the names/terms/fractions bidi test, and the pending-preview axe test in `accessibility.spec.ts`), plus the preview assertions removed with a `// 11.3:` comment from the offline-editing, four-daughters, died-later estate, empty-estate and link-a-later-heir tests.
+  evidence: Story 11.2 removed the Share preview from the Interview page, so those tests had nothing to assert on. Waits now use `data-preview-state` and `data-preview-revision` on the Interview root.
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-2-give-the-interviews-space-to-family-entry-and-build-one-readable-share-preview-body.md`
+  summary: DONE in story 11.3 (summary bar, sheet, School choice and Full results are back). Until 11.3 the Interview shows no shares, no School choice, no preview error or Retry and no Full results link.
+  evidence: The preview lifecycle (`useSharePreview` via `SharePreviewController`) still runs and feeds blocked badges and the polite status, but `SharePreviewBody` is rendered nowhere. When the schools differ, the Interview announces it but offers no way to choose a School until 11.3 (`choiceFailed` in `start-case.tsx` is unused for the same reason).
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-3-open-the-full-preview-from-a-sticky-summary-bar-and-modal-sheet.md`
+  summary: A full refusal, or a first-load or online error with no shares to keep, has no visible summary bar, so the user sees no refusal text, no Retry and no Full results link there; it is status-only (the one polite status announces it). Review in 11.4/11.1.
+  evidence: The UX rule hides the bar until the Share preview has shares (`available` or `choose`), so `refused` and an online `error` without kept rows show nothing visible. Retry is in the sheet whenever the sheet is open (an offline error with kept rows, or an online failure while it is open); only a first-load failure with the sheet closed has no bar and no Retry. The e2e test "a failed first preview keeps the family, says so once in the status and shows no bar" pins this.
+
+## Story 9.12
+
+The pending manual items are now one list, with runbooks and the blocking flag, in `_bmad-output/implementation-artifacts/epic-9-gate-evidence.md`:
+
+- Real mid-range phone over 4G, p95 under one second with up to 50 Heirs (the 8.11 note that the network and render constants stand in for this run).
+- Arabic NVDA/Chrome, VoiceOver/Safari iOS and TalkBack runs (the 9.9, 9.10 and 9.11 items above).
+- Real 400% browser zoom at 1280px (the 9.11 item above).
+
+Epic 9's gate and retrospective stay open until the owner records them.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-9-12-prove-the-complete-family-entry-journey-meets-capacity-and-speed-gates.md`
+  summary: RESOLVED in Story 9.15 (`spec-9-15-bring-two-later-death-interview-actions-under-the-one-second-budget.md`): the Undo (`restore`) request now uploads its snapshot gzipped+base64 (`snapshot_gz`), cutting that upload from about 14.5 KB to 4.4 KB, and the deploy runs `capacity_check --enforce-interview`. The whole-Case write responses were left unchanged (the redundant snapshot they carry is small once gzipped and feeds the client's Undo stack). The manual gate rows (real phone over 4G, Arabic screen readers, 400% zoom, native ar/fr review) remain pending in `epic-9-gate-evidence.md`.
+  evidence: The modelled `two_later_deaths` `undo` p95 was 999.9, 1069 and 1080 ms over three runs, and `bulk_add` reached 1077 ms (budget 1000 ms). After 9.15 the modelled `undo` network time fell about 110 ms (682 to 572 ms) and clean `capacity_check --samples 20` runs put every Interview action under 1000 ms p95; the dev machine's thermal noise can still spike a run, so the enforced 3-run record is taken on the deploy host.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-0-warn-before-unsaved-changes-are-discarded.md`
+  summary: Race Save and checked Open against an edit in one session and check the stored snapshot, the link revision and the surviving Case.
+  evidence: Review of 10.0; the PostgreSQL session lock was read as covering both routes, but tests check the route hook and not the saved data. Story 10.5 (autosave) makes this race common.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-1-name-a-case-and-show-whether-saving-succeeded.md`
+  summary: Story 10.1 part B, conflict recovery: "This case changed elsewhere" with exactly "Open latest version" and "Save as a new case" (explicit create, relink the working copy, no merge or overwrite).
+  evidence: Split by the owner on 2026-11-26. Part A ships naming and a truthful status with a distinct conflict message; part B needs a new create operation and relinking under concurrency. Story 10.1 stays open until B ships; 10.5 (autosave) depends on it.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-1-name-a-case-and-show-whether-saving-succeeded.md`
+  summary: Bind a resumed Save, Share or WhatsApp after sign-in to the case it started on; refuse it if the working case changed during sign-in.
+  evidence: Review of 10.1; `?resume=` carries only the action (web/src/i18n/paths.ts), and results reloads whatever case the session holds. Behaviour predates 10.1.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-1b-resolve-a-save-conflict-with-two-choices.md`
+  summary: A Saved case name containing an unpaired UTF-16 surrogate passes the name checks of both save routes and fails at the database write with a 500 instead of a 400 `errors.name = invalid`.
+  evidence: `_parse_name` (formerly inline in `SavedCasesView.post` at baseline) checks type, NUL and grapheme length only; JSON `"\ud800"` decodes to a lone surrogate that cannot be encoded to UTF-8 for Postgres.

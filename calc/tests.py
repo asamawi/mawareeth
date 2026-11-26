@@ -1890,7 +1890,8 @@ def assert_invariants(test, calc, heirs, exact):
             test.assertEqual(males.pop(), 2 * females.pop())
 
 
-@tag('slow')
+# slow_b selects the second slow-test CI shard (see .github/workflows/django.yml).
+@tag('slow', 'slow_b')
 class DistributionInvariantTests(TransactionTestCase):
     """Properties that hold for every family, over all 22 relationship types."""
 
@@ -1901,7 +1902,7 @@ class DistributionInvariantTests(TransactionTestCase):
                 assert_invariants(self, calc, heirs, calc.legacy_compute())
 
 
-@tag('slow')
+@tag('slow', 'slow_b')
 class DistributionEntryOrderTests(TransactionTestCase):
     """Entry order never changes a result, over every family."""
 
@@ -1962,7 +1963,7 @@ def core_family_reference(wives, husband, father, mother, sons, daughters):
     return shares
 
 
-@tag('slow')
+@tag('slow', 'slow_b')
 class CoreFamilyReferenceTests(TransactionTestCase):
     """Every mix of spouses, parents, and up to three sons and three daughters."""
 
@@ -2226,7 +2227,7 @@ class SchoolFixtureTests(TransactionTestCase):
                         self.assertNotEqual(translated, msgid)
 
 
-@tag('slow')
+@tag('slow', 'slow_b')
 class SchoolInvariantTests(TransactionTestCase):
     """The engine's invariants and its agreement with the Hanbali results, school by school."""
 
@@ -2288,7 +2289,7 @@ class SchoolAgreementTests(TransactionTestCase):
                     self.assertEqual(len(set(map(repr, prints))), 1)
 
 
-@tag('slow')
+@tag('slow', 'slow_b')
 class SchoolEntryOrderTests(TransactionTestCase):
     """Entry order never changes a result, under every school."""
 
@@ -2307,7 +2308,7 @@ class SchoolEntryOrderTests(TransactionTestCase):
                                      fingerprint(backward_calc, backward_heirs, backward))
 
 
-@tag('slow')
+@tag('slow', 'slow_b')
 class SchoolCoreFamilyTests(TransactionTestCase):
     """The core families match the reference under every school."""
 
@@ -2627,7 +2628,7 @@ class ProofMatrixTests(TransactionTestCase):
         self.assertEqual(json.loads(json.dumps(proof)), proof)
 
 
-@tag('slow')
+@tag('slow', 'slow_b')
 class ProofInvariantTests(TransactionTestCase):
     """Properties of the proof over every family and school."""
 
@@ -2676,7 +2677,7 @@ class ProofInvariantTests(TransactionTestCase):
         self.assertGreater(checked, 500)
 
 
-@tag('slow')
+@tag('slow', 'slow_b')
 class ProofGrandfatherOptionTests(TransactionTestCase):
     """The grandfather's share is what the proof's named option gives."""
 
@@ -2707,7 +2708,7 @@ class ProofGrandfatherOptionTests(TransactionTestCase):
         self.assertEqual(seen, {'muqasama', 'third_of_remainder', 'sixth_of_estate'})
 
 
-@tag('slow')
+@tag('slow', 'slow_b')
 class ProofEntryOrderTests(TransactionTestCase):
     """Entry order never changes the proof."""
 
@@ -2725,7 +2726,7 @@ class ProofEntryOrderTests(TransactionTestCase):
                     self.assertEqual(without_refs(forward_calc.proof), without_refs(backward_calc.proof))
 
 
-@tag('slow')
+@tag('slow', 'slow_b')
 class ProofGrandfatherRuleTests(TransactionTestCase):
     """The proof names the grandfather rule wherever it decides a share."""
 

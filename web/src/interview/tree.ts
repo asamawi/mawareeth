@@ -46,6 +46,8 @@ export const NODE_WIDTH = 108;
 export const COLUMN_GAP = 8;
 export const SPINE_GAP = 24;
 export const ROW_GAP = 32;
+/** Minimum logical padding between the widest row and either end of the layout. */
+const EDGE_PAD = 8;
 
 export type TreeNode = {
   id: string;
@@ -75,29 +77,24 @@ export type TreeLayout = {
   edges: TreeEdge[];
   /** Vertical extent of the spine. */
   spine: { top: number; bottom: number };
-  columns: number;
 };
 
 /**
- * Places the deceased on a central spine and every heir on a generation line, wrapped into
- * rows. Each row is split evenly across the spine, the odd one on the inline-start side. The
- * layout depends only on the heirs of the same line, so adding an heir never moves the heirs
- * of another line sideways.
+ * Places the deceased on a central spine and every heir on a generation line. Each line is one
+ * row that never wraps, split evenly across the spine, the odd one on the inline-start side. The
+ * layout is as wide as the visible width or the widest row, whichever is larger, with the spine
+ * centred. Positions relative to the spine depend only on the heirs of the same line, so adding
+ * an heir never moves the heirs of another line relative to the spine.
  */
 export function layoutTree(model: EstateModel, width: number, cardWidth = NODE_WIDTH): TreeLayout {
   const heirs = readingOrder(model.people);
-  const total = Math.max(2 * SPINE_GAP, Math.floor(width));
-  const spineX = Math.floor(total / 2);
-  const usable = spineX * 2;
   const nodeWidth = cardWidth;
-  const perSide = Math.max(
-    1,
-    Math.floor((usable - SPINE_GAP + COLUMN_GAP) / (2 * (nodeWidth + COLUMN_GAP))),
-  );
-  const capacity = perSide * 2;
   const half = SPINE_GAP / 2;
-
   const byLine = LINES.map(line => heirs.filter(person => line.includes(person.relationship)));
+  const extent = (cards: number) => (cards === 0 ? 0 : half + cards * nodeWidth + (cards - 1) * COLUMN_GAP);
+  const widest = Math.max(0, ...byLine.map(members => extent(Math.ceil(members.length / 2))));
+  const spineX = Math.floor(Math.max(Math.floor(width), 2 * SPINE_GAP, 2 * (Math.max(widest, half + Math.floor(nodeWidth / 2)) + EDGE_PAD)) / 2);
+  const usable = spineX * 2;
 
   const nodes: TreeNode[] = [];
   const edges: TreeEdge[] = [];
@@ -110,8 +107,8 @@ export function layoutTree(model: EstateModel, width: number, cardWidth = NODE_W
     // else hangs below: bar, then node.
     const ancestors = lineIndex < LINES_ABOVE;
     const members = byLine[lineIndex];
-    for (let start = 0; start < members.length; start += capacity) {
-      const row = members.slice(start, start + capacity);
+    if (members.length > 0) {
+      const row = members;
       const left = Math.ceil(row.length / 2);
       const top = ancestors ? y : y + ROW_GAP;
       const barY = ancestors ? top + NODE_HEIGHT + ROW_GAP / 2 : y + ROW_GAP / 2;
@@ -175,7 +172,6 @@ export function layoutTree(model: EstateModel, width: number, cardWidth = NODE_W
       top: ancestorBars.length > 0 ? Math.min(...ancestorBars) : deceasedY,
       bottom: Math.max(deceasedY + DECEASED_HEIGHT, ...bars),
     },
-    columns: capacity,
   };
 }
 

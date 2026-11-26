@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -26,7 +26,25 @@ export async function openHeirsScreen(page: Page, api: Api, locale: "en" | "ar" 
   await page.goto(`/${locale}/interview/`);
   await page.getByRole("button", { name: messages[locale].interview.resume }).click();
   await page.locator("section[aria-labelledby='add-relatives-heading']").waitFor();
-  await page.locator("section[aria-labelledby='preview-heading']").locator("table, ul").first().waitFor();
+  // The accepted calculation is on the root's signal; the summary bar and sheet (story 11.3) draw from it.
+  await page.locator("[data-preview-state='ready']").waitFor();
+}
+
+/** The Share preview's modal sheet (the only place its body is drawn). */
+export const sheetOf = (page: Page): Locator => page.locator("dialog[data-summary-sheet]");
+
+/** Opens the Share preview sheet from the summary bar's chevron and waits for its heading. */
+export async function openPreview(page: Page): Promise<Locator> {
+  await page.locator("[data-summary-expand]").click();
+  const sheet = sheetOf(page);
+  await sheet.locator("h2#preview-heading").waitFor();
+  return sheet;
+}
+
+/** Closes the sheet with its Close button; focus returns to the chevron. */
+export async function closePreview(page: Page, locale: "en" | "ar" | "fr" = "en"): Promise<void> {
+  await sheetOf(page).getByRole("button", { name: messages[locale].interview.editClose, exact: true }).click();
+  await sheetOf(page).waitFor({ state: "hidden" });
 }
 
 /** Shared lineage and blocked-evidence fixture, validated by the production readers. */
@@ -72,4 +90,40 @@ export async function openCanvasFixture(page: Page, api: Api, locale: "en" | "ar
   await page.getByRole("button", { name: messages[locale].interview.resume }).click();
   await page.locator("section[data-tree] [data-tree-area]").waitFor();
   if (kind === "lineage") await page.locator('[data-node="s2"][data-state="blocked"]').waitFor();
+}
+
+type Row = Record<string, unknown>;
+
+/**
+ * The server's own answer for a Case of 50 Heirs (wide and deep lineage, long Arabic and English
+ * names, a blocked grandchild, a person who died before, two later estates) and its Share preview.
+ * `api/test_fifty_heir_fixture.py` builds and checks it; every name is made up.
+ */
+export function fiftyHeirFixture() {
+  const data = JSON.parse(readFileSync(join(process.cwd(), "e2e", "fixtures", "fifty-heirs.json"), "utf8")) as { case: Row; preview: Row };
+  const kase = data.case, response = data.preview;
+  if (!parsePreview(response)) throw new Error("Fifty-heir preview fixture failed parsePreview");
+  const heirs = kase.heirs as Row[], deaths = kase.deaths as Row[];
+  const dead = new Set(deaths.map(d => d.heir_id));
+  const parents = new Set((kase.edges as Row[]).flatMap(e => [e.from, e.to]));
+  // People with a plain card: alive, no estate of their own, no lineage links.
+  const plain = heirs.filter(h => h.relationship === "son" && !dead.has(h.id) && !parents.has(h.id) && !h.same_as).map(h => h.id as string);
+  const first = deaths[0].heirs as Row[];
+  return {
+    kase, response,
+    /** A leaf child to edit, one to remove, one to mark as died later. */
+    ids: { edit: plain[0], remove: plain[1], later: plain[2], estate: deaths[0].heir_id as string, estateHeir: first.find(h => !h.same_as && !dead.has(h.id))!.id as string },
+  };
+}
+
+/** Opens the 50-Heir Case with the summary bar showing its ready preview. */
+export async function openFiftyHeirs(page: Page, api: Api, locale: "en" | "ar" | "fr", kase?: Record<string, unknown>) {
+  const fixture = fiftyHeirFixture();
+  api.set({ session: sessionAnonymous, getCase: json(200, { case: kase ?? fixture.kase }), getPreview: json(200, fixture.response) });
+  await page.goto(`/${locale}/interview/`);
+  await page.getByRole("button", { name: messages[locale].interview.resume }).click();
+  await page.locator("section[data-tree] [data-tree-area]").waitFor();
+  // A changed Case no longer matches the served preview's family, so only the served Case is ready.
+  if (!kase) await page.locator("[data-preview-state='ready']").waitFor();
+  return fixture;
 }

@@ -2,12 +2,15 @@
 import type { PresentedResult } from "@/contracts/presented";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { createPortal } from "react-dom";
 
 import {
   addHeir,
   addHeirs,
   MAX_HEIRS,
   fetchCase,
+  savedBehind,
   markDeceased,
   removeHeir,
   restoreCase,
@@ -84,7 +87,7 @@ import { MadhabSelector } from "./madhab-selector";
 import { useOnline } from "./online";
 import { RelativesQuestion } from "./relatives-question";
 import { OrderQuestion } from "./order-question";
-import { SharePreview } from "./share-preview";
+import { SharePreviewController, type PreviewSignal } from "./share-preview";
 import { isUndoShortcut, UndoButton, UndoToast } from "./undo-toast";
 
 const SEEN_KEY = "mawareeth.case-seen";
@@ -125,18 +128,18 @@ const deps: Deps = {
 
 export function StartCase({
   messages,
-  results,
   locale,
 }: {
   messages: Messages["interview"];
-  results: Messages["results"];
   locale: string;
 }) {
   const [view, setView] = useState<View>({ name: "loading" });
+  const [previewSignal, setPreviewSignal] = useState<PreviewSignal>({ state: "idle", revision: null });
   const [presented, setPresented] = useState<{ key: string; value: PresentedResult | null } | null>(null);
   // The one polite status: what it says now, and a counter so an identical sentence is spoken again.
   const [spoken, setSpoken] = useState<{ text: string; seq: number }>({ text: "", seq: 0 });
   const [choiceFailed, setChoiceFailed] = useState(false);
+  const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
   // Story 9.7: the relationship chip being dragged, and the alert of a drop the placement refuses.
   const [dragChip, setDragChip] = useState<RelationshipId | null>(null);
   const [dropAlert, setDropAlert] = useState<string | null>(null);
@@ -253,6 +256,12 @@ export function StartCase({
     settledOnce.current = true;
   }, [view]);
 
+  const safeChoice = useRef<HTMLButtonElement>(null);
+  // The safe choice has the focus when start over asks for confirmation.
+  useEffect(() => {
+    if (view.name === "confirmStartOver") safeChoice.current?.focus();
+  }, [view.name]);
+
   const screen = screenOf(view);
   const started = view.name === "started" ? view : null;
   const online = useOnline();
@@ -316,6 +325,7 @@ export function StartCase({
     pendingReveal.current = () => { done = true; clearTimeout(timer); node.removeEventListener("transitionend", finish); };
   }, [view]);
 
+  const focusRoot = useCallback(() => target.current?.focus(), []);
   const resumable = view.name === "throttled" || view.name === "failed" ? view.resumable : null;
 
   // Every part of the heirs screen works on the active layer.
@@ -334,8 +344,6 @@ export function StartCase({
   const editingPerson = model.people.find(p => p.id === started?.editingHeir);
   const relativeGroups = started && layer ? addGroups(placementRootOf(started.case, layer.id), layer.options) : [];
   const remaining = MAX_HEIRS - (layer?.heirs.length ?? 0);
-  // From 1280px the first estate has a third column for the Share preview; a later estate keeps two.
-  const previewColumn = layer?.id == null;
   const treeText = started?.tree ? outcomeText(messages, started.tree) : null;
   const treeInSheet = !!editingPerson && started?.tree?.anchor === editingPerson.personId;
   // One positioned add, by touch, keyboard or drop: the same request for each.
@@ -490,12 +498,18 @@ export function StartCase({
     </div>
   ) : null;
 
+  // While the preview sheet is open the one status node lives inside its dialog, so updates are heard
+  // over the inert background; it moves back on close.
+  const statusNode = (
+    <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+      {spoken.text !== "" && <span key={spoken.seq}>{spoken.text}</span>}
+    </p>
+  );
+
   return (
-    <div data-js-only ref={target} tabIndex={-1} className="relative flex flex-col gap-4 outline-none [&>*:not(form,[data-wide])]:mx-auto [&>*:not(form,[data-wide])]:w-full [&>*:not(form,[data-wide])]:max-w-xl">
+    <div data-js-only data-preview-state={previewSignal.state} data-preview-revision={previewSignal.revision ?? undefined} ref={target} tabIndex={-1} className="relative flex flex-col gap-4 outline-none [&>*:not(form,[data-wide])]:mx-auto [&>*:not(form,[data-wide])]:w-full [&>*:not(form,[data-wide])]:max-w-xl">
       {/* The one routine status of the Interview; always mounted so its changes are spoken. */}
-      <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-        {spoken.text !== "" && <span key={spoken.seq}>{spoken.text}</span>}
-      </p>
+      {statusSlot ? createPortal(statusNode, statusSlot) : statusNode}
       {view.name === "loading" && (
         <div data-wide data-skeleton aria-busy="true" className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
           <p className="sr-only">{messages.loading}</p>
@@ -552,12 +566,15 @@ export function StartCase({
 
       {view.name === "confirmStartOver" && (
         <>
-          <p role="alert">{messages.startOverConfirm}</p>
+          <p role="alert">
+            {savedBehind(view.case) && <>{messages.startOverUnsaved}{" "}</>}
+            {messages.startOverConfirm}
+          </p>
           <div className="flex flex-wrap gap-3">
             <button type="button" className={buttonClass} onClick={() => void perform("startOver")}>
               {messages.startOverYes}
             </button>
-            <button type="button" className={buttonClass} onClick={() => setView(cancelStartOver(view))}>
+            <button type="button" ref={safeChoice} className={buttonClass} onClick={() => setView(cancelStartOver(view))}>
               {messages.startOverNo}
             </button>
           </div>
@@ -589,6 +606,14 @@ export function StartCase({
             {undoOffer && <span className="ms-3"><UndoButton messages={messages} disabled={undoDisabled} onUndo={undo} /></span>}
           </div>
           {started.undoFailed && <p role="alert">{messages.undoFailed}</p>}
+          {savedBehind(started.case) && (
+            <p data-unsaved-notice>
+              {messages.unsavedNotice}{" "}
+              <Link href={`/${locale}/results/`} prefetch={false} className="inline-flex min-h-11 items-center underline">
+                {messages.unsavedLink}
+              </Link>
+            </p>
+          )}
         </>
       )}
 
@@ -656,7 +681,7 @@ export function StartCase({
           />
           <div
             data-wide
-            className={`grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-0 ${previewColumn ? "xl:grid-cols-[380px_minmax(0,1fr)_340px]" : ""}`}
+            className={`grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-0`}
           >
             <section
               aria-labelledby="add-relatives-heading"
@@ -688,9 +713,8 @@ export function StartCase({
               {started.conflict && !editingPerson && <p role="alert">{messages.conflictNotice}</p>}
               {!editingPerson && <SaveNotice messages={messages} notice={started.notice} saving={frozen} />}
             </section>
-            {/* One column down to 1280px; from there, with the preview column, its children are grid items so the panel can sit in the inline-end column. */}
-            <div className={`min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-s lg:border-line lg:ps-4 ${previewColumn ? "xl:contents" : ""}`}>
-              <div className={`min-w-0 ${previewColumn ? "xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:border-s xl:border-line xl:px-4" : ""}`}>
+            <div className={`min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-s lg:border-line lg:ps-4`}>
+              <div className="min-w-0">
               <FamilyTree
                 messages={messages}
                 model={model}
@@ -719,11 +743,21 @@ export function StartCase({
                   : edit(current => requestCardRemoval(current, id, deps))}
               />
               </div>
-              {editingPerson && <div className={`min-w-0 sm:mt-3 ${previewColumn ? "xl:col-start-3 xl:row-start-1 xl:mt-0 xl:border-s xl:border-line xl:p-6" : ""}`}><EditSheet key={editingPerson.id} messages={messages} view={started}
+              {editingPerson && <div className="min-w-0 sm:mt-3"><EditSheet key={editingPerson.id} messages={messages} view={started}
                 person={editingPerson} label={description.people.find(p => p.id === editingPerson.id)!.label}
                 frozen={frozen} onClose={() => edit(current => cancelEditHeir(current, deps))}
                 entries={model.placement[editingPerson.personId] ?? []} atLimit={remaining <= 0}
-                addAlert={treeInSheet ? treeText : null} onAddHere={entry => addAt(editingPerson.personId, entry)}
+                addAlert={treeInSheet ? treeText : null} onAddHere={(entry, name) => {
+                  // A positioned add closes the sheet, so an uncommitted name is saved first (and awaited,
+                  // so the add does not abort the save in flight), then the relative is added.
+                  const current = latest.current;
+                  if (name === undefined || current.name !== "started") { addAt(editingPerson.personId, entry); return; }
+                  void (async () => {
+                    await perform("saveHeir", undefined, { kind: "saveHeir", from: current, heirId: editingPerson.id,
+                      values: { relationship: editingPerson.relationship, name: name ?? "" }, field: "name" });
+                    addAt(editingPerson.personId, entry);
+                  })();
+                }}
                 orderQuestion={sheetOrder}
                 onMarkLater={name => submit(from => ({ kind: "markDeath", from, rowId: editingPerson.id, origin: "sheet", ...(name === undefined ? {} : { name }) }))}
                 onOpenEstate={name => name === undefined ? openEstate(editingPerson.personId)
@@ -772,24 +806,23 @@ export function StartCase({
                 </UndoToast>
               )}
             </div>
-            {/* Kept mounted while a later estate is open, so evidence keeps reaching the tree; just not shown. */}
-            {(
-              <div hidden={layer?.id != null} className={`min-w-0 lg:col-span-2 lg:col-start-1 lg:row-start-3 lg:mt-4 xl:col-span-1 xl:col-start-3 xl:mt-0 xl:border-s xl:border-line xl:p-6 ${editingPerson ? "xl:row-start-2" : "xl:row-span-2 xl:row-start-1"}`}>
-                <SharePreview
-                  messages={messages}
-                  results={results}
-                  locale={locale}
-                  onPresented={reportPresented}
-                  post={post}
-                  drop={drop}
-                  heirCount={layer?.heirs.length ?? started.case.heirs.length}
-                  kase={started.case}
-                  saving={frozen}
-                  failed={choiceFailed && (started.notice === "failed" || started.notice === "throttled") ? started.notice : null}
-                  onChooseSchool={(madhab) => void perform("choose", { madhab, from: started })}
-                />
-              </div>
-            )}
+            {/* The one preview owner stays mounted, including while a later estate is open, so evidence keeps reaching the tree; it draws the summary bar (root estate with shares) and the sheet. */}
+            <SharePreviewController
+              showBar={layer?.id === null}
+              saving={frozen}
+              failed={choiceFailed && (started.notice === "failed" || started.notice === "throttled") ? started.notice : null}
+              onChooseSchool={(madhab) => void perform("choose", { madhab, from: started })}
+              focusRoot={focusRoot}
+              onStatusSlot={setStatusSlot}
+              messages={messages}
+              locale={locale}
+              onPresented={reportPresented}
+              onSignal={setPreviewSignal}
+              post={post}
+              drop={drop}
+              heirCount={layer?.heirs.length ?? started.case.heirs.length}
+              kase={started.case}
+            />
           </div>
         </>
       )}

@@ -31,7 +31,7 @@ type Props = {
   entries?: readonly PlacementOption[];
   atLimit?: boolean;
   addAlert?: string | null;
-  onAddHere?: (entry: PlacementOption) => void;
+  onAddHere?: (entry: PlacementOption, name?: string | null) => void;
   /** Story 9.8: choose a later death here, and open the person's own estate. */
   /** `name` is an uncommitted name edit, saved before the death is sent; undefined when there is none. */
   onMarkLater?: (name?: string | null) => void;
@@ -215,7 +215,7 @@ export function EditSheet({ messages, view, person, label, frozen, onClose, onSa
         aria-disabled={frozen} onClick={() => { if (!frozen) onOpenEstate?.(dirty ? draftName : undefined); }}>
         <WithHeir template={messages.openOwnEstate} heir={label} /></button>}
       <AddHere messages={messages} anchor={person.personId} personLabel={label} entries={entries}
-        frozen={frozen} atLimit={atLimit} alert={addAlert} onChoose={entry => onAddHere?.(entry)} />
+        frozen={frozen} atLimit={atLimit} alert={addAlert} onChoose={entry => onAddHere?.(entry, dirty ? draftName : undefined)} />
       {person.state !== "died_later" && <button type="button" className={buttonClass} aria-disabled={frozen}
         onClick={() => { if (!frozen) onRemove(false); }}><WithHeir template={messages.heirRemove} heir={label} /></button>}
     </>}

@@ -139,7 +139,35 @@ export type Case = {
   placement?: Placement;
   /** The server's own export of this case, kept opaque: it is what a restore sends back. Absent when not sent. */
   snapshot?: Record<string, unknown>;
+  /**
+   * The Case revision the linked Saved case holds: null when there is no link, `{ revision: null }` for an old link
+   * with no recorded revision, absent when the server did not say (older server or malformed): unknown.
+   */
+  saved?: SavedState | null;
 };
+
+export type SavedState = { revision: number | null };
+
+/** The notice's test: a linked Saved case that does not hold this Case revision. */
+export function savedBehind(value: Case | null): boolean {
+  return !!value && !!value.saved && value.saved.revision !== value.revision;
+}
+
+/** Whether leaving this working copy could lose changes; true when the state cannot be read. */
+export function hasUnsavedChanges(value: Case | null): boolean {
+  if (!value) return false;
+  if (value.saved === undefined) return true;
+  if (value.saved === null) return value.deceased !== null || value.heirs.length > 0;
+  return value.saved.revision !== value.revision;
+}
+
+function parseSaved(value: unknown): SavedState | null | undefined {
+  if (value === null) return null;
+  if (!isPlainObject(value) || !("revision" in value)) return undefined;
+  if (value.revision === null) return { revision: null };
+  const revision = parseRevision(value.revision);
+  return revision === null ? undefined : { revision };
+}
 
 export type PersonStatus = "alive" | "died_before_or_with" | "died_later";
 
@@ -256,6 +284,7 @@ type CaseBody = {
   edges?: unknown;
   placement?: unknown;
   snapshot?: unknown;
+  saved?: unknown;
 };
 
 function isCaseBody(value: unknown): value is CaseBody {
@@ -468,6 +497,7 @@ export function parseCase(body: unknown): Case | null {
     edges: parseEdges(value.edges, persons),
     placement: parsePlacement(value.placement),
     ...(isPlainObject(value.snapshot) ? { snapshot: value.snapshot } : {}),
+    ...(parseSaved(value.saved) === undefined ? {} : { saved: parseSaved(value.saved) }),
   };
 }
 
@@ -752,15 +782,34 @@ export function addHeir(
   return answer(signal, options, "POST", HEIRS_URL, caseId, revision, fields);
 }
 
-/** Replaces the case's inputs with a snapshot the server exported. One attempt; never throws. */
-export function restoreCase(
+/** gzip + base64 of a string, so a large Undo snapshot uploads smaller. Uses the platform
+ * CompressionStream (browser and the Node test runtime both provide it). */
+async function gzipBase64(text: string): Promise<string> {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+/** Replaces the case's inputs with a snapshot the server exported. One attempt; never throws.
+ * The snapshot is sent gzipped+base64 (`snapshot_gz`): an Undo uploads the whole snapshot, and
+ * compression cuts that request to about a quarter of its raw size. When the runtime cannot
+ * compress (no `CompressionStream`, or it rejects), the plain `snapshot` is sent instead. */
+export async function restoreCase(
   signal: AbortSignal,
   caseId: string,
   revision: number | null,
   snapshot: Record<string, unknown>,
   options: WriteOptions = {},
 ): Promise<AnswerResult> {
-  return answer(signal, options, "POST", RESTORE_URL, caseId, revision, { snapshot });
+  let fields: Record<string, unknown>;
+  try {
+    fields = { snapshot_gz: await gzipBase64(JSON.stringify(snapshot)) };
+  } catch {
+    fields = { snapshot };
+  }
+  return answer(signal, options, "POST", RESTORE_URL, caseId, revision, fields);
 }
 
 export function addHeirs(

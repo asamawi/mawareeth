@@ -210,6 +210,7 @@ A registered user can open a Saved case from *My cases* straight into the Interv
 **Consequences (testable):**
 - No "resume or start over" prompt appears when opening a Saved case.
 - Starting a new Case is a separate, explicit action in *My cases*.
+- Changes to an opened Saved case are saved to it automatically, and the user can see whether the latest change is saved.
 - [ASSUMPTION: the resume/start-over prompt stays only for a guest returning to an unsaved Case within 24 hours.]
 
 #### FR-8: Case names
