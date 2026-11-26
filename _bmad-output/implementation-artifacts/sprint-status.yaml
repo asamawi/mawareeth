@@ -72,8 +72,8 @@ development_status:
   epic-9-retrospective: done
 
   epic-10: in-progress
-  10-0-warn-before-unsaved-changes-are-discarded: review
-  10-1-name-a-case-and-show-whether-saving-succeeded: review
+  10-0-warn-before-unsaved-changes-are-discarded: done
+  10-1-name-a-case-and-show-whether-saving-succeeded: done
   10-2-find-and-rename-named-cases-in-my-cases: done
   10-3-open-saved-cases-directly-and-keep-guest-recovery-separate: done
   10-4-preserve-received-invitations-and-label-shared-cases-as-read: backlog
