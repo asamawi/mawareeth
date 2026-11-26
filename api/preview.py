@@ -21,7 +21,7 @@ from calc.models import (
     PaternalUncle, Sister, Son, SonOfBrother, SonOfPaternalBrother, SonOfPaternalUncle,
     SonOfSon, SonOfUncle, Uncle, Wife,
 )
-from engine.contracts import dump_presented_result
+from engine.contracts import dump_fresh_presented_result
 from presentation import outcome as evaluate_outcome, present, refused_outcome
 from presentation.money import round_minor
 
@@ -202,13 +202,15 @@ def _single(case):
     return _body(case, out.evaluations[0][1], family.estate.amount_minor)
 
 
-def compare(case, family=None, out=None):
-    """The four Sunni schools' previews of a case that has no school, as {school: body}."""
+def compare(case, family=None, out=None, only=None):
+    """The four Sunni schools' previews of a case that has no school, as {school: body}.
+
+    `only` names the one school whose body is wanted when the schools are known to agree."""
     if out is None:
         family, _currency = family_from_session(case, names=False)
         out = evaluate_outcome(family, basis_from_madhab(None))
     return {school: _body({**case, 'madhab': school}, evaluation, family.estate.amount_minor)
-            for school, evaluation in out.evaluations}
+            for school, evaluation in out.evaluations if only is None or school == only}
 
 
 def _signature(body):
@@ -217,6 +219,20 @@ def _signature(body):
         sorted((s['heir_id'], s['blocked'], s['numerator'], s['denominator']) for s in body['shares']),
         body['unallocated'],
     )
+
+
+def _schools_agree(out):
+    """Whether every school calculated the same exact final shares (so the same blocked flags and rest)."""
+    first = None
+    for _school, evaluation in out.evaluations:
+        if evaluation.result.status == 'refused':
+            return False
+        final = engine.final_shares(evaluation.result)
+        if first is None:
+            first = final
+        elif final != first:
+            return False
+    return first is not None
 
 
 def _proofs(body):
@@ -252,11 +268,13 @@ def preview(case):
     resolved = basis_from_madhab(case['madhab'])
     out = (refused_outcome(family, resolved, INVALID_FAMILY) if _impossible(case)
            else evaluate_outcome(family, resolved))
-    shown = dump_presented_result(present(out, resolved, get_language() or 'en', currency))
+    shown = dump_fresh_presented_result(present(out, resolved, get_language() or 'en', currency))
     estate = family.estate.amount_minor
     if case['madhab'] is not None:
         return {**_body(case, out.evaluations[0][1], estate), 'presented': shown}
-    bodies = compare(case, family, out)
+    # When the schools hold the same exact shares the shown body is the Hanbali one: build only it.
+    agree = not _impossible(case) and _schools_agree(out)
+    bodies = compare(case, family, out, schools.HANBALI) if agree else compare(case, family, out)
     if all(b['status'] == 'available' for b in bodies.values()) and (
             len({repr(_signature(b)) for b in bodies.values()}) == 1):
         return {**bodies[schools.HANBALI], 'madhab': None, 'basis': basis(case), 'agreement': 'all',

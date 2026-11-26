@@ -78,8 +78,8 @@ def _steps(facts):
     return tuple(steps)
 
 
-def _estate(estate, rule_set):
-    """Map one unchanged single-estate solution into Result values and evidence."""
+def _solve_estate(estate, rule_set):
+    """Map one unchanged single-estate solution into Result values and plain (unfrozen) evidence."""
     heirs = estate.heirs
     solved = solve([(heir.person, heir.relationship) for heir in heirs], rule_set.rules)
     final = solved.final
@@ -102,7 +102,13 @@ def _estate(estate, rule_set):
     unallocated = Fraction(1) - sum(final.values(), Fraction(0))
     result = Result(CONTRACT_VERSIONS['result'], rule_set.school, 'calculated', None, tuple(allocations),
                     unallocated, _steps(solved.steps), ())
-    return Evaluation(result, freeze(evidence), freeze(solved.table))
+    return Evaluation(result, evidence, solved.table)
+
+
+def _estate(estate, rule_set):
+    """One estate's Evaluation with its evidence deep-frozen."""
+    evaluation = _solve_estate(estate, rule_set)
+    return Evaluation(evaluation.result, freeze(evaluation.proof), freeze(evaluation.table))
 
 
 def evaluate(family, rule_set):
@@ -138,7 +144,7 @@ def evaluate(family, rule_set):
     root = None
     for estate in family.estates:
         try:
-            evaluation = _estate(estate, rule_set)
+            evaluation = _solve_estate(estate, rule_set)
         except Refused as refusal:
             return _refused(rule_set, refusal.reason)
         if root is None:
@@ -151,13 +157,13 @@ def evaluate(family, rule_set):
             totals[pid] = totals.get(pid, Fraction(0)) + inherited * allocation.share
         entries.append({'order': estate.order, 'deceased': estate.deceased,
                         'heir': None if estate.order == 1 else estate.deceased,
-                        'estate': inherited, 'proof': thaw(evaluation.proof)})
-        tables.append(thaw(evaluation.table))
+                        'estate': inherited, 'proof': evaluation.proof})
+        tables.append(evaluation.table)
         if estate.order > 1:
             layers.append(Layer(estate.order, estate.deceased, inherited, result.allocations,
                                 result.steps, result.unallocated))
     if not layers:
-        return root
+        return Evaluation(root.result, freeze(root.proof), freeze(root.table))
     result = root.result
     result = Result(result.version, result.school, result.status, result.refusal, result.allocations,
                     result.unallocated, result.steps, tuple(layers))
