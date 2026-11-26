@@ -122,7 +122,9 @@ export async function renameSavedCase(signal: AbortSignal, id: number, args: { n
 }
 /** `conflict`: the working copy changed since the prompt, so nothing was replaced. */
 export const OPEN_CONFLICT = "conflict";
-export type OpenResult = Case | typeof OPEN_CONFLICT | { kind: "stale"; case: Case | null } | null;
+/** `auth`: the server refused with 401 or 403, which may mean the sign-in has expired. */
+export const OPEN_AUTH = "auth";
+export type OpenResult = Case | typeof OPEN_CONFLICT | typeof OPEN_AUTH | { kind: "stale"; case: Case | null } | null;
 /** With `check`, the server refuses (409) when the working copy is no longer that Case at that revision; a null `caseId` means none. With `returnStale`, that refusal comes back as `{ kind: "stale", case }` carrying the current working copy instead of the bare conflict. */
 export async function openSavedCase(signal: AbortSignal, id: number, options: WriteOptions & { check?: { caseId: string | null; revision: number | null }; returnStale?: boolean } = {}): Promise<OpenResult> {
   if (!Number.isInteger(id) || id < 1) return null;
@@ -134,6 +136,7 @@ export async function openSavedCase(signal: AbortSignal, id: number, options: Wr
       const stale = await response.json().catch(() => null);
       try { return { kind: "stale", case: parseCase(stale) }; } catch { return null; }
     }
+    if (response.status === 401 || response.status === 403) return OPEN_AUTH;
     return response.ok ? parseCase(await response.json()) : null;
   });
 }

@@ -9,7 +9,7 @@ import {
   addHeir,
   addHeirs,
   MAX_HEIRS,
-  fetchCase,
+  fetchCaseOrExpired,
   savedBehind,
   markDeceased,
   removeHeir,
@@ -90,12 +90,15 @@ import { OrderQuestion } from "./order-question";
 import { SharePreviewController, type PreviewSignal } from "./share-preview";
 import { isUndoShortcut, UndoButton, UndoToast } from "./undo-toast";
 
+import { takeOpenHandoff } from "@/interview/open-handoff";
+import { casesPath } from "@/i18n/paths";
+
 const SEEN_KEY = "mawareeth.case-seen";
 
 // A remembered flag is the only way to tell "expired" from "never started". It is a
 // convenience: when storage is blocked the page simply offers a new case.
 const deps: Deps = {
-  fetchCase: (signal) => fetchCase(signal),
+  fetchCase: (signal) => fetchCaseOrExpired(signal),
   startCase: (signal, options) => startCase(signal, options),
   setMadhab: (signal, madhab, caseId, revision) => setMadhab(signal, madhab, caseId, revision),
   saveDeceased: (signal, caseId, revision, fields) => saveDeceased(signal, caseId, revision, fields),
@@ -144,6 +147,8 @@ export function StartCase({
   const [dragChip, setDragChip] = useState<RelationshipId | null>(null);
   const [dropAlert, setDropAlert] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
+  // The hand-off from My cases is taken once per visit; the ref outlives a Strict Mode remount and a retried load.
+  const handoff = useRef<{ value: string | null } | null>(null);
   const live = useRef(true);
   const latest = useRef<View>(view);
   const target = useRef<HTMLDivElement>(null);
@@ -173,7 +178,11 @@ export function StartCase({
       const existing = caseOf(latest.current);
       latest.current = pendingView(action, latest.current);
       setView(latest.current);
-      const next = await runAction(action, own.signal, deps, existing, choice, answer);
+      const withHandoff: Deps = {
+        ...deps,
+        handoff: { take: () => (handoff.current ??= { value: takeOpenHandoff() }).value },
+      };
+      const next = await runAction(action, own.signal, withHandoff, existing, choice, answer);
       if (live.current && controller.current === own) {
         // A failure notice belongs to the school choice only when the choice made it.
         setChoiceFailed(action === "choose");
@@ -537,12 +546,27 @@ export function StartCase({
 
       {view.name === "none" && (
         <>
-          {view.expired && <p role="status">{messages.expired}</p>}
+          {view.expired && (
+            <>
+              <h2 className="text-xl font-semibold">{messages.expiredTitle}</h2>
+              <p role="status">{messages.expired}</p>
+              <p>{messages.expiredLifetime}</p>
+            </>
+          )}
           <p>{messages.intro}</p>
           <div>
             <button type="button" className={buttonClass} onClick={() => void perform("start")}>
               {messages.start}
             </button>
+          </div>
+        </>
+      )}
+
+      {view.name === "openFailed" && (
+        <>
+          <p role="alert">{messages.openFailed}</p>
+          <div>
+            <a className={`${buttonClass} inline-block`} href={casesPath(locale)}>{messages.backToCases}</a>
           </div>
         </>
       )}

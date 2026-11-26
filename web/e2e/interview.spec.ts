@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { messages, locales, directionOf } from "../src/i18n/messages";
@@ -6,7 +7,7 @@ import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 
 import { closePreview, lineageFixture, openCanvasFixture, openHeirsScreen, openPreview, sheetOf } from "./family";
-import { abort, CASE, expect, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors, type Stubs } from "./api";
+import { abort, CASE, expect, expiredCase, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors, type Stubs } from "./api";
 
 const en = messages.en.interview;
 
@@ -110,12 +111,12 @@ test.describe("rendered states", () => {
     const ahead = (saved: unknown) => json(200, { case: { ...CASE, saved } });
     api.set({ session: sessionAnonymous, getCase: ahead({ revision: 1 }), postCase: startedCase("fedcba9876543210") });
     await page.goto("/en/interview/");
-    await expect(page.getByText(en.unsavedNotice)).toHaveCount(0);
-    await page.getByRole("button", { name: en.resume }).click();
+    // A linked working copy opens directly: no resume prompt, and no notice while it is saved.
+    await expect(page.getByRole("button", { name: en.resume })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: en.started })).toBeVisible();
     await expect(page.getByText(en.unsavedNotice)).toHaveCount(0);
     api.set({ getCase: ahead({ revision: null }) });
     await page.goto("/en/interview/");
-    // The case was seen on this browser, so it resumes without asking.
     await expect(page.getByText(en.unsavedNotice)).toBeVisible();
     await expect(page.getByRole("link", { name: en.unsavedLink })).toHaveAttribute("href", "/en/results/");
     await page.getByRole("button", { name: en.startOver }).click();
@@ -134,6 +135,17 @@ test.describe("rendered states", () => {
 
   for (const locale of locales) {
     const text = messages[locale].interview;
+    test(`a server-coded expiry shows the title, the lifetime and one Start action in ${locale}`, async ({ page, api }) => {
+      api.set({ session: sessionAnonymous, getCase: expiredCase, postCase: startedCase() });
+      await page.goto(`/${locale}/interview/`);
+      await expect(page.getByRole("heading", { name: text.expiredTitle })).toBeVisible();
+      await expect(page.getByText(text.expiredLifetime)).toBeVisible();
+      await expect(page.getByRole("button", { name: text.start, exact: true })).toHaveCount(1);
+      await expect(page.getByRole("button", { name: text.resume })).toHaveCount(0);
+      expect(api.casePosts).toHaveLength(0);
+      const { violations } = await new AxeBuilder({ page }).analyze();
+      expect(violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+    });
     test(`throttled shows its message in ${locale}`, async ({ page, api }) => {
       api.set({ session: sessionAnonymous, getCase: noCase, postCase: json(429, {}) });
       await page.goto(`/${locale}/interview/`);

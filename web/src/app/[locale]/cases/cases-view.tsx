@@ -1,8 +1,10 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchCase, hasUnsavedChanges, type Case } from "@/api/case";
-import { listSavedCases, openSavedCase, renameSavedCase, NAME_INVALID, NAME_LIMIT, NAME_TOO_LONG, OPEN_CONFLICT, graphemeCount, type SavedCase } from "@/api/saved-cases";
+import { fetchCase, hasUnsavedChanges, startCase, type Case } from "@/api/case";
+import { fetchSession, PROBE_TIMEOUT_MS } from "@/api/session";
+import { writeOpenHandoff } from "@/interview/open-handoff";
+import { listSavedCases, openSavedCase, renameSavedCase, NAME_INVALID, NAME_LIMIT, NAME_TOO_LONG, OPEN_AUTH, OPEN_CONFLICT, graphemeCount, type SavedCase } from "@/api/saved-cases";
 import type { Messages } from "@/i18n/messages";
 import { listReceived, type Received } from "@/api/invites";
 import { casesPath, loginHref, receivedPath } from "@/i18n/paths";
@@ -11,6 +13,15 @@ import { buttonClass } from "../interview/form-bits";
 import { CaseNameField } from "../results/case-name-field";
 
 type Sort = "recent" | "name";
+/** What waits behind the discard question: opening a Saved case, or starting a new one. */
+type Pending = { kind: "open"; id: number } | { kind: "new" };
+const OPEN_PARAM = "open";
+/** A positive whole number, or null: anything else in the `open` parameter is ignored. */
+function parseOpenParam(search: string): number | null {
+  const raw = new URLSearchParams(search).get(OPEN_PARAM);
+  if (raw === null || !/^[1-9]\d{0,14}$/.test(raw)) return null;
+  return Number(raw);
+}
 type Editing = { id: number; value: string; saving: boolean; error: string | null };
 const byRecent = (a: SavedCase, b: SavedCase) => Date.parse(b.updated_at) - Date.parse(a.updated_at) || b.id - a.id;
 export function CasesView({ locale, text }: { locale: string; text: Messages }) {
@@ -19,6 +30,7 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
   const [rows, setRows] = useState<SavedCase[] | null>(null);
   const [received, setReceived] = useState<Received[] | null>(null);
   const [error, setError] = useState(false);
+  const [newFailed, setNewFailed] = useState(false);
   const [listError, setListError] = useState(false);
   const [reload, setReload] = useState(0);
   const [sort, setSort] = useState<Sort>("recent");
@@ -26,9 +38,9 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
   const submitting = useRef(false);
   const editingId = useRef<number | null>(null);
   const refocusRename = useRef<number | null>(null);
-  const [opening, setOpening] = useState<number | null>(null);
+  const [opening, setOpening] = useState<number | "new" | null>(null);
   // The row waiting for the discard answer, and the working copy shown to the visitor (undefined: unreadable).
-  const [prompt, setPrompt] = useState<{ id: number; current: Case | null | undefined } | null>(null);
+  const [prompt, setPrompt] = useState<{ action: Pending; current: Case | null | undefined } | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const safe = useRef<HTMLButtonElement>(null);
   const pressed = useRef<HTMLElement | null>(null);
@@ -125,47 +137,95 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
     setPrompt(null);
     pressed.current?.focus();
   }
-  async function begin(id: number, conflicted = false) {
-    setOpening(id);
+  async function begin(action: Pending, conflicted = false) {
+    setOpening(action.kind === "new" ? "new" : action.id);
     setError(false);
+    setNewFailed(false);
     let current: Case | null | undefined;
     try { current = await fetchCase(new AbortController().signal); } catch { current = undefined; }
     if (!mounted.current) return;
-    // Unreadable state asks as well, and after a conflict it always asks again: never open on its own.
-    if (conflicted || current === undefined || hasUnsavedChanges(current)) { setPrompt({ id, current }); setOpening(null); return; }
-    await go(id, current);
+    // Unreadable state asks as well, and after a conflict it always asks again: never act on its own.
+    if (conflicted || current === undefined || hasUnsavedChanges(current)) { setPrompt({ action, current }); setOpening(null); return; }
+    await go(action, current);
   }
-  async function go(id: number, current: Case | null | undefined) {
+  function failed(action: Pending) {
+    refocus.current = true;
+    if (action.kind === "new") setNewFailed(true); else setError(true);
+    setOpening(null);
+  }
+  async function go(action: Pending, current: Case | null | undefined) {
     if (!mounted.current) return;
-    setOpening(id);
+    setOpening(action.kind === "new" ? "new" : action.id);
+    if (action.kind === "new") {
+      const result = await startCase(new AbortController().signal, current === undefined ? { replace: true } : current ? { replace: true, caseId: current.id, revision: current.revision } : {});
+      if (!mounted.current) return;
+      if (result.kind === "exists") { setPrompt(null); await begin(action, true); return; }
+      if (result.kind === "started") { writeOpenHandoff(result.case.id); router.push(`/${locale}/interview/`); } else failed(action);
+      return;
+    }
+    const { id } = action;
     const check = current === undefined ? undefined : { caseId: current?.id ?? null, revision: current?.revision ?? null };
     const result = await openSavedCase(new AbortController().signal, id, check ? { check } : {});
     if (!mounted.current) return;
-    if (result === OPEN_CONFLICT) { setPrompt(null); await begin(id, true); return; }
-    if (result) router.push(`/${locale}/interview/`);
-    else { refocus.current = true; setError(true); setOpening(null); }
+    if (result === OPEN_CONFLICT) { setPrompt(null); await begin(action, true); return; }
+    if (result === OPEN_AUTH) {
+      // Only a signed-out session goes to sign-in; a refusal while still signed in is the generic failure.
+      let signedOut = false;
+      try { signedOut = !(await fetchSession(AbortSignal.timeout(PROBE_TIMEOUT_MS))).authenticated; } catch { signedOut = false; }
+      if (!mounted.current) return;
+      if (signedOut) { router.push(loginHref(`${casesPath(locale)}?${OPEN_PARAM}=${id}`)); return; }
+      failed(action);
+      return;
+    }
+    if (result && typeof result === "object" && "id" in result) { writeOpenHandoff(result.id); router.push(`/${locale}/interview/`); }
+    else failed(action);
   }
   async function confirm() {
     if (!prompt) return;
-    const { id, current } = prompt;
+    const { action, current } = prompt;
     if (dialog.current?.open) dialog.current.close();
     setPrompt(null);
-    await go(id, current);
+    await go(action, current);
   }
   function open(id: number, button: HTMLElement) {
     pressed.current = button;
-    void begin(id);
+    void begin({ kind: "open", id });
+  }
+  function startNew(button: HTMLElement) {
+    pressed.current = button;
+    void begin({ kind: "new" });
+  }
+  // After sign-in the login page returns here with ?open=<id>: that Open resumes once, through the same discard prompt.
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (auth !== "authenticated" || resumed.current) return;
+    resumed.current = true;
+    const id = parseOpenParam(window.location.search);
+    if (new URLSearchParams(window.location.search).has(OPEN_PARAM)) {
+      const params = new URLSearchParams(window.location.search);
+      params.delete(OPEN_PARAM);
+      const query = params.toString();
+      try { window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`); } catch {}
+    }
+    if (id !== null) void Promise.resolve().then(() => begin({ kind: "open", id }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth]);
+  // The sign-in link keeps a valid ?open= so the Open resumes after sign-in.
+  function signInQuery() {
+    const id = typeof window === "undefined" ? null : parseOpenParam(window.location.search);
+    return id === null ? "" : `?${OPEN_PARAM}=${id}`;
   }
   if (auth === "loading") return <p role="status">{text.checking}</p>;
   if (auth !== "authenticated") return (
     <p>
       {auth === "error" && <span role="alert">{text.unavailable} </span>}
-      <a className={buttonClass} href={loginHref(casesPath(locale))}>{text.cases.signIn}</a>
+      <a className={buttonClass} href={loginHref(casesPath(locale) + signInQuery())}>{text.cases.signIn}</a>
     </p>
   );
   return (
     <>
-      <p role="alert">{error || listError ? text.cases.error : ""}</p>
+      <p role="alert">{newFailed ? text.cases.newCaseFailed : error || listError ? text.cases.error : ""}</p>
+      <p><button type="button" className={buttonClass} disabled={opening !== null} onClick={(event) => startNew(event.currentTarget)}>{text.cases.newCase}</button></p>
       {listError && <p><button type="button" className={buttonClass} onClick={retry}>{text.cases.retry}</button></p>}
       {!rows && !listError && (
         <div data-skeleton aria-busy="true" className="flex flex-col gap-4">
@@ -231,7 +291,7 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
             <p id="discard-body" className="my-4">{text.cases.discardBody}</p>
             <div className="flex flex-wrap gap-3">
               <button type="button" ref={safe} className={buttonClass} onClick={closePrompt}>{text.cases.discardNo}</button>
-              <button type="button" className={buttonClass} onClick={() => void confirm()}>{text.cases.discardYes}</button>
+              <button type="button" className={buttonClass} onClick={() => void confirm()}>{prompt.action.kind === "new" ? text.cases.discardConfirmNew : text.cases.discardYes}</button>
             </div>
           </>
         )}

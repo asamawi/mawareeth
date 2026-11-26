@@ -38,6 +38,8 @@ export type Stubs = {
 
 export const sessionAnonymous = json(200, { authenticated: false });
 export const sessionAuthenticated = json(200, { authenticated: true });
+/** A guest Case that has passed its 24 hours: the server says so with a code. */
+export const expiredCase = json(200, { case: null, code: "expired" });
 export const noCase = json(200, { case: null });
 export const liveCase = (id = CASE.id) => json(200, { case: { ...CASE, id } });
 export const startedCase = (id = CASE.id) => json(201, { case: { ...CASE, id } });

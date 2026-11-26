@@ -45,6 +45,8 @@ const savedRow = { id: 1, name: "Mother's estate", updated_at: "2026-11-01T00:00
 // Minimal valid case body for openSavedCase (parseCase needs body.case.{id,started_at})
 const caseBody = { case: { id: "case-1", started_at: "2026-11-01T00:00:00Z" } };
 
+const firstOpen = () => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === text.cases.open) ?? null;
+
 const { CasesView } = await import("./cases-view.tsx");
 
 test("openSavedCase success: router.push called with interview URL", async () => {
@@ -76,7 +78,7 @@ test("openSavedCase success: router.push called with interview URL", async () =>
   await settle();
   await settle();
 
-  const openBtn = container.querySelector<HTMLButtonElement>("button[type=button]");
+  const openBtn = firstOpen();
   assert.ok(openBtn, "Open button should be present after rows load");
   const label = container.querySelector("li bdi");
   assert.equal(label?.textContent, "Mother's estate", "the row is labelled by the stored name");
@@ -117,7 +119,7 @@ test("openSavedCase failure: router.push NOT called", async () => {
   await settle();
   await settle();
 
-  const openBtn = container.querySelector<HTMLButtonElement>("button[type=button]");
+  const openBtn = firstOpen();
   assert.ok(openBtn, "Open button should be present");
 
   await act(() => { openBtn.click(); });
@@ -164,7 +166,7 @@ async function runPrompt(scenario: Scenario) {
   await act(() => { root.render(<CasesView locale="en" text={text} />); });
   await settle();
   await settle();
-  const openBtn = container.querySelector<HTMLButtonElement>("button[type=button]")!;
+  const openBtn = firstOpen()!;
   await act(() => { openBtn.click(); });
   await settle();
   return { pushCalls, opens, openBtn };
@@ -261,7 +263,7 @@ test("leaving the page while the state read is pending sends no open and does no
   await act(() => { root.render(<CasesView locale="en" text={text} />); });
   await settle();
   await settle();
-  await act(() => { container.querySelector<HTMLButtonElement>("button[type=button]")!.click(); });
+  await act(() => { firstOpen()!.click(); });
   await act(async () => { root.unmount(); });
   release(ok(workingCase({ revision: 3 })));
   await settle();
@@ -522,4 +524,159 @@ test("Open is described by the case name and the date", async () => {
   const open = [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === text.cases.open)!;
   assert.equal(open.getAttribute("aria-describedby"), "name-7 saved-7");
   assert.equal(container.querySelector("#name-7")!.textContent, "Mother's estate");
+});
+
+// ---- Story 10.3: hand-off, New Case, sign-in resume ----
+type Story = { authed?: boolean; caseGet?: () => Response; open?: () => Response; start?: (body: Record<string, unknown>) => Response; rows?: Row[]; session?: () => boolean };
+async function mountStory(url: string, story: Story) {
+  dom.happyDOM.setURL(url);
+  sessionStorage.removeItem("mawareeth.open-handoff");
+  const pushCalls: string[] = [];
+  const opens: string[] = [];
+  const starts: Record<string, unknown>[] = [];
+  (globalThis as Record<string, unknown>).__mockRouter = { push(target: string) { pushCalls.push(target); }, replace() {}, prefetch() {} };
+  (globalThis as Record<string, unknown>).fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const target = String(input);
+    const json = (body: unknown, status = 200) => Promise.resolve(ok(body, status));
+    if (target.includes("/api/v1/session/")) return json({ authenticated: story.session ? story.session() : story.authed !== false });
+    if (target.includes("received/")) return json({ received: [] });
+    if (target.includes("/open/")) { opens.push(String(init?.body)); return Promise.resolve(story.open ? story.open() : ok(caseBody)); }
+    if (target.endsWith("/api/v1/case/") && init?.method === "POST") { starts.push(JSON.parse(String(init.body))); return Promise.resolve(story.start ? story.start(starts[starts.length - 1]) : ok({ case: { id: "fresh-1", started_at: "2026-11-01T00:00:00Z" } }, 201)); }
+    if (target.endsWith("/api/v1/case/")) return Promise.resolve(story.caseGet ? story.caseGet() : ok({ case: null }));
+    if (target.endsWith("/api/v1/saved-cases/")) return json({ cases: story.rows ?? [savedRow] });
+    return json({});
+  };
+  await act(() => { root.render(<CasesView locale="en" text={text} />); });
+  await settle();
+  await settle();
+  return { pushCalls, opens, starts };
+}
+const newButton = () => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === text.cases.newCase)!;
+const remount = async () => { await act(async () => { root.unmount(); }); root = createRoot(container); };
+
+test("a successful Open writes the hand-off with the working id before navigating", async () => {
+  const run = await mountStory("http://localhost/en/cases/", {});
+  await act(() => { firstOpen()!.click(); });
+  await settle();
+  assert.equal(run.pushCalls.length, 1);
+  assert.equal(sessionStorage.getItem("mawareeth.open-handoff"), "case-1");
+});
+
+test("a failed Open writes no hand-off", async () => {
+  await mountStory("http://localhost/en/cases/", { open: () => ok({}, 404) });
+  await act(() => { firstOpen()!.click(); });
+  await settle();
+  assert.equal(sessionStorage.getItem("mawareeth.open-handoff"), null);
+});
+
+test("New Case shows with an empty list and starts plainly when there is no Case", async () => {
+  const run = await mountStory("http://localhost/en/cases/", { rows: [] });
+  assert.ok(newButton());
+  await act(() => { newButton().click(); });
+  await settle();
+  assert.deepEqual(run.starts, [{}]);
+  assert.equal(sessionStorage.getItem("mawareeth.open-handoff"), "fresh-1");
+  assert.deepEqual(run.pushCalls, ["/en/interview/"]);
+});
+
+test("New Case with a clean working copy replaces it by id and revision, with no prompt", async () => {
+  const run = await mountStory("http://localhost/en/cases/", { caseGet: () => ok(workingCase({ revision: 3 })) });
+  await act(() => { newButton().click(); });
+  await settle();
+  assert.equal(container.querySelector("dialog h2"), null);
+  assert.deepEqual(run.starts, [{ replace: true, case_id: "work-1", expected_revision: 3 }]);
+});
+
+test("New Case with an unsaved copy asks; Cancel starts nothing and Confirm replaces", async () => {
+  const run = await mountStory("http://localhost/en/cases/", { caseGet: () => ok(workingCase(null)) });
+  await act(() => { newButton().click(); });
+  await settle();
+  assert.equal(container.querySelector("dialog h2")?.textContent, text.cases.discardTitle);
+  await act(() => { buttonWith(text.cases.discardNo).click(); });
+  await settle();
+  assert.equal(run.starts.length, 0);
+  await act(() => { newButton().click(); });
+  await settle();
+  await act(() => { buttonWith(text.cases.discardConfirmNew).click(); });
+  await settle();
+  assert.deepEqual(run.starts, [{ replace: true, case_id: "work-1", expected_revision: 3 }]);
+  assert.equal(run.pushCalls.length, 1);
+});
+
+test("New Case: a 409 asks again with the newer revision and starts on the second Confirm", async () => {
+  let reads = 0;
+  let posts = 0;
+  const conflict = await mountStory("http://localhost/en/cases/", {
+    caseGet: () => ok(reads++ === 0 ? workingCase({ revision: 3 }) : workingCase({ revision: 4 }, { revision: 4 })),
+    start: () => (posts++ === 0 ? ok(workingCase({ revision: 4 }, { revision: 4 }), 409) : ok({ case: { id: "fresh-1", started_at: "2026-11-01T00:00:00Z" } }, 201)),
+  });
+  await act(() => { newButton().click(); });
+  await settle();
+  assert.equal(container.querySelector("dialog h2")?.textContent, text.cases.discardTitle);
+  assert.equal(conflict.pushCalls.length, 0);
+  assert.equal(buttonWith(text.cases.discardConfirmNew).textContent, text.cases.discardConfirmNew);
+  await act(() => { buttonWith(text.cases.discardConfirmNew).click(); });
+  await settle();
+  assert.deepEqual(conflict.starts, [{ replace: true, case_id: "work-1", expected_revision: 3 }, { replace: true, case_id: "work-1", expected_revision: 4 }]);
+  assert.deepEqual(conflict.pushCalls, ["/en/interview/"]);
+  assert.equal(sessionStorage.getItem("mawareeth.open-handoff"), "fresh-1");
+});
+
+test("New Case: a failure shows the message and stays on the list", async () => {
+  const failed = await mountStory("http://localhost/en/cases/", { start: () => ok({}, 500) });
+  await act(() => { newButton().click(); });
+  await settle();
+  assert.equal(container.querySelector("[role=alert]")?.textContent, text.cases.newCaseFailed);
+  assert.equal(failed.pushCalls.length, 0);
+  assert.equal(sessionStorage.getItem("mawareeth.open-handoff"), null);
+});
+
+test("an Open refused with 403 while signed out goes to sign-in keeping ?open=", async () => {
+  let probes = 0;
+  const run = await mountStory("http://localhost/en/cases/", { open: () => ok({}, 403), session: () => probes++ === 0 });
+  await act(() => { firstOpen()!.click(); });
+  await settle();
+  assert.deepEqual(run.pushCalls, ["/en/login/?next=" + encodeURIComponent("/en/cases/?open=1")]);
+});
+
+test("an Open refused with 403 while still signed in shows the generic failure", async () => {
+  const run = await mountStory("http://localhost/en/cases/", { open: () => ok({}, 403) });
+  await act(() => { firstOpen()!.click(); });
+  await settle();
+  assert.equal(run.pushCalls.length, 0);
+  assert.equal(container.querySelector("[role=alert]")?.textContent, text.cases.error);
+});
+
+test("?open= resumes the Open once signed in and the parameter is removed", async () => {
+  const run = await mountStory("http://localhost/en/cases/?open=7", {});
+  assert.equal(run.opens.length, 1);
+  assert.equal(run.pushCalls.length, 1);
+  assert.equal(window.location.search, "");
+});
+
+test("?open= asks the discard question for an unsaved copy and a 404 shows the failure", async () => {
+  const asked = await mountStory("http://localhost/en/cases/?open=7", { caseGet: () => ok(workingCase(null)) });
+  assert.equal(container.querySelector("dialog h2")?.textContent, text.cases.discardTitle);
+  assert.equal(asked.opens.length, 0);
+  await remount();
+  const missing = await mountStory("http://localhost/en/cases/?open=7", { open: () => ok({}, 404) });
+  assert.equal(missing.pushCalls.length, 0);
+  assert.equal(container.querySelector("[role=alert]")?.textContent, text.cases.error);
+});
+
+test("an invalid ?open= is ignored but removed", async () => {
+  for (const bad of ["abc", "0", "-3", "1.5"]) {
+    const run = await mountStory("http://localhost/en/cases/?open=" + bad, {});
+    assert.equal(run.opens.length, 0, bad);
+    assert.equal(window.location.search, "", bad);
+    await remount();
+  }
+});
+
+test("signed out: no Open call, and the sign-in link keeps ?open=", async () => {
+  const run = await mountStory("http://localhost/en/cases/?open=7", { authed: false });
+  assert.equal(run.opens.length, 0);
+  const link = container.querySelector<HTMLAnchorElement>("a")!;
+  assert.equal(link.getAttribute("href"), "/en/login/?next=" + encodeURIComponent("/en/cases/?open=7"));
+  assert.equal(window.location.search, "?open=7");
 });

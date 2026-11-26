@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { directionOf, messages } from "../src/i18n/messages";
-import { CASE, expect, fullCase, json, sessionAuthenticated, test, type Api } from "./api";
+import { CASE, expect, fullCase, json, noCase, sessionAnonymous, sessionAuthenticated, test, type Api } from "./api";
 
 const agree = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[] })
   .fixtures.find((item) => item.title === "Agree: wife, son and daughter in every school")!;
@@ -185,7 +185,6 @@ for (const locale of ["en", "ar"] as const) {
   test(`the unsaved notice in ${locale} links to the localized Full results`, async ({ page, api }) => {
     api.set({ session: sessionAuthenticated, getCase: working({ revision: null }) });
     await page.goto(`/${locale}/interview/`);
-    await page.getByRole("button", { name: messages[locale].interview.resume }).click();
     await expect(page.getByText(messages[locale].interview.unsavedNotice)).toBeVisible();
     await expect(page.getByRole("link", { name: messages[locale].interview.unsavedLink })).toHaveAttribute("href", `/${locale}/results/`);
   });
@@ -207,7 +206,6 @@ test("an edit stays in the Interview after the prompt is cancelled, and a reload
   });
   const notice = page.getByText(messages.en.interview.unsavedNotice);
   await page.goto("/en/interview/");
-  await page.getByRole("button", { name: messages.en.interview.resume }).click();
   await page.locator("section[aria-labelledby='add-relatives-heading']").waitFor();
   await expect(notice).toHaveCount(0);
   await page.locator("[data-focus='add:son']").click();
@@ -293,6 +291,184 @@ for (const locale of ["en", "ar"] as const) {
       await expect(page.getByRole("button", { name: text.open, exact: true })).toBeVisible();
       await expect(renameButton(page, "b")).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    });
+  });
+}
+
+// ---- Story 10.3: Open directly, New Case, sign-in resume ----
+for (const locale of ["en", "ar"] as const) {
+  const text = messages[locale].cases;
+  const interview = messages[locale].interview;
+  const openButton = (page: Page) => page.getByRole("button", { name: text.open, exact: true });
+  const newButton = (page: Page) => page.getByRole("button", { name: text.newCase, exact: true });
+  const dialog = (page: Page) => page.locator("dialog[open]");
+  const heirsScreen = (page: Page) => page.locator("section[aria-labelledby='add-relatives-heading']");
+
+  test.describe(`Open and New Case in ${locale}`, () => {
+    const HEIR = "Zainab Distinctive";
+    const named = () => {
+      const base = fullCase(agree.case, { saved: { revision: 1 } });
+      const heirs = base.heirs as Record<string, unknown>[];
+      return { ...base, heirs: [{ ...heirs[0], name: HEIR }, ...heirs.slice(1)] };
+    };
+    function statefulOpen(api: Api) {
+      let isOpen = false;
+      const stored = named();
+      api.set({
+        session: sessionAuthenticated,
+        getCase: (route) => (isOpen ? json(200, { case: stored }) : noCase)(route),
+        getPreview: json(200, agree.response),
+        getSavedCases: json(200, { cases: [ROW] }),
+        getReceived: json(200, { received: [] }),
+        postOpen: (route) => { isOpen = true; return json(200, { case: stored })(route); },
+      });
+    }
+
+    test("Open shows the stored family with no Resume prompt, and a reload keeps it", async ({ page, api }) => {
+      statefulOpen(api);
+      await page.goto(`/${locale}/cases/`);
+      await openButton(page).click();
+      await page.waitForURL(`**/${locale}/interview/`);
+      await expect(heirsScreen(page)).toBeVisible();
+      await expect(page.getByText(HEIR).first()).toBeVisible();
+      await expect(page.getByRole("button", { name: interview.resume })).toHaveCount(0);
+      await page.reload();
+      await expect(heirsScreen(page)).toBeVisible();
+      await expect(page.getByText(HEIR).first()).toBeVisible();
+      await expect(page.getByRole("button", { name: interview.resume })).toHaveCount(0);
+      expect(api.casePosts).toHaveLength(0);
+    });
+
+    test("a different working copy than the opened one shows the notice, not a family, and starts nothing", async ({ page, api }) => {
+      api.set({
+        session: sessionAuthenticated,
+        getCase: json(200, { case: fullCase(agree.case, { id: "someone-else", saved: { revision: 1 } }) }),
+        getSavedCases: json(200, { cases: [ROW] }),
+        getReceived: json(200, { received: [] }),
+        postOpen: json(200, { case: fullCase(agree.case, { saved: { revision: 1 } }) }),
+      });
+      await page.goto(`/${locale}/cases/`);
+      await openButton(page).click();
+      await page.waitForURL(`**/${locale}/interview/`);
+      await expect(page.getByRole("alert").filter({ hasText: interview.openFailed })).toBeVisible();
+      await expect(page.getByRole("link", { name: interview.backToCases })).toHaveAttribute("href", `/${locale}/cases/`);
+      await expect(heirsScreen(page)).toHaveCount(0);
+      expect(api.casePosts).toHaveLength(0);
+      expect(await serious(page)).toEqual([]);
+    });
+
+    test("New Case from an empty list starts a fresh Case and opens the Interview", async ({ page, api }) => {
+      let started = false;
+      api.set({
+        session: sessionAuthenticated,
+        getCase: (route) => (started ? json(200, { case: { ...CASE, id: "fresh-1" } }) : noCase)(route),
+        postCase: (route) => { started = true; return json(201, { case: { ...CASE, id: "fresh-1" } })(route); },
+        getSavedCases: json(200, { cases: [] }),
+        getReceived: json(200, { received: [] }),
+      });
+      await page.goto(`/${locale}/cases/`);
+      expect((await newButton(page).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      expect(await serious(page)).toEqual([]);
+      await newButton(page).click();
+      await page.waitForURL(`**/${locale}/interview/`);
+      await expect(page.getByRole("heading", { name: interview.deceasedHeading })).toBeVisible();
+      await expect(page.getByRole("button", { name: interview.resume })).toHaveCount(0);
+      expect(api.casePosts.map((post) => JSON.parse(post.body))).toEqual([{}]);
+    });
+
+    test("New Case with an unsaved copy asks first and then replaces it", async ({ page, api }) => {
+      let started = false;
+      api.set({
+        session: sessionAuthenticated,
+        getCase: (route) => (started ? json(200, { case: { ...CASE, id: "fresh-1" } }) : working(null))(route),
+        postCase: (route) => { started = true; return json(201, { case: { ...CASE, id: "fresh-1" } })(route); },
+        getSavedCases: json(200, { cases: [ROW] }),
+        getReceived: json(200, { received: [] }),
+      });
+      await page.goto(`/${locale}/cases/`);
+      await newButton(page).click();
+      await expect(dialog(page).getByRole("heading", { name: text.discardTitle })).toBeVisible();
+      await expect(dialog(page).getByRole("button", { name: text.discardNo })).toBeFocused();
+      expect(api.casePosts).toHaveLength(0);
+      await dialog(page).getByRole("button", { name: text.discardConfirmNew }).click();
+      await page.waitForURL(`**/${locale}/interview/`);
+      await expect(page.getByRole("heading", { name: interview.deceasedHeading })).toBeVisible();
+      await expect(page.getByRole("alert").filter({ hasText: interview.openFailed })).toHaveCount(0);
+      expect(api.casePosts.map((post) => JSON.parse(post.body))).toEqual([{ replace: true, case_id: "work-1", expected_revision: 3 }]);
+    });
+
+    test("?open= resumes the Open when signed in", async ({ page, api }) => {
+      statefulOpen(api);
+      await page.goto(`/${locale}/cases/?open=7`);
+      await page.waitForURL(`**/${locale}/interview/`);
+      expect(api.openPosts.map((post) => post.url)).toEqual(["/api/v1/saved-cases/7/open/"]);
+    });
+
+    test("?open= while signed out makes no Open call and keeps the parameter in the sign-in link", async ({ page, api }) => {
+      api.set({ session: sessionAnonymous });
+      await page.goto(`/${locale}/cases/?open=7`);
+      const link = page.getByRole("link", { name: text.signIn });
+      await expect(link).toHaveAttribute("href", `/${locale}/login/?next=${encodeURIComponent(`/${locale}/cases/?open=7`)}`);
+      expect(api.openPosts).toHaveLength(0);
+    });
+    test("a refused Open goes through sign-in and lands on the opened case", async ({ page, api }) => {
+      const state = { signedIn: true, opened: false };
+      const stored = named();
+      api.set({
+        session: (route) => json(200, { authenticated: state.signedIn })(route),
+        getCase: (route) => (state.opened ? json(200, { case: stored }) : noCase)(route),
+        getPreview: json(200, agree.response),
+        getSavedCases: json(200, { cases: [{ ...ROW, id: 7 }] }),
+        getReceived: json(200, { received: [] }),
+        postOpen: (route) => {
+          if (!state.signedIn) return json(403, { detail: "auth" })(route);
+          state.opened = true;
+          return json(200, { case: stored })(route);
+        },
+      });
+      await page.route("**/api/v1/auth/login/", (route) => {
+        if (route.request().method() !== "POST") return route.fallback();
+        state.signedIn = true;
+        const next = JSON.parse(route.request().postData() ?? "{}").next;
+        return json(200, { redirect: next })(route);
+      });
+      await page.goto(`/${locale}/cases/`);
+      await expect(openButton(page)).toBeVisible();
+      state.signedIn = false;
+      await openButton(page).click();
+      await page.waitForURL(`**/${locale}/login/**`);
+      expect(new URL(page.url()).searchParams.get("next")).toBe(`/${locale}/cases/?open=7`);
+      await page.locator("input[name=username]").fill("owner");
+      await page.locator("input[name=password]").fill("secret-pass-1");
+      await page.locator("input[name=password]").press("Enter");
+      await page.waitForURL(`**/${locale}/interview/`);
+      await expect(page.getByText(HEIR).first()).toBeVisible();
+      await expect(page.getByRole("button", { name: interview.resume })).toHaveCount(0);
+      expect(api.openPosts.map((post) => post.url)).toEqual(["/api/v1/saved-cases/7/open/", "/api/v1/saved-cases/7/open/"]);
+    });
+
+    test("a failed sign-in stays on the login page and makes no Open call", async ({ page, api }) => {
+      const state = { signedIn: true };
+      api.set({
+        session: (route) => json(200, { authenticated: state.signedIn })(route),
+        getCase: noCase,
+        getSavedCases: json(200, { cases: [{ ...ROW, id: 7 }] }),
+        getReceived: json(200, { received: [] }),
+        postOpen: json(403, { detail: "auth" }),
+      });
+      await page.route("**/api/v1/auth/login/", (route) => (route.request().method() === "POST" ? json(400, { errors: { __all__: ["bad"] } })(route) : route.fallback()));
+      await page.goto(`/${locale}/cases/`);
+      await expect(openButton(page)).toBeVisible();
+      state.signedIn = false;
+      await openButton(page).click();
+      await page.waitForURL(`**/${locale}/login/**`);
+      expect(api.openPosts).toHaveLength(1);
+      await page.locator("input[name=username]").fill("owner");
+      await page.locator("input[name=password]").fill("wrong");
+      await page.locator("input[name=password]").press("Enter");
+      await page.waitForTimeout(500);
+      await expect(page).toHaveURL(new RegExp(`/${locale}/login/`));
+      expect(api.openPosts).toHaveLength(1);
     });
   });
 }

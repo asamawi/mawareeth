@@ -13,7 +13,7 @@ import type {
   RelationshipId,
   StartResult,
 } from "../api/case.ts";
-import { MAX_HEIRS, noHeirOptions } from "../api/case.ts";
+import { EXPIRED, MAX_HEIRS, noHeirOptions } from "../api/case.ts";
 import {
   BLANK_HEIR,
   unnamedOrdinal,
@@ -173,6 +173,8 @@ export type View =
   | { name: "starting" }
   | { name: "none"; expired: boolean }
   | { name: "existing"; case: Case }
+  /** The Case the visitor chose in My cases is not the working copy now; nothing is shown and nothing is started. */
+  | { name: "openFailed" }
   /** Starting over throws the answers away, so it is asked first. */
   | { name: "confirmStartOver"; case: Case }
   | StartedView
@@ -182,7 +184,7 @@ export type View =
   | { name: "failed"; retry: Action; resumable: Case | null };
 
 export type Deps = {
-  fetchCase: (signal: AbortSignal) => Promise<Case | null>;
+  fetchCase: (signal: AbortSignal) => Promise<Case | null | typeof EXPIRED>;
   startCase: (
     signal: AbortSignal,
     options: { replace: boolean; caseId?: string; revision?: number | null },
@@ -208,6 +210,8 @@ export type Deps = {
   selection: SelectionStore;
   /** The form open in this tab. */
   forms: FormStore;
+  /** The working Case id My cases expects, taken once per load; absent reads as none. */
+  handoff?: { take: () => string | null };
 };
 
 export type Screen =
@@ -215,6 +219,7 @@ export type Screen =
   | "starting"
   | "none"
   | "existing"
+  | "openFailed"
   | "confirmStartOver"
   | "selector"
   | "deceased"
@@ -734,22 +739,33 @@ export async function runAction(
   }
 
   if (action === "load" || action === "resume") {
-    let found: Case | null;
+    const handoff = action === "load" ? deps.handoff?.take() ?? null : null;
+    let fetched: Case | null | typeof EXPIRED;
     try {
-      found = await deps.fetchCase(signal);
+      fetched = await deps.fetchCase(signal);
     } catch {
       return { name: "failed", retry: action, resumable: null };
+    }
+    const serverExpired = fetched === EXPIRED;
+    const found = fetched === EXPIRED ? null : fetched;
+    // The visitor chose a Case in My cases: show exactly that one, or say it could not be opened. Never start another.
+    if (handoff !== null) {
+      if (found && found.id === handoff) {
+        deps.seen.set(true);
+        return startedFor(found, found.madhab !== null, deps);
+      }
+      return { name: "openFailed" };
     }
     if (found) {
       deps.seen.set(true);
       if (action === "resume") return startedFor(found, true, deps);
-      // A selection or form in progress in this tab continues without the resume prompt.
-      return inProgress(deps, found.id)
+      // A selection or form in progress in this tab, or a linked Saved case, continues without the resume prompt.
+      return found.saved != null || inProgress(deps, found.id)
         ? startedFor(found, found.madhab !== null, deps)
         : { name: "existing", case: found };
     }
-    // The notice shows once: the flag is cleared as soon as it has been used.
-    const expired = deps.seen.get();
+    // The notice shows once: the flag is cleared as soon as it has been used. The server's code comes first.
+    const expired = serverExpired || deps.seen.get();
     if (expired) deps.seen.set(false);
     deps.selection.set(null);
     deps.forms.set(null);
@@ -1081,7 +1097,7 @@ function saved(answer: Answer, kase: Case, deps: Deps): StartedView {
 async function refreshed(from: StartedView, signal: AbortSignal, deps: Deps): Promise<Case> {
   try {
     const live = await deps.fetchCase(signal);
-    return live && live.id === from.case.id ? live : from.case;
+    return live && live !== EXPIRED && live.id === from.case.id ? live : from.case;
   } catch {
     return from.case;
   }

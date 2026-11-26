@@ -7,6 +7,8 @@ import {
   addHeir,
   addHeirs,
   fetchCase,
+  fetchCaseOrExpired,
+  EXPIRED,
   fetchPreview,
   markDeceased,
   unmarkDeceased,
@@ -60,6 +62,14 @@ test("fetchCase returns the case, or null when there is none", async () => {
   assert.deepEqual(await fetchCase(signal()), CASE);
   stubFetch(async () => Response.json({ case: null }));
   assert.equal(await fetchCase(signal()), null);
+});
+
+test("fetchCaseOrExpired tells the expired code from no case, and fetchCase reads both as null", async () => {
+  globalThis.fetch = async () => Response.json({ case: null, code: "expired" });
+  assert.equal(await fetchCaseOrExpired(signal()), EXPIRED);
+  assert.equal(await fetchCase(signal()), null);
+  globalThis.fetch = async () => Response.json({ case: null });
+  assert.equal(await fetchCaseOrExpired(signal()), null);
 });
 
 test("fetchCase rejects on a server error or a bad body", async () => {

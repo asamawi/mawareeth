@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import type { AnswerResult, Case, MadhabResult, RelationshipId, StartResult } from "../api/case.ts";
-import { noHeirOptions } from "../api/case.ts";
+import { EXPIRED, noHeirOptions } from "../api/case.ts";
 import type { FormRecord } from "./answers.ts";
 import {
   askStartOver,
@@ -73,7 +73,7 @@ function startedOf(kase: Case, resumed: boolean, extra: Partial<StartedView> = {
 }
 
 function deps(options: {
-  read?: () => Promise<Case | null>;
+  read?: () => Promise<Case | null | typeof EXPIRED>;
   start?: (replace: boolean) => StartResult;
   seen?: boolean;
   choose?: (madhab: string, caseId: string) => MadhabResult;
@@ -2669,4 +2669,47 @@ test("same-case conflict on choose keeps the selector and the pick, no resend", 
   assert.equal(view.undoFailed, undefined);
   assert.equal(log.selection, pick);
   assert.equal(log.chooses.length, 1);
+});
+
+function withHandoff(value: Deps, id: string | null): Deps {
+  return { ...value, handoff: { take: () => id } };
+}
+
+test("Hand-off: a matching working id enters the Case directly with no prompt", async () => {
+  const linked: Case = { ...CASE, saved: { revision: 3 } };
+  const { value, log } = deps({ read: async () => linked });
+  assert.deepEqual(await runAction("load", signal, withHandoff(value, linked.id)), startedOf(linked, false));
+  assert.deepEqual(log.starts, []);
+  const plain = deps({ read: async () => CASE });
+  assert.equal((await runAction("load", signal, withHandoff(plain.value, CASE.id))).name, "started", "a new Case handed off enters directly too");
+});
+
+test("Hand-off: another Case or none is the open-failed view and never starts", async () => {
+  for (const read of [async () => NEW_CASE, async () => null, async () => EXPIRED as typeof EXPIRED] as (() => Promise<Case | null | typeof EXPIRED>)[]) {
+    const { value, log } = deps({ seen: true, read });
+    assert.deepEqual(await runAction("load", signal, withHandoff(value, CASE.id)), { name: "openFailed" });
+    assert.deepEqual(log.starts, []);
+  }
+});
+
+test("Linked reload: a linked working copy bypasses the guest prompt", async () => {
+  const linked: Case = { ...CASE, saved: { revision: 2 } };
+  const { value } = deps({ read: async () => linked });
+  assert.equal((await runAction("load", signal, withHandoff(value, null))).name, "started");
+});
+
+test("Guest returning: an unlinked Case with no hand-off still shows the resume prompt", async () => {
+  for (const saved of [undefined, null] as const) {
+    const guest: Case = saved === undefined ? CASE : { ...CASE, saved };
+    const { value } = deps({ read: async () => guest });
+    assert.deepEqual(await runAction("load", signal, withHandoff(value, null)), { name: "existing", case: guest });
+  }
+});
+
+test("Expired: the server code decides, with or without the remembered flag", async () => {
+  for (const seen of [false, true]) {
+    const { value, log } = deps({ seen, read: async () => EXPIRED, start: () => ({ kind: "started", case: CASE }) });
+    assert.deepEqual(await runAction("load", signal, value), { name: "none", expired: true });
+    assert.deepEqual(log.starts, []);
+  }
 });

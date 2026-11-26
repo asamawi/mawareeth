@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { readFileSync } from "node:fs";
-import { renameSavedCase, saveCase, createSavedCase, cutGraphemes, listSavedCases, openSavedCase, suggestedName, graphemeCount, OPEN_CONFLICT, SAVE_CONFLICT, SCHOOL_REQUIRED, NAME_TOO_LONG, NAME_INVALID } from "./saved-cases.ts";
+import { renameSavedCase, saveCase, createSavedCase, cutGraphemes, listSavedCases, openSavedCase, suggestedName, graphemeCount, OPEN_AUTH, OPEN_CONFLICT, SAVE_CONFLICT, SCHOOL_REQUIRED, NAME_TOO_LONG, NAME_INVALID } from "./saved-cases.ts";
 const original = globalThis.fetch;
 afterEach(() => { globalThis.fetch = original; });
 const signal = () => new AbortController().signal;
@@ -118,6 +118,15 @@ test("open sends the optional check, and a 409 is a conflict outcome", async () 
 test("a 409 whose case is null (no live case) is still a conflict", async () => {
   globalThis.fetch = async () => Response.json({ error: "conflict", case: null }, { status: 409 });
   assert.equal(await openSavedCase(signal(), 42, { ...options, check: { caseId: "gone", revision: 2 } }), OPEN_CONFLICT);
+});
+
+test("a 401 or 403 on open is the auth outcome, a 404 stays a plain failure", async () => {
+  for (const status of [401, 403]) {
+    globalThis.fetch = async () => new Response("{}", { status });
+    assert.equal(await openSavedCase(signal(), 42, options), OPEN_AUTH, String(status));
+  }
+  globalThis.fetch = async () => new Response("{}", { status: 404 });
+  assert.equal(await openSavedCase(signal(), 42, options), null);
 });
 
 const CONFLICT_BODY = { error: "conflict", code: "saved_case_conflict", revision: 5, saved_id: 123, saved_name: "Test Case", working_case_id: "live", working_revision: 2 };
