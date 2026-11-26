@@ -120,6 +120,7 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
         preview={state.preview}
         back={back}
         onSchoolRequired={reload}
+        onReplaced={reload}
       />
     );
   }
@@ -220,6 +221,7 @@ export function Available({
   gate = true,
   download,
   onSchoolRequired,
+  onReplaced,
 }: {
   messages: Messages;
   locale: string;
@@ -230,6 +232,8 @@ export function Available({
   download?: (signal: AbortSignal) => Promise<DraftReportResult>;
   /** The server refused a save because no school is chosen and the schools differ: show the choice. */
   onSchoolRequired?: () => void;
+  /** The working copy was replaced by the stored version: load it again. */
+  onReplaced?: () => void;
 }) {
   const text = messages.results;
   const interview = messages.interview;
@@ -262,7 +266,7 @@ export function Available({
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
       <p>{schoolLine?.code === "school" ? text.school.split("{school}").join(schoolLine.text) : schoolLine?.text}</p>
-      {gate && <AuthGate key={`${kase.id}:${kase.madhab ?? ""}`} caseId={kase.id} linked={!!kase.saved} locale={locale} text={text} share={messages.share} onSchoolRequired={onSchoolRequired} />}
+      {gate && <AuthGate key={`${kase.id}:${kase.madhab ?? ""}`} caseId={kase.id} linked={!!kase.saved} locale={locale} text={text} share={messages.share} onSchoolRequired={onSchoolRequired} onReplaced={onReplaced} />}
       <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} download={download} />
 
       <section aria-labelledby="results-shares" className="flex flex-col gap-3">

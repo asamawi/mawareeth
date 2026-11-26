@@ -2,10 +2,10 @@
 title: 'Story 10.1 (part B): Resolve a save conflict with two choices'
 type: 'feature'
 created: '2026-11-26'
-status: 'review'
+status: 'done'
 baseline_commit: '9182d02a39b3e2c956927cf22148edd99c62e252'
 route: 'dispatch'
-review_loop_iteration: 0
+review_loop_iteration: 1
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-10-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-10-1-name-a-case-and-show-whether-saving-succeeded.md'
@@ -52,31 +52,41 @@ context:
 
 ## Code Map
 
-- `api/views.py:392-462` -- `SavedCasesView.post` (create vs update, 409 body with the stored revision, school and name checks). **Add new `SavedCaseCreateView`** at a create-only route (e.g., `POST saved-cases/create/` or `POST saved-cases/` with a `create_only` flag) that bypasses the conflict check, validates snapshot/school/name like the current `post`, creates a new `SavedCase` row, and relinks the session. Factor shared validation and snapshot export into a helper to avoid duplication with the update path.
-- `api/anonymous_case.py:333-338, 1091-1107` -- `_saved_state`, `get_saved_link`, `set_saved_link`; add the linked id to `saved` only from the session link. The new create endpoint calls `set_saved_link` with the new row's pk and revision.
-- `api/urls.py:33-39` -- add the create-only route **before** `<int:id>` routes (e.g., `path('saved-cases/create/', SavedCaseCreateView.as_view(), name='saved-case-create')`).
-- `web/src/api/saved-cases.ts` -- `saveCase` returns `SAVE_CONFLICT`; add `createSavedCase(signal, caseId, options)` that POSTs to the new route with a request key (idempotency) and returns `Saved | typeof SAVE_CONFLICT | typeof SCHOOL_REQUIRED | typeof NAME_TOO_LONG | typeof NAME_INVALID | null`.
-- `web/src/app/[locale]/results/auth-gate.tsx`, `name-dialog.tsx`, `results-view.tsx` -- conflict branch (~line 45-46, 142-143): replace the single conflict message with a prompt showing the status-line text plus two buttons ("Open latest version", "Save as a new case"). Add an in-flight guard per choice. On "Open latest": call `openSavedCase` with the linked id and expected revision; on success, replace the working copy and stay on Full results. On "Save as new": open the naming dialog prefilled with `"{old name} (copy)"` (or suggestion if old name unknown), then call `createSavedCase`; on success, relink and continue any interrupted Share/WhatsApp. Retry of a failed choice resends the exact same arguments (request key for create). Both buttons disabled while a choice is in flight.
-- `web/src/app/[locale]/cases/cases-view.tsx:59-84` -- checked-open handling to mirror the conflict resolution for direct opens from My cases.
-- `web/src/i18n/messages.ts` -- add conflict prompt texts and the two button labels in en, ar, fr (wording drafts); run the catalog check.
-- Tests: `api/test_saved_case_upgrade.py:238` (two working copies), `api/test_saved_case_unsaved.py:134` (checked open), `web/src/api/saved-cases.test.ts`, `web/src/app/[locale]/results/auth-gate.test.tsx` (`makeFetch`), `web/e2e/results.spec.ts:131` and `web/e2e/api.ts:134` stubs. Add tests for every matrix row: Django (including two sessions and the original row unchanged), web unit, and `results.spec.ts` in en and ar with axe.
+- `api/models.py` + new migration -- add `SavedCaseCreateRequest(owner FK user CASCADE, request_key UUIDField, saved_case FK SavedCase CASCADE, case_revision PositiveIntegerField, created_at)` with `UniqueConstraint(owner, request_key)`. This is the only place the request key lives; the stored snapshot is never touched for idempotency.
+- `api/views.py` -- one shared validation helper for both save routes (name, case_id, completeness, school; export once, encode v2 once, decode check). **Never pass an encoded v2 snapshot back to `encode_v2`.** Add `_conflict_body(case, row)` building `{error:'conflict', code:'saved_case_conflict', detail, revision: row.revision, saved_id: row.pk, saved_name: row.name, working_case_id: case['id'], working_revision: case['revision']}`; the ordinary Save 409 uses it (row fetched with `owner=request.user`).
+- `api/views.py` `SavedCaseCreateView` at `POST saved-cases/create/` (`api/urls.py`, before `<int:id>`). Body: `case_id`, `expected_revision`, `saved_id`, `saved_revision`, `request_key` (UUID, canonicalised with `uuid.UUID`), optional `name`. All inside the request's session lock (`CaseLockMiddleware` already holds it for `saved-cases/` writes) and one `transaction.atomic()`, in this order: (1) body shape → 400; (2) replay: a `SavedCaseCreateRequest` for (owner, key) whose row still exists → relink the session to that row with the row's revision and the **recorded** `case_revision`, answer 200 `{id,name,updated_at,revision}`, no other write; (3) stale: current case id ≠ `case_id`, or revision ≠ `expected_revision`, or `anonymous_case.get_saved_link` ≠ `saved_id`, or the owner's linked row missing or its revision ≠ `saved_revision` → 409 `{code:'resolve_stale', conflict: _conflict_body(...) or null when no conflict holds any more, case: _with_snapshot(current)}`, nothing written; (4) shared validation (400/503 as ordinary Save); (5) create one `SavedCase` with the exported snapshot unaltered, name = given name or `default_name` in the asked language; create the request record with the current case revision; `set_saved_link(request, case_id, row.pk, row.revision, case['revision'])`; 201 `{id,name,updated_at,revision}`. The original row and the Case revision never change. Lock timeout → `busy_response()`.
+- `web/src/api/saved-cases.ts` -- `saveCase` 409: a `SaveConflict` object only when `saved_id`, `revision`, `working_revision` are integers and `working_case_id`, `saved_name` strings; otherwise the plain `SAVE_CONFLICT` sentinel (text only, no choices). Add `createSavedCase(signal, {caseId, expectedRevision, savedId, savedRevision, requestKey, name?, locale?})` returning `Saved & {revision}` | `{stale: SaveConflict | null, case: Case}` | `SCHOOL_REQUIRED` | `NAME_TOO_LONG` | `NAME_INVALID` | `null`. `openSavedCase` gains an opt-in to return the 409 body's current case (`{kind:'stale', case}`); existing callers keep their behaviour.
+- `web/src/app/[locale]/results/auth-gate.tsx` (+ `auth-gate-state.ts` if useful) -- one conflict prompt (status-line text + two buttons, 44 px, keyboard) after Save, Share or WhatsApp; remember which action was interrupted. One synchronous guard shared with Save/Share/WhatsApp; both choices disabled while one is in flight. **Open latest**: checked open with the prompt's working id/revision; success → new `onReplaced()` prop (no router navigation, no `resume=save`), save state reset; stale → update the prompt from the returned case and show it again; 404/null → failure text, prompt kept, Retry resends the same open. **Save as a new case**: NameDialog prefilled with the `copyName` message (`{name}` cut so the whole is ≤ 100 graphemes; the name suggestion when the old name is unknown); Cancel clears the guard and refocuses the choice; submit makes the request key once (`crypto.randomUUID()`), Retry resends identical arguments; success → linked to the new row, status Saved, then an interrupted Share/WhatsApp continues with `createShare(newId)` and its panel; stale → prompt again with fresh state (close the prompt and call `onReplaced()` when `conflict` is null); 404/null → failure text + Retry, copy kept.
+- `web/src/app/[locale]/results/results-view.tsx` -- pass `onReplaced` that bumps `attempt` so the stored version reloads.
+- `web/src/i18n/messages.ts` -- only the strings the prompt uses: the two labels, busy text, open and create failure texts, `copyName` (en, ar, fr). No case ids or revisions in user text. Run the catalog check.
+- `web/e2e/api.ts` -- stub `POST saved-cases/create/` and record its bodies.
+- Not changed: `cases-view.tsx`, `package.json` (no `uuid` dependency); no `test-*.ts` scratch files.
+- Tests: Django in `api/test_saved_case_upgrade.py` (two sessions, writer 1 and 2): create after conflict → 201, original row unchanged, both listed, the copy reopens with the same heirs, amount and school, a later Save updates the copy; replay with the same key (also upper-case spelling) → 200 same id, one row, with the owner's older original row present; stale working revision, changed link, changed row revision → 409 `resolve_stale`, nothing written. Web unit: `saved-cases.test.ts` (create body incl. key, every outcome, partial 409 → sentinel), `auth-gate.test.tsx` (`makeFetch`): both choices, double press sends one request, cancel re-enables, Retry resends the same URL, body and key, Share and WhatsApp continue to the new id, stale prompts again, open failure text. `results.spec.ts` in en and ar with axe on the prompt: Open latest reloads, Save as new links.
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [x] `api/anonymous_case.py`, `api/views.py`, `api/urls.py` -- linked id in `saved`; create-only route with the checks, request key and relink.
-- [x] `web/src/api/saved-cases.ts` -- create call and outcomes.
-- [x] `web/src/app/[locale]/results/` -- the prompt, both choices, Retry, Share and WhatsApp continuation.
+- [x] `api/models.py`, migration -- `SavedCaseCreateRequest` with the unique constraint.
+- [x] `api/views.py`, `api/urls.py` -- shared validation helper, `_conflict_body`, the create-only route in the order above.
+- [x] `web/src/api/saved-cases.ts` -- strict conflict parsing, `createSavedCase`, stale-open result.
+- [x] `web/src/app/[locale]/results/auth-gate.tsx`, `results-view.tsx` -- the prompt, both choices, Retry, cancel, Share/WhatsApp continuation, reload via `onReplaced`.
 - [x] `web/src/i18n/messages.ts` -- texts; run the catalog check.
-- [x] Tests for every matrix row: Django (including two sessions and the original row unchanged), web unit, and `results.spec.ts` in en and ar with axe.
+- [x] `web/e2e/api.ts` and the tests listed in the Code Map.
 
 **Acceptance Criteria:**
 - Given a conflict, when the user leaves without choosing, then the stored case and the working copy are both unchanged.
 - Given Save as a new case succeeded, when the user opens My cases, then both cases are listed and the original still has its own family.
+- Given a Save as a new case whose answer was lost, when Retry resends it, then the same row is returned and only one new row exists.
+- Given Open latest version succeeded, when Full results reloads, then it shows the stored family and Save, Share and WhatsApp are enabled.
+- Given the conflict came from Share or WhatsApp, when Save as a new case succeeds, then a link for the new case is created and its panel shows.
 
 ## Implementation Notes
 
+- Loop 1 patch decision (rows 99, 100, 113, 125, 126): a stale answer that names the **same** working Case shows the prompt again with the fresh revision and does **not** reload Full results, because `onReplaced` bumps `attempt`, which remounts `AuthGate` and would drop the prompt the frozen intent requires. A stale answer naming another Case (or none) closes the prompt and reloads. The edits a same-Case stale answer reports come from the visitor's own working copy in another tab.
+
 ## Spec Change Log
+
+- 2026-11-26, review loop 1 (bad_spec). Trigger: review of 26e45084 + cbe37fd0 found (a) idempotency stored as a marker inside the snapshot, which re-encodes v2 snapshots and drops the family on production schema 2, with replay checking only the owner's first row; (b) the create route checking none of the prompt's working or linked state; (c) Open latest navigating with `resume=save` instead of reloading; (d) Retry, cancel and Share/WhatsApp continuation missing or broken; (e) almost no tests for the matrix. Root cause: the Code Map left idempotency storage, the choice's checked arguments, the reload mechanism and the retry/cancel/continuation flow open, and told the create route to "bypass the conflict check". Amended: Code Map (request-record model + migration, ordered create algorithm with a stale 409, strict conflict parsing, `onReplaced` reload, retry/cancel/continuation, localized copy name, e2e stub, no cases-view change, no uuid dependency), Tasks and ACs, Verification (migration expected). Known-bad states to avoid: any write to the snapshot for idempotency; `encode_v2` on encoded data; key lookup not by (owner, key); navigating to `resume=save` after open; a new request key on Retry; Retry falling back to ordinary Save; a guard left set after cancel; case ids or revisions in user text. KEEP: one shared save-validation helper used by both routes; the enriched ordinary-save 409 fields (now via `_conflict_body`); Save/Share/WhatsApp disabled while the prompt is open; the drafted en/ar/fr labels "Open latest version" / "Save as a new case"; `aria-live` on status text.
 
 ## Review Triage Log
 
@@ -134,11 +144,93 @@ context:
 | 50 | Adversarial | web/src/test-messages.ts, web/src/test-types.ts | Compile-time type checks only, not runtime tests — don't execute in test suite | Verified: no .test.ts suffix, not in test runner | **low** | **defer** |
 | 51 | Adversarial | api/views.py:495-518 | School check in SavedCaseCreateView calls preview.preview() which may throw — caught but returns 503 | Verified: broad Exception catch, logs error | **low** | **FIXED** (factored into shared helper) |
 | 52 | Adversarial | api/views.py:543-548 | Idempotency: snapshot_with_key re-encodes for v2 but doesn't re-validate — could store invalid snapshot | Verified: no decode check after adding marker | **medium** | **FIXED** (added decode validation after encoding) |
+| 53 | Blind | api/views.py:542-544 | v2 copy encodes an encoded snapshot | Read: `{**snapshot, marker}` of a v2 dict passed to `encode_v2`, which reads v1 `heirs` (snapshots.py:89-98); family lost on prod writer 2 | high | bad_spec (A) |
+| 54 | Blind | api/views.py:517-518 | Replay inspects only the owner's first row | Read: `.filter(owner=...).first()` with no key filter | high | bad_spec (A) |
+| 55 | Blind | api/views.py:470,542 | Key lives in the mutable snapshot; a later Save erases it | Read: ordinary Save replaces `row.snapshot` | medium | bad_spec (A) |
+| 56 | Blind | auth-gate.tsx:202,242 | Copy Retry calls ordinary Save with a new key lost | Read: `setRetry({name})` → `runSave` | high | bad_spec (D) |
+| 57 | Blind | auth-gate.tsx:187,272 | Cancelling copy naming leaves both choices disabled forever | Read: onCancel never clears `inFlightGuard`/`conflictInFlight` | high | bad_spec (D) |
+| 58 | Blind | auth-gate.tsx:169 | Stale open repeats the failed revision | Read: OPEN_CONFLICT only clears busy state | medium | bad_spec (C) |
+| 59 | Blind | auth-gate.tsx:169 | Failed open (deleted row) shows nothing | Read: null and stale share a silent branch | medium | bad_spec (C) |
+| 60 | Blind | auth-gate.tsx:174,236 | Successful open leaves saveState "conflict", actions disabled | Read: saveState never reset | medium | bad_spec (C) |
+| 61 | Blind | auth-gate.tsx:95,215 | Share/WhatsApp not continued after copy | Read: no createShare after create success | high | bad_spec (D) |
+| 62 | Blind | saved-cases.ts:38 | Partial 409 accepted as actionable (undefined id, revision 0) | Read: no field checks, `?? 0` | medium | bad_spec (B) |
+| 63 | Blind | cases-view.tsx:22,140 | My cases conflict dialog is dead code; its Open does nothing | Read: state only ever set to null | low | bad_spec (E) |
+| 64 | Blind | auth-gate.tsx:191 | "(copy)" not localized nor cut at 100 graphemes | Read: literal English suffix, no cut; spec requires both | medium | bad_spec (D) |
+| 65 | Edge | api/views.py:518 | Duplicate copies on replay | Same as 54 | high | bad_spec (A) |
+| 66 | Edge | api/views.py:525-529 | Replay after edits marks newer working revision saved | Read: relinks with current `case['revision']` | medium | bad_spec (A) |
+| 67 | Edge | api/views.py:502 | Copy not checked against the revision the user saw | Read: no expected_revision/saved_id check; intent requires it | high | bad_spec (B) |
+| 68 | Edge | api/views.py:238 | Upper/lower-case UUID spellings make different keys | Read: raw string used in marker | low | bad_spec (A) |
+| 69 | Edge | auth-gate.tsx:169-171 | Stale open never refreshes | Same as 58 | medium | bad_spec (C) |
+| 70 | Edge | auth-gate.tsx:169-171 | Open null shows no failure | Same as 59 | medium | bad_spec (C) |
+| 71 | Edge | auth-gate.tsx:272 | Cancel locks both choices | Same as 57 | high | bad_spec (D) |
+| 72 | Edge | auth-gate.tsx:176 | Old family stays visible after open | Read: no ResultsView reload | high | bad_spec (C) |
+| 73 | Edge | auth-gate.tsx:176 | `resultsResumePath(locale,"save")` triggers an unsolicited save | Read: resume=save path | high | bad_spec (C) |
+| 74 | Edge | auth-gate.tsx:223-225 | Separate guards let Save and a choice write concurrently | Read: `saving` vs `inFlightGuard` | medium | bad_spec (D) |
+| 75 | Edge | anonymous_case.py:338 | Claimed linked id in `saved` not implemented | Read: `_saved_state` returns only revision; amended plan uses the owner-checked 409 body instead | low | bad_spec (B) |
+| 76 | Edge | api/views.py:544 | v2 copy reopens with no heirs | Same as 53 | high | bad_spec (A) |
+| 77 | Edge | auth-gate.tsx:242 | Retry of copy goes to ordinary Save | Same as 56 | high | bad_spec (D) |
+| 78 | Edge | auth-gate.tsx:215-221 | No share continuation | Same as 61 | high | bad_spec (D) |
+| 79 | Edge | web/e2e/results.spec.ts:131-140 | Browser test never selects a choice | Read: stops at conflict text | high | bad_spec (E) |
+| 80 | VerifGap | api/views.py:542 | No test that a copy keeps the family | Pre-verified gap | high | bad_spec (E) |
+| 81 | VerifGap | api/views.py:518; auth-gate.tsx:242 | No replay / lost-response test | Pre-verified gap | high | bad_spec (E) |
+| 82 | VerifGap | auth-gate.tsx:166,187,272 | No test of either choice, cancel or reload | Pre-verified gap | high | bad_spec (E) |
+| 83 | VerifGap | auth-gate.tsx:94,215 | No Share/WhatsApp continuation test | Pre-verified gap | high | bad_spec (E) |
+| 84 | VerifGap | api/views.py:542; snapshots.py:60 | v1 marker makes backfill count the copy malformed | Read: lossless comparison of raw vs export | medium | bad_spec (A) |
+| 85 | Contract | saved-cases.ts:38 | saveCase accepts incomplete conflict bodies | Same as 62 | medium | bad_spec (B) |
+| 86 | Contract | saved-cases.ts:75; auth-gate.tsx:169 | Checked open drops the 409's current case | Read: sentinel only; new consumer needs it | medium | bad_spec (C) |
+| 87 | Contract | api/views.py:252; saved-cases.ts:93 | Create route never emits `saved_case_conflict`; its `{detail}` 409 becomes generic Retry | Read | medium | bad_spec (B) |
+| 88 | Contract | web/e2e/api.ts:134-152 | E2E harness aborts every create request | Read: unstubbed route aborts | medium | bad_spec (E) |
+| 89 | Contract | api/views.py:544 | v2 encoder misreads encoded input | Same as 53 | high | bad_spec (A) |
+| 90 | Contract | backfill_saved_cases.py:36 | v1 upgrade rejects marked copies | Same as 84 | medium | bad_spec (A) |
+| 91 | Contract | coverage table: enriched 409, create request (named/blank/omitted), 201, replay 200 | No full-envelope test at the consumer | Read: no create fixtures anywhere | medium | bad_spec (E) |
+| 92 | Contract | coverage table: create 400 (detail / name invalid / too_long / school_required / unsupported_content), 403, 404 expired, 409 `{detail}` | No create-route test per refusal; most become generic Retry | Read | medium | bad_spec (E) |
+| 93 | Contract | coverage table: create 422 (invalid_basis, preset_unavailable, unsupported_version, invalid_snapshot, unsupported_content), 503 comparison, 503 busy | Same generic-failure path; untested; Retry switches endpoint | Read | low | bad_spec (D/E) |
+
+| 94 | Blind (loop 1) | api/views.py:526 | Replay relinks with the copy's current revision, hiding edits made elsewhere | Read: `set_saved_link(..., row.revision, ...)` after refetch | medium | patch |
+| 95 | Blind (loop 1) | api/models.py:21; views.py:525 | Request record lacks the originating case id; reused key links another family | Read: replay only compares body case_id to current | low | patch (same record change as 94) |
+| 96 | Blind (loop 1) | views.py:527; auth-gate.tsx:157 | Replay without relink still reports Saved | Read: needs lost response + case replaced in another tab; the copy was created as asked | low | reject (unlikely; fix adds branches) |
+| 97 | Blind (loop 1) | api/views.py:536 | Create does not require an outstanding conflict | Only reachable by a crafted request; worst case a duplicate of the owner's own case | low | reject |
+| 98 | Blind (loop 1) | api/views.py:534 | Stale body built from the old saved_id can report null while another link conflicts | null → client reloads; the next Save shows the conflict again | low | reject |
+| 99 | Blind (loop 1) | auth-gate.tsx:128 | Stale Open with a different case re-prompts against the old target | Read: only id/revision replaced | medium | patch |
+| 100 | Blind (loop 1) | auth-gate.tsx:154 | Stale Create drops the returned case; copy can include unseen edits | Read | medium | patch |
+| 101 | Blind (loop 1) | saved-cases.ts:73 | Malformed nested conflict treated as explicit null | Same server emits both; needs a broken producer | low | reject |
+| 102 | Blind (loop 1) | api/views.py:443 | Unpaired surrogate in name → DB encoding error | Same check existed in baseline ordinary Save | medium | defer (pre-existing) |
+| 103 | Blind (loop 1) | auth-gate.tsx:259 | `crypto.randomUUID` missing loses the name | Only absent in insecure contexts; production is HTTPS | low | reject |
+| 104 | Blind (loop 1) | saved-cases.ts:34 | No-Segmenter fallback can split a grapheme | Supported browsers ship `Intl.Segmenter` | low | reject |
+| 105 | Blind (loop 1) | web/e2e/results.spec.ts:151 | Open latest e2e serves the same family | Read | medium | patch |
+| 106 | Edge (loop 1) | views.py:525-527 | Replay base revision | Same as 94 | medium | patch |
+| 107 | Edge (loop 1) | views.py:519-526 | Key reused with another case id | Same as 95 | low | patch |
+| 108 | Edge (loop 1) | views.py:525-527 | Delayed replay overrides a newer link of the same case | Needs two creates for one case + a lost response; recorded-revision fix (94) keeps it detectable as a conflict | low | reject |
+| 109 | Edge (loop 1) | views.py:536-545 | No outstanding-conflict requirement | Same as 97 | low | reject |
+| 110 | Edge (loop 1) | views.py:534-544 | Stale conflict from old row | Same as 98 | low | reject |
+| 111 | Edge (loop 1) | views.py:506-509 | saved_id ≤ 0 accepted | Crafted input only; answers stale, writes nothing | low | reject |
+| 112 | Edge (loop 1) | views.py:443-447 | Surrogate name | Same as 102 | medium | defer |
+| 113 | Edge (loop 1) | auth-gate.tsx:125-129 | Stale open with another family | Same as 99 | medium | patch |
+| 114 | Edge (loop 1) | saved-cases.ts:70-74 | Malformed nested conflict | Same as 101 | low | reject |
+| 115 | Edge (loop 1) | auth-gate.tsx:157-163 | Old Share panel stays after switching to the copy | Read: shareState untouched on create success | medium | patch |
+| 116 | Edge (loop 1) | auth-gate.tsx:259 | randomUUID | Same as 103 | low | reject |
+| 117 | Edge (loop 1) | views.py:525-527 | Replay 200 without relink | Same as 96 | low | reject |
+| 118 | Edge (loop 1) | views.py:524 | Replay reads the session first; unreadable session → 422 | Needs an unreadable session after a lost response; nothing is written | low | reject |
+| 119 | VerifGap (loop 1) | results-view.tsx:123 | Reload after open untested | Pre-verified | medium | patch (with 105) |
+| 120 | VerifGap (loop 1) | test_saved_case_upgrade.py:373 | Replay test can't tell recorded from current revision | Pre-verified | medium | patch |
+| 121 | VerifGap (loop 1) | views.py:519 | Owner isolation of keys untested | Pre-verified | medium | patch |
+| 122 | VerifGap (loop 1) | test_saved_case_upgrade.py:347 | Copy round trip compares counts only | Pre-verified | medium | patch |
+| 123 | VerifGap (loop 1) | views.py:554 | Localized default name on create untested | Pre-verified | low | patch |
+| 124 | VerifGap (loop 1) | auth-gate.tsx:161,263 | Share panel after copy | Same as 115 | medium | patch |
+| 125 | Contract (loop 1) | auth-gate.tsx:128 | Stale open id | Same as 99 | medium | patch |
+| 126 | Contract (loop 1) | auth-gate.tsx:154 | Stale create drops case | Same as 100 | medium | patch |
+| 127 | Contract (loop 1) | saved-cases.ts:73 | Nested conflict | Same as 101 | low | reject |
+| 128 | Contract (loop 1) | saved-cases.ts:75; auth-gate.tsx:171 | 403/422 get a Retry | The frozen intent asks for Retry of a failed choice; copy kept | low | reject |
+| 129 | Contract (loop 1) | saved-cases.ts:20,77 | Ids beyond 2^53 | Unreachable row counts | low | false |
+| 130 | Contract (loop 1) | mawareeth/middleware.py:142,171 | Create route missing from outcome logging | Read | low | patch (direct one-line addition) |
+| 131 | Contract (loop 1) | coverage: empty `saved_name` conflict | Copy dialog path for unnamed rows untested | Read | low | patch (one unit test) |
+| 132 | Contract (loop 1) | coverage: remaining create/open envelope variants (blank name, stale variants, 400/403/404/422/503 bodies) | Fixtures omit `detail`/`error` | The parsers read only status, `code`, `errors.name`, `conflict`, `case`; the omitted fields cannot change an outcome, and the producers are asserted in Django | low | reject |
+Groups: (A) idempotency storage and snapshot handling; (B) checked arguments and conflict envelope; (C) Open latest reload and stale/failure handling; (D) Retry, cancel, guard, continuation, copy name; (E) test coverage. All route to bad_spec → loop 1.
 
 ## Verification
 
 **Commands:**
-- `uv run python manage.py makemigrations --check --dry-run` -- expected: no changes
+- `uv run python manage.py makemigrations --check --dry-run` -- expected: no changes (the new `SavedCaseCreateRequest` migration is committed)
 - `uv run python manage.py test api.tests.SavedCaseTests api.test_saved_case_upgrade api.test_saved_case_unsaved api.test_snapshots --noinput` -- expected: OK
 - `cd web && npm test && npm run typecheck && npm run lint && npm run i18n` -- expected: no failures, 0 lint errors
 - `cd web && npm run build && npx playwright test e2e/results.spec.ts e2e/cases.spec.ts e2e/accessibility.spec.ts` -- expected: all pass on the fresh export; full suites run in PR CI

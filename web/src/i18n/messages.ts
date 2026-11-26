@@ -262,6 +262,12 @@ export type Messages = {
     saveNeedsSchool: string;
     saveConflict: string;
     saveRetry: string;
+    conflictOpenLatest: string;
+    conflictSaveAsNew: string;
+    conflictBusy: string;
+    conflictOpenFailed: string;
+    conflictCreateFailed: string;
+    copyName: string;
     nameTitle: string;
     nameLabel: string;
     nameCounter: string;
@@ -269,7 +275,6 @@ export type Messages = {
     nameInvalid: string;
     nameSubmit: string;
     nameCancel: string;
-    nameDefaultSuggestion: string;
     authTitle: string;
     signIn: string;
     createAccount: string;
@@ -311,16 +316,6 @@ export type Messages = {
     schoolRulesHeading: string;
     layeredNote: string;
     familyHeading: string;
-    conflictWorkingCase: string;
-    conflictSavedCase: string;
-    conflictOpenLatest: string;
-    conflictSaveAsNew: string;
-    conflictOpening: string;
-    conflictCreating: string;
-    conflictInFlight: string;
-    conflictOpenTitle: string;
-    conflictOpenBody: string;
-    conflictCancel: string;
     /** The scholars' table of a single-death case. */
     table: {
       /** The accessible name of the scrollable table. */
@@ -609,73 +604,68 @@ export const messages: Record<Locale, Messages> = {
       startOverUnsaved: "وسيُفقد ما لم يُحفظ من تغييرات في حالتك المحفوظة.",
     },
     results: {
-        save: "حفظ",
-        shareAction: "مشاركة",
-        whatsappAction: "واتساب",
-        saving: "جارٍ الحفظ",
-        saved: "تم الحفظ في حالاتي",
-        saveError: "تعذر الحفظ. عائلتك ما زالت هنا. حاول مرة أخرى.",
-        saveNeedsSchool: "اختر المذهب قبل الحفظ.",
-        saveConflict: "تغيّرت هذه الحالة في مكان آخر. عائلتك ما زالت هنا.",
-        saveRetry: "إعادة المحاولة",
-        nameTitle: "سمِّ هذه الحالة",
-        nameLabel: "اسم الحالة",
-        nameCounter: "{count} / 100",
-        nameTooLong: "الاسم أطول من 100 حرف.",
-        nameInvalid: "هذا الاسم غير مقبول. غيّره وحاول مرة أخرى.",
-        nameSubmit: "حفظ",
-        nameCancel: "إلغاء",
-        nameDefaultSuggestion: "حالة غير مسمّاة",
-        authTitle: "سجّل الدخول أو أنشئ حسابًا للمتابعة",
-        signIn: "تسجيل الدخول",
-        createAccount: "إنشاء حساب",
-        close: "إغلاق",
-        pdfDownload: "تنزيل PDF (مسودة)",
-        pdfBusy: "جارٍ إنشاء المسودة…",
-        pdfRetry: "إعادة محاولة التنزيل",
-        pdfFailed: "تعذر تنزيل المسودة. حاول مجددًا.",
-        pdfUnavailable: "ارجع إلى المقابلة وتحقق من الحالة قبل التنزيل.",
-        pdfThrottled: "طلبات كثيرة. انتظر ثم حاول مجددًا.",
-        pdfTimeout: "انتهت مهلة التنزيل. حاول مجددًا.",
-        heading: "النتائج",
-        loading: "جارٍ تحميل النتائج…",
-        loadFailed: "تعذّر تحميل الحالة. حاول مرة أخرى.",
-        loadRetry: "إعادة المحاولة",
-        emptyCase: "لا توجد حالة لعرض نتائجها.",
-        incompleteCase: "الحالة غير مكتملة: أضف المذهب والمتوفى والورثة في المقابلة لتظهر النتائج.",
-        startInterview: "ابدأ المقابلة",
-        backToInterview: "العودة إلى المقابلة",
-        school: "محسوبة وفق المذهب {school}.",
-        sharesHeading: "الأنصبة",
-        share: "النصيب",
-        percent: "النسبة",
-        kirat: "القراريط (من 24)",
-        amount: "المبلغ",
-        noShare: "لا نصيب له في هذه الحالة.",
-        proofToggleFor: "كيف حُسب نصيب {heir}",
-        proofToggle: "كيف حُسب هذا النصيب",
-        proofRule: "القاعدة",
-        proofCondition: "الشرط",
-        proofBlockedBy: "الحجب",
-        proofSchoolRule: "قاعدة المذهب",
-        proofOption: "الخيار",
-        proofFraction: "الفرض المقدّر",
-        proofVerse: "الآية",
-        stepsHeading: "خطوات الحساب",
-        schoolRulesHeading: "قواعد المذهب المطبّقة",
-        layeredNote: "شرح الأنصبة في حالات الوفيات المتعاقبة غير متاح بعد.",
-        familyHeading: "الأسرة",
-        conflictWorkingCase: "حالتك العاملة: {caseId} (المراجعة {revision})",
-        conflictSavedCase: "الحالة المحفوظة المرتبطة: {id} (المراجعة {revision})",
-        conflictOpenLatest: "فتح أحدث نسخة",
-        conflictSaveAsNew: "حفظ كحالة جديدة",
-        conflictOpening: "جارٍ الفتح…",
-        conflictCreating: "جارٍ الحفظ…",
-        conflictInFlight: "جارٍ المعالجة…",
-        conflictOpenTitle: "تعارض عند الفتح",
-        conflictOpenBody: "الحالة {id} (المراجعة {revision2}) تغيّرت منذ فتحتها. حالتك الحالية: {caseId} (المراجعة {revision}).",
-        conflictCancel: "إلغاء",
-        table: {
+      save: "حفظ",
+      shareAction: "مشاركة",
+      whatsappAction: "واتساب",
+      saving: "جارٍ الحفظ",
+      saved: "تم الحفظ في حالاتي",
+      saveError: "تعذر الحفظ. عائلتك ما زالت هنا. حاول مرة أخرى.",
+      saveNeedsSchool: "اختر المذهب قبل الحفظ.",
+      saveConflict: "تغيّرت هذه الحالة في مكان آخر. عائلتك ما زالت هنا.",
+      saveRetry: "إعادة المحاولة",
+      conflictOpenLatest: "فتح أحدث نسخة",
+      conflictSaveAsNew: "حفظ كحالة جديدة",
+      conflictBusy: "جارٍ التنفيذ…",
+      conflictOpenFailed: "تعذر فتح أحدث نسخة. عائلتك ما زالت هنا. حاول مرة أخرى.",
+      conflictCreateFailed: "تعذر الحفظ كحالة جديدة. عائلتك ما زالت هنا. حاول مرة أخرى.",
+      copyName: "{name} (نسخة)",
+      nameTitle: "سمِّ هذه الحالة",
+      nameLabel: "اسم الحالة",
+      nameCounter: "{count} / 100",
+      nameTooLong: "الاسم أطول من 100 حرف.",
+      nameInvalid: "هذا الاسم غير مقبول. غيّره وحاول مرة أخرى.",
+      nameSubmit: "حفظ",
+      nameCancel: "إلغاء",
+      authTitle: "سجّل الدخول أو أنشئ حسابًا للمتابعة",
+      signIn: "تسجيل الدخول",
+      createAccount: "إنشاء حساب",
+      close: "إغلاق",
+      pdfDownload: "تنزيل PDF (مسودة)",
+      pdfBusy: "جارٍ إنشاء المسودة…",
+      pdfRetry: "إعادة محاولة التنزيل",
+      pdfFailed: "تعذر تنزيل المسودة. حاول مجددًا.",
+      pdfUnavailable: "ارجع إلى المقابلة وتحقق من الحالة قبل التنزيل.",
+      pdfThrottled: "طلبات كثيرة. انتظر ثم حاول مجددًا.",
+      pdfTimeout: "انتهت مهلة التنزيل. حاول مجددًا.",
+      heading: "النتائج",
+      loading: "جارٍ تحميل النتائج…",
+      loadFailed: "تعذّر تحميل الحالة. حاول مرة أخرى.",
+      loadRetry: "إعادة المحاولة",
+      emptyCase: "لا توجد حالة لعرض نتائجها.",
+      incompleteCase: "الحالة غير مكتملة: أضف المذهب والمتوفى والورثة في المقابلة لتظهر النتائج.",
+      startInterview: "ابدأ المقابلة",
+      backToInterview: "العودة إلى المقابلة",
+      school: "محسوبة وفق المذهب {school}.",
+      sharesHeading: "الأنصبة",
+      share: "النصيب",
+      percent: "النسبة",
+      kirat: "القراريط (من 24)",
+      amount: "المبلغ",
+      noShare: "لا نصيب له في هذه الحالة.",
+      proofToggleFor: "كيف حُسب نصيب {heir}",
+      proofToggle: "كيف حُسب هذا النصيب",
+      proofRule: "القاعدة",
+      proofCondition: "الشرط",
+      proofBlockedBy: "الحجب",
+      proofSchoolRule: "قاعدة المذهب",
+      proofOption: "الخيار",
+      proofFraction: "الفرض المقدّر",
+      proofVerse: "الآية",
+      stepsHeading: "خطوات الحساب",
+      schoolRulesHeading: "قواعد المذهب المطبّقة",
+      layeredNote: "شرح الأنصبة في حالات الوفيات المتعاقبة غير متاح بعد.",
+      familyHeading: "الأسرة",
+      table: {
         caption: "جدول المسألة",
         death: "الوفاة {n}",
         deceasedShare: "سهام المتوفى",
@@ -970,6 +960,12 @@ export const messages: Record<Locale, Messages> = {
       saveNeedsSchool: "Choose a school of law before saving.",
       saveConflict: "This case changed elsewhere. Your family is still here.",
       saveRetry: "Retry",
+      conflictOpenLatest: "Open latest version",
+      conflictSaveAsNew: "Save as a new case",
+      conflictBusy: "Working…",
+      conflictOpenFailed: "Could not open the latest version. Your family is still here. Try again.",
+      conflictCreateFailed: "Could not save as a new case. Your family is still here. Try again.",
+      copyName: "{name} (copy)",
       nameTitle: "Name this case",
       nameLabel: "Case name",
       nameCounter: "{count} / 100",
@@ -977,7 +973,6 @@ export const messages: Record<Locale, Messages> = {
       nameInvalid: "This name is not accepted. Change it and try again.",
       nameSubmit: "Save",
       nameCancel: "Cancel",
-      nameDefaultSuggestion: "Unnamed case",
       authTitle: "Sign in or create an account to continue",
       signIn: "Sign in",
       createAccount: "Create account",
@@ -1017,16 +1012,6 @@ export const messages: Record<Locale, Messages> = {
       schoolRulesHeading: "School rules applied",
       layeredNote: "The explanation of shares for successive deaths is not available yet.",
       familyHeading: "The family",
-      conflictWorkingCase: "Your working case: {caseId} (revision {revision})",
-      conflictSavedCase: "Linked saved case: {id} (revision {revision})",
-      conflictOpenLatest: "Open latest version",
-      conflictSaveAsNew: "Save as a new case",
-      conflictOpening: "Opening…",
-      conflictCreating: "Saving…",
-      conflictInFlight: "Processing…",
-      conflictOpenTitle: "Conflict on open",
-      conflictOpenBody: "Case {id} (revision {revision2}) changed since you opened it. Your current case: {caseId} (revision {revision}).",
-      conflictCancel: "Cancel",
       table: {
         caption: "Inheritance table",
         death: "Death {n}",
@@ -1324,6 +1309,12 @@ export const messages: Record<Locale, Messages> = {
       saveNeedsSchool: "Choisissez une école juridique avant d'enregistrer.",
       saveConflict: "Ce cas a changé ailleurs. Votre famille est toujours là.",
       saveRetry: "Réessayer",
+      conflictOpenLatest: "Ouvrir la dernière version",
+      conflictSaveAsNew: "Enregistrer comme nouveau cas",
+      conflictBusy: "En cours…",
+      conflictOpenFailed: "Impossible d’ouvrir la dernière version. Votre famille est toujours là. Réessayez.",
+      conflictCreateFailed: "Impossible d’enregistrer comme nouveau cas. Votre famille est toujours là. Réessayez.",
+      copyName: "{name} (copie)",
       nameTitle: "Nommer ce cas",
       nameLabel: "Nom du cas",
       nameCounter: "{count} / 100",
@@ -1331,7 +1322,6 @@ export const messages: Record<Locale, Messages> = {
       nameInvalid: "Ce nom n’est pas accepté. Modifiez-le et réessayez.",
       nameSubmit: "Enregistrer",
       nameCancel: "Annuler",
-      nameDefaultSuggestion: "Cas sans nom",
       authTitle: "Connectez-vous ou créez un compte pour continuer",
       signIn: "Se connecter",
       createAccount: "Créer un compte",
@@ -1371,16 +1361,6 @@ export const messages: Record<Locale, Messages> = {
       schoolRulesHeading: "Règles de l'école appliquées",
       layeredNote: "L'explication des parts pour les décès successifs n'est pas encore disponible.",
       familyHeading: "La famille",
-      conflictWorkingCase: "Votre dossier en cours : {caseId} (révision {revision})",
-      conflictSavedCase: "Dossier enregistré lié : {id} (révision {revision})",
-      conflictOpenLatest: "Ouvrir la dernière version",
-      conflictSaveAsNew: "Enregistrer comme nouveau dossier",
-      conflictOpening: "Ouverture…",
-      conflictCreating: "Enregistrement…",
-      conflictInFlight: "Traitement…",
-      conflictOpenTitle: "Conflit à l'ouverture",
-      conflictOpenBody: "Le dossier {id} (révision {revision2}) a changé depuis son ouverture. Votre dossier actuel : {caseId} (révision {revision}).",
-      conflictCancel: "Annuler",
       table: {
         caption: "Tableau de la succession",
         death: "Décès {n}",

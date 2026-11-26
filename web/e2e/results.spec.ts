@@ -140,6 +140,50 @@ for (const locale of ["en", "ar"] as const) {
       expect(JSON.parse(api.savedPosts[0].body)).toEqual({ case_id: expect.any(String) });
     });
 
+    const CONFLICT = { error: "conflict", code: "saved_case_conflict", detail: "changed", revision: 4, saved_id: 42, saved_name: "Mother's estate", working_case_id: agree.case.id, working_revision: 1 };
+    const openLatest = (page: Page) => page.getByRole("button", { name: text.conflictOpenLatest, exact: true });
+    const saveAsNew = (page: Page) => page.getByRole("button", { name: text.conflictSaveAsNew, exact: true });
+    const conflicted = { getCase: json(200, { case: fullCase(agree.case, { saved: { revision: 1 } }) }), postSaved: json(409, CONFLICT) };
+
+    test("a conflict offers two choices and Open latest version loads the stored case", async ({ page, api }) => {
+      let opened = false;
+      const base = fullCase(agree.case);
+      const heirs = base.heirs as Record<string, unknown>[];
+      const latest = { ...base, heirs: [{ ...heirs[0], name: "Latest Heir" }, ...heirs.slice(1)] };
+      stubResults(api, {
+        getCase: (route) => json(200, { case: opened ? { ...latest, saved: { revision: 4 } } : fullCase(agree.case, { saved: { revision: 1 } }) })(route),
+        postSaved: json(409, CONFLICT),
+        postOpen: (route) => { opened = true; return json(200, { case: fullCase(agree.case, { saved: { revision: 4 } }) })(route); },
+      });
+      await page.goto(`/${locale}/results/`);
+      await saveButton(page).click();
+      await expect(status(page)).toHaveText(text.saveConflict);
+      await expect(openLatest(page)).toBeVisible();
+      await expect(saveAsNew(page)).toBeVisible();
+      expect(await serious(page)).toEqual([]);
+      await openLatest(page).click();
+      await expect(openLatest(page)).toHaveCount(0);
+      await expect(page.getByText("Latest Heir").first()).toBeVisible();
+      await expect(saveButton(page)).toBeEnabled();
+      expect(api.openPosts).toEqual([{ url: "/api/v1/saved-cases/42/open/", body: JSON.stringify({ case_id: agree.case.id, expected_revision: 1 }) }]);
+      expect(api.createPosts).toEqual([]);
+      expect(page.url()).not.toContain("resume=");
+    });
+
+    test("Save as a new case names the copy and links the working copy to it", async ({ page, api }) => {
+      stubResults(api, { ...conflicted, postCreate: json(201, { id: 43, name: "Copy", updated_at: "2026-11-26T00:00:00Z", revision: 1 }) });
+      await page.goto(`/${locale}/results/`);
+      await saveButton(page).click();
+      await saveAsNew(page).click();
+      await expect(nameField(page)).toHaveValue(text.copyName.replace("{name}", "Mother's estate"));
+      await nameField(page).fill("Copy");
+      await page.keyboard.press("Enter");
+      await expect(status(page)).toHaveText(text.saved);
+      expect(JSON.parse(api.createPosts[0].body)).toEqual({ case_id: agree.case.id, expected_revision: 1, saved_id: 42, saved_revision: 4, request_key: expect.stringMatching(/^[0-9a-f-]{36}$/), name: "Copy" });
+      await expect(openLatest(page)).toHaveCount(0);
+      await expect(saveButton(page)).toBeEnabled();
+    });
+
     for (const scheme of ["light", "dark"] as const) {
       test(`the naming dialog has no serious or critical axe violation in ${scheme} mode`, async ({ page, api }) => {
         await page.emulateMedia({ colorScheme: scheme });

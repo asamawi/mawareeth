@@ -139,7 +139,7 @@ def busy_response():
     return response
 
 
-FOUNDATION_ROUTES = frozenset("case case-preview case-deceased case-deaths case-death case-heirs case-heirs-bulk case-restore case-heir saved-cases saved-case-open share-view share-report received-view received-report report-draft".split())
+FOUNDATION_ROUTES = frozenset("case case-preview case-deceased case-deaths case-death case-heirs case-heirs-bulk case-restore case-heir saved-cases saved-case-open saved-case-create share-view share-report received-view received-report report-draft".split())
 foundation_logger = logging.getLogger("mawareeth.foundation")
 
 

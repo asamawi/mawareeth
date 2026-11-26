@@ -593,3 +593,257 @@ test("Save during a pending Share does not write a second time", async () => {
   await act(async () => { release(); await new Promise<void>((r) => { setTimeout(r, 20); }); });
   assert.equal(sent.length, 1);
 });
+
+// Save conflict choices (story 10.1 part B).
+const CONFLICT = { error: "conflict", code: "saved_case_conflict", detail: "changed", revision: 4, saved_id: 42, saved_name: "Mother's estate", working_case_id: "c1", working_revision: 2 };
+const NEW_ROW = { id: 43, name: "Copy", updated_at: "2026-11-02T00:00:00Z", revision: 1 };
+const FRESH = { case: { id: "fresh", revision: 1, started_at: "now", madhab: "hanafi", heirs: [] } };
+type Call = { url: string; method: string; body: string };
+
+/** A fetch that answers the session itself and every other call by `answer`, recording the calls. */
+function scripted(answer: (call: Call, index: number) => Response | Promise<Response>) {
+  const calls: Call[] = [];
+  (globalThis as Record<string, unknown>).fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url = typeof input === "string" ? input : String(input);
+    if (url.includes("/api/v1/session/")) return Promise.resolve(sessionResp(true));
+    const call = { url, method: init?.method ?? "GET", body: typeof init?.body === "string" ? init.body : "" };
+    calls.push(call);
+    return Promise.resolve(answer(call, calls.length - 1));
+  };
+  return calls;
+}
+const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const choice = (label: string) => buttonNamed(label);
+async function renderConflicted(onReplaced?: () => void, action: "save" | "share" | "whatsapp" = "save") {
+  await act(() => { root.render(<AuthGate locale="en" text={text} share={shareText} caseId="c1" linked onReplaced={onReplaced} />); });
+  await settle();
+  await act(() => { buttonNamed(action === "save" ? text.save : action === "share" ? text.shareAction : text.whatsappAction)!.click(); });
+  await settle();
+}
+const answers = (extra: (call: Call, index: number) => Response | Promise<Response> | undefined = () => undefined) => (call: Call, index: number) => {
+  const own = extra(call, index);
+  if (own) return own;
+  if (call.url === "/api/v1/saved-cases/") return reply(409, CONFLICT);
+  return reply(404, {});
+};
+
+test("a conflict from Save shows the text and two choices, and disables Save, Share and WhatsApp with no write", async () => {
+  const calls = scripted(answers());
+  await renderConflicted();
+  assert.equal(status(), text.saveConflict);
+  assert.ok(choice(text.conflictOpenLatest) && choice(text.conflictSaveAsNew));
+  for (const label of [text.save, text.shareAction, text.whatsappAction]) assert.equal(buttonNamed(label)!.disabled, true);
+  assert.deepEqual(calls.map((c) => `${c.method} ${c.url}`), ["POST /api/v1/saved-cases/"]);
+});
+
+test("a conflict whose body is partial offers the text only, no choices", async () => {
+  scripted(() => reply(409, { code: "saved_case_conflict", revision: 4 }));
+  await renderConflicted();
+  assert.equal(status(), text.saveConflict);
+  assert.equal(choice(text.conflictOpenLatest), undefined);
+});
+
+test("Open latest version sends the checked open, then asks the page to reload", async () => {
+  let replaced = 0;
+  const calls = scripted(answers((call) => (call.url === "/api/v1/saved-cases/42/open/" ? reply(200, FRESH) : undefined)));
+  await renderConflicted(() => { replaced += 1; });
+  await act(() => { choice(text.conflictOpenLatest)!.click(); });
+  await settle();
+  assert.equal(replaced, 1);
+  const open = calls.filter((c) => c.url === "/api/v1/saved-cases/42/open/");
+  assert.equal(open.length, 1);
+  assert.deepEqual(JSON.parse(open[0].body), { case_id: "c1", expected_revision: 2 });
+  assert.equal(choice(text.conflictOpenLatest), undefined);
+  assert.equal(status(), "");
+  assert.equal(window.location.search, "");
+});
+
+test("pressing Open latest twice sends one request and both choices are disabled meanwhile", async () => {
+  let release: () => void = () => {};
+  const calls = scripted(answers((call) => (call.url === "/api/v1/saved-cases/42/open/" ? new Promise<Response>((resolve) => { release = () => resolve(reply(200, FRESH)); }) : undefined)));
+  await renderConflicted();
+  await act(() => { choice(text.conflictOpenLatest)!.click(); choice(text.conflictOpenLatest)!.click(); });
+  await settle();
+  assert.equal(status(), text.conflictBusy);
+  assert.equal(choice(text.conflictOpenLatest)!.disabled, true);
+  assert.equal(choice(text.conflictSaveAsNew)!.disabled, true);
+  assert.equal(calls.filter((c) => c.url.endsWith("/open/")).length, 1);
+  await act(async () => { release(); await new Promise<void>((r) => { setTimeout(r, 20); }); });
+});
+
+test("a stale Open latest keeps the copy and asks again with the fresh revision", async () => {
+  let opens = 0;
+  const calls = scripted(answers((call) => {
+    if (!call.url.endsWith("/open/")) return undefined;
+    opens += 1;
+    return opens === 1 ? reply(409, { error: "conflict", case: { id: "c1", revision: 9, started_at: "now", heirs: [] } }) : reply(200, FRESH);
+  }));
+  let replaced = 0;
+  await renderConflicted(() => { replaced += 1; });
+  await act(() => { choice(text.conflictOpenLatest)!.click(); });
+  await settle();
+  assert.equal(replaced, 0, "the prompt stays: no reload remounts it");
+  assert.equal(status(), text.saveConflict);
+  assert.equal(choice(text.conflictOpenLatest)!.disabled, false);
+  await act(() => { choice(text.conflictOpenLatest)!.click(); });
+  await settle();
+  assert.deepEqual(calls.filter((c) => c.url.endsWith("/open/")).map((c) => JSON.parse(c.body)), [{ case_id: "c1", expected_revision: 2 }, { case_id: "c1", expected_revision: 9 }]);
+  assert.equal(replaced, 1);
+});
+
+test("a failed Open latest says so, keeps the prompt and Retry resends the same open", async () => {
+  let replaced = 0;
+  const calls = scripted(answers());
+  await renderConflicted(() => { replaced += 1; });
+  await act(() => { choice(text.conflictOpenLatest)!.click(); });
+  await settle();
+  assert.equal(status(), text.conflictOpenFailed);
+  assert.ok(choice(text.conflictSaveAsNew));
+  await act(() => { buttonNamed(text.saveRetry)!.click(); });
+  await settle();
+  const opens = calls.filter((c) => c.url.endsWith("/open/"));
+  assert.equal(opens.length, 2);
+  assert.deepEqual(opens[1], opens[0]);
+  assert.equal(replaced, 0);
+});
+
+test("Save as a new case asks for a name prefilled with the copy name, and Cancel re-enables the choices", async () => {
+  const calls = scripted(answers());
+  await renderConflicted();
+  await act(() => { choice(text.conflictSaveAsNew)!.click(); });
+  await settle();
+  assert.equal(nameInput()!.value, "Mother's estate (copy)");
+  await act(() => { container.querySelector<HTMLButtonElement>("dialog[open] button[type=button]")!.click(); });
+  await settle();
+  assert.equal(container.querySelectorAll("dialog[open]").length, 0);
+  assert.equal(choice(text.conflictOpenLatest)!.disabled, false);
+  assert.equal(choice(text.conflictSaveAsNew)!.disabled, false);
+  assert.equal(calls.filter((c) => c.url.endsWith("/create/")).length, 0);
+  await act(() => { choice(text.conflictOpenLatest)!.click(); });
+  await settle();
+  assert.equal(calls.filter((c) => c.url.endsWith("/open/")).length, 1);
+});
+
+test("the copy name is cut so the whole stays within 100 characters", async () => {
+  scripted(() => reply(409, { ...CONFLICT, saved_name: "x".repeat(150) }));
+  await renderConflicted();
+  await act(() => { choice(text.conflictSaveAsNew)!.click(); });
+  await settle();
+  assert.equal(nameInput()!.value, `${"x".repeat(100 - " (copy)".length)} (copy)`);
+});
+
+test("Save as a new case sends the checked arguments with one request key, and Retry resends them unchanged", async () => {
+  let creates = 0;
+  const calls = scripted(answers((call) => {
+    if (!call.url.endsWith("/create/")) return undefined;
+    creates += 1;
+    return creates === 1 ? reply(503, {}) : reply(201, NEW_ROW);
+  }));
+  await renderConflicted();
+  await act(() => { choice(text.conflictSaveAsNew)!.click(); });
+  await settle();
+  await typeName("Copy");
+  await submitName();
+  assert.equal(status(), text.conflictCreateFailed);
+  await act(() => { buttonNamed(text.saveRetry)!.click(); });
+  await settle();
+  const created = calls.filter((c) => c.url === "/api/v1/saved-cases/create/");
+  assert.equal(created.length, 2);
+  assert.deepEqual(created[1], created[0]);
+  const body = JSON.parse(created[0].body);
+  assert.deepEqual({ ...body, request_key: "" }, { case_id: "c1", expected_revision: 2, saved_id: 42, saved_revision: 4, request_key: "", name: "Copy" });
+  assert.match(body.request_key, /^[0-9a-f-]{36}$/);
+  assert.equal(status(), text.saved);
+  assert.equal(choice(text.conflictOpenLatest), undefined);
+  // The working copy is linked to the new row, so Save is available again.
+  assert.equal(buttonNamed(text.save)!.disabled, false);
+});
+
+for (const [label, source] of [["Share", "share"], ["WhatsApp", "whatsapp"]] as const) {
+  test(`a conflict from ${label} continues with the new case after Save as a new case`, async () => {
+    const calls = scripted(answers((call) => {
+      if (call.url.endsWith("/create/")) return reply(201, NEW_ROW);
+      if (call.url === "/api/v1/saved-cases/43/shares/") return reply(201, shareBody);
+      return undefined;
+    }));
+    await renderConflicted(undefined, source);
+    assert.equal(calls.filter((c) => c.url.endsWith("/shares/") && c.method === "POST").length, 0, "no link is created by the conflict");
+    await act(() => { choice(text.conflictSaveAsNew)!.click(); });
+    await settle();
+    await submitName();
+    const shares = calls.filter((c) => c.url.endsWith("/shares/") && c.method === "POST");
+    assert.deepEqual(shares.map((c) => c.url), ["/api/v1/saved-cases/43/shares/"]);
+    assert.ok(container.textContent?.includes(shareText.copy), "SharePanel shown");
+    if (source === "whatsapp") assert.ok(buttonNamed(shareText.whatsappOpen));
+  });
+}
+
+test("a stale Save as a new case prompts again with the fresh state, and without a conflict asks the page to reload", async () => {
+  let creates = 0;
+  let replaced = 0;
+  const calls = scripted(answers((call) => {
+    if (!call.url.endsWith("/create/")) return undefined;
+    creates += 1;
+    if (creates === 1) return reply(409, { code: "resolve_stale", conflict: { ...CONFLICT, revision: 7, working_revision: 3 }, case: { id: "c1", revision: 3, started_at: "now", heirs: [] } });
+    return reply(409, { code: "resolve_stale", conflict: null, case: { id: "c1", revision: 3, started_at: "now", heirs: [] } });
+  }));
+  await renderConflicted(() => { replaced += 1; });
+  await act(() => { choice(text.conflictSaveAsNew)!.click(); });
+  await settle();
+  await submitName();
+  assert.equal(status(), text.saveConflict);
+  assert.equal(replaced, 0, "the prompt stays: no reload remounts it");
+  await act(() => { choice(text.conflictSaveAsNew)!.click(); });
+  await settle();
+  await submitName();
+  const created = calls.filter((c) => c.url.endsWith("/create/")).map((c) => JSON.parse(c.body));
+  assert.deepEqual([created[1].expected_revision, created[1].saved_revision], [3, 7]);
+  assert.notEqual(created[0].request_key, created[1].request_key);
+  assert.equal(replaced, 1);
+  assert.equal(choice(text.conflictOpenLatest), undefined);
+});
+
+test("an enriched conflict with an empty saved name opens the copy dialog with the server suggestion", async () => {
+  scripted(answers((call) => {
+    if (call.url === "/api/v1/saved-cases/") return reply(409, { ...CONFLICT, saved_name: "" });
+    if (call.url.includes("name-suggestion")) return reply(200, { name: "Estate of the deceased, 1 January 2026" });
+    return undefined;
+  }));
+  await renderConflicted();
+  await act(() => { choice(text.conflictSaveAsNew)!.click(); });
+  await settle();
+  assert.equal(nameInput()!.value, "Estate of the deceased, 1 January 2026");
+});
+
+test("a stale open that names a different case closes the prompt and asks the page to reload", async () => {
+  let replaced = 0;
+  scripted(answers((call) => (call.url.endsWith("/open/") ? reply(409, { error: "conflict", case: { id: "other", revision: 1, started_at: "now", heirs: [] } }) : undefined)));
+  await renderConflicted(() => { replaced += 1; });
+  await act(() => { choice(text.conflictOpenLatest)!.click(); });
+  await settle();
+  assert.equal(replaced, 1);
+  assert.equal(choice(text.conflictOpenLatest), undefined);
+  assert.equal(status(), "");
+});
+
+test("a Share panel from an earlier share is cleared when the visitor switches to the copy", async () => {
+  let shares = 0;
+  scripted(answers((call) => {
+    if (call.url === "/api/v1/saved-cases/") return shares === 0 ? reply(200, { id: 42, name: "Estate", updated_at: "2026-11-01T00:00:00Z" }) : reply(409, CONFLICT);
+    if (call.url.endsWith("/shares/") && call.method === "POST") { shares += 1; return reply(201, shareBody); }
+    if (call.url.endsWith("/create/")) return reply(201, NEW_ROW);
+    return undefined;
+  }));
+  await act(() => { root.render(<AuthGate locale="en" text={text} share={shareText} caseId="c1" linked />); });
+  await settle();
+  await act(() => { buttonNamed(text.shareAction)!.click(); });
+  await settle();
+  assert.ok(container.textContent?.includes(shareText.copy), "first panel shown");
+  await act(() => { buttonNamed(text.save)!.click(); });
+  await settle();
+  await act(() => { choice(text.conflictSaveAsNew)!.click(); });
+  await settle();
+  await submitName();
+  assert.ok(!container.textContent?.includes(shareText.copy), "the old link is gone");
+  assert.equal(status(), text.saved);
+});

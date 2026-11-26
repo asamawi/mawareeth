@@ -11,9 +11,17 @@ export type Saved = { id: number; name: string; updated_at: string };
 /** The server refused the name (400 `errors.name`); nothing was stored and retrying the same name cannot work. */
 export const NAME_TOO_LONG = "name_too_long";
 export const NAME_INVALID = "name_invalid";
-export type SaveResult = Saved | typeof SCHOOL_REQUIRED | typeof SAVE_CONFLICT | typeof NAME_TOO_LONG | typeof NAME_INVALID | null;
-/** Conflict details returned with SAVE_CONFLICT. */
-export type SaveConflict = { code: typeof SAVE_CONFLICT; savedId: number; savedRevision: number; savedName: string; workingCaseId: string; workingRevision: number };
+/** The conflict as the server states it: the Saved case the working copy is linked to and the working Case it was shown against. */
+export type SaveConflict = { code: typeof SAVE_CONFLICT; savedId: number; savedName: string; savedRevision: number; workingCaseId: string; workingRevision: number };
+/** A conflict body counts as actionable only when every field is present and well typed; anything else is no choice at all. */
+export function parseConflict(body: unknown): SaveConflict | null {
+  if (typeof body !== "object" || body === null) return null;
+  const value = body as Record<string, unknown>;
+  const whole = (field: unknown): field is number => typeof field === "number" && Number.isInteger(field) && field >= 1;
+  if (value.code !== SAVE_CONFLICT || !whole(value.saved_id) || !whole(value.revision) || !whole(value.working_revision) || typeof value.working_case_id !== "string" || typeof value.saved_name !== "string") return null;
+  return { code: SAVE_CONFLICT, savedId: value.saved_id, savedName: value.saved_name, savedRevision: value.revision, workingCaseId: value.working_case_id, workingRevision: value.working_revision };
+}
+export type SaveResult = Saved | SaveConflict | typeof SCHOOL_REQUIRED | typeof SAVE_CONFLICT | typeof NAME_TOO_LONG | typeof NAME_INVALID | null;
 /** The Case name rule: user-perceived characters (extended grapheme clusters), as the server counts them. */
 export const NAME_LIMIT = 100;
 export function graphemeCount(name: string, locale?: string): number {
@@ -21,8 +29,13 @@ export function graphemeCount(name: string, locale?: string): number {
   if (typeof Intl === "undefined" || typeof Intl.Segmenter !== "function") return Array.from(name).length;
   return [...new Intl.Segmenter(locale, { granularity: "grapheme" }).segment(name)].length;
 }
+/** The first `limit` user-perceived characters of `name`. */
+export function cutGraphemes(name: string, limit: number, locale?: string): string {
+  if (typeof Intl === "undefined" || typeof Intl.Segmenter !== "function") return Array.from(name).slice(0, limit).join("");
+  return [...new Intl.Segmenter(locale, { granularity: "grapheme" }).segment(name)].slice(0, limit).map((part) => part.segment).join("");
+}
 /** Success is claimed only for a 200 or 201 whose answer carries the stored name. */
-export async function saveCase(signal: AbortSignal, caseId: string, options: WriteOptions & { name?: string; locale?: string } = {}): Promise<SaveResult | SaveConflict> {
+export async function saveCase(signal: AbortSignal, caseId: string, options: WriteOptions & { name?: string; locale?: string } = {}): Promise<SaveResult> {
   const { name, locale, ...rest } = options;
   const body = JSON.stringify({ case_id: caseId, ...(name === undefined ? {} : { name }) });
   return write(signal, rest, { method: "POST", url, body, ...(locale ? { headers: { "Accept-Language": locale } } : {}) }, async (response) => {
@@ -34,14 +47,34 @@ export async function saveCase(signal: AbortSignal, caseId: string, options: Wri
     }
     if (response.status === 409) {
       const refused = await response.json().catch(() => null);
-      if (refused && refused.code === SAVE_CONFLICT) {
-        return { code: SAVE_CONFLICT, savedId: refused.saved_id, savedRevision: refused.revision, savedName: refused.saved_name, workingCaseId: caseId, workingRevision: refused.working_revision ?? 0 };
-      }
-      return null;
+      return refused && refused.code === SAVE_CONFLICT ? parseConflict(refused) ?? SAVE_CONFLICT : null;
     }
     if (response.status !== 200 && response.status !== 201) return null;
     const body = await response.json();
     return Number.isInteger(body.id) && body.id > 0 && typeof body.updated_at === "string" && typeof body.name === "string" ? { id: body.id, name: body.name, updated_at: body.updated_at } : null;
+  });
+}
+/** Save as a new case answered 409: the stored case or the working copy changed since the prompt. `stale` is the conflict as it holds now (null when none holds any more), `case` the current working copy (null when there is none). */
+export type CreateStale = { stale: SaveConflict | null; case: Case | null };
+export type CreateResult = (Saved & { revision: number }) | CreateStale | typeof SCHOOL_REQUIRED | typeof NAME_TOO_LONG | typeof NAME_INVALID | null;
+/** Saves the working copy as a new Saved case after a conflict. The same `requestKey` makes a retry return the same row. */
+export async function createSavedCase(signal: AbortSignal, args: { caseId: string; expectedRevision: number; savedId: number; savedRevision: number; requestKey: string; name?: string; locale?: string }, options: WriteOptions = {}): Promise<CreateResult> {
+  const body = JSON.stringify({ case_id: args.caseId, expected_revision: args.expectedRevision, saved_id: args.savedId, saved_revision: args.savedRevision, request_key: args.requestKey, ...(args.name === undefined ? {} : { name: args.name }) });
+  return write<CreateResult>(signal, options, { method: "POST", url: `${url}create/`, body, ...(args.locale ? { headers: { "Accept-Language": args.locale } } : {}) }, async (response) => {
+    if (response.status === 400) {
+      const refused = await response.json().catch(() => null);
+      if (refused?.code === SCHOOL_REQUIRED) return SCHOOL_REQUIRED;
+      const refusedName = refused?.errors?.name;
+      return refusedName === "too_long" ? NAME_TOO_LONG : refusedName === "invalid" ? NAME_INVALID : null;
+    }
+    if (response.status === 409) {
+      const refused = await response.json().catch(() => null);
+      if (!refused || refused.code !== "resolve_stale") return null;
+      return { stale: parseConflict(refused.conflict), case: parseCase(refused) };
+    }
+    if (response.status !== 200 && response.status !== 201) return null;
+    const saved = await response.json().catch(() => null);
+    return saved && Number.isInteger(saved.id) && saved.id > 0 && Number.isInteger(saved.revision) && saved.revision >= 1 && typeof saved.updated_at === "string" && typeof saved.name === "string" ? { id: saved.id, name: saved.name, updated_at: saved.updated_at, revision: saved.revision } : null;
   });
 }
 /** The suggested name for a first save, in the page's Locale; null when it cannot be read. */
@@ -65,44 +98,21 @@ export async function suggestedName(signal: AbortSignal, locale: string): Promis
 }
 /** `conflict`: the working copy changed since the prompt, so nothing was replaced. */
 export const OPEN_CONFLICT = "conflict";
-export type OpenResult = Case | typeof OPEN_CONFLICT | null;
-/** With `check`, the server refuses (409) when the working copy is no longer that Case at that revision; a null `caseId` means none. */
-export async function openSavedCase(signal: AbortSignal, id: number, options: WriteOptions & { check?: { caseId: string | null; revision: number | null } } = {}): Promise<OpenResult> {
+export type OpenResult = Case | typeof OPEN_CONFLICT | { kind: "stale"; case: Case | null } | null;
+/** With `check`, the server refuses (409) when the working copy is no longer that Case at that revision; a null `caseId` means none. With `returnStale`, that refusal comes back as `{ kind: "stale", case }` carrying the current working copy instead of the bare conflict. */
+export async function openSavedCase(signal: AbortSignal, id: number, options: WriteOptions & { check?: { caseId: string | null; revision: number | null }; returnStale?: boolean } = {}): Promise<OpenResult> {
   if (!Number.isInteger(id) || id < 1) return null;
-  const { check, ...rest } = options;
+  const { check, returnStale, ...rest } = options;
   const body = check ? JSON.stringify({ case_id: check.caseId, ...(check.revision === null ? {} : { expected_revision: check.revision }) }) : "{}";
   return write(signal, rest, { method: "POST", url: `${url}${id}/open/`, body }, async (response) => {
-    if (response.status === 409) return OPEN_CONFLICT;
+    if (response.status === 409) {
+      if (!returnStale) return OPEN_CONFLICT;
+      const stale = await response.json().catch(() => null);
+      try { return { kind: "stale", case: parseCase(stale) }; } catch { return null; }
+    }
     return response.ok ? parseCase(await response.json()) : null;
   });
 }
-
-/** Create a new SavedCase from the working copy, bypassing the conflict check.
- * The `requestKey` (a client-generated UUID) provides idempotency: retrying with the same key returns the same row.
- * The `name` is optional; blank or missing falls back to the server's suggestion. */
-export async function createSavedCase(signal: AbortSignal, caseId: string, options: WriteOptions & { name?: string; locale?: string; requestKey: string }): Promise<SaveResult | SaveConflict> {
-  const { name, locale, requestKey, ...rest } = options;
-  const body = JSON.stringify({ case_id: caseId, request_key: requestKey, ...(name === undefined ? {} : { name }) });
-  return write(signal, rest, { method: "POST", url: `${url}create/`, body, ...(locale ? { headers: { "Accept-Language": locale } } : {}) }, async (response) => {
-    if (response.status === 400) {
-      const refused = await response.json().catch(() => null);
-      if (refused && refused.code === SCHOOL_REQUIRED) return SCHOOL_REQUIRED;
-      const refusedName = refused?.errors?.name;
-      return refusedName === "too_long" ? NAME_TOO_LONG : refusedName === "invalid" ? NAME_INVALID : null;
-    }
-    if (response.status === 409) {
-      const refused = await response.json().catch(() => null);
-      if (refused && refused.code === SAVE_CONFLICT) {
-        return { code: SAVE_CONFLICT, savedId: refused.saved_id, savedRevision: refused.revision, savedName: refused.saved_name, workingCaseId: caseId, workingRevision: refused.working_revision ?? 0 };
-      }
-      return null;
-    }
-    if (response.status !== 200 && response.status !== 201) return null;
-    const body = await response.json();
-    return Number.isInteger(body.id) && body.id > 0 && typeof body.updated_at === "string" && typeof body.name === "string" ? { id: body.id, name: body.name, updated_at: body.updated_at } : null;
-  });
-}
-
 export async function listSavedCases(signal: AbortSignal): Promise<SavedCase[]> {
   const controller = new AbortController();
   const abort = () => controller.abort();

@@ -30,6 +30,7 @@ export type Stubs = {
   getReceived?: Answer;
   postOpen?: Answer;
   postSaved?: Answer;
+  postCreate?: Answer;
   getNameSuggestion?: Answer;
   getInvites?: Answer;
 };
@@ -66,6 +67,7 @@ export class Api {
   previewGets = 0;
   openPosts: { url: string; body: string }[] = [];
   savedPosts: { body: string; csrf: string | undefined }[] = [];
+  createPosts: { body: string; csrf: string | undefined }[] = [];
 
   set(stubs: Stubs): void {
     Object.assign(this.stubs, stubs);
@@ -134,6 +136,10 @@ export class Api {
       if (pathname === "/api/v1/saved-cases/" && method === "POST") {
         this.savedPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
         return this.answer(route, this.stubs.postSaved, "post saved case");
+      }
+      if (pathname === "/api/v1/saved-cases/create/" && method === "POST") {
+        this.createPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.postCreate, "post create");
       }
       if (pathname === "/api/v1/saved-cases/name-suggestion/" && method === "GET") {
         return this.answer(route, this.stubs.getNameSuggestion, "get name suggestion");

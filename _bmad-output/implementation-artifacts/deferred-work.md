@@ -617,3 +617,7 @@ Epic 9's gate and retrospective stay open until the owner records them.
 - source_spec: `_bmad-output/implementation-artifacts/spec-10-1-name-a-case-and-show-whether-saving-succeeded.md`
   summary: Bind a resumed Save, Share or WhatsApp after sign-in to the case it started on; refuse it if the working case changed during sign-in.
   evidence: Review of 10.1; `?resume=` carries only the action (web/src/i18n/paths.ts), and results reloads whatever case the session holds. Behaviour predates 10.1.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-1b-resolve-a-save-conflict-with-two-choices.md`
+  summary: A Saved case name containing an unpaired UTF-16 surrogate passes the name checks of both save routes and fails at the database write with a 500 instead of a 400 `errors.name = invalid`.
+  evidence: `_parse_name` (formerly inline in `SavedCasesView.post` at baseline) checks type, NUL and grapheme length only; JSON `"\ud800"` decodes to a lone surrogate that cannot be encoded to UTF-8 for Postgres.

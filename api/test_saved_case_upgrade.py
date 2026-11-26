@@ -1,4 +1,5 @@
 from copy import deepcopy
+from decimal import Decimal
 from io import StringIO
 from unittest.mock import patch
 
@@ -11,7 +12,7 @@ from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 
 from api import anonymous_case, test_snapshots
-from api.models import SavedCase
+from api.models import SavedCase, SavedCaseCreateRequest
 from api.snapshots import SnapshotError, default_name, encode_v2, lossless_v1
 from engine.contracts import ContractError
 from api.test_snapshots import fixture
@@ -249,7 +250,8 @@ class SavedCaseUpgradeTests(InterviewHelpers, TestCase):
         response = self.send('post', '/api/v1/saved-cases/', {'case_id': a['id']})
         self.assertEqual(response.json(), {'error': 'conflict', 'code': 'saved_case_conflict',
             'detail': 'This saved case changed since it was opened.', 'revision': 3,
-            'saved_id': row.pk, 'saved_name': row.name, 'working_revision': a['revision']})
+            'saved_id': row.pk, 'saved_name': row.name, 'working_case_id': a['id'],
+            'working_revision': a['revision']})
         row.refresh_from_db()
         self.assertEqual(row.snapshot, snapshot)
         self.assertEqual(dict(self.client.session), before)
@@ -299,3 +301,186 @@ class SavedCaseNameMigrationTests(TransactionTestCase):
         finally:
             executor = MigrationExecutor(connection)
             executor.migrate(executor.loader.graph.leaf_nodes('api'))
+
+
+class SaveAsNewCaseCases:
+    """Save as a new case after a conflict, run for each snapshot writer version."""
+    url = '/api/v1/saved-cases/create/'
+    key = '3f2b8a5e-9d41-4c3a-8d0e-6a1b7c9d2e10'
+
+    def setUp(self):
+        super().setUp()
+        self.owner = get_user_model().objects.create_user(username='create-owner')
+        self.client.force_login(self.owner)
+        self.device = self.client.__class__(enforce_csrf_checks=True)
+        self.device.force_login(self.owner)
+        self.row = SavedCase.objects.create(owner=self.owner, snapshot=fixture('estate'), revision=2)
+        self.a = self.send('post', f'/api/v1/saved-cases/{self.row.pk}/open/', {}).json()['case']
+        b = self.send('post', f'/api/v1/saved-cases/{self.row.pk}/open/', {}, self.device).json()['case']
+        self.send('patch', '/api/v1/case/', {'case_id': b['id'], 'madhab': 'hanafi'}, self.device)
+        self.assertEqual(self.send('post', '/api/v1/saved-cases/', {'case_id': b['id']}, self.device).status_code, 200)
+        self.row.refresh_from_db()
+        self.assertEqual(self.send('post', '/api/v1/saved-cases/', {'case_id': self.a['id']}).status_code, 409)
+
+    def body(self, **changes):
+        body = {'case_id': self.a['id'], 'expected_revision': self.a['revision'], 'saved_id': self.row.pk,
+                'saved_revision': self.row.revision, 'request_key': self.key}
+        body.update(changes)
+        return body
+
+    def test_create_after_conflict_keeps_original_and_relinks(self):
+        original = deepcopy(self.row.snapshot)
+        response = self.send('post', self.url, self.body(name='Copy of it'))
+        self.assertEqual(response.status_code, 201)
+        new = response.json()
+        self.assertEqual((new['name'], new['revision']), ('Copy of it', 1))
+        self.assertNotEqual(new['id'], self.row.pk)
+        self.row.refresh_from_db()
+        self.assertEqual((self.row.snapshot, self.row.revision), (original, 3))
+        link = self.client.session[anonymous_case.SAVED_LINK_KEY]
+        self.assertEqual((link['saved_id'], link['base_revision'], link['case_revision']),
+                         (new['id'], 1, self.a['revision']))
+        self.assertEqual(SavedCase.objects.filter(owner=self.owner).count(), 2)
+        listed = self.client.get('/api/v1/saved-cases/').json()['cases']
+        self.assertEqual({entry['id'] for entry in listed}, {self.row.pk, new['id']})
+        reopened = self.send('post', f'/api/v1/saved-cases/{new["id"]}/open/', {}).json()['case']
+        self.assertGreater(len(reopened['heirs']), 0)
+        self.assertEqual(len(reopened['heirs']), len(self.a['heirs']))
+        self.assertEqual(reopened['madhab'], self.a['madhab'])
+        self.assertEqual(Decimal(reopened['deceased']['estate']), Decimal(self.a['deceased']['estate']))
+        # A later Save updates the copy, not the original.
+        saved = self.send('post', '/api/v1/saved-cases/', {'case_id': reopened['id']})
+        self.assertEqual((saved.status_code, saved.json()['id'], saved.json()['revision']), (200, new['id'], 2))
+
+    def test_create_without_name_uses_default(self):
+        response = self.send('post', self.url, self.body())
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.json()['name'])
+
+    def test_replay_returns_same_row(self):
+        SavedCase.objects.create(owner=self.owner, snapshot=fixture('estate'))
+        first = self.send('post', self.url, self.body(name='Copy'))
+        self.assertEqual(first.status_code, 201)
+        count = SavedCase.objects.count()
+        for key in (self.key, self.key.upper()):
+            again = self.send('post', self.url, self.body(name='Another', request_key=key))
+            self.assertEqual(again.status_code, 200)
+            self.assertEqual((again.json()['id'], again.json()['name']), (first.json()['id'], 'Copy'))
+        self.assertEqual(SavedCase.objects.count(), count)
+        self.assertEqual(SavedCaseCreateRequest.objects.count(), 1)
+
+    def test_replay_relinks_with_the_recorded_revisions_not_the_current_ones(self):
+        new = self.send('post', self.url, self.body()).json()
+        # The copy is edited elsewhere and the working copy changes, before the lost answer is retried.
+        SavedCase.objects.filter(pk=new['id']).update(revision=5)
+        self.send('patch', '/api/v1/case/', {'case_id': self.a['id'], 'madhab': 'shafii'})
+        again = self.send('post', self.url, self.body())
+        self.assertEqual((again.status_code, again.json()['id'], again.json()['revision']), (200, new['id'], 1))
+        link = self.client.session[anonymous_case.SAVED_LINK_KEY]
+        self.assertEqual((link['saved_id'], link['base_revision'], link['case_revision']),
+                         (new['id'], 1, self.a['revision']))
+        working = self.client.get('/api/v1/case/').json()['case']
+        self.assertGreater(working['revision'], working['saved']['revision'], 'the working copy still shows unsaved changes')
+
+    def test_reused_key_for_another_case_is_stale_and_links_nothing(self):
+        new = self.send('post', self.url, self.body()).json()
+        before = deepcopy(dict(self.client.session))
+        response = self.send('post', self.url, self.body(case_id='another-case'))
+        self.assertEqual((response.status_code, response.json()['code']), (409, 'resolve_stale'))
+        self.assertEqual(dict(self.client.session), before)
+        self.assertEqual(SavedCase.objects.filter(owner=self.owner).count(), 2)
+        self.assertEqual(SavedCaseCreateRequest.objects.get().saved_case_id, new['id'])
+
+    def test_two_owners_may_use_the_same_key(self):
+        second = get_user_model().objects.create_user(username='create-second')
+        client, device = self.client.__class__(enforce_csrf_checks=True), self.client.__class__(enforce_csrf_checks=True)
+        client.force_login(second)
+        device.force_login(second)
+        row = SavedCase.objects.create(owner=second, snapshot=fixture('estate'), revision=2)
+        a = self.send('post', f'/api/v1/saved-cases/{row.pk}/open/', {}, client).json()['case']
+        b = self.send('post', f'/api/v1/saved-cases/{row.pk}/open/', {}, device).json()['case']
+        self.send('patch', '/api/v1/case/', {'case_id': b['id'], 'madhab': 'hanafi'}, device)
+        self.send('post', '/api/v1/saved-cases/', {'case_id': b['id']}, device)
+        self.assertEqual(self.send('post', '/api/v1/saved-cases/', {'case_id': a['id']}, client).status_code, 409)
+        row.refresh_from_db()
+        mine = self.send('post', self.url, self.body())
+        theirs = self.send('post', self.url, {'case_id': a['id'], 'expected_revision': a['revision'], 'saved_id': row.pk,
+                                              'saved_revision': row.revision, 'request_key': self.key}, client)
+        self.assertEqual((mine.status_code, theirs.status_code), (201, 201))
+        self.assertNotEqual(mine.json()['id'], theirs.json()['id'])
+        self.assertEqual(SavedCase.objects.get(pk=theirs.json()['id']).owner, second)
+        self.assertEqual(SavedCaseCreateRequest.objects.count(), 2)
+
+    def test_the_copy_stores_exactly_the_working_snapshot(self):
+        new = self.send('post', self.url, self.body()).json()
+        reopened = self.send('post', f'/api/v1/saved-cases/{new["id"]}/open/', {}).json()['case']
+        # Money is stored in its canonical spelling ("1200.50" reads back "1200.5"); everything else is identical.
+        copy, working = deepcopy(reopened['snapshot']), deepcopy(self.a['snapshot'])
+        for snapshot in (copy, working):
+            snapshot['deceased']['estate'] = str(Decimal(snapshot['deceased']['estate']).normalize())
+        self.assertEqual(copy, working)
+
+    def named_in_french(self, **name):
+        body = {**self.body(), **name}
+        response = self.client.post(self.url, body, format='json', secure=True,
+                                    headers={**self.csrf(self.client), 'Accept-Language': 'fr'})
+        self.assertEqual(response.status_code, 201)
+        stored = SavedCase.objects.get(pk=response.json()['id'])
+        self.assertEqual(stored.name, default_name(stored.created_at, 'fr'))
+        self.assertNotEqual(stored.name, default_name(stored.created_at, 'en'))
+        self.assertEqual(response.json()['name'], stored.name)
+
+    def test_blank_name_follows_the_asked_language(self):
+        self.named_in_french(name='  ')
+
+    def test_omitted_name_follows_the_asked_language(self):
+        self.named_in_french()
+
+    def assert_stale(self, response, conflict):
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['code'], 'resolve_stale')
+        self.assertEqual(response.json()['conflict'] is not None, conflict)
+        self.assertIn('snapshot', response.json()['case'])
+        self.assertEqual(SavedCase.objects.count(), 1)
+        self.assertEqual(SavedCaseCreateRequest.objects.count(), 0)
+
+    def test_stale_working_revision(self):
+        before = deepcopy(dict(self.client.session))
+        self.assert_stale(self.send('post', self.url, self.body(expected_revision=self.a['revision'] + 5)), True)
+        self.assertEqual(dict(self.client.session), before)
+        self.send('patch', '/api/v1/case/', {'case_id': self.a['id'], 'madhab': 'shafii'})
+        response = self.send('post', self.url, self.body())
+        self.assert_stale(response, True)
+        self.assertEqual(response.json()['conflict']['working_revision'], response.json()['case']['revision'])
+
+    def test_stale_changed_link_or_row_revision(self):
+        self.assert_stale(self.send('post', self.url, self.body(saved_id=self.row.pk + 1000)), False)
+        self.assert_stale(self.send('post', self.url, self.body(saved_revision=self.row.revision + 1)), True)
+        SavedCase.objects.filter(pk=self.row.pk).update(revision=self.row.revision + 1)
+        self.assert_stale(self.send('post', self.url, self.body()), True)
+
+    def test_stale_when_the_stored_case_was_deleted(self):
+        SavedCase.objects.filter(pk=self.row.pk).delete()
+        response = self.send('post', self.url, self.body())
+        self.assertEqual((response.status_code, response.json()['conflict']), (409, None))
+        self.assertEqual(SavedCase.objects.count(), 0)
+
+    def test_refusals_write_nothing(self):
+        for body in ({'case_id': 5}, self.body(request_key='nope'), self.body(saved_id='1'), self.body(name=5),
+                     self.body(name='x' * 101)):
+            self.assertEqual(self.send('post', self.url, body).status_code, 400)
+        self.assertEqual(SavedCase.objects.count(), 1)
+        self.assertEqual(SavedCaseCreateRequest.objects.count(), 0)
+
+    def test_signed_out_is_refused(self):
+        self.client.logout()
+        self.assertIn(self.send('post', self.url, self.body()).status_code, (401, 403))
+
+
+class SaveAsNewCaseDefaultWriterTests(SaveAsNewCaseCases, InterviewHelpers, TestCase):
+    pass
+
+
+@override_settings(SNAPSHOT_WRITE_VERSION=2)
+class SaveAsNewCaseSchemaTwoTests(SaveAsNewCaseCases, InterviewHelpers, TestCase):
+    pass
