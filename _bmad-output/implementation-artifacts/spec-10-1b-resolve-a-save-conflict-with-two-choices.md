@@ -80,6 +80,61 @@ context:
 
 ## Review Triage Log
 
+| # | Source | Location | Finding Summary | Verification | Verdict | Route |
+|---|--------|----------|-----------------|--------------|---------|-------|
+| 1 | Structure | spec: status draft→review | Status progression appropriate | Confirmed - matches workflow | PRESERVE | — |
+| 2 | Structure | spec: baseline_commit added | Adds traceability to implementation | Confirmed - useful for review | PRESERVE | — |
+| 3 | Structure | sprint-status.yaml: 10-1 in-progress→review | Status progression appropriate | Confirmed - matches workflow | PRESERVE | — |
+| 4 | Edge-Case | api/views.py:135-142 | request.data not dict → AttributeError on .get() | Verified: no isinstance check in diff | **medium** | **patch** |
+| 5 | Edge-Case | api/views.py:140-142 | request_key missing/invalid → no guard | Verified: diff adds request_key validation but only for create path | **medium** | **patch** |
+| 6 | Edge-Case | api/views.py:147-152 | snapshot validation missing required fields | Verified: snapshot export lacks field checks | **medium** | **patch** |
+| 7 | Edge-Case | api/views.py:157-162 | school validation bypassed if snapshot invalid | Verified: school check after snapshot parse | **medium** | **patch** |
+| 8 | Edge-Case | api/views.py:165-170 | name validation missing max length guard | Verified: no grapheme length check in diff | **low** | **patch** |
+| 9 | Edge-Case | api/views.py:173-178 | SavedCase create lacks transaction guard | Verified: no atomic block shown in diff | **medium** | **patch** |
+| 10 | Edge-Case | api/views.py:184-196 | Idempotency: request_key lookup race | Verified: SELECT then INSERT not atomic | **high** | **patch** |
+| 11 | Edge-Case | api/views.py:206-209 | request_key embedded in snapshot but not validated on read | Verified: snapshot schema doesn't include __request_key__ | **medium** | **patch** |
+| 12 | Edge-Case | api/views.py:210-217 | Session relink uses stale case revision | Verified: no re-fetch after create | **medium** | **patch** |
+| 13 | Edge-Case | api/urls.py:96 | Route order: create/ before <int:id> correct but trailing slash variance | Verified: Django handles but verify no conflict | **low** | **defer** |
+| 14 | Edge-Case | web/src/api/saved-cases.ts:353-367 | createSavedCase: no abort signal propagation to fetch | Verified: signal passed but not used in fetch options | **low** | **patch** |
+| 15 | Edge-Case | web/src/api/saved-cases.ts:353-367 | createSavedCase: request_key not generated if missing | Verified: caller must provide, no fallback | **medium** | **patch** |
+| 16 | Edge-Case | web/src/api/saved-cases.ts:353-367 | Error mapping: 409 conflict not handled | Verified: returns null, caller must handle | **medium** | **patch** |
+| 17 | Edge-Case | web/src/app/[locale]/results/auth-gate.tsx:573 | uuidv4() collision theoretically possible | Verified: server idempotency is primary guard | **low** | **defer** |
+| 18 | Edge-Case | web/src/app/[locale]/results/auth-gate.tsx:604-606 | Buttons disabled during in-flight but no loading state | Verified: disabled attr only, no visual feedback | **low** | **patch** |
+| 19 | Edge-Case | web/src/app/[locale]/results/auth-gate.tsx:556-595 | handleCreateSavedCase: no retry on network error | Verified: single attempt only | **medium** | **patch** |
+| 20 | Edge-Case | web/src/app/[locale]/results/auth-gate.tsx:556-595 | Naming dialog prefill: old name unknown fallback | Verified: uses suggestion but suggestion may be empty | **low** | **patch** |
+| 21 | Edge-Case | web/src/app/[locale]/results/auth-gate.tsx:616-617 | conflictWorkingCase/conflictSavedCase interpolate missing fields | Verified: 409 mock in E2E lacks new fields | **medium** | **patch** |
+| 22 | Edge-Case | web/src/app/[locale]/results/auth-gate.tsx | Share/WhatsApp continuation after create: no guard | Verified: continuation flag set but not checked on error | **medium** | **patch** |
+| 23 | Edge-Case | web/src/app/[locale]/cases/cases-view.tsx:59-84 | saveConflict dialog lacks in-flight guard | Verified: no disabled state on button | **low** | **patch** |
+| 24 | Edge-Case | web/src/i18n/messages.ts | 12 new keys × 3 locales: no catalog check test | Verified: i18n script runs but no test asserts completeness | **low** | **patch** |
+| 25 | Edge-Case | api/test_saved_case_upgrade.py | Test mocks 409 but missing new fields | Verified: test won't catch regression | **medium** | **patch** |
+| 26 | Edge-Case | web/e2e/results.spec.ts:133 | E2E 409 mock missing saved_id, saved_name, working_revision | Verified: conflict dialog would receive incomplete data | **medium** | **patch** |
+| 27 | Edge-Case | web/src/api/saved-cases.test.ts | No tests for createSavedCase function | Verified: 14 tests exist, 0 for createSavedCase | **high** | **patch** |
+| 28 | Edge-Case | web/src/app/[locale]/results/auth-gate.test.tsx | No tests for new conflict dialog or choices | Verified: 28 tests, 0 for two-choice conflict | **high** | **patch** |
+| 29 | Edge-Case | web/src/app/[locale]/cases/cases-view.test.tsx | No tests for saveConflict dialog | Verified: 12 tests, 0 for saveConflict | **medium** | **patch** |
+| 30 | Edge-Case | General: Idempotency relies on request_key in snapshot but schema not versioned | Verified: __request_key__ not in schema validation | **medium** | **patch** |
+| 31 | Edge-Case | General: Snapshot schema not versioned for request_key field | Verified: no migration or version bump | **medium** | **patch** |
+| 32 | Edge-Case | General: Cross-tab conflict during choice: prompt again but working copy kept | Verified: behavior matches spec | **false** | — |
+| 33 | Edge-Case | General: Old server 404 on create route: failure text, copy kept | Verified: matches spec boundary | **false** | — |
+| 34 | Edge-Case | General: Original row deleted during Open latest: 404, copy kept | Verified: matches spec boundary | **false** | — |
+| 35 | Verification-Gap | api/views.py:130-217 | No Django tests for SavedCaseCreateView endpoint | Verified: test files lack POST to /saved-cases/create/ | **high** | **patch** |
+| 36 | Verification-Gap | web/src/api/saved-cases.ts:353-367 | No unit tests for createSavedCase client function | Verified: saved-cases.test.ts has 0 tests for it | **high** | **patch** |
+| 37 | Verification-Gap | web/src/app/[locale]/results/auth-gate.tsx:453-640 | No unit tests for conflict dialog, two choices, in-flight guards | Verified: auth-gate.test.tsx has 0 tests for new UI | **high** | **patch** |
+| 38 | Verification-Gap | web/src/app/[locale]/cases/cases-view.tsx:388-428 | No unit tests for saveConflict dialog on My cases | Verified: cases-view.test.tsx has 0 tests for it | **medium** | **patch** |
+| 39 | Verification-Gap | web/e2e/results.spec.ts:131-141 | E2E only tests old conflict message, not new flows | Verified: test mocks minimal 409, no choice clicks | **high** | **patch** |
+| 40 | Verification-Gap | api/views.py:140-142,184-196,206-209 | No test at any layer for request_key idempotency retry | Verified: no test retries with same key | **high** | **patch** |
+| 41 | Verification-Gap | web/e2e/results.spec.ts:133 | E2E 409 mock missing new fields consumed by conflict dialog | Verified: mock has only code/detail/revision | **medium** | **patch** |
+| 42 | Verification-Gap | web/src/i18n/messages.ts | No test verifying catalog completeness for 12 new keys × 3 locales | Verified: type tests only check structure | **low** | **patch** |
+| 43 | Adversarial | api/views.py:468-556 | Near-identical validation logic duplicated between SavedCasesView.post and SavedCaseCreateView.post | Verified: ~70 lines of duplicate validation | **medium** | **FIXED** |
+| 44 | Adversarial | api/views.py:520-548 | Idempotency marker embedded in snapshot but lookup uses `snapshot__contains` on JSON field — not indexed, may miss matches | Verified: Django JSONField contains not reliable for this | **high** | **FIXED** (improved lookup with decode check) |
+| 45 | Adversarial | web/src/app/[locale]/results/auth-gate.tsx:460-463, 536-538 | conflictInFlightRef async race — rapid double-click bypasses guard before state updates | Verified: setConflictInFlight is async, ref check not atomic | **high** | **FIXED** (added synchronous inFlightGuard ref) |
+| 46 | Adversarial | web/src/app/[locale]/results/auth-gate.tsx | Conflict dialog status messages lack aria-live — screen readers won't announce in-progress state | Verified: no aria-live on status elements | **medium** | **FIXED** (added aria-live="polite") |
+| 47 | Adversarial | web/src/app/[locale]/results/auth-gate.tsx | handleCreateSavedCase doesn't generate requestKey if missing — caller must provide, no fallback | Verified: createSavedCase requires requestKey | **medium** | **FIXED** (uuidv4 generated in handleCreateSavedCase) |
+| 48 | Adversarial | web/src/api/saved-cases.ts:83-96 | createSavedCase doesn't handle 409 conflict response — returns null silently | Verified: only handles 400 and 200/201 | **medium** | **FIXED** (added 409 handling returning SaveConflict) |
+| 49 | Adversarial | web/e2e/results.spec.ts:131-141 | E2E conflict test mocks minimal 409 body — doesn't test new conflict dialog or choices | Verified: test only checks saveConflict text | **high** | **patch** |
+| 50 | Adversarial | web/src/test-messages.ts, web/src/test-types.ts | Compile-time type checks only, not runtime tests — don't execute in test suite | Verified: no .test.ts suffix, not in test runner | **low** | **defer** |
+| 51 | Adversarial | api/views.py:495-518 | School check in SavedCaseCreateView calls preview.preview() which may throw — caught but returns 503 | Verified: broad Exception catch, logs error | **low** | **FIXED** (factored into shared helper) |
+| 52 | Adversarial | api/views.py:543-548 | Idempotency: snapshot_with_key re-encodes for v2 but doesn't re-validate — could store invalid snapshot | Verified: no decode check after adding marker | **medium** | **FIXED** (added decode validation after encoding) |
+
 ## Verification
 
 **Commands:**

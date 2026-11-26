@@ -80,7 +80,7 @@ export async function openSavedCase(signal: AbortSignal, id: number, options: Wr
 /** Create a new SavedCase from the working copy, bypassing the conflict check.
  * The `requestKey` (a client-generated UUID) provides idempotency: retrying with the same key returns the same row.
  * The `name` is optional; blank or missing falls back to the server's suggestion. */
-export async function createSavedCase(signal: AbortSignal, caseId: string, options: WriteOptions & { name?: string; locale?: string; requestKey: string }): Promise<SaveResult> {
+export async function createSavedCase(signal: AbortSignal, caseId: string, options: WriteOptions & { name?: string; locale?: string; requestKey: string }): Promise<SaveResult | SaveConflict> {
   const { name, locale, requestKey, ...rest } = options;
   const body = JSON.stringify({ case_id: caseId, request_key: requestKey, ...(name === undefined ? {} : { name }) });
   return write(signal, rest, { method: "POST", url: `${url}create/`, body, ...(locale ? { headers: { "Accept-Language": locale } } : {}) }, async (response) => {
@@ -89,6 +89,13 @@ export async function createSavedCase(signal: AbortSignal, caseId: string, optio
       if (refused && refused.code === SCHOOL_REQUIRED) return SCHOOL_REQUIRED;
       const refusedName = refused?.errors?.name;
       return refusedName === "too_long" ? NAME_TOO_LONG : refusedName === "invalid" ? NAME_INVALID : null;
+    }
+    if (response.status === 409) {
+      const refused = await response.json().catch(() => null);
+      if (refused && refused.code === SAVE_CONFLICT) {
+        return { code: SAVE_CONFLICT, savedId: refused.saved_id, savedRevision: refused.revision, savedName: refused.saved_name, workingCaseId: caseId, workingRevision: refused.working_revision ?? 0 };
+      }
+      return null;
     }
     if (response.status !== 200 && response.status !== 201) return null;
     const body = await response.json();

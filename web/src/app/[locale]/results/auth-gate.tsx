@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { NAME_INVALID, NAME_TOO_LONG, SAVE_CONFLICT, SCHOOL_REQUIRED, createSavedCase, saveCase, type SaveConflict } from "@/api/saved-cases";
 import { openSavedCase, OPEN_CONFLICT } from "@/api/saved-cases";
 import { createShare, type CreatedShare } from "@/api/shares";
@@ -19,6 +20,7 @@ import { v4 as uuidv4 } from "uuid";
 /** `linked`: the case already has a Saved case, so Save does not ask for a name. */
 export function AuthGate({ locale, text, share: shareText, caseId, linked = false, onSchoolRequired }: { caseId: string; locale: string; text: Messages["results"]; share: Messages["share"]; linked?: boolean; onSchoolRequired?: () => void }) {
   const auth = useAuthState();
+  const router = useRouter();
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error" | "school" | "conflict">("idle");
   const [savedId, setSavedId] = useState<number | null>(null);
   const saving = useRef(false);
@@ -36,6 +38,9 @@ export function AuthGate({ locale, text, share: shareText, caseId, linked = fals
   const [conflictInFlight, setConflictInFlight] = useState<"open" | "create" | null>(null);
   const conflictInFlightRef = useRef(conflictInFlight);
   useEffect(() => { conflictInFlightRef.current = conflictInFlight; }, [conflictInFlight]);
+  
+  // Synchronous guard for double-click prevention
+  const inFlightGuard = useRef<"open" | "create" | null>(null);
   
   const runSave = useCallback(async (name?: string) => {
     if (saving.current) return;
@@ -153,27 +158,33 @@ export function AuthGate({ locale, text, share: shareText, caseId, linked = fals
 
   // Conflict resolution handlers
   const handleOpenLatest = useCallback(async () => {
-    if (!conflict || conflictInFlightRef.current) return;
+    if (!conflict || inFlightGuard.current) return;
+    inFlightGuard.current = "open";
     setConflictInFlight("open");
-    const signal = new AbortController().signal;
-    const result = await openSavedCase(signal, conflict.savedId, {
-      check: { caseId: conflict.workingCaseId, revision: conflict.workingRevision }
-    });
-    if (result === OPEN_CONFLICT || result === null) {
-      // Stale: show prompt again with fresh state
-      setConflictInFlight(null);
-    } else if (result) {
-      // Success: working copy replaced, stay on Full results
-      setConflict(null);
-      setConflictInFlight(null);
-      window.location.reload();
-    } else {
-      setConflictInFlight(null);
+    try {
+      const signal = new AbortController().signal;
+      const result = await openSavedCase(signal, conflict.savedId, {
+        check: { caseId: conflict.workingCaseId, revision: conflict.workingRevision }
+      });
+      if (result === OPEN_CONFLICT || result === null) {
+        // Stale: show prompt again with fresh state
+        setConflictInFlight(null);
+      } else if (result) {
+        // Success: working copy replaced, stay on Full results
+        setConflict(null);
+        setConflictInFlight(null);
+        router.replace(resultsResumePath(locale, "save"));
+      } else {
+        setConflictInFlight(null);
+      }
+    } finally {
+      inFlightGuard.current = null;
     }
   }, [conflict]);
 
   const handleSaveAsNew = useCallback(async () => {
-    if (!conflict || conflictInFlightRef.current) return;
+    if (!conflict || inFlightGuard.current) return;
+    inFlightGuard.current = "create";
     setConflictInFlight("create");
     // Open naming dialog prefilled with "{old name} (copy)"
     const oldName = conflict.savedName || text.nameDefaultSuggestion;
@@ -181,35 +192,40 @@ export function AuthGate({ locale, text, share: shareText, caseId, linked = fals
     setNaming(true);
     setTypedName(copyName);
     // We'll handle the actual create in the naming dialog's onSubmit
-    setConflictInFlight(null);
+    // Don't clear inFlightGuard here - it will be cleared after createSavedCase completes
   }, [conflict, text.nameDefaultSuggestion]);
 
   const handleCreateSavedCase = useCallback(async (name: string) => {
     if (!conflict) return;
+    // inFlightGuard is already set by handleSaveAsNew
     setConflictInFlight("create");
     const requestKey = uuidv4();
     const signal = new AbortController().signal;
-    const result = await createSavedCase(signal, caseId, { name, locale, requestKey });
-    if (result === NAME_TOO_LONG || result === NAME_INVALID) {
-      setNameError(result === NAME_TOO_LONG ? text.nameTooLong : text.nameInvalid);
-      setTypedName(name);
-      setNaming(true);
-      setConflictInFlight(null);
-    } else if (result === SCHOOL_REQUIRED) {
-      setSaveState("school");
-      onSchoolRequired?.();
-      setConflictInFlight(null);
-    } else if (result && typeof result === "object" && "id" in result) {
-      setSavedId(result.id);
-      setSaveState("saved");
-      setConflict(null);
-      setConflictInFlight(null);
-      // Continue any interrupted Share/WhatsApp
-      // The shareState will be handled by the existing flow
-    } else {
-      setSaveState("error");
-      setRetry({ name });
-      setConflictInFlight(null);
+    try {
+      const result = await createSavedCase(signal, caseId, { name, locale, requestKey });
+      if (result === NAME_TOO_LONG || result === NAME_INVALID) {
+        setNameError(result === NAME_TOO_LONG ? text.nameTooLong : text.nameInvalid);
+        setTypedName(name);
+        setNaming(true);
+        setConflictInFlight(null);
+      } else if (result === SCHOOL_REQUIRED) {
+        setSaveState("school");
+        onSchoolRequired?.();
+        setConflictInFlight(null);
+      } else if (result && typeof result === "object" && "id" in result) {
+        setSavedId(result.id);
+        setSaveState("saved");
+        setConflict(null);
+        setConflictInFlight(null);
+        // Continue any interrupted Share/WhatsApp
+        // The shareState will be handled by the existing flow
+      } else {
+        setSaveState("error");
+        setRetry({ name });
+        setConflictInFlight(null);
+      }
+    } finally {
+      inFlightGuard.current = null;
     }
   }, [caseId, conflict, locale, text.nameTooLong, text.nameInvalid, onSchoolRequired]);
 
@@ -222,7 +238,7 @@ export function AuthGate({ locale, text, share: shareText, caseId, linked = fals
         <button ref={whatsapp} type="button" disabled={shareState?.status === "creating" || saveState === "saving" || saveState === "conflict"} className={buttonClass} onClick={(event) => activate("whatsapp", event.currentTarget)}>{text.whatsappAction}</button>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <p role="status" className="text-sm text-muted">{saveState === "saving" ? text.saving : saveState === "error" ? text.saveError : saveState === "conflict" ? text.saveConflict : saveState === "school" ? text.saveNeedsSchool : saveState === "saved" ? text.saved : ""}</p>
+        <p role="status" aria-live="polite" className="text-sm text-muted">{saveState === "saving" ? text.saving : saveState === "error" ? text.saveError : saveState === "conflict" ? text.saveConflict : saveState === "school" ? text.saveNeedsSchool : saveState === "saved" ? text.saved : ""}</p>
         {saveState === "error" && retry && <button type="button" className={buttonClass} onClick={() => void runSave(retry.name)}>{text.saveRetry}</button>}
       </div>
       {conflict && (
@@ -249,12 +265,12 @@ export function AuthGate({ locale, text, share: shareText, caseId, linked = fals
             </button>
           </div>
           {(conflictInFlight === "open" || conflictInFlight === "create") && (
-            <p role="status" className="text-sm text-muted">{text.conflictInFlight}</p>
+            <p role="status" aria-live="polite" className="text-sm text-muted">{text.conflictInFlight}</p>
           )}
         </div>
       )}
       {naming && <NameDialog locale={locale} text={text} initial={typedName} error={nameError} onCancel={() => { setNaming(false); setNameError(null); save.current?.focus(); }} onSubmit={(name) => { setTypedName(name); setNameError(null); setNaming(false); if (conflict) void handleCreateSavedCase(name); else void runSave(name); }} /> }
-      {shareState?.status === "creating" && <p role="status">{shareText.preparing}</p>}
+      {shareState?.status === "creating" && <p role="status" aria-live="polite">{shareText.preparing}</p>}
       {shareState?.status === "error" && <p role="alert">{shareText.createError}</p>}
       {shareState?.status === "ready" && <SharePanel key={shareState.created.id} savedId={shareState.savedId} created={shareState.created} locale={locale} text={shareText} />}
       {shareState?.status === "ready" && shareState.via === "whatsapp" && <WhatsappPanel key={`wa-${shareState.created.id}`} url={shareUrl(window.location.origin, locale, shareState.created.token)} locale={locale} text={shareText} />}
