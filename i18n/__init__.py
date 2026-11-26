@@ -53,6 +53,7 @@ def resolve_locale(tag):
     return base if base in published_codes() else fallback_locale()
 
 
+@lru_cache(maxsize=None)
 def term(key, locale):
     """The text of a fiqh term in a Locale. Raises KeyError for an unknown key."""
     return catalog(resolve_locale(locale)).terms[key].text

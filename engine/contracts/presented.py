@@ -311,3 +311,13 @@ def dump_presented_result(presented):
     for key in ('rows', 'evidence', 'refusals', 'notices'):
         values[key] = list(values[key])
     return values
+
+
+def dump_fresh_presented_result(presented):
+    """The same dump without copying the nested data: only for a PresentedResult built in this
+    request and dropped once dumped, so nothing else can see the shared structure."""
+    values = dict(vars(presented))
+    values['basis'] = dump_basis(presented.basis)
+    for key in ('rows', 'evidence', 'refusals', 'notices'):
+        values[key] = list(values[key])
+    return values
