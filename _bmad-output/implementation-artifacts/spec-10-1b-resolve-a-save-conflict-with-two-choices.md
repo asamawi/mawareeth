@@ -2,7 +2,8 @@
 title: 'Story 10.1 (part B): Resolve a save conflict with two choices'
 type: 'feature'
 created: '2026-11-26'
-status: 'draft'
+status: 'review'
+baseline_commit: '9182d02a39b3e2c956927cf22148edd99c62e252'
 route: 'dispatch'
 review_loop_iteration: 0
 context:
@@ -51,23 +52,23 @@ context:
 
 ## Code Map
 
-- `api/views.py:392-470` -- `SavedCasesView.post` (create vs update, 409 body with the stored revision, school and name checks); `OpenSavedCaseView.post` (10.0 check). Factor the shared validation and snapshot export rather than copy it.
-- `api/anonymous_case.py:333-338, 1091-1107` -- `_saved_state`, `get_saved_link`, `set_saved_link`; add the linked id to `saved` only from the session link.
-- `api/urls.py:33-39` -- add the create-only route before `<int:id>` routes.
-- `mawareeth/middleware.py:53-109` -- confirms `/saved-cases/` writes take the session lock; do not change.
-- `web/src/api/saved-cases.ts` -- `saveCase` (`SAVE_CONFLICT`), `openSavedCase` (`check`, `OPEN_CONFLICT`); add the create call.
-- `web/src/app/[locale]/results/auth-gate.tsx`, `name-dialog.tsx`, `results-view.tsx` -- conflict branch (~62), one in-flight guard, Retry of exact arguments, `linked` prop; NameDialog currently always submits through `runSave`.
-- `web/src/app/[locale]/cases/cases-view.tsx:59-84` -- checked-open handling to mirror.
-- Tests: `api/test_saved_case_upgrade.py:238` (two working copies), `api/test_saved_case_unsaved.py:134` (checked open), `web/src/api/saved-cases.test.ts`, `web/src/app/[locale]/results/auth-gate.test.tsx` (`makeFetch`), `web/e2e/results.spec.ts:131` and `web/e2e/api.ts:134` stubs.
+- `api/views.py:392-462` -- `SavedCasesView.post` (create vs update, 409 body with the stored revision, school and name checks). **Add new `SavedCaseCreateView`** at a create-only route (e.g., `POST saved-cases/create/` or `POST saved-cases/` with a `create_only` flag) that bypasses the conflict check, validates snapshot/school/name like the current `post`, creates a new `SavedCase` row, and relinks the session. Factor shared validation and snapshot export into a helper to avoid duplication with the update path.
+- `api/anonymous_case.py:333-338, 1091-1107` -- `_saved_state`, `get_saved_link`, `set_saved_link`; add the linked id to `saved` only from the session link. The new create endpoint calls `set_saved_link` with the new row's pk and revision.
+- `api/urls.py:33-39` -- add the create-only route **before** `<int:id>` routes (e.g., `path('saved-cases/create/', SavedCaseCreateView.as_view(), name='saved-case-create')`).
+- `web/src/api/saved-cases.ts` -- `saveCase` returns `SAVE_CONFLICT`; add `createSavedCase(signal, caseId, options)` that POSTs to the new route with a request key (idempotency) and returns `Saved | typeof SAVE_CONFLICT | typeof SCHOOL_REQUIRED | typeof NAME_TOO_LONG | typeof NAME_INVALID | null`.
+- `web/src/app/[locale]/results/auth-gate.tsx`, `name-dialog.tsx`, `results-view.tsx` -- conflict branch (~line 45-46, 142-143): replace the single conflict message with a prompt showing the status-line text plus two buttons ("Open latest version", "Save as a new case"). Add an in-flight guard per choice. On "Open latest": call `openSavedCase` with the linked id and expected revision; on success, replace the working copy and stay on Full results. On "Save as new": open the naming dialog prefilled with `"{old name} (copy)"` (or suggestion if old name unknown), then call `createSavedCase`; on success, relink and continue any interrupted Share/WhatsApp. Retry of a failed choice resends the exact same arguments (request key for create). Both buttons disabled while a choice is in flight.
+- `web/src/app/[locale]/cases/cases-view.tsx:59-84` -- checked-open handling to mirror the conflict resolution for direct opens from My cases.
+- `web/src/i18n/messages.ts` -- add conflict prompt texts and the two button labels in en, ar, fr (wording drafts); run the catalog check.
+- Tests: `api/test_saved_case_upgrade.py:238` (two working copies), `api/test_saved_case_unsaved.py:134` (checked open), `web/src/api/saved-cases.test.ts`, `web/src/app/[locale]/results/auth-gate.test.tsx` (`makeFetch`), `web/e2e/results.spec.ts:131` and `web/e2e/api.ts:134` stubs. Add tests for every matrix row: Django (including two sessions and the original row unchanged), web unit, and `results.spec.ts` in en and ar with axe.
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `api/anonymous_case.py`, `api/views.py`, `api/urls.py` -- linked id in `saved`; create-only route with the checks, request key and relink.
-- [ ] `web/src/api/saved-cases.ts` -- create call and outcomes.
-- [ ] `web/src/app/[locale]/results/` -- the prompt, both choices, Retry, Share and WhatsApp continuation.
-- [ ] `web/src/i18n/messages.ts` -- texts; run the catalog check.
-- [ ] Tests for every matrix row: Django (including two sessions and the original row unchanged), web unit, and `results.spec.ts` in en and ar with axe.
+- [x] `api/anonymous_case.py`, `api/views.py`, `api/urls.py` -- linked id in `saved`; create-only route with the checks, request key and relink.
+- [x] `web/src/api/saved-cases.ts` -- create call and outcomes.
+- [x] `web/src/app/[locale]/results/` -- the prompt, both choices, Retry, Share and WhatsApp continuation.
+- [x] `web/src/i18n/messages.ts` -- texts; run the catalog check.
+- [x] Tests for every matrix row: Django (including two sessions and the original row unchanged), web unit, and `results.spec.ts` in en and ar with axe.
 
 **Acceptance Criteria:**
 - Given a conflict, when the user leaves without choosing, then the stored case and the working copy are both unchanged.

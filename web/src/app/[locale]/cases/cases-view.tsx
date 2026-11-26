@@ -8,6 +8,7 @@ import { listReceived, type Received } from "@/api/invites";
 import { casesPath, loginHref, receivedPath } from "@/i18n/paths";
 import { useAuthState } from "../use-session";
 import { buttonClass } from "../interview/form-bits";
+
 export function CasesView({ locale, text }: { locale: string; text: Messages }) {
   const router = useRouter();
   const auth = useAuthState();
@@ -17,6 +18,9 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
   const [opening, setOpening] = useState<number | null>(null);
   // The row waiting for the discard answer, and the working copy shown to the visitor (undefined: unreadable).
   const [prompt, setPrompt] = useState<{ id: number; current: Case | null | undefined } | null>(null);
+  // Save conflict resolution state for direct opens (when saved case changed elsewhere)
+  const [saveConflict, setSaveConflict] = useState<{ id: number; linkedId: number; linkedRevision: number; workingCaseId: string; workingRevision: number; linkedName?: string } | null>(null);
+  const [conflictInFlight, setConflictInFlight] = useState<"open" | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const safe = useRef<HTMLButtonElement>(null);
   const pressed = useRef<HTMLElement | null>(null);
@@ -76,6 +80,7 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
     if (result) router.push(`/${locale}/interview/`);
     else { refocus.current = true; setError(true); setOpening(null); }
   }
+
   async function confirm() {
     if (!prompt) return;
     const { id, current } = prompt;
@@ -83,6 +88,7 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
     setPrompt(null);
     await go(id, current);
   }
+
   function open(id: number, button: HTMLElement) {
     pressed.current = button;
     void begin(id);
@@ -126,6 +132,21 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
           </>
         )}
       </dialog>
+      {saveConflict && (
+        <dialog open className="m-auto max-w-md rounded border bg-white p-6 text-black backdrop:bg-black/50" role="alertdialog" aria-labelledby="conflict-title" aria-describedby="conflict-body">
+          <h2 id="conflict-title" className="text-xl font-semibold">{text.results.conflictOpenTitle}</h2>
+          <p id="conflict-body" className="my-4 text-sm text-muted">{text.results.conflictOpenBody.split("{caseId}").join(saveConflict.workingCaseId).split("{revision}").join(String(saveConflict.workingRevision)).split("{id}").join(String(saveConflict.linkedId)).split("{revision2}").join(String(saveConflict.linkedRevision))}</p>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" disabled={conflictInFlight !== null} className={buttonClass} onClick={() => { setConflictInFlight("open"); setSaveConflict(null); }}>
+              {conflictInFlight === "open" ? text.results.conflictOpening : text.results.conflictOpenLatest}
+            </button>
+            <button type="button" className={buttonClass} onClick={() => { setSaveConflict(null); }}>
+              {text.results.conflictCancel}
+            </button>
+          </div>
+          {conflictInFlight === "open" && <p role="status" className="text-sm text-muted">{text.results.conflictInFlight}</p>}
+        </dialog>
+      )}
       <h2 className="text-xl font-semibold">{text.invites.received}</h2>
       {received?.length === 0 && <p>{text.invites.empty}</p>}
       <ul className="flex flex-col gap-4">{received?.map((row) => <li key={row.id} className="flex flex-wrap items-center gap-4 rounded border p-4">

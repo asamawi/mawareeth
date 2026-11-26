@@ -12,6 +12,8 @@ export type Saved = { id: number; name: string; updated_at: string };
 export const NAME_TOO_LONG = "name_too_long";
 export const NAME_INVALID = "name_invalid";
 export type SaveResult = Saved | typeof SCHOOL_REQUIRED | typeof SAVE_CONFLICT | typeof NAME_TOO_LONG | typeof NAME_INVALID | null;
+/** Conflict details returned with SAVE_CONFLICT. */
+export type SaveConflict = { code: typeof SAVE_CONFLICT; savedId: number; savedRevision: number; savedName: string; workingCaseId: string; workingRevision: number };
 /** The Case name rule: user-perceived characters (extended grapheme clusters), as the server counts them. */
 export const NAME_LIMIT = 100;
 export function graphemeCount(name: string, locale?: string): number {
@@ -20,7 +22,7 @@ export function graphemeCount(name: string, locale?: string): number {
   return [...new Intl.Segmenter(locale, { granularity: "grapheme" }).segment(name)].length;
 }
 /** Success is claimed only for a 200 or 201 whose answer carries the stored name. */
-export async function saveCase(signal: AbortSignal, caseId: string, options: WriteOptions & { name?: string; locale?: string } = {}): Promise<SaveResult> {
+export async function saveCase(signal: AbortSignal, caseId: string, options: WriteOptions & { name?: string; locale?: string } = {}): Promise<SaveResult | SaveConflict> {
   const { name, locale, ...rest } = options;
   const body = JSON.stringify({ case_id: caseId, ...(name === undefined ? {} : { name }) });
   return write(signal, rest, { method: "POST", url, body, ...(locale ? { headers: { "Accept-Language": locale } } : {}) }, async (response) => {
@@ -32,7 +34,10 @@ export async function saveCase(signal: AbortSignal, caseId: string, options: Wri
     }
     if (response.status === 409) {
       const refused = await response.json().catch(() => null);
-      return refused && refused.code === SAVE_CONFLICT ? SAVE_CONFLICT : null;
+      if (refused && refused.code === SAVE_CONFLICT) {
+        return { code: SAVE_CONFLICT, savedId: refused.saved_id, savedRevision: refused.revision, savedName: refused.saved_name, workingCaseId: caseId, workingRevision: refused.working_revision ?? 0 };
+      }
+      return null;
     }
     if (response.status !== 200 && response.status !== 201) return null;
     const body = await response.json();
@@ -71,6 +76,26 @@ export async function openSavedCase(signal: AbortSignal, id: number, options: Wr
     return response.ok ? parseCase(await response.json()) : null;
   });
 }
+
+/** Create a new SavedCase from the working copy, bypassing the conflict check.
+ * The `requestKey` (a client-generated UUID) provides idempotency: retrying with the same key returns the same row.
+ * The `name` is optional; blank or missing falls back to the server's suggestion. */
+export async function createSavedCase(signal: AbortSignal, caseId: string, options: WriteOptions & { name?: string; locale?: string; requestKey: string }): Promise<SaveResult> {
+  const { name, locale, requestKey, ...rest } = options;
+  const body = JSON.stringify({ case_id: caseId, request_key: requestKey, ...(name === undefined ? {} : { name }) });
+  return write(signal, rest, { method: "POST", url: `${url}create/`, body, ...(locale ? { headers: { "Accept-Language": locale } } : {}) }, async (response) => {
+    if (response.status === 400) {
+      const refused = await response.json().catch(() => null);
+      if (refused && refused.code === SCHOOL_REQUIRED) return SCHOOL_REQUIRED;
+      const refusedName = refused?.errors?.name;
+      return refusedName === "too_long" ? NAME_TOO_LONG : refusedName === "invalid" ? NAME_INVALID : null;
+    }
+    if (response.status !== 200 && response.status !== 201) return null;
+    const body = await response.json();
+    return Number.isInteger(body.id) && body.id > 0 && typeof body.updated_at === "string" && typeof body.name === "string" ? { id: body.id, name: body.name, updated_at: body.updated_at } : null;
+  });
+}
+
 export async function listSavedCases(signal: AbortSignal): Promise<SavedCase[]> {
   const controller = new AbortController();
   const abort = () => controller.abort();

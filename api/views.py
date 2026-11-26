@@ -423,7 +423,7 @@ class SavedCasesView(ApiView):
             try:
                 needs_school = preview.preview(case)['status'] == 'choose_school'
             except Exception as error:
-                logger.error('Save comparison failed: %s\n%s', type(error).__name__,
+                logger.error('Save comparison failed: %s\\n%s', type(error).__name__,
                              ''.join(traceback.format_tb(error.__traceback__)))
                 return Response({'detail': 'The case cannot be saved right now.'}, status=503)
             if needs_school:
@@ -440,7 +440,10 @@ class SavedCasesView(ApiView):
                 elif row.revision != anonymous_case.get_saved_base_revision(request, case['id']):
                     return Response({'error': 'conflict', 'code': 'saved_case_conflict',
                                      'detail': 'This saved case changed since it was opened.',
-                                     'revision': row.revision}, status=409)
+                                     'revision': row.revision,
+                                     'saved_id': row.pk,
+                                     'saved_name': row.name,
+                                     'working_revision': case['revision']}, status=409)
                 row.snapshot = snapshot
                 row.schema_version = version
                 if not created:
@@ -460,6 +463,97 @@ class SavedCasesView(ApiView):
         anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision, case['revision'])
         return Response({'id': row.pk, 'name': row.name, 'updated_at': row.updated_at, 'revision': row.revision},
                         status=201 if created else 200)
+
+
+@method_decorator(never_cache, name='dispatch')
+class SavedCaseCreateView(ApiView):
+    """Create a new SavedCase from the working copy, bypassing the conflict check.
+    Used by 'Save as a new case' after a conflict. The request_key provides idempotency.
+    """
+
+    def post(self, request):
+        data = request.data if isinstance(request.data, dict) else {}
+        if not isinstance(data.get('case_id'), str) or not data['case_id']:
+            return Response({'detail': 'case_id is required.'}, status=400)
+        # Idempotency key: a client-generated UUID. When retried with the same key, return the same row.
+        request_key = data.get('request_key')
+        if not isinstance(request_key, str) or not request_key:
+            return Response({'detail': 'request_key is required.'}, status=400)
+        # Name is optional; blank or missing falls back to the suggestion.
+        name = None
+        if 'name' in data:
+            if not isinstance(data['name'], str):
+                return Response({'detail': 'Invalid input.', 'errors': {'name': 'invalid'}}, status=400)
+            if '\x00' in data['name']:
+                return Response({'detail': 'Invalid input.', 'errors': {'name': 'invalid'}}, status=400)
+            name = data['name'].strip()
+            if grapheme_count(name) > NAME_LIMIT:
+                return Response({'detail': 'Invalid input.', 'errors': {'name': 'too_long'}}, status=400)
+        case = anonymous_case.get(request)
+        if case is not None and case['id'] != data['case_id']:
+            return Response({'detail': 'That case is no longer the current one.'}, status=409)
+        if case is None and anonymous_case.is_expired(request):
+            return no_case_response(request)
+        if case is None or not case['deceased'] or not case['heirs']:
+            return Response({'detail': 'Complete the case before saving.'}, status=400)
+        version = write_version()
+        snapshot = anonymous_case.export_snapshot(case)
+        try:
+            ensure_writable(snapshot)
+            if version == 2:
+                snapshot = encode_v2(snapshot)
+                decode(2, snapshot, 'snapshot', '')
+        except (PresentationError, ContractError, SnapshotError, ValueError, KeyError):
+            return Response({'detail': 'The case cannot be saved.', 'code': 'unsupported_content'}, status=400)
+        if not case['madhab']:
+            # No school is saveable only while all four Sunni schools give the same result.
+            try:
+                needs_school = preview.preview(case)['status'] == 'choose_school'
+            except Exception as error:
+                logger.error('Save comparison failed: %s\\n%s', type(error).__name__,
+                             ''.join(traceback.format_tb(error.__traceback__)))
+                return Response({'detail': 'The case cannot be saved right now.'}, status=503)
+            if needs_school:
+                return Response({'detail': 'Choose a school of law before saving.', 'code': 'school_required'},
+                                status=400)
+
+        # Idempotency: look for an existing SavedCase created with this request_key in the session.
+        # We store the key in the snapshot's metadata (a reserved field) to find it later.
+        # The snapshot is not user-visible, so this is safe.
+        idempotency_marker = f'__request_key__{request_key}'
+
+        try:
+            with transaction.atomic():
+                # Check if we already created a row for this request_key in this session's working copy.
+                existing = (SavedCase.objects.select_for_update()
+                           .filter(owner=request.user, snapshot__contains=idempotency_marker).first())
+                if existing:
+                    # Return the existing row, relink the working copy to it.
+                    existing.refresh_from_db(fields=['revision'])
+                    anonymous_case.set_saved_link(request, case['id'], existing.pk, existing.revision, case['revision'])
+                    return Response({'id': existing.pk, 'name': existing.name, 'updated_at': existing.updated_at,
+                                     'revision': existing.revision}, status=200)
+
+                # Create a new row.
+                row = SavedCase(owner=request.user, snapshot=snapshot, schema_version=version)
+                row.save()
+                # Set the name (with suggestion fallback) and embed the request_key for idempotency.
+                locale_for_name = _asked_language(request) if name is not None else None
+                row.name = name or default_name(row.created_at, locale_for_name)
+                # Embed the request_key in the snapshot for future idempotency checks.
+                # We append it to the snapshot JSON (which is a dict) and re-save.
+                snapshot_with_key = {**snapshot, idempotency_marker: True}
+                if version == 2:
+                    snapshot_with_key = encode_v2(snapshot_with_key)
+                SavedCase.objects.filter(pk=row.pk).update(name=row.name, snapshot=snapshot_with_key)
+                row.refresh_from_db(fields=['revision', 'updated_at'])
+                anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision, case['revision'])
+                return Response({'id': row.pk, 'name': row.name, 'updated_at': row.updated_at, 'revision': row.revision},
+                                status=201)
+        except OperationalError as error:
+            if is_lock_timeout(error):
+                return busy_response()
+            raise
 
 
 @method_decorator(never_cache, name='dispatch')

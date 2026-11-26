@@ -37,8 +37,14 @@ test("a 200 without the stored name is not a success", async () => {
 });
 test("save sends the name and tells a conflict and a missing school apart", async () => {
   let sent = "";
-  globalThis.fetch = async (_url, init) => { sent = String(init?.body); return Response.json({ code: "saved_case_conflict" }, { status: 409 }); };
-  assert.equal(await saveCase(signal(), "live", { ...options, name: "Mother's estate" }), SAVE_CONFLICT);
+  globalThis.fetch = async (_url, init) => { sent = String(init?.body); return Response.json({ code: "saved_case_conflict", saved_id: 123, saved_name: "Test Case", revision: 5, working_revision: 2 }, { status: 409 }); };
+  const result = await saveCase(signal(), "live", { ...options, name: "Mother's estate" });
+  assert.ok(typeof result === "object" && result !== null && "code" in result && result.code === SAVE_CONFLICT);
+  const conflictResult = result as { savedId: number; savedName: string; savedRevision: number; workingRevision: number };
+  assert.equal(conflictResult.savedId, 123);
+  assert.equal(conflictResult.savedName, "Test Case");
+  assert.equal(conflictResult.savedRevision, 5);
+  assert.equal(conflictResult.workingRevision, 2);
   assert.deepEqual(JSON.parse(sent), { case_id: "live", name: "Mother's estate" });
   globalThis.fetch = async () => Response.json({ code: "school_required" }, { status: 400 });
   assert.equal(await saveCase(signal(), "live", options), SCHOOL_REQUIRED);

@@ -248,7 +248,8 @@ class SavedCaseUpgradeTests(InterviewHelpers, TestCase):
         snapshot = deepcopy(row.snapshot)
         response = self.send('post', '/api/v1/saved-cases/', {'case_id': a['id']})
         self.assertEqual(response.json(), {'error': 'conflict', 'code': 'saved_case_conflict',
-            'detail': 'This saved case changed since it was opened.', 'revision': 3})
+            'detail': 'This saved case changed since it was opened.', 'revision': 3,
+            'saved_id': row.pk, 'saved_name': row.name, 'working_revision': a['revision']})
         row.refresh_from_db()
         self.assertEqual(row.snapshot, snapshot)
         self.assertEqual(dict(self.client.session), before)
