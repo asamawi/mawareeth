@@ -5,6 +5,7 @@ import { act } from "react";
 import { installDom, teardownDom } from "@/test/dom";
 import type { Window } from "happy-dom";
 import { messages } from "@/i18n/messages";
+import { nextSeq } from "./auth-gate-state";
 
 const text = messages["en"].results;
 const shareText = messages["en"].share;
@@ -265,7 +266,7 @@ test("dialog close after auth resolves as authenticated triggers runSave", async
 });
 
 const shareBody = { id: 7, token: "tok123", visibility: "private", created_at: "2026-11-01T00:00:00Z", expires_at: "2026-12-01T00:00:00Z", expired: false };
-const authedHandlers = { "/api/v1/saved-cases/42/shares/": { status: 201, body: shareBody }, "/api/v1/saved-cases/": { status: 200, body: { id: 42, name: "Estate", updated_at: "2026-11-01T00:00:00Z" } } };
+const authedHandlers = { "/api/v1/saved-cases/42/invites/": { status: 200, body: { invites: [] } }, "/api/v1/saved-cases/42/shares/": { status: 201, body: shareBody }, "/api/v1/saved-cases/": { status: 200, body: { id: 42, name: "Estate", updated_at: "2026-11-01T00:00:00Z" } } };
 
 function button(label: string) {
   return [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === label);
@@ -343,12 +344,12 @@ test("the Share button shows no WhatsApp panel", async () => {
 });
 
 test("a create failure shows createError and no WhatsApp panel", async () => {
-  (globalThis as Record<string, unknown>).fetch = makeFetch(true, { "/api/v1/saved-cases/42/shares/": { status: 500, body: {} }, "/api/v1/saved-cases/": { status: 200, body: { id: 42, name: "Estate", updated_at: "2026-11-01T00:00:00Z" } } });
+  (globalThis as Record<string, unknown>).fetch = makeFetch(true, { "/api/v1/saved-cases/42/invites/": { status: 200, body: { invites: [] } }, "/api/v1/saved-cases/42/shares/": { status: 500, body: {} }, "/api/v1/saved-cases/": { status: 200, body: { id: 42, name: "Estate", updated_at: "2026-11-01T00:00:00Z" } } });
   await act(() => { root.render(<AuthGate locale="en" text={text} share={shareText} caseId="c1" />); });
   await settle();
   await act(() => { button(text.whatsappAction)!.click(); });
   await settle();
-  assert.equal(container.querySelector("[role=alert]")!.textContent, shareText.createError);
+  assert.equal(status(), shareText.createError);
   assert.ok(!button(shareText.whatsappOpen));
 });
 
@@ -846,4 +847,57 @@ test("a Share panel from an earlier share is cleared when the visitor switches t
   await submitName();
   assert.ok(!container.textContent?.includes(shareText.copy), "the old link is gone");
   assert.equal(status(), text.saved);
+});
+
+function clipboard(write: (value: string) => Promise<void>) {
+  Object.defineProperty(globalThis, "navigator", { value: { clipboard: { writeText: write } }, configurable: true, writable: true });
+}
+
+test("Share: one status line shows created, then copied only after the copy resolves", async () => {
+  (globalThis as Record<string, unknown>).fetch = makeFetch(true, authedHandlers);
+  let resolveCopy!: () => void;
+  clipboard(() => new Promise<void>((resolve) => { resolveCopy = resolve; }));
+  await act(() => { root.render(<AuthGate locale="en" text={text} share={shareText} caseId="c1" />); });
+  await settle();
+  const line = container.querySelector("[role=status]")!;
+  await act(() => { buttonNamed(text.shareAction)!.click(); });
+  await settle();
+  const said = (value: string) => [...container.querySelectorAll("[role=status]")].filter((n) => n.textContent === value).length;
+  assert.equal(said(shareText.created), 1);
+  assert.equal(container.querySelector("[role=status]"), line, "the same element carries every outcome");
+  assert.equal(status(), shareText.created);
+  await act(() => { buttonNamed(shareText.copy)!.click(); });
+  assert.equal(status(), shareText.created, "not copied before the clipboard resolves");
+  await act(async () => { resolveCopy(); await new Promise<void>((r) => { setTimeout(r, 5); }); });
+  assert.equal(container.querySelector("[role=status]"), line);
+  assert.equal(status(), shareText.copied);
+});
+
+test("Share: a rejected copy shows copyFailed on the line and selects the URL", async () => {
+  (globalThis as Record<string, unknown>).fetch = makeFetch(true, authedHandlers);
+  clipboard(() => Promise.reject(new Error("denied")));
+  await act(() => { root.render(<AuthGate locale="en" text={text} share={shareText} caseId="c1" />); });
+  await settle();
+  await act(() => { buttonNamed(text.shareAction)!.click(); });
+  await settle();
+  await act(() => { buttonNamed(shareText.copy)!.click(); });
+  await settle();
+  assert.equal(status(), shareText.copyFailed);
+  assert.equal([...container.querySelectorAll("[role=status]")].filter((n) => n.textContent === shareText.copyFailed).length, 1);
+  const url = container.querySelector<HTMLInputElement>("input[readonly]")!;
+  assert.ok(url.selectionEnd! > url.selectionStart!, "the URL is selected");
+  assert.equal(url.selectionEnd! - url.selectionStart!, url.value.length);
+});
+
+test("PDF events share the status line and the newest event wins", async () => {
+  (globalThis as Record<string, unknown>).fetch = makeFetch(true, authedHandlers);
+  await act(() => { root.render(<AuthGate locale="en" text={text} share={shareText} caseId="c1" pdf={{ text: text.pdfBusy, seq: nextSeq() }} />); });
+  await settle();
+  assert.equal(status(), text.pdfBusy);
+  await act(() => { root.render(<AuthGate locale="en" text={text} share={shareText} caseId="c1" pdf={{ text: text.pdfFailed, seq: nextSeq() }} />); });
+  assert.equal(status(), text.pdfFailed);
+  await act(() => { root.render(<AuthGate locale="en" text={text} share={shareText} caseId="c1" linked pdf={{ text: text.pdfFailed, seq: 1 }} />); });
+  await act(() => { saveButton().click(); });
+  await settle();
+  assert.equal(status(), text.saved, "a save newer than the PDF failure replaces it");
 });

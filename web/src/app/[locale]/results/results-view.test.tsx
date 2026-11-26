@@ -158,3 +158,58 @@ test("a save still in flight keeps Continue disabled across a reconnect", async 
   await act(async () => { release(); });
   await settle();
 });
+
+const { Available } = await import("./results-view.tsx");
+const { parseServedPreview, parseCase } = await import("@/api/case");
+const hanafiCase = () => parseCase({ case: previewFixture("Grandfather and brother under Hanafi").case })!;
+const hanafi = previewFixture("Grandfather and brother under Hanafi");
+const availablePreview = parseServedPreview(hanafi.response) as Parameters<typeof Available>[0]["preview"];
+
+async function renderAvailable(gate: boolean, result: { kind: "failed" | "download" }) {
+  await act(() => {
+    root.render(<Available messages={en} locale="en" kase={hanafiCase()} preview={availablePreview} back={null} gate={gate} download={() => Promise.resolve(result as never)} />);
+  });
+  await settle();
+  const pdf = () => [...container.querySelectorAll("button")].find((b) => b.textContent === en.results.pdfDownload || b.textContent === en.results.pdfRetry)!;
+  await act(() => { pdf().click(); });
+  await settle();
+}
+
+test("Full results: a failed PDF is reported on the single status line and the family stays", async () => {
+  await renderAvailable(true, { kind: "failed" });
+  const lines = [...container.querySelectorAll("[role=status]")].map((p) => p.textContent);
+  assert.deepEqual(lines, [en.results.pdfFailed]);
+  assert.equal(container.querySelector("[role=alert]"), null);
+  assert.ok(container.querySelector("#results-family"));
+  assert.ok([...container.querySelectorAll("button")].some((b) => b.textContent === en.results.pdfRetry));
+});
+
+test("Shared view (no gate): DraftDownload keeps its own failure alert", async () => {
+  await renderAvailable(false, { kind: "failed" });
+  assert.equal(container.querySelector("[role=alert]")?.textContent, en.results.pdfFailed);
+  assert.equal(container.querySelector("[role=status]"), null);
+});
+
+test("Full results: a button-initiated PDF shows busy while pending and blanks the line after success", async () => {
+  let finish!: (value: unknown) => void;
+  const pending = new Promise((resolve) => { finish = resolve; });
+  const realCreate = URL.createObjectURL;
+  URL.createObjectURL = () => "blob:test";
+  URL.revokeObjectURL = () => {};
+  try {
+    await act(() => {
+      root.render(<Available messages={en} locale="en" kase={hanafiCase()} preview={availablePreview} back={null} gate download={() => pending as never} />);
+    });
+    await settle();
+    const line = container.querySelector("[role=status]")!;
+    const pdf = [...container.querySelectorAll("button")].find((b) => b.textContent === en.results.pdfDownload)!;
+    await act(() => { pdf.click(); });
+    assert.equal(container.querySelector("[role=status]"), line);
+    assert.equal(line.textContent, en.results.pdfBusy);
+    await act(async () => { finish({ kind: "download", blob: new Blob(["%PDF"]) }); await new Promise<void>((r) => { setTimeout(r, 20); }); });
+    assert.equal(container.querySelector("[role=status]"), line);
+    assert.equal(line.textContent, "");
+  } finally {
+    URL.createObjectURL = realCreate;
+  }
+});

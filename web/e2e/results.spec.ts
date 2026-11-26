@@ -184,6 +184,31 @@ for (const locale of ["en", "ar"] as const) {
       await expect(saveButton(page)).toBeEnabled();
     });
 
+    test("Share then Copy reports created then copied in the same status line as Save", async ({ page, api, context }) => {
+      await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+      const row = { id: 7, visibility: "private", created_at: "2026-11-26T00:00:00Z", expires_at: "2026-12-26T00:00:00Z", expired: false };
+      stubResults(api, {
+        postSaved: json(201, { id: 42, name: SUGGESTION, updated_at: "2026-11-26T00:00:00Z", revision: 1 }),
+        postShareCreate: json(201, { ...row, token: "tok123" }),
+        getShares: json(200, { shares: [row] }),
+      });
+      await page.goto(`/${locale}/results/`);
+      await page.getByRole("button", { name: text.shareAction, exact: true }).click();
+      await expect(status(page)).toHaveText(messages[locale].share.created);
+      await page.getByRole("button", { name: messages[locale].share.copy, exact: true }).click();
+      await expect(status(page)).toHaveText(messages[locale].share.copied);
+      await expect(status(page)).toHaveCount(1);
+    });
+
+    test("a failing PDF shows the failure in the status line with the family still visible", async ({ page, api }) => {
+      stubResults(api, { getDraftReport: (route) => route.fulfill({ status: 500, contentType: "application/json", body: "{}" }) });
+      await page.goto(`/${locale}/results/`);
+      await page.getByRole("button", { name: text.pdfDownload, exact: true }).click();
+      await expect(status(page)).toHaveText(text.pdfFailed);
+      await expect(page.locator("#results-family")).toBeVisible();
+      await expect(page.getByRole("button", { name: text.pdfRetry, exact: true })).toBeVisible();
+    });
+
     for (const scheme of ["light", "dark"] as const) {
       test(`the naming dialog has no serious or critical axe violation in ${scheme} mode`, async ({ page, api }) => {
         await page.emulateMedia({ colorScheme: scheme });

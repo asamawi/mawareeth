@@ -26,6 +26,7 @@ import { RelationshipText } from "../interview/relationship-text";
 import { useOnline } from "../interview/online";
 import { SchoolChoice } from "../interview/school-choice";
 import { AuthGate } from "./auth-gate";
+import { nextSeq } from "./auth-gate-state";
 import { InheritanceTable, ProofList } from "./inheritance-table";
 
 type Loaded =
@@ -237,6 +238,8 @@ export function Available({
 }) {
   const text = messages.results;
   const interview = messages.interview;
+  const [pdf, setPdf] = useState<{ text: string | null; seq: number } | undefined>(undefined);
+  const reportPdf = useCallback((line: string | null) => setPdf({ text: line, seq: nextSeq() }), []);
   const { entries, unallocated } = useMemo(() => resultEntries(preview), [preview]);
   const layered = isLayeredPreview(preview);
   const labels = useMemo(
@@ -266,8 +269,8 @@ export function Available({
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
       <p>{schoolLine?.code === "school" ? text.school.split("{school}").join(schoolLine.text) : schoolLine?.text}</p>
-      {gate && <AuthGate key={`${kase.id}:${kase.madhab ?? ""}`} caseId={kase.id} linked={!!kase.saved} locale={locale} text={text} share={messages.share} onSchoolRequired={onSchoolRequired} onReplaced={onReplaced} />}
-      <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} download={download} />
+      {gate && <AuthGate key={`${kase.id}:${kase.madhab ?? ""}`} caseId={kase.id} linked={!!kase.saved} locale={locale} text={text} share={messages.share} onSchoolRequired={onSchoolRequired} onReplaced={onReplaced} pdf={pdf} />}
+      <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} download={download} onStatus={gate ? reportPdf : undefined} />
 
       <section aria-labelledby="results-shares" className="flex flex-col gap-3">
         <h2 id="results-shares" className="text-xl font-semibold">
@@ -428,7 +431,7 @@ function HeirCard({
   );
 }
 
-function DraftDownload({ caseId, locale, text, download: inject }: { caseId: string; locale: string; text: Messages["results"]; download?: (signal: AbortSignal) => Promise<DraftReportResult> }) {
+function DraftDownload({ caseId, locale, text, download: inject, onStatus }: { caseId: string; locale: string; text: Messages["results"]; download?: (signal: AbortSignal) => Promise<DraftReportResult>; onStatus?: (line: string | null) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const active = useRef(false);
@@ -446,15 +449,18 @@ function DraftDownload({ caseId, locale, text, download: inject }: { caseId: str
     active.current = true;
     setBusy(true);
     setError(null);
+    onStatus?.(text.pdfBusy);
     try {
       const controller = new AbortController();
       request.current = controller;
       const result = inject ? await inject(controller.signal) : await downloadDraftReport(caseId, locale, { signal: controller.signal });
       if (!mounted.current || controller.signal.aborted) return;
       if (result.kind !== "download") {
-        setError(result.kind === "throttled" ? text.pdfThrottled
+        const failure = result.kind === "throttled" ? text.pdfThrottled
           : result.kind === "gone" || result.kind === "replaced" || result.kind === "unavailable" ? text.pdfUnavailable
-          : result.kind === "timeout" ? text.pdfTimeout : text.pdfFailed);
+          : result.kind === "timeout" ? text.pdfTimeout : text.pdfFailed;
+        setError(failure);
+        onStatus?.(failure);
         return;
       }
       const url = URL.createObjectURL(result.blob);
@@ -465,8 +471,9 @@ function DraftDownload({ caseId, locale, text, download: inject }: { caseId: str
       anchor.click();
       anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      onStatus?.("");
     } catch {
-      if (mounted.current) setError(text.pdfFailed);
+      if (mounted.current) { setError(text.pdfFailed); onStatus?.(text.pdfFailed); }
     } finally {
       active.current = false;
       if (mounted.current) setBusy(false);
@@ -476,7 +483,7 @@ function DraftDownload({ caseId, locale, text, download: inject }: { caseId: str
     <div><button type="button" disabled={busy} className={buttonClass} onClick={() => void download()}>
       {busy ? text.pdfBusy : error ? text.pdfRetry : text.pdfDownload}
     </button></div>
-    {busy && <p role="status">{text.pdfBusy}</p>}
-    {error && <p role="alert">{error}</p>}
+    {busy && !onStatus && <p role="status">{text.pdfBusy}</p>}
+    {error && !onStatus && <p role="alert">{error}</p>}
   </div>;
 }

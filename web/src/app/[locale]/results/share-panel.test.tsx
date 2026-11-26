@@ -198,3 +198,13 @@ test("a stale initial invite list cannot overwrite the list refreshed after send
   await settle();
   assert.ok(container.textContent?.includes(row.email));
 });
+
+test("a revoked new link reports a cleared event so its notice leaves the status line", async () => {
+  (globalThis as Record<string, unknown>).fetch = () => Promise.resolve(listSharesResp([]));
+  const events: string[] = [];
+  await act(() => {
+    root.render(<SharePanel savedId={1} created={created} locale="en" text={text} onStatus={(event) => events.push(event)} />);
+  });
+  await settle();
+  assert.deepEqual(events, ["created", "cleared"]);
+});

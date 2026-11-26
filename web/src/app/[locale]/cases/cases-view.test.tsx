@@ -141,6 +141,9 @@ test("Shared with me links to the account-bound read-only view", async () => {
   assert.ok(container.textContent?.includes("Shared with me"));
   assert.ok(container.textContent?.includes("Case Owner"));
   assert.equal(container.querySelector('a[href="/en/received/#9"]')?.textContent, "View draft");
+  const item = container.querySelector('a[href="/en/received/#9"]')!.closest("li")!;
+  assert.deepEqual([...item.querySelectorAll("a")].map((a) => a.textContent), ["View draft"]);
+  assert.equal(item.querySelectorAll("button").length, 0, "no Open or Rename on a received row");
 });
 
 // The working copy: revision 3 and a saved link at `saved` (undefined: field absent; null: no link).

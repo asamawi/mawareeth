@@ -4060,6 +4060,22 @@ class ShareTests(InterviewBase):
         self.assertEqual(viewer.get(CASE_URL, secure=True).json(), before)
         self.assertEqual(before['case']['id'], mine['id'])
 
+    def test_share_shows_the_saved_family_until_the_owner_saves_an_edit(self):
+        token = self.public()['token']
+        first = self.view(token).json()
+        before = first['case']
+        self.heir(self.case, name='Added after saving')
+        self.assertNotEqual(self.live()['heirs'], self.case['heirs'])
+        unsaved = self.view(token).json()
+        self.assertEqual(unsaved['case']['heirs'], before['heirs'], 'an unsaved edit is not shown')
+        self.assertEqual(unsaved['preview'], first['preview'], 'nor in the recomputed preview')
+        self.assertEqual(self.send('post', self.saved_url, {'case_id': self.case['id']}).status_code, 200)
+        saved = self.view(token).json()
+        self.assertEqual(len(saved['case']['heirs']), len(before['heirs']) + 1)
+        self.assertIn('Added after saving', [heir.get('name') for heir in saved['case']['heirs']])
+        self.assertNotIn('Added after saving', [heir.get('name') for heir in before['heirs']])
+        self.assertNotEqual(saved['preview'], first['preview'], 'the preview is recomputed for the saved family')
+
     def test_shared_pdf_is_a_draft_pdf(self):
         token = self.public()['token']
         url = '/api/v1/shares/report/'

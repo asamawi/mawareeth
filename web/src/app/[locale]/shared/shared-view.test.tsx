@@ -91,3 +91,99 @@ test("sessionStorage fallback: token read from storage, viewShare called with th
     await teardownDom(dom);
   }
 });
+
+const { previewFixture } = await import("@/test/preview-fixtures");
+const fixture = previewFixture("Grandfather and brother under Hanafi");
+
+async function renderShared(respond: () => Response, locale = "en") {
+  const dom = installDom(`http://localhost/${locale}/shared/#tok789`);
+  document.cookie = "csrftoken=test-csrf-token";
+  (globalThis as Record<string, unknown>).fetch = () => Promise.resolve(respond());
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const all = (await import("@/i18n/messages")).messages[locale as "en"];
+  await act(() => { root.render(<SharedView messages={all} locale={locale} />); });
+  await settle();
+  return {
+    container,
+    all,
+    done: async () => { await act(async () => { root.unmount(); }); container.remove(); await teardownDom(dom); },
+  };
+}
+const ok = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const buttonNames = (container: HTMLElement) => [...container.querySelectorAll("button")].map((b) => b.textContent ?? "");
+
+test("a shared case shows the read-only banner first, with its tokens, and no edit controls", async () => {
+  const view = await renderShared(() => ok({ status: "ok", visibility: "private", case: fixture.case, preview: fixture.response }));
+  try {
+    assert.ok(view.container.querySelector("#results-family"), "family shown");
+    const first = view.container.firstElementChild!.firstElementChild!;
+    assert.equal(first.getAttribute("role"), "note");
+    assert.equal(first.getAttribute("data-component"), "shared-case-banner");
+    for (const token of ["bg-accent-soft", "border", "border-accent", "rounded-node", "p-3"]) assert.ok(first.classList.contains(token), token);
+    assert.ok(first.textContent!.startsWith(view.all.shared.readOnly));
+    assert.ok(first.textContent!.includes(view.all.shared.banner));
+    assert.ok(view.container.textContent!.includes(view.all.shared.privateBadge));
+    const names = buttonNames(view.container);
+    for (const word of ["Save", "Share", "WhatsApp", "Rename", "Open"]) assert.ok(!names.some((n) => n.includes(word) && !n.includes("PDF")), `${word} control: ${names.join("|")}`);
+    assert.ok(!/Country|version/i.test(first.textContent!));
+  } finally { await view.done(); }
+});
+
+test("a shared compare case shows the read-only banner and the agreement line, with no Country text", async () => {
+  const compareFixture = {
+    ...fixture,
+    response: {
+      ...(fixture.response as Record<string, unknown>),
+      presented: {
+        ...((fixture.response as { presented: Record<string, unknown> }).presented),
+        basis: { kind: "compare" },
+        comparison_outcome: "agreement",
+        school_line: { code: "same_in_all_schools", text: "Same result in all four Sunni schools" },
+      },
+    },
+  };
+  const view = await renderShared(() => ok({ status: "ok", visibility: "private", case: compareFixture.case, preview: compareFixture.response }));
+  try {
+    const banner = view.container.querySelector("[data-component=shared-case-banner]")!;
+    assert.equal(view.container.firstElementChild!.firstElementChild, banner);
+    assert.equal(banner.getAttribute("role"), "note");
+    assert.ok(banner.textContent!.startsWith(view.all.shared.readOnly));
+    assert.ok(view.container.textContent!.includes("Same result in all four Sunni schools"));
+    assert.ok(!/Country|version/i.test(banner.textContent!));
+    const names = buttonNames(view.container);
+    for (const word of ["Save", "Share", "WhatsApp", "Rename", "Open"]) assert.ok(!names.some((n) => n.includes(word)), `${word} control: ${names.join("|")}`);
+  } finally { await view.done(); }
+});
+
+test("a shared case whose preview is not available shows the banner then the error alert and no family", async () => {
+  const unavailable = {
+    status: "not_ready",
+  };
+  const view = await renderShared(() => ok({ status: "ok", visibility: "private", case: fixture.case, preview: unavailable }));
+  try {
+    const banner = view.container.querySelector("[data-component=shared-case-banner]")!;
+    assert.equal(view.container.firstElementChild!.firstElementChild, banner);
+    assert.ok(banner.textContent!.startsWith(view.all.shared.readOnly));
+    assert.equal(view.container.querySelector('[role="alert"]')?.textContent, view.all.shared.error);
+    assert.equal(view.container.querySelector("#results-family"), null);
+    for (const selector of ["#results-shares", "#results-steps", "li", "table", "dl"]) {
+      assert.equal(view.container.querySelector(selector), null, `${selector} must not render`);
+    }
+    for (const heir of fixture.case.heirs) {
+      assert.ok(!view.container.textContent!.includes(view.all.interview.relationships[heir.relationship as keyof typeof view.all.interview.relationships] ?? " "), `heir relationship shown: ${heir.relationship}`);
+    }
+  } finally { await view.done(); }
+});
+
+test("unavailable, sign-in and failed shared states render no banner and no family", async () => {
+  for (const [status, body] of [[404, {}], [403, { code: "sign_in_required" }], [500, {}]] as const) {
+    const view = await renderShared(() => ok(body, status));
+    try {
+      assert.equal(view.container.querySelector("[data-component=shared-case-banner]"), null, String(status));
+      assert.equal(view.container.querySelector("#results-family"), null, String(status));
+      if (status === 404) assert.equal(view.container.textContent, view.all.shared.unavailable);
+    } finally { await view.done(); }
+  }
+});
