@@ -1,7 +1,7 @@
 import { write, parseCase, isMadhabId, CASE_TIMEOUT_MS, type Case, type MadhabId, type WriteOptions } from "./case.ts";
 
 /** `madhab` is null for a case saved with no school, because all four Sunni schools agree. */
-export type SavedCase = { id: number; name?: string; updated_at: string; madhab: MadhabId | null; heir_count: number; status: string };
+export type SavedCase = { id: number; name?: string; updated_at: string; revision?: number; madhab: MadhabId | null; heir_count: number; status: string };
 const url = "/api/v1/saved-cases/";
 /** `school_required`: the schools differ for this family and none is chosen, so it cannot be saved yet. */
 export const SCHOOL_REQUIRED = "school_required";
@@ -96,6 +96,30 @@ export async function suggestedName(signal: AbortSignal, locale: string): Promis
     signal.removeEventListener("abort", abort);
   }
 }
+/** A rename answered 409: the row changed since it was listed. `revision` and `name` are as stored now. */
+export type RenameConflict = { conflict: { revision: number; name: string } };
+export type Renamed = Saved & { revision: number };
+export type RenameResult = Renamed | RenameConflict | typeof NAME_TOO_LONG | typeof NAME_INVALID | null;
+/** Renames a Saved case, guarded by the revision the row was listed at. Success is claimed only for a 200 that carries the stored name and revision. */
+export async function renameSavedCase(signal: AbortSignal, id: number, args: { name: string; expectedRevision: number; locale?: string }, options: WriteOptions = {}): Promise<RenameResult> {
+  if (!Number.isInteger(id) || id < 1) return null;
+  const body = JSON.stringify({ name: args.name, expected_revision: args.expectedRevision });
+  return write<RenameResult>(signal, options, { method: "POST", url: `${url}${id}/rename/`, body, ...(args.locale ? { headers: { "Accept-Language": args.locale } } : {}) }, async (response) => {
+    if (response.status === 400) {
+      const refused = await response.json().catch(() => null);
+      const refusedName = refused?.errors?.name;
+      return refusedName === "too_long" ? NAME_TOO_LONG : refusedName === "invalid" ? NAME_INVALID : null;
+    }
+    if (response.status === 409) {
+      const refused = await response.json().catch(() => null);
+      if (refused?.code !== "rename_conflict" || !Number.isInteger(refused.revision) || refused.revision < 1 || typeof refused.name !== "string") return null;
+      return { conflict: { revision: refused.revision, name: refused.name } };
+    }
+    if (response.status !== 200) return null;
+    const saved = await response.json().catch(() => null);
+    return saved && Number.isInteger(saved.id) && saved.id > 0 && Number.isInteger(saved.revision) && saved.revision >= 1 && typeof saved.updated_at === "string" && typeof saved.name === "string" ? { id: saved.id, name: saved.name, updated_at: saved.updated_at, revision: saved.revision } : null;
+  });
+}
 /** `conflict`: the working copy changed since the prompt, so nothing was replaced. */
 export const OPEN_CONFLICT = "conflict";
 export type OpenResult = Case | typeof OPEN_CONFLICT | { kind: "stale"; case: Case | null } | null;
@@ -124,7 +148,11 @@ export async function listSavedCases(signal: AbortSignal): Promise<SavedCase[]> 
     if (!response.ok) throw new Error("Saved cases unavailable");
     const body = await response.json();
     if (!Array.isArray(body.cases) || !body.cases.every((row: SavedCase) => row && Number.isInteger(row.id) && row.id > 0 && typeof row.updated_at === "string" && (row.name === undefined || typeof row.name === "string") && (row.madhab === null || isMadhabId(row.madhab)) && Number.isInteger(row.heir_count) && row.heir_count >= 0 && typeof row.status === "string")) throw new Error("Invalid saved cases");
-    return body.cases;
+    // A revision counts only as a positive integer; without one the row cannot be renamed (an older server).
+    return body.cases.map((row: SavedCase) => {
+      const { revision, ...rest } = row;
+      return Number.isInteger(revision) && (revision as number) >= 1 ? { ...rest, revision } : rest;
+    });
   } finally {
     clearTimeout(timer);
     signal.removeEventListener("abort", abort);

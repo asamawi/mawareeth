@@ -9,7 +9,7 @@ import { CASE, expect, fullCase, json, sessionAuthenticated, test, type Api } fr
 const agree = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[] })
   .fixtures.find((item) => item.title === "Agree: wife, son and daughter in every school")!;
 
-const ROW = { id: 7, name: "Mother's estate", updated_at: "2026-11-01T00:00:00Z", madhab: "hanafi", heir_count: 2, status: "draft" };
+const ROW = { id: 7, name: "Mother's estate", updated_at: "2026-11-01T00:00:00Z", revision: 3, madhab: "hanafi", heir_count: 2, status: "draft" };
 const working = (saved: unknown, revision = 3) => json(200, { case: { ...CASE, id: "work-1", revision, deceased: { gender: "male", estate: null }, heirs: [], ...(saved === undefined ? {} : { saved }) } });
 const opened = json(200, { case: { ...CASE, id: "opened-1", revision: 1, saved: { revision: 1 } } });
 
@@ -225,3 +225,74 @@ test("an edit stays in the Interview after the prompt is cancelled, and a reload
   await expect(notice).toBeVisible();
   await expect(page.locator("[data-node='new-son']")).toBeVisible();
 });
+
+for (const locale of ["en", "ar"] as const) {
+  const text = messages[locale].cases;
+  const rows = [
+    { ...ROW, id: 1, name: "b", updated_at: "2026-11-01T00:00:00Z", revision: 2 },
+    { ...ROW, id: 2, name: "a", updated_at: "2026-11-03T00:00:00Z", revision: 4 },
+    { ...ROW, id: 3, name: "c", updated_at: "2026-11-02T00:00:00Z", revision: 1 },
+  ];
+  const names = (page: Page) => page.locator("li > div > span.font-semibold");
+  const renameButton = (page: Page, name: string) => page.getByRole("button", { name: text.rename.replace("{name}", name), exact: true });
+
+  test.describe(`Find and rename in ${locale}`, () => {
+    test("sorts by last change by default and by name on request", async ({ page, api }) => {
+      api.set({ session: sessionAuthenticated, getCase: json(200, { case: null }), getSavedCases: json(200, { cases: rows }), getReceived: json(200, { received: [] }) });
+      await page.goto(`/${locale}/cases/`);
+      await expect(names(page)).toHaveText(["a", "c", "b"]);
+      await page.getByLabel(text.sortLabel).selectOption("name");
+      const collated = ["a", "b", "c"].sort(new Intl.Collator(locale).compare);
+      await expect(names(page)).toHaveText(collated);
+    });
+
+    test("renames a case and shows the new name", async ({ page, api }) => {
+      api.set({
+        session: sessionAuthenticated, getCase: json(200, { case: null }), getSavedCases: json(200, { cases: rows }), getReceived: json(200, { received: [] }),
+        postRename: json(200, { id: 2, name: "Renamed", updated_at: "2026-11-09T00:00:00Z", revision: 5 }),
+      });
+      await page.goto(`/${locale}/cases/`);
+      await renameButton(page, "a").click();
+      await page.getByLabel(messages[locale].results.nameLabel).fill("Renamed");
+      await page.getByRole("button", { name: text.renameSave, exact: true }).click();
+      await expect(names(page).first()).toHaveText("Renamed");
+      expect(api.renamePosts).toHaveLength(1);
+      expect(api.renamePosts[0].url).toBe("/api/v1/saved-cases/2/rename/");
+      expect(JSON.parse(api.renamePosts[0].body)).toEqual({ name: "Renamed", expected_revision: 4 });
+      await expect(renameButton(page, "Renamed")).toBeFocused();
+    });
+
+    test("a conflict keeps the typed text and shows the conflict text", async ({ page, api }) => {
+      api.set({
+        session: sessionAuthenticated, getCase: json(200, { case: null }), getSavedCases: json(200, { cases: rows }), getReceived: json(200, { received: [] }),
+        postRename: json(409, { error: "conflict", code: "rename_conflict", detail: "changed", revision: 9, name: "Elsewhere" }),
+      });
+      await page.goto(`/${locale}/cases/`);
+      await renameButton(page, "a").click();
+      const input = page.getByLabel(messages[locale].results.nameLabel);
+      await input.fill("Mine");
+      await page.getByRole("button", { name: text.renameSave, exact: true }).click();
+      await expect(page.getByText(text.renameConflict)).toBeVisible();
+      await expect(input).toHaveValue("Mine");
+    });
+
+    test("rename mode has no serious axe violation and 44px controls", async ({ page, api }) => {
+      api.set({ session: sessionAuthenticated, getCase: json(200, { case: null }), getSavedCases: json(200, { cases: rows }), getReceived: json(200, { received: [] }) });
+      await page.goto(`/${locale}/cases/`);
+      await renameButton(page, "a").click();
+      for (const button of [page.getByRole("button", { name: text.renameSave, exact: true }), page.getByRole("button", { name: text.renameCancel, exact: true }), page.getByLabel(text.sortLabel)]) {
+        expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      }
+      expect(await serious(page)).toEqual([]);
+    });
+
+    test("at 320px Open and Rename stay visible without horizontal scroll", async ({ page, api }) => {
+      await page.setViewportSize({ width: 320, height: 700 });
+      api.set({ session: sessionAuthenticated, getCase: json(200, { case: null }), getSavedCases: json(200, { cases: [rows[0]] }), getReceived: json(200, { received: [] }) });
+      await page.goto(`/${locale}/cases/`);
+      await expect(page.getByRole("button", { name: text.open, exact: true })).toBeVisible();
+      await expect(renameButton(page, "b")).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    });
+  });
+}

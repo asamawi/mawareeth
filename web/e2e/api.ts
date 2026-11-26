@@ -33,6 +33,7 @@ export type Stubs = {
   postCreate?: Answer;
   getNameSuggestion?: Answer;
   getInvites?: Answer;
+  postRename?: Answer;
 };
 
 export const sessionAnonymous = json(200, { authenticated: false });
@@ -68,6 +69,7 @@ export class Api {
   openPosts: { url: string; body: string }[] = [];
   savedPosts: { body: string; csrf: string | undefined }[] = [];
   createPosts: { body: string; csrf: string | undefined }[] = [];
+  renamePosts: { url: string; body: string; csrf: string | undefined }[] = [];
 
   set(stubs: Stubs): void {
     Object.assign(this.stubs, stubs);
@@ -140,6 +142,10 @@ export class Api {
       if (pathname === "/api/v1/saved-cases/create/" && method === "POST") {
         this.createPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
         return this.answer(route, this.stubs.postCreate, "post create");
+      }
+      if (/^\/api\/v1\/saved-cases\/\d+\/rename\/$/.test(pathname) && method === "POST") {
+        this.renamePosts.push({ url: pathname, body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.postRename, "post rename");
       }
       if (pathname === "/api/v1/saved-cases/name-suggestion/" && method === "GET") {
         return this.answer(route, this.stubs.getNameSuggestion, "get name suggestion");

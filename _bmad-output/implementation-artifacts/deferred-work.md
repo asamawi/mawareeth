@@ -625,3 +625,7 @@ Epic 9's gate and retrospective stay open until the owner records them.
 - source_spec: `_bmad-output/implementation-artifacts/spec-10-1b-resolve-a-save-conflict-with-two-choices.md`
   summary: A Saved case name containing an unpaired UTF-16 surrogate passes the name checks of both save routes and fails at the database write with a 500 instead of a 400 `errors.name = invalid`.
   evidence: `_parse_name` (formerly inline in `SavedCasesView.post` at baseline) checks type, NUL and grapheme length only; JSON `"\ud800"` decodes to a lone surrogate that cannot be encoded to UTF-8 for Postgres.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-2-find-and-rename-named-cases-in-my-cases.md`
+  summary: Native review needed for the new My cases strings in en, ar and fr (`cases.sortLabel`, `sortRecent`, `sortName`, `rename` with {name}, `renameSave`, `renameCancel`, `renameSaving`, `renameFailed`, `renameConflict`, `retry`, `loading`, `untitled`). Wording is draft; ar and fr are machine-written.
+  evidence: Story 10.2 added them to web/src/i18n/messages.ts; the field text reuses the existing results.name* strings.
