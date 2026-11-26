@@ -123,6 +123,11 @@ class SweepSwitchGateTests(SwitchGate, TransactionTestCase):
     def test_relationship_and_random_families(self):
         self.sweep(families())
 
+
+# Split from SweepSwitchGateTests: the parallel runner gives a whole class to one
+# worker, so this longest test needs a class of its own.
+@tag('slow')
+class CoreSweepSwitchGateTests(SwitchGate, TransactionTestCase):
     def test_core_families(self):
         self.sweep(core_families())
 

@@ -1995,7 +1995,7 @@ class HeirRulesSingleHeirSweepTests(HeirRulesEngine, TransactionTestCase):
                 self.assert_agrees(madhab, [existing], relationships)
 
 
-@tag('slow')
+@tag('slow', 'slow_b')
 class HeirRulesSeededSweepTests(HeirRulesEngine, TransactionTestCase):
     """The rules equal the engine for a seeded sample of larger families."""
 
@@ -2009,7 +2009,7 @@ class HeirRulesSeededSweepTests(HeirRulesEngine, TransactionTestCase):
                     madhab, family, rng.sample(relationships, 4), genders=(rng.choice(('female', 'male')),))
 
 
-@tag('slow')
+@tag('slow', 'slow_b')
 class HeirRulesDirectedSweepTests(HeirRulesEngine, TransactionTestCase):
     """The rules equal the engine for directed families."""
 
