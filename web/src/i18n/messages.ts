@@ -260,6 +260,15 @@ export type Messages = {
     saved: string;
     saveError: string;
     saveNeedsSchool: string;
+    saveConflict: string;
+    saveRetry: string;
+    nameTitle: string;
+    nameLabel: string;
+    nameCounter: string;
+    nameTooLong: string;
+    nameInvalid: string;
+    nameSubmit: string;
+    nameCancel: string;
     authTitle: string;
     signIn: string;
     createAccount: string;
@@ -592,10 +601,19 @@ export const messages: Record<Locale, Messages> = {
       save: "حفظ",
       shareAction: "مشاركة",
       whatsappAction: "واتساب",
-      saving: "جارٍ الحفظ…",
-      saved: "تم الحفظ.",
-      saveError: "تعذر الحفظ. حاول مرة أخرى.",
+      saving: "جارٍ الحفظ",
+      saved: "تم الحفظ في حالاتي",
+      saveError: "تعذر الحفظ. عائلتك ما زالت هنا. حاول مرة أخرى.",
       saveNeedsSchool: "اختر المذهب قبل الحفظ.",
+      saveConflict: "تغيّرت هذه الحالة في مكان آخر. عائلتك ما زالت هنا.",
+      saveRetry: "إعادة المحاولة",
+      nameTitle: "سمِّ هذه الحالة",
+      nameLabel: "اسم الحالة",
+      nameCounter: "{count} / 100",
+      nameTooLong: "الاسم أطول من 100 حرف.",
+      nameInvalid: "هذا الاسم غير مقبول. غيّره وحاول مرة أخرى.",
+      nameSubmit: "حفظ",
+      nameCancel: "إلغاء",
       authTitle: "سجّل الدخول أو أنشئ حسابًا للمتابعة",
       signIn: "تسجيل الدخول",
       createAccount: "إنشاء حساب",
@@ -924,10 +942,19 @@ export const messages: Record<Locale, Messages> = {
       save: "Save",
       shareAction: "Share",
       whatsappAction: "WhatsApp",
-      saving: "Saving…",
-      saved: "Saved.",
-      saveError: "Could not save. Please try again.",
+      saving: "Saving",
+      saved: "Saved to My cases",
+      saveError: "Could not save. Your family is still here. Try again.",
       saveNeedsSchool: "Choose a school of law before saving.",
+      saveConflict: "This case changed elsewhere. Your family is still here.",
+      saveRetry: "Retry",
+      nameTitle: "Name this case",
+      nameLabel: "Case name",
+      nameCounter: "{count} / 100",
+      nameTooLong: "The name is longer than 100 characters.",
+      nameInvalid: "This name is not accepted. Change it and try again.",
+      nameSubmit: "Save",
+      nameCancel: "Cancel",
       authTitle: "Sign in or create an account to continue",
       signIn: "Sign in",
       createAccount: "Create account",
@@ -1258,10 +1285,19 @@ export const messages: Record<Locale, Messages> = {
       save: "Enregistrer",
       shareAction: "Partager",
       whatsappAction: "WhatsApp",
-      saving: "Enregistrement…",
-      saved: "Enregistré.",
-      saveError: "Échec de l’enregistrement. Réessayez.",
+      saving: "Enregistrement",
+      saved: "Enregistré dans Mes cas",
+      saveError: "Échec de l’enregistrement. Votre famille est toujours là. Réessayez.",
       saveNeedsSchool: "Choisissez une école juridique avant d'enregistrer.",
+      saveConflict: "Ce cas a changé ailleurs. Votre famille est toujours là.",
+      saveRetry: "Réessayer",
+      nameTitle: "Nommer ce cas",
+      nameLabel: "Nom du cas",
+      nameCounter: "{count} / 100",
+      nameTooLong: "Le nom dépasse 100 caractères.",
+      nameInvalid: "Ce nom n’est pas accepté. Modifiez-le et réessayez.",
+      nameSubmit: "Enregistrer",
+      nameCancel: "Annuler",
       authTitle: "Connectez-vous ou créez un compte pour continuer",
       signIn: "Se connecter",
       createAccount: "Créer un compte",

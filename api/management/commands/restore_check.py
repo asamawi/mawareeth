@@ -32,7 +32,7 @@ class Command(BaseCommand):
             versions[row.schema_version] += 1
             try:
                 assert row.schema_version in snapshots.READ_VERSIONS
-                assert len(row.name) <= 100 and row.revision >= 1
+                assert snapshots.grapheme_count(row.name) <= snapshots.NAME_LIMIT and row.revision >= 1
                 assert users.filter(pk=row.owner_id).exists()
                 snapshots.decode(row.schema_version, row.snapshot, "check", "time")
             except Exception:

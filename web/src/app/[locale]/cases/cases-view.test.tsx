@@ -40,7 +40,7 @@ async function settle() {
   });
 }
 
-const savedRow = { id: 1, updated_at: "2026-11-01T00:00:00Z", madhab: "hanbali", heir_count: 2, status: "draft" };
+const savedRow = { id: 1, name: "Mother's estate", updated_at: "2026-11-01T00:00:00Z", madhab: "hanbali", heir_count: 2, status: "draft" };
 
 // Minimal valid case body for openSavedCase (parseCase needs body.case.{id,started_at})
 const caseBody = { case: { id: "case-1", started_at: "2026-11-01T00:00:00Z" } };
@@ -78,6 +78,10 @@ test("openSavedCase success: router.push called with interview URL", async () =>
 
   const openBtn = container.querySelector<HTMLButtonElement>("button[type=button]");
   assert.ok(openBtn, "Open button should be present after rows load");
+  const label = container.querySelector("li bdi");
+  assert.equal(label?.textContent, "Mother's estate", "the row is labelled by the stored name");
+  assert.equal(label?.getAttribute("dir"), "auto");
+  assert.ok(container.querySelector("li")!.textContent!.includes(text.cases.updated), "the date stays");
 
   await act(() => { openBtn.click(); });
   await settle();

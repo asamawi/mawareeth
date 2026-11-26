@@ -9,7 +9,7 @@ import { CASE, expect, fullCase, json, sessionAuthenticated, test, type Api } fr
 const agree = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[] })
   .fixtures.find((item) => item.title === "Agree: wife, son and daughter in every school")!;
 
-const ROW = { id: 7, updated_at: "2026-11-01T00:00:00Z", madhab: "hanafi", heir_count: 2, status: "draft" };
+const ROW = { id: 7, name: "Mother's estate", updated_at: "2026-11-01T00:00:00Z", madhab: "hanafi", heir_count: 2, status: "draft" };
 const working = (saved: unknown, revision = 3) => json(200, { case: { ...CASE, id: "work-1", revision, deceased: { gender: "male", estate: null }, heirs: [], ...(saved === undefined ? {} : { saved }) } });
 const opened = json(200, { case: { ...CASE, id: "opened-1", revision: 1, saved: { revision: 1 } } });
 

@@ -24,7 +24,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api import anonymous_case, case_commands, invites, preview, sharing
-from api.snapshots import READ_VERSIONS, SnapshotError, decode, default_name, encode_v2, ensure_writable, write_version
+from api.snapshots import (NAME_LIMIT, READ_VERSIONS, SnapshotError, decode, default_name, encode_v2, ensure_writable,
+                           grapheme_count, write_version)
 from engine.contracts import ContractError
 from presentation.money import PresentationError
 from api.models import SavedCase, ShareInvite, ShareLink
@@ -392,6 +393,15 @@ class SavedCasesView(ApiView):
         data = request.data
         if not isinstance(data, dict) or not isinstance(data.get('case_id'), str) or not data['case_id']:
             return Response({'detail': 'case_id is required.'}, status=400)
+        name = None
+        if 'name' in data:
+            if not isinstance(data['name'], str):
+                return Response({'detail': 'Invalid input.', 'errors': {'name': 'invalid'}}, status=400)
+            if '\x00' in data['name']:
+                return Response({'detail': 'Invalid input.', 'errors': {'name': 'invalid'}}, status=400)
+            name = data['name'].strip()
+            if grapheme_count(name) > NAME_LIMIT:
+                return Response({'detail': 'Invalid input.', 'errors': {'name': 'too_long'}}, status=400)
         case = anonymous_case.get(request)
         if case is not None and case['id'] != data['case_id']:
             return Response({'detail': 'That case is no longer the current one.'}, status=409)
@@ -438,7 +448,8 @@ class SavedCasesView(ApiView):
                     row.revision = F('revision') + 1
                 row.save()
                 if created:
-                    row.name = default_name(row.created_at)
+                    # A first Save that sent a name speaks the visitor's Locale; one that sent none (Share) keeps the site language.
+                    row.name = name or default_name(row.created_at, _asked_language(request) if name is not None else None)
                     SavedCase.objects.filter(pk=row.pk).update(name=row.name)
                 if not created:
                     row.refresh_from_db(fields=['revision'])
@@ -447,8 +458,16 @@ class SavedCasesView(ApiView):
                 return busy_response()
             raise
         anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision, case['revision'])
-        return Response({'id': row.pk, 'updated_at': row.updated_at, 'revision': row.revision},
+        return Response({'id': row.pk, 'name': row.name, 'updated_at': row.updated_at, 'revision': row.revision},
                         status=201 if created else 200)
+
+
+@method_decorator(never_cache, name='dispatch')
+class SavedCaseNameSuggestionView(ApiView):
+    """The suggested name for a first save, in the visitor's Locale. Reads nothing of the case."""
+
+    def get(self, request):
+        return Response({'name': default_name(timezone.now(), _asked_language(request))})
 
 
 @method_decorator(never_cache, name='dispatch')

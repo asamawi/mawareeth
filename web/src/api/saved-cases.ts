@@ -1,21 +1,62 @@
 import { write, parseCase, isMadhabId, CASE_TIMEOUT_MS, type Case, type MadhabId, type WriteOptions } from "./case.ts";
 
 /** `madhab` is null for a case saved with no school, because all four Sunni schools agree. */
-export type SavedCase = { id: number; updated_at: string; madhab: MadhabId | null; heir_count: number; status: string };
+export type SavedCase = { id: number; name?: string; updated_at: string; madhab: MadhabId | null; heir_count: number; status: string };
 const url = "/api/v1/saved-cases/";
 /** `school_required`: the schools differ for this family and none is chosen, so it cannot be saved yet. */
 export const SCHOOL_REQUIRED = "school_required";
-export type SaveResult = { id: number; updated_at: string } | typeof SCHOOL_REQUIRED | null;
-export async function saveCase(signal: AbortSignal, caseId: string, options: WriteOptions = {}): Promise<SaveResult> {
-  return write(signal, options, { method: "POST", url, body: JSON.stringify({ case_id: caseId }) }, async (response) => {
+/** `saved_case_conflict`: the linked Saved case changed elsewhere, so nothing was written. */
+export const SAVE_CONFLICT = "saved_case_conflict";
+export type Saved = { id: number; name: string; updated_at: string };
+/** The server refused the name (400 `errors.name`); nothing was stored and retrying the same name cannot work. */
+export const NAME_TOO_LONG = "name_too_long";
+export const NAME_INVALID = "name_invalid";
+export type SaveResult = Saved | typeof SCHOOL_REQUIRED | typeof SAVE_CONFLICT | typeof NAME_TOO_LONG | typeof NAME_INVALID | null;
+/** The Case name rule: user-perceived characters (extended grapheme clusters), as the server counts them. */
+export const NAME_LIMIT = 100;
+export function graphemeCount(name: string, locale?: string): number {
+  // Without Intl.Segmenter, count code points; the server stays the authority.
+  if (typeof Intl === "undefined" || typeof Intl.Segmenter !== "function") return Array.from(name).length;
+  return [...new Intl.Segmenter(locale, { granularity: "grapheme" }).segment(name)].length;
+}
+/** Success is claimed only for a 200 or 201 whose answer carries the stored name. */
+export async function saveCase(signal: AbortSignal, caseId: string, options: WriteOptions & { name?: string; locale?: string } = {}): Promise<SaveResult> {
+  const { name, locale, ...rest } = options;
+  const body = JSON.stringify({ case_id: caseId, ...(name === undefined ? {} : { name }) });
+  return write(signal, rest, { method: "POST", url, body, ...(locale ? { headers: { "Accept-Language": locale } } : {}) }, async (response) => {
     if (response.status === 400) {
       const refused = await response.json().catch(() => null);
-      return refused && refused.code === SCHOOL_REQUIRED ? SCHOOL_REQUIRED : null;
+      if (refused && refused.code === SCHOOL_REQUIRED) return SCHOOL_REQUIRED;
+      const refusedName = refused?.errors?.name;
+      return refusedName === "too_long" ? NAME_TOO_LONG : refusedName === "invalid" ? NAME_INVALID : null;
     }
+    if (response.status === 409) {
+      const refused = await response.json().catch(() => null);
+      return refused && refused.code === SAVE_CONFLICT ? SAVE_CONFLICT : null;
+    }
+    if (response.status !== 200 && response.status !== 201) return null;
+    const body = await response.json();
+    return Number.isInteger(body.id) && body.id > 0 && typeof body.updated_at === "string" && typeof body.name === "string" ? { id: body.id, name: body.name, updated_at: body.updated_at } : null;
+  });
+}
+/** The suggested name for a first save, in the page's Locale; null when it cannot be read. */
+export async function suggestedName(signal: AbortSignal, locale: string): Promise<string | null> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal.addEventListener("abort", abort, { once: true });
+  if (signal.aborted) controller.abort();
+  const timer = setTimeout(abort, CASE_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${url}name-suggestion/`, { credentials: "same-origin", cache: "no-store", signal: controller.signal, headers: { Accept: "application/json", "Accept-Language": locale } });
     if (!response.ok) return null;
     const body = await response.json();
-    return Number.isInteger(body.id) && body.id > 0 && typeof body.updated_at === "string" ? { id: body.id, updated_at: body.updated_at } : null;
-  });
+    return typeof body.name === "string" && body.name !== "" ? body.name : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", abort);
+  }
 }
 /** `conflict`: the working copy changed since the prompt, so nothing was replaced. */
 export const OPEN_CONFLICT = "conflict";
@@ -40,7 +81,7 @@ export async function listSavedCases(signal: AbortSignal): Promise<SavedCase[]> 
     const response = await fetch(url, { credentials: "same-origin", cache: "no-store", signal: controller.signal, headers: { Accept: "application/json" } });
     if (!response.ok) throw new Error("Saved cases unavailable");
     const body = await response.json();
-    if (!Array.isArray(body.cases) || !body.cases.every((row: SavedCase) => row && Number.isInteger(row.id) && row.id > 0 && typeof row.updated_at === "string" && (row.madhab === null || isMadhabId(row.madhab)) && Number.isInteger(row.heir_count) && row.heir_count >= 0 && typeof row.status === "string")) throw new Error("Invalid saved cases");
+    if (!Array.isArray(body.cases) || !body.cases.every((row: SavedCase) => row && Number.isInteger(row.id) && row.id > 0 && typeof row.updated_at === "string" && (row.name === undefined || typeof row.name === "string") && (row.madhab === null || isMadhabId(row.madhab)) && Number.isInteger(row.heir_count) && row.heir_count >= 0 && typeof row.status === "string")) throw new Error("Invalid saved cases");
     return body.cases;
   } finally {
     clearTimeout(timer);

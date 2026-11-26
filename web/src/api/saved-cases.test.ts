@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { saveCase, listSavedCases, openSavedCase, OPEN_CONFLICT } from "./saved-cases.ts";
+import { readFileSync } from "node:fs";
+import { saveCase, listSavedCases, openSavedCase, suggestedName, graphemeCount, OPEN_CONFLICT, SAVE_CONFLICT, SCHOOL_REQUIRED, NAME_TOO_LONG, NAME_INVALID } from "./saved-cases.ts";
 const original = globalThis.fetch;
 afterEach(() => { globalThis.fetch = original; });
 const signal = () => new AbortController().signal;
@@ -13,13 +14,13 @@ test("save submits only case id using shared CSRF transport and accepts create/u
       assert.equal(init?.body, JSON.stringify({ case_id: "live" }));
       assert.equal((init?.headers as Record<string, string>)["X-CSRFToken"], "token");
       assert.equal(init?.credentials, "same-origin");
-      return Response.json({ id: 42, updated_at: "2026-11-11" }, { status });
+      return Response.json({ id: 42, name: "Estate", updated_at: "2026-11-11" }, { status });
     };
-    assert.deepEqual(await saveCase(signal(), "live", options), { id: 42, updated_at: "2026-11-11" });
+    assert.deepEqual(await saveCase(signal(), "live", options), { id: 42, name: "Estate", updated_at: "2026-11-11" });
   }
 });
 test("save failures allow explicit retries and never retry silently", async () => {
-  for (const status of [400, 403, 409, 500]) {
+  for (const status of [400, 403, 409, 500, 503]) {
     let calls = 0;
     globalThis.fetch = async () => { calls++; return new Response("", { status }); };
     assert.equal(await saveCase(signal(), "live", options), null);
@@ -30,9 +31,64 @@ test("save failures allow explicit retries and never retry silently", async () =
   globalThis.fetch = async () => Response.json({ id: "bad" });
   assert.equal(await saveCase(signal(), "live", options), null);
 });
+test("a 200 without the stored name is not a success", async () => {
+  globalThis.fetch = async () => Response.json({ id: 42, updated_at: "2026-11-11" });
+  assert.equal(await saveCase(signal(), "live", options), null);
+});
+test("save sends the name and tells a conflict and a missing school apart", async () => {
+  let sent = "";
+  globalThis.fetch = async (_url, init) => { sent = String(init?.body); return Response.json({ code: "saved_case_conflict" }, { status: 409 }); };
+  assert.equal(await saveCase(signal(), "live", { ...options, name: "Mother's estate" }), SAVE_CONFLICT);
+  assert.deepEqual(JSON.parse(sent), { case_id: "live", name: "Mother's estate" });
+  globalThis.fetch = async () => Response.json({ code: "school_required" }, { status: 400 });
+  assert.equal(await saveCase(signal(), "live", options), SCHOOL_REQUIRED);
+});
+test("the suggestion is read in the page Locale and failures give null", async () => {
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, "/api/v1/saved-cases/name-suggestion/");
+    assert.equal((init?.headers as Record<string, string>)["Accept-Language"], "ar");
+    return Response.json({ name: "تركة" });
+  };
+  assert.equal(await suggestedName(signal(), "ar"), "تركة");
+  globalThis.fetch = async () => new Response("", { status: 500 });
+  assert.equal(await suggestedName(signal(), "ar"), null);
+  globalThis.fetch = async () => { throw new Error("offline"); };
+  assert.equal(await suggestedName(signal(), "ar"), null);
+});
+test("grapheme count matches the shared fixture the server also tests", () => {
+  const rows = JSON.parse(readFileSync(new URL("./grapheme-names.json", import.meta.url), "utf8")) as { name: string; count: number }[];
+  for (const row of rows) assert.equal(graphemeCount(row.name, "en"), row.count, row.name.slice(0, 12));
+});
+test("a legal stored empty name is still a success", async () => {
+  globalThis.fetch = async () => Response.json({ id: 42, name: "", updated_at: "2026-11-11" }, { status: 200 });
+  assert.deepEqual(await saveCase(signal(), "live", options), { id: 42, name: "", updated_at: "2026-11-11" });
+});
+test("the save POST carries the page Locale as Accept-Language", async () => {
+  let language: string | undefined;
+  globalThis.fetch = async (_url, init) => { language = (init?.headers as Record<string, string>)["Accept-Language"]; return Response.json({ id: 1, name: "n", updated_at: "x" }, { status: 201 }); };
+  await saveCase(signal(), "live", { ...options, name: "", locale: "fr" });
+  assert.equal(language, "fr");
+});
+test("a refused name is its own outcome, not a generic failure", async () => {
+  globalThis.fetch = async () => Response.json({ errors: { name: "too_long" } }, { status: 400 });
+  assert.equal(await saveCase(signal(), "live", { ...options, name: "x" }), NAME_TOO_LONG);
+  globalThis.fetch = async () => Response.json({ errors: { name: "invalid" } }, { status: 400 });
+  assert.equal(await saveCase(signal(), "live", { ...options, name: "x" }), NAME_INVALID);
+});
+test("without Intl.Segmenter the count falls back to code points", () => {
+  const original = Intl.Segmenter;
+  (Intl as unknown as Record<string, unknown>).Segmenter = undefined;
+  try {
+    assert.equal(graphemeCount("a\u0301b"), 3);
+    assert.equal(graphemeCount("\ud83d\ude00x"), 2);
+  } finally {
+    (Intl as unknown as Record<string, unknown>).Segmenter = original;
+  }
+});
 test("list handles own summaries, empty, malformed and forbidden responses", async () => {
-  const row = { id: 1, updated_at: "2026-11-11", madhab: "hanafi", heir_count: 2, status: "draft" };
-  for (const cases of [[], [row]]) {
+  const row = { id: 1, name: "Mother's estate", updated_at: "2026-11-11", madhab: "hanafi", heir_count: 2, status: "draft" };
+  const old = { id: 2, updated_at: "2026-11-11", madhab: "hanafi", heir_count: 2, status: "draft" };
+  for (const cases of [[], [row], [old]]) {
     globalThis.fetch = async () => Response.json({ cases });
     assert.deepEqual(await listSavedCases(signal()), cases);
   }

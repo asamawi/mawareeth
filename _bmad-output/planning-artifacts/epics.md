@@ -1665,7 +1665,7 @@ So that I can recognise it later and know whether my work reached My cases.
 
 **Acceptance Criteria:**
 
-**Given** Epic 8's SavedCase name field, schema-2 writers, command service and save boundary, and the existing Interview/results Save actions
+**Given** Epic 8's SavedCase name field, schema-2 writers, command service and save boundary, and the existing Save action on Full results (the Interview links to it; owner decision, 2026-11-26)
 **When** I save a new Case
 **Then** saving prompts for a Case name prefilled with "Estate of {Deceased name or label}, {date}" and lets me edit the suggestion before submitting (FR-8, UX-DR42, UX-DR85)
 **And** the accepted name accompanies the saved inputs through the existing persistence boundary; this story consumes the foundation rather than adding its columns, backfill or snapshot conversion again.

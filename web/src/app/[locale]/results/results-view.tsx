@@ -262,7 +262,7 @@ export function Available({
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
       <p>{schoolLine?.code === "school" ? text.school.split("{school}").join(schoolLine.text) : schoolLine?.text}</p>
-      {gate && <AuthGate key={`${kase.id}:${kase.madhab ?? ""}`} caseId={kase.id} locale={locale} text={text} share={messages.share} onSchoolRequired={onSchoolRequired} />}
+      {gate && <AuthGate key={`${kase.id}:${kase.madhab ?? ""}`} caseId={kase.id} linked={!!kase.saved} locale={locale} text={text} share={messages.share} onSchoolRequired={onSchoolRequired} />}
       <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} download={download} />
 
       <section aria-labelledby="results-shares" className="flex flex-col gap-3">

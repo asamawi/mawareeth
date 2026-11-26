@@ -102,6 +102,7 @@ export function CasesView({ locale, text }: { locale: string; text: Messages }) 
       <ul className="flex flex-col gap-4">
         {rows?.map((row) => (
           <li key={row.id} className="flex flex-wrap items-center gap-4 rounded border p-4">
+            {row.name ? <span className="font-semibold"><bdi dir="auto">{row.name}</bdi></span> : null}
             <span id={`saved-${row.id}`}>{text.cases.updated}: {new Date(row.updated_at).toLocaleString(locale)}</span>
             <span>{row.madhab ? text.interview.madhabs[row.madhab].name : text.interview.schoolsAgree}</span>
             <span>{text.cases.heirs}: {row.heir_count}</span>

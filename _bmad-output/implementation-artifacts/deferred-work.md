@@ -609,3 +609,11 @@ Epic 9's gate and retrospective stay open until the owner records them.
 - source_spec: `_bmad-output/implementation-artifacts/spec-10-0-warn-before-unsaved-changes-are-discarded.md`
   summary: Race Save and checked Open against an edit in one session and check the stored snapshot, the link revision and the surviving Case.
   evidence: Review of 10.0; the PostgreSQL session lock was read as covering both routes, but tests check the route hook and not the saved data. Story 10.5 (autosave) makes this race common.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-1-name-a-case-and-show-whether-saving-succeeded.md`
+  summary: Story 10.1 part B, conflict recovery: "This case changed elsewhere" with exactly "Open latest version" and "Save as a new case" (explicit create, relink the working copy, no merge or overwrite).
+  evidence: Split by the owner on 2026-11-26. Part A ships naming and a truthful status with a distinct conflict message; part B needs a new create operation and relinking under concurrency. Story 10.1 stays open until B ships; 10.5 (autosave) depends on it.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-1-name-a-case-and-show-whether-saving-succeeded.md`
+  summary: Bind a resumed Save, Share or WhatsApp after sign-in to the case it started on; refuse it if the working case changed during sign-in.
+  evidence: Review of 10.1; `?resume=` carries only the action (web/src/i18n/paths.ts), and results reloads whatever case the session holds. Behaviour predates 10.1.

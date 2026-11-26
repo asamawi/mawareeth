@@ -29,6 +29,7 @@ from rest_framework.test import APIClient
 from rest_framework.views import APIView
 
 from api import urls as api_urls
+from api.snapshots import default_name, grapheme_count
 from api import anonymous_case, heir_rules
 from api.models import AppendOnlyError, SavedCase, ShareAuditEvent, ShareLink
 from api.throttling import CaseWriteThrottle
@@ -1361,13 +1362,13 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                 if case.get('deaths'):
                     live = self.start()
                     self.plant(**{k: v for k, v in case.items() if k not in ('id', 'started_at')})
-                    self.assertEqual(legacy_fields(self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()),
+                    self.assertEqual(legacy_fields(self.preview(live['id'], headers={'Accept-Language': 'en'}).json()),
                                      fixture['response'])
                     continue
                 live = self.build(
                     case['madhab'], case['deceased']['gender'], case['deceased']['estate'],
                     [heir['relationship'] for heir in case['heirs']])
-                response = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en')
+                response = self.preview(live['id'], headers={'Accept-Language': 'en'})
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response['Content-Type'], 'application/json')
                 self.assertIn('no-store', response['Cache-Control'])
@@ -1509,7 +1510,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                           [heir['relationship'] for heir in case['heirs']])
         # a cookie left by the legacy pages must not override the web page's own language
         self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'
-        body = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='ar').json()
+        body = self.preview(live['id'], headers={'Accept-Language': 'ar'}).json()
         self.assertEqual([c['label'] for c in body['table']['columns']], ['السهام', 'العول'])
         self.assertTrue(all(any('؀' <= ch <= 'ۿ' for ch in e['labels']['rule']) for e in body['proof']['heirs']))
         # an unsupported language falls back to the one the middleware chose
@@ -1518,10 +1519,10 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
 
     def test_the_remainder_column_is_not_called_radd(self):
         live = self.build('hanbali', 'male', None, ['father', 'daughter'])
-        columns = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='ar').json()['table']['columns']
+        columns = self.preview(live['id'], headers={'Accept-Language': 'ar'}).json()['table']['columns']
         self.assertEqual([c['code'] for c in columns], ['base', 'remainder'])
         self.assertEqual(columns[1]['label'], 'الباقي تعصيبًا')
-        english = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()['table']['columns']
+        english = self.preview(live['id'], headers={'Accept-Language': 'en'}).json()['table']['columns']
         self.assertEqual(english[1]['label'], 'Remainder')
 
     def test_every_available_fixture_carries_its_versioned_proof(self):
@@ -1568,8 +1569,8 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         case = fixture['case']
         live = self.build(case['madhab'], case['deceased']['gender'], case['deceased']['estate'],
                           [heir['relationship'] for heir in case['heirs']])
-        english = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()['proof']
-        arabic = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='ar').json()['proof']
+        english = self.preview(live['id'], headers={'Accept-Language': 'en'}).json()['proof']
+        arabic = self.preview(live['id'], headers={'Accept-Language': 'ar'}).json()['proof']
         french = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='fr').json()['proof']
         for other in (arabic, french):
             self.assertEqual([(e['heir'], e['rule'], e['school_rule']) for e in other['heirs']],
@@ -1588,7 +1589,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         case = fixture['case']
         live = self.build(case['madhab'], case['deceased']['gender'], case['deceased']['estate'],
                           [heir['relationship'] for heir in case['heirs']])
-        arabic = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='ar').json()['proof']
+        arabic = self.preview(live['id'], headers={'Accept-Language': 'ar'}).json()['proof']
         self.assertEqual(arabic['school_rules'], ['radd_later_scholars'])
         self.assertTrue(any('؀' <= ch <= 'ۿ' for ch in arabic['school_rule_labels'][0]))
 
@@ -1669,7 +1670,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
 
     def test_differing_schools_ask_for_a_choice_and_name_the_rules(self):
         live = self.build(None, 'male', None, ['grandfather', 'brother'])
-        body = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()
+        body = self.preview(live['id'], headers={'Accept-Language': 'en'}).json()
         self.assertEqual(body['status'], 'choose_school')
         self.assertIsNone(body['basis']['madhab'])
         self.assertEqual(list(body['schools']), ['hanafi', 'maliki', 'shafii', 'hanbali'])
@@ -1678,7 +1679,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         self.assertTrue(all(r['label'] for r in body['rules']))
         self.assertEqual({k: v['madhab'] for k, v in body['schools'].items()},
                          {k: k for k in body['schools']})
-        arabic = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='ar').json()
+        arabic = self.preview(live['id'], headers={'Accept-Language': 'ar'}).json()
         self.assertTrue(any('؀' <= ch <= 'ۿ' for ch in arabic['rules'][0]['label']))
         self.assertNotIn('shares', body)
 
@@ -1707,7 +1708,7 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
         fixture = next(f for f in PREVIEW_FIXTURES if f['title'] == 'Maliki Malikiyya is refused')
         case = fixture['case']
         live = self.build(None, case['deceased']['gender'], None, [h['relationship'] for h in case['heirs']])
-        body = self.preview(live['id'], HTTP_ACCEPT_LANGUAGE='en').json()
+        body = self.preview(live['id'], headers={'Accept-Language': 'en'}).json()
         self.assertEqual(body['status'], 'choose_school')
         self.assertEqual(body['schools']['maliki']['status'], 'unavailable')
         self.assertEqual(body['schools']['maliki']['reason'], 'malikiyya_disputed')
@@ -3518,6 +3519,95 @@ class SavedCaseTests(InterviewBase):
         self.assertIsNone(self.client.get(self.url, secure=True).json()['cases'][0]['madhab'])
         opened = self.send('post', f'{self.url}{row.pk}/open/', {})
         self.assertIsNone(opened.json()['case']['madhab'])
+
+    def save_named(self, case, name):
+        return self.send('post', self.url, {'case_id': case['id'], 'name': name})
+
+    def test_first_save_stores_the_trimmed_name_and_answers_with_it(self):
+        self.client.force_login(self.owner)
+        response = self.save_named(self.complete(), " Mother's estate ")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['name'], "Mother's estate")
+        self.assertEqual(SavedCase.objects.get().name, "Mother's estate")
+        self.assertEqual(self.client.get(self.url, secure=True).json()['cases'][0]['name'], "Mother's estate")
+
+    def test_a_blank_name_becomes_the_suggestion_in_the_asked_language(self):
+        self.client.force_login(self.owner)
+        case = self.complete()
+        response = self.client.post(self.url, {'case_id': case['id'], 'name': '   '}, format='json', secure=True,
+                                    headers={**self.csrf(self.client), 'Accept-Language': 'fr'})
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['name'], SavedCase.objects.get().name)
+        self.assertEqual(response.json()['name'], default_name(SavedCase.objects.get().created_at, 'fr'))
+        self.assertNotEqual(response.json()['name'], default_name(SavedCase.objects.get().created_at, 'en'))
+
+    def test_arabic_with_combining_marks_at_the_limit_is_accepted(self):
+        self.client.force_login(self.owner)
+        name = 'مَ' * 100
+        self.assertGreater(len(name), 100)
+        self.assertEqual(self.save_named(self.complete(), name).status_code, 201)
+        self.assertEqual(SavedCase.objects.get().name, name)
+
+    def test_grapheme_count_matches_the_shared_fixture(self):
+        from pathlib import Path
+        rows = json.loads((Path(__file__).resolve().parent.parent / 'web/src/api/grapheme-names.json')
+                          .read_text(encoding='utf-8'))
+        for row in rows:
+            with self.subTest(name=row['name'][:12]):
+                self.assertEqual(grapheme_count(row['name']), row['count'])
+
+    def test_100_family_emoji_graphemes_are_stored_whole_and_101_are_refused(self):
+        self.client.force_login(self.owner)
+        family = '\U0001F468\u200D\U0001F469\u200D\U0001F467'
+        self.assertEqual(len(family), 5)
+        case = self.complete()
+        refused = self.save_named(case, family * 101)
+        self.assertEqual(refused.status_code, 400)
+        self.assertEqual(refused.json()['errors'], {'name': 'too_long'})
+        self.assertFalse(SavedCase.objects.exists())
+        self.assertEqual(self.save_named(case, family * 100).status_code, 201)
+        self.assertEqual(SavedCase.objects.get().name, family * 100)
+        self.assertEqual(self.client.get(self.url, secure=True).json()['cases'][0]['name'], family * 100)
+
+    def test_too_long_or_non_string_names_are_refused_and_store_nothing(self):
+        self.client.force_login(self.owner)
+        case = self.complete()
+        too_long = self.save_named(case, 'a' * 101)
+        self.assertEqual(too_long.status_code, 400)
+        self.assertEqual(too_long.json()['errors'], {'name': 'too_long'})
+        self.assertEqual(self.save_named(case, 'مَ' * 101).json()['errors'], {'name': 'too_long'})
+        for value in (5, None, ['x'], 'a\x00b'):
+            refused = self.save_named(case, value)
+            self.assertEqual(refused.status_code, 400)
+            self.assertEqual(refused.json()['errors'], {'name': 'invalid'})
+        self.assertFalse(SavedCase.objects.exists())
+
+    def test_duplicate_names_are_allowed_and_an_existing_name_is_kept(self):
+        self.client.force_login(self.owner)
+        SavedCase.objects.create(owner=self.owner, snapshot={}, name='Same')
+        case = self.complete()
+        self.assertEqual(self.save_named(case, 'Same').status_code, 201)
+        self.assertEqual(SavedCase.objects.filter(name='Same').count(), 2)
+        again = self.save_named(self.live(), 'Renamed')
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again.json()['name'], 'Same')
+        self.assertEqual(SavedCase.objects.filter(name='Renamed').count(), 0)
+
+    def test_save_without_a_name_behaves_as_before(self):
+        self.client.force_login(self.owner)
+        response = self.save(self.complete())
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['name'], default_name(SavedCase.objects.get().created_at))
+
+    def test_name_suggestion_follows_the_asked_language(self):
+        self.assertEqual(self.client.get(self.url + 'name-suggestion/', secure=True).status_code, 403)
+        self.client.force_login(self.owner)
+        english = self.client.get(self.url + 'name-suggestion/', secure=True, headers={'Accept-Language': 'en'})
+        self.assertEqual(english.status_code, 200)
+        self.assertTrue(english.json()['name'].startswith('Estate of the deceased, '))
+        arabic = self.client.get(self.url + 'name-suggestion/', secure=True, headers={'Accept-Language': 'ar'}).json()['name']
+        self.assertNotEqual(arabic, english.json()['name'])
+        self.assertLessEqual(len(arabic), 100)
 
     def test_a_case_with_no_school_is_refused_when_the_schools_differ(self):
         self.client.force_login(self.owner)

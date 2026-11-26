@@ -29,6 +29,9 @@ export type Stubs = {
   getSavedCases?: Answer;
   getReceived?: Answer;
   postOpen?: Answer;
+  postSaved?: Answer;
+  getNameSuggestion?: Answer;
+  getInvites?: Answer;
 };
 
 export const sessionAnonymous = json(200, { authenticated: false });
@@ -62,6 +65,7 @@ export class Api {
   heirDeletes: URL[] = [];
   previewGets = 0;
   openPosts: { url: string; body: string }[] = [];
+  savedPosts: { body: string; csrf: string | undefined }[] = [];
 
   set(stubs: Stubs): void {
     Object.assign(this.stubs, stubs);
@@ -126,6 +130,16 @@ export class Api {
       }
       if (pathname === "/api/v1/saved-cases/" && method === "GET") {
         return this.answer(route, this.stubs.getSavedCases, "get saved cases");
+      }
+      if (pathname === "/api/v1/saved-cases/" && method === "POST") {
+        this.savedPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.postSaved, "post saved case");
+      }
+      if (pathname === "/api/v1/saved-cases/name-suggestion/" && method === "GET") {
+        return this.answer(route, this.stubs.getNameSuggestion, "get name suggestion");
+      }
+      if (/^\/api\/v1\/saved-cases\/\d+\/invites\/$/.test(pathname) && method === "GET") {
+        return this.answer(route, this.stubs.getInvites, "get invites");
       }
       if (pathname === "/api/v1/received/" && method === "GET") {
         return this.answer(route, this.stubs.getReceived, "get received");

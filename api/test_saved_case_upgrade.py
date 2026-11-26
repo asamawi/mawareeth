@@ -296,4 +296,5 @@ class SavedCaseNameMigrationTests(TransactionTestCase):
             row = SavedCase.objects.get(pk=pk)
             self.assertEqual((row.name, row.revision), ('', 1))
         finally:
-            MigrationExecutor(connection).migrate([('api', '0006_savedcase_name')])
+            executor = MigrationExecutor(connection)
+            executor.migrate(executor.loader.graph.leaf_nodes('api'))

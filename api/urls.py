@@ -2,7 +2,7 @@ from api import auth_views
 from django.urls import path, re_path
 
 from api.views import (BulkHeirsView, CaseView, DeathsView, DeathView, DeceasedView, HeirsView, HeirView, NotFoundView,
-                       OpenSavedCaseView, PreviewView, RestoreView, SavedCaseSharesView, SavedCasesView, SessionView,
+                       OpenSavedCaseView, PreviewView, RestoreView, SavedCaseNameSuggestionView, SavedCaseSharesView, SavedCasesView, SessionView,
                        SharedViewView, ShareView)
 
 from reports.views import DraftReportView, SharedReportView
@@ -31,6 +31,7 @@ urlpatterns = [
     path('case/heirs/<str:heir_id>/', HeirView.as_view(), name='case-heir'),
     path('reports/draft/', DraftReportView.as_view(), name='report-draft'),
     path('saved-cases/', SavedCasesView.as_view(), name='saved-cases'),
+    path('saved-cases/name-suggestion/', SavedCaseNameSuggestionView.as_view(), name='saved-case-name-suggestion'),
     path('saved-cases/<int:id>/open/', OpenSavedCaseView.as_view(), name='saved-case-open'),
     path('saved-cases/<int:id>/shares/', SavedCaseSharesView.as_view(), name='saved-case-shares'),
     path('shares/view/', SharedViewView.as_view(), name='share-view'),
