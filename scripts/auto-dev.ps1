@@ -275,9 +275,10 @@ $originAfter = & git rev-parse --verify --quiet $originRef
 if ($originBefore -ne $originAfter) { Say "WARNING: $originRef moved during the run; check what was pushed." 'Yellow' }
 
 if ($FullSuite -and $built.Count -gt 0) {
-    Say 'Running the full calc+api suite serially (~45 min)'
+    # Two workers: --parallel 4 ran local Postgres out of memory (2026-11-11). No --keepdb here, since stories in the batch may have added migrations.
+    Say 'Running the full calc+api suite in parallel'
     $ErrorActionPreference = 'Continue'
-    & uv run python manage.py test calc api --noinput 2>&1 | Tee-Object -FilePath (Join-Path $LogDir "$(Get-Date -Format 'yyyyMMdd-HHmmss')-full-suite.log")
+    & uv run python manage.py test calc api --noinput --parallel 2 2>&1 | Tee-Object -FilePath (Join-Path $LogDir "$(Get-Date -Format 'yyyyMMdd-HHmmss')-full-suite.log")
     if ($LASTEXITCODE -ne 0) { Fail 'full suite failed' }
 }
 
