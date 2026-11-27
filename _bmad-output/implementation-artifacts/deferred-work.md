@@ -645,3 +645,7 @@ Epic 9's gate and retrospective stay open until the owner records them.
 - source_spec: `_bmad-output/implementation-artifacts/spec-11-1-show-school-agreement-and-ask-for-a-school-only-when-shares-differ.md`
   summary: Native review needed for the changed `interview.chooseSchool` question in en, ar and fr ("Which school of law do you follow?", "أي مذهب فقهي تتبع؟", "Quelle école juridique suivez-vous ?"). Wording is draft; ar and fr are machine-written.
   evidence: Story 11.1 changed the three strings in web/src/i18n/messages.ts from an instruction to a question; it is the legend of the School choice group on Share preview and Full results.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-4-keep-summary-controls-reachable-at-narrow-widths-and-high-zoom.md`
+  summary: A real browser zoom (400% on a desktop) and real-device rotation were not run; Playwright used 320px and 320x200 viewports as stand-ins. The in-flow "Share preview" button sits at the end of the Interview flow in compact landscape; its position should be reviewed in the Epic 12 copy and UX review.
+  evidence: Story 11.4 e2e (Story 11.4 block in web/e2e/interview.spec.ts) resizes the viewport; no new strings were added.

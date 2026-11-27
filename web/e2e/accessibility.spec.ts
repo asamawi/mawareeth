@@ -131,7 +131,7 @@ for (const locale of ["ar", "en", "fr"] as const) {
   });
 }
 
-for (const locale of ["en", "ar"] as const) {
+for (const locale of ["en", "ar", "fr"] as const) {
   test(`the pending preview in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
     const kase = fullCase(agree.case) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     const options = { blocked: [], invalid: {} };
@@ -172,6 +172,26 @@ for (const locale of ["en", "ar"] as const) {
     await page.setViewportSize({ width: 375, height: 800 });
     await openHeirsScreen(page, api, locale);
     await expect(page.locator("[data-summary-bar]")).toBeVisible();
+    expect(await serious(page)).toEqual([]);
+  });
+
+  for (const scheme of ["light", "dark"] as const) {
+    test(`the 320px bar with text spacing, then the open sheet, in ${locale} ${scheme} mode has no serious or critical axe violations`, async ({ page, api }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width: 320, height: 640 });
+      await openHeirsScreen(page, api, locale);
+      await page.addStyleTag({ content: "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }" });
+      await expect(page.locator("[data-summary-bar]")).toBeVisible();
+      expect(await serious(page)).toEqual([]);
+      await openPreview(page);
+      expect(await serious(page)).toEqual([]);
+    });
+  }
+
+  test(`the compact-landscape Share preview button in ${locale} has no serious or critical axe violations`, async ({ page, api }) => {
+    await page.setViewportSize({ width: 800, height: 400 });
+    await openHeirsScreen(page, api, locale);
+    await expect(page.locator("[data-summary-open]")).toBeVisible();
     expect(await serious(page)).toEqual([]);
   });
 

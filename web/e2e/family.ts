@@ -41,6 +41,14 @@ export async function openPreview(page: Page): Promise<Locator> {
   return sheet;
 }
 
+/** Opens the sheet from whichever opener is visible: the bar's chevron, or the compact-landscape in-flow button. */
+export async function openPreviewAnywhere(page: Page): Promise<Locator> {
+  await page.locator("[data-summary-expand]:visible, [data-summary-open]:visible").first().click();
+  const sheet = sheetOf(page);
+  await sheet.locator("h2#preview-heading").waitFor();
+  return sheet;
+}
+
 /** Closes the sheet with its Close button; focus returns to the chevron. */
 export async function closePreview(page: Page, locale: "en" | "ar" | "fr" = "en"): Promise<void> {
   await sheetOf(page).getByRole("button", { name: messages[locale].interview.editClose, exact: true }).click();

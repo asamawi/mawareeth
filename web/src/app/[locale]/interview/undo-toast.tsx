@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 
-import { useObstruction } from "@/interview/obstruction";
+import { setObstruction, TOAST_GAP, toastFloats, useObstructionHeight } from "@/interview/obstruction";
 
 import type { Messages } from "@/i18n/messages";
 
@@ -69,7 +69,40 @@ export function UndoToast({
   const [focused, setFocused] = useState(false);
   const paused = hovered || focused;
   const [box, setBox] = useState<HTMLDivElement | null>(null);
-  useObstruction("toast", box);
+  const bar = useObstructionHeight("bar");
+  const [height, setHeight] = useState(0);
+  // The last height measured while floating, so a taller flow layout cannot flip the decision back and forth.
+  const [floatHeight, setFloatHeight] = useState<number | null>(null);
+  const [viewport, setViewport] = useState(() => (typeof window === "undefined" ? 0 : window.innerHeight));
+  const floats = toastFloats(bar ?? 0, floatHeight ?? height, viewport);
+
+  useEffect(() => {
+    const onResize = () => setViewport(window.innerHeight);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!box) return;
+    const measure = () => setHeight(box.getBoundingClientRect().height);
+    measure();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    observer?.observe(box, { box: "border-box" });
+    return () => observer?.disconnect();
+  }, [box]);
+
+  if (floats && height > 0 && floatHeight !== height) setFloatHeight(height);
+
+  const hasBar = bar !== null && bar > 0;
+  useEffect(() => {
+    if (!box) return;
+    // Floating: height plus the gap. In flow: nothing while the bar is registered, else the height (9.11).
+    if (floats) setObstruction("toast", height + TOAST_GAP);
+    else if (!hasBar) setObstruction("toast", height);
+    else setObstruction("toast", null);
+    return () => setObstruction("toast", null);
+  }, [box, floats, hasBar, height]);
 
   useEffect(() => {
     if (!visible || paused) return;
@@ -82,7 +115,9 @@ export function UndoToast({
     <div
       ref={setBox}
       data-undo-toast
-      className="flex flex-wrap items-center justify-between gap-3 rounded-sheet bg-foreground px-4 py-3 text-background"
+      data-toast-placement={floats ? "float" : "flow"}
+      style={floats ? { insetBlockEnd: `${(bar ?? 0) + TOAST_GAP}px` } : undefined}
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-sheet bg-foreground px-4 py-3 text-background${floats ? " fixed inset-x-4 z-40 mx-auto w-auto max-w-xl" : ""}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)}

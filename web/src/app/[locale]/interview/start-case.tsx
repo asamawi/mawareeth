@@ -557,7 +557,7 @@ export function StartCase({
   );
 
   return (
-    <div data-js-only data-preview-state={previewSignal.state} data-preview-revision={previewSignal.revision ?? undefined} ref={target} tabIndex={-1} className="relative flex flex-col gap-4 outline-none [&>*:not(form,[data-wide])]:mx-auto [&>*:not(form,[data-wide])]:w-full [&>*:not(form,[data-wide])]:max-w-xl">
+    <div data-js-only data-preview-state={previewSignal.state} data-preview-revision={previewSignal.revision ?? undefined} ref={target} tabIndex={-1} className="relative flex flex-col gap-4 [padding-block-end:var(--interview-obstruction,0px)] outline-none [&>*:not(form,[data-wide])]:mx-auto [&>*:not(form,[data-wide])]:w-full [&>*:not(form,[data-wide])]:max-w-xl">
       {/* The one routine status of the Interview; always mounted so its changes are spoken. */}
       {statusSlot ? createPortal(statusNode, statusSlot) : statusNode}
       {view.name === "loading" && (

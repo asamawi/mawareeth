@@ -2,7 +2,7 @@
 
 import type { PresentedResult } from "@/contracts/presented";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 
 import { fetchPreview, type Case, type Preview, type PreviewResult, type SunniId } from "@/api/case";
 import { terms } from "@/i18n/catalog.generated";
@@ -484,6 +484,38 @@ function barText(view: SharePreviewView, messages: Messages["interview"]): strin
   return messages.previewReadyCount.split("{count}").join(String(view.heirCount));
 }
 
+/** Phone landscape and 400% zoom: the fixed bar would cover too much, so an in-flow button replaces it. */
+export const COMPACT_LANDSCAPE_QUERY = "(orientation: landscape) and (max-height: 479.98px)";
+
+/** The in-flow opener shown in place of the bar in compact landscape. */
+function SummaryOpenButton({
+  messages,
+  open,
+  onOpen,
+  buttonRef,
+}: {
+  messages: Messages["interview"];
+  open: boolean;
+  onOpen: () => void;
+  buttonRef: RefObject<HTMLButtonElement | null>;
+}) {
+  return (
+    <div data-summary-inflow>
+      <button
+        ref={buttonRef}
+        type="button"
+        data-summary-open
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={onOpen}
+        className={`${primaryButton} min-h-11 w-full`}
+      >
+        {messages.previewHeading}
+      </button>
+    </div>
+  );
+}
+
 /**
  * The fixed bottom bar: heir count, readiness, Full results and a separate expand control. It adds no
  * live region; the Interview's one status speaks.
@@ -512,12 +544,12 @@ function SummaryBar({
       ref={setBox}
       data-summary-bar
       inert={inert}
-      className="fixed inset-x-0 bottom-0 z-30 flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t-2 border-foreground bg-background px-4 py-2 shadow-summary-bar"
+      className="fixed inset-x-0 bottom-0 z-30 flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-2 max-[359.98px]:flex-col max-[359.98px]:items-stretch border-t-2 border-foreground bg-background px-4 py-2 shadow-summary-bar"
     >
-      <span data-summary-text className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center" onClick={onOpen}>
+      <span data-summary-text className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center max-[359.98px]:w-full max-[359.98px]:flex-none" onClick={onOpen}>
         {barText(view, messages)}
       </span>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 max-[359.98px]:justify-between">
         <Link href={`/${locale}/results/`} prefetch={false} className={primaryButton}>
           {messages.previewResultsLink}
         </Link>
@@ -579,7 +611,26 @@ export function SharePreviewSummary({
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const chevron = useRef<HTMLButtonElement>(null);
+  const inflow = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
+  const carryFocus = useRef(false);
+  const subscribeCompact = useCallback((notify: () => void) => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
+    const mql = window.matchMedia(COMPACT_LANDSCAPE_QUERY);
+    const onChange = () => {
+      // The opener in focus is about to be swapped out; remember it so focus can follow to the new one.
+      const active = document.activeElement;
+      carryFocus.current = active !== null && (active === chevron.current || active === inflow.current);
+      notify();
+    };
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  const compact = useSyncExternalStore(
+    subscribeCompact,
+    () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(COMPACT_LANDSCAPE_QUERY).matches,
+    () => false,
+  );
   const sheetOpen = open && showBar;
   const openSheet = useCallback(() => setOpen(true), []);
 
@@ -598,16 +649,27 @@ export function SharePreviewSummary({
       if (modal?.open) modal.close();
       if (wasOpen.current) {
         wasOpen.current = false;
-        if (chevron.current) chevron.current.focus();
+        const opener = chevron.current ?? inflow.current;
+        if (opener) opener.focus();
         else focusRoot?.();
       }
     }
   }, [sheetOpen, focusRoot]);
 
+  useEffect(() => {
+    if (!carryFocus.current) return;
+    carryFocus.current = false;
+    (compact ? inflow.current : chevron.current)?.focus();
+  }, [compact]);
+
   if (!visible) return null;
   return (
     <>
-      <SummaryBar view={view} messages={messages} locale={locale} inert={sheetOpen} open={sheetOpen} onOpen={openSheet} chevronRef={chevron} />
+      {compact ? (
+        <SummaryOpenButton messages={messages} open={sheetOpen} onOpen={openSheet} buttonRef={inflow} />
+      ) : (
+        <SummaryBar view={view} messages={messages} locale={locale} inert={sheetOpen} open={sheetOpen} onOpen={openSheet} chevronRef={chevron} />
+      )}
       <dialog
         ref={dialog}
         aria-labelledby="preview-heading"

@@ -221,3 +221,15 @@ for (const locale of ["en", "ar"] as const) {
     }
   });
 }
+
+for (const locale of ["en", "ar"] as const) {
+  test(`Full results at 320px in ${locale} has no page x-scroll and a labelled table region`, async ({ page, api }) => {
+    await page.setViewportSize({ width: 320, height: 700 });
+    stubResults(api);
+    await page.goto(`/${locale}/results/`);
+    const region = page.getByRole("region", { name: messages[locale].results.table.caption });
+    await expect(region).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    expect(await region.evaluate((el) => el.scrollWidth >= el.clientWidth)).toBe(true);
+  });
+}

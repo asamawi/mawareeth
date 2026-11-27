@@ -447,3 +447,72 @@ test("a refusal by every School lists each distinct refusal and no shares", asyn
     assert.equal(node.querySelector("ul"), null);
   } finally { await done(); }
 });
+
+// ---- Story 11.4: compact landscape ----
+
+function stubCompact(initial: boolean) {
+  const w = window as unknown as { matchMedia: unknown };
+  const original = w.matchMedia;
+  let matches = initial;
+  const handlers = new Set<() => void>();
+  w.matchMedia = () => ({
+    get matches() { return matches; },
+    addEventListener: (_: string, h: () => void) => { handlers.add(h); },
+    removeEventListener: (_: string, h: () => void) => { handlers.delete(h); },
+  });
+  return {
+    async set(next: boolean) { matches = next; await act(async () => { for (const h of [...handlers]) h(); }); },
+    restore() { w.matchMedia = original; },
+  };
+}
+const inflow = (node: Element) => node.querySelector<HTMLButtonElement>("[data-summary-open]");
+
+test("compact landscape renders the in-flow button and no bar, and the button opens the sheet and gets focus back", async () => {
+  const media = stubCompact(true);
+  const r = await summary(ready());
+  try {
+    assert.equal(bar(r.node), null);
+    const button = inflow(r.node)!;
+    assert.equal(button.textContent, en.previewHeading);
+    assert.equal(button.getAttribute("aria-haspopup"), "dialog");
+    assert.equal(button.getAttribute("aria-expanded"), "false");
+    await act(async () => { button.click(); });
+    assert.ok(r.node.querySelector("dialog")!.hasAttribute("open"));
+    assert.equal(button.getAttribute("aria-expanded"), "true");
+    const close = [...r.node.querySelectorAll("dialog button")].find((b) => b.textContent === en.editClose) as HTMLElement;
+    await act(async () => { close.click(); });
+    assert.equal(document.activeElement, button);
+  } finally { await r.done(); media.restore(); }
+});
+
+test("compact mode follows the bar's visibility rule", async () => {
+  const media = stubCompact(true);
+  const r = await summary(view({ kind: "waiting" }, { state: "idle" }));
+  try {
+    assert.equal(inflow(r.node), null);
+    await r.draw(ready(), false);
+    assert.equal(inflow(r.node), null);
+  } finally { await r.done(); media.restore(); }
+});
+
+test("a mode change keeps the sheet open and moves focus between openers", async () => {
+  const media = stubCompact(false);
+  const r = await summary(ready());
+  try {
+    const chevron = bar(r.node)!.querySelector<HTMLButtonElement>("[data-summary-expand]")!;
+    await act(async () => { chevron.focus(); });
+    await media.set(true);
+    assert.equal(bar(r.node), null);
+    assert.equal(document.activeElement, inflow(r.node));
+    await media.set(false);
+    assert.equal(document.activeElement, bar(r.node)!.querySelector("[data-summary-expand]"));
+    await act(async () => { bar(r.node)!.querySelector<HTMLButtonElement>("[data-summary-expand]")!.click(); });
+    const dialog = r.node.querySelector("dialog")!;
+    await media.set(true);
+    assert.equal(r.node.querySelector("dialog"), dialog, "the dialog is not remounted");
+    assert.ok(dialog.hasAttribute("open"));
+    const close = [...dialog.querySelectorAll("button")].find((b) => b.textContent === en.editClose) as HTMLElement;
+    await act(async () => { close.click(); });
+    assert.equal(document.activeElement, inflow(r.node));
+  } finally { await r.done(); media.restore(); }
+});

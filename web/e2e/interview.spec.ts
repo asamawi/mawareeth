@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 
-import { closePreview, lineageFixture, openCanvasFixture, openHeirsScreen, openPreview, sheetOf } from "./family";
+import { closePreview, lineageFixture, openCanvasFixture, openHeirsScreen, openPreview, openPreviewAnywhere, sheetOf } from "./family";
 import { abort, CASE, expect, expiredCase, fullCase, json, liveCase, noCase, sessionAnonymous, startedCase, test, watchErrors, type Stubs } from "./api";
 
 const en = messages.en.interview;
@@ -2213,38 +2213,33 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
     }), { timeout: 3000 }).toBe(true);
   });
 
-  test("the obstruction follows the summary bar plus the toast, is capped at a quarter of the viewport, and returns to the bar's height", async ({ page, api }) => {
+  test("the obstruction follows the bar plus the floating toast, and the bar alone when the toast flows", async ({ page, api }) => {
     await page.clock.install();
-    await page.setViewportSize({ width: 320, height: 240 });
+    await page.setViewportSize({ width: 375, height: 800 });
     const kase = start();
     await openAgree(page, api, "en", kase);
-    // The fixed summary bar alone is the baseline (capped at a quarter of the 240px viewport).
     const bar = page.locator("[data-summary-bar]");
     await expect(bar).toBeVisible();
     const barHeight = (await box(bar)).height;
-    await expect.poll(() => page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).scrollPaddingBlockEnd))).toBeCloseTo(Math.min(barHeight, 60), 0);
-    api.set({ postHeir: json(201, { case: added(kase) }) });
-    await page.locator('[data-focus="add:son"]').click({ force: true });
+    const variable = () => page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue("--interview-obstruction")));
+    await expect.poll(variable).toBeCloseTo(barHeight, 0);
+    // The next preview stays pending, so the bar keeps its accepted shares while the toast shows.
+    api.set({ getPreview: async (route) => { await new Promise((resolve) => setTimeout(resolve, 20_000)); try { await json(200, agree.response)(route); } catch {} }, postHeir: json(201, { case: added(kase) }) });
+    await page.locator('[data-focus="add:son"]').click();
     const toast = page.locator("[data-undo-toast]");
-    await expect(toast).toBeVisible();
-    expect((await box(toast)).height).toBeGreaterThan(60);
-    await expect.poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue("--interview-obstruction"))).toBe("60px");
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollPaddingBlockEnd)).toBe("60px");
-    // Taller than the cap: the toast's own height applies once a quarter of the viewport is at least that.
-    const natural = (await box(toast)).height;
-    await page.setViewportSize({ width: 320, height: 800 });
-    await expect.poll(() => page.evaluate((toastHeight) => {
-      const bar = document.querySelector("[data-summary-bar]");
-      const expected = Math.min(toastHeight + (bar?.getBoundingClientRect().height ?? 0), 0.25 * window.innerHeight);
-      return Math.abs(parseFloat(document.documentElement.style.getPropertyValue("--interview-obstruction")) - expected);
-    }, natural)).toBeLessThan(1);
+    await expect(toast).toHaveAttribute("data-toast-placement", "float");
+    const toastHeight = (await box(toast)).height;
+    await expect.poll(variable).toBeCloseTo(barHeight + 8 + toastHeight, 0);
+    // Too tall for a quarter of the viewport: the toast moves into the flow and the bar alone is registered.
+    await page.setViewportSize({ width: 375, height: 380 });
+    await expect(toast).toHaveAttribute("data-toast-placement", "flow");
+    await expect.poll(variable).toBeCloseTo(Math.min(barHeight, 95), 0);
+    await page.setViewportSize({ width: 375, height: 800 });
+    await expect(toast).toHaveAttribute("data-toast-placement", "float");
     await page.clock.fastForward(10_500);
     await expect(toast).toHaveCount(0);
-    // Only the bar remains (this stub never answers the new revision, so the request may fail and the bar go too).
-    await expect.poll(() => page.evaluate(() => {
-      const bar = document.querySelector("[data-summary-bar]");
-      return Math.abs(parseFloat(getComputedStyle(document.documentElement).scrollPaddingBlockEnd) - Math.min(bar?.getBoundingClientRect().height ?? 0, 0.25 * window.innerHeight));
-    })).toBeLessThan(1);
+    // Only the bar can remain (the pending preview may have timed out and hidden it too).
+    await expect.poll(async () => (await variable()) <= barHeight + 0.5).toBe(true);
   });
 
   test.describe("reduced motion", () => {
@@ -2693,4 +2688,164 @@ test.describe("Story 11.3: the summary bar and sheet", () => {
       expect(await sheet.evaluate((el) => getComputedStyle(el, "::backdrop").backgroundColor)).toBe(scheme === "dark" ? "rgba(0, 0, 0, 0.6)" : "rgba(23, 23, 23, 0.4)");
     });
   }
+});
+
+test.describe("Story 11.4: summary controls at narrow widths and high zoom", () => {
+  const agree = fixture("Agree: wife, son and daughter in every school");
+  const stamp = (kase: Record<string, any>, revision: number): Record<string, any> => ({ ...kase, revision, snapshot: { at: revision } }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const start = () => stamp(fullCase(agree.case) as Record<string, any>, 5); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const added = (kase: Record<string, any>) => stamp({ ...kase, heirs: [...kase.heirs, { id: "new-son", relationship: "son", gender: "male", name: null, edit_options: { blocked: [], invalid: {} } }] }, kase.revision + 1); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const spacing = "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
+  const box = async (locator: ReturnType<Page["locator"]>) => (await locator.boundingBox())!;
+  const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+  const variable = (page: Page) => page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue("--interview-obstruction")) || 0);
+  const scrollPadding = (page: Page) => page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).scrollPaddingBlockEnd));
+  const open = async (page: Page, api: Parameters<typeof openHeirsScreen>[1], locale: "en" | "ar" | "fr", kase = start()) => {
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(200, agree.response) });
+    await page.goto(`/${locale}/interview/`);
+    await page.getByRole("button", { name: messages[locale].interview.resume }).click();
+    await page.locator("[data-preview-state='ready']").waitFor();
+  };
+
+  for (const locale of ["en", "ar", "fr"] as const) for (const spaced of [false, true]) {
+    test(`the bar wraps into two rows at 320px in ${locale}${spaced ? " with text spacing" : ""}`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 320, height: 640 });
+      await open(page, api, locale);
+      if (spaced) await page.addStyleTag({ content: spacing });
+      const t = messages[locale].interview;
+      const bar = page.locator("[data-summary-bar]");
+      await expect(bar).toBeVisible();
+      const text = await box(bar.locator("[data-summary-text]"));
+      const results = bar.getByRole("link", { name: t.previewResultsLink });
+      const chevron = bar.getByRole("button", { name: t.previewHeading });
+      for (const control of [results, chevron]) {
+        const b = await box(control);
+        expect(b.height).toBeGreaterThanOrEqual(44);
+        expect(b.width).toBeGreaterThanOrEqual(44);
+        expect(b.x).toBeGreaterThanOrEqual(0);
+        expect(b.x + b.width).toBeLessThanOrEqual(320.5);
+        expect(b.y).toBeGreaterThanOrEqual(text.y + text.height - 1);
+      }
+      expect(await noOverflow(page)).toBe(true);
+      expect(await bar.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    });
+  }
+
+  for (const locale of ["en", "ar"] as const) {
+    test(`bar and toast at 375x800 in ${locale}: the toast floats above the bar and the padding is bar + 8 + toast`, async ({ page, api }) => {
+      await page.setViewportSize({ width: 375, height: 800 });
+      const kase = start();
+      await open(page, api, locale, kase);
+      api.set({ getPreview: async (route) => { await new Promise((resolve) => setTimeout(resolve, 20_000)); try { await json(200, agree.response)(route); } catch {} }, postHeir: json(201, { case: added(kase) }) });
+      await page.locator('[data-focus="add:son"]').click();
+      const toast = page.locator("[data-undo-toast]");
+      const bar = page.locator("[data-summary-bar]");
+      await expect(toast).toHaveAttribute("data-toast-placement", "float");
+      const t = await box(toast), b = await box(bar);
+      expect(t.y + t.height).toBeLessThanOrEqual(b.y + 0.5);
+      expect(b.y - (t.y + t.height)).toBeCloseTo(8, 0);
+      await expect.poll(() => scrollPadding(page)).toBeCloseTo(b.height + 8 + t.height, 0);
+      expect(await scrollPadding(page)).toBeLessThanOrEqual(0.25 * 800 + 1);
+      expect(await variable(page)).toBeCloseTo(await scrollPadding(page), 0);
+      // Tab to the last Heirs row control: the browser scrolls it clear of both the bar and the floating toast.
+      const rowControls = page.locator('ul[aria-label] [data-focus^="editHeir:"]');
+      const lastRow = rowControls.last();
+      // Reduced motion turns smooth scrolling off, so the focus scroll lands at once and the check is not timing-bound.
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await lastRow.scrollIntoViewIfNeeded();
+      await page.locator('[data-focus="list"]').focus();
+      for (let step = 0; step < 80 && !(await lastRow.evaluate((el) => el === document.activeElement)); step += 1) await page.keyboard.press("Tab");
+      await expect(lastRow).toBeFocused();
+      // The page scrolls smoothly in normal motion; wait for the scroll to settle clear of both surfaces.
+      await expect.poll(async () => {
+        const row = await box(lastRow);
+        return row.y + row.height <= (await box(toast)).y + 1 && row.y + row.height <= (await box(bar)).y + 1;
+      }).toBe(true);
+      // The end of the page is padded by the obstruction, so the last content can scroll clear of both.
+      const padding = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector("[data-js-only]")!).paddingBlockEnd));
+      expect(padding).toBeCloseTo(await scrollPadding(page), 0);
+    });
+  }
+
+  test("too tall at 320x400 with text spacing: the toast stays in the flow and the padding is the bar", async ({ page, api }) => {
+    await page.setViewportSize({ width: 320, height: 400 });
+    const kase = start();
+    await open(page, api, "en", kase);
+    await page.addStyleTag({ content: spacing });
+    api.set({ getPreview: async (route) => { await new Promise((resolve) => setTimeout(resolve, 20_000)); try { await json(200, agree.response)(route); } catch {} }, postHeir: json(201, { case: added(kase) }) });
+    await page.locator('[data-focus="add:son"]').click({ force: true });
+    const toast = page.locator("[data-undo-toast]");
+    await expect(toast).toHaveAttribute("data-toast-placement", "flow");
+    const bar = await box(page.locator("[data-summary-bar]"));
+    await expect.poll(() => scrollPadding(page)).toBeCloseTo(Math.min(bar.height, 100), 0);
+    api.set({ postRestore: json(200, { case: stamp(kase, 7) }) });
+    await toast.getByRole("button", { name: en.undoAction, exact: true }).click({ force: true });
+    expect(api.restorePosts).toHaveLength(1);
+  });
+
+  for (const size of [{ width: 800, height: 400 }, { width: 320, height: 200 }]) for (const locale of ["en", "ar"] as const) {
+    test(`compact landscape ${size.width}x${size.height} in ${locale}: no bar, an in-flow button opens the sheet and Escape returns focus`, async ({ page, api }) => {
+      await page.setViewportSize(size);
+      await open(page, api, locale);
+      const t = messages[locale].interview;
+      await expect(page.locator("[data-summary-bar]")).toHaveCount(0);
+      const button = page.locator("[data-summary-open]");
+      await expect(button).toHaveText(t.previewHeading);
+      expect((await box(button)).height).toBeGreaterThanOrEqual(44);
+      expect(await variable(page)).toBeCloseTo(0, 0);
+      await button.click();
+      const sheet = sheetOf(page);
+      await expect(sheet.locator("h2#preview-heading")).toBeFocused();
+      expect((await box(sheet)).height).toBeLessThanOrEqual(size.height * 0.78 + 1);
+      await page.keyboard.press("Escape");
+      await expect(sheet).toBeHidden();
+      await expect(button).toBeFocused();
+    });
+  }
+
+  test("rotating with the chevron focused moves focus to the in-flow button and back; an open sheet stays open", async ({ page, api }) => {
+    await page.setViewportSize({ width: 400, height: 800 });
+    await open(page, api, "en");
+    await page.locator("[data-summary-expand]").focus();
+    await page.setViewportSize({ width: 800, height: 400 });
+    await expect(page.locator("[data-summary-open]")).toBeFocused();
+    await page.setViewportSize({ width: 400, height: 800 });
+    await expect(page.locator("[data-summary-expand]")).toBeFocused();
+    const previews = api.previewGets;
+    await openPreview(page);
+    const rows = await sheetOf(page).locator("ul > li").count();
+    await page.setViewportSize({ width: 800, height: 400 });
+    await expect(sheetOf(page)).toBeVisible();
+    expect(await sheetOf(page).locator("ul > li").count()).toBe(rows);
+    await closePreview(page);
+    await expect(page.locator("[data-summary-open]")).toBeFocused();
+    expect(api.previewGets).toBe(previews);
+  });
+
+  test("crossing 1366, 900, 600, 375 and 320 wide with the sheet open keeps it open with the same revision", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1366, height: 800 });
+    await open(page, api, "en");
+    await openPreview(page);
+    const revision = await page.locator("[data-preview-revision]").getAttribute("data-preview-revision");
+    const previews = api.previewGets;
+    for (const width of [900, 600, 375, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      await expect(sheetOf(page)).toBeVisible();
+      await expect(page.locator("[data-preview-revision]")).toHaveAttribute("data-preview-revision", revision ?? "");
+    }
+    expect(api.previewGets).toBe(previews);
+  });
+
+  test.describe("reduce", () => {
+    test.use({ reducedMotion: "reduce" });
+    test("the in-flow button and the bar still open and close the sheet", async ({ page, api }) => {
+      await page.setViewportSize({ width: 800, height: 400 });
+      await open(page, api, "en");
+      await openPreviewAnywhere(page);
+      await closePreview(page);
+      await page.setViewportSize({ width: 375, height: 800 });
+      await openPreviewAnywhere(page);
+      await closePreview(page);
+    });
+  });
 });
