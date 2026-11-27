@@ -901,3 +901,49 @@ test("PDF events share the status line and the newest event wins", async () => {
   await settle();
   assert.equal(status(), text.saved, "a save newer than the PDF failure replaces it");
 });
+
+test("guest closes the sign-in dialog from Save: no write, no saved text, a lead control comes first, focus on Save", async () => {
+  const fetch = makeFetch(false);
+  (globalThis as Record<string, unknown>).fetch = fetch;
+  await act(() => {
+    root.render(<AuthGate locale="en" text={text} share={shareText} caseId="c1" lead={<button type="button" data-lead>PDF</button>} />);
+  });
+  await settle();
+  const row = container.querySelector("[data-lead]")!.parentElement!;
+  assert.deepEqual([...row.querySelectorAll("button")].map((b) => b.textContent), ["PDF", text.save, text.shareAction, text.whatsappAction]);
+  const saveBtn = buttonNamed(text.save) as HTMLButtonElement;
+  assert.ok(saveBtn.className.includes("border-line"));
+  await act(() => { saveBtn.click(); });
+  const dlg = container.querySelector("dialog")!;
+  assert.ok(dlg.open);
+  await act(() => { dlg.close(); });
+  await settle();
+  assert.equal(posts(fetch).length, 0);
+  assert.ok(!status().includes(text.saved));
+  assert.equal(document.activeElement, saveBtn);
+});
+
+test("?resume=share with authenticated prepares the share link for the same Case and strips the param", async () => {
+  await teardownDom(dom);
+  dom = installDom("http://localhost/en/results/?resume=share");
+  document.cookie = "csrftoken=test-csrf-token";
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+  const fetch = makeFetch(true, authedHandlers);
+  (globalThis as Record<string, unknown>).fetch = fetch;
+  await act(() => { root.render(<AuthGate locale="en" text={text} share={shareText} caseId="c1" />); });
+  await settle();
+  await settle();
+  const save = fetch.calls.find((c) => c.url === "/api/v1/saved-cases/" && c.method === "POST");
+  assert.ok(save, "the resumed share saves the Case first");
+  assert.equal(JSON.parse(save.body ?? "{}").case_id, "c1", "the save is for the same Case");
+  assert.ok(fetch.calls.some((c) => c.url === "/api/v1/saved-cases/42/shares/" && c.method === "POST"));
+  assert.ok(!button(shareText.whatsappOpen), "a resumed Share link does not open the WhatsApp panel");
+  assert.ok(!window.location.search.includes("resume"));
+  await act(async () => { root.unmount(); });
+  container.remove();
+  await teardownDom(dom);
+  dom = installDom("http://localhost/en/results/");
+  document.cookie = "csrftoken=test-csrf-token";
+});

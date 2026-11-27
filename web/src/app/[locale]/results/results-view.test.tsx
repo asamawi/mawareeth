@@ -5,6 +5,7 @@ import { act } from "react";
 import { installDom, teardownDom } from "@/test/dom";
 import type { Window } from "happy-dom";
 import { messages } from "@/i18n/messages";
+import { terms } from "@/i18n/catalog.generated";
 import { mixedRefusalFixture, previewFixture } from "@/test/preview-fixtures";
 
 const en = messages["en"];
@@ -286,4 +287,45 @@ test("all four Schools refusing for different reasons shows each presented refus
   for (const refusal of (mixed.response as { presented: { refusals: { text: string }[] } }).presented.refusals) assert.ok(shown.includes(refusal.text), refusal.text);
   assert.ok(shown.includes(en.interview.previewUnavailable));
   assert.equal(container.querySelector("#results-shares"), null);
+});
+
+test("Full results: one action row in order PDF (primary), Save, Share link, WhatsApp (secondary), and a disclaimer notice with no button", async () => {
+  await act(() => {
+    root.render(<Available messages={en} locale="en" kase={hanafiCase()} preview={availablePreview} back={null} gate download={() => Promise.resolve({ kind: "failed" } as never)} />);
+  });
+  await settle();
+  const saveButton = [...container.querySelectorAll("button")].find((x) => x.textContent === en.results.save)!;
+  const row = saveButton.parentElement!;
+  const buttons = [...row.querySelectorAll("button")] as HTMLButtonElement[];
+  assert.deepEqual(buttons.map((b) => b.textContent), [en.results.pdfDownload, en.results.save, en.results.shareAction, en.results.whatsappAction]);
+  assert.ok(buttons[0].className.includes("bg-accent"));
+  for (const b of buttons.slice(1)) assert.ok(b.className.includes("border-line") && !b.className.includes("bg-accent"));
+  const notice = container.querySelector("[data-notice=disclaimer]")!;
+  const servedText = availablePreview.presented?.notices.find((n) => n.code === "disclaimer")?.text;
+  assert.equal(notice.textContent, servedText ?? (terms as Record<string, Record<string, string>>).en["notice.disclaimer"]);
+  for (const b of buttons) assert.ok(b.className.includes("disabled:opacity-60"));
+  assert.equal(notice.querySelector("button"), null);
+});
+
+test("Shared view (no gate): PDF is primary, with no Save and no disclaimer", async () => {
+  await act(() => {
+    root.render(<Available messages={en} locale="en" kase={hanafiCase()} preview={availablePreview} back={null} gate={false} />);
+  });
+  await settle();
+  const labels = [...container.querySelectorAll("button")].map((b) => b.textContent);
+  assert.ok(labels.includes(en.results.pdfDownload));
+  assert.ok(!labels.includes(en.results.save));
+  assert.equal(container.querySelector("[data-notice=disclaimer]"), null);
+  const pdf = [...container.querySelectorAll("button")].find((b) => b.textContent === en.results.pdfDownload)!;
+  assert.ok(pdf.className.includes("bg-accent"));
+});
+
+test("Full results: a served disclaimer text wins over the catalog", async () => {
+  const presented = availablePreview.presented!;
+  const preview = { ...availablePreview, presented: { ...presented, notices: [...presented.notices.filter((n) => n.code !== "disclaimer"), { code: "disclaimer", text: "Served disclaimer wording" }] } } as typeof availablePreview;
+  await act(() => {
+    root.render(<Available messages={en} locale="en" kase={hanafiCase()} preview={preview} back={null} gate />);
+  });
+  await settle();
+  assert.equal(container.querySelector("[data-notice=disclaimer]")?.textContent, "Served disclaimer wording");
 });

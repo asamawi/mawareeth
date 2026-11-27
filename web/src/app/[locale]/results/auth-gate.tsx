@@ -7,6 +7,7 @@ import { autosave } from "@/interview/autosave";
 import type { Messages } from "@/i18n/messages";
 import { loginHref, signupHref, resultsResumePath, shareUrl } from "@/i18n/paths";
 import { buttonClass } from "../interview/form-bits";
+import { secondaryButton } from "../ui";
 import { useAuthState } from "../use-session";
 import { authorizedAction, decide, newestLine, nextSeq, parseResume, type Action } from "./auth-gate-state";
 import { InvitePanel } from "./invite-panel";
@@ -14,6 +15,8 @@ import { NameDialog } from "./name-dialog";
 import { WhatsappPanel } from "./whatsapp-panel";
 import { SharePanel } from "./share-panel";
 import { directionOf } from "@/i18n/messages";
+
+const actionClass = `${secondaryButton} disabled:cursor-not-allowed disabled:opacity-60`;
 
 /** The save conflict prompt after Save, Share or WhatsApp: what the visitor was shown, and which action it interrupted. */
 type Conflict = { data: SaveConflict; source: Action };
@@ -25,7 +28,7 @@ const isConflict = (value: unknown): value is SaveConflict => typeof value === "
  * `linked`: the case already has a Saved case, so Save does not ask for a name.
  * `onReplaced`: the working copy was replaced by the stored version, so the page must load it again.
  */
-export function AuthGate({ locale, text, share: shareText, caseId, linked = false, onSchoolRequired, onReplaced, pdf }: { caseId: string; locale: string; text: Messages["results"]; share: Messages["share"]; linked?: boolean; onSchoolRequired?: () => void; onReplaced?: () => void; pdf?: { text: string | null; seq: number } }) {
+export function AuthGate({ locale, text, share: shareText, caseId, linked = false, onSchoolRequired, onReplaced, pdf, lead }: { caseId: string; locale: string; text: Messages["results"]; share: Messages["share"]; linked?: boolean; onSchoolRequired?: () => void; onReplaced?: () => void; pdf?: { text: string | null; seq: number }; lead?: React.ReactNode }) {
   const auth = useAuthState();
   const [saveState, setSaveStateRaw] = useState<"idle" | "saving" | "saved" | "error" | "school" | "conflict">("idle");
   // Every save, share, copy and PDF event is numbered; the one status line shows the newest event's message.
@@ -263,9 +266,10 @@ export function AuthGate({ locale, text, share: shareText, caseId, linked = fals
   return (
     <div className="flex flex-col gap-3" dir={directionOf(locale)}>
       <div className="flex flex-wrap gap-3">
-        <button ref={save} disabled={saveState === "saving" || shareState?.status === "creating" || conflict !== null || busy !== null} type="button" className={buttonClass} onClick={(event) => activate("save", event.currentTarget)}>{saveState === "saving" ? text.saving : text.save}</button>
-        <button ref={share} type="button" disabled={shareState?.status === "creating" || saveState === "saving" || conflict !== null || busy !== null} className={buttonClass} onClick={(event) => activate("share", event.currentTarget)}>{text.shareAction}</button>
-        <button ref={whatsapp} type="button" disabled={shareState?.status === "creating" || saveState === "saving" || conflict !== null || busy !== null} className={buttonClass} onClick={(event) => activate("whatsapp", event.currentTarget)}>{text.whatsappAction}</button>
+        {lead}
+        <button ref={save} disabled={saveState === "saving" || shareState?.status === "creating" || conflict !== null || busy !== null} type="button" className={actionClass} onClick={(event) => activate("save", event.currentTarget)}>{saveState === "saving" ? text.saving : text.save}</button>
+        <button ref={share} type="button" disabled={shareState?.status === "creating" || saveState === "saving" || conflict !== null || busy !== null} className={actionClass} onClick={(event) => activate("share", event.currentTarget)}>{text.shareAction}</button>
+        <button ref={whatsapp} type="button" disabled={shareState?.status === "creating" || saveState === "saving" || conflict !== null || busy !== null} className={actionClass} onClick={(event) => activate("whatsapp", event.currentTarget)}>{text.whatsappAction}</button>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <p role="status" aria-live="polite" className="text-sm text-muted">{newestLine([{ text: saveLine, seq: saveSeq }, note, pdf ?? null])}</p>

@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 
 import { fetchPreview, type Case, type Preview, type PreviewResult, type SunniId } from "@/api/case";
-import { terms } from "@/i18n/catalog.generated";
 import type { Messages } from "@/i18n/messages";
 import type { AnnounceKind } from "@/interview/announce";
+import { noticeText } from "@/interview/notices";
 import { rowLabels } from "@/interview/layers";
 import { useObstruction } from "@/interview/obstruction";
 import {
@@ -244,14 +244,6 @@ export function useSharePreview({
     bodyRef,
     retry: () => setAttempt((count) => count + 1),
   };
-}
-
-/** A notice's text: the served one, else the catalog's `notice.<code>`, else none. */
-function noticeText(presented: PresentedResult | undefined, code: "disclaimer" | "locale_beta", locale: string): string | null {
-  const served = presented?.notices.find((notice) => notice.code === code)?.text;
-  if (served) return served;
-  const catalog = (terms as Record<string, Record<string, string> | undefined>)[locale];
-  return catalog?.[`notice.${code}`] ?? null;
 }
 
 /**

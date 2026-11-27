@@ -649,3 +649,7 @@ Epic 9's gate and retrospective stay open until the owner records them.
 - source_spec: `_bmad-output/implementation-artifacts/spec-11-4-keep-summary-controls-reachable-at-narrow-widths-and-high-zoom.md`
   summary: A real browser zoom (400% on a desktop) and real-device rotation were not run; Playwright used 320px and 320x200 viewports as stand-ins. The in-flow "Share preview" button sits at the end of the Interview flow in compact landscape; its position should be reviewed in the Epic 12 copy and UX review.
   evidence: Story 11.4 e2e (Story 11.4 block in web/e2e/interview.spec.ts) resizes the viewport; no new strings were added.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-5-preserve-the-results-table-and-make-result-actions-clear.md`
+  summary: Pre-existing, from Story 11.4. `web/e2e/accessibility.spec.ts:179` ("the 320px bar with text spacing, then the open sheet") fails in en, ar and fr light mode with `color-contrast (serious): .text-accent` whenever the whole accessibility file runs in chromium, and passes when run alone with `-g`. It is order- or load-dependent, and the contrast of a `.text-accent` element in the open Share preview sheet needs a look.
+  evidence: On 2026-11-28 the baseline 0c31c948 (Story 11.5's diff reverse-applied, fresh build) failed the same 3 tests with 64 passed. With 11.5 applied the result was the same, and 12/12 passed in isolation. The 11.4 run recorded one failure of this test under load.

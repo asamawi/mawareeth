@@ -65,6 +65,7 @@ for (const locale of ["en", "ar"] as const) {
       for (const name of [messages[locale].results.save, messages[locale].results.shareAction, messages[locale].results.whatsappAction, messages[locale].cases.open]) {
         await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
       }
+      await expect(page.getByRole("button", { name: messages[locale].results.pdfDownload, exact: true })).toHaveCount(1);
       expect(await serious(page)).toEqual([]);
       expect(JSON.parse(api.shareViewPosts[0])).toEqual({ token: "tok123" });
     });

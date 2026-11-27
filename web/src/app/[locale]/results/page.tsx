@@ -16,8 +16,8 @@ export default async function ResultsPage({
   const text = messages[locale];
 
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10">
-      <h1 className="mx-auto w-full max-w-xl text-3xl font-semibold">{text.results.heading}</h1>
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-6 py-12 md:py-16">
+      <h1 className="w-full text-3xl font-semibold">{text.results.heading}</h1>
       <noscript>
         {/* Without JavaScript the loading text would sit next to the explanation. */}
         <style>{"[data-js-only]{display:none}"}</style>

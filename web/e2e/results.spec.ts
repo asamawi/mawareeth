@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { directionOf, messages } from "../src/i18n/messages";
-import { expect, fullCase, json, sessionAuthenticated, test, type Api } from "./api";
+import { expect, fullCase, json, sessionAnonymous, sessionAuthenticated, test, type Api } from "./api";
 
 const agree = (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[] })
   .fixtures.find((item) => item.title === "Agree: wife, son and daughter in every school")!;
@@ -231,5 +231,118 @@ for (const locale of ["en", "ar"] as const) {
     await expect(region).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     expect(await region.evaluate((el) => el.scrollWidth >= el.clientWidth)).toBe(true);
+  });
+}
+
+for (const locale of ["en", "ar", "fr"] as const) {
+  const text = messages[locale].results;
+  const names = [text.pdfDownload, text.save, text.shareAction, text.whatsappAction];
+  const action = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
+
+  test.describe(`Story 11.5 in ${locale}`, () => {
+    test("desktop: ordered action row, primary and secondary styles, disclaimer and shell", async ({ page, api }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      stubResults(api);
+      await page.goto(`/${locale}/results/`);
+      const boxes = [];
+      for (const name of names) {
+        const box = await action(page, name).boundingBox();
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+        boxes.push(box!);
+      }
+      const rtl = directionOf(locale) === "rtl";
+      for (let i = 1; i < boxes.length; i += 1) {
+        expect(rtl ? boxes[i].x < boxes[i - 1].x : boxes[i].x > boxes[i - 1].x).toBe(true);
+      }
+      const row = action(page, text.save).locator("..");
+      const gaps = await row.evaluate((el) => { const s = getComputedStyle(el); return [s.columnGap, s.rowGap]; });
+      expect(gaps).toEqual(["12px", "12px"]);
+      const styles = await Promise.all(names.map((name) => action(page, name).evaluate((el) => { const s = getComputedStyle(el); return { bg: s.backgroundColor, border: s.borderTopWidth }; })));
+      expect(styles[0].bg).not.toBe("rgba(0, 0, 0, 0)");
+      for (const style of styles.slice(1)) {
+        expect(style.bg).toBe("rgba(0, 0, 0, 0)");
+        expect(style.border).toBe("1px");
+      }
+      const notice = page.locator("[data-notice=disclaimer]");
+      await expect(notice).toBeVisible();
+      const look = await notice.evaluate((el) => { const s = getComputedStyle(el); return { pad: s.paddingTop, border: s.borderTopWidth, weight: Number(s.fontWeight) }; });
+      expect(look.pad).toBe("12px");
+      expect(look.border).toBe("1px");
+      expect(look.weight).toBeGreaterThanOrEqual(600);
+      const main = await page.locator("main").evaluate((el) => { const s = getComputedStyle(el); return { width: el.getBoundingClientRect().width, start: s.paddingInlineStart }; });
+      expect(main.width).toBeLessThanOrEqual(1024);
+      expect(main.start).toBe("24px");
+      const vertical = await page.locator("main").evaluate((el) => { const s = getComputedStyle(el); return [s.paddingTop, s.paddingBottom]; });
+      expect(vertical).toEqual(["64px", "64px"]);
+    });
+
+    test("desktop: table caption, proof tint, LTR fractions and keyboard order", async ({ page, api }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      stubResults(api);
+      await page.goto(`/${locale}/results/`);
+      await expect(page.getByRole("region", { name: text.table.caption })).toBeVisible();
+      expect(await page.locator("bdi[dir=ltr]").count()).toBeGreaterThan(0);
+      const region = page.getByRole("region", { name: text.table.caption });
+      const proof = region.locator("button[aria-controls]").first();
+      expect(await proof.evaluate((el) => getComputedStyle(el).textDecorationStyle)).toBe("dotted");
+      await proof.click();
+      expect(await proof.evaluate((el) => getComputedStyle(el.closest("tr")!).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+      await action(page, names[0]).focus();
+      for (const name of names.slice(1)) {
+        await page.keyboard.press("Tab");
+        await expect(action(page, name)).toBeFocused();
+        const outline = await action(page, name).evaluate((el) => getComputedStyle(el).outlineStyle);
+        expect(outline).not.toBe("none");
+      }
+    });
+
+    test("phone: actions wrap inside the viewport with no page x-scroll", async ({ page, api }) => {
+      await page.setViewportSize({ width: 320, height: 640 });
+      stubResults(api);
+      await page.goto(`/${locale}/results/`);
+      for (const name of names) {
+        const box = (await action(page, name).boundingBox())!;
+        expect(box.height).toBeGreaterThanOrEqual(44);
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(320);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+      const region = page.getByRole("region", { name: text.table.caption });
+      expect(await region.evaluate((el) => el.scrollWidth >= el.clientWidth)).toBe(true);
+    });
+
+    test("a failed PDF leaves Retry and the table", async ({ page, api }) => {
+      stubResults(api, { getDraftReport: (route) => route.fulfill({ status: 500, contentType: "application/json", body: "{}" }) });
+      await page.goto(`/${locale}/results/`);
+      await action(page, text.pdfDownload).click();
+      await expect(action(page, text.pdfRetry)).toBeVisible();
+      await expect(page.getByRole("region", { name: text.table.caption })).toBeVisible();
+    });
+
+    test("guest: Save opens sign-in, Close sends nothing and returns focus to Save", async ({ page, api }) => {
+      let posts = 0;
+      stubResults(api, { session: sessionAnonymous, postSaved: (route) => { posts += 1; return json(201, { id: 42, name: "x", updated_at: "2026-11-26T00:00:00Z", revision: 1 })(route); } });
+      await page.goto(`/${locale}/results/`);
+      await action(page, text.save).click();
+      await expect(page.locator("dialog[open]")).toBeVisible();
+      await page.locator("dialog[open]").getByRole("button", { name: text.close, exact: true }).click();
+      await expect(page.locator("dialog[open]")).toHaveCount(0);
+      expect(posts).toBe(0);
+      await expect(page.getByText(text.saved, { exact: true })).toHaveCount(0);
+      await expect(action(page, text.save)).toBeFocused();
+    });
+
+    for (const scheme of ["light", "dark"] as const) {
+      for (const width of [320, 1280]) {
+        test(`axe at ${width}px in ${scheme} mode`, async ({ page, api }) => {
+          await page.emulateMedia({ colorScheme: scheme });
+          await page.setViewportSize({ width, height: 800 });
+          stubResults(api);
+          await page.goto(`/${locale}/results/`);
+          await expect(action(page, text.pdfDownload)).toBeVisible();
+          expect(await serious(page)).toEqual([]);
+        });
+      }
+    }
   });
 }
