@@ -80,12 +80,12 @@ development_status:
   10-5-save-an-opened-saved-case-automatically: done
   epic-10-retrospective: optional
 
-  epic-11: in-progress
+  epic-11: done
   11-1-show-school-agreement-and-ask-for-a-school-only-when-shares: done
   11-4-keep-summary-controls-reachable-at-narrow-widths-and-high-zo: done
   11-5-preserve-the-results-table-and-make-result-actions-clear: done
   11-6-explain-the-estate-input-and-identify-user-supplied-facts: done
-  11-7-make-rounding-adjustments-visible-and-reconcile-displayed-to: backlog
+  11-7-make-rounding-adjustments-visible-and-reconcile-displayed-to: done
   epic-11-retrospective: optional
 
   epic-12: backlog
