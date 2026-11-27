@@ -83,7 +83,7 @@ development_status:
   epic-11: in-progress
   11-1-show-school-agreement-and-ask-for-a-school-only-when-shares: done
   11-4-keep-summary-controls-reachable-at-narrow-widths-and-high-zo: done
-  11-5-preserve-the-results-table-and-make-result-actions-clear: backlog
+  11-5-preserve-the-results-table-and-make-result-actions-clear: done
   11-6-explain-the-estate-input-and-identify-user-supplied-facts: backlog
   11-7-make-rounding-adjustments-visible-and-reconcile-displayed-to: backlog
   epic-11-retrospective: optional
