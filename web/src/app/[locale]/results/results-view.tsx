@@ -242,7 +242,7 @@ export function Available({
   const interview = messages.interview;
   const [pdf, setPdf] = useState<{ text: string | null; seq: number } | undefined>(undefined);
   const reportPdf = useCallback((line: string | null) => setPdf({ text: line, seq: nextSeq() }), []);
-  const { entries, unallocated } = useMemo(() => resultEntries(preview), [preview]);
+  const { entries, unallocated, rounding } = useMemo(() => resultEntries(preview), [preview]);
   const layered = isLayeredPreview(preview);
   const labels = useMemo(
     () => rowLabels(kase, interview.relationships, interview.heirNumbered, interview.previewOf),
@@ -310,6 +310,11 @@ export function Available({
           <p>
             {interview.previewUnallocated}: <bdi dir="ltr">{unallocated.fraction}</bdi>
             {unallocated.amount !== null && <>{" "}(<bdi dir="auto">{unallocated.amount}</bdi>)</>}
+          </p>
+        )}
+        {rounding && (
+          <p data-rounding>
+            {interview.previewRounding}: <bdi dir="auto">{rounding}</bdi>
           </p>
         )}
       </section>

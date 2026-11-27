@@ -1,6 +1,7 @@
 """Presentation tests: unittest only, no Django. Every row of the I/O matrix, in ar, en and fr."""
 import ast
 import json
+import math
 import unittest
 from datetime import datetime
 from decimal import Decimal
@@ -146,6 +147,32 @@ class MatrixTests(unittest.TestCase):
                 self.assertEqual((amount['amount_minor'], amount['currency']), (12345, code))
                 self.assertEqual(amount['text'], numbers.format_currency(Decimal(12345).scaleb(-digits), code, locale='en',
                                                                         numbering_system='latn'))
+
+    def test_displayed_minor_units_reconcile_to_the_estate(self):
+        cases = ((['son', 'son', 'son'], 100, None, 1), (['son', 'son'], 101, None, -1), (['son', 'son'], 100, None, None),
+                 (['wife'], 6, {'kind': 'school', 'school': 'hanbali'}, -1))
+        for code, digits in (('USD', 2), ('KWD', 3), ('JPY', 0)):
+            for locale in LOCALES:
+                babel_locale, numbering = babel_of(locale)
+                for relationships, estate, basis, expected in cases:
+                    with self.subTest(code=code, locale=locale, estate=estate, relationships=relationships):
+                        fam = family(relationships, estate)
+                        r = run(fam, basis or COMPARE, locale, Currency(code, True))
+                        rows = sum(row['amount']['amount_minor'] for row in r.rows)
+                        unallocated = r.unallocated['amount']['amount_minor'] if r.unallocated else 0
+                        rounding = r.rounding['amount_minor'] if r.rounding else 0
+                        self.assertEqual(rows + unallocated + rounding, estate)
+                        self.assertEqual(rounding, expected or 0)
+                        self.assertEqual(r.rounding is None, expected is None)
+                        for row in r.rows:
+                            fraction = row['share']['fraction']
+                            self.assertEqual(math.gcd(fraction['numerator'], fraction['denominator']), 1)
+                            self.assertEqual(row['share']['text'], f"{fraction['numerator']}/{fraction['denominator']}")
+                        if r.rounding:
+                            self.assertEqual(r.rounding['text'], numbers.format_currency(
+                                Decimal(expected).scaleb(-digits), code, locale=babel_locale, numbering_system=numbering))
+                            self.assertEqual((r.rounding['text'].count('-') + r.rounding['text'].count('‎-')
+                                              + r.rounding['text'].count('؜-')) > 0, expected < 0)
 
     def test_minor_units(self):
         self.assertEqual(p.minor_units('1.5', 'USD'), 150)

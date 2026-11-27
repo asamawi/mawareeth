@@ -27,7 +27,7 @@ bdi { direction: ltr; } .proof { break-inside: avoid; }
 {% for row in shares %}<tr><td><bdi dir="auto">{{ row.name }}</bdi></td><td>{{ row.relationship }}</td>
 {% if row.blocked %}<td colspan="{% if with_amount %}4{% else %}3{% endif %}">{% translate "Blocked" %}</td>{% else %}<td><bdi dir="{{ row.fraction.dir }}">{{ row.fraction.text }}</bdi></td><td><bdi dir="{{ row.percent.dir }}">{{ row.percent.text }}</bdi></td><td><bdi dir="{{ row.kirat.dir }}">{{ row.kirat.text }}</bdi></td>{% if with_amount %}<td>{% if row.amount %}<bdi dir="{{ row.amount.dir }}">{{ row.amount.text }}</bdi>{% else %}—{% endif %}</td>{% endif %}{% endif %}</tr>{% endfor %}
 {% if unallocated %}<tr><td colspan="2">{% translate "Unallocated remainder" %}</td><td><bdi dir="{{ unallocated.dir }}">{{ unallocated.text }}</bdi></td><td></td><td></td>{% if with_amount %}<td>{% if unallocated.amount %}<bdi dir="{{ unallocated.amount.dir }}">{{ unallocated.amount.text }}</bdi>{% endif %}</td>{% endif %}</tr>{% endif %}
-{% if rounding %}<tr><td colspan="{% if with_amount %}5{% else %}4{% endif %}">{% translate "Rounding" %}</td><td><bdi dir="{{ rounding.dir }}">{{ rounding.text }}</bdi></td></tr>{% endif %}
+{% if rounding %}<tr><td colspan="{% if with_amount %}5{% else %}4{% endif %}">{% translate "Rounding adjustment" %}</td><td><bdi dir="{{ rounding.dir }}">{{ rounding.text }}</bdi></td></tr>{% endif %}
 </tbody></table>
 {% if tables %}<h2>{% translate "Scholars' table" %}</h2>{% endif %}
 {% for table in tables %}

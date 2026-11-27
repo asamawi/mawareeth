@@ -381,7 +381,7 @@ function AvailableShares({
   preview: Available;
   labels: Record<string, string>;
 }) {
-  const { rows, unallocated } = previewRows(preview);
+  const { rows, unallocated, rounding } = previewRows(preview);
   const presented = preview.presented;
   return (
     <>
@@ -418,6 +418,11 @@ function AvailableShares({
         <p>
           {messages.previewUnallocated}: <bdi dir="ltr">{unallocated.fraction}</bdi>
           {unallocated.amount !== null && <>{" "}(<bdi dir="auto">{unallocated.amount}</bdi>)</>}
+        </p>
+      )}
+      {rounding && (
+        <p data-rounding>
+          {messages.previewRounding}: <bdi dir="auto">{rounding}</bdi>
         </p>
       )}
       {presented?.school_line?.code === "school" && (

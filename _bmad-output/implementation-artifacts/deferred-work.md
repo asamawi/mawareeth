@@ -657,3 +657,7 @@ Epic 9's gate and retrospective stay open until the owner records them.
 - source_spec: `_bmad-output/implementation-artifacts/spec-11-6-explain-the-estate-input-and-identify-user-supplied-facts.md`
   summary: Native review needed for the changed `interview.estateHint` and the new catalog terms `notice.supplied_facts` and `notice.supplied_facts_no_amount` in en, ar and fr. Wording is draft; ar and fr are machine-written.
   evidence: Story 11.6 changed `estateHint` in web/src/i18n/messages.ts and added the two terms to i18n/terms/{en,ar,fr}.json (review "pending"). They show on the Interview estate field, on Full results and in the draft PDF.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-7-make-rounding-adjustments-visible-and-reconcile-displayed-totals.md`
+  summary: Native review needed for the new `interview.previewRounding` message (web) and the `Rounding adjustment` msgstr (PDF) in en, ar and fr. Wording is draft; ar (فرق التقريب) and fr (Ajustement d'arrondi) are machine-written.
+  evidence: Story 11.7 added `previewRounding` to web/src/i18n/messages.ts and the msgid `Rounding adjustment` to locale/{en,ar,fr}/LC_MESSAGES/django.po. They label the rounding line in the sheet, Full results and the draft PDF.

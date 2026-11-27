@@ -243,6 +243,7 @@ export type Messages = {
     previewAmount: string;
     previewNoShare: string;
     previewUnallocated: string;
+    previewRounding: string;
     previewUnavailable: string;
     previewReasons: Record<PreviewReason, string>;
     previewFailed: string;
@@ -603,6 +604,7 @@ export const messages: Record<Locale, Messages> = {
       previewAmount: "المبلغ",
       previewNoShare: "لا نصيب له في هذه الحالة.",
       previewUnallocated: "الباقي غير الموزع على أي وارث",
+      previewRounding: "فرق التقريب",
       previewUnavailable: "المعاينة غير متاحة لهذه الحالة. يمكنك متابعة إضافة الورثة.",
       previewReasons: refusalTerms("ar"),
       previewFailed: "تعذّر تحميل المعاينة. بيانات الأسرة محفوظة، ويمكنك المتابعة.",
@@ -957,6 +959,7 @@ export const messages: Record<Locale, Messages> = {
       previewAmount: "Amount",
       previewNoShare: "Receives no share in this case.",
       previewUnallocated: "Remainder not allocated to any heir",
+      previewRounding: "Rounding adjustment",
       previewUnavailable: "A preview is not available for this case. You can keep adding heirs.",
       previewReasons: refusalTerms("en"),
       previewFailed: "The preview could not be loaded. Your family details are saved, and you can continue.",
@@ -1313,6 +1316,7 @@ export const messages: Record<Locale, Messages> = {
       previewAmount: "Montant",
       previewNoShare: "Ne reçoit aucune part dans ce cas.",
       previewUnallocated: "Reste non attribué à un héritier",
+      previewRounding: "Ajustement d'arrondi",
       previewUnavailable: "Aucun aperçu n'est disponible pour ce cas. Vous pouvez continuer à ajouter des héritiers.",
       previewReasons: refusalTerms("fr"),
       previewFailed: "L'aperçu n'a pas pu être chargé. Les informations de la famille sont enregistrées et vous pouvez continuer.",

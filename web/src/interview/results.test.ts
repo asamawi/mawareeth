@@ -170,3 +170,16 @@ test("all four Schools refusing for different reasons shows every distinct prese
   const single = by("Impossible family");
   assert.deepEqual(resultsState(single.kase, { kind: "preview", preview: single.preview }), { kind: "unavailable", reason: "invalid_family" });
 });
+
+test("resultEntries returns the served rounding text, or null at zero", () => {
+  for (const [title, text] of [
+    ["Two wives and a son, rounded half up", "-SAR0.01"],
+    ["Agree: wife, son and daughter in every school", null],
+  ] as const) {
+    const { preview } = by(title);
+    const served = (preview as { presented?: { rounding: { text: string } | null } }).presented;
+    const entries = resultEntries(preview as never);
+    assert.equal(entries.rounding, served?.rounding?.text ?? null, title);
+    assert.equal(entries.rounding, text, title);
+  }
+});

@@ -516,3 +516,35 @@ test("a mode change keeps the sheet open and moves focus between openers", async
     assert.equal(document.activeElement, inflow(r.node));
   } finally { await r.done(); media.restore(); }
 });
+
+test("the sheet shows the served rounding adjustment as its own line after the rows, and none at zero", async () => {
+  const cases = [
+    ["Two wives and a son, rounded half up", true],
+    ["Hanbali wife and three sons need correction", true],
+    ["Agree: wife, son and daughter in every school", false],
+  ] as const;
+  for (const [title, expected] of cases) {
+    const preview = available(title);
+    const served = preview.presented!.rounding;
+    assert.equal(served !== null, expected, title);
+    const { node, done } = await render(view({ kind: "available", preview, labels: labelsOf(preview) }));
+    try {
+      const line = node.querySelector("[data-rounding]");
+      if (!served) { assert.equal(line, null, title); continue; }
+      assert.equal(line!.textContent, `${en.previewRounding}: ${served.text}`);
+      assert.equal(line!.querySelector("bdi")!.getAttribute("dir"), "auto");
+      assert.equal(line!.closest("li"), null);
+      const list = node.querySelector("ul")!;
+      assert.ok(list.compareDocumentPosition(line!) & 4, "after the rows");
+    } finally { await done(); }
+  }
+  assert.equal(available("Two wives and a son, rounded half up").presented!.rounding!.text, "-SAR0.01");
+  const positive = available("Hanbali wife and three sons need correction").presented!.rounding!.text;
+  assert.equal(positive, "SAR0.01");
+  const { node, done } = await render(view({ kind: "available", preview: available("Hanbali wife and three sons need correction"), labels: labelsOf(available("Hanbali wife and three sons need correction")) }));
+  try {
+    const text = node.querySelector("[data-rounding]")!.textContent;
+    assert.equal(text, `${en.previewRounding}: SAR0.01`);
+    assert.ok(!text!.includes("-"));
+  } finally { await done(); }
+});

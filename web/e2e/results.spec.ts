@@ -370,3 +370,38 @@ for (const locale of ["en", "ar", "fr"] as const) {
     });
   }
 }
+
+const fixtureNamed = (title: string) =>
+  (JSON.parse(readFileSync(join(process.cwd(), "..", "api", "contracts", "preview-fixtures.json"), "utf8")) as { fixtures: { title: string; case: Record<string, unknown>; response: Record<string, unknown> }[] })
+    .fixtures.find((item) => item.title === title)!;
+
+for (const locale of ["en", "ar", "fr"] as const) {
+  test.describe(`Story 11.7 rounding line in ${locale}`, () => {
+    test("the negative adjustment shows its label and served text after the shares, at 320px", async ({ page, api }) => {
+      const title = "Two wives and a son, rounded half up";
+      const fx = fixtureNamed(title);
+      const presented = served.presented[title] as { rounding: { text: string } };
+      stubResults(api, { getCase: json(200, { case: fullCase(fx.case) }), getPreview: json(200, { ...fx.response, presented: served.presented[title] }) });
+      await page.setViewportSize({ width: 320, height: 700 });
+      await page.goto(`/${locale}/results/`);
+      const section = page.locator("section[aria-labelledby=results-shares]");
+      const line = section.locator("[data-rounding]");
+      await expect(line).toBeVisible();
+      await expect(line).toHaveText(`${messages[locale].interview.previewRounding}: ${presented.rounding.text}`);
+      const rows = (await section.locator("table, ul").last().boundingBox())!;
+      const box = (await line.boundingBox())!;
+      expect(box.y).toBeGreaterThanOrEqual(rows.y + rows.height - 1);
+      expect(await serious(page)).toEqual([]);
+    });
+
+    test("a zero adjustment shows no rounding line", async ({ page, api }) => {
+      expect((served.presented["Agree: wife, son and daughter in every school"] as { rounding: unknown }).rounding).toBeNull();
+      stubResults(api);
+      await page.setViewportSize({ width: 320, height: 700 });
+      await page.goto(`/${locale}/results/`);
+      await expect(page.locator("section[aria-labelledby=results-shares]")).toBeVisible();
+      await expect(page.locator("[data-rounding]")).toHaveCount(0);
+      expect(await serious(page)).toEqual([]);
+    });
+  });
+}

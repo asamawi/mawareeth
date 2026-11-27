@@ -369,3 +369,46 @@ test("Shared view (no gate): no supplied-facts notice", async () => {
   await settle();
   assert.equal(container.querySelector("[data-notice=supplied-facts]"), null);
 });
+
+test("Full results and the shared view show the served rounding line after the shares, none at zero", async () => {
+  const cases = [
+    ["Two wives and a son, rounded half up", true],
+    ["Hanbali wife and three sons need correction", true],
+    ["Agree: wife, son and daughter in every school", false],
+  ] as const;
+  for (const [title, expected] of cases) {
+    const fx = previewFixture(title);
+    const preview = parseServedPreview(fx.response) as Parameters<typeof Available>[0]["preview"];
+    const served = preview.presented?.rounding ?? null;
+    assert.equal(served !== null, expected, title);
+    for (const gate of [true, false]) {
+      await act(() => {
+        root.render(<Available messages={en} locale="en" kase={parseCase({ case: fx.case })!} preview={preview} back={null} gate={gate} />);
+      });
+      await settle();
+      const line = container.querySelector("[data-rounding]");
+      if (!served) { assert.equal(line, null, title); continue; }
+      assert.equal(line!.textContent, `${en.interview.previewRounding}: ${served.text}`);
+      assert.equal(line!.closest("li"), null);
+      assert.equal(line!.closest("section")!.getAttribute("aria-labelledby"), "results-shares");
+      assert.equal(line!.querySelector("bdi")!.getAttribute("dir"), "auto");
+    }
+  }
+});
+
+test("Full results shows the unallocated line and the rounding line as two separate elements", async () => {
+  const fx = previewFixture("Wife alone leaves an unallocated remainder");
+  const body = fx.response as { presented: Record<string, unknown> };
+  const response = { ...body, presented: { ...body.presented, rounding: { amount_minor: -1, currency: "SAR", text: "-SAR0.01", dir: "auto" } } };
+  const preview = parseServedPreview(response) as Parameters<typeof Available>[0]["preview"];
+  await act(() => {
+    root.render(<Available messages={en} locale="en" kase={parseCase({ case: fx.case })!} preview={preview} back={null} gate={false} />);
+  });
+  await settle();
+  const section = container.querySelector("section[aria-labelledby=results-shares]")!;
+  const rounding = section.querySelector("[data-rounding]")!;
+  const unallocated = [...section.querySelectorAll("p")].find((p) => p.textContent?.startsWith(en.interview.previewUnallocated))!;
+  assert.ok(unallocated && rounding && unallocated !== rounding);
+  assert.ok(unallocated.compareDocumentPosition(rounding) & 4, "rounding after unallocated");
+  assert.ok(!unallocated.contains(rounding) && !rounding.contains(unallocated));
+});

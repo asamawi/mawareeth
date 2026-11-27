@@ -2495,3 +2495,7 @@ msgstr "تركة %(deceased)s، %(date)s"
 
 msgid "the deceased"
 msgstr "المتوفى"
+
+#: reports/templates/reports/draft.html
+msgid "Rounding adjustment"
+msgstr "فرق التقريب"

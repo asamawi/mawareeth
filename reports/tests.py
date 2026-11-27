@@ -122,6 +122,70 @@ class ReportContentTests(SimpleTestCase):
                     if body['unallocated']:
                         self.assertIn('Unallocated remainder', html)
 
+    def test_rounding_row_is_separate_labelled_and_reconciles(self):
+        by = {f['title']: f for f in AVAILABLE}
+        labels = {'en': 'Rounding adjustment', 'fr': "Ajustement d'arrondi", 'ar': 'فرق التقريب'}
+
+        def rounding_rows(html, label):
+            return [row for row in RenderedReport(html).tables[0] if row and row[0][1].strip() == label]
+
+        for title in ('Two wives and a son, rounded half up', 'Hanbali wife and three sons need correction'):
+            for lang, label in labels.items():
+                with self.subTest(title=title, lang=lang), translation.override(lang):
+                    fixture = by[title]
+                    body = served(fixture, lang)
+                    presented = body['presented']
+                    self.assertIsNotNone(presented['rounding'])
+                    rows = rounding_rows(render_html(fixture['case'], body), label)
+                    self.assertEqual(len(rows), 1)
+                    self.assertEqual(rows[0][-1][1].strip(), presented['rounding']['text'])
+                    self.assertEqual(len(rows[0]), 2)
+        agree = by['Agree: wife, son and daughter in every school']
+        for lang, label in labels.items():
+            with self.subTest(lang=lang), translation.override(lang):
+                body = served(agree, lang)
+                self.assertIsNone(body['presented']['rounding'])
+                self.assertNotIn(label, render_html(agree['case'], body))
+        from api import preview as preview_module
+        wife = by['Wife alone leaves an unallocated remainder']
+        for estate, expect_rounding in (('0.06', True), (None, False)):
+            with self.subTest(estate=estate), translation.override('en'):
+                case = copy.deepcopy(wife['case'])
+                case['deceased']['estate'] = estate
+                presented = preview_module.preview(case)['presented']
+                body = {**copy.deepcopy(wife['response']), 'presented': presented}
+                html = render_html(case, body)
+                if expect_rounding:
+                    self.assertEqual(presented['unallocated']['amount']['amount_minor'], 5)
+                    self.assertEqual(presented['rounding']['amount_minor'], -1)
+                    self.assertEqual(len(rounding_rows(html, 'Unallocated remainder')), 1)
+                    self.assertEqual(len(rounding_rows(html, 'Rounding adjustment')), 1)
+                else:
+                    self.assertIsNone(presented['rounding'])
+                    self.assertNotIn('Rounding adjustment', html)
+
+        from engine.contracts.family import Currency
+        real = preview_module.family_from_session
+        for code in ('KWD', 'JPY'):
+            def wrapped(case, **kwargs):
+                family, _currency = real(case, **kwargs)
+                return family, Currency(code, True)
+            for title in ('Two wives and a son, rounded half up', 'Hanbali wife and three sons need correction'):
+                with self.subTest(code=code, title=title), translation.override('en'), \
+                        mock.patch.object(preview_module, 'family_from_session', wrapped):
+                    fixture = by[title]
+                    presented = preview_module.preview(fixture['case'])['presented']
+                    family, _ = real(fixture['case'], names=False)
+                    total = (sum(r['amount']['amount_minor'] for r in presented['rows'] if r['amount'])
+                             + (presented['unallocated']['amount']['amount_minor'] if presented['unallocated'] else 0)
+                             + (presented['rounding']['amount_minor'] if presented['rounding'] else 0))
+                    self.assertEqual(total, family.estate.amount_minor)
+                    self.assertIsNotNone(presented['rounding'])
+                    body = {**copy.deepcopy(fixture['response']), 'presented': presented}
+                    rows = rounding_rows(render_html(fixture['case'], body), 'Rounding adjustment')
+                    self.assertEqual(len(rows), 1)
+                    self.assertEqual(rows[0][-1][1].strip(), presented['rounding']['text'])
+
     def test_shares_only_report_without_estate(self):
         fixtures = [f for f in AVAILABLE if f['response'].get('table') and f['response']['basis']['estate']
                     and any(s['blocked'] for s in f['response']['shares'])]

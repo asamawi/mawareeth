@@ -49,11 +49,12 @@ export function resultsState(kase: Case | null, outcome: PreviewResult | null): 
 export function resultEntries(preview: AvailablePreview): {
   entries: ResultEntry[];
   unallocated: PreviewRows["unallocated"];
+  rounding: PreviewRows["rounding"];
 } {
-  const { rows, unallocated } = previewRows(preview);
+  const { rows, unallocated, rounding } = previewRows(preview);
   const notes = evidenceNotes(preview);
   const single = preview.presented?.evidence.length === 1;
-  return { entries: rows.map((row) => ({ row, proof: single ? notes[row.heirId]?.[0]?.proof ?? null : null })), unallocated };
+  return { entries: rows.map((row) => ({ row, proof: single ? notes[row.heirId]?.[0]?.proof ?? null : null })), unallocated, rounding };
 }
 
 /** Identify successive deaths from the calculation basis, including fallback results. */
