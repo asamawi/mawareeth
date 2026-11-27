@@ -52,7 +52,7 @@ test("a clean registry and catalogs have no errors", () => {
 
 test("required keys come from the code vocabularies", () => {
   assert.deepEqual(requiredKeys(codes), [
-    "basis.compare", "comparison.same_in_all_schools", "notice.disclaimer", "proof.rule.fixed", "proof.step.base", "proof.verse.quran_4_11", "proof.verse.quran_4_12",
+    "basis.compare", "comparison.same_in_all_schools", "notice.disclaimer", "notice.supplied_facts", "notice.supplied_facts_no_amount", "proof.rule.fixed", "proof.step.base", "proof.verse.quran_4_11", "proof.verse.quran_4_12",
     "proof.verse.quran_4_176", "refusal.invalid_family", "relationship.father", "relationship.uncle",
     "school.hanafi", "school.hanafi.description", "table.column.awl", "table.column.base", "table.column.correction",
     "table.column.radd", "table.column.radd_calc", "table.column.radd_union", "table.column.remainder",

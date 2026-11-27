@@ -653,3 +653,7 @@ Epic 9's gate and retrospective stay open until the owner records them.
 - source_spec: `_bmad-output/implementation-artifacts/spec-11-5-preserve-the-results-table-and-make-result-actions-clear.md`
   summary: Pre-existing, from Story 11.4. `web/e2e/accessibility.spec.ts:179` ("the 320px bar with text spacing, then the open sheet") fails in en, ar and fr light mode with `color-contrast (serious): .text-accent` whenever the whole accessibility file runs in chromium, and passes when run alone with `-g`. It is order- or load-dependent, and the contrast of a `.text-accent` element in the open Share preview sheet needs a look.
   evidence: On 2026-11-28 the baseline 0c31c948 (Story 11.5's diff reverse-applied, fresh build) failed the same 3 tests with 64 passed. With 11.5 applied the result was the same, and 12/12 passed in isolation. The 11.4 run recorded one failure of this test under load.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-6-explain-the-estate-input-and-identify-user-supplied-facts.md`
+  summary: Native review needed for the changed `interview.estateHint` and the new catalog terms `notice.supplied_facts` and `notice.supplied_facts_no_amount` in en, ar and fr. Wording is draft; ar and fr are machine-written.
+  evidence: Story 11.6 changed `estateHint` in web/src/i18n/messages.ts and added the two terms to i18n/terms/{en,ar,fr}.json (review "pending"). They show on the Interview estate field, on Full results and in the draft PDF.

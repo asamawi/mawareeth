@@ -2849,3 +2849,22 @@ test.describe("Story 11.4: summary controls at narrow widths and high zoom", () 
     });
   });
 });
+
+for (const locale of locales) {
+  const text = messages[locale].interview;
+  const joint = { en: /Jointly owned.*named beneficiary/, ar: /بالاشتراك.*مستفيد/, fr: /détenus en commun.*bénéficiaire désigné/ }[locale];
+  test(`Story 11.6: the estate hint covers joint and beneficiary assets, before and after an invalid amount in ${locale}`, async ({ page, api }) => {
+    await openHeirsScreen(page, api, locale);
+    await page.getByRole("button", { name: text.deceasedEdit }).click();
+    const estate = page.getByLabel(text.estateLabel);
+    const hint = page.locator("#deceased-estate-hint");
+    await expect(hint).toBeVisible();
+    await expect(hint).toHaveText(joint);
+    await expect(estate).toHaveAccessibleDescription(joint);
+    await estate.fill("12.345");
+    await estate.blur();
+    await expect(page.locator("#deceased-estate-error")).not.toBeEmpty();
+    await expect(hint).toBeVisible();
+    await expect(estate).toHaveAccessibleDescription(joint);
+  });
+}

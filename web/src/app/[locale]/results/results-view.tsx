@@ -21,7 +21,7 @@ import {
 import { estateModel } from "@/interview/tree";
 import { FamilyTree } from "../interview/family-tree";
 import { crumbTextOf } from "../interview/death-breadcrumb";
-import { noticeText } from "@/interview/notices";
+import { noticeText, suppliedFactsText } from "@/interview/notices";
 import { buttonClass } from "../interview/form-bits";
 import { primaryButton } from "../ui";
 import { RelationshipText } from "../interview/relationship-text";
@@ -255,6 +255,7 @@ export function Available({
   const layers = layersOf(kase);
   const presented = preview.presented;
   const disclaimer = noticeText(presented, "disclaimer", locale);
+  const supplied = suppliedFactsText(locale, kase.deceased?.estate != null);
   const schoolLine = presented?.school_line ?? null;
   // A single estate shows the calculation steps; the evidence lists one entry per death otherwise.
   const single = presented !== undefined && presented.evidence.length === 1 ? presented.evidence[0] : null;
@@ -275,6 +276,7 @@ export function Available({
     <div className="mx-auto flex w-full flex-col gap-6">
       <p>{schoolLine?.code === "school" ? text.school.split("{school}").join(schoolLine.text) : schoolLine?.text}</p>
       {gate && disclaimer && <p data-notice="disclaimer" className="rounded-[6px] border border-current/60 p-3 font-semibold">{disclaimer}</p>}
+      {gate && supplied && <p data-notice="supplied-facts" className="rounded-[6px] border border-current/60 p-3">{supplied}</p>}
       {gate ? <AuthGate key={`${kase.id}:${kase.madhab ?? ""}`} caseId={kase.id} linked={!!kase.saved} locale={locale} text={text} share={messages.share} onSchoolRequired={onSchoolRequired} onReplaced={onReplaced} pdf={pdf} lead={downloadButton} /> : downloadButton}
 
       <section aria-labelledby="results-shares" className="flex flex-col gap-3">

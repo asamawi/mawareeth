@@ -346,3 +346,27 @@ for (const locale of ["en", "ar", "fr"] as const) {
     }
   });
 }
+
+for (const locale of ["en", "ar", "fr"] as const) {
+  const text = messages[locale].results;
+  for (const withAmount of [true, false]) {
+    test(`Story 11.6: the supplied-facts notice sits between the disclaimer and Download PDF ${withAmount ? "with" : "without"} an amount in ${locale}`, async ({ page, api }) => {
+      const kase = fullCase(agree.case, { deceased: { ...(agree.case.deceased as Record<string, unknown>), estate: withAmount ? "9000" : null } });
+      const basis = { ...((agreeResponse as Record<string, unknown>).basis as Record<string, unknown>), estate: withAmount ? "9000" : null };
+      const shares = ((agreeResponse as Record<string, unknown>).shares as Record<string, unknown>[]).map((share) => (withAmount ? share : { ...share, amount: null }));
+      stubResults(api, { getCase: json(200, { case: kase }), getPreview: json(200, { ...agreeResponse, basis, shares }) });
+      await page.setViewportSize({ width: 320, height: 700 });
+      await page.goto(`/${locale}/results/`);
+      const notice = page.locator("[data-notice=supplied-facts]");
+      await expect(notice).toBeVisible();
+      const catalog = JSON.parse(readFileSync(join(process.cwd(), "..", "i18n", "terms", `${locale}.json`), "utf8")).terms;
+      await expect(notice).toHaveText(catalog[withAmount ? "notice.supplied_facts" : "notice.supplied_facts_no_amount"].text);
+      const disclaimer = (await page.locator("[data-notice=disclaimer]").boundingBox())!;
+      const box = (await notice.boundingBox())!;
+      const pdf = (await page.getByRole("button", { name: text.pdfDownload, exact: true }).boundingBox())!;
+      expect(box.y).toBeGreaterThanOrEqual(disclaimer.y + disclaimer.height - 1);
+      expect(pdf.y).toBeGreaterThanOrEqual(box.y + box.height - 1);
+      expect(await serious(page)).toEqual([]);
+    });
+  }
+}

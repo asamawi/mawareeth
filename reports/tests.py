@@ -249,6 +249,35 @@ class ReportContentTests(SimpleTestCase):
             hanafi = next(f for f in AVAILABLE if f['case']['madhab'] == 'hanafi')
             self.assertEqual(build_context(hanafi['case'], served(hanafi))['school'], 'Hanafi')
 
+    def test_the_notice_block_has_the_disclaimer_and_the_supplied_facts_text(self):
+        fixture = next(f for f in AVAILABLE if f['response']['basis']['estate'] and not f['case'].get('deaths'))
+        for lang in ('en', 'ar', 'fr'):
+            for with_estate in (True, False):
+                with self.subTest(lang=lang, with_estate=with_estate), translation.override(lang):
+                    body = served(fixture, lang)
+                    if not with_estate:
+                        body['basis']['estate'] = None
+                        for share in body['shares']:
+                            share['amount'] = None
+                    html = render_html(fixture['case'], body)
+                    key = 'notice.supplied_facts' if with_estate else 'notice.supplied_facts_no_amount'
+                    other = 'notice.supplied_facts_no_amount' if with_estate else 'notice.supplied_facts'
+                    self.assertIn(i18n.term('notice.disclaimer', lang), html)
+                    self.assertIn(i18n.term(key, lang).replace("'", '&#x27;'), html)
+                    self.assertNotIn(i18n.term(other, lang).replace("'", '&#x27;'), html)
+                    self.assertIn('DRAFT', html)
+                    block = html.index('class="notice"')
+                    disclaimer_at = html.index(i18n.term('notice.disclaimer', lang), block)
+                    self.assertGreater(block, html.index(translation.gettext('Generation date')))
+                    self.assertLess(disclaimer_at, html.index(translation.gettext('School') + ':'))
+        with translation.override('en'):
+            body = served(fixture)
+            body['presented']['notices'] = [{'code': 'disclaimer', 'text': 'Served disclaimer wording'}]
+            self.assertIn('Served disclaimer wording', render_html(fixture['case'], body))
+            body['basis']['estate'] = None
+            html = render_html(fixture['case'], body)
+            self.assertNotIn('Amount</th>', html)
+
     def test_locales_rtl_and_escaping(self):
         f = copy.deepcopy(AVAILABLE[0])
         f['case']['heirs'][0]['name'] = '<script>secret</script>'

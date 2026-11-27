@@ -329,3 +329,43 @@ test("Full results: a served disclaimer text wins over the catalog", async () =>
   await settle();
   assert.equal(container.querySelector("[data-notice=disclaimer]")?.textContent, "Served disclaimer wording");
 });
+
+const catalogEn = (terms as Record<string, Record<string, string>>).en;
+const withEstate = (estate: string | null) => {
+  const base = hanafiCase();
+  return { ...base, deceased: { ...base.deceased!, estate } } as typeof base;
+};
+
+test("Full results: the supplied-facts notice follows the disclaimer and precedes the actions, with an amount", async () => {
+  await act(() => {
+    root.render(<Available messages={en} locale="en" kase={withEstate("1200")} preview={availablePreview} back={null} gate />);
+  });
+  await settle();
+  const notice = container.querySelector("[data-notice=supplied-facts]")!;
+  assert.equal(notice.textContent, "The family and the estate amount were entered by the user and have not been verified by Mawareeth.");
+  assert.equal(notice.textContent, catalogEn["notice.supplied_facts"]);
+  assert.equal(notice.querySelector("button"), null);
+  assert.ok(!notice.className.includes("font-semibold"));
+  const disclaimer = container.querySelector("[data-notice=disclaimer]")!;
+  assert.equal(disclaimer.nextElementSibling, notice);
+  const pdf = [...container.querySelectorAll("button")].find((b) => b.textContent === en.results.pdfDownload)!;
+  assert.ok(notice.compareDocumentPosition(pdf) & 4);
+});
+
+test("Full results: without an amount the no-amount notice shows and mentions no money figure", async () => {
+  await act(() => {
+    root.render(<Available messages={en} locale="en" kase={withEstate(null)} preview={availablePreview} back={null} gate />);
+  });
+  await settle();
+  const notice = container.querySelector("[data-notice=supplied-facts]")!;
+  assert.equal(notice.textContent, catalogEn["notice.supplied_facts_no_amount"]);
+  assert.ok(!/\d/.test(notice.textContent!));
+});
+
+test("Shared view (no gate): no supplied-facts notice", async () => {
+  await act(() => {
+    root.render(<Available messages={en} locale="en" kase={withEstate("1200")} preview={availablePreview} back={null} gate={false} />);
+  });
+  await settle();
+  assert.equal(container.querySelector("[data-notice=supplied-facts]"), null);
+});

@@ -78,12 +78,16 @@ def build_context(case, body):
                 'unallocated_cells': layer.get('unallocated_cells', []),
             })
     estate = body['basis']['estate']
+    disclaimer = next((n['text'] for n in presented['notices'] if n['code'] == 'disclaimer'), None) \
+        or i18n.term('notice.disclaimer', locale)
+    supplied_facts = i18n.term('notice.supplied_facts' if estate is not None else 'notice.supplied_facts_no_amount', locale)
     font_family = mark_safe(', '.join([f'"{family}"' for family in config['pdf_font_stack']] + ['sans-serif']))
     return {'locale': locale, 'direction': config['direction'], 'font_family': font_family,
             'generated': format_datetime(timezone.now(), locale),
             'school': presented['school_line']['text'],
             'deceased': _('Male') if case['deceased']['gender'] == 'male' else _('Female'),
             'estate': estate, 'with_amount': estate is not None,
+            'disclaimer': disclaimer, 'supplied_facts': supplied_facts,
             'shares': shares, 'evidence': evidence, 'tables': tables,
             'rounding': presented['rounding'], 'unallocated': presented['unallocated']}
 

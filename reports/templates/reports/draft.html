@@ -5,6 +5,7 @@
 @page { size: A4; margin: 32mm 15mm 20mm; }
 body { font-family: {{ font_family }}; font-size: 10pt; color: #18212b; }
 .disclaimer { position: fixed; top: -25mm; left: 0; right: 0; border: 2px solid #475569; padding: 3mm; text-align: center; font-weight: bold; font-size: 13pt; }
+.notice { break-inside: avoid; border: 1px solid #475569; padding: 3mm; margin: 3mm 0; } .notice p { margin: 0 0 2mm; } .notice p:last-child { margin-bottom: 0; } .notice .notice-disclaimer { font-weight: bold; }
 .watermark { position: fixed; top: 105mm; left: 20mm; transform: rotate(-35deg); font-size: 90pt; color: rgba(90,100,115,.10); z-index: -1; }
 h1 { font-size: 20pt; } h2 { font-size: 14pt; break-after: avoid; }
 table { width: 100%; border-collapse: collapse; margin: 3mm 0 6mm; table-layout: auto; }
@@ -17,6 +18,7 @@ bdi { direction: ltr; } .proof { break-inside: avoid; }
 <div class="watermark" dir="ltr">DRAFT</div>
 <h1>{% translate "Draft inheritance report" %}</h1>
 <p>{% translate "Generation date" %}: <bdi dir="ltr">{{ generated }}</bdi></p>
+<div class="notice"><p class="notice-disclaimer">{{ disclaimer }}</p><p>{{ supplied_facts }}</p></div>
 <p>{% translate "School" %}: {{ school }}</p>
 <h2>{% translate "Deceased and estate" %}</h2>
 <p><bdi>{{ deceased }}</bdi>{% if with_amount %} · {% translate "Estate" %}: <bdi dir="ltr">{{ estate }}</bdi>{% endif %}</p>

@@ -522,6 +522,16 @@
       "review": "pending",
       "placeholders": {}
     },
+    "notice.supplied_facts": {
+      "text": "The family and the estate amount were entered by the user and have not been verified by Mawareeth.",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "notice.supplied_facts_no_amount": {
+      "text": "The family was entered by the user and has not been verified by Mawareeth. No estate amount was entered, so shares are shown without money amounts.",
+      "review": "pending",
+      "placeholders": {}
+    },
     "comparison.same_in_all_schools": {
       "text": "Same result in all four Sunni schools",
       "review": "pending",
