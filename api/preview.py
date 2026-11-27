@@ -271,7 +271,7 @@ def preview(case):
     shown = dump_fresh_presented_result(present(out, resolved, get_language() or 'en', currency))
     estate = family.estate.amount_minor
     if case['madhab'] is not None:
-        return {**_body(case, out.evaluations[0][1], estate), 'presented': shown}
+        return {**_body(case, dict(out.evaluations)[resolved.school], estate), 'presented': shown}
     # When the schools hold the same exact shares the shown body is the Hanbali one: build only it.
     agree = not _impossible(case) and _schools_agree(out)
     bodies = compare(case, family, out, schools.HANBALI) if agree else compare(case, family, out)
@@ -279,8 +279,7 @@ def preview(case):
             len({repr(_signature(b)) for b in bodies.values()}) == 1):
         return {**bodies[schools.HANBALI], 'madhab': None, 'basis': basis(case), 'agreement': 'all',
                 'presented': shown}
-    reasons = {b.get('reason') for b in bodies.values()}
-    if all(b['status'] == 'unavailable' for b in bodies.values()) and len(reasons) == 1:
+    if all(b['status'] == 'unavailable' for b in bodies.values()):
         return {**bodies[schools.HANBALI], 'madhab': None, 'basis': basis(case), 'presented': shown}
     return {'status': 'choose_school', 'basis': basis(case), 'schools': bodies, 'rules': _differences(bodies),
             'presented': shown}

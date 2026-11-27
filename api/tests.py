@@ -1461,11 +1461,11 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                     continue
                 presented = body['presented']
                 parse_presented_result(presented)
-                self.assertEqual(presented['version'], 3)
+                self.assertEqual(presented['version'], 4)
                 self.assertEqual(presented['state'], states[body['status']])
                 seen.add(presented['state'])
                 if body['status'] == 'available':
-                    code = 'same_in_all_schools' if body.get('agreement') == 'all' else 'school'
+                    code = 'same_in_all_schools' if presented['comparison_outcome'] == 'agreement' else 'school'
                     self.assertEqual(presented['school_line']['code'], code)
                     # the legacy amount is the presented amount scaled to two decimals
                     amounts = {row['person']: row['amount'] for row in presented['rows']}
@@ -2968,6 +2968,25 @@ class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, Transaction
         self.assertEqual(body['reason'], 'manasikhat_unsupported')
         self.assertNotIn('shares', body)
         self.assertEqual(self.rows(), before)
+
+    def test_all_four_refusing_for_different_reasons_is_unavailable(self):
+        self.two()
+        self.plant(madhab=None)
+        from engine import Evaluation
+        from engine.contracts.result import Result
+        from presentation import Outcome
+        reasons = dict(zip(('hanafi', 'maliki', 'shafii', 'hanbali'),
+                           ('manasikhat_unsupported', 'manasikhat_unsupported', 'invalid_family', 'invalid_family')))
+
+        def refuse(family, resolved):
+            return Outcome(family, tuple((school, Evaluation(Result(1, school, 'refused', reason, (), None, (), ()), None, None))
+                                         for school, reason in reasons.items()))
+        with mock.patch('api.preview.evaluate_outcome', side_effect=refuse):
+            body = self.preview(self.case_id).json()
+        self.assertEqual(body['status'], 'unavailable')
+        self.assertEqual(body['presented']['state'], 'refused')
+        self.assertEqual([r['reason'] for r in body['presented']['refusals']], ['manasikhat_unsupported', 'invalid_family'])
+        self.assertEqual(body['reason'], 'invalid_family')
 
     def test_unmark_promotes_a_person_introduced_in_the_removed_layer(self):
         self.two()

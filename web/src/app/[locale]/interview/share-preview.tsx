@@ -39,7 +39,7 @@ export type PreviewContent =
   | { kind: "none" }
   | { kind: "available"; preview: Available; labels: Record<string, string> }
   | { kind: "choose"; preview: Extract<Preview, { status: "choose_school" }>; labels: Record<string, string> }
-  | { kind: "refused"; reason: string | null }
+  | { kind: "refused"; reason: string | null; refusals?: string[] }
   | { kind: "error"; text: string; retry: boolean };
 
 /** Everything `SharePreviewBody` needs from the lifecycle; 11.3 renders `<SharePreviewBody {...view} />`. */
@@ -199,7 +199,12 @@ export function useSharePreview({
     content = { kind: "choose", preview, labels };
   } else if (outcome.kind === "preview" && preview?.status === "unavailable") {
     // A code with no sentence shows the generic text alone.
-    content = { kind: "refused", reason: (messages.previewReasons as Record<string, string | undefined>)[preview.reason] ?? null };
+    const refusals = [...new Set((preview.presented?.refusals ?? []).map((refusal) => refusal.text))];
+    content = {
+      kind: "refused",
+      reason: (messages.previewReasons as Record<string, string | undefined>)[preview.reason] ?? null,
+      ...(refusals.length > 1 ? { refusals } : {}),
+    };
   } else if (outcome.kind === "preview") {
     // Not reachable: a "not ready" answer is reconciled into "replaced" before it is stored.
     content = { kind: "prompt", layered: false };
@@ -302,7 +307,9 @@ export function SharePreviewBody({
     body = (
       <>
         <p>{messages.previewUnavailable}</p>
-        {content.reason && <p>{content.reason}</p>}
+        {content.refusals
+          ? content.refusals.map((line) => <p key={line}>{line}</p>)
+          : content.reason && <p>{content.reason}</p>}
       </>
     );
   } else if (content.kind === "error") {
@@ -386,6 +393,9 @@ function AvailableShares({
   const presented = preview.presented;
   return (
     <>
+      {presented?.school_line?.code === "same_in_all_schools" && (
+        <p data-school-agreement className="font-semibold text-accent">{presented.school_line.text}</p>
+      )}
       <ul aria-label={messages.previewHeading} className="flex flex-col">
         {rows.map((row) => {
           const blocked = row.blocked || row.fraction === null || row.percent === null;
@@ -418,11 +428,9 @@ function AvailableShares({
           {unallocated.amount !== null && <>{" "}(<bdi dir="auto">{unallocated.amount}</bdi>)</>}
         </p>
       )}
-      <p className="text-sm">
-        {presented?.school_line?.code === "school"
-          ? messages.previewSchool.split("{school}").join(presented.school_line.text)
-          : presented?.school_line?.text}
-      </p>
+      {presented?.school_line?.code === "school" && (
+        <p className="text-sm">{messages.previewSchool.split("{school}").join(presented.school_line.text)}</p>
+      )}
       <p>
         <Link href={`/${locale}/results/`} prefetch={false} className={primaryButton}>
           {messages.previewResultsLink}

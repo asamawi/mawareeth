@@ -296,7 +296,14 @@ def parse_presented_result(data):
             fail(p, 'compare state must match its outcome')
         if state == 'answer' and data['school_line']['code'] != 'same_in_all_schools':
             fail(p, 'agreement uses the shared School line')
-    elif outcome is not None or state == 'selection_required' or (state == 'answer' and data['school_line']['code'] != 'school'):
+    elif state == 'selection_required':
+        fail(p, 'a School or Country answer has no comparison outcome')
+    elif basis.kind == 'school' and basis.school in codes.SUNNI_SCHOOLS and state == 'answer':
+        if outcome not in ('agreement', 'difference'):
+            fail(p, 'a Sunni School answer reports agreement or difference')
+        if data['school_line']['code'] != ('same_in_all_schools' if outcome == 'agreement' else 'school'):
+            fail(p, 'the School line must match the comparison outcome')
+    elif outcome is not None or (state == 'answer' and data['school_line']['code'] != 'school'):
         fail(p, 'a School or Country answer has no comparison outcome')
     values = deepcopy(data)
     values['basis'] = basis

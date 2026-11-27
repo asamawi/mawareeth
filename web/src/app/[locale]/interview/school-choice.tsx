@@ -56,7 +56,7 @@ export function SchoolChoice({
       )}
       <ul className="grid gap-3 sm:grid-cols-2">
         {(preview.presented?.comparison?.schools ?? []).map((school) => (
-          <li key={school.school} className="flex flex-col gap-2 rounded-md border border-current/60 p-3">
+          <li key={school.school} className="flex flex-col gap-2 rounded-node border border-current/60 p-3">
             <strong>{school.label}</strong>
             {school.status === "calculated" ? (
               <ul className="flex flex-col gap-1">
@@ -78,13 +78,13 @@ export function SchoolChoice({
         ))}
       </ul>
       <form onSubmit={submit} className="flex flex-col gap-3">
-        <fieldset role="radiogroup" className="flex flex-col gap-2">
+        <fieldset role="radiogroup" className="flex flex-col gap-2 rounded-node border border-current/60 p-3">
           <legend className="mb-1 font-semibold">{messages.chooseSchool}</legend>
           <div className="grid gap-3 sm:grid-cols-2">
             {SUNNI_IDS.map((id) => (
               <label
                 key={id}
-                className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-current/60 p-3 has-checked:border-current has-checked:bg-current/10 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-current"
+                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border-2 border-current/60 p-3 has-checked:border-current has-checked:bg-current/10 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-current"
               >
                 <input
                   type="radio"

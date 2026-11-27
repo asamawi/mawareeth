@@ -18,7 +18,8 @@ export type ResultsState =
   | { kind: "incomplete" }
   /** The case is complete and its preview is still on its way. */
   | { kind: "loading" }
-  | { kind: "unavailable"; reason: string }
+  /** `refusals` holds each distinct presented refusal text when the Schools refused for different reasons. */
+  | { kind: "unavailable"; reason: string; refusals?: string[] }
   /** No school is chosen and the schools differ: the visitor must choose before the results. */
   | { kind: "choose_school"; preview: ChoosePreview }
   | { kind: "error"; error: ResultsError }
@@ -35,7 +36,10 @@ export function resultsState(kase: Case | null, outcome: PreviewResult | null): 
   if (outcome.kind !== "preview") return { kind: "error", error: outcome.kind };
   const { preview } = outcome;
   if (preview.status === "available") return { kind: "available", preview };
-  if (preview.status === "unavailable") return { kind: "unavailable", reason: preview.reason };
+  if (preview.status === "unavailable") {
+    const refusals = [...new Set((preview.presented?.refusals ?? []).map((refusal) => refusal.text))];
+    return refusals.length > 1 ? { kind: "unavailable", reason: preview.reason, refusals } : { kind: "unavailable", reason: preview.reason };
+  }
   if (preview.status === "choose_school") return { kind: "choose_school", preview };
   // A "not ready" answer for a case this tab holds ready means the family changed.
   return { kind: "error", error: "replaced" };
@@ -61,7 +65,8 @@ export function isLayeredPreview(preview: AvailablePreview): boolean {
 export type TextRef =
   | { from: "results"; key: "emptyCase" | "incompleteCase" | "loadFailed" | "loading" }
   | { from: "interview"; key: "previewUnavailable" | "previewThrottled" | "previewGone" | "previewExpired" | "previewFailed" }
-  | { from: "reason"; key: string };
+  | { from: "reason"; key: string }
+  | { from: "text"; text: string };
 
 /** What a state with no numbers shows: its texts in order, whether they are an alert, and whether Retry is offered. */
 export type Presentation = { texts: TextRef[]; alert: boolean; retry: boolean };
@@ -81,7 +86,10 @@ export function presentationOf(
       return { texts: [{ from: "results", key: "loading" }], alert: false, retry: false };
     case "unavailable":
       return {
-        texts: [{ from: "interview", key: "previewUnavailable" }, { from: "reason", key: state.reason }],
+        texts: [
+          { from: "interview", key: "previewUnavailable" },
+          ...(state.refusals?.length ? state.refusals.map((text): TextRef => ({ from: "text", text })) : [{ from: "reason", key: state.reason } as TextRef]),
+        ],
         alert: false,
         retry: false,
       };

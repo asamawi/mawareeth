@@ -1,5 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRoot } from "react-dom/client";
 import { act, createRef } from "react";
 import type { Window } from "happy-dom";
@@ -406,4 +407,43 @@ test("a choose-school sheet shows the School choice, and an error with kept rows
     await act(async () => { retry.click(); });
     assert.equal(retried, 1);
   } finally { await r.done(); }
+});
+
+test("agreement is the teal line above the rows, with no Calculated under line", async () => {
+  const base = available("Hanbali wife and son with an estate");
+  const line = { code: "same_in_all_schools" as const, text: "Same result in all four Sunni schools" };
+  const preview: Available = { ...base, presented: { ...base.presented!, comparison_outcome: "agreement", school_line: line } };
+  const { node, done } = await render(view({ kind: "available", preview, labels: labelsOf(preview) }));
+  try {
+    const agreement = node.querySelector("[data-school-agreement]")!;
+    assert.equal(agreement.textContent, line.text);
+    assert.ok(agreement.className.includes("text-accent"));
+    assert.ok(agreement.compareDocumentPosition(node.querySelector("ul")!) & 4, "the line precedes the rows");
+    assert.ok(!(node.textContent ?? "").includes("Calculated under"));
+  } finally { await done(); }
+});
+
+test("a difference names the School after the rows and shows no agreement line", async () => {
+  const base = available("Hanbali wife and son with an estate");
+  const presented = JSON.parse(readFileSync(new URL("../../../../../contracts/fixtures/presented_result/school-difference.json", import.meta.url), "utf8"));
+  const preview: Available = { ...base, presented };
+  const { node, done } = await render(view({ kind: "available", preview, labels: labelsOf(preview) }));
+  try {
+    assert.equal(node.querySelector("[data-school-agreement]"), null);
+    const rows = node.querySelector("ul")!;
+    const line = [...node.querySelectorAll("p")].find((p) => p.textContent === en.previewSchool.split("{school}").join(presented.school_line.text));
+    assert.ok(line, "the School line names Maliki");
+    assert.ok(rows.compareDocumentPosition(line) & 4, "the School line follows the rows");
+    for (const row of presented.rows) assert.ok((rows.textContent ?? "").includes(row.share.text));
+  } finally { await done(); }
+});
+
+test("a refusal by every School lists each distinct refusal and no shares", async () => {
+  const { node, done } = await render(view({ kind: "refused", reason: "Because.", refusals: ["First refusal.", "Second refusal."] }, { state: "refused" }));
+  try {
+    const shown = node.textContent ?? "";
+    assert.ok(shown.includes("First refusal.") && shown.includes("Second refusal."));
+    assert.ok(!shown.includes("Because."));
+    assert.equal(node.querySelector("ul"), null);
+  } finally { await done(); }
 });

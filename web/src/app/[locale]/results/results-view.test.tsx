@@ -5,7 +5,7 @@ import { act } from "react";
 import { installDom, teardownDom } from "@/test/dom";
 import type { Window } from "happy-dom";
 import { messages } from "@/i18n/messages";
-import { previewFixture } from "@/test/preview-fixtures";
+import { mixedRefusalFixture, previewFixture } from "@/test/preview-fixtures";
 
 const en = messages["en"];
 const fixture = previewFixture("Differ: grandfather and full brother");
@@ -16,6 +16,8 @@ let root: ReturnType<typeof createRoot>;
 let calls: { url: string; method: string; body?: string }[];
 let patchGate: Promise<void> | null = null;
 let onLine = true;
+let previewBody: unknown = null;
+let caseBody: unknown = null;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -32,6 +34,8 @@ beforeEach(() => {
   onLine = true;
   calls = [];
   patchGate = null;
+  previewBody = null;
+  caseBody = null;
   (globalThis as Record<string, unknown>).fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : String(input);
     const method = init?.method ?? "GET";
@@ -40,8 +44,8 @@ beforeEach(() => {
       const reply = json({ case: { ...fixture.case, madhab: "hanafi" } });
       return patchGate ? patchGate.then(() => reply) : Promise.resolve(reply);
     }
-    if (url.includes("/api/v1/case/preview/")) return Promise.resolve(json(fixture.response));
-    if (url.includes("/api/v1/case/")) return Promise.resolve(json({ case: fixture.case }));
+    if (url.includes("/api/v1/case/preview/")) return Promise.resolve(json(previewBody ?? fixture.response));
+    if (url.includes("/api/v1/case/")) return Promise.resolve(json({ case: caseBody ?? fixture.case }));
     return Promise.resolve(json({}));
   };
   container = document.createElement("div");
@@ -212,4 +216,74 @@ test("Full results: a button-initiated PDF shows busy while pending and blanks t
   } finally {
     URL.createObjectURL = realCreate;
   }
+});
+
+async function renderResultsFixture(title: string) {
+  const { case: kase, response } = previewFixture(title);
+  const fetchOther = globalThis.fetch;
+  globalThis.fetch = (input, init) => {
+    const url = String(input);
+    if (url.includes("/api/v1/case/preview/")) return Promise.resolve(json(response));
+    if (url === "/api/v1/case/") return Promise.resolve(json({ case: kase }));
+    return fetchOther(input, init);
+  };
+  await act(async () => { root.render(<ResultsView messages={en} locale="en" />); });
+  await settle();
+}
+
+test("Full results: agreement under a chosen school shows the shared school line", async () => {
+  await renderResultsFixture("Hanbali wife and son with an estate");
+  assert.ok([...container.querySelectorAll("p")].some((p) => p.textContent === "Same result in all four Sunni schools"));
+  assert.doesNotMatch(container.textContent ?? "", /Calculated under/);
+});
+
+test("Full results: a difference under Maliki names the chosen school", async () => {
+  await renderResultsFixture("Maliki mushtaraka shares the third");
+  const schoolLine = en.results.school.replace("{school}", "Maliki");
+  assert.ok([...container.querySelectorAll("p")].some((p) => p.textContent === schoolLine));
+  assert.doesNotMatch(container.textContent ?? "", /Same result in all four Sunni schools/);
+});
+
+test("Full results: a partial refusal shows the other schools' shares and leaves Maliki selectable", async () => {
+  await renderResultsFixture("Refusal: Malikiyya makes the schools differ");
+  const choice = container.querySelector("[data-school-choice]");
+  assert.ok(choice);
+  assert.equal(choice.querySelector("legend")?.textContent, "Which school of law do you follow?");
+
+  const cards = [...choice.querySelectorAll("li > strong")];
+  const maliki = cards.find((label) => label.textContent === "Maliki")?.closest("li");
+  assert.ok(maliki);
+  assert.equal(
+    maliki.querySelector("p")?.textContent,
+    "Scholars of the Maliki school disagree about this family (the Malikiyya case), so no shares are shown.",
+  );
+  assert.equal(maliki.querySelectorAll("ul > li").length, 0);
+
+  const radio = choice.querySelector<HTMLInputElement>('input[type="radio"][value="maliki"]');
+  assert.ok(radio);
+  assert.equal(radio.matches(":disabled"), false);
+
+  const noShare = en.interview.previewNoShare;
+  for (const [school, shares] of [
+    ["Hanafi", ["1/2", "1/6", "1/3", noShare, noShare, noShare]],
+    ["Shafi'i", ["1/2", "1/6", "1/6", noShare, noShare, "1/6"]],
+    ["Hanbali", ["1/2", "1/6", "1/6", noShare, noShare, "1/6"]],
+  ] as const) {
+    const card = cards.find((label) => label.textContent === school)?.closest("li");
+    assert.ok(card, `the ${school} comparison card is shown`);
+    const shareRows = [...card.querySelectorAll("ul > li")];
+    assert.deepEqual(shareRows.map((row) => row.lastElementChild?.textContent), shares, `${school} shares`);
+  }
+});
+
+test("all four Schools refusing for different reasons shows each presented refusal and no shares", async () => {
+  const mixed = mixedRefusalFixture();
+  previewBody = mixed.response;
+  caseBody = { ...mixed.case, madhab: null };
+  await act(async () => { root.render(<ResultsView messages={en} locale="en" />); });
+  await settle();
+  const shown = container.textContent ?? "";
+  for (const refusal of (mixed.response as { presented: { refusals: { text: string }[] } }).presented.refusals) assert.ok(shown.includes(refusal.text), refusal.text);
+  assert.ok(shown.includes(en.interview.previewUnavailable));
+  assert.equal(container.querySelector("#results-shares"), null);
 });

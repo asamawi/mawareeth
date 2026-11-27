@@ -279,9 +279,10 @@ test.describe("the school of law, asked only when it matters", () => {
     api.set({ session: sessionAnonymous, getCase: json(200, { case: fullCase(agree.case) }), getPreview: json(200, agree.response) });
     await page.goto("/en/interview/");
     await page.getByRole("button", { name: en.resume }).click();
-    // The agreement line itself is story 11.1's; here the one result is in the sheet.
+    // The agreement line is the presented one, above the rows, and no School is named.
     await expect(page.locator("[data-summary-bar]")).toBeVisible();
     const sheet = await openPreview(page);
+    await expect(sheet.locator("[data-school-agreement]")).toHaveText(agree.response.presented.school_line.text);
     await expect(sheet.locator("ul > li").first()).toBeVisible();
     await expect(sheet.locator("[data-school-choice]")).toHaveCount(0);
     await expect(page.getByText(en.schoolsDiffer)).toHaveCount(0);
@@ -331,6 +332,16 @@ test.describe("the school of law, asked only when it matters", () => {
     await expect(page.getByText(`${en.madhabLabel}:`)).toBeVisible();
     expect(api.casePatches).toHaveLength(1);
     expect(JSON.parse(api.casePatches[0].body)).toEqual({ madhab: "hanafi", case_id: differ.case.id, expected_revision: 1 });
+    // The refreshed Share preview names the chosen School and shows its rows: Hanafi blocks the brother.
+    const chosenPresented = differ.response.schools.hanafi.presented;
+    await expect(sheet.getByText(en.previewSchool.split("{school}").join(chosenPresented.school_line.text))).toBeVisible();
+    await expect(sheet.getByText(en.treeNoShare)).toHaveCount(1);
+    await expect(sheet.getByText("1/1").first()).toBeVisible();
+    // Full results names the same School and lists the brother with no share.
+    await sheet.getByRole("link", { name: en.previewResultsLink }).click();
+    await expect(page).toHaveURL(/\/en\/results\//);
+    await expect(page.getByText(messages.en.results.school.split("{school}").join(chosenPresented.school_line.text))).toBeVisible();
+    await expect(page.getByText(chosenPresented.rows[1].relationship.translated.text).first()).toBeVisible();
   });
 
   test("a refusal in one school is shown in that school's summary", async ({ page, api }) => {

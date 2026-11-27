@@ -44,7 +44,7 @@ test("available received results are read-only and Download uses the received re
     // Every number on screen is the server's presented string: share, amount, kirat and the School line.
     const shown = node.textContent ?? "";
     for (const text of ["SAR1,000.00", "SAR7,000.00", "1/8", "87.5%", "12.5%", "3.00", "21.00"]) assert.ok(shown.includes(text), text);
-    assert.ok(shown.includes("Hanbali"), "the School line is the presented one");
+    assert.ok(shown.includes("Same result in all four Sunni schools"), "the School line is the presented one");
     assert.ok(node.querySelector('bdi[lang="ar"][dir="rtl"]'), "the Arabic original relationship is rendered");
     assert.ok(node.textContent?.includes(messages.en.shared.banner));
     const buttons = Array.from(node.querySelectorAll("button"));

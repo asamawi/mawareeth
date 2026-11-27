@@ -76,8 +76,8 @@
   },
   "fixtures/invalid/presented_result.json": {
     "contract": "presented_result",
-    "sha256": "26ddb220447a63c2e5c04022162a310e9bff729fe5c9100e5b5177d54f461bea",
-    "version": 3
+    "sha256": "2a860c7254be25a57862e0aa9957e3b6e2fd371cdae72c2aced5ed5fdbb58e48",
+    "version": 4
   },
   "fixtures/invalid/preset.json": {
     "contract": "preset",
@@ -91,38 +91,48 @@
   },
   "fixtures/presented_result/agreement.json": {
     "contract": "presented_result",
-    "sha256": "bcc4f6c8b15cc4dfe7033cdab0e1ba51327fb3d64999e709afcdcc8ba77cb1e0",
-    "version": 3
+    "sha256": "ec98636c2599f3076561458f2b26ab8a90af8994a9ba8158104e6c9144919550",
+    "version": 4
   },
   "fixtures/presented_result/difference.json": {
     "contract": "presented_result",
-    "sha256": "43878e174d23bae979a4734ec552dbd5c4a882e5ad6cca42be38fd2269dae6c2",
-    "version": 3
+    "sha256": "90659a5a38742b731ae1877df12edb97fef4b419010a06158fb83629fbc0b2f0",
+    "version": 4
   },
   "fixtures/presented_result/later-deaths.json": {
     "contract": "presented_result",
-    "sha256": "ae796a9d92d3c767884accf3078ebfcad1a92fb8b634a316170bbc1aa5173fa6",
-    "version": 3
+    "sha256": "df0cd8cadadc6a6bf9d1b851bcfcbcea4b09760fbf2d790af7b12115e6652f02",
+    "version": 4
   },
   "fixtures/presented_result/partial-refusal.json": {
     "contract": "presented_result",
-    "sha256": "7b09804d55ca0b7016ceb561b7614ed105043e506012ad953f365c7e25012186",
-    "version": 3
+    "sha256": "82901a02d38a7ccb4e5f26624741d8d44b150ca58307cfa434d74481e4952978",
+    "version": 4
   },
   "fixtures/presented_result/refused.json": {
     "contract": "presented_result",
-    "sha256": "7b0513e8ac5f6e80347e14c9ed28ac89ba6c29c6e1a8c6f481d4885d29cf08bd",
-    "version": 3
+    "sha256": "1bb13c120e65def5d7171ee460ee288e879f21649d2047abd22aa36687662c48",
+    "version": 4
+  },
+  "fixtures/presented_result/school-agreement.json": {
+    "contract": "presented_result",
+    "sha256": "882df9635f000030be678a58a326fab5104fe93f1ac9719ed3d8d5fc960b6da6",
+    "version": 4
   },
   "fixtures/presented_result/school-answer.json": {
     "contract": "presented_result",
-    "sha256": "199e2703845bf81d612a34f114b19ec0031837719bd8527befb3ec0b02b8c7d4",
-    "version": 3
+    "sha256": "ab88ecdb4e851aab331a2b4b16a3a88ef417ef37f3d2d7609ea740a0608bdbf9",
+    "version": 4
+  },
+  "fixtures/presented_result/school-difference.json": {
+    "contract": "presented_result",
+    "sha256": "3846d47f5fa094f937862445454fb06dcc966036f849677b30b950a438821af1",
+    "version": 4
   },
   "fixtures/presented_result/selection-required.json": {
     "contract": "presented_result",
-    "sha256": "93e3553618b906805bf0fc73f362065904fba4370c6ae39f7c5ffa9f36dc0353",
-    "version": 3
+    "sha256": "f7b1e457240dee553b4bf71db25bfb2acc30f80e4efa40712974b9eb981a68d1",
+    "version": 4
   },
   "fixtures/preset/zz-2026-01-01.json": {
     "contract": "preset",

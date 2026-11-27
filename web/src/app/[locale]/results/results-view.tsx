@@ -87,7 +87,7 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
     const presentation = presentationOf(state);
     const reasons = interview.previewReasons as Record<string, string | undefined>;
     const lines = presentation.texts
-      .map((ref) => (ref.from === "results" ? text[ref.key] : ref.from === "interview" ? interview[ref.key] : reasons[ref.key]))
+      .map((ref) => (ref.from === "results" ? text[ref.key] : ref.from === "interview" ? interview[ref.key] : ref.from === "text" ? ref.text : reasons[ref.key]))
       .filter((line): line is string => line !== undefined);
     return (
       <div className="mx-auto flex w-full max-w-xl flex-col gap-3">

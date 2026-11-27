@@ -2,6 +2,7 @@
 evaluations. Every number is an integer, an exact Fraction or a Decimal, and every number string is Babel's."""
 import i18n
 from engine.contracts.basis import ResolvedBasis
+from engine.contracts import codes
 from engine.contracts.codes import CONTRACT_VERSIONS
 from engine.contracts.presented import PresentedResult
 from engine.contracts.values import dump_fraction
@@ -156,8 +157,8 @@ def present(out, basis, locale, currency):
         cmp = compare(out)
         shown['comparison_outcome'] = cmp.outcome
         if cmp.outcome == 'agreement':
-            state, table = 'answer', out.evaluations[-1][1].table
-            result = out.evaluations[-1][1].result
+            state, table = 'answer', dict(out.evaluations)['hanbali'].table
+            result = dict(out.evaluations)['hanbali'].result
             shown['school_line'] = {'code': 'same_in_all_schools',
                                     'text': i18n.term('comparison.same_in_all_schools', fmt.locale)}
         elif cmp.outcome == 'difference':
@@ -179,6 +180,12 @@ def present(out, basis, locale, currency):
         else:
             state, result, table = 'answer', evaluation.result, evaluation.table
             shown['school_line'] = {'code': 'school', 'text': i18n.term(f'school.{school}', fmt.locale)}
+            if basis.basis.kind == 'school' and school in codes.SUNNI_SCHOOLS and len(out.evaluations) == len(codes.SUNNI_SCHOOLS):
+                outcome = compare(out).outcome
+                shown['comparison_outcome'] = outcome
+                if outcome == 'agreement':
+                    shown['school_line'] = {'code': 'same_in_all_schools',
+                                            'text': i18n.term('comparison.same_in_all_schools', fmt.locale)}
 
     if result is not None:
         money = _Money(fmt, family.estate.amount_minor, code)
