@@ -20,6 +20,7 @@ bdi { direction: ltr; } .proof { break-inside: avoid; }
 <p>{% translate "Generation date" %}: <bdi dir="ltr">{{ generated }}</bdi></p>
 <div class="notice"><p class="notice-disclaimer">{{ disclaimer }}</p><p>{{ supplied_facts }}</p></div>
 <p>{% translate "School" %}: {{ school }}</p>
+{% if agreement %}<p>{{ agreement }}</p>{% endif %}
 <h2>{% translate "Deceased and estate" %}</h2>
 <p><bdi>{{ deceased }}</bdi>{% if with_amount %} · {% translate "Estate" %}: <bdi dir="ltr">{{ estate }}</bdi>{% endif %}</p>
 <h2>{% translate "Heirs and shares" %}</h2>

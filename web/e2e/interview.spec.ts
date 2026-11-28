@@ -367,11 +367,17 @@ test.describe("revisions and connection", () => {
     await page.goto("/en/interview/");
     await page.getByRole("button", { name: en.resume }).click();
     await expect.poll(() => api.previewGets).toBeGreaterThan(0);
-    // Nothing of the older answer is shown: no summary bar, no sheet, and the signal stays pending.
-    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "pending");
-    await expect(page.locator("[data-summary-bar]")).toHaveCount(0);
+    // Nothing of the older answer is shown. It is the only answer, so it settles as a failure with
+    // Retry (as on Full results) instead of staying pending until the next edit.
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "error");
+    const bar = page.locator("[data-summary-bar]");
+    await expect(bar.locator("[data-summary-text]")).toHaveText(en.previewFailed);
     await expect(sheetOf(page).locator("ul > li")).toHaveCount(0);
     await expect(page.getByText(en.previewUpdated)).toHaveCount(0);
+    // Retry asks again, and an answer for the right revision is shown.
+    api.set({ getPreview: json(200, { ...agree.response, revision: 2 }) });
+    await bar.getByRole("button", { name: en.previewRetry }).click();
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "ready");
   });
 
   test("offline, editing is blocked with a notice and nothing is sent; online it comes back", async ({ page, context, api }) => {
@@ -1791,12 +1797,16 @@ test.describe("one status and pending shares (story 9.10)", () => {
     const gets = api.previewGets;
     await page.getByRole("button", { name: "Add Son", exact: true }).click();
     await expect.poll(() => api.previewGets).toBeGreaterThan(gets);
-    await page.waitForTimeout(500);
-    await openPreview(page);
-    const section = sheetOf(page).locator("section[aria-labelledby='preview-heading']");
+    // The older answer is not shown as the new one: it settles as a failure with Retry, and the
+    // sheet shows no rows as if they were the answer for the grown family.
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "error");
+    const sheet = await openPreview(page);
+    await expect(sheet.locator("[data-preview-body]")).not.toHaveAttribute("data-pending", "");
+    await expect(rowsOf(page)).toHaveCount(0);
+    api.set({ getPreview: json(200, previewOf(returned)) });
+    await sheet.getByRole("button", { name: en.previewRetry }).click();
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "ready");
     await expect(rowsOf(page).first()).toBeVisible();
-    await expect(section).toHaveAttribute("aria-busy", "true");
-    await expect(section.locator("[data-preview-body]")).toHaveAttribute("data-pending", "");
   });
 
   test("a rename is busy until its preview settles", async ({ page, api }) => {
@@ -2663,6 +2673,33 @@ test.describe("Story 11.3: the summary bar and sheet", () => {
     await expect(page.locator("[data-summary-bar]")).toHaveAttribute("inert", "");
   });
 
+  test("all four Schools refusing for different reasons lists each reason in the sheet and on Full results", async ({ page, api }) => {
+    // The served envelope for a compare Basis where every School refuses, for two different reasons (story 11.1):
+    // the legacy `unavailable` body carries the Hanbali reason, and the presentation names each distinct one.
+    const impossible = fixture("Impossible family");
+    const refusals = [
+      { school: null, reason: "manasikhat_unsupported", text: "Successive deaths of this kind are not supported yet." },
+      { school: null, reason: "invalid_family", text: "This family is not possible, so no shares are shown." },
+    ];
+    const envelope = {
+      ...impossible.response, madhab: null, basis: { ...impossible.response.basis, madhab: null },
+      presented: { ...impossible.response.presented, basis: { kind: "compare" }, comparison_outcome: "all_refused", school_line: null, refusals },
+    };
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: fullCase(impossible.case, { madhab: null }) }), getPreview: json(200, envelope) });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "refused");
+    const bar = page.locator("[data-summary-bar]");
+    await expect(bar.locator("[data-summary-text]")).toHaveText(en.previewUnavailable);
+    const sheet = await openPreview(page);
+    for (const refusal of refusals) await expect(sheet.getByText(refusal.text, { exact: true })).toBeVisible();
+    await expect(sheet.locator("ul > li")).toHaveCount(0);
+    await closePreview(page);
+    await bar.getByRole("link", { name: en.previewResultsLink }).click();
+    await expect(page).toHaveURL(/\/en\/results\//);
+    for (const refusal of refusals) await expect(page.getByText(refusal.text, { exact: true })).toBeVisible();
+  });
+
   test("a whole-preview refusal on load shows the bar, and the sheet gives the served reason", async ({ page, api }) => {
     const differ = fixture("Differ: grandfather and full brother");
     const chosen = differ.response.schools.hanafi;
@@ -2807,6 +2844,39 @@ test.describe("Story 11.4: summary controls at narrow widths and high zoom", () 
     });
   }
 
+  for (const locale of ["en", "ar"] as const) {
+    // fixme: in the full chromium run the smooth focus scroll stops short and leaves the focused last row
+    // off-screen (en, 2 of 2 full runs; 20/20 alone). See deferred-work.md, "Epic 11 follow-up review".
+    test.fixme(`in normal motion, tabbing from the top to the last Heirs row scrolls it clear of the floating toast and the bar in ${locale}`, async ({ page, api }) => {
+      // Follow-up review of story 11.4: the test above turns smooth scrolling off and scrolls the row into view
+      // first, so the smooth focus scroll itself was never exercised.
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      await page.setViewportSize({ width: 375, height: 800 });
+      const kase = start();
+      await open(page, api, locale, kase);
+      api.set({ getPreview: async (route) => { await new Promise((resolve) => setTimeout(resolve, 20_000)); try { await json(200, agree.response)(route); } catch {} }, postHeir: json(201, { case: added(kase) }) });
+      await page.locator('[data-focus="add:son"]').click();
+      const toast = page.locator("[data-undo-toast]");
+      const bar = page.locator("[data-summary-bar]");
+      await expect(toast).toHaveAttribute("data-toast-placement", "float");
+      expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior)).toBe("smooth");
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      const lastRow = page.locator('ul[aria-label] [data-focus^="editHeir:"]').last();
+      // It starts below the floating toast, so only the focus scroll can bring it clear.
+      expect((await box(lastRow)).y + (await box(lastRow)).height).toBeGreaterThan((await box(toast)).y);
+      await page.locator('[data-focus="list"]').focus();
+      for (let step = 0; step < 80 && !(await lastRow.evaluate((el) => el === document.activeElement)); step += 1) await page.keyboard.press("Tab");
+      await expect(lastRow).toBeFocused();
+      const clearance = async () => {
+        const row = await box(lastRow), t = await box(toast), b = await box(bar);
+        return { rowBottom: Math.round(row.y + row.height), toastTop: Math.round(t.y), barTop: Math.round(b.y), scrollY: await page.evaluate(() => Math.round(window.scrollY)) };
+      };
+      await expect.poll(async () => { const c = await clearance(); return c.rowBottom <= c.toastTop + 1 && c.rowBottom <= c.barTop + 1 ? "clear" : JSON.stringify(c); }).toBe("clear");
+      // The toast is still floating above the bar, so the check above was against both surfaces.
+      await expect(toast).toHaveAttribute("data-toast-placement", "float");
+    });
+  }
+
   test("too tall at 320x400 with text spacing: the toast stays in the flow and the padding is the bar", async ({ page, api }) => {
     await page.setViewportSize({ width: 320, height: 400 });
     const kase = start();
@@ -2820,7 +2890,7 @@ test.describe("Story 11.4: summary controls at narrow widths and high zoom", () 
     await expect.poll(() => scrollPadding(page)).toBeCloseTo(Math.min(bar.height, 100), 0);
     api.set({ postRestore: json(200, { case: stamp(kase, 7) }) });
     await toast.getByRole("button", { name: en.undoAction, exact: true }).click({ force: true });
-    expect(api.restorePosts).toHaveLength(1);
+    await expect.poll(() => api.restorePosts.length).toBe(1);
   });
 
   for (const size of [{ width: 800, height: 400 }, { width: 320, height: 200 }]) for (const locale of ["en", "ar"] as const) {

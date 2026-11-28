@@ -290,7 +290,11 @@ class ReportContentTests(SimpleTestCase):
                     html = render_html(fixture['case'], body)
                 self.assertEqual(context['generated'], format_datetime(stamp, lang))
                 self.assertIn(context['generated'], html)
-                self.assertEqual(context['school'], presented['school_line']['text'])
+                # The fixture is a chosen School that agrees with the other three: that School is named,
+                # and the agreement line follows it.
+                self.assertEqual(presented['school_line']['code'], 'same_in_all_schools')
+                self.assertEqual(context['school'], i18n.term(f"school.{presented['basis']['school']}", lang))
+                self.assertEqual(context['agreement'], presented['school_line']['text'])
                 from django.utils.html import escape
                 for row in presented['rows']:
                     for text in (row['share']['text'], row['percent']['text'], row['kirat']['text']):
@@ -312,6 +316,28 @@ class ReportContentTests(SimpleTestCase):
         with translation.override('en'):
             hanafi = next(f for f in AVAILABLE if f['case']['madhab'] == 'hanafi')
             self.assertEqual(build_context(hanafi['case'], served(hanafi))['school'], 'Hanafi')
+
+    def test_a_chosen_school_that_agrees_with_the_other_three_is_still_named(self):
+        # Epic 11 follow-up review: the PDF said "School: Same result in all four Sunni schools" and lost the madhab.
+        from engine.contracts import dump_presented_result
+        from engine.tests.test_core import family
+        import presentation
+        from i18n.tests import codes_resolve
+        resolved = codes_resolve({'kind': 'school', 'school': 'maliki'})
+        case = {'deceased': {'gender': 'male'}, 'heirs': [], 'madhab': 'maliki'}
+        for lang in ('en', 'ar', 'fr'):
+            with self.subTest(lang=lang), translation.override(lang):
+                presented = dump_presented_result(presentation.present(presentation.outcome(family(['son']), resolved), resolved, lang, None))
+                self.assertEqual(presented['school_line']['code'], 'same_in_all_schools')
+                body = {'basis': {'estate': None}, 'presented': presented}
+                context = build_context(case, body)
+                self.assertEqual(context['school'], i18n.term('school.maliki', lang))
+                self.assertEqual(context['agreement'], presented['school_line']['text'])
+                html = render_html(case, body)
+                from django.utils.html import escape
+                self.assertIn(escape(context['school']), html)
+                self.assertIn(escape(context['agreement']), html)
+                self.assertLess(html.index(escape(context['school'])), html.index(escape(context['agreement'])))
 
     def test_the_notice_block_has_the_disclaimer_and_the_supplied_facts_text(self):
         fixture = next(f for f in AVAILABLE if f['response']['basis']['estate'] and not f['case'].get('deaths'))

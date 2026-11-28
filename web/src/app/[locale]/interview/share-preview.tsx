@@ -137,9 +137,10 @@ export function useSharePreview({
     }, STILL_AFTER);
     void fetchPreview(own.signal, caseId, { locale }).then((fetched) => {
       if (own.signal.aborted) return;
-      // A preview computed for an older revision is never shown.
-      const outcome = acceptRevision(revision, fetched);
-      if (outcome === null) return;
+      // A preview computed for an older revision is never shown. It is the only answer this request
+      // will get, so it settles as a failure with Retry, as on Full results (`previewForCase`), rather
+      // than leaving the Interview pending until the next edit.
+      const outcome: PreviewResult = acceptRevision(revision, fetched) ?? { kind: "failed" };
       clearTimeout(slower);
       clearTimeout(slowest);
       latest.current.drop?.("progress");

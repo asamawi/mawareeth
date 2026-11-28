@@ -107,7 +107,10 @@ class ConsumerTests(SimpleTestCase):
             self.assertEqual(context['direction'], config['direction'])
             for family in config['pdf_font_stack']:
                 self.assertIn(f'"{family}"', context['font_family'])
-            self.assertEqual(context['school'], body['presented']['school_line']['text'])
+            # A son alone: all four Schools agree, so the chosen School is named and the agreement follows it.
+            self.assertEqual(body['presented']['school_line']['code'], 'same_in_all_schools')
+            self.assertEqual(context['school'], i18n.term('school.hanafi', lang))
+            self.assertEqual(context['agreement'], body['presented']['school_line']['text'])
 
     def test_non_arabic_catalogs_have_no_arabic_script(self):
         for code in i18n.published_codes():

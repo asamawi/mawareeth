@@ -200,6 +200,42 @@ for (const locale of ["en", "ar"] as const) {
       await expect(status(page)).toHaveCount(1);
     });
 
+    test("a guest's Share link goes through the real sign-in page and resumes the share for the same Case", async ({ page, api, context }) => {
+      // Retro item 3 (story 11.5): sign in through the login form, not a faked `?resume=` session.
+      await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+      const state = { signedIn: false };
+      const row = { id: 7, visibility: "private", created_at: "2026-11-26T00:00:00Z", expires_at: "2026-12-26T00:00:00Z", expired: false };
+      stubResults(api, {
+        session: (route) => (state.signedIn ? sessionAuthenticated : sessionAnonymous)(route),
+        postSaved: json(201, { id: 42, name: SUGGESTION, updated_at: "2026-11-26T00:00:00Z", revision: 1 }),
+        postShareCreate: json(201, { ...row, token: "tok123" }),
+        getShares: json(200, { shares: [row] }),
+      });
+      const logins: string[] = [];
+      await page.route("**/api/v1/auth/login/", (route) => {
+        if (route.request().method() !== "POST") return route.fallback();
+        state.signedIn = true;
+        const next = JSON.parse(route.request().postData() ?? "{}").next;
+        logins.push(next);
+        return json(200, { redirect: next })(route);
+      });
+      await page.goto(`/${locale}/results/`);
+      await page.getByRole("button", { name: text.shareAction, exact: true }).click();
+      await page.getByRole("dialog").getByRole("link", { name: text.signIn }).click();
+      await page.waitForURL(`**/${locale}/login/**`);
+      expect(new URL(page.url()).searchParams.get("next")).toBe(`/${locale}/results/?resume=share`);
+      expect(api.savedPosts).toHaveLength(0);
+      await page.locator("input[name=username]").fill("owner");
+      await page.locator("input[name=password]").fill("secret-pass-1");
+      await page.locator("input[name=password]").press("Enter");
+      await page.waitForURL(`**/${locale}/results/**`);
+      await expect(status(page)).toHaveText(messages[locale].share.created);
+      expect(logins).toEqual([`/${locale}/results/?resume=share`]);
+      // The share is made for the same Case the guest was looking at, saved first, once.
+      expect(api.savedPosts.map((post) => JSON.parse(post.body).case_id)).toEqual([agree.case.id]);
+      await expect.poll(() => page.url()).not.toContain("resume=");
+    });
+
     test("a failing PDF shows the failure in the status line with the family still visible", async ({ page, api }) => {
       stubResults(api, { getDraftReport: (route) => route.fulfill({ status: 500, contentType: "application/json", body: "{}" }) });
       await page.goto(`/${locale}/results/`);
