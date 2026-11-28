@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 21:00
-last_updated: "11-26-2026 02:45"
+last_updated: "11-28-2026 02:56"
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
@@ -86,7 +86,7 @@ development_status:
   11-5-preserve-the-results-table-and-make-result-actions-clear: done
   11-6-explain-the-estate-input-and-identify-user-supplied-facts: done
   11-7-make-rounding-adjustments-visible-and-reconcile-displayed-to: done
-  epic-11-retrospective: optional
+  epic-11-retrospective: done
 
   epic-12: backlog
   12-1-replace-outdated-legal-claims-and-record-legacy-retirement-d: backlog
@@ -290,7 +290,7 @@ action_items:
     action: "Pass the dirty draftName into onAddHere and persist it before the positioned
       add closes the edit sheet; add the combined dirty-name + Add-relative-here test."
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
   - id: "epic-9-retro-item-9-cleanup-drag-listeners-on-unmount"
     epic: 9
@@ -355,3 +355,42 @@ action_items:
     owner: "dev"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-11-25.md"
+  - id: "epic-11-retro-item-26-wait-for-the-summary-sheet-open-animatio"
+    epic: 11
+    action: "Wait for the summary sheet open animation in openPreview/openPreviewAnywhere
+      (web/e2e/family.ts:37-49), rerun accessibility.spec.ts in full, and fix the
+      light-mode .text-accent agreement-line contrast if accessibility.spec.ts:179
+      still fails"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-11-28.md"
+  - id: "epic-11-retro-item-27-make-the-interview-full-refusal-and-firs"
+    epic: 11
+    action: "Make the Interview full refusal and first-load preview failure visible
+      to sighted users (refusal reason and Retry via the bar or an in-flow notice)
+      and update the pinned failed-first-preview e2e test"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-11-28.md"
+  - id: "epic-11-retro-item-28-run-the-recommended-follow-up-reviews-fo"
+    epic: 11
+    action: "Run the recommended follow-up reviews for stories 11.1, 11.2, 11.4 and
+      11.5 and add browser e2e for the mixed-refusal envelope and a real guest sign-in
+      resume"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-11-28.md"
+  - id: "epic-11-retro-item-29-add-text-auto-eol-lf-with-binary-excepti"
+    epic: 11
+    action: "Add * text=auto eol=lf (with binary exceptions) to .gitattributes and
+      stop committing *-attempt-*.patch files under _bmad-output"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-11-28.md"
+  - id: "epic-11-retro-item-30-before-the-last-story-of-an-epic-is-mark"
+    epic: 11
+    action: "Before the last story of an epic is marked done, rerun every e2e spec
+      the epic added or changed on a fresh build"
+    owner: "Ahmad"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-11-28.md"
