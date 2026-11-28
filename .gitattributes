@@ -1,1 +1,16 @@
+# Text files are stored with LF and checked out with LF on every platform. Agent edits on Windows
+# kept flipping files to CRLF (Epic 11 retro, action item 4).
+* text=auto eol=lf
+
+# Byte-exact files: never converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.mo binary
+*.gpg binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.patch -text
 deploy/tests/fixtures/** -text

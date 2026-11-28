@@ -155,3 +155,6 @@ web/blob-report/
 
 # Qwen Code local state
 .qwen/
+
+# Abandoned implementation attempts (bmad-build). Keep them local; the spec records why (Epic 11 retro, action item 4).
+_bmad-output/**/*-attempt-*.patch
