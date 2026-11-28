@@ -145,6 +145,23 @@ class CapacityTests(TransactionTestCase):
         "two_later_deaths": ("add", "bulk_add", "edit", "delete", "drop", "undo"),
     }
 
+    def test_autosave_lands_after_the_writers_stop_when_its_window_saved_nothing(self):
+        # The first production run of this check (2026-11-28) failed with "capacity setup failed": on a slow
+        # host the worker's window passed with every attempt stale. A zero window stands in for that host.
+        harness = Harness()
+        with patch("api.capacity.WORKLOADS", ()), patch("api.capacity.INTERVIEW_WORKLOADS", ("school",)),                 patch("api.capacity.TOTAL_BUDGET_MS", 100000), patch("api.capacity.AUTOSAVE_WINDOW_S", 0):
+            result = harness.run(1, True, True)
+        self.assertTrue(result["interview_passed"])
+        self.assertEqual(result["autosave"]["school"]["saved"], 1)
+        self.assertFalse(SavedCase.objects.exists())
+
+    def test_a_setup_failure_says_where_it_failed(self):
+        stderr = io.StringIO()
+        with patch("api.capacity.Harness.run", side_effect=SetupError("no autosave landed")),                 patch("sys.stderr", stderr), self.assertRaises(SystemExit) as error:
+            call_command("capacity_check", stdout=io.StringIO())
+        self.assertEqual(error.exception.code, 2)
+        self.assertIn("SetupError: no autosave landed", stderr.getvalue())
+
     def test_interview_mix_reports_every_action_without_payloads(self):
         before = set(Session.objects.values_list("pk", flat=True))
         harness = Harness()

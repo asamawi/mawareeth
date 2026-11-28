@@ -35,6 +35,11 @@ INTERVIEW_BASE_HEIRS = 47
 marker = secrets.token_hex(24)
 
 
+# The autosave worker runs beside the writers for this long, then gets this long after they stop to land a save.
+AUTOSAVE_WINDOW_S = 30
+AUTOSAVE_SETTLE_S = 15
+
+
 class SetupError(Exception):
     pass
 
@@ -242,31 +247,42 @@ class Harness:
             if response.status_code != 201:
                 raise SetupError()
             worker = self.client(); worker.cookies = client.cookies.copy()
+            def attempt():
+                current, _, _ = self.request(worker, "GET", "/api/v1/case/")
+                working = current.json()["case"]
+                answer, _, _ = self.request(worker, "POST", "/api/v1/saved-cases/autosave/",
+                                            dict(case_id=working["id"], case_revision=working["revision"]))
+                result["attempts"] += 1
+                code = answer.status_code
+                if code == 200:
+                    result["saved"] += 1
+                elif code == 409 and answer.json().get("code") == "case_revision_stale":
+                    result["stale"] += 1
+                elif code == 409:
+                    result["conflicts"] += 1
+                elif code == 503 or code == 400:
+                    # Busy, or a state that cannot be saved right now: nothing was written.
+                    result["other"] += 1
+                else:
+                    raise SetupError(f"autosave answered {code}")
             def run():
-                deadline = time.monotonic() + 30
+                deadline = time.monotonic() + AUTOSAVE_WINDOW_S
                 try:
-                    # Until asked to stop and at least one save landed, so a short run still proves the write.
+                    # Beside the writers for the window, or until asked to stop once a save landed.
                     while time.monotonic() < deadline and not (stop.is_set() and result["saved"]):
-                        current, _, _ = self.request(worker, "GET", "/api/v1/case/")
-                        working = current.json()["case"]
-                        answer, _, _ = self.request(worker, "POST", "/api/v1/saved-cases/autosave/",
-                                                    dict(case_id=working["id"], case_revision=working["revision"]))
-                        result["attempts"] += 1
-                        code = answer.status_code
-                        if code == 200:
-                            result["saved"] += 1
-                        elif code == 409 and answer.json().get("code") == "case_revision_stale":
-                            result["stale"] += 1
-                        elif code == 409:
-                            result["conflicts"] += 1
-                        elif code == 503 or code == 400:
-                            # Busy, or a state that cannot be saved right now: nothing was written.
-                            result["other"] += 1
-                        else:
-                            raise SetupError()
+                        attempt()
                         stop.wait(.02)
-                except Exception:
-                    errors.append(True)
+                    # On a slow host every attempt in the window can read a revision the writers have
+                    # already replaced. Once they stop, one save still proves the write path (the first
+                    # production run of this check, 2026-11-28, failed here with no save).
+                    if not result["saved"]:
+                        stop.wait()
+                        settle = time.monotonic() + AUTOSAVE_SETTLE_S
+                        while not result["saved"] and time.monotonic() < settle:
+                            attempt()
+                            time.sleep(.02)
+                except Exception as error:
+                    errors.append(error)
                 finally:
                     connections.close_all()
             thread = threading.Thread(target=run, daemon=True)
@@ -275,11 +291,13 @@ class Harness:
                 yield result
             finally:
                 stop.set()
-                thread.join(40)
+                thread.join(AUTOSAVE_SETTLE_S + 25)
                 if thread.is_alive():
-                    raise SetupError()
-            if errors or not result["saved"]:
-                raise SetupError()
+                    raise SetupError("the autosave worker did not stop")
+            if errors:
+                raise SetupError(f"the autosave worker failed: {errors[0]!r}") from errors[0]
+            if not result["saved"]:
+                raise SetupError(f"no autosave landed: {result}")
         finally:
             user.delete()
 
