@@ -1820,15 +1820,24 @@ test.describe("one status and pending shares (story 9.10)", () => {
     await expect(section).toHaveAttribute("aria-busy", "false", { timeout: 6000 });
   });
 
-  test("a failed first preview keeps the family, says so once in the status and shows no bar", async ({ page, api }) => {
+  test("a failed first preview keeps the family, says so once in the status, and the bar shows the failure with a working Retry", async ({ page, api }) => {
     const kase = base();
-    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: json(500, {}) });
+    let fail = true;
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: kase }), getPreview: (route) => json(fail ? 500 : 200, fail ? {} : previewOf(kase))(route) });
     await resume(page);
     await expect(status(page)).toHaveText(en.previewFailed);
     await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "error");
-    // With no shares to summarize there is no bar (status-only, per the UX rule); the family stays.
-    await expect(page.locator("[data-summary-bar], dialog[data-summary-sheet]")).toHaveCount(0);
     await expect(page.locator("section[aria-labelledby='heirs-heading'] ul > li").first()).toBeVisible();
+    // The failure is visible, not only announced: the bar says so and offers Retry in place of Full results.
+    const bar = page.locator("[data-summary-bar]");
+    await expect(bar.locator("[data-summary-text]")).toHaveText(en.previewFailed);
+    await expect(bar.getByRole("link", { name: en.previewResultsLink })).toHaveCount(0);
+    fail = false;
+    await bar.getByRole("button", { name: en.previewRetry }).click();
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "ready");
+    await expect(bar.locator("[data-summary-text]")).toHaveText(en.previewReadyCount.replace("{count}", String(kase.heirs.length)));
+    await expect(bar.getByRole("link", { name: en.previewResultsLink })).toBeVisible();
+    await expect(bar.locator("[data-summary-expand]")).toBeFocused();
   });
 
   test("a delayed case shows a busy skeleton, then the Interview", async ({ page, api }) => {
@@ -1941,6 +1950,20 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
     await page.locator("#add-relatives-heading").waitFor();
   };
   const box = async (locator: ReturnType<Page["locator"]>) => (await locator.boundingBox())!;
+  /**
+   * The obstruction the Interview should register now (9.11, 11.4), capped at a quarter of the viewport:
+   * the bar plus a floating toast, the bar alone when the toast flows, or the toast alone with no bar.
+   */
+  const expectedObstruction = async (page: Page) => {
+    const bar = await page.locator("[data-summary-bar]").boundingBox();
+    const toast = page.locator("[data-undo-toast]");
+    const toastHeight = (await toast.count()) > 0 ? (await box(toast)).height : 0;
+    const floats = (await toast.count()) > 0 && (await toast.getAttribute("data-toast-placement")) === "float";
+    const raw = bar === null ? toastHeight : floats ? bar.height + 8 + toastHeight : bar.height;
+    return Math.min(raw, page.viewportSize()!.height / 4);
+  };
+  /** A preview that stays pending, so the bar keeps its accepted shares (and its height) through the test. */
+  const pendingPreview: NonNullable<Stubs["getPreview"]> = async (route) => { await new Promise((resolve) => setTimeout(resolve, 20_000)); try { await json(200, agree.response)(route); } catch {} };
   const rtlLocales = locales.filter((locale) => directionOf(locale) === "rtl");
   /** WCAG 1.4.12 text-spacing overrides. */
   const spacing = "* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }";
@@ -2121,14 +2144,14 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
       const kase = start();
       await openAgree(page, api, locale, kase);
       await page.addStyleTag({ content: spacing });
-      api.set({ postHeir: json(201, { case: added(kase) }) });
+      // The next preview stays pending, so the bar is present with its accepted shares throughout.
+      api.set({ postHeir: json(201, { case: added(kase) }), getPreview: pendingPreview });
       await page.locator('[data-focus="add:son"]').click();
       const toast = page.locator("[data-undo-toast]");
       await expect(toast).toBeVisible();
       expect(await noOverflow(page)).toBe(true);
-      const height = (await box(toast)).height;
       const padding = () => page.evaluate(() => ({ variable: document.documentElement.style.getPropertyValue("--interview-obstruction"), computed: getComputedStyle(document.documentElement).scrollPaddingBlockEnd }));
-      await expect.poll(async () => parseFloat((await padding()).computed)).toBeCloseTo(Math.min(height, 200), 0);
+      await expect.poll(async () => parseFloat((await padding()).computed) - (await expectedObstruction(page))).toBeCloseTo(0, 0);
       const now = await padding();
       expect(now.variable).toBe(now.computed);
       const clipped = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-tree-area] [data-node]")].filter((el) => el.scrollHeight > el.clientHeight).map((el) => el.dataset.node));
@@ -2144,18 +2167,19 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
     await page.setViewportSize({ width: 320, height: 900 });
     const kase = start();
     await openAgree(page, api, "en", kase);
-    api.set({ postHeir: json(201, { case: added(kase) }) });
+    api.set({ postHeir: json(201, { case: added(kase) }), getPreview: pendingPreview });
     await page.locator('[data-focus="add:son"]').click();
     const toast = page.locator("[data-undo-toast]");
     await expect(toast).toBeVisible();
     const variable = () => page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue("--interview-obstruction")));
     const before = (await box(toast)).height;
-    await expect.poll(variable).toBeCloseTo(before, 0);
+    await expect.poll(async () => (await variable()) - (await expectedObstruction(page))).toBeCloseTo(0, 0);
     await page.addStyleTag({ content: "[data-undo-toast] { padding-block: 40px !important; }" });
     await expect.poll(async () => (await box(toast)).height).toBeGreaterThan(before + 20);
     const after = (await box(toast)).height;
     expect(after).toBeLessThan(225);
-    await expect.poll(variable).toBeCloseTo(after, 0);
+    // The taller toast is followed: still floating above the bar, or moved into the flow past the quarter.
+    await expect.poll(async () => (await variable()) - (await expectedObstruction(page))).toBeCloseTo(0, 0);
   });
 
   for (const scheme of ["light", "dark"] as const) {
@@ -2238,8 +2262,9 @@ test.describe("Story 9.11: responsive, RTL and reduced-motion tree interactions"
     await expect(toast).toHaveAttribute("data-toast-placement", "float");
     await page.clock.fastForward(10_500);
     await expect(toast).toHaveCount(0);
-    // Only the bar can remain (the pending preview may have timed out and hidden it too).
-    await expect.poll(async () => (await variable()) <= barHeight + 0.5).toBe(true);
+    // Only the bar can remain, never the toast. If the pending preview timed out, the bar now shows that
+    // failure; under the fake clock its registered height may still lag its new box, so this is a bound.
+    await expect.poll(async () => (await variable()) <= ((await bar.boundingBox())?.height ?? 0) + 0.5).toBe(true);
   });
 
   test.describe("reduced motion", () => {
@@ -2636,6 +2661,21 @@ test.describe("Story 11.3: the summary bar and sheet", () => {
     await expect(sheet.getByText(en.previewUnavailable)).toBeVisible();
     await expect(sheet.getByText(en.previewReasons.malikiyya_disputed)).toBeVisible();
     await expect(page.locator("[data-summary-bar]")).toHaveAttribute("inert", "");
+  });
+
+  test("a whole-preview refusal on load shows the bar, and the sheet gives the served reason", async ({ page, api }) => {
+    const differ = fixture("Differ: grandfather and full brother");
+    const chosen = differ.response.schools.hanafi;
+    const refusal = { status: "unavailable", madhab: "hanafi", reason: "malikiyya_disputed", revision: chosen.revision, basis: chosen.basis, presented: served.presented["Maliki Malikiyya is refused"] };
+    api.set({ session: sessionAnonymous, getCase: json(200, { case: fullCase(differ.case, { madhab: "hanafi" }) }), getPreview: json(200, refusal) });
+    await page.goto("/en/interview/");
+    await page.getByRole("button", { name: en.resume }).click();
+    await expect(page.locator("[data-preview-state]")).toHaveAttribute("data-preview-state", "refused");
+    const bar = page.locator("[data-summary-bar]");
+    await expect(bar.locator("[data-summary-text]")).toHaveText(en.previewUnavailable);
+    await expect(bar.getByRole("link", { name: en.previewResultsLink })).toBeVisible();
+    const sheet = await openPreview(page);
+    await expect(sheet.getByText(en.previewReasons.malikiyya_disputed)).toBeVisible();
   });
 
   test.describe("reduced motion", () => {

@@ -33,11 +33,20 @@ export async function openHeirsScreen(page: Page, api: Api, locale: "en" | "ar" 
 /** The Share preview's modal sheet (the only place its body is drawn). */
 export const sheetOf = (page: Page): Locator => page.locator("dialog[data-summary-sheet]");
 
-/** Opens the Share preview sheet from the summary bar's chevron and waits for its heading. */
+/**
+ * Waits for the sheet's slide-up and scrim fade to finish. Until then the sheet is part-transparent, so
+ * an axe contrast check run mid-fade measures blended colours and fails at random under load.
+ */
+export async function settleSheet(sheet: Locator): Promise<void> {
+  await sheet.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+}
+
+/** Opens the Share preview sheet from the summary bar's chevron and waits for its heading and open animation. */
 export async function openPreview(page: Page): Promise<Locator> {
   await page.locator("[data-summary-expand]").click();
   const sheet = sheetOf(page);
   await sheet.locator("h2#preview-heading").waitFor();
+  await settleSheet(sheet);
   return sheet;
 }
 
@@ -46,6 +55,7 @@ export async function openPreviewAnywhere(page: Page): Promise<Locator> {
   await page.locator("[data-summary-expand]:visible, [data-summary-open]:visible").first().click();
   const sheet = sheetOf(page);
   await sheet.locator("h2#preview-heading").waitFor();
+  await settleSheet(sheet);
   return sheet;
 }
 

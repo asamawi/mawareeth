@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-16-2026 21:00
-last_updated: "11-28-2026 02:56"
+last_updated: "11-28-2026 04:30"
 project: mawareeth
 project_key: NOKEY
 tracking_system: file-system
@@ -362,7 +362,7 @@ action_items:
       light-mode .text-accent agreement-line contrast if accessibility.spec.ts:179
       still fails"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-11-28.md"
   - id: "epic-11-retro-item-27-make-the-interview-full-refusal-and-firs"
     epic: 11
@@ -370,7 +370,7 @@ action_items:
       to sighted users (refusal reason and Retry via the bar or an in-flow notice)
       and update the pinned failed-first-preview e2e test"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-11-retro-2026-11-28.md"
   - id: "epic-11-retro-item-28-run-the-recommended-follow-up-reviews-fo"
     epic: 11

@@ -475,7 +475,6 @@ export type PreviewSignal = { state: PreviewState; revision: number | null };
 function barText(view: SharePreviewView, messages: Messages["interview"]): string {
   if (view.state === "pending") return messages.previewWaiting;
   if (view.state === "error") return view.content.kind === "error" ? view.content.text : messages.previewFailed;
-  // Only behind an open sheet: the bar is kept while the content no longer has shares.
   if (view.state === "refused") return messages.previewUnavailable;
   if (view.state === "idle") return messages.previewPrompt;
   return messages.previewReadyCount.split("{count}").join(String(view.heirCount));
@@ -536,6 +535,11 @@ function SummaryBar({
 }) {
   const [box, setBox] = useState<HTMLDivElement | null>(null);
   useObstruction("bar", box);
+  const { content } = view;
+  // A failure offers Retry where Full results would be (the results page would fail the same way); a
+  // refusal keeps Full results, which lists the refusal reasons.
+  const retry = content.kind === "error" && content.retry;
+  const results = content.kind === "available" || content.kind === "choose" || content.kind === "refused";
   return (
     <div
       ref={setBox}
@@ -547,9 +551,22 @@ function SummaryBar({
         {barText(view, messages)}
       </span>
       <div className="flex items-center gap-2 max-[359.98px]:justify-between">
-        <Link href={`/${locale}/results/`} prefetch={false} className={primaryButton}>
-          {messages.previewResultsLink}
-        </Link>
+        {retry && (
+          <button
+            type="button"
+            data-summary-retry
+            className={primaryButton}
+            // The button goes once the new request starts, so focus is kept in the bar on the chevron.
+            onClick={() => { chevronRef.current?.focus(); view.retry(); }}
+          >
+            {messages.previewRetry}
+          </button>
+        )}
+        {results && (
+          <Link href={`/${locale}/results/`} prefetch={false} className={primaryButton}>
+            {messages.previewResultsLink}
+          </Link>
+        )}
         <button
           ref={chevronRef}
           type="button"
@@ -570,8 +587,9 @@ function SummaryBar({
 }
 
 /**
- * The summary bar and modal sheet of one lifecycle view. The bar shows only for the root estate with
- * shares (`showBar`); the sheet hosts `SharePreviewBody` and keeps no request of its own.
+ * The summary bar and modal sheet of one lifecycle view. The bar shows only for the root estate
+ * (`showBar`), once there are shares, a refusal or a failure to show; the sheet hosts
+ * `SharePreviewBody` and keeps no request of its own.
  */
 export function SharePreviewSummary({
   view,
@@ -598,12 +616,18 @@ export function SharePreviewSummary({
   onStatusSlot?: (slot: HTMLElement | null) => void;
 }) {
   const { content } = view;
-  const hasShares = content.kind === "available" || content.kind === "choose";
+  // Shares, a refusal and a failure are each something to see: a refusal or failure is never left to
+  // the screen-reader-only status (Epic 11 retro F2, owner decision 2026-11-28).
+  const settled = content.kind === "available" || content.kind === "choose" || content.kind === "refused" || content.kind === "error";
   const [open, setOpen] = useState(false);
-  // The bar appears with shares; an open sheet keeps itself and the bar through every later state of
-  // the root estate, and ends only on Close, Escape, a scrim click or when the root estate is left.
+  // An open sheet keeps itself and the bar through every later state of the root estate, and ends only
+  // on Close, Escape, a scrim click or when the root estate is left.
   if (open && !showBar) setOpen(false);
-  const visible = showBar && (hasShares || open);
+  // A bar already shown stays through the next request (a Retry or an edit), so it does not flicker away
+  // and take keyboard focus with it.
+  const [shown, setShown] = useState(false);
+  const visible = showBar && (settled || open || (shown && view.pending));
+  if (visible !== shown) setShown(visible);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);

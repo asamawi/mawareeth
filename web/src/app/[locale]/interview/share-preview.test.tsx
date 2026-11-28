@@ -208,18 +208,19 @@ async function summary(v: SharePreviewView, over: { locale?: string; showBar?: b
 const ready = () => { const preview = available("Hanbali wife and son with an estate"); return view({ kind: "available", preview, labels: labelsOf(preview) }, { heirCount: 3 }); };
 const bar = (node: Element) => node.querySelector<HTMLElement>("[data-summary-bar]");
 
-test("the bar shows only for the root estate with available or choose content", async () => {
+test("the bar shows only for the root estate with shares, a refusal or a failure", async () => {
   const preview = available("Hanbali wife and son with an estate");
   const choose = parsePreview(previewFixture("Differ: grandfather and full brother").response) as Extract<Preview, { status: "choose_school" }>;
-  const hidden: PreviewContent[] = [
-    { kind: "prompt", layered: false }, { kind: "waiting" }, { kind: "none" },
-    { kind: "refused", reason: null }, { kind: "error", text: en.previewFailed, retry: true },
-  ];
+  const hidden: PreviewContent[] = [{ kind: "prompt", layered: false }, { kind: "waiting" }, { kind: "none" }];
   for (const content of hidden) {
     const r = await summary(view(content, { state: "idle" }));
     try { assert.equal(bar(r.node), null, content.kind); assert.equal(r.node.querySelector("dialog"), null); } finally { await r.done(); }
   }
-  for (const content of [{ kind: "available", preview, labels: labelsOf(preview) }, { kind: "choose", preview: choose, labels: {} }] as PreviewContent[]) {
+  const shown: PreviewContent[] = [
+    { kind: "available", preview, labels: labelsOf(preview) }, { kind: "choose", preview: choose, labels: {} },
+    { kind: "refused", reason: null }, { kind: "error", text: en.previewFailed, retry: true },
+  ];
+  for (const content of shown) {
     const r = await summary(view(content));
     try {
       assert.ok(bar(r.node), content.kind);
@@ -315,7 +316,7 @@ test("Close, a native close (Escape) and a scrim click each close the sheet and 
   } finally { await r.done(); }
 });
 
-test("an open sheet stays through waiting, an online error with Retry and a refusal, then the bar hides on close", async () => {
+test("an open sheet stays through waiting, an online error with Retry and a refusal, and the refusal keeps the bar on close", async () => {
   let rootFocused = 0;
   let retried = 0;
   const r = await summary(ready(), { focusRoot: () => { rootFocused += 1; } });
@@ -338,9 +339,52 @@ test("an open sheet stays through waiting, an online error with Retry and a refu
     assert.equal(rootFocused, 0);
     const close = [...dialog().querySelectorAll("button")].find((b) => b.textContent === en.editClose)!;
     await act(async () => { close.click(); });
-    assert.equal(bar(r.node), null);
-    assert.equal(r.node.querySelector("dialog"), null);
-    assert.equal(rootFocused, 1);
+    assert.equal(bar(r.node)!.querySelector("[data-summary-text]")!.textContent, en.previewUnavailable);
+    assert.equal(dialog().hasAttribute("open"), false);
+    assert.equal(document.activeElement, bar(r.node)!.querySelector("[data-summary-expand]"));
+    assert.equal(rootFocused, 0);
+  } finally { await r.done(); }
+});
+
+test("a first failure shows the bar with its text and Retry in place of Full results; Retry keeps focus in the bar", async () => {
+  let retried = 0;
+  const failed = () => view({ kind: "error", text: en.previewFailed, retry: true }, { state: "error", retry: () => { retried += 1; } });
+  const r = await summary(view({ kind: "waiting" }, { state: "pending", pending: true }));
+  try {
+    assert.equal(bar(r.node), null, "no bar before anything settles");
+    await r.draw(failed());
+    assert.equal(bar(r.node)!.querySelector("[data-summary-text]")!.textContent, en.previewFailed);
+    assert.equal(bar(r.node)!.querySelector("a"), null, "no Full results for a failure");
+    const retry = bar(r.node)!.querySelector<HTMLButtonElement>("[data-summary-retry]")!;
+    assert.equal(retry.textContent, en.previewRetry);
+    assert.ok(retry.className.includes("min-h-11"));
+    await act(async () => { retry.click(); });
+    assert.equal(retried, 1);
+    assert.equal(document.activeElement, bar(r.node)!.querySelector("[data-summary-expand]"));
+    // The new request keeps the bar (no flicker), saying it is waiting, with no Retry.
+    await r.draw(view({ kind: "waiting" }, { state: "pending", pending: true }));
+    assert.equal(bar(r.node)!.querySelector("[data-summary-text]")!.textContent, en.previewWaiting);
+    assert.equal(bar(r.node)!.querySelector("[data-summary-retry]"), null);
+    await r.draw(ready());
+    assert.equal(bar(r.node)!.querySelector("a")!.textContent, en.previewResultsLink);
+  } finally { await r.done(); }
+});
+
+test("a failure with no Retry offered shows its text and no Retry", async () => {
+  const r = await summary(view({ kind: "error", text: en.previewThrottled, retry: false }, { state: "error" }));
+  try {
+    assert.equal(bar(r.node)!.querySelector("[data-summary-text]")!.textContent, en.previewThrottled);
+    assert.equal(bar(r.node)!.querySelector("[data-summary-retry]"), null);
+  } finally { await r.done(); }
+});
+
+test("a refusal shows the bar with Full results, and the sheet gives the served reason", async () => {
+  const r = await summary(view({ kind: "refused", reason: "Because." }, { state: "refused" }));
+  try {
+    assert.equal(bar(r.node)!.querySelector("[data-summary-text]")!.textContent, en.previewUnavailable);
+    assert.equal(bar(r.node)!.querySelector("a")!.getAttribute("href"), "/en/results/");
+    await act(async () => { bar(r.node)!.querySelector<HTMLButtonElement>("[data-summary-expand]")!.click(); });
+    assert.ok(r.node.querySelector("dialog")!.textContent?.includes("Because."));
   } finally { await r.done(); }
 });
 
