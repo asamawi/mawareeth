@@ -11,7 +11,7 @@ persistent_facts = [
 on_complete = """
 Keep sprint status in step with the spec (the auto-dev driver does the same; this covers runs started directly). Do this only when the final status is `done` and the spec file is named `spec-<E>-<S>-*.md` for a sprint story (for example `spec-8-12-...` is epic 8, story 12):
 1. In `{project-root}/_bmad-output/implementation-artifacts/sprint-status.yaml`, find the one `development_status` key that starts with `<E>-<S>-`. If none exists, or its value is already `done`, stop here.
-2. Set that key's value to `done`. Then set `epic-<E>` to `done` if every `<E>-<n>-...` story key is now `done`, otherwise to `in-progress` if it is `backlog`. Change only those values on their own lines; keep every other line, comment and quoting byte for byte.
+2. Set that key's value to `done`. If every `<E>-<n>-...` story key is now `done`, run the epic's e2e gate before touching `epic-<E>`: `uv run python scripts/epic_e2e_gate.py --epic <E>` (it rebuilds web/out and reruns, in chromium, every e2e spec the epic's story commits added or changed; Epic 11 retro, action item 5). Set `epic-<E>` to `done` only if it exits 0; otherwise set it to `in-progress`, and in your final message name the failing specs and say the epic stays in-progress until they pass. If not every story is done, set `epic-<E>` to `in-progress` if it is `backlog`. Change only those values on their own lines; keep every other line, comment and quoting byte for byte.
 3. Commit only that file: `git add -- <that file>` and `git commit -m "chore(sprint): mark story <E>.<S> done"`. Never push.
 """
 
