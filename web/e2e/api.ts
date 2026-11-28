@@ -31,12 +31,22 @@ export type Stubs = {
   postOpen?: Answer;
   postSaved?: Answer;
   postCreate?: Answer;
+  postAutosave?: Answer;
   getNameSuggestion?: Answer;
   getInvites?: Answer;
+  postRename?: Answer;
+  postShareView?: Answer;
+  postShareCreate?: Answer;
+  getShares?: Answer;
+  postReceivedView?: Answer;
+  postInviteAccept?: Answer;
+  getDraftReport?: Answer;
 };
 
 export const sessionAnonymous = json(200, { authenticated: false });
 export const sessionAuthenticated = json(200, { authenticated: true });
+/** A guest Case that has passed its 24 hours: the server says so with a code. */
+export const expiredCase = json(200, { case: null, code: "expired" });
 export const noCase = json(200, { case: null });
 export const liveCase = (id = CASE.id) => json(200, { case: { ...CASE, id } });
 export const startedCase = (id = CASE.id) => json(201, { case: { ...CASE, id } });
@@ -68,6 +78,10 @@ export class Api {
   openPosts: { url: string; body: string }[] = [];
   savedPosts: { body: string; csrf: string | undefined }[] = [];
   createPosts: { body: string; csrf: string | undefined }[] = [];
+  autosavePosts: { body: string; csrf: string | undefined }[] = [];
+  renamePosts: { url: string; body: string; csrf: string | undefined }[] = [];
+  shareViewPosts: string[] = [];
+  inviteAcceptPosts: string[] = [];
 
   set(stubs: Stubs): void {
     Object.assign(this.stubs, stubs);
@@ -137,9 +151,17 @@ export class Api {
         this.savedPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
         return this.answer(route, this.stubs.postSaved, "post saved case");
       }
+      if (pathname === "/api/v1/saved-cases/autosave/" && method === "POST") {
+        this.autosavePosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.postAutosave, "post autosave");
+      }
       if (pathname === "/api/v1/saved-cases/create/" && method === "POST") {
         this.createPosts.push({ body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
         return this.answer(route, this.stubs.postCreate, "post create");
+      }
+      if (/^\/api\/v1\/saved-cases\/\d+\/rename\/$/.test(pathname) && method === "POST") {
+        this.renamePosts.push({ url: pathname, body: request.postData() ?? "", csrf: request.headers()["x-csrftoken"] });
+        return this.answer(route, this.stubs.postRename, "post rename");
       }
       if (pathname === "/api/v1/saved-cases/name-suggestion/" && method === "GET") {
         return this.answer(route, this.stubs.getNameSuggestion, "get name suggestion");
@@ -153,6 +175,24 @@ export class Api {
       if (/^\/api\/v1\/saved-cases\/\d+\/open\/$/.test(pathname) && method === "POST") {
         this.openPosts.push({ url: pathname, body: request.postData() ?? "" });
         return this.answer(route, this.stubs.postOpen, "post open");
+      }
+      if (pathname === "/api/v1/shares/view/" && method === "POST") {
+        this.shareViewPosts.push(request.postData() ?? "");
+        return this.answer(route, this.stubs.postShareView, "post share view");
+      }
+      if (/^\/api\/v1\/saved-cases\/\d+\/shares\/$/.test(pathname)) {
+        if (method === "POST") return this.answer(route, this.stubs.postShareCreate, "post share create");
+        if (method === "GET") return this.answer(route, this.stubs.getShares, "get shares");
+      }
+      if (/^\/api\/v1\/received\/\d+\/view\/$/.test(pathname) && method === "POST") {
+        return this.answer(route, this.stubs.postReceivedView, "post received view");
+      }
+      if (pathname === "/api/v1/invites/accept/" && method === "POST") {
+        this.inviteAcceptPosts.push(request.postData() ?? "");
+        return this.answer(route, this.stubs.postInviteAccept, "post invite accept");
+      }
+      if (pathname === "/api/v1/reports/draft/" && method === "GET") {
+        return this.answer(route, this.stubs.getDraftReport, "get draft report");
       }
       this.unstubbed.push(`${method} ${pathname}`);
       await route.abort("failed");

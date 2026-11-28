@@ -5,6 +5,7 @@ import { NAME_LIMIT, graphemeCount, suggestedName } from "@/api/saved-cases";
 import type { Messages } from "@/i18n/messages";
 import { directionOf } from "@/i18n/messages";
 import { buttonClass } from "../interview/form-bits";
+import { CaseNameField } from "./case-name-field";
 
 /**
  * The naming dialog of a first Save. It is mounted only while open: the field starts with `initial` (what the
@@ -22,8 +23,6 @@ export function NameDialog({ locale, text, initial, error = null, onSubmit, onCa
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const title = useId();
-  const field = useId();
-  const counter = useId();
   const [value, setValue] = useState(initial ?? "");
   const touched = useRef(initial !== null);
   const submitted = useRef<string | null>(null);
@@ -42,8 +41,7 @@ export function NameDialog({ locale, text, initial, error = null, onSubmit, onCa
   }, [initial, locale]);
 
   const trimmed = value.trim();
-  const count = graphemeCount(trimmed, locale);
-  const tooLong = count > NAME_LIMIT;
+  const tooLong = graphemeCount(trimmed, locale) > NAME_LIMIT;
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -62,23 +60,7 @@ export function NameDialog({ locale, text, initial, error = null, onSubmit, onCa
     >
       <form className="flex flex-col gap-4" onSubmit={submit}>
         <h2 id={title} className="text-xl font-semibold">{text.nameTitle}</h2>
-        <label htmlFor={field} className="font-semibold">{text.nameLabel}</label>
-        <input
-          id={field}
-          autoFocus
-          dir="auto"
-          type="text"
-          autoComplete="off"
-          value={value}
-          aria-invalid={tooLong}
-          aria-describedby={counter}
-          className="min-h-11 w-full rounded-lg border border-muted bg-transparent px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current aria-[invalid=true]:border-dashed"
-          onChange={(event) => { touched.current = true; setValue(event.target.value); }}
-        />
-        <p id={counter} className="text-sm text-muted" aria-live="polite" aria-atomic="true">
-          {text.nameCounter.split("{count}").join(String(count))}
-          {tooLong ? <> {text.nameTooLong}</> : error && <> {error}</>}
-        </p>
+        <CaseNameField locale={locale} text={text} value={value} error={error} autoFocus onChange={(next) => { touched.current = true; setValue(next); }} />
         <div className="flex flex-wrap gap-3">
           <button type="submit" aria-disabled={tooLong} className={buttonClass}>{text.nameSubmit}</button>
           <button type="button" className={buttonClass} onClick={() => dialog.current?.close()}>{text.nameCancel}</button>

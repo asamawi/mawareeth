@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "locale": "fr",
   "direction": "ltr",
   "basis": {
@@ -7,7 +7,7 @@
     "school": "hanbali"
   },
   "state": "answer",
-  "comparison_outcome": null,
+  "comparison_outcome": "difference",
   "school_line": {
     "code": "school",
     "text": "Hanbalite"

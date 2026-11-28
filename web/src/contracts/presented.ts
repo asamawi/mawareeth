@@ -258,7 +258,11 @@ export function parsePresentedResult(data: unknown): PresentedResult {
   if (basis.kind === "compare") {
     if (outcome !== { answer: "agreement", selection_required: "difference", refused: "all_refused" }[state]) fail(p, "compare state must match its outcome");
     if (state === "answer" && (r.school_line as Label).code !== "same_in_all_schools") fail(p, "agreement uses the shared School line");
-  } else if (outcome !== null || state === "selection_required" || (state === "answer" && (r.school_line as Label).code !== "school")) fail(p, "a School or Country answer has no comparison outcome");
+  } else if (state === "selection_required") fail(p, "a School or Country answer has no comparison outcome");
+  else if (basis.kind === "school" && CODES.sunni_schools.includes(basis.school) && state === "answer") {
+    if (outcome !== "agreement" && outcome !== "difference") fail(p, "a Sunni School answer reports agreement or difference");
+    if ((r.school_line as Label).code !== (outcome === "agreement" ? "same_in_all_schools" : "school")) fail(p, "the School line must match the comparison outcome");
+  } else if (outcome !== null || (state === "answer" && (r.school_line as Label).code !== "school")) fail(p, "a School or Country answer has no comparison outcome");
   return copy(data as PresentedResult);
 }
 

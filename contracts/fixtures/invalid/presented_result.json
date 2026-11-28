@@ -263,7 +263,7 @@
   {
     "name": "unknown key",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -519,7 +519,7 @@
   {
     "name": "refused with rows",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -780,7 +780,7 @@
   {
     "name": "original relationship not Arabic",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -1035,7 +1035,7 @@
   {
     "name": "bad direction",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "up",
       "basis": {
@@ -1290,7 +1290,7 @@
   {
     "name": "unreduced share fraction",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -1545,7 +1545,7 @@
   {
     "name": "malformed basis",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -1800,7 +1800,7 @@
   {
     "name": "selection required with rows",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -2055,7 +2055,7 @@
   {
     "name": "selection required with an agreement outcome",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -2218,7 +2218,7 @@
   {
     "name": "refused without a refusal",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -2247,7 +2247,7 @@
   {
     "name": "refused with rounding",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -2287,7 +2287,7 @@
   {
     "name": "duplicate row persons",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -2542,7 +2542,7 @@
   {
     "name": "answer without rows",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -2670,7 +2670,7 @@
   {
     "name": "answer with a comparison",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -3060,7 +3060,7 @@
   {
     "name": "selection required without a comparison",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -3088,7 +3088,7 @@
   {
     "name": "comparison person shares repeat",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -3263,7 +3263,7 @@
   {
     "name": "zero rounding emitted",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -3518,7 +3518,7 @@
   {
     "name": "amount text without isolation",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -3773,7 +3773,7 @@
   {
     "name": "float amount",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "en",
       "direction": "ltr",
       "basis": {
@@ -4028,7 +4028,7 @@
   {
     "name": "table number without text",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "fr",
       "direction": "ltr",
       "basis": {
@@ -4219,7 +4219,7 @@
   {
     "name": "table float number",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "fr",
       "direction": "ltr",
       "basis": {
@@ -4411,7 +4411,7 @@
   {
     "name": "table number not left to right",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "fr",
       "direction": "ltr",
       "basis": {
@@ -4603,7 +4603,7 @@
   {
     "name": "table column without label",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "fr",
       "direction": "ltr",
       "basis": {
@@ -4794,7 +4794,7 @@
   {
     "name": "table unknown column code",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "fr",
       "direction": "ltr",
       "basis": {
@@ -4986,7 +4986,7 @@
   {
     "name": "table row cell count",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "fr",
       "direction": "ltr",
       "basis": {
@@ -5169,7 +5169,7 @@
   {
     "name": "table on a refused answer",
     "input": {
-      "version": 3,
+      "version": 4,
       "locale": "fr",
       "direction": "ltr",
       "basis": {
@@ -5191,6 +5191,970 @@
           "text": "x"
         }
       ],
+      "notices": [
+        {
+          "code": "disclaimer",
+          "text": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique."
+        }
+      ],
+      "table": {
+        "columns": [
+          {
+            "code": "base",
+            "label": "Parts",
+            "total": {
+              "value": 4,
+              "text": "4",
+              "dir": "ltr"
+            }
+          }
+        ],
+        "rows": [
+          {
+            "heir": "h0",
+            "blocked": false,
+            "group_span": 1,
+            "prescribed": {
+              "value": {
+                "numerator": 1,
+                "denominator": 4
+              },
+              "text": "1/4",
+              "dir": "ltr"
+            },
+            "cells": [
+              {
+                "value": {
+                  "value": 1,
+                  "text": "1",
+                  "dir": "ltr"
+                },
+                "span": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "school answer with agreement but a School line",
+    "input": {
+      "version": 4,
+      "locale": "fr",
+      "direction": "ltr",
+      "basis": {
+        "kind": "school",
+        "school": "hanbali"
+      },
+      "state": "answer",
+      "comparison_outcome": "agreement",
+      "school_line": {
+        "code": "school",
+        "text": "Hanbalite"
+      },
+      "rows": [
+        {
+          "person": "h0",
+          "name": {
+            "text": "Layla",
+            "dir": "auto"
+          },
+          "relationship": {
+            "translated": {
+              "text": "Épouse",
+              "lang": "fr",
+              "dir": "ltr"
+            },
+            "original": {
+              "text": "زوجة",
+              "lang": "ar",
+              "dir": "rtl"
+            }
+          },
+          "kind": "fixed",
+          "blocked": false,
+          "share": {
+            "fraction": {
+              "numerator": 1,
+              "denominator": 4
+            },
+            "text": "1/4",
+            "dir": "ltr"
+          },
+          "percent": {
+            "text": "25,0 %",
+            "dir": "ltr"
+          },
+          "kirat": {
+            "text": "6,00",
+            "dir": "ltr"
+          },
+          "amount": {
+            "amount_minor": 25000,
+            "currency": "EUR",
+            "text": "250,00 €",
+            "dir": "auto"
+          }
+        }
+      ],
+      "rounding": null,
+      "unallocated": {
+        "fraction": {
+          "numerator": 3,
+          "denominator": 4
+        },
+        "text": "3/4",
+        "dir": "ltr",
+        "amount": {
+          "amount_minor": 75000,
+          "currency": "EUR",
+          "text": "750,00 €",
+          "dir": "auto"
+        }
+      },
+      "comparison": null,
+      "evidence": [
+        {
+          "order": 1,
+          "deceased": null,
+          "inherited": null,
+          "heirs": [
+            {
+              "person": "h0",
+              "stage": {
+                "step": "base",
+                "base": 4
+              },
+              "rule": {
+                "code": "fixed",
+                "text": "Part fixe"
+              },
+              "condition": {
+                "code": "no_descendant",
+                "text": "Il n'y a aucun descendant"
+              },
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "verses": [
+                {
+                  "code": "quran_4_12",
+                  "text": "Coran 4:12 (An-Nisa)"
+                }
+              ]
+            }
+          ],
+          "school_rules": [],
+          "steps": [
+            {
+              "step": "base",
+              "text": "La base commune des parts fixes",
+              "params": {
+                "base": {
+                  "type": "int",
+                  "value": 4
+                }
+              }
+            },
+            {
+              "step": "unallocated",
+              "text": "La part de la succession qu'aucun héritier ne reçoit",
+              "params": {
+                "rest": {
+                  "type": "fraction",
+                  "value": {
+                    "numerator": 3,
+                    "denominator": 4
+                  }
+                }
+              }
+            }
+          ],
+          "unallocated": {
+            "fraction": {
+              "numerator": 3,
+              "denominator": 4
+            },
+            "text": "3/4",
+            "dir": "ltr"
+          }
+        }
+      ],
+      "refusals": [],
+      "notices": [
+        {
+          "code": "disclaimer",
+          "text": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique."
+        }
+      ],
+      "table": {
+        "columns": [
+          {
+            "code": "base",
+            "label": "Parts",
+            "total": {
+              "value": 4,
+              "text": "4",
+              "dir": "ltr"
+            }
+          }
+        ],
+        "rows": [
+          {
+            "heir": "h0",
+            "blocked": false,
+            "group_span": 1,
+            "prescribed": {
+              "value": {
+                "numerator": 1,
+                "denominator": 4
+              },
+              "text": "1/4",
+              "dir": "ltr"
+            },
+            "cells": [
+              {
+                "value": {
+                  "value": 1,
+                  "text": "1",
+                  "dir": "ltr"
+                },
+                "span": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "school answer with difference but the shared line",
+    "input": {
+      "version": 4,
+      "locale": "fr",
+      "direction": "ltr",
+      "basis": {
+        "kind": "school",
+        "school": "hanbali"
+      },
+      "state": "answer",
+      "comparison_outcome": "difference",
+      "school_line": {
+        "code": "same_in_all_schools",
+        "text": "Same result in all four Sunni schools"
+      },
+      "rows": [
+        {
+          "person": "h0",
+          "name": {
+            "text": "Layla",
+            "dir": "auto"
+          },
+          "relationship": {
+            "translated": {
+              "text": "Épouse",
+              "lang": "fr",
+              "dir": "ltr"
+            },
+            "original": {
+              "text": "زوجة",
+              "lang": "ar",
+              "dir": "rtl"
+            }
+          },
+          "kind": "fixed",
+          "blocked": false,
+          "share": {
+            "fraction": {
+              "numerator": 1,
+              "denominator": 4
+            },
+            "text": "1/4",
+            "dir": "ltr"
+          },
+          "percent": {
+            "text": "25,0 %",
+            "dir": "ltr"
+          },
+          "kirat": {
+            "text": "6,00",
+            "dir": "ltr"
+          },
+          "amount": {
+            "amount_minor": 25000,
+            "currency": "EUR",
+            "text": "250,00 €",
+            "dir": "auto"
+          }
+        }
+      ],
+      "rounding": null,
+      "unallocated": {
+        "fraction": {
+          "numerator": 3,
+          "denominator": 4
+        },
+        "text": "3/4",
+        "dir": "ltr",
+        "amount": {
+          "amount_minor": 75000,
+          "currency": "EUR",
+          "text": "750,00 €",
+          "dir": "auto"
+        }
+      },
+      "comparison": null,
+      "evidence": [
+        {
+          "order": 1,
+          "deceased": null,
+          "inherited": null,
+          "heirs": [
+            {
+              "person": "h0",
+              "stage": {
+                "step": "base",
+                "base": 4
+              },
+              "rule": {
+                "code": "fixed",
+                "text": "Part fixe"
+              },
+              "condition": {
+                "code": "no_descendant",
+                "text": "Il n'y a aucun descendant"
+              },
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "verses": [
+                {
+                  "code": "quran_4_12",
+                  "text": "Coran 4:12 (An-Nisa)"
+                }
+              ]
+            }
+          ],
+          "school_rules": [],
+          "steps": [
+            {
+              "step": "base",
+              "text": "La base commune des parts fixes",
+              "params": {
+                "base": {
+                  "type": "int",
+                  "value": 4
+                }
+              }
+            },
+            {
+              "step": "unallocated",
+              "text": "La part de la succession qu'aucun héritier ne reçoit",
+              "params": {
+                "rest": {
+                  "type": "fraction",
+                  "value": {
+                    "numerator": 3,
+                    "denominator": 4
+                  }
+                }
+              }
+            }
+          ],
+          "unallocated": {
+            "fraction": {
+              "numerator": 3,
+              "denominator": 4
+            },
+            "text": "3/4",
+            "dir": "ltr"
+          }
+        }
+      ],
+      "refusals": [],
+      "notices": [
+        {
+          "code": "disclaimer",
+          "text": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique."
+        }
+      ],
+      "table": {
+        "columns": [
+          {
+            "code": "base",
+            "label": "Parts",
+            "total": {
+              "value": 4,
+              "text": "4",
+              "dir": "ltr"
+            }
+          }
+        ],
+        "rows": [
+          {
+            "heir": "h0",
+            "blocked": false,
+            "group_span": 1,
+            "prescribed": {
+              "value": {
+                "numerator": 1,
+                "denominator": 4
+              },
+              "text": "1/4",
+              "dir": "ltr"
+            },
+            "cells": [
+              {
+                "value": {
+                  "value": 1,
+                  "text": "1",
+                  "dir": "ltr"
+                },
+                "span": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "school answer with a comparison",
+    "input": {
+      "version": 4,
+      "locale": "fr",
+      "direction": "ltr",
+      "basis": {
+        "kind": "school",
+        "school": "hanbali"
+      },
+      "state": "answer",
+      "comparison_outcome": "agreement",
+      "school_line": {
+        "code": "same_in_all_schools",
+        "text": "Same result in all four Sunni schools"
+      },
+      "rows": [
+        {
+          "person": "h0",
+          "name": {
+            "text": "Layla",
+            "dir": "auto"
+          },
+          "relationship": {
+            "translated": {
+              "text": "Épouse",
+              "lang": "fr",
+              "dir": "ltr"
+            },
+            "original": {
+              "text": "زوجة",
+              "lang": "ar",
+              "dir": "rtl"
+            }
+          },
+          "kind": "fixed",
+          "blocked": false,
+          "share": {
+            "fraction": {
+              "numerator": 1,
+              "denominator": 4
+            },
+            "text": "1/4",
+            "dir": "ltr"
+          },
+          "percent": {
+            "text": "25,0 %",
+            "dir": "ltr"
+          },
+          "kirat": {
+            "text": "6,00",
+            "dir": "ltr"
+          },
+          "amount": {
+            "amount_minor": 25000,
+            "currency": "EUR",
+            "text": "250,00 €",
+            "dir": "auto"
+          }
+        }
+      ],
+      "rounding": null,
+      "unallocated": {
+        "fraction": {
+          "numerator": 3,
+          "denominator": 4
+        },
+        "text": "3/4",
+        "dir": "ltr",
+        "amount": {
+          "amount_minor": 75000,
+          "currency": "EUR",
+          "text": "750,00 €",
+          "dir": "auto"
+        }
+      },
+      "comparison": {
+        "schools": [],
+        "differing_persons": []
+      },
+      "evidence": [
+        {
+          "order": 1,
+          "deceased": null,
+          "inherited": null,
+          "heirs": [
+            {
+              "person": "h0",
+              "stage": {
+                "step": "base",
+                "base": 4
+              },
+              "rule": {
+                "code": "fixed",
+                "text": "Part fixe"
+              },
+              "condition": {
+                "code": "no_descendant",
+                "text": "Il n'y a aucun descendant"
+              },
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "verses": [
+                {
+                  "code": "quran_4_12",
+                  "text": "Coran 4:12 (An-Nisa)"
+                }
+              ]
+            }
+          ],
+          "school_rules": [],
+          "steps": [
+            {
+              "step": "base",
+              "text": "La base commune des parts fixes",
+              "params": {
+                "base": {
+                  "type": "int",
+                  "value": 4
+                }
+              }
+            },
+            {
+              "step": "unallocated",
+              "text": "La part de la succession qu'aucun héritier ne reçoit",
+              "params": {
+                "rest": {
+                  "type": "fraction",
+                  "value": {
+                    "numerator": 3,
+                    "denominator": 4
+                  }
+                }
+              }
+            }
+          ],
+          "unallocated": {
+            "fraction": {
+              "numerator": 3,
+              "denominator": 4
+            },
+            "text": "3/4",
+            "dir": "ltr"
+          }
+        }
+      ],
+      "refusals": [],
+      "notices": [
+        {
+          "code": "disclaimer",
+          "text": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique."
+        }
+      ],
+      "table": {
+        "columns": [
+          {
+            "code": "base",
+            "label": "Parts",
+            "total": {
+              "value": 4,
+              "text": "4",
+              "dir": "ltr"
+            }
+          }
+        ],
+        "rows": [
+          {
+            "heir": "h0",
+            "blocked": false,
+            "group_span": 1,
+            "prescribed": {
+              "value": {
+                "numerator": 1,
+                "denominator": 4
+              },
+              "text": "1/4",
+              "dir": "ltr"
+            },
+            "cells": [
+              {
+                "value": {
+                  "value": 1,
+                  "text": "1",
+                  "dir": "ltr"
+                },
+                "span": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "jafari answer with a comparison outcome",
+    "input": {
+      "version": 4,
+      "locale": "fr",
+      "direction": "ltr",
+      "basis": {
+        "kind": "school",
+        "school": "jafari"
+      },
+      "state": "answer",
+      "comparison_outcome": "agreement",
+      "school_line": {
+        "code": "same_in_all_schools",
+        "text": "Same result in all four Sunni schools"
+      },
+      "rows": [
+        {
+          "person": "h0",
+          "name": {
+            "text": "Layla",
+            "dir": "auto"
+          },
+          "relationship": {
+            "translated": {
+              "text": "Épouse",
+              "lang": "fr",
+              "dir": "ltr"
+            },
+            "original": {
+              "text": "زوجة",
+              "lang": "ar",
+              "dir": "rtl"
+            }
+          },
+          "kind": "fixed",
+          "blocked": false,
+          "share": {
+            "fraction": {
+              "numerator": 1,
+              "denominator": 4
+            },
+            "text": "1/4",
+            "dir": "ltr"
+          },
+          "percent": {
+            "text": "25,0 %",
+            "dir": "ltr"
+          },
+          "kirat": {
+            "text": "6,00",
+            "dir": "ltr"
+          },
+          "amount": {
+            "amount_minor": 25000,
+            "currency": "EUR",
+            "text": "250,00 €",
+            "dir": "auto"
+          }
+        }
+      ],
+      "rounding": null,
+      "unallocated": {
+        "fraction": {
+          "numerator": 3,
+          "denominator": 4
+        },
+        "text": "3/4",
+        "dir": "ltr",
+        "amount": {
+          "amount_minor": 75000,
+          "currency": "EUR",
+          "text": "750,00 €",
+          "dir": "auto"
+        }
+      },
+      "comparison": null,
+      "evidence": [
+        {
+          "order": 1,
+          "deceased": null,
+          "inherited": null,
+          "heirs": [
+            {
+              "person": "h0",
+              "stage": {
+                "step": "base",
+                "base": 4
+              },
+              "rule": {
+                "code": "fixed",
+                "text": "Part fixe"
+              },
+              "condition": {
+                "code": "no_descendant",
+                "text": "Il n'y a aucun descendant"
+              },
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "verses": [
+                {
+                  "code": "quran_4_12",
+                  "text": "Coran 4:12 (An-Nisa)"
+                }
+              ]
+            }
+          ],
+          "school_rules": [],
+          "steps": [
+            {
+              "step": "base",
+              "text": "La base commune des parts fixes",
+              "params": {
+                "base": {
+                  "type": "int",
+                  "value": 4
+                }
+              }
+            },
+            {
+              "step": "unallocated",
+              "text": "La part de la succession qu'aucun héritier ne reçoit",
+              "params": {
+                "rest": {
+                  "type": "fraction",
+                  "value": {
+                    "numerator": 3,
+                    "denominator": 4
+                  }
+                }
+              }
+            }
+          ],
+          "unallocated": {
+            "fraction": {
+              "numerator": 3,
+              "denominator": 4
+            },
+            "text": "3/4",
+            "dir": "ltr"
+          }
+        }
+      ],
+      "refusals": [],
+      "notices": [
+        {
+          "code": "disclaimer",
+          "text": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique."
+        }
+      ],
+      "table": {
+        "columns": [
+          {
+            "code": "base",
+            "label": "Parts",
+            "total": {
+              "value": 4,
+              "text": "4",
+              "dir": "ltr"
+            }
+          }
+        ],
+        "rows": [
+          {
+            "heir": "h0",
+            "blocked": false,
+            "group_span": 1,
+            "prescribed": {
+              "value": {
+                "numerator": 1,
+                "denominator": 4
+              },
+              "text": "1/4",
+              "dir": "ltr"
+            },
+            "cells": [
+              {
+                "value": {
+                  "value": 1,
+                  "text": "1",
+                  "dir": "ltr"
+                },
+                "span": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "error": "invalid_contract"
+  },
+  {
+    "name": "country answer with a comparison outcome",
+    "input": {
+      "version": 4,
+      "locale": "fr",
+      "direction": "ltr",
+      "basis": {
+        "kind": "country",
+        "preset_id": "sa",
+        "preset_version": "2026-01-01"
+      },
+      "state": "answer",
+      "comparison_outcome": "agreement",
+      "school_line": {
+        "code": "same_in_all_schools",
+        "text": "Same result in all four Sunni schools"
+      },
+      "rows": [
+        {
+          "person": "h0",
+          "name": {
+            "text": "Layla",
+            "dir": "auto"
+          },
+          "relationship": {
+            "translated": {
+              "text": "Épouse",
+              "lang": "fr",
+              "dir": "ltr"
+            },
+            "original": {
+              "text": "زوجة",
+              "lang": "ar",
+              "dir": "rtl"
+            }
+          },
+          "kind": "fixed",
+          "blocked": false,
+          "share": {
+            "fraction": {
+              "numerator": 1,
+              "denominator": 4
+            },
+            "text": "1/4",
+            "dir": "ltr"
+          },
+          "percent": {
+            "text": "25,0 %",
+            "dir": "ltr"
+          },
+          "kirat": {
+            "text": "6,00",
+            "dir": "ltr"
+          },
+          "amount": {
+            "amount_minor": 25000,
+            "currency": "EUR",
+            "text": "250,00 €",
+            "dir": "auto"
+          }
+        }
+      ],
+      "rounding": null,
+      "unallocated": {
+        "fraction": {
+          "numerator": 3,
+          "denominator": 4
+        },
+        "text": "3/4",
+        "dir": "ltr",
+        "amount": {
+          "amount_minor": 75000,
+          "currency": "EUR",
+          "text": "750,00 €",
+          "dir": "auto"
+        }
+      },
+      "comparison": null,
+      "evidence": [
+        {
+          "order": 1,
+          "deceased": null,
+          "inherited": null,
+          "heirs": [
+            {
+              "person": "h0",
+              "stage": {
+                "step": "base",
+                "base": 4
+              },
+              "rule": {
+                "code": "fixed",
+                "text": "Part fixe"
+              },
+              "condition": {
+                "code": "no_descendant",
+                "text": "Il n'y a aucun descendant"
+              },
+              "blocked_by": null,
+              "school_rule": null,
+              "option": null,
+              "verses": [
+                {
+                  "code": "quran_4_12",
+                  "text": "Coran 4:12 (An-Nisa)"
+                }
+              ]
+            }
+          ],
+          "school_rules": [],
+          "steps": [
+            {
+              "step": "base",
+              "text": "La base commune des parts fixes",
+              "params": {
+                "base": {
+                  "type": "int",
+                  "value": 4
+                }
+              }
+            },
+            {
+              "step": "unallocated",
+              "text": "La part de la succession qu'aucun héritier ne reçoit",
+              "params": {
+                "rest": {
+                  "type": "fraction",
+                  "value": {
+                    "numerator": 3,
+                    "denominator": 4
+                  }
+                }
+              }
+            }
+          ],
+          "unallocated": {
+            "fraction": {
+              "numerator": 3,
+              "denominator": 4
+            },
+            "text": "3/4",
+            "dir": "ltr"
+          }
+        }
+      ],
+      "refusals": [],
       "notices": [
         {
           "code": "disclaimer",

@@ -14,3 +14,17 @@ export function parseResume(search: string): { action: Action | null; search: st
 export function authorizedAction(auth: AuthState, action: Action): "dialog" | Action {
   return auth === "authenticated" ? action : "dialog";
 }
+
+let sequence = 0;
+/** A page-wide event order: the status line shows the event with the highest number. */
+export function nextSeq(): number {
+  sequence += 1;
+  return sequence;
+}
+
+/** The message of the newest event; an empty message is an event too and blanks the line. */
+export function newestLine(events: ({ text: string | null; seq: number } | null | undefined)[]): string {
+  let best: { text: string | null; seq: number } | null = null;
+  for (const event of events) if (event && typeof event.text === "string" && (best === null || event.seq > best.seq)) best = event;
+  return best?.text ?? "";
+}

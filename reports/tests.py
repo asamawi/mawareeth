@@ -122,6 +122,70 @@ class ReportContentTests(SimpleTestCase):
                     if body['unallocated']:
                         self.assertIn('Unallocated remainder', html)
 
+    def test_rounding_row_is_separate_labelled_and_reconciles(self):
+        by = {f['title']: f for f in AVAILABLE}
+        labels = {'en': 'Rounding adjustment', 'fr': "Ajustement d'arrondi", 'ar': 'فرق التقريب'}
+
+        def rounding_rows(html, label):
+            return [row for row in RenderedReport(html).tables[0] if row and row[0][1].strip() == label]
+
+        for title in ('Two wives and a son, rounded half up', 'Hanbali wife and three sons need correction'):
+            for lang, label in labels.items():
+                with self.subTest(title=title, lang=lang), translation.override(lang):
+                    fixture = by[title]
+                    body = served(fixture, lang)
+                    presented = body['presented']
+                    self.assertIsNotNone(presented['rounding'])
+                    rows = rounding_rows(render_html(fixture['case'], body), label)
+                    self.assertEqual(len(rows), 1)
+                    self.assertEqual(rows[0][-1][1].strip(), presented['rounding']['text'])
+                    self.assertEqual(len(rows[0]), 2)
+        agree = by['Agree: wife, son and daughter in every school']
+        for lang, label in labels.items():
+            with self.subTest(lang=lang), translation.override(lang):
+                body = served(agree, lang)
+                self.assertIsNone(body['presented']['rounding'])
+                self.assertNotIn(label, render_html(agree['case'], body))
+        from api import preview as preview_module
+        wife = by['Wife alone leaves an unallocated remainder']
+        for estate, expect_rounding in (('0.06', True), (None, False)):
+            with self.subTest(estate=estate), translation.override('en'):
+                case = copy.deepcopy(wife['case'])
+                case['deceased']['estate'] = estate
+                presented = preview_module.preview(case)['presented']
+                body = {**copy.deepcopy(wife['response']), 'presented': presented}
+                html = render_html(case, body)
+                if expect_rounding:
+                    self.assertEqual(presented['unallocated']['amount']['amount_minor'], 5)
+                    self.assertEqual(presented['rounding']['amount_minor'], -1)
+                    self.assertEqual(len(rounding_rows(html, 'Unallocated remainder')), 1)
+                    self.assertEqual(len(rounding_rows(html, 'Rounding adjustment')), 1)
+                else:
+                    self.assertIsNone(presented['rounding'])
+                    self.assertNotIn('Rounding adjustment', html)
+
+        from engine.contracts.family import Currency
+        real = preview_module.family_from_session
+        for code in ('KWD', 'JPY'):
+            def wrapped(case, **kwargs):
+                family, _currency = real(case, **kwargs)
+                return family, Currency(code, True)
+            for title in ('Two wives and a son, rounded half up', 'Hanbali wife and three sons need correction'):
+                with self.subTest(code=code, title=title), translation.override('en'), \
+                        mock.patch.object(preview_module, 'family_from_session', wrapped):
+                    fixture = by[title]
+                    presented = preview_module.preview(fixture['case'])['presented']
+                    family, _ = real(fixture['case'], names=False)
+                    total = (sum(r['amount']['amount_minor'] for r in presented['rows'] if r['amount'])
+                             + (presented['unallocated']['amount']['amount_minor'] if presented['unallocated'] else 0)
+                             + (presented['rounding']['amount_minor'] if presented['rounding'] else 0))
+                    self.assertEqual(total, family.estate.amount_minor)
+                    self.assertIsNotNone(presented['rounding'])
+                    body = {**copy.deepcopy(fixture['response']), 'presented': presented}
+                    rows = rounding_rows(render_html(fixture['case'], body), 'Rounding adjustment')
+                    self.assertEqual(len(rows), 1)
+                    self.assertEqual(rows[0][-1][1].strip(), presented['rounding']['text'])
+
     def test_shares_only_report_without_estate(self):
         fixtures = [f for f in AVAILABLE if f['response'].get('table') and f['response']['basis']['estate']
                     and any(s['blocked'] for s in f['response']['shares'])]
@@ -226,7 +290,11 @@ class ReportContentTests(SimpleTestCase):
                     html = render_html(fixture['case'], body)
                 self.assertEqual(context['generated'], format_datetime(stamp, lang))
                 self.assertIn(context['generated'], html)
-                self.assertEqual(context['school'], presented['school_line']['text'])
+                # The fixture is a chosen School that agrees with the other three: that School is named,
+                # and the agreement line follows it.
+                self.assertEqual(presented['school_line']['code'], 'same_in_all_schools')
+                self.assertEqual(context['school'], i18n.term(f"school.{presented['basis']['school']}", lang))
+                self.assertEqual(context['agreement'], presented['school_line']['text'])
                 from django.utils.html import escape
                 for row in presented['rows']:
                     for text in (row['share']['text'], row['percent']['text'], row['kirat']['text']):
@@ -248,6 +316,57 @@ class ReportContentTests(SimpleTestCase):
         with translation.override('en'):
             hanafi = next(f for f in AVAILABLE if f['case']['madhab'] == 'hanafi')
             self.assertEqual(build_context(hanafi['case'], served(hanafi))['school'], 'Hanafi')
+
+    def test_a_chosen_school_that_agrees_with_the_other_three_is_still_named(self):
+        # Epic 11 follow-up review: the PDF said "School: Same result in all four Sunni schools" and lost the madhab.
+        from engine.contracts import dump_presented_result
+        from engine.tests.test_core import family
+        import presentation
+        from i18n.tests import codes_resolve
+        resolved = codes_resolve({'kind': 'school', 'school': 'maliki'})
+        case = {'deceased': {'gender': 'male'}, 'heirs': [], 'madhab': 'maliki'}
+        for lang in ('en', 'ar', 'fr'):
+            with self.subTest(lang=lang), translation.override(lang):
+                presented = dump_presented_result(presentation.present(presentation.outcome(family(['son']), resolved), resolved, lang, None))
+                self.assertEqual(presented['school_line']['code'], 'same_in_all_schools')
+                body = {'basis': {'estate': None}, 'presented': presented}
+                context = build_context(case, body)
+                self.assertEqual(context['school'], i18n.term('school.maliki', lang))
+                self.assertEqual(context['agreement'], presented['school_line']['text'])
+                html = render_html(case, body)
+                from django.utils.html import escape
+                self.assertIn(escape(context['school']), html)
+                self.assertIn(escape(context['agreement']), html)
+                self.assertLess(html.index(escape(context['school'])), html.index(escape(context['agreement'])))
+
+    def test_the_notice_block_has_the_disclaimer_and_the_supplied_facts_text(self):
+        fixture = next(f for f in AVAILABLE if f['response']['basis']['estate'] and not f['case'].get('deaths'))
+        for lang in ('en', 'ar', 'fr'):
+            for with_estate in (True, False):
+                with self.subTest(lang=lang, with_estate=with_estate), translation.override(lang):
+                    body = served(fixture, lang)
+                    if not with_estate:
+                        body['basis']['estate'] = None
+                        for share in body['shares']:
+                            share['amount'] = None
+                    html = render_html(fixture['case'], body)
+                    key = 'notice.supplied_facts' if with_estate else 'notice.supplied_facts_no_amount'
+                    other = 'notice.supplied_facts_no_amount' if with_estate else 'notice.supplied_facts'
+                    self.assertIn(i18n.term('notice.disclaimer', lang), html)
+                    self.assertIn(i18n.term(key, lang).replace("'", '&#x27;'), html)
+                    self.assertNotIn(i18n.term(other, lang).replace("'", '&#x27;'), html)
+                    self.assertIn('DRAFT', html)
+                    block = html.index('class="notice"')
+                    disclaimer_at = html.index(i18n.term('notice.disclaimer', lang), block)
+                    self.assertGreater(block, html.index(translation.gettext('Generation date')))
+                    self.assertLess(disclaimer_at, html.index(translation.gettext('School') + ':'))
+        with translation.override('en'):
+            body = served(fixture)
+            body['presented']['notices'] = [{'code': 'disclaimer', 'text': 'Served disclaimer wording'}]
+            self.assertIn('Served disclaimer wording', render_html(fixture['case'], body))
+            body['basis']['estate'] = None
+            html = render_html(fixture['case'], body)
+            self.assertNotIn('Amount</th>', html)
 
     def test_locales_rtl_and_escaping(self):
         f = copy.deepcopy(AVAILABLE[0])

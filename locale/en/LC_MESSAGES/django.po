@@ -2515,3 +2515,7 @@ msgstr "Estate of %(deceased)s, %(date)s"
 
 msgid "the deceased"
 msgstr "the deceased"
+
+#: reports/templates/reports/draft.html
+msgid "Rounding adjustment"
+msgstr "Rounding adjustment"

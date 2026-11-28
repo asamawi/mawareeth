@@ -522,6 +522,16 @@
       "review": "pending",
       "placeholders": {}
     },
+    "notice.supplied_facts": {
+      "text": "أدخل المستخدم أفراد الأسرة ومبلغ التركة، ولم تتحقق منها مواريث.",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "notice.supplied_facts_no_amount": {
+      "text": "أدخل المستخدم أفراد الأسرة، ولم تتحقق منها مواريث. لم يُدخَل مبلغ للتركة، لذا تظهر الأنصبة دون مبالغ مالية.",
+      "review": "pending",
+      "placeholders": {}
+    },
     "comparison.same_in_all_schools": {
       "text": "النتيجة نفسها في المذاهب السنية الأربعة",
       "review": "pending",

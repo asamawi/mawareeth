@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 
 import { locales, messages } from "../i18n/messages.ts";
-import { previewFixture } from "../test/preview-fixtures.ts";
+import { mixedRefusalFixture, previewFixture } from "../test/preview-fixtures.ts";
 import {
   addHeir,
   addHeirs,
   fetchCase,
+  fetchCaseOrExpired,
+  EXPIRED,
   fetchPreview,
   markDeceased,
   unmarkDeceased,
@@ -60,6 +62,14 @@ test("fetchCase returns the case, or null when there is none", async () => {
   assert.deepEqual(await fetchCase(signal()), CASE);
   stubFetch(async () => Response.json({ case: null }));
   assert.equal(await fetchCase(signal()), null);
+});
+
+test("fetchCaseOrExpired tells the expired code from no case, and fetchCase reads both as null", async () => {
+  globalThis.fetch = async () => Response.json({ case: null, code: "expired" });
+  assert.equal(await fetchCaseOrExpired(signal()), EXPIRED);
+  assert.equal(await fetchCase(signal()), null);
+  globalThis.fetch = async () => Response.json({ case: null });
+  assert.equal(await fetchCaseOrExpired(signal()), null);
 });
 
 test("fetchCase rejects on a server error or a bad body", async () => {
@@ -588,7 +598,7 @@ const SERVED = previewFixture("Hanbali wife and son with an estate").response as
 test("fetchPreview makes one read with the case id and returns the typed preview", async () => {
   const calls = stubFetch(async () => Response.json(SERVED));
   assert.deepEqual(await fetchPreview(signal(), "a b"), { kind: "preview", preview: SERVED });
-  assert.equal((SERVED.presented as { version: number }).version, 3);
+  assert.equal((SERVED.presented as { version: number }).version, 4);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "/api/v1/case/preview/?case_id=a%20b");
   assert.equal(calls[0].init?.method, undefined);
@@ -1386,4 +1396,17 @@ test("hasUnsavedChanges and savedBehind follow the revision, never-saved content
   assert.equal(savedBehind(read({ revision: 3 })), false);
   assert.equal(savedBehind(read(null)), false);
   assert.equal(savedBehind(read()), false);
+});
+
+test("a mixed-reason all-refused envelope reads as unavailable with every presented refusal", async () => {
+  const served = mixedRefusalFixture().response as Record<string, unknown>;
+  stubFetch(async () => Response.json(served));
+  const result = await fetchPreview(signal(), "abc");
+  assert.ok(result.kind === "preview");
+  assert.equal(result.revision, 7);
+  assert.ok(result.preview.status === "unavailable");
+  assert.equal(result.preview.madhab, null);
+  assert.equal(result.preview.reason, "invalid_family");
+  assert.deepEqual(result.preview.presented?.refusals.map((r) => r.reason), ["manasikhat_unsupported", "invalid_family"]);
+  assert.equal(result.preview.presented?.rows.length, 0);
 });

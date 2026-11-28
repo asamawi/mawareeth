@@ -266,6 +266,9 @@ test("the estate hint asks for the amount after debts, funeral costs and bequest
   assert.match(messages.en.interview.estateHint, /debts, funeral costs and bequests/);
   assert.match(messages.fr.interview.estateHint, /dettes.*frais funéraires.*legs/);
   assert.match(messages.ar.interview.estateHint, /الديون.*الدفن.*الوصايا/);
+  assert.match(messages.en.interview.estateHint, /Jointly owned.*named beneficiary/);
+  assert.match(messages.fr.interview.estateHint, /détenus en commun.*bénéficiaire désigné/);
+  assert.match(messages.ar.interview.estateHint, /بالاشتراك.*مستفيد/);
 });
 
 test("a case with no school: the agreeing body and the choose_school body parse, and nothing looser does", () => {

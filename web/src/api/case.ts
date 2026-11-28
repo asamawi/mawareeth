@@ -518,6 +518,18 @@ export async function fetchCase(
   signal: AbortSignal,
   options: { timeoutMs?: number } = {},
 ): Promise<Case | null> {
+  const found = await fetchCaseOrExpired(signal, options);
+  return found === EXPIRED ? null : found;
+}
+
+/** The server answered that the guest Case has expired (`code: "expired"`). */
+export const EXPIRED = "expired";
+
+/** Like `fetchCase`, but tells an expired guest Case from no Case at all. */
+export async function fetchCaseOrExpired(
+  signal: AbortSignal,
+  options: { timeoutMs?: number } = {},
+): Promise<Case | null | typeof EXPIRED> {
   const controller = new AbortController();
   const abort = () => controller.abort();
   const timeout = setTimeout(abort, options.timeoutMs ?? CASE_TIMEOUT_MS);
@@ -531,7 +543,9 @@ export async function fetchCase(
     if (!response.ok) {
       throw new Error(`Case read failed with status ${response.status}`);
     }
-    return parseCase(await response.json());
+    const body: unknown = await response.json();
+    if (isPlainObject(body) && body.case === null && body.code === "expired") return EXPIRED;
+    return parseCase(body);
   } finally {
     clearTimeout(timeout);
     signal.removeEventListener("abort", abort);

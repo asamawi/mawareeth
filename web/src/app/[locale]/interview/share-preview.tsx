@@ -2,12 +2,12 @@
 
 import type { PresentedResult } from "@/contracts/presented";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 
 import { fetchPreview, type Case, type Preview, type PreviewResult, type SunniId } from "@/api/case";
-import { terms } from "@/i18n/catalog.generated";
 import type { Messages } from "@/i18n/messages";
 import type { AnnounceKind } from "@/interview/announce";
+import { noticeText } from "@/interview/notices";
 import { rowLabels } from "@/interview/layers";
 import { useObstruction } from "@/interview/obstruction";
 import {
@@ -39,7 +39,7 @@ export type PreviewContent =
   | { kind: "none" }
   | { kind: "available"; preview: Available; labels: Record<string, string> }
   | { kind: "choose"; preview: Extract<Preview, { status: "choose_school" }>; labels: Record<string, string> }
-  | { kind: "refused"; reason: string | null }
+  | { kind: "refused"; reason: string | null; refusals?: string[] }
   | { kind: "error"; text: string; retry: boolean };
 
 /** Everything `SharePreviewBody` needs from the lifecycle; 11.3 renders `<SharePreviewBody {...view} />`. */
@@ -137,9 +137,10 @@ export function useSharePreview({
     }, STILL_AFTER);
     void fetchPreview(own.signal, caseId, { locale }).then((fetched) => {
       if (own.signal.aborted) return;
-      // A preview computed for an older revision is never shown.
-      const outcome = acceptRevision(revision, fetched);
-      if (outcome === null) return;
+      // A preview computed for an older revision is never shown. It is the only answer this request
+      // will get, so it settles as a failure with Retry, as on Full results (`previewForCase`), rather
+      // than leaving the Interview pending until the next edit.
+      const outcome: PreviewResult = acceptRevision(revision, fetched) ?? { kind: "failed" };
       clearTimeout(slower);
       clearTimeout(slowest);
       latest.current.drop?.("progress");
@@ -199,7 +200,12 @@ export function useSharePreview({
     content = { kind: "choose", preview, labels };
   } else if (outcome.kind === "preview" && preview?.status === "unavailable") {
     // A code with no sentence shows the generic text alone.
-    content = { kind: "refused", reason: (messages.previewReasons as Record<string, string | undefined>)[preview.reason] ?? null };
+    const refusals = [...new Set((preview.presented?.refusals ?? []).map((refusal) => refusal.text))];
+    content = {
+      kind: "refused",
+      reason: (messages.previewReasons as Record<string, string | undefined>)[preview.reason] ?? null,
+      ...(refusals.length > 1 ? { refusals } : {}),
+    };
   } else if (outcome.kind === "preview") {
     // Not reachable: a "not ready" answer is reconciled into "replaced" before it is stored.
     content = { kind: "prompt", layered: false };
@@ -239,14 +245,6 @@ export function useSharePreview({
     bodyRef,
     retry: () => setAttempt((count) => count + 1),
   };
-}
-
-/** A notice's text: the served one, else the catalog's `notice.<code>`, else none. */
-function noticeText(presented: PresentedResult | undefined, code: "disclaimer" | "locale_beta", locale: string): string | null {
-  const served = presented?.notices.find((notice) => notice.code === code)?.text;
-  if (served) return served;
-  const catalog = (terms as Record<string, Record<string, string> | undefined>)[locale];
-  return catalog?.[`notice.${code}`] ?? null;
 }
 
 /**
@@ -302,7 +300,9 @@ export function SharePreviewBody({
     body = (
       <>
         <p>{messages.previewUnavailable}</p>
-        {content.reason && <p>{content.reason}</p>}
+        {content.refusals
+          ? content.refusals.map((line) => <p key={line}>{line}</p>)
+          : content.reason && <p>{content.reason}</p>}
       </>
     );
   } else if (content.kind === "error") {
@@ -382,10 +382,13 @@ function AvailableShares({
   preview: Available;
   labels: Record<string, string>;
 }) {
-  const { rows, unallocated } = previewRows(preview);
+  const { rows, unallocated, rounding } = previewRows(preview);
   const presented = preview.presented;
   return (
     <>
+      {presented?.school_line?.code === "same_in_all_schools" && (
+        <p data-school-agreement className="font-semibold text-accent">{presented.school_line.text}</p>
+      )}
       <ul aria-label={messages.previewHeading} className="flex flex-col">
         {rows.map((row) => {
           const blocked = row.blocked || row.fraction === null || row.percent === null;
@@ -418,11 +421,14 @@ function AvailableShares({
           {unallocated.amount !== null && <>{" "}(<bdi dir="auto">{unallocated.amount}</bdi>)</>}
         </p>
       )}
-      <p className="text-sm">
-        {presented?.school_line?.code === "school"
-          ? messages.previewSchool.split("{school}").join(presented.school_line.text)
-          : presented?.school_line?.text}
-      </p>
+      {rounding && (
+        <p data-rounding>
+          {messages.previewRounding}: <bdi dir="auto">{rounding}</bdi>
+        </p>
+      )}
+      {presented?.school_line?.code === "school" && (
+        <p className="text-sm">{messages.previewSchool.split("{school}").join(presented.school_line.text)}</p>
+      )}
       <p>
         <Link href={`/${locale}/results/`} prefetch={false} className={primaryButton}>
           {messages.previewResultsLink}
@@ -470,10 +476,41 @@ export type PreviewSignal = { state: PreviewState; revision: number | null };
 function barText(view: SharePreviewView, messages: Messages["interview"]): string {
   if (view.state === "pending") return messages.previewWaiting;
   if (view.state === "error") return view.content.kind === "error" ? view.content.text : messages.previewFailed;
-  // Only behind an open sheet: the bar is kept while the content no longer has shares.
   if (view.state === "refused") return messages.previewUnavailable;
   if (view.state === "idle") return messages.previewPrompt;
   return messages.previewReadyCount.split("{count}").join(String(view.heirCount));
+}
+
+/** Phone landscape and 400% zoom: the fixed bar would cover too much, so an in-flow button replaces it. */
+export const COMPACT_LANDSCAPE_QUERY = "(orientation: landscape) and (max-height: 479.98px)";
+
+/** The in-flow opener shown in place of the bar in compact landscape. */
+function SummaryOpenButton({
+  messages,
+  open,
+  onOpen,
+  buttonRef,
+}: {
+  messages: Messages["interview"];
+  open: boolean;
+  onOpen: () => void;
+  buttonRef: RefObject<HTMLButtonElement | null>;
+}) {
+  return (
+    <div data-summary-inflow>
+      <button
+        ref={buttonRef}
+        type="button"
+        data-summary-open
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={onOpen}
+        className={`${primaryButton} min-h-11 w-full`}
+      >
+        {messages.previewHeading}
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -499,20 +536,38 @@ function SummaryBar({
 }) {
   const [box, setBox] = useState<HTMLDivElement | null>(null);
   useObstruction("bar", box);
+  const { content } = view;
+  // A failure offers Retry where Full results would be (the results page would fail the same way); a
+  // refusal keeps Full results, which lists the refusal reasons.
+  const retry = content.kind === "error" && content.retry;
+  const results = content.kind === "available" || content.kind === "choose" || content.kind === "refused";
   return (
     <div
       ref={setBox}
       data-summary-bar
       inert={inert}
-      className="fixed inset-x-0 bottom-0 z-30 flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t-2 border-foreground bg-background px-4 py-2 shadow-summary-bar"
+      className="fixed inset-x-0 bottom-0 z-30 flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-2 max-[359.98px]:flex-col max-[359.98px]:items-stretch border-t-2 border-foreground bg-background px-4 py-2 shadow-summary-bar"
     >
-      <span data-summary-text className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center" onClick={onOpen}>
+      <span data-summary-text className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center max-[359.98px]:w-full max-[359.98px]:flex-none" onClick={onOpen}>
         {barText(view, messages)}
       </span>
-      <div className="flex items-center gap-2">
-        <Link href={`/${locale}/results/`} prefetch={false} className={primaryButton}>
-          {messages.previewResultsLink}
-        </Link>
+      <div className="flex items-center gap-2 max-[359.98px]:justify-between">
+        {retry && (
+          <button
+            type="button"
+            data-summary-retry
+            className={primaryButton}
+            // The button goes once the new request starts, so focus is kept in the bar on the chevron.
+            onClick={() => { chevronRef.current?.focus(); view.retry(); }}
+          >
+            {messages.previewRetry}
+          </button>
+        )}
+        {results && (
+          <Link href={`/${locale}/results/`} prefetch={false} className={primaryButton}>
+            {messages.previewResultsLink}
+          </Link>
+        )}
         <button
           ref={chevronRef}
           type="button"
@@ -533,8 +588,9 @@ function SummaryBar({
 }
 
 /**
- * The summary bar and modal sheet of one lifecycle view. The bar shows only for the root estate with
- * shares (`showBar`); the sheet hosts `SharePreviewBody` and keeps no request of its own.
+ * The summary bar and modal sheet of one lifecycle view. The bar shows only for the root estate
+ * (`showBar`), once there are shares, a refusal or a failure to show; the sheet hosts
+ * `SharePreviewBody` and keeps no request of its own.
  */
 export function SharePreviewSummary({
   view,
@@ -561,17 +617,42 @@ export function SharePreviewSummary({
   onStatusSlot?: (slot: HTMLElement | null) => void;
 }) {
   const { content } = view;
-  const hasShares = content.kind === "available" || content.kind === "choose";
+  // Shares, a refusal and a failure are each something to see: a refusal or failure is never left to
+  // the screen-reader-only status (Epic 11 retro F2, owner decision 2026-11-28).
+  const settled = content.kind === "available" || content.kind === "choose" || content.kind === "refused" || content.kind === "error";
   const [open, setOpen] = useState(false);
-  // The bar appears with shares; an open sheet keeps itself and the bar through every later state of
-  // the root estate, and ends only on Close, Escape, a scrim click or when the root estate is left.
+  // An open sheet keeps itself and the bar through every later state of the root estate, and ends only
+  // on Close, Escape, a scrim click or when the root estate is left.
   if (open && !showBar) setOpen(false);
-  const visible = showBar && (hasShares || open);
+  // A bar already shown stays through the next request (a Retry or an edit), so it does not flicker away
+  // and take keyboard focus with it.
+  const [shown, setShown] = useState(false);
+  const visible = showBar && (settled || open || (shown && view.pending));
+  if (visible !== shown) setShown(visible);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const chevron = useRef<HTMLButtonElement>(null);
+  const inflow = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
+  const carryFocus = useRef(false);
+  const subscribeCompact = useCallback((notify: () => void) => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
+    const mql = window.matchMedia(COMPACT_LANDSCAPE_QUERY);
+    const onChange = () => {
+      // The opener in focus is about to be swapped out; remember it so focus can follow to the new one.
+      const active = document.activeElement;
+      carryFocus.current = active !== null && (active === chevron.current || active === inflow.current);
+      notify();
+    };
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  const compact = useSyncExternalStore(
+    subscribeCompact,
+    () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(COMPACT_LANDSCAPE_QUERY).matches,
+    () => false,
+  );
   const sheetOpen = open && showBar;
   const openSheet = useCallback(() => setOpen(true), []);
 
@@ -590,16 +671,27 @@ export function SharePreviewSummary({
       if (modal?.open) modal.close();
       if (wasOpen.current) {
         wasOpen.current = false;
-        if (chevron.current) chevron.current.focus();
+        const opener = chevron.current ?? inflow.current;
+        if (opener) opener.focus();
         else focusRoot?.();
       }
     }
   }, [sheetOpen, focusRoot]);
 
+  useEffect(() => {
+    if (!carryFocus.current) return;
+    carryFocus.current = false;
+    (compact ? inflow.current : chevron.current)?.focus();
+  }, [compact]);
+
   if (!visible) return null;
   return (
     <>
-      <SummaryBar view={view} messages={messages} locale={locale} inert={sheetOpen} open={sheetOpen} onOpen={openSheet} chevronRef={chevron} />
+      {compact ? (
+        <SummaryOpenButton messages={messages} open={sheetOpen} onOpen={openSheet} buttonRef={inflow} />
+      ) : (
+        <SummaryBar view={view} messages={messages} locale={locale} inert={sheetOpen} open={sheetOpen} onOpen={openSheet} chevronRef={chevron} />
+      )}
       <dialog
         ref={dialog}
         aria-labelledby="preview-heading"

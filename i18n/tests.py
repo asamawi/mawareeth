@@ -41,7 +41,7 @@ def required_keys():
         keys += [f'proof.{kind}.{c}' for c in vocabulary]
     keys += ['proof.verse.quran_4_11', 'proof.verse.quran_4_12', 'proof.verse.quran_4_176']
     keys += [f'table.column.{c}' for c in ('base', 'awl', 'radd', 'remainder', 'radd_calc', 'radd_union', 'correction')]
-    return keys + ['notice.disclaimer', 'comparison.same_in_all_schools']
+    return keys + ['notice.disclaimer', 'notice.supplied_facts', 'notice.supplied_facts_no_amount', 'comparison.same_in_all_schools']
 
 
 class LookupTests(SimpleTestCase):
@@ -107,7 +107,10 @@ class ConsumerTests(SimpleTestCase):
             self.assertEqual(context['direction'], config['direction'])
             for family in config['pdf_font_stack']:
                 self.assertIn(f'"{family}"', context['font_family'])
+            # A son alone: all four Schools agree, so the chosen School is named and the agreement follows it.
+            self.assertEqual(body['presented']['school_line']['code'], 'same_in_all_schools')
             self.assertEqual(context['school'], i18n.term('school.hanafi', lang))
+            self.assertEqual(context['agreement'], body['presented']['school_line']['text'])
 
     def test_non_arabic_catalogs_have_no_arabic_script(self):
         for code in i18n.published_codes():

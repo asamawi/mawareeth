@@ -155,6 +155,12 @@ class CapacityTests(TransactionTestCase):
         self.assertEqual((result["device"], result["network"]["label"]), ("phone", "4g"))
         self.assertEqual(set(result["interview"]), set(self.REQUIRED))
         self.assertEqual(set(result["workload"]), set(self.REQUIRED))
+        # The autosave worker ran beside the contention writer and wrote the linked Saved case.
+        self.assertEqual(set(result["autosave"]), set(self.REQUIRED))
+        for name in self.REQUIRED:
+            self.assertGreaterEqual(result["autosave"][name]["saved"], 1)
+            self.assertGreaterEqual(result["autosave"][name]["attempts"], result["autosave"][name]["saved"])
+        self.assertFalse(SavedCase.objects.exists())
         for name, actions in self.REQUIRED.items():
             self.assertEqual(set(result["interview"][name]), set(actions))
             for action in actions:

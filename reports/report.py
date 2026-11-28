@@ -78,12 +78,23 @@ def build_context(case, body):
                 'unallocated_cells': layer.get('unallocated_cells', []),
             })
     estate = body['basis']['estate']
+    # A chosen School whose shares match the other three still names that School; the agreement is said
+    # on its own line (Epic 11 follow-up review). With no School chosen, the agreement is the School line.
+    line = presented['school_line']
+    basis = presented['basis']
+    chosen_agrees = basis.get('kind') == 'school' and line is not None and line['code'] == 'same_in_all_schools'
+    school = i18n.term(f"school.{basis['school']}", locale) if chosen_agrees else line['text']
+    agreement = line['text'] if chosen_agrees else None
+    disclaimer = next((n['text'] for n in presented['notices'] if n['code'] == 'disclaimer'), None) \
+        or i18n.term('notice.disclaimer', locale)
+    supplied_facts = i18n.term('notice.supplied_facts' if estate is not None else 'notice.supplied_facts_no_amount', locale)
     font_family = mark_safe(', '.join([f'"{family}"' for family in config['pdf_font_stack']] + ['sans-serif']))
     return {'locale': locale, 'direction': config['direction'], 'font_family': font_family,
             'generated': format_datetime(timezone.now(), locale),
-            'school': presented['school_line']['text'],
+            'school': school, 'agreement': agreement,
             'deceased': _('Male') if case['deceased']['gender'] == 'male' else _('Female'),
             'estate': estate, 'with_amount': estate is not None,
+            'disclaimer': disclaimer, 'supplied_facts': supplied_facts,
             'shares': shares, 'evidence': evidence, 'tables': tables,
             'rounding': presented['rounding'], 'unallocated': presented['unallocated']}
 

@@ -1,5 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRoot } from "react-dom/client";
 import { act, createRef } from "react";
 import type { Window } from "happy-dom";
@@ -207,18 +208,19 @@ async function summary(v: SharePreviewView, over: { locale?: string; showBar?: b
 const ready = () => { const preview = available("Hanbali wife and son with an estate"); return view({ kind: "available", preview, labels: labelsOf(preview) }, { heirCount: 3 }); };
 const bar = (node: Element) => node.querySelector<HTMLElement>("[data-summary-bar]");
 
-test("the bar shows only for the root estate with available or choose content", async () => {
+test("the bar shows only for the root estate with shares, a refusal or a failure", async () => {
   const preview = available("Hanbali wife and son with an estate");
   const choose = parsePreview(previewFixture("Differ: grandfather and full brother").response) as Extract<Preview, { status: "choose_school" }>;
-  const hidden: PreviewContent[] = [
-    { kind: "prompt", layered: false }, { kind: "waiting" }, { kind: "none" },
-    { kind: "refused", reason: null }, { kind: "error", text: en.previewFailed, retry: true },
-  ];
+  const hidden: PreviewContent[] = [{ kind: "prompt", layered: false }, { kind: "waiting" }, { kind: "none" }];
   for (const content of hidden) {
     const r = await summary(view(content, { state: "idle" }));
     try { assert.equal(bar(r.node), null, content.kind); assert.equal(r.node.querySelector("dialog"), null); } finally { await r.done(); }
   }
-  for (const content of [{ kind: "available", preview, labels: labelsOf(preview) }, { kind: "choose", preview: choose, labels: {} }] as PreviewContent[]) {
+  const shown: PreviewContent[] = [
+    { kind: "available", preview, labels: labelsOf(preview) }, { kind: "choose", preview: choose, labels: {} },
+    { kind: "refused", reason: null }, { kind: "error", text: en.previewFailed, retry: true },
+  ];
+  for (const content of shown) {
     const r = await summary(view(content));
     try {
       assert.ok(bar(r.node), content.kind);
@@ -314,7 +316,7 @@ test("Close, a native close (Escape) and a scrim click each close the sheet and 
   } finally { await r.done(); }
 });
 
-test("an open sheet stays through waiting, an online error with Retry and a refusal, then the bar hides on close", async () => {
+test("an open sheet stays through waiting, an online error with Retry and a refusal, and the refusal keeps the bar on close", async () => {
   let rootFocused = 0;
   let retried = 0;
   const r = await summary(ready(), { focusRoot: () => { rootFocused += 1; } });
@@ -337,9 +339,52 @@ test("an open sheet stays through waiting, an online error with Retry and a refu
     assert.equal(rootFocused, 0);
     const close = [...dialog().querySelectorAll("button")].find((b) => b.textContent === en.editClose)!;
     await act(async () => { close.click(); });
-    assert.equal(bar(r.node), null);
-    assert.equal(r.node.querySelector("dialog"), null);
-    assert.equal(rootFocused, 1);
+    assert.equal(bar(r.node)!.querySelector("[data-summary-text]")!.textContent, en.previewUnavailable);
+    assert.equal(dialog().hasAttribute("open"), false);
+    assert.equal(document.activeElement, bar(r.node)!.querySelector("[data-summary-expand]"));
+    assert.equal(rootFocused, 0);
+  } finally { await r.done(); }
+});
+
+test("a first failure shows the bar with its text and Retry in place of Full results; Retry keeps focus in the bar", async () => {
+  let retried = 0;
+  const failed = () => view({ kind: "error", text: en.previewFailed, retry: true }, { state: "error", retry: () => { retried += 1; } });
+  const r = await summary(view({ kind: "waiting" }, { state: "pending", pending: true }));
+  try {
+    assert.equal(bar(r.node), null, "no bar before anything settles");
+    await r.draw(failed());
+    assert.equal(bar(r.node)!.querySelector("[data-summary-text]")!.textContent, en.previewFailed);
+    assert.equal(bar(r.node)!.querySelector("a"), null, "no Full results for a failure");
+    const retry = bar(r.node)!.querySelector<HTMLButtonElement>("[data-summary-retry]")!;
+    assert.equal(retry.textContent, en.previewRetry);
+    assert.ok(retry.className.includes("min-h-11"));
+    await act(async () => { retry.click(); });
+    assert.equal(retried, 1);
+    assert.equal(document.activeElement, bar(r.node)!.querySelector("[data-summary-expand]"));
+    // The new request keeps the bar (no flicker), saying it is waiting, with no Retry.
+    await r.draw(view({ kind: "waiting" }, { state: "pending", pending: true }));
+    assert.equal(bar(r.node)!.querySelector("[data-summary-text]")!.textContent, en.previewWaiting);
+    assert.equal(bar(r.node)!.querySelector("[data-summary-retry]"), null);
+    await r.draw(ready());
+    assert.equal(bar(r.node)!.querySelector("a")!.textContent, en.previewResultsLink);
+  } finally { await r.done(); }
+});
+
+test("a failure with no Retry offered shows its text and no Retry", async () => {
+  const r = await summary(view({ kind: "error", text: en.previewThrottled, retry: false }, { state: "error" }));
+  try {
+    assert.equal(bar(r.node)!.querySelector("[data-summary-text]")!.textContent, en.previewThrottled);
+    assert.equal(bar(r.node)!.querySelector("[data-summary-retry]"), null);
+  } finally { await r.done(); }
+});
+
+test("a refusal shows the bar with Full results, and the sheet gives the served reason", async () => {
+  const r = await summary(view({ kind: "refused", reason: "Because." }, { state: "refused" }));
+  try {
+    assert.equal(bar(r.node)!.querySelector("[data-summary-text]")!.textContent, en.previewUnavailable);
+    assert.equal(bar(r.node)!.querySelector("a")!.getAttribute("href"), "/en/results/");
+    await act(async () => { bar(r.node)!.querySelector<HTMLButtonElement>("[data-summary-expand]")!.click(); });
+    assert.ok(r.node.querySelector("dialog")!.textContent?.includes("Because."));
   } finally { await r.done(); }
 });
 
@@ -406,4 +451,144 @@ test("a choose-school sheet shows the School choice, and an error with kept rows
     await act(async () => { retry.click(); });
     assert.equal(retried, 1);
   } finally { await r.done(); }
+});
+
+test("agreement is the teal line above the rows, with no Calculated under line", async () => {
+  const base = available("Hanbali wife and son with an estate");
+  const line = { code: "same_in_all_schools" as const, text: "Same result in all four Sunni schools" };
+  const preview: Available = { ...base, presented: { ...base.presented!, comparison_outcome: "agreement", school_line: line } };
+  const { node, done } = await render(view({ kind: "available", preview, labels: labelsOf(preview) }));
+  try {
+    const agreement = node.querySelector("[data-school-agreement]")!;
+    assert.equal(agreement.textContent, line.text);
+    assert.ok(agreement.className.includes("text-accent"));
+    assert.ok(agreement.compareDocumentPosition(node.querySelector("ul")!) & 4, "the line precedes the rows");
+    assert.ok(!(node.textContent ?? "").includes("Calculated under"));
+  } finally { await done(); }
+});
+
+test("a difference names the School after the rows and shows no agreement line", async () => {
+  const base = available("Hanbali wife and son with an estate");
+  const presented = JSON.parse(readFileSync(new URL("../../../../../contracts/fixtures/presented_result/school-difference.json", import.meta.url), "utf8"));
+  const preview: Available = { ...base, presented };
+  const { node, done } = await render(view({ kind: "available", preview, labels: labelsOf(preview) }));
+  try {
+    assert.equal(node.querySelector("[data-school-agreement]"), null);
+    const rows = node.querySelector("ul")!;
+    const line = [...node.querySelectorAll("p")].find((p) => p.textContent === en.previewSchool.split("{school}").join(presented.school_line.text));
+    assert.ok(line, "the School line names Maliki");
+    assert.ok(rows.compareDocumentPosition(line) & 4, "the School line follows the rows");
+    for (const row of presented.rows) assert.ok((rows.textContent ?? "").includes(row.share.text));
+  } finally { await done(); }
+});
+
+test("a refusal by every School lists each distinct refusal and no shares", async () => {
+  const { node, done } = await render(view({ kind: "refused", reason: "Because.", refusals: ["First refusal.", "Second refusal."] }, { state: "refused" }));
+  try {
+    const shown = node.textContent ?? "";
+    assert.ok(shown.includes("First refusal.") && shown.includes("Second refusal."));
+    assert.ok(!shown.includes("Because."));
+    assert.equal(node.querySelector("ul"), null);
+  } finally { await done(); }
+});
+
+// ---- Story 11.4: compact landscape ----
+
+function stubCompact(initial: boolean) {
+  const w = window as unknown as { matchMedia: unknown };
+  const original = w.matchMedia;
+  let matches = initial;
+  const handlers = new Set<() => void>();
+  w.matchMedia = () => ({
+    get matches() { return matches; },
+    addEventListener: (_: string, h: () => void) => { handlers.add(h); },
+    removeEventListener: (_: string, h: () => void) => { handlers.delete(h); },
+  });
+  return {
+    async set(next: boolean) { matches = next; await act(async () => { for (const h of [...handlers]) h(); }); },
+    restore() { w.matchMedia = original; },
+  };
+}
+const inflow = (node: Element) => node.querySelector<HTMLButtonElement>("[data-summary-open]");
+
+test("compact landscape renders the in-flow button and no bar, and the button opens the sheet and gets focus back", async () => {
+  const media = stubCompact(true);
+  const r = await summary(ready());
+  try {
+    assert.equal(bar(r.node), null);
+    const button = inflow(r.node)!;
+    assert.equal(button.textContent, en.previewHeading);
+    assert.equal(button.getAttribute("aria-haspopup"), "dialog");
+    assert.equal(button.getAttribute("aria-expanded"), "false");
+    await act(async () => { button.click(); });
+    assert.ok(r.node.querySelector("dialog")!.hasAttribute("open"));
+    assert.equal(button.getAttribute("aria-expanded"), "true");
+    const close = [...r.node.querySelectorAll("dialog button")].find((b) => b.textContent === en.editClose) as HTMLElement;
+    await act(async () => { close.click(); });
+    assert.equal(document.activeElement, button);
+  } finally { await r.done(); media.restore(); }
+});
+
+test("compact mode follows the bar's visibility rule", async () => {
+  const media = stubCompact(true);
+  const r = await summary(view({ kind: "waiting" }, { state: "idle" }));
+  try {
+    assert.equal(inflow(r.node), null);
+    await r.draw(ready(), false);
+    assert.equal(inflow(r.node), null);
+  } finally { await r.done(); media.restore(); }
+});
+
+test("a mode change keeps the sheet open and moves focus between openers", async () => {
+  const media = stubCompact(false);
+  const r = await summary(ready());
+  try {
+    const chevron = bar(r.node)!.querySelector<HTMLButtonElement>("[data-summary-expand]")!;
+    await act(async () => { chevron.focus(); });
+    await media.set(true);
+    assert.equal(bar(r.node), null);
+    assert.equal(document.activeElement, inflow(r.node));
+    await media.set(false);
+    assert.equal(document.activeElement, bar(r.node)!.querySelector("[data-summary-expand]"));
+    await act(async () => { bar(r.node)!.querySelector<HTMLButtonElement>("[data-summary-expand]")!.click(); });
+    const dialog = r.node.querySelector("dialog")!;
+    await media.set(true);
+    assert.equal(r.node.querySelector("dialog"), dialog, "the dialog is not remounted");
+    assert.ok(dialog.hasAttribute("open"));
+    const close = [...dialog.querySelectorAll("button")].find((b) => b.textContent === en.editClose) as HTMLElement;
+    await act(async () => { close.click(); });
+    assert.equal(document.activeElement, inflow(r.node));
+  } finally { await r.done(); media.restore(); }
+});
+
+test("the sheet shows the served rounding adjustment as its own line after the rows, and none at zero", async () => {
+  const cases = [
+    ["Two wives and a son, rounded half up", true],
+    ["Hanbali wife and three sons need correction", true],
+    ["Agree: wife, son and daughter in every school", false],
+  ] as const;
+  for (const [title, expected] of cases) {
+    const preview = available(title);
+    const served = preview.presented!.rounding;
+    assert.equal(served !== null, expected, title);
+    const { node, done } = await render(view({ kind: "available", preview, labels: labelsOf(preview) }));
+    try {
+      const line = node.querySelector("[data-rounding]");
+      if (!served) { assert.equal(line, null, title); continue; }
+      assert.equal(line!.textContent, `${en.previewRounding}: ${served.text}`);
+      assert.equal(line!.querySelector("bdi")!.getAttribute("dir"), "auto");
+      assert.equal(line!.closest("li"), null);
+      const list = node.querySelector("ul")!;
+      assert.ok(list.compareDocumentPosition(line!) & 4, "after the rows");
+    } finally { await done(); }
+  }
+  assert.equal(available("Two wives and a son, rounded half up").presented!.rounding!.text, "-SAR0.01");
+  const positive = available("Hanbali wife and three sons need correction").presented!.rounding!.text;
+  assert.equal(positive, "SAR0.01");
+  const { node, done } = await render(view({ kind: "available", preview: available("Hanbali wife and three sons need correction"), labels: labelsOf(available("Hanbali wife and three sons need correction")) }));
+  try {
+    const text = node.querySelector("[data-rounding]")!.textContent;
+    assert.equal(text, `${en.previewRounding}: SAR0.01`);
+    assert.ok(!text!.includes("-"));
+  } finally { await done(); }
 });

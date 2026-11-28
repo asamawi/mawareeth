@@ -522,6 +522,16 @@
       "review": "pending",
       "placeholders": {}
     },
+    "notice.supplied_facts": {
+      "text": "La famille et le montant de la succession ont été saisis par l'utilisateur et n'ont pas été vérifiés par Mawareeth.",
+      "review": "pending",
+      "placeholders": {}
+    },
+    "notice.supplied_facts_no_amount": {
+      "text": "La famille a été saisie par l'utilisateur et n'a pas été vérifiée par Mawareeth. Aucun montant de succession n'a été saisi : les parts sont indiquées sans montants.",
+      "review": "pending",
+      "placeholders": {}
+    },
     "comparison.same_in_all_schools": {
       "text": "Même résultat dans les quatre écoles sunnites",
       "review": "pending",

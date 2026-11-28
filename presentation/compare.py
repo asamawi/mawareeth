@@ -20,9 +20,15 @@ class Outcome:
 
 
 def outcome(family, resolved_basis):
-    """Evaluate the Family: the four Sunni Schools for compare, else the one School of the Basis."""
+    """Evaluate the Family: the four Sunni Schools for compare, else the School of the Basis first. A Sunni
+    School Basis also evaluates the other three Schools, after the selected one, for the agreement line."""
     kind = resolved_basis.basis.kind
-    schools = codes.SUNNI_SCHOOLS if kind == 'compare' else (resolved_basis.school,)
+    if kind == 'compare':
+        schools = codes.SUNNI_SCHOOLS
+    elif kind == 'school' and resolved_basis.school in codes.SUNNI_SCHOOLS:
+        schools = (resolved_basis.school,) + tuple(s for s in codes.SUNNI_SCHOOLS if s != resolved_basis.school)
+    else:
+        schools = (resolved_basis.school,)
     return Outcome(family, tuple((school, evaluate(family, school_rule_set(school))) for school in schools))
 
 
@@ -67,9 +73,10 @@ def unallocated_of(result):
 def compare(out):
     """The Comparison of four calculated or refused Schools: agreement means identical per-person
     (final share, blocked) and an identical unallocated fraction in all four."""
-    if tuple(school for school, _evaluation in out.evaluations) != codes.SUNNI_SCHOOLS:
-        raise PresentationError('invalid_outcome', 'a comparison needs the four Sunni Schools in order')
-    schools = tuple(SchoolResult(school, evaluation.result) for school, evaluation in out.evaluations)
+    held = dict(out.evaluations)
+    if len(out.evaluations) != len(codes.SUNNI_SCHOOLS) or set(held) != set(codes.SUNNI_SCHOOLS):
+        raise PresentationError('invalid_outcome', 'a comparison needs the four Sunni Schools')
+    schools = tuple(SchoolResult(school, held[school].result) for school in codes.SUNNI_SCHOOLS)
     refusals = tuple(Refusal(s.school, s.result.refusal) for s in schools if s.result.status == 'refused')
     calculated = [s for s in schools if s.result.status == 'calculated']
     signatures = {s.school: answers(out.family, s.result) for s in calculated}

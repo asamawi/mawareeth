@@ -21,11 +21,14 @@ import {
 import { estateModel } from "@/interview/tree";
 import { FamilyTree } from "../interview/family-tree";
 import { crumbTextOf } from "../interview/death-breadcrumb";
+import { noticeText, suppliedFactsText } from "@/interview/notices";
 import { buttonClass } from "../interview/form-bits";
+import { primaryButton } from "../ui";
 import { RelationshipText } from "../interview/relationship-text";
 import { useOnline } from "../interview/online";
 import { SchoolChoice } from "../interview/school-choice";
 import { AuthGate } from "./auth-gate";
+import { nextSeq } from "./auth-gate-state";
 import { InheritanceTable, ProofList } from "./inheritance-table";
 
 type Loaded =
@@ -86,7 +89,7 @@ export function ResultsView({ messages, locale }: { messages: Messages; locale: 
     const presentation = presentationOf(state);
     const reasons = interview.previewReasons as Record<string, string | undefined>;
     const lines = presentation.texts
-      .map((ref) => (ref.from === "results" ? text[ref.key] : ref.from === "interview" ? interview[ref.key] : reasons[ref.key]))
+      .map((ref) => (ref.from === "results" ? text[ref.key] : ref.from === "interview" ? interview[ref.key] : ref.from === "text" ? ref.text : reasons[ref.key]))
       .filter((line): line is string => line !== undefined);
     return (
       <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
@@ -237,7 +240,9 @@ export function Available({
 }) {
   const text = messages.results;
   const interview = messages.interview;
-  const { entries, unallocated } = useMemo(() => resultEntries(preview), [preview]);
+  const [pdf, setPdf] = useState<{ text: string | null; seq: number } | undefined>(undefined);
+  const reportPdf = useCallback((line: string | null) => setPdf({ text: line, seq: nextSeq() }), []);
+  const { entries, unallocated, rounding } = useMemo(() => resultEntries(preview), [preview]);
   const layered = isLayeredPreview(preview);
   const labels = useMemo(
     () => rowLabels(kase, interview.relationships, interview.heirNumbered, interview.previewOf),
@@ -249,6 +254,8 @@ export function Available({
   );
   const layers = layersOf(kase);
   const presented = preview.presented;
+  const disclaimer = noticeText(presented, "disclaimer", locale);
+  const supplied = suppliedFactsText(locale, kase.deceased?.estate != null);
   const schoolLine = presented?.school_line ?? null;
   // A single estate shows the calculation steps; the evidence lists one entry per death otherwise.
   const single = presented !== undefined && presented.evidence.length === 1 ? presented.evidence[0] : null;
@@ -263,11 +270,14 @@ export function Available({
     return (step: string) => (step === "unallocated" ? presented?.unallocated?.text : totals.get(step === "radd" && totals.has("radd_union") ? "radd_union" : step)) ?? null;
   }, [data, presented]);
 
+  const downloadButton = <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} download={download} onStatus={gate ? reportPdf : undefined} />;
+
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
       <p>{schoolLine?.code === "school" ? text.school.split("{school}").join(schoolLine.text) : schoolLine?.text}</p>
-      {gate && <AuthGate key={`${kase.id}:${kase.madhab ?? ""}`} caseId={kase.id} linked={!!kase.saved} locale={locale} text={text} share={messages.share} onSchoolRequired={onSchoolRequired} onReplaced={onReplaced} />}
-      <DraftDownload key={`${kase.id}:${locale}`} caseId={kase.id} locale={locale} text={text} download={download} />
+      {gate && disclaimer && <p data-notice="disclaimer" className="rounded-[6px] border border-current/60 p-3 font-semibold">{disclaimer}</p>}
+      {gate && supplied && <p data-notice="supplied-facts" className="rounded-[6px] border border-current/60 p-3">{supplied}</p>}
+      {gate ? <AuthGate key={`${kase.id}:${kase.madhab ?? ""}`} caseId={kase.id} linked={!!kase.saved} locale={locale} text={text} share={messages.share} onSchoolRequired={onSchoolRequired} onReplaced={onReplaced} pdf={pdf} lead={downloadButton} /> : downloadButton}
 
       <section aria-labelledby="results-shares" className="flex flex-col gap-3">
         <h2 id="results-shares" className="text-xl font-semibold">
@@ -300,6 +310,11 @@ export function Available({
           <p>
             {interview.previewUnallocated}: <bdi dir="ltr">{unallocated.fraction}</bdi>
             {unallocated.amount !== null && <>{" "}(<bdi dir="auto">{unallocated.amount}</bdi>)</>}
+          </p>
+        )}
+        {rounding && (
+          <p data-rounding>
+            {interview.previewRounding}: <bdi dir="auto">{rounding}</bdi>
           </p>
         )}
       </section>
@@ -428,7 +443,7 @@ function HeirCard({
   );
 }
 
-function DraftDownload({ caseId, locale, text, download: inject }: { caseId: string; locale: string; text: Messages["results"]; download?: (signal: AbortSignal) => Promise<DraftReportResult> }) {
+function DraftDownload({ caseId, locale, text, download: inject, onStatus }: { caseId: string; locale: string; text: Messages["results"]; download?: (signal: AbortSignal) => Promise<DraftReportResult>; onStatus?: (line: string | null) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const active = useRef(false);
@@ -446,15 +461,18 @@ function DraftDownload({ caseId, locale, text, download: inject }: { caseId: str
     active.current = true;
     setBusy(true);
     setError(null);
+    onStatus?.(text.pdfBusy);
     try {
       const controller = new AbortController();
       request.current = controller;
       const result = inject ? await inject(controller.signal) : await downloadDraftReport(caseId, locale, { signal: controller.signal });
       if (!mounted.current || controller.signal.aborted) return;
       if (result.kind !== "download") {
-        setError(result.kind === "throttled" ? text.pdfThrottled
+        const failure = result.kind === "throttled" ? text.pdfThrottled
           : result.kind === "gone" || result.kind === "replaced" || result.kind === "unavailable" ? text.pdfUnavailable
-          : result.kind === "timeout" ? text.pdfTimeout : text.pdfFailed);
+          : result.kind === "timeout" ? text.pdfTimeout : text.pdfFailed;
+        setError(failure);
+        onStatus?.(failure);
         return;
       }
       const url = URL.createObjectURL(result.blob);
@@ -465,18 +483,19 @@ function DraftDownload({ caseId, locale, text, download: inject }: { caseId: str
       anchor.click();
       anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      onStatus?.("");
     } catch {
-      if (mounted.current) setError(text.pdfFailed);
+      if (mounted.current) { setError(text.pdfFailed); onStatus?.(text.pdfFailed); }
     } finally {
       active.current = false;
       if (mounted.current) setBusy(false);
     }
   }
   return <div className="flex flex-col gap-2" aria-busy={busy}>
-    <div><button type="button" disabled={busy} className={buttonClass} onClick={() => void download()}>
+    <div><button type="button" disabled={busy} className={`${primaryButton} disabled:cursor-not-allowed disabled:opacity-60`} onClick={() => void download()}>
       {busy ? text.pdfBusy : error ? text.pdfRetry : text.pdfDownload}
     </button></div>
-    {busy && <p role="status">{text.pdfBusy}</p>}
-    {error && <p role="alert">{error}</p>}
+    {busy && !onStatus && <p role="status">{text.pdfBusy}</p>}
+    {error && !onStatus && <p role="alert">{error}</p>}
   </div>;
 }

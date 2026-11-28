@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { submitAuth } from "@/api/auth";
 import { messages } from "@/i18n/messages";
 import Link from "next/link";
@@ -8,8 +8,10 @@ import { usePathname } from "next/navigation";
 import { localeConfig } from "@/i18n/catalog.generated";
 import { locales, type Locale, type Messages } from "@/i18n/messages";
 import { authLinks, pathForLocale, casesPath } from "@/i18n/paths";
+import { autosave } from "@/interview/autosave";
 
 import { useAuthState } from "./use-session";
+import { buttonClass } from "./interview/form-bits";
 
 const linkClass =
   "rounded px-1 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current";
@@ -20,6 +22,29 @@ export function SiteNav({ locale, nav }: { locale: Locale; nav: Messages["nav"] 
 
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  // The discard question of a sign-out whose pending save did not succeed.
+  const [discarding, setDiscarding] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const safe = useRef<HTMLButtonElement>(null);
+  const pressed = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!discarding || !dialog.current || dialog.current.open) return;
+    dialog.current.showModal?.();
+    safe.current?.focus();
+  }, [discarding]);
+  async function requestLogout(button: HTMLElement) {
+    pressed.current = button;
+    setLoggingOut(true);
+    setLogoutError("");
+    const outcome = await autosave.flush();
+    if (outcome === "unsaved") { setLoggingOut(false); setDiscarding(true); return; }
+    await logout();
+  }
+  function closeDiscard() {
+    if (dialog.current?.open) dialog.current.close();
+    setDiscarding(false);
+    pressed.current?.focus();
+  }
   async function logout() {
     setLoggingOut(true);
     const result = await submitAuth("logout", locale, {});
@@ -45,8 +70,18 @@ export function SiteNav({ locale, nav }: { locale: Locale; nav: Messages["nav"] 
       <div className="flex flex-wrap items-center gap-4">
         {authenticated && <Link href={casesPath(locale)} prefetch={false} className={linkClass}>{nav.cases}</Link>}
         {authenticated && <a href={`/${locale}/password-change/`} className={linkClass}>{messages[locale].auth.change}</a>}
-        {authenticated && <button className={linkClass} disabled={loggingOut} onClick={logout}>{loggingOut ? messages[locale].auth.pending : messages[locale].auth.logout}</button>}
+        {authenticated && <button className={linkClass} disabled={loggingOut} onClick={(event) => void requestLogout(event.currentTarget)}>{loggingOut ? messages[locale].auth.pending : messages[locale].auth.logout}</button>}
         {logoutError && <p role="alert">{logoutError}</p>}
+        {discarding && (
+          <dialog ref={dialog} aria-labelledby="signout-discard-title" aria-describedby="signout-discard-body" className="m-auto max-w-md rounded border bg-white p-6 text-black backdrop:bg-black/50" onCancel={(event) => { event.preventDefault(); closeDiscard(); }}>
+            <h2 id="signout-discard-title" className="text-xl font-semibold">{messages[locale].cases.discardTitle}</h2>
+            <p id="signout-discard-body" className="my-4">{messages[locale].cases.discardBody}</p>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" ref={safe} className={buttonClass} onClick={closeDiscard}>{messages[locale].cases.discardNo}</button>
+              <button type="button" className={buttonClass} onClick={() => { if (dialog.current?.open) dialog.current.close(); setDiscarding(false); void logout(); }}>{nav.discardAndSignOut}</button>
+            </div>
+          </dialog>
+        )}
         {authLinks(authenticated, locale, pathname).map((link) => (
           <a key={link.kind} href={link.href} className={linkClass}>
             {nav[link.kind]}

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { parsePreview, type Case, type Preview, type PreviewResult } from "../api/case.ts";
-import { previewFixtures as fixtures } from "../test/preview-fixtures.ts";
+import { mixedRefusalFixture, previewFixtures as fixtures } from "../test/preview-fixtures.ts";
 import { previewForCase, previewKey, reconcile } from "./preview.ts";
 import { isLayeredPreview, presentationOf, resultEntries, resultsState } from "./results.ts";
 const by = (title: string) => {
@@ -121,7 +121,7 @@ test("kirat are the server's own strings, never worked out in the browser", () =
 
 test("every state without numbers has a presentation, and only failed and replaced offer retry", () => {
   const texts = (state: Parameters<typeof presentationOf>[0]) =>
-    presentationOf(state).texts.map((ref) => `${ref.from}:${ref.key}`);
+    presentationOf(state).texts.map((ref) => ref.from === "text" ? `text:${ref.text}` : `${ref.from}:${ref.key}`);
   assert.deepEqual(texts({ kind: "empty" }), ["results:emptyCase"]);
   assert.deepEqual(texts({ kind: "incomplete" }), ["results:incompleteCase"]);
   assert.deepEqual(texts({ kind: "loading" }), ["results:loading"]);
@@ -154,4 +154,32 @@ test("a case with no school and differing schools asks for a choice, and agreein
   // Another family's answer is still refused for a case with no school.
   const other = { ...agree.kase, heirs: agree.kase.heirs.slice(1) };
   assert.deepEqual(resultsState(other, settle(other, agree.preview)), { kind: "error", error: "replaced" });
+});
+
+test("all four Schools refusing for different reasons shows every distinct presented refusal, never shares", () => {
+  const { kase } = by("Impossible family");
+  const preview = parsePreview(mixedRefusalFixture().response) as Preview;
+  const state = resultsState(kase, { kind: "preview", preview });
+  assert.ok(state.kind === "unavailable");
+  assert.equal(state.refusals?.length, 2);
+  assert.deepEqual(presentationOf(state).texts, [
+    { from: "interview", key: "previewUnavailable" },
+    ...state.refusals!.map((text) => ({ from: "text", text })),
+  ]);
+  // One reason keeps today's single-sentence presentation.
+  const single = by("Impossible family");
+  assert.deepEqual(resultsState(single.kase, { kind: "preview", preview: single.preview }), { kind: "unavailable", reason: "invalid_family" });
+});
+
+test("resultEntries returns the served rounding text, or null at zero", () => {
+  for (const [title, text] of [
+    ["Two wives and a son, rounded half up", "-SAR0.01"],
+    ["Agree: wife, son and daughter in every school", null],
+  ] as const) {
+    const { preview } = by(title);
+    const served = (preview as { presented?: { rounding: { text: string } | null } }).presented;
+    const entries = resultEntries(preview as never);
+    assert.equal(entries.rounding, served?.rounding?.text ?? null, title);
+    assert.equal(entries.rounding, text, title);
+  }
 });

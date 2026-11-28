@@ -388,7 +388,7 @@ class SavedCasesView(ApiView):
                 case = decode(row.schema_version, row.snapshot, str(row.pk), row.updated_at.isoformat())
             except SnapshotError:
                 continue
-            cases.append({'id': row.pk, 'name': row.name, 'updated_at': row.updated_at, 'madhab': case['madhab'],
+            cases.append({'id': row.pk, 'name': row.name, 'updated_at': row.updated_at, 'revision': row.revision, 'madhab': case['madhab'],
                           'heir_count': len(case['heirs']), 'status': report_status(case)})
         return Response({'cases': cases})
 
@@ -455,7 +455,7 @@ def _prepare_save(case):
 
     The case is exported once and encoded once; never pass an encoded snapshot back to encode_v2."""
     if case is None or not case['deceased'] or not case['heirs']:
-        return None, None, Response({'detail': 'Complete the case before saving.'}, status=400)
+        return None, None, Response({'detail': 'Complete the case before saving.', 'code': 'case_incomplete'}, status=400)
     version = write_version()
     snapshot = anonymous_case.export_snapshot(case)
     try:
@@ -485,6 +485,57 @@ def _conflict_body(case, row):
             'detail': 'This saved case changed since it was opened.', 'revision': row.revision,
             'saved_id': row.pk, 'saved_name': row.name,
             'working_case_id': case['id'], 'working_revision': case['revision']}
+
+
+def _autosave_unavailable():
+    return Response({'code': 'saved_case_unavailable', 'detail': 'This saved case is no longer available.'}, status=404)
+
+
+@method_decorator(never_cache, name='dispatch')
+class SavedCaseAutosaveView(ApiView):
+    """Update the linked, owned Saved case from the working copy. Update-only: it never creates a row.
+
+    Runs inside the request's session lock (CaseWriteLockMiddleware holds it for saved-cases writes)."""
+
+    def post(self, request):
+        data = request.data
+        if not isinstance(data, dict):
+            return Response({'detail': 'Expected a JSON object.'}, status=400)
+        case_id, revision = data.get('case_id'), data.get('case_revision')
+        if not isinstance(case_id, str) or not case_id or not case_commands.valid_revision(revision):
+            return Response({'detail': 'case_id and case_revision are required.'}, status=400)
+        try:
+            case = anonymous_case.get(request)
+        except SnapshotError as error:
+            return Response({'detail': 'The current case cannot be read.', 'code': error.code}, status=422)
+        saved_id = anonymous_case.get_saved_link(request, case_id) if case is not None and case['id'] == case_id else None
+        if saved_id is None:
+            return _autosave_unavailable()
+        if case['revision'] != revision:
+            return Response({'code': 'case_revision_stale', 'detail': 'The case changed.',
+                             'case_revision': case['revision']}, status=409)
+        snapshot, version, refused = _prepare_save(case)
+        if refused is not None:
+            return refused
+        try:
+            with transaction.atomic():
+                row = SavedCase.objects.select_for_update().filter(owner=request.user, pk=saved_id).first()
+                if row is None:
+                    return _autosave_unavailable()
+                if row.revision != anonymous_case.get_saved_base_revision(request, case['id']):
+                    return Response(_conflict_body(case, row), status=409)
+                row.snapshot = snapshot
+                row.schema_version = version
+                row.revision = F('revision') + 1
+                row.save()
+                row.refresh_from_db(fields=['revision'])
+        except OperationalError as error:
+            if is_lock_timeout(error):
+                return busy_response()
+            raise
+        anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision, case['revision'])
+        return Response({'id': row.pk, 'name': row.name, 'updated_at': row.updated_at, 'revision': row.revision,
+                         'case_revision': case['revision']})
 
 
 @method_decorator(never_cache, name='dispatch')
@@ -572,6 +623,44 @@ class SavedCaseCreateView(ApiView):
         anonymous_case.set_saved_link(request, case['id'], row.pk, row.revision, case['revision'])
         return Response({'id': row.pk, 'name': row.name, 'updated_at': row.updated_at, 'revision': row.revision},
                         status=201)
+
+
+@method_decorator(never_cache, name='dispatch')
+class SavedCaseRenameView(ApiView):
+    """Rename a Saved case: only name, revision and updated_at change, guarded by the revision."""
+
+    def post(self, request, id):
+        data = request.data
+        if not isinstance(data, dict):
+            return Response({'detail': 'Expected a JSON object.'}, status=400)
+        name, refused = _parse_name(data)
+        if refused is not None:
+            return refused
+        if name is None:
+            return Response({'detail': 'Invalid input.', 'errors': {'name': 'invalid'}}, status=400)
+        expected = data.get('expected_revision')
+        if not case_commands.valid_revision(expected):
+            return Response({'detail': 'Invalid input.', 'errors': {'expected_revision': 'invalid'}}, status=400)
+        try:
+            with transaction.atomic():
+                row = get_object_or_404(SavedCase.objects.select_for_update(), owner=request.user, pk=id)
+                if row.revision != expected:
+                    return Response({'error': 'conflict', 'code': 'rename_conflict',
+                                     'detail': 'This saved case changed since it was listed.',
+                                     'revision': row.revision, 'name': row.name}, status=409)
+                row.name = name or default_name(row.created_at, _asked_language(request))
+                row.revision = expected + 1
+                row.updated_at = timezone.now()
+                row.save(update_fields=['name', 'revision', 'updated_at'])
+        except OperationalError as error:
+            if is_lock_timeout(error):
+                return busy_response()
+            raise
+        link = request.session.get(anonymous_case.SAVED_LINK_KEY)
+        if (isinstance(link, dict) and link.get('saved_id') == row.pk and link.get('base_revision', 1) == expected
+                and isinstance(link.get('case_id'), str)):
+            anonymous_case.set_saved_link(request, link['case_id'], row.pk, row.revision, link.get('case_revision'))
+        return Response({'id': row.pk, 'name': row.name, 'updated_at': row.updated_at, 'revision': row.revision})
 
 
 @method_decorator(never_cache, name='dispatch')

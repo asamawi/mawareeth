@@ -1,6 +1,7 @@
 """Presentation tests: unittest only, no Django. Every row of the I/O matrix, in ar, en and fr."""
 import ast
 import json
+import math
 import unittest
 from datetime import datetime
 from decimal import Decimal
@@ -108,7 +109,7 @@ class MatrixTests(unittest.TestCase):
     def test_school_basis_answer(self):
         for locale in LOCALES:
             r = run(family(['grandfather', 'brother']), {'kind': 'school', 'school': 'hanafi'}, locale)
-            self.assertEqual((r.state, r.comparison_outcome, r.comparison), ('answer', None, None))
+            self.assertEqual((r.state, r.comparison_outcome, r.comparison), ('answer', 'difference', None))
             self.assertEqual(r.school_line, {'code': 'school', 'text': i18n.term('school.hanafi', locale)})
 
     def test_rounding(self):
@@ -146,6 +147,32 @@ class MatrixTests(unittest.TestCase):
                 self.assertEqual((amount['amount_minor'], amount['currency']), (12345, code))
                 self.assertEqual(amount['text'], numbers.format_currency(Decimal(12345).scaleb(-digits), code, locale='en',
                                                                         numbering_system='latn'))
+
+    def test_displayed_minor_units_reconcile_to_the_estate(self):
+        cases = ((['son', 'son', 'son'], 100, None, 1), (['son', 'son'], 101, None, -1), (['son', 'son'], 100, None, None),
+                 (['wife'], 6, {'kind': 'school', 'school': 'hanbali'}, -1))
+        for code, digits in (('USD', 2), ('KWD', 3), ('JPY', 0)):
+            for locale in LOCALES:
+                babel_locale, numbering = babel_of(locale)
+                for relationships, estate, basis, expected in cases:
+                    with self.subTest(code=code, locale=locale, estate=estate, relationships=relationships):
+                        fam = family(relationships, estate)
+                        r = run(fam, basis or COMPARE, locale, Currency(code, True))
+                        rows = sum(row['amount']['amount_minor'] for row in r.rows)
+                        unallocated = r.unallocated['amount']['amount_minor'] if r.unallocated else 0
+                        rounding = r.rounding['amount_minor'] if r.rounding else 0
+                        self.assertEqual(rows + unallocated + rounding, estate)
+                        self.assertEqual(rounding, expected or 0)
+                        self.assertEqual(r.rounding is None, expected is None)
+                        for row in r.rows:
+                            fraction = row['share']['fraction']
+                            self.assertEqual(math.gcd(fraction['numerator'], fraction['denominator']), 1)
+                            self.assertEqual(row['share']['text'], f"{fraction['numerator']}/{fraction['denominator']}")
+                        if r.rounding:
+                            self.assertEqual(r.rounding['text'], numbers.format_currency(
+                                Decimal(expected).scaleb(-digits), code, locale=babel_locale, numbering_system=numbering))
+                            self.assertEqual((r.rounding['text'].count('-') + r.rounding['text'].count('‎-')
+                                              + r.rounding['text'].count('؜-')) > 0, expected < 0)
 
     def test_minor_units(self):
         self.assertEqual(p.minor_units('1.5', 'USD'), 150)
@@ -426,6 +453,65 @@ class PurityTests(unittest.TestCase):
         import subprocess, sys
         code = 'import sys, presentation; sys.exit(1 if any(m == "django" or m.startswith("django.") for m in sys.modules) else 0)'
         self.assertEqual(subprocess.run([sys.executable, '-c', code], cwd=ROOT.parent).returncode, 0)
+
+
+
+class SchoolBasisComparisonTests(unittest.TestCase):
+    """A Sunni School Basis also compares the four Schools, without changing the selected School's answer."""
+
+    def school(self, fam, school, locale='en'):
+        return run(fam, {'kind': 'school', 'school': school}, locale=locale)
+
+    def test_school_basis_agreement(self):
+        fam = family(['wife', 'mother', 'daughter', 'daughter', 'daughter'], 100000)
+        for school in c.codes.SUNNI_SCHOOLS:
+            with self.subTest(school):
+                r = self.school(fam, school)
+                self.assertEqual((r.state, r.comparison_outcome), ('answer', 'agreement'))
+                self.assertEqual(r.school_line['code'], 'same_in_all_schools')
+                self.assertIsNone(r.comparison)
+                self.assertEqual(r.refusals, ())
+
+    def test_school_basis_difference_names_the_school(self):
+        r = self.school(family(['grandfather', 'brother']), 'maliki')
+        self.assertEqual((r.state, r.comparison_outcome), ('answer', 'difference'))
+        self.assertEqual(r.school_line, {'code': 'school', 'text': i18n.term('school.maliki', 'en')})
+        self.assertIsNone(r.comparison)
+
+    def test_another_school_refusing_is_never_agreement(self):
+        r = self.school(family(MALIKIYYA), 'hanbali')
+        self.assertEqual((r.state, r.comparison_outcome, r.school_line['code']), ('answer', 'difference', 'school'))
+
+    def test_selected_school_refusing_has_no_comparison(self):
+        r = self.school(family(MALIKIYYA), 'maliki')
+        self.assertEqual((r.state, r.comparison_outcome, r.rows), ('refused', None, ()))
+        self.assertEqual([x['reason'] for x in r.refusals], ['malikiyya_disputed'])
+
+    def test_selected_school_output_is_unchanged_by_the_comparison(self):
+        for fam in (family(['grandfather', 'brother'], 100000), family(['wife', 'mother', 'daughter'], 100000)):
+            for school in c.codes.SUNNI_SCHOOLS:
+                with self.subTest(school):
+                    resolved = c.resolve_basis({'kind': 'school', 'school': school}, {})
+                    full_out = p.outcome(fam, resolved)
+                    self.assertEqual(full_out.evaluations[0][0], school)
+                    full = p.present(full_out, resolved, 'en', None)
+                    single = p.present(p.Outcome(fam, full_out.evaluations[:1]), resolved, 'en', None)
+                    self.assertEqual((full.rows, full.rounding, full.unallocated, full.table, full.evidence),
+                                     (single.rows, single.rounding, single.unallocated, single.table, single.evidence))
+
+    def test_jafari_has_no_comparison_outcome(self):
+        r = self.school(family(['wife', 'son']), 'jafari')
+        self.assertEqual((r.state, r.comparison_outcome), ('refused', None))
+
+    def test_country_basis_resolving_to_a_sunni_school_has_no_comparison_outcome(self):
+        country = {'kind': 'country', 'preset_id': 'sa', 'preset_version': '2026-01-01'}
+        resolved = c.resolve_basis(country, {('sa', '2026-01-01'): 'hanbali'})
+        fam = family(['wife', 'son'], 1000)
+        out = p.outcome(fam, resolved)
+        self.assertEqual(len(out.evaluations), 1)
+        r = p.present(out, resolved, 'en', None)
+        self.assertEqual(c.parse_presented_result(c.dump_presented_result(r)), r)
+        self.assertEqual((r.state, r.comparison_outcome, r.school_line['code']), ('answer', None, 'school'))
 
 
 if __name__ == '__main__':

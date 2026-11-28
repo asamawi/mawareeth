@@ -129,6 +129,10 @@ Completed and obsolete items are removed; their history is in git.
   summary: Decide whether to bound the `compute()` row-lock wait (for example `SET LOCAL lock_timeout`) on the results pages, which run it on every GET.
   evidence: Overlapping results-page views of one case now wait on `select_for_update()` with no limit, so a slow or stuck run ties up web workers; the spec put any lock timeout under Ask First.
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-perf-two-later-death-preview-server-time.md`
+  summary: Capacity headroom: give two-later-death Interview actions headroom under the release capacity gate (p95 < 1,000 ms); options are (a) solve the four Sunni schools once when no school-specific rule can apply to any estate (~70 ms on production; owner declined on 2026-11-26 for legal-correctness risk) or (b) shrink the preview response (~16 KB gzipped vs ~5 KB for `compare`; changes the API contract and the web parser).
+  evidence: The 957742e0 deploy (PR #115, 2026-11-26) passed `capacity_check --enforce-interview` with two_later_deaths p95 858–998 ms, 2 ms under budget (preview median 132 ms, write ~55 ms, network model ~530 ms). A slower host moment can fail a later deploy's gate; a failed gate leaves the route unchanged.
+
 ## Calculation engine & proof
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-standard-share-calculation-sunni-schools.md`
@@ -589,7 +593,7 @@ Still pending for a person:
   summary: DONE in story 11.3 (summary bar, sheet, School choice and Full results are back). Until 11.3 the Interview shows no shares, no School choice, no preview error or Retry and no Full results link.
   evidence: The preview lifecycle (`useSharePreview` via `SharePreviewController`) still runs and feeds blocked badges and the polite status, but `SharePreviewBody` is rendered nowhere. When the schools differ, the Interview announces it but offers no way to choose a School until 11.3 (`choiceFailed` in `start-case.tsx` is unused for the same reason).
 - source_spec: `_bmad-output/implementation-artifacts/spec-11-3-open-the-full-preview-from-a-sticky-summary-bar-and-modal-sheet.md`
-  summary: A full refusal, or a first-load or online error with no shares to keep, has no visible summary bar, so the user sees no refusal text, no Retry and no Full results link there; it is status-only (the one polite status announces it). Review in 11.4/11.1.
+  summary: DONE after the Epic 11 retro (action item 2): the bar now also shows for a refusal (its text, Full results, and the reason in the sheet) and for a failure (its text and Retry in place of Full results), and stays through the next request. Was: a full refusal, or a first-load or online error with no shares to keep, has no visible summary bar, so the user sees no refusal text, no Retry and no Full results link there; it is status-only (the one polite status announces it). Review in 11.4/11.1.
   evidence: The UX rule hides the bar until the Share preview has shares (`available` or `choose`), so `refused` and an online `error` without kept rows show nothing visible. Retry is in the sheet whenever the sheet is open (an offline error with kept rows, or an online failure while it is open); only a first-load failure with the sheet closed has no bar and no Retry. The e2e test "a failed first preview keeps the family, says so once in the status and shows no bar" pins this.
 
 ## Story 9.12
@@ -621,3 +625,64 @@ Epic 9's gate and retrospective stay open until the owner records them.
 - source_spec: `_bmad-output/implementation-artifacts/spec-10-1b-resolve-a-save-conflict-with-two-choices.md`
   summary: A Saved case name containing an unpaired UTF-16 surrogate passes the name checks of both save routes and fails at the database write with a 500 instead of a 400 `errors.name = invalid`.
   evidence: `_parse_name` (formerly inline in `SavedCasesView.post` at baseline) checks type, NUL and grapheme length only; JSON `"\ud800"` decodes to a lone surrogate that cannot be encoded to UTF-8 for Postgres.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-2-find-and-rename-named-cases-in-my-cases.md`
+  summary: Native review needed for the new My cases strings in en, ar and fr (`cases.sortLabel`, `sortRecent`, `sortName`, `rename` with {name}, `renameSave`, `renameCancel`, `renameSaving`, `renameFailed`, `renameConflict`, `retry`, `loading`, `untitled`). Wording is draft; ar and fr are machine-written.
+  evidence: Story 10.2 added them to web/src/i18n/messages.ts; the field text reuses the existing results.name* strings.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-3-open-saved-cases-directly-and-keep-guest-recovery-separate.md`
+  summary: Native review needed for the new strings in en, ar and fr (`cases.newCase`, `cases.newCaseFailed`, `interview.expiredTitle`, `interview.expiredLifetime`, `interview.openFailed`, `interview.backToCases`, `cases.discardConfirmNew`). Wording is draft; ar and fr are machine-written.
+  evidence: Story 10.3 added them to web/src/i18n/messages.ts. The New Case discard dialog reuses the existing `cases.discard*` strings except its confirm button, which uses `cases.discardConfirmNew`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-4-preserve-received-invitations-and-label-shared-cases-as-read-only.md`
+  summary: Native review needed for the new `shared.readOnly` string in en, ar and fr (en "Read-only view of the owner's latest saved case. You cannot edit or rename it here."). Wording is draft; ar and fr are machine-written.
+  evidence: Story 10.4 added it to web/src/i18n/messages.ts; it is the first line of the shared-case-banner on /shared/.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-5-save-an-opened-saved-case-automatically.md`
+  summary: Native review needed for the new strings in en, ar and fr (`interview.autosaveNeedsHeirs`, `interview.autosaveUnavailable`, `nav.discardAndSignOut`). Wording is draft; ar and fr are machine-written.
+  evidence: Story 10.5 added them to web/src/i18n/messages.ts. The Interview autosave line reuses the existing `results.saving/saved/saveError/saveRetry/saveConflict/saveNeedsSchool/conflict*` strings; the sign-out discard dialog reuses `cases.discardTitle/discardBody/discardNo` and confirms with `nav.discardAndSignOut`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-1-show-school-agreement-and-ask-for-a-school-only-when-shares-differ.md`
+  summary: Native review needed for the changed `interview.chooseSchool` question in en, ar and fr ("Which school of law do you follow?", "أي مذهب فقهي تتبع؟", "Quelle école juridique suivez-vous ?"). Wording is draft; ar and fr are machine-written.
+  evidence: Story 11.1 changed the three strings in web/src/i18n/messages.ts from an instruction to a question; it is the legend of the School choice group on Share preview and Full results.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-4-keep-summary-controls-reachable-at-narrow-widths-and-high-zoom.md`
+  summary: A real browser zoom (400% on a desktop) and real-device rotation were not run; Playwright used 320px and 320x200 viewports as stand-ins. The in-flow "Share preview" button sits at the end of the Interview flow in compact landscape; its position should be reviewed in the Epic 12 copy and UX review.
+  evidence: Story 11.4 e2e (Story 11.4 block in web/e2e/interview.spec.ts) resizes the viewport; no new strings were added.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-5-preserve-the-results-table-and-make-result-actions-clear.md`
+  summary: DONE after the Epic 11 retro (action item 1): `openPreview`/`openPreviewAnywhere` now wait for the sheet's open animation (`settleSheet` in web/e2e/family.ts), and the whole accessibility file passes; the axe check had measured the sheet mid-fade. Was: pre-existing, from Story 11.4. `web/e2e/accessibility.spec.ts:179` ("the 320px bar with text spacing, then the open sheet") fails in en, ar and fr light mode with `color-contrast (serious): .text-accent` whenever the whole accessibility file runs in chromium, and passes when run alone with `-g`. It is order- or load-dependent, and the contrast of a `.text-accent` element in the open Share preview sheet needs a look.
+  evidence: On 2026-11-28 the baseline 0c31c948 (Story 11.5's diff reverse-applied, fresh build) failed the same 3 tests with 64 passed. With 11.5 applied the result was the same, and 12/12 passed in isolation. The 11.4 run recorded one failure of this test under load.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-6-explain-the-estate-input-and-identify-user-supplied-facts.md`
+  summary: Native review needed for the changed `interview.estateHint` and the new catalog terms `notice.supplied_facts` and `notice.supplied_facts_no_amount` in en, ar and fr. Wording is draft; ar and fr are machine-written.
+  evidence: Story 11.6 changed `estateHint` in web/src/i18n/messages.ts and added the two terms to i18n/terms/{en,ar,fr}.json (review "pending"). They show on the Interview estate field, on Full results and in the draft PDF.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-7-make-rounding-adjustments-visible-and-reconcile-displayed-totals.md`
+  summary: Native review needed for the new `interview.previewRounding` message (web) and the `Rounding adjustment` msgstr (PDF) in en, ar and fr. Wording is draft; ar (فرق التقريب) and fr (Ajustement d'arrondi) are machine-written.
+  evidence: Story 11.7 added `previewRounding` to web/src/i18n/messages.ts and the msgid `Rounding adjustment` to locale/{en,ar,fr}/LC_MESSAGES/django.po. They label the rounding line in the sheet, Full results and the draft PDF.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-11-retro-2026-11-28.md`
+  summary: Pre-existing, load-dependent. `web/e2e/interview.spec.ts` "the obstruction follows the bar plus the floating toast, and the bar alone when the toast flows" (Story 9.11, uses `page.clock`) fails at `expect(toast).toHaveCount(0)` after `clock.fastForward(10_500)` when run with 8 workers, and passes alone.
+  evidence: On 2026-11-28 the code before the retro fixes (git stash, fresh build) failed 11 of 12 runs with `--repeat-each=12 --workers=8`, the same way as with the fixes applied. It passes when run alone, and it failed at this line in the second full chromium run of the four affected specs during the fix.
+
+## Epic 11 follow-up review (retro action item 3, 2026-11-28)
+
+Adversarial, edge-case and verification-gap lenses over 9fe5f141 (11.1), e4fa6aef (11.2), b7efa8d2 (11.4) and 04966b7c (11.5). Fixed in the same commit: a stale-only preview response left the Interview pending for good (now a failure with Retry, as on Full results); the draft PDF printed "School: Same result in all four Sunni schools" for a chosen School (now names the School, with the agreement on its own line); the 320x400 Undo test checked `restorePosts` without waiting. Added: browser e2e for the mixed all-refused envelope and for a guest signing in through the real login form and resuming Share link.
+
+- source_spec: `_bmad-output/implementation-artifacts/epic-11-retro-2026-11-28.md`
+  summary: In normal motion the smooth focus scroll can stop short and leave a focused control off-screen. The new e2e "in normal motion, tabbing from the top to the last Heirs row…" (web/e2e/interview.spec.ts, Story 11.4 block) is `test.fixme` until this is decided. A fix likely means not using the global `scroll-behavior: smooth` (web/src/app/[locale]/globals.css:63) for focus moves.
+  evidence: In two full chromium runs of interview/accessibility/results/capacity, the en case failed with the last row at rowBottom 1433 against a toastTop of 658 and a 800px viewport, unchanged for 5s (not slow, stopped). It passed 20/20 with `--repeat-each=10 --workers=6`, and ar passed every time. Later the same day, the first real run of `scripts/epic_e2e_gate.py --epic 11` also failed the existing reduced-motion check ("bar and toast at 375x800 in ar", the row-clear poll at web/e2e/interview.spec.ts:2840), so the cause is probably not smooth scrolling alone; the scroll padding may not be applied yet when the focus scroll runs under load.
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-1-show-school-agreement-and-ask-for-a-school-only-when-shares-differ.md`
+  summary: Six invalid PresentedResult fixtures ("table number without text", "table float number", "table number not left to right", "table column without label", "table unknown column code", "table row cell count") also break the 11.1 rule that a Sunni School answer reports agreement or difference (`comparison_outcome: null`), so deleting the table checks would not fail the suites. Setting `comparison_outcome: "difference"` makes the table the only fault (checked), but the fixture lock refuses a changed fixture without a contract version bump, which would break browser tabs on v4.
+  evidence: contracts/fixtures/invalid/presented_result.json; engine/contracts/presented.py:301-305; web/src/contracts/presented.ts:262-264; scripts/contract_fixtures_lock.py. Needs a decision: fold into the next presented_result bump, or let the lock accept invalid-fixture-only changes.
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-4-keep-summary-controls-reachable-at-narrow-widths-and-high-zoom.md`
+  summary: When the bar alone is taller than 25% of the viewport (320x400 with text spacing), scroll padding is capped below the bar height, so a focused control can sit under the fixed bar (WCAG 2.4.11). The 11.4 e2e codifies `Math.min(bar.height, 100)`.
+  evidence: web/src/interview/obstruction.ts:7-10; globals.css:65. Option: switch to the in-flow opener when the bar alone exceeds the share, as compact landscape does.
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-5-preserve-the-results-table-and-make-result-actions-clear.md`
+  summary: Download PDF now renders inside `AuthGate`, keyed `${kase.id}:${kase.madhab}`, so choosing a School on Full results remounts it and drops an in-flight download and its error state. The PDF and Save/Share do not disable each other.
+  evidence: web/src/app/[locale]/results/results-view.tsx:273,280. Low; keep DraftDownload outside the keyed subtree.
+- source_spec: `_bmad-output/implementation-artifacts/spec-11-1-show-school-agreement-and-ask-for-a-school-only-when-shares-differ.md`
+  summary: Lower-priority 11.1 items: `present()` emits a v4-unparseable result if a Sunni School Outcome has fewer than four evaluations (no current caller); the legacy envelope and `presented` decide agreement separately with no test that they match; a single presented refusal shows the catalog sentence rather than the served text; `api/test_preview_performance.py` still indexes `out.evaluations[0]`; calc/adapters.py docstring still says v3. The Country Basis has no production path yet (`basis_from_madhab` builds only compare or school), so its API-level test belongs to Epic 14.
+  evidence: presentation/present.py:183; api/preview.py:278-283; share-preview.tsx:202-207 and web/src/interview/results.ts:39-41; api/test_preview_performance.py:41,47-48; calc/adapters.py:169.
+- Rejected, with reasons: shared/received pages lacking the disclaimer (their banner carries the disclaimer wording; recorded as F6 in the retro); the in-flow toast registering its height with no bar (the 9.11 obstruction contract); four School evaluations per School Basis (the 11.1 owner decision; capacity check p95 452 ms); compact landscape showing only the opener (the 11.4 AC; position already logged for Epic 12).

@@ -1,7 +1,7 @@
 import { write, parseCase, isMadhabId, CASE_TIMEOUT_MS, type Case, type MadhabId, type WriteOptions } from "./case.ts";
 
 /** `madhab` is null for a case saved with no school, because all four Sunni schools agree. */
-export type SavedCase = { id: number; name?: string; updated_at: string; madhab: MadhabId | null; heir_count: number; status: string };
+export type SavedCase = { id: number; name?: string; updated_at: string; revision?: number; madhab: MadhabId | null; heir_count: number; status: string };
 const url = "/api/v1/saved-cases/";
 /** `school_required`: the schools differ for this family and none is chosen, so it cannot be saved yet. */
 export const SCHOOL_REQUIRED = "school_required";
@@ -54,6 +54,43 @@ export async function saveCase(signal: AbortSignal, caseId: string, options: Wri
     return Number.isInteger(body.id) && body.id > 0 && typeof body.updated_at === "string" && typeof body.name === "string" ? { id: body.id, name: body.name, updated_at: body.updated_at } : null;
   });
 }
+/** What an autosave request settled as. `failed` is any outcome that says nothing was saved and nothing more (network, timeout, 5xx, 429, a malformed answer). */
+export type AutosaveResult =
+  | { kind: "saved"; caseRevision: number; revision: number }
+  | { kind: "stale"; caseRevision: number | null }
+  | { kind: "unavailable" }
+  | { kind: "conflict"; conflict: SaveConflict | null }
+  | { kind: "incomplete" }
+  | { kind: "schoolRequired" }
+  | { kind: "forbidden" }
+  | { kind: "failed" };
+const whole = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 1;
+/** Updates the linked Saved case from the working copy at `caseRevision`. Update-only: the server never creates a row here. One attempt, never throws. */
+export async function autosaveCase(signal: AbortSignal, caseId: string, caseRevision: number, options: WriteOptions = {}): Promise<AutosaveResult> {
+  const body = JSON.stringify({ case_id: caseId, case_revision: caseRevision });
+  const result = await write<AutosaveResult>(signal, options, { method: "POST", url: `${url}autosave/`, body }, async (response) => {
+    if (response.status === 403) return { kind: "forbidden" };
+    if (response.status === 404) {
+      const refused = await response.json().catch(() => null);
+      return refused?.code === "saved_case_unavailable" ? { kind: "unavailable" } : { kind: "failed" };
+    }
+    if (response.status === 409) {
+      const refused = await response.json().catch(() => null);
+      if (refused?.code === "case_revision_stale") return { kind: "stale", caseRevision: whole(refused.case_revision) ? refused.case_revision : null };
+      if (refused?.code === SAVE_CONFLICT) return { kind: "conflict", conflict: parseConflict(refused) };
+      return { kind: "failed" };
+    }
+    if (response.status === 400) {
+      const refused = await response.json().catch(() => null);
+      if (refused?.code === SCHOOL_REQUIRED) return { kind: "schoolRequired" };
+      return refused?.code === "case_incomplete" ? { kind: "incomplete" } : { kind: "failed" };
+    }
+    if (response.status !== 200) return { kind: "failed" };
+    const saved = await response.json().catch(() => null);
+    return whole(saved?.case_revision) && whole(saved?.revision) ? { kind: "saved", caseRevision: saved.case_revision, revision: saved.revision } : { kind: "failed" };
+  });
+  return result ?? { kind: "failed" };
+}
 /** Save as a new case answered 409: the stored case or the working copy changed since the prompt. `stale` is the conflict as it holds now (null when none holds any more), `case` the current working copy (null when there is none). */
 export type CreateStale = { stale: SaveConflict | null; case: Case | null };
 export type CreateResult = (Saved & { revision: number }) | CreateStale | typeof SCHOOL_REQUIRED | typeof NAME_TOO_LONG | typeof NAME_INVALID | null;
@@ -96,9 +133,35 @@ export async function suggestedName(signal: AbortSignal, locale: string): Promis
     signal.removeEventListener("abort", abort);
   }
 }
+/** A rename answered 409: the row changed since it was listed. `revision` and `name` are as stored now. */
+export type RenameConflict = { conflict: { revision: number; name: string } };
+export type Renamed = Saved & { revision: number };
+export type RenameResult = Renamed | RenameConflict | typeof NAME_TOO_LONG | typeof NAME_INVALID | null;
+/** Renames a Saved case, guarded by the revision the row was listed at. Success is claimed only for a 200 that carries the stored name and revision. */
+export async function renameSavedCase(signal: AbortSignal, id: number, args: { name: string; expectedRevision: number; locale?: string }, options: WriteOptions = {}): Promise<RenameResult> {
+  if (!Number.isInteger(id) || id < 1) return null;
+  const body = JSON.stringify({ name: args.name, expected_revision: args.expectedRevision });
+  return write<RenameResult>(signal, options, { method: "POST", url: `${url}${id}/rename/`, body, ...(args.locale ? { headers: { "Accept-Language": args.locale } } : {}) }, async (response) => {
+    if (response.status === 400) {
+      const refused = await response.json().catch(() => null);
+      const refusedName = refused?.errors?.name;
+      return refusedName === "too_long" ? NAME_TOO_LONG : refusedName === "invalid" ? NAME_INVALID : null;
+    }
+    if (response.status === 409) {
+      const refused = await response.json().catch(() => null);
+      if (refused?.code !== "rename_conflict" || !Number.isInteger(refused.revision) || refused.revision < 1 || typeof refused.name !== "string") return null;
+      return { conflict: { revision: refused.revision, name: refused.name } };
+    }
+    if (response.status !== 200) return null;
+    const saved = await response.json().catch(() => null);
+    return saved && Number.isInteger(saved.id) && saved.id > 0 && Number.isInteger(saved.revision) && saved.revision >= 1 && typeof saved.updated_at === "string" && typeof saved.name === "string" ? { id: saved.id, name: saved.name, updated_at: saved.updated_at, revision: saved.revision } : null;
+  });
+}
 /** `conflict`: the working copy changed since the prompt, so nothing was replaced. */
 export const OPEN_CONFLICT = "conflict";
-export type OpenResult = Case | typeof OPEN_CONFLICT | { kind: "stale"; case: Case | null } | null;
+/** `auth`: the server refused with 401 or 403, which may mean the sign-in has expired. */
+export const OPEN_AUTH = "auth";
+export type OpenResult = Case | typeof OPEN_CONFLICT | typeof OPEN_AUTH | { kind: "stale"; case: Case | null } | null;
 /** With `check`, the server refuses (409) when the working copy is no longer that Case at that revision; a null `caseId` means none. With `returnStale`, that refusal comes back as `{ kind: "stale", case }` carrying the current working copy instead of the bare conflict. */
 export async function openSavedCase(signal: AbortSignal, id: number, options: WriteOptions & { check?: { caseId: string | null; revision: number | null }; returnStale?: boolean } = {}): Promise<OpenResult> {
   if (!Number.isInteger(id) || id < 1) return null;
@@ -110,6 +173,7 @@ export async function openSavedCase(signal: AbortSignal, id: number, options: Wr
       const stale = await response.json().catch(() => null);
       try { return { kind: "stale", case: parseCase(stale) }; } catch { return null; }
     }
+    if (response.status === 401 || response.status === 403) return OPEN_AUTH;
     return response.ok ? parseCase(await response.json()) : null;
   });
 }
@@ -124,7 +188,11 @@ export async function listSavedCases(signal: AbortSignal): Promise<SavedCase[]> 
     if (!response.ok) throw new Error("Saved cases unavailable");
     const body = await response.json();
     if (!Array.isArray(body.cases) || !body.cases.every((row: SavedCase) => row && Number.isInteger(row.id) && row.id > 0 && typeof row.updated_at === "string" && (row.name === undefined || typeof row.name === "string") && (row.madhab === null || isMadhabId(row.madhab)) && Number.isInteger(row.heir_count) && row.heir_count >= 0 && typeof row.status === "string")) throw new Error("Invalid saved cases");
-    return body.cases;
+    // A revision counts only as a positive integer; without one the row cannot be renamed (an older server).
+    return body.cases.map((row: SavedCase) => {
+      const { revision, ...rest } = row;
+      return Number.isInteger(revision) && (revision as number) >= 1 ? { ...rest, revision } : rest;
+    });
   } finally {
     clearTimeout(timer);
     signal.removeEventListener("abort", abort);

@@ -55,6 +55,8 @@ export type TermKey =
   | "basis.school"
   | "comparison.same_in_all_schools"
   | "notice.disclaimer"
+  | "notice.supplied_facts"
+  | "notice.supplied_facts_no_amount"
   | "proof.blocked_by.brother"
   | "proof.blocked_by.daughters"
   | "proof.blocked_by.descendant"
@@ -170,6 +172,8 @@ export const terms: Record<Locale, Record<TermKey, string>> = {
     "basis.school": "مذهب واحد",
     "comparison.same_in_all_schools": "النتيجة نفسها في المذاهب السنية الأربعة",
     "notice.disclaimer": "مواريث أداة مساعدة على الحساب وليست فتوى ولا استشارة قانونية.",
+    "notice.supplied_facts": "أدخل المستخدم أفراد الأسرة ومبلغ التركة، ولم تتحقق منها مواريث.",
+    "notice.supplied_facts_no_amount": "أدخل المستخدم أفراد الأسرة، ولم تتحقق منها مواريث. لم يُدخَل مبلغ للتركة، لذا تظهر الأنصبة دون مبالغ مالية.",
     "proof.blocked_by.brother": "محجوب بالأخ الشقيق",
     "proof.blocked_by.daughters": "محجوب ببنتين فأكثر",
     "proof.blocked_by.descendant": "محجوب بفرع وارث",
@@ -284,6 +288,8 @@ export const terms: Record<Locale, Record<TermKey, string>> = {
     "basis.school": "One school",
     "comparison.same_in_all_schools": "Same result in all four Sunni schools",
     "notice.disclaimer": "Mawareeth is a calculation aid, not a fatwa or legal advice.",
+    "notice.supplied_facts": "The family and the estate amount were entered by the user and have not been verified by Mawareeth.",
+    "notice.supplied_facts_no_amount": "The family was entered by the user and has not been verified by Mawareeth. No estate amount was entered, so shares are shown without money amounts.",
     "proof.blocked_by.brother": "Blocked by a full brother",
     "proof.blocked_by.daughters": "Blocked by two or more daughters",
     "proof.blocked_by.descendant": "Blocked by a descendant",
@@ -398,6 +404,8 @@ export const terms: Record<Locale, Record<TermKey, string>> = {
     "basis.school": "Une seule école",
     "comparison.same_in_all_schools": "Même résultat dans les quatre écoles sunnites",
     "notice.disclaimer": "Mawareeth est une aide au calcul, pas une fatwa ni un conseil juridique.",
+    "notice.supplied_facts": "La famille et le montant de la succession ont été saisis par l'utilisateur et n'ont pas été vérifiés par Mawareeth.",
+    "notice.supplied_facts_no_amount": "La famille a été saisie par l'utilisateur et n'a pas été vérifiée par Mawareeth. Aucun montant de succession n'a été saisi : les parts sont indiquées sans montants.",
     "proof.blocked_by.brother": "Exclu par un frère germain",
     "proof.blocked_by.daughters": "Exclu par au moins deux filles",
     "proof.blocked_by.descendant": "Exclu par un descendant",
@@ -514,6 +522,8 @@ export const termPlaceholders: Record<TermKey, Record<string, string>> = {
   "basis.school": {},
   "comparison.same_in_all_schools": {},
   "notice.disclaimer": {},
+  "notice.supplied_facts": {},
+  "notice.supplied_facts_no_amount": {},
   "proof.blocked_by.brother": {},
   "proof.blocked_by.daughters": {},
   "proof.blocked_by.descendant": {},

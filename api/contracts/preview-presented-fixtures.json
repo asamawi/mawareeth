@@ -1,7 +1,7 @@
 {
  "presented": {
   "Hanbali wife and son with an estate": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -9,10 +9,10 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanbali"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -237,7 +237,7 @@
    }
   },
   "Hanbali wife and son without an estate": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -245,10 +245,10 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanbali"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -463,7 +463,7 @@
    }
   },
   "Two wives and a son, rounded half up": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -471,10 +471,10 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanbali"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -834,7 +834,7 @@
    }
   },
   "Grandfather and brother under Hanbali": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -842,7 +842,7 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "difference",
    "school_line": {
     "code": "school",
     "text": "Hanbali"
@@ -1075,7 +1075,7 @@
    }
   },
   "Grandfather and brother under Hanafi": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -1083,7 +1083,7 @@
     "school": "hanafi"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "difference",
    "school_line": {
     "code": "school",
     "text": "Hanafi"
@@ -1301,7 +1301,7 @@
    }
   },
   "Father blocks the brother": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -1309,10 +1309,10 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanbali"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -1521,7 +1521,7 @@
    }
   },
   "Wife alone leaves an unallocated remainder": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -1529,10 +1529,10 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanbali"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -1706,7 +1706,7 @@
    }
   },
   "Maliki mushtaraka shares the third": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -1714,7 +1714,7 @@
     "school": "maliki"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "difference",
    "school_line": {
     "code": "school",
     "text": "Maliki"
@@ -2262,7 +2262,7 @@
    }
   },
   "Hanafi keeps the full brother residuary": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -2270,7 +2270,7 @@
     "school": "hanafi"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "difference",
    "school_line": {
     "code": "school",
     "text": "Hanafi"
@@ -2776,7 +2776,7 @@
    }
   },
   "Husband and two sisters need awl": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -2784,10 +2784,10 @@
     "school": "shafii"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Shafi'i"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -3152,7 +3152,7 @@
    }
   },
   "Hanafi mother and daughter need radd": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -3160,10 +3160,10 @@
     "school": "hanafi"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanafi"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -3444,7 +3444,7 @@
    }
   },
   "Hanbali akdariyya": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -3452,7 +3452,7 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "difference",
    "school_line": {
     "code": "school",
     "text": "Hanbali"
@@ -3961,7 +3961,7 @@
    }
   },
   "Jafari is not supported": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -3992,7 +3992,7 @@
    "table": null
   },
   "Maliki mother and daughter take radd by the later scholars": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -4000,10 +4000,10 @@
     "school": "maliki"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Maliki"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -4284,7 +4284,7 @@
    }
   },
   "Hanafi father blocks his mother, the maternal grandmother takes the sixth": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -4292,7 +4292,7 @@
     "school": "hanafi"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "difference",
    "school_line": {
     "code": "school",
     "text": "Hanafi"
@@ -4597,7 +4597,7 @@
    }
   },
   "Hanbali father and both grandmothers": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -4605,7 +4605,7 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "difference",
    "school_line": {
     "code": "school",
     "text": "Hanbali"
@@ -4967,7 +4967,7 @@
    }
   },
   "Maliki Malikiyya is refused": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -4998,7 +4998,7 @@
    "table": null
   },
   "Impossible family": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -5029,7 +5029,7 @@
    "table": null
   },
   "Layered two under hanafi": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -5037,10 +5037,10 @@
     "school": "hanafi"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanafi"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -5628,7 +5628,7 @@
    }
   },
   "Layered three under hanafi": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -5636,10 +5636,10 @@
     "school": "hanafi"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanafi"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -6461,7 +6461,7 @@
    }
   },
   "Layered school under hanafi": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -6469,7 +6469,7 @@
     "school": "hanafi"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "difference",
    "school_line": {
     "code": "school",
     "text": "Hanafi"
@@ -7134,7 +7134,7 @@
    }
   },
   "Layered two under maliki": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -7142,10 +7142,10 @@
     "school": "maliki"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Maliki"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -7733,7 +7733,7 @@
    }
   },
   "Layered three under maliki": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -7741,10 +7741,10 @@
     "school": "maliki"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Maliki"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -8566,7 +8566,7 @@
    }
   },
   "Layered school under maliki": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -8574,7 +8574,7 @@
     "school": "maliki"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "difference",
    "school_line": {
     "code": "school",
     "text": "Maliki"
@@ -9239,7 +9239,7 @@
    }
   },
   "Layered two under shafii": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -9247,10 +9247,10 @@
     "school": "shafii"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Shafi'i"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -9838,7 +9838,7 @@
    }
   },
   "Layered three under shafii": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -9846,10 +9846,10 @@
     "school": "shafii"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Shafi'i"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -10671,7 +10671,7 @@
    }
   },
   "Layered school under shafii": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -10679,7 +10679,7 @@
     "school": "shafii"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "difference",
    "school_line": {
     "code": "school",
     "text": "Shafi'i"
@@ -11344,7 +11344,7 @@
    }
   },
   "Layered two under hanbali": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -11352,10 +11352,10 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanbali"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -11943,7 +11943,7 @@
    }
   },
   "Layered three under hanbali": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -11951,10 +11951,10 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanbali"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -12776,7 +12776,7 @@
    }
   },
   "Layered school under hanbali": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -12784,7 +12784,7 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "difference",
    "school_line": {
     "code": "school",
     "text": "Hanbali"
@@ -13463,7 +13463,7 @@
    }
   },
   "Hanbali wife and three sons need correction": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -13471,10 +13471,10 @@
     "school": "hanbali"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanbali"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -13909,7 +13909,7 @@
    }
   },
   "Hanafi wife, mother and daughter need radd with a spouse": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -13917,10 +13917,10 @@
     "school": "hanafi"
    },
    "state": "answer",
-   "comparison_outcome": null,
+   "comparison_outcome": "agreement",
    "school_line": {
-    "code": "school",
-    "text": "Hanafi"
+    "code": "same_in_all_schools",
+    "text": "Same result in all four Sunni schools"
    },
    "rows": [
     {
@@ -14362,7 +14362,7 @@
    }
   },
   "Agree: wife, son and daughter in every school": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -14720,7 +14720,7 @@
    }
   },
   "Differ: grandfather and full brother": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -14879,7 +14879,7 @@
    "table": null
   },
   "Refusal: Malikiyya makes the schools differ": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -15166,7 +15166,7 @@
    "table": null
   },
   "Agree layered: wife and two sons, a son dies": {
-   "version": 3,
+   "version": 4,
    "locale": "en",
    "direction": "ltr",
    "basis": {
@@ -15767,7 +15767,7 @@
  "chosen": {
   "Differ: grandfather and full brother": {
    "hanafi": {
-    "version": 3,
+    "version": 4,
     "locale": "en",
     "direction": "ltr",
     "basis": {
@@ -15775,7 +15775,7 @@
      "school": "hanafi"
     },
     "state": "answer",
-    "comparison_outcome": null,
+    "comparison_outcome": "difference",
     "school_line": {
      "code": "school",
      "text": "Hanafi"
@@ -15983,7 +15983,7 @@
     }
    },
    "maliki": {
-    "version": 3,
+    "version": 4,
     "locale": "en",
     "direction": "ltr",
     "basis": {
@@ -15991,7 +15991,7 @@
      "school": "maliki"
     },
     "state": "answer",
-    "comparison_outcome": null,
+    "comparison_outcome": "difference",
     "school_line": {
      "code": "school",
      "text": "Maliki"
@@ -16214,7 +16214,7 @@
     }
    },
    "shafii": {
-    "version": 3,
+    "version": 4,
     "locale": "en",
     "direction": "ltr",
     "basis": {
@@ -16222,7 +16222,7 @@
      "school": "shafii"
     },
     "state": "answer",
-    "comparison_outcome": null,
+    "comparison_outcome": "difference",
     "school_line": {
      "code": "school",
      "text": "Shafi'i"
@@ -16445,7 +16445,7 @@
     }
    },
    "hanbali": {
-    "version": 3,
+    "version": 4,
     "locale": "en",
     "direction": "ltr",
     "basis": {
@@ -16453,7 +16453,7 @@
      "school": "hanbali"
     },
     "state": "answer",
-    "comparison_outcome": null,
+    "comparison_outcome": "difference",
     "school_line": {
      "code": "school",
      "text": "Hanbali"
@@ -16678,7 +16678,7 @@
   },
   "Refusal: Malikiyya makes the schools differ": {
    "hanafi": {
-    "version": 3,
+    "version": 4,
     "locale": "en",
     "direction": "ltr",
     "basis": {
@@ -16686,7 +16686,7 @@
      "school": "hanafi"
     },
     "state": "answer",
-    "comparison_outcome": null,
+    "comparison_outcome": "difference",
     "school_line": {
      "code": "school",
      "text": "Hanafi"
@@ -17214,7 +17214,7 @@
     }
    },
    "maliki": {
-    "version": 3,
+    "version": 4,
     "locale": "en",
     "direction": "ltr",
     "basis": {
@@ -17245,7 +17245,7 @@
     "table": null
    },
    "shafii": {
-    "version": 3,
+    "version": 4,
     "locale": "en",
     "direction": "ltr",
     "basis": {
@@ -17253,7 +17253,7 @@
      "school": "shafii"
     },
     "state": "answer",
-    "comparison_outcome": null,
+    "comparison_outcome": "difference",
     "school_line": {
      "code": "school",
      "text": "Shafi'i"
@@ -17801,7 +17801,7 @@
     }
    },
    "hanbali": {
-    "version": 3,
+    "version": 4,
     "locale": "en",
     "direction": "ltr",
     "basis": {
@@ -17809,7 +17809,7 @@
      "school": "hanbali"
     },
     "state": "answer",
-    "comparison_outcome": null,
+    "comparison_outcome": "difference",
     "school_line": {
      "code": "school",
      "text": "Hanbali"

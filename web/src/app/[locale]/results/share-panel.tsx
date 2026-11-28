@@ -8,7 +8,10 @@ import { buttonClass } from "../interview/form-bits";
 import { directionOf } from "@/i18n/messages";
 
 /** The new link (shown once, with Copy) and every active link of the saved case, with its visibility controls. */
-export function SharePanel({ savedId, created, locale, text }: { savedId: number; created: CreatedShare; locale: string; text: Messages["share"] }) {
+export function SharePanel({ savedId, created, locale, text, onStatus }: { savedId: number; created: CreatedShare; locale: string; text: Messages["share"]; onStatus?: (event: "created" | "copied" | "copyFailed" | "cleared") => void }) {
+  const report = useRef(onStatus);
+  useEffect(() => { report.current = onStatus; });
+  useEffect(() => { report.current?.("created"); }, []);
   const [rows, setRows] = useState<Share[] | null>(null);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -20,6 +23,8 @@ export function SharePanel({ savedId, created, locale, text }: { savedId: number
   const title = useId();
   // The new link and its Copy button go away once that link is revoked or has expired out of the list.
   const live = rows === null || rows.some((row) => row.id === created.id);
+  // A revoked or expired new link takes its notice off the status line.
+  useEffect(() => { if (!live) report.current?.("cleared"); }, [live]);
   const url = shareUrl(window.location.origin, locale, created.token);
   const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
 
@@ -56,8 +61,10 @@ export function SharePanel({ savedId, created, locale, text }: { savedId: number
     try {
       await navigator.clipboard.writeText(url);
       setCopy("copied");
+      report.current?.("copied");
     } catch {
       setCopy("failed");
+      report.current?.("copyFailed");
       field.current?.select();
     }
   }
@@ -70,13 +77,13 @@ export function SharePanel({ savedId, created, locale, text }: { savedId: number
   return (
     <section aria-labelledby={`${title}-h`} className="flex flex-col gap-3 rounded-md border border-current/60 p-3" dir={directionOf(locale)}>
       <h2 id={`${title}-h`} className="text-xl font-semibold">{text.heading}</h2>
-      {live && <><p role="status">{text.created}</p>
+      {live && <>{!onStatus && <p role="status">{text.created}</p>}
       <div className="flex flex-wrap items-center gap-3">
         <label htmlFor={`${title}-url`} className="font-semibold">{text.urlLabel}</label>
         <input id={`${title}-url`} ref={field} readOnly dir="ltr" value={url} className="min-w-0 flex-1 rounded border px-2 py-1 text-black" onFocus={(event) => event.currentTarget.select()} />
         <button type="button" className={buttonClass} onClick={() => void copyLink()}>{text.copy}</button>
       </div>
-      <p role="status">{copy === "copied" ? text.copied : copy === "failed" ? text.copyFailed : ""}</p></>}
+      {!onStatus && <p role="status">{copy === "copied" ? text.copied : copy === "failed" ? text.copyFailed : ""}</p>}</>}
       <h3 className="text-lg font-semibold">{text.listHeading}</h3>
       {rows !== null && rows.length === 0 && <p>{text.none}</p>}
       <ul className="flex flex-col gap-2">

@@ -85,7 +85,7 @@ export function SharedView({ messages, locale }: { messages: Messages; locale: s
   const { view } = state;
   const banner = (
     <div className={shell}>
-      <p role="note" className="rounded-md border border-current/60 p-3 font-semibold">{text.banner}</p>
+      <p role="note" data-component="shared-case-banner" className="rounded-node border border-accent bg-accent-soft p-3"><strong className="block">{text.readOnly}</strong>{text.banner}</p>
       <p><strong>{view.visibility === "public" ? text.publicBadge : text.privateBadge}</strong></p>
     </div>
   );

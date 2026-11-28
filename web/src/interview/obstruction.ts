@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 /** The share of the viewport height that fixed or sticky Interview surfaces may cover, together. */
 export const OBSTRUCTION_SHARE = 0.25;
@@ -9,8 +9,21 @@ export function obstructionPx(heights: number[], viewportHeight: number): number
   return Math.min(sum, OBSTRUCTION_SHARE * Math.max(0, viewportHeight));
 }
 
+/** The gap between a floating toast and the bar, in CSS px. */
+export const TOAST_GAP = 8;
+
+/** Whether the Undo toast may float above the bar: there is a bar, and bar + gap + toast fit in 25% of the viewport. */
+export function toastFloats(bar: number, toast: number, viewport: number): boolean {
+  return bar > 0 && bar + TOAST_GAP + toast <= OBSTRUCTION_SHARE * viewport;
+}
+
 const VARIABLE = "--interview-obstruction";
 const heights = new Map<string, number>();
+const listeners = new Set<() => void>();
+
+function notify(): void {
+  for (const listener of [...listeners]) listener();
+}
 let listening = false;
 
 function apply(): void {
@@ -37,6 +50,24 @@ export function setObstruction(key: string, height: number | null): void {
     }
   }
   apply();
+  notify();
+}
+
+/** Subscribe to registry changes; returns the unsubscribe. */
+export function subscribeObstruction(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** The height registered under a key, or null; re-renders when it changes. */
+export function useObstructionHeight(key: string): number | null {
+  return useSyncExternalStore(
+    subscribeObstruction,
+    () => heights.get(key) ?? null,
+    () => null,
+  );
 }
 
 /** Register an element's height under a key while it is mounted (`null` registers nothing). */

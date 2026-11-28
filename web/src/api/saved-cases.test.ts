@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { readFileSync } from "node:fs";
-import { saveCase, createSavedCase, cutGraphemes, listSavedCases, openSavedCase, suggestedName, graphemeCount, OPEN_CONFLICT, SAVE_CONFLICT, SCHOOL_REQUIRED, NAME_TOO_LONG, NAME_INVALID } from "./saved-cases.ts";
+import { autosaveCase, renameSavedCase, saveCase, createSavedCase, cutGraphemes, listSavedCases, openSavedCase, suggestedName, graphemeCount, OPEN_AUTH, OPEN_CONFLICT, SAVE_CONFLICT, SCHOOL_REQUIRED, NAME_TOO_LONG, NAME_INVALID } from "./saved-cases.ts";
 const original = globalThis.fetch;
 afterEach(() => { globalThis.fetch = original; });
 const signal = () => new AbortController().signal;
@@ -120,6 +120,15 @@ test("a 409 whose case is null (no live case) is still a conflict", async () => 
   assert.equal(await openSavedCase(signal(), 42, { ...options, check: { caseId: "gone", revision: 2 } }), OPEN_CONFLICT);
 });
 
+test("a 401 or 403 on open is the auth outcome, a 404 stays a plain failure", async () => {
+  for (const status of [401, 403]) {
+    globalThis.fetch = async () => new Response("{}", { status });
+    assert.equal(await openSavedCase(signal(), 42, options), OPEN_AUTH, String(status));
+  }
+  globalThis.fetch = async () => new Response("{}", { status: 404 });
+  assert.equal(await openSavedCase(signal(), 42, options), null);
+});
+
 const CONFLICT_BODY = { error: "conflict", code: "saved_case_conflict", revision: 5, saved_id: 123, saved_name: "Test Case", working_case_id: "live", working_revision: 2 };
 const CONFLICT = { code: SAVE_CONFLICT, savedId: 123, savedName: "Test Case", savedRevision: 5, workingCaseId: "live", workingRevision: 2 };
 test("a complete 409 is a conflict with the stored case and the working copy it was shown against", async () => {
@@ -186,4 +195,81 @@ test("cutGraphemes cuts by user-perceived characters", () => {
   assert.equal(cutGraphemes("abcdef", 3), "abc");
   assert.equal(cutGraphemes("ééé", 2), "éé");
   assert.equal(cutGraphemes("ab", 5), "ab");
+});
+
+test("list accepts a positive integer revision and drops any other", async () => {
+  const base = { id: 1, name: "A", updated_at: "2026-11-11", madhab: "hanafi", heir_count: 2, status: "draft" };
+  globalThis.fetch = async () => Response.json({ cases: [{ ...base, revision: 4 }, { ...base, id: 2 }, { ...base, id: 3, revision: 0 }, { ...base, id: 4, revision: "5" }, { ...base, id: 5, revision: 1.5 }] });
+  const rows = await listSavedCases(signal());
+  assert.deepEqual(rows.map((row) => row.revision), [4, undefined, undefined, undefined, undefined]);
+});
+test("rename posts the name and revision with the page Locale and returns the stored row", async () => {
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, "/api/v1/saved-cases/7/rename/");
+    assert.equal(init?.method, "POST");
+    assert.deepEqual(JSON.parse(String(init?.body)), { name: "أسرة", expected_revision: 3 });
+    assert.equal((init?.headers as Record<string, string>)["Accept-Language"], "ar");
+    assert.equal((init?.headers as Record<string, string>)["X-CSRFToken"], "token");
+    return Response.json({ id: 7, name: "أسرة", updated_at: "2026-11-12", revision: 4 });
+  };
+  assert.deepEqual(await renameSavedCase(signal(), 7, { name: "أسرة", expectedRevision: 3, locale: "ar" }, options), { id: 7, name: "أسرة", updated_at: "2026-11-12", revision: 4 });
+});
+test("rename tells every outcome apart", async () => {
+  const run = (response: () => Response) => { globalThis.fetch = async () => response(); return renameSavedCase(signal(), 7, { name: "x", expectedRevision: 3 }, options); };
+  assert.equal(await run(() => Response.json({ errors: { name: "too_long" } }, { status: 400 })), NAME_TOO_LONG);
+  assert.equal(await run(() => Response.json({ errors: { name: "invalid" } }, { status: 400 })), NAME_INVALID);
+  assert.equal(await run(() => Response.json({ errors: { expected_revision: "invalid" } }, { status: 400 })), null);
+  assert.deepEqual(await run(() => Response.json({ code: "rename_conflict", revision: 5, name: "Stored" }, { status: 409 })), { conflict: { revision: 5, name: "Stored" } });
+  assert.equal(await run(() => Response.json({ code: "other" }, { status: 409 })), null);
+  assert.equal(await run(() => Response.json({ code: "rename_conflict", revision: 0, name: "S" }, { status: 409 })), null);
+  for (const status of [403, 404, 500]) assert.equal(await run(() => new Response("", { status })), null);
+  assert.equal(await run(() => Response.json({ id: 7, updated_at: "x" })), null);
+  globalThis.fetch = async () => { throw new Error("offline"); };
+  assert.equal(await renameSavedCase(signal(), 7, { name: "x", expectedRevision: 3 }, options), null);
+  assert.equal(await renameSavedCase(signal(), 0, { name: "x", expectedRevision: 3 }, options), null);
+});
+
+test("autosave sends the case id and revision and decodes every answer", async () => {
+  const answer = (status: number, body?: unknown) => { globalThis.fetch = async (url, init) => {
+    assert.equal(url, "/api/v1/saved-cases/autosave/");
+    assert.equal(init?.method, "POST");
+    assert.equal(init?.body, JSON.stringify({ case_id: "live", case_revision: 8 }));
+    assert.equal((init?.headers as Record<string, string>)["X-CSRFToken"], "token");
+    return body === undefined ? new Response("", { status }) : Response.json(body, { status });
+  }; };
+  const run = () => autosaveCase(signal(), "live", 8, options);
+  answer(200, { id: 4, name: "x", updated_at: "t", revision: 3, case_revision: 8 });
+  assert.deepEqual(await run(), { kind: "saved", caseRevision: 8, revision: 3 });
+  answer(200, { id: 4, revision: 3 });
+  assert.deepEqual(await run(), { kind: "failed" });
+  answer(409, { code: "case_revision_stale", case_revision: 9 });
+  assert.deepEqual(await run(), { kind: "stale", caseRevision: 9 });
+  const conflict = { code: "saved_case_conflict", saved_id: 4, revision: 5, saved_name: "n", working_case_id: "live", working_revision: 8 };
+  answer(409, conflict);
+  assert.deepEqual(await run(), { kind: "conflict", conflict: { code: SAVE_CONFLICT, savedId: 4, savedName: "n", savedRevision: 5, workingCaseId: "live", workingRevision: 8 } });
+  answer(409, { code: "saved_case_conflict" });
+  assert.deepEqual(await run(), { kind: "conflict", conflict: null });
+  answer(404, { code: "saved_case_unavailable" });
+  assert.deepEqual(await run(), { kind: "unavailable" });
+  answer(404, {});
+  assert.deepEqual(await run(), { kind: "failed" });
+  answer(400, { code: "case_incomplete" });
+  assert.deepEqual(await run(), { kind: "incomplete" });
+  answer(400, { code: "school_required" });
+  assert.deepEqual(await run(), { kind: "schoolRequired" });
+  answer(403);
+  assert.deepEqual(await run(), { kind: "forbidden" });
+  for (const status of [429, 500, 503]) { answer(status); assert.deepEqual(await run(), { kind: "failed" }); }
+});
+test("autosave makes one attempt and a network failure or timeout is failed", async () => {
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; throw new Error("offline"); };
+  assert.deepEqual(await autosaveCase(signal(), "live", 8, options), { kind: "failed" });
+  assert.equal(calls, 1);
+  globalThis.fetch = (_url, init) => new Promise((_resolve, reject) => { init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))); });
+  assert.deepEqual(await autosaveCase(signal(), "live", 8, { ...options, timeoutMs: 5 }), { kind: "failed" });
+});
+test("save answers null for the incomplete-case 400 envelope, as before the code was added", async () => {
+  globalThis.fetch = async () => Response.json({ detail: "Complete the case before saving.", code: "case_incomplete" }, { status: 400 });
+  assert.equal(await saveCase(signal(), "live", options), null);
 });

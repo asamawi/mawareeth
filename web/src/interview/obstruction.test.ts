@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { obstructionPx } from "./obstruction.ts";
+import { obstructionPx, setObstruction, subscribeObstruction, toastFloats } from "./obstruction.ts";
 
 test("the obstruction is the sum of the heights", () => {
   assert.equal(obstructionPx([60, 40], 800), 100);
@@ -46,4 +46,22 @@ test("the registry writes the variable on the root element and recomputes on rem
     delete g.document;
     delete g.window;
   }
+});
+
+test("toastFloats boundary", () => {
+  assert.equal(toastFloats(60, 72, 560), true);
+  assert.equal(toastFloats(60, 73, 560), false);
+  assert.equal(toastFloats(0, 10, 800), false);
+  assert.equal(toastFloats(60, 10, 0), false);
+});
+
+test("subscribers are notified on set and remove", () => {
+  let count = 0;
+  const off = subscribeObstruction(() => { count += 1; });
+  setObstruction("probe", 10);
+  setObstruction("probe", null);
+  off();
+  setObstruction("probe", 5);
+  setObstruction("probe", null);
+  assert.equal(count, 2);
 });

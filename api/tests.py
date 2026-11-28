@@ -1461,11 +1461,11 @@ class PreviewTests(InterviewHelpers, TransactionTestCase):
                     continue
                 presented = body['presented']
                 parse_presented_result(presented)
-                self.assertEqual(presented['version'], 3)
+                self.assertEqual(presented['version'], 4)
                 self.assertEqual(presented['state'], states[body['status']])
                 seen.add(presented['state'])
                 if body['status'] == 'available':
-                    code = 'same_in_all_schools' if body.get('agreement') == 'all' else 'school'
+                    code = 'same_in_all_schools' if presented['comparison_outcome'] == 'agreement' else 'school'
                     self.assertEqual(presented['school_line']['code'], code)
                     # the legacy amount is the presented amount scaled to two decimals
                     amounts = {row['person']: row['amount'] for row in presented['rows']}
@@ -2969,6 +2969,25 @@ class InterviewDeathsTests(InterviewDeathsHelpers, InterviewHelpers, Transaction
         self.assertNotIn('shares', body)
         self.assertEqual(self.rows(), before)
 
+    def test_all_four_refusing_for_different_reasons_is_unavailable(self):
+        self.two()
+        self.plant(madhab=None)
+        from engine import Evaluation
+        from engine.contracts.result import Result
+        from presentation import Outcome
+        reasons = dict(zip(('hanafi', 'maliki', 'shafii', 'hanbali'),
+                           ('manasikhat_unsupported', 'manasikhat_unsupported', 'invalid_family', 'invalid_family')))
+
+        def refuse(family, resolved):
+            return Outcome(family, tuple((school, Evaluation(Result(1, school, 'refused', reason, (), None, (), ()), None, None))
+                                         for school, reason in reasons.items()))
+        with mock.patch('api.preview.evaluate_outcome', side_effect=refuse):
+            body = self.preview(self.case_id).json()
+        self.assertEqual(body['status'], 'unavailable')
+        self.assertEqual(body['presented']['state'], 'refused')
+        self.assertEqual([r['reason'] for r in body['presented']['refusals']], ['manasikhat_unsupported', 'invalid_family'])
+        self.assertEqual(body['reason'], 'invalid_family')
+
     def test_unmark_promotes_a_person_introduced_in_the_removed_layer(self):
         self.two()
         self.add_layer(self.s1, 'wife', name='Surviving name')
@@ -3599,6 +3618,158 @@ class SavedCaseTests(InterviewBase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()['name'], default_name(SavedCase.objects.get().created_at))
 
+    def rename(self, row_id, body, client=None, language=None):
+        client = client or self.client
+        headers = dict(self.csrf(client))
+        if language:
+            headers['Accept-Language'] = language
+        return client.post(f'{self.url}{row_id}/rename/', body, format='json', secure=True, headers=headers)
+
+    def saved_row(self, name='Original'):
+        self.client.force_login(self.owner)
+        row_id = self.save_named(self.complete(), name).json()['id']
+        return SavedCase.objects.get(pk=row_id)
+
+    def test_rename_changes_only_name_revision_and_updated_at(self):
+        from api.models import ShareLink
+        row = self.saved_row()
+        share_before = self.send('post', f'{self.url}{row.pk}/shares/', {}).json()
+        before = (row.snapshot, row.schema_version, row.created_at, row.updated_at, row.revision)
+        response = self.rename(row.pk, {'name': ' أسرة  ', 'expected_revision': row.revision})
+        self.assertEqual(response.status_code, 200)
+        row.refresh_from_db()
+        body = response.json()
+        self.assertEqual((body['id'], body['name'], body['revision']), (row.pk, 'أسرة', row.revision + 0))
+        self.assertEqual(row.revision, before[4] + 1)
+        self.assertEqual((row.snapshot, row.schema_version, row.created_at), before[:3])
+        self.assertGreater(row.updated_at, before[3])
+        self.assertEqual(ShareLink.objects.filter(saved_case=row, revoked_at__isnull=True).count(), 1)
+        self.assertEqual(share_before['id'], ShareLink.objects.get(saved_case=row).pk)
+        listed = self.client.get(self.url, secure=True).json()['cases']
+        self.assertEqual((listed[0]['id'], listed[0]['revision'], listed[0]['name']), (row.pk, row.revision, 'أسرة'))
+
+    def test_rename_blank_uses_the_default_name_in_the_asked_language(self):
+        row = self.saved_row()
+        response = self.rename(row.pk, {'name': '   ', 'expected_revision': row.revision}, language='fr')
+        self.assertEqual(response.status_code, 200)
+        row.refresh_from_db()
+        self.assertEqual(row.name, default_name(row.created_at, 'fr'))
+
+    def test_rename_refuses_bad_names_and_revisions_without_changing_the_row(self):
+        row = self.saved_row()
+        cases = [({'name': 'a' * 101, 'expected_revision': 1}, {'name': 'too_long'}),
+                 ({'name': 5, 'expected_revision': 1}, {'name': 'invalid'}),
+                 ({'expected_revision': 1}, {'name': 'invalid'})]
+        for revision in (None, 'x', True, 0, 1.0):
+            cases.append(({'name': 'ok', 'expected_revision': revision}, {'expected_revision': 'invalid'}))
+        cases.append(({'name': 'ok'}, {'expected_revision': 'invalid'}))
+        for body, errors in cases:
+            with self.subTest(body=body):
+                response = self.rename(row.pk, body)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()['errors'], errors)
+        row.refresh_from_db()
+        self.assertEqual((row.name, row.revision), ('Original', 1))
+
+    def test_rename_stale_revision_conflicts_and_changes_nothing(self):
+        row = self.saved_row()
+        SavedCase.objects.filter(pk=row.pk).update(revision=5)
+        response = self.rename(row.pk, {'name': 'New', 'expected_revision': 3})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['code'], 'rename_conflict')
+        self.assertEqual((response.json()['revision'], response.json()['name']), (5, 'Original'))
+        row.refresh_from_db()
+        self.assertEqual((row.name, row.revision), ('Original', 5))
+
+    def test_rename_is_owner_only_and_needs_login_and_csrf(self):
+        row = self.saved_row()
+        foreign = SavedCase.objects.create(owner=self.other, snapshot=row.snapshot, name='Theirs')
+        self.assertEqual(self.rename(foreign.pk, {'name': 'x', 'expected_revision': 1}).status_code, 404)
+        self.assertEqual(self.rename(999999, {'name': 'x', 'expected_revision': 1}).status_code, 404)
+        foreign.refresh_from_db()
+        self.assertEqual((foreign.name, foreign.revision), ('Theirs', 1))
+        self.assertEqual(self.client.post(f'{self.url}{row.pk}/rename/', {'name': 'x', 'expected_revision': 1},
+                                          format='json', secure=True).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.rename(row.pk, {'name': 'x', 'expected_revision': 1}).status_code, 403)
+
+    def test_a_rename_moves_the_row_first_in_the_list(self):
+        older = self.saved_row('Older')
+        newer = SavedCase.objects.create(owner=self.owner, snapshot=older.snapshot, name='Newer')
+        self.assertEqual(self.client.get(self.url, secure=True).json()['cases'][0]['id'], newer.pk)
+        self.assertEqual(self.rename(older.pk, {'name': 'Older 2', 'expected_revision': 1}).status_code, 200)
+        self.assertEqual(self.client.get(self.url, secure=True).json()['cases'][0]['id'], older.pk)
+
+    def test_same_session_rename_then_save_does_not_conflict_but_another_session_does(self):
+        row = self.saved_row()
+        device = APIClient(enforce_csrf_checks=True)
+        device.force_login(self.owner)
+        opened = self.send('post', f'{self.url}{row.pk}/open/', {}, device).json()['case']
+        self.assertEqual(self.rename(row.pk, {'name': 'Mine', 'expected_revision': 1}).status_code, 200)
+        link = self.client.session[anonymous_case.SAVED_LINK_KEY]
+        self.assertEqual(link['base_revision'], 2)
+        self.assertEqual(self.save(self.live()).status_code, 200)
+        row.refresh_from_db()
+        self.assertEqual((row.name, row.revision), ('Mine', 3))
+        stale = self.send('post', self.url, {'case_id': opened['id']}, device)
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(stale.json()['code'], 'saved_case_conflict')
+
+    def test_rename_from_a_stale_working_copy_does_not_advance_its_link(self):
+        row = self.saved_row()
+        device = APIClient(enforce_csrf_checks=True)
+        device.force_login(self.owner)
+        opened = self.send('post', f'{self.url}{row.pk}/open/', {}, device).json()['case']
+        # Another session saves a newer revision after the device opened the row.
+        self.deceased(self.live(), estate='4321.00')
+        self.assertEqual(self.save(self.live()).status_code, 200)
+        row.refresh_from_db()
+        newer = (row.snapshot, row.revision)
+        self.assertEqual(newer[1], 2)
+        listed = device.get(self.url, secure=True).json()['cases'][0]
+        self.assertEqual(listed['revision'], 2)
+        self.assertEqual(self.rename(row.pk, {'name': 'Renamed', 'expected_revision': 2}, client=device).status_code, 200)
+        self.assertEqual(device.session[anonymous_case.SAVED_LINK_KEY]['base_revision'], 1)
+        stale = self.send('post', self.url, {'case_id': opened['id']}, device)
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(stale.json()['code'], 'saved_case_conflict')
+        row.refresh_from_db()
+        self.assertEqual((row.snapshot, row.revision, row.name), (newer[0], 3, 'Renamed'))
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_rename_keeps_share_and_invite_views_unchanged(self):
+        from django.core import mail
+        row = self.saved_row()
+        share = self.send('post', f'{self.url}{row.pk}/shares/', {}).json()
+        invited = get_user_model().objects.create_user(username='saved-invited', email='invited@example.com')
+        invite_id = self.send('post', f'{self.url}{row.pk}/invites/', {'email': 'invited@example.com'}).json()['id']
+        token = mail.outbox[-1].body.rsplit('#', 1)[1].strip()
+        recipient = APIClient(enforce_csrf_checks=True)
+        recipient.force_login(invited)
+        self.assertEqual(self.send('post', '/api/v1/invites/accept/', {'token': token}, recipient).status_code, 200)
+
+        def views():
+            shared = self.send('post', '/api/v1/shares/view/', {'token': share['token']}, viewer)
+            received = self.send('post', f'/api/v1/received/{invite_id}/view/', {}, recipient)
+            self.assertEqual((shared.status_code, received.status_code), (200, 200))
+            return shared.json(), received.json()
+
+        viewer = APIClient(enforce_csrf_checks=True)
+        viewer.force_login(self.other)
+        def without_times(body):
+            if isinstance(body, dict):
+                return {k: without_times(v) for k, v in body.items() if k not in ('updated_at', 'started_at')}
+            if isinstance(body, list):
+                return [without_times(v) for v in body]
+            return body
+
+        before = views()
+        self.assertEqual(self.rename(row.pk, {'name': 'Another name', 'expected_revision': 1}).status_code, 200)
+        after = views()
+        for old, new in zip(before, after):
+            # Only the change time may move; family, estate and Basis stay as they were.
+            self.assertEqual(without_times(new), without_times(old))
+
     def test_name_suggestion_follows_the_asked_language(self):
         self.assertEqual(self.client.get(self.url + 'name-suggestion/', secure=True).status_code, 403)
         self.client.force_login(self.owner)
@@ -3637,7 +3808,7 @@ class SavedCaseTests(InterviewBase):
         self.client.force_login(self.owner)
         case = self.ready()
         response = self.save(self.live())
-        self.assertEqual((response.status_code, response.json().get('code')), (400, None))
+        self.assertEqual((response.status_code, response.json().get('code')), (400, 'case_incomplete'))
 
     def test_save_updates_and_open_roundtrip_on_another_device(self):
         self.client.force_login(self.owner)
@@ -3765,6 +3936,132 @@ class SavedCaseTests(InterviewBase):
 
 def saved_case_test_status(case):
     return 'extension-status'
+
+
+class SavedCaseAutosaveTests(InterviewBase):
+    url = '/api/v1/saved-cases/autosave/'
+    saved_url = '/api/v1/saved-cases/'
+
+    def setUp(self):
+        super().setUp()
+        self.owner = get_user_model().objects.create_user(username='auto-owner', password='test')
+        self.other = get_user_model().objects.create_user(username='auto-other', password='test')
+        self.client.force_login(self.owner)
+        case = self.ready()
+        self.send('patch', CASE_URL, {'case_id': case['id'], 'madhab': 'hanafi'})
+        self.heir(case, name='Family name')
+        self.saved_id = self.send('post', self.saved_url, {'case_id': self.live()['id'], 'name': 'Mine'}).json()['id']
+
+    def autosave(self, case=None, **changes):
+        case = case or self.live()
+        return self.send('post', self.url, {'case_id': case['id'], 'case_revision': case['revision'], **changes})
+
+    def test_it_covers_the_revision_and_advances_the_link(self):
+        self.heir(self.live(), 'daughter')
+        case = self.live()
+        response = self.autosave(case)
+        self.assertEqual(response.status_code, 200)
+        row = SavedCase.objects.get()
+        body = response.json()
+        self.assertEqual((body['id'], body['revision'], body['case_revision']), (row.pk, 2, case['revision']))
+        self.assertEqual(len(row.snapshot['heirs']), 2)
+        link = self.client.session[anonymous_case.SAVED_LINK_KEY]
+        self.assertEqual((link['base_revision'], link['case_revision']), (2, case['revision']))
+        self.assertEqual(self.autosave().status_code, 200)
+
+    def test_a_stale_revision_writes_nothing(self):
+        case = self.live()
+        self.heir(case, 'daughter')
+        response = self.autosave(case)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json(), {'code': 'case_revision_stale', 'detail': 'The case changed.',
+                                           'case_revision': self.live()['revision']})
+        row = SavedCase.objects.get()
+        self.assertEqual((row.revision, len(row.snapshot['heirs'])), (1, 1))
+
+    def test_an_unavailable_link_answers_one_404_and_creates_nothing(self):
+        case = self.live()
+        refusals = []
+        # Another case id.
+        refusals.append(self.send('post', self.url, {'case_id': 'other', 'case_revision': case['revision']}))
+        # A deleted row.
+        SavedCase.objects.all().delete()
+        refusals.append(self.autosave(case))
+        # A row of another account.
+        foreign = SavedCase.objects.create(owner=self.other, snapshot={}, name='Theirs')
+        session = self.client.session
+        session[anonymous_case.SAVED_LINK_KEY] = {'case_id': case['id'], 'saved_id': foreign.pk, 'base_revision': 1,
+                                                  'case_revision': case['revision']}
+        session.save()
+        refusals.append(self.autosave(case))
+        # No link at all.
+        session = self.client.session
+        del session[anonymous_case.SAVED_LINK_KEY]
+        session.save()
+        refusals.append(self.autosave(case))
+        for response in refusals:
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.json(), {'code': 'saved_case_unavailable',
+                                               'detail': 'This saved case is no longer available.'})
+        foreign.refresh_from_db()
+        self.assertEqual((SavedCase.objects.count(), foreign.snapshot, foreign.revision), (1, {}, 1))
+
+    def test_a_row_conflict_gives_the_existing_body_and_writes_nothing(self):
+        SavedCase.objects.filter(pk=self.saved_id).update(revision=4)
+        self.heir(self.live(), 'daughter')
+        response = self.autosave()
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['code'], 'saved_case_conflict')
+        self.assertEqual(response.json()['revision'], 4)
+        row = SavedCase.objects.get()
+        self.assertEqual((row.revision, len(row.snapshot['heirs'])), (4, 1))
+
+    def test_an_incomplete_case_and_a_missing_school_are_refused(self):
+        case = self.live()
+        for heir in case['heirs']:
+            self.send('delete', f'{HEIRS_URL}{heir["id"]}/', {'case_id': case['id']})
+        response = self.autosave()
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['code'], 'case_incomplete')
+        explicit = self.send('post', self.saved_url, {'case_id': self.live()['id']})
+        self.assertEqual((explicit.status_code, explicit.json()['code']), (400, 'case_incomplete'))
+        self.heir(self.live(), 'son')
+        self.heir(self.live(), 'daughter')
+        self.plant(madhab=None)
+        with mock.patch('api.views.preview.preview', return_value={'status': 'choose_school'}):
+            response = self.autosave()
+        self.assertEqual((response.status_code, response.json()['code']), (400, 'school_required'))
+        self.assertEqual(SavedCase.objects.get().revision, 1)
+
+    def test_it_needs_a_signed_in_user(self):
+        case = self.live()
+        self.client.logout()
+        self.assertEqual(self.send('post', self.url, {'case_id': case['id'], 'case_revision': 1}).status_code, 403)
+
+    def test_it_changes_neither_the_name_nor_the_basis_nor_the_case_revision(self):
+        self.heir(self.live(), 'daughter')
+        case = self.live()
+        self.assertEqual(self.autosave(case).status_code, 200)
+        row = SavedCase.objects.get()
+        self.assertEqual(row.name, 'Mine')
+        self.assertEqual(self.live()['revision'], case['revision'])
+        self.assertEqual(self.live()['madhab'], 'hanafi')
+        self.assertEqual(row.snapshot['madhab'], 'hanafi')
+        # The compare Basis stays a compare Basis.
+        self.plant(madhab=None)
+        with mock.patch('api.views.preview.preview', return_value={'status': 'available'}):
+            self.assertEqual(self.autosave().status_code, 200)
+        self.assertIsNone(SavedCase.objects.get().snapshot['madhab'])
+        self.assertEqual(SavedCase.objects.get().name, 'Mine')
+
+    def test_the_share_view_reflects_the_autosaved_family(self):
+        token = self.send('post', f'{self.saved_url}{self.saved_id}/shares/',
+                          {'visibility': 'public', 'accept_public_warning': True}).json()['token']
+        self.heir(self.live(), 'daughter')
+        self.assertEqual(self.autosave().status_code, 200)
+        shared = APIClient(enforce_csrf_checks=True)
+        body = self.send('post', '/api/v1/shares/view/', {'token': token}, shared).json()
+        self.assertEqual(len(body['case']['heirs']), 2)
 
 
 class ShareTests(InterviewBase):
@@ -3907,6 +4204,22 @@ class ShareTests(InterviewBase):
         self.assertEqual(self.view(token, viewer).status_code, 200)
         self.assertEqual(viewer.get(CASE_URL, secure=True).json(), before)
         self.assertEqual(before['case']['id'], mine['id'])
+
+    def test_share_shows_the_saved_family_until_the_owner_saves_an_edit(self):
+        token = self.public()['token']
+        first = self.view(token).json()
+        before = first['case']
+        self.heir(self.case, name='Added after saving')
+        self.assertNotEqual(self.live()['heirs'], self.case['heirs'])
+        unsaved = self.view(token).json()
+        self.assertEqual(unsaved['case']['heirs'], before['heirs'], 'an unsaved edit is not shown')
+        self.assertEqual(unsaved['preview'], first['preview'], 'nor in the recomputed preview')
+        self.assertEqual(self.send('post', self.saved_url, {'case_id': self.case['id']}).status_code, 200)
+        saved = self.view(token).json()
+        self.assertEqual(len(saved['case']['heirs']), len(before['heirs']) + 1)
+        self.assertIn('Added after saving', [heir.get('name') for heir in saved['case']['heirs']])
+        self.assertNotIn('Added after saving', [heir.get('name') for heir in before['heirs']])
+        self.assertNotEqual(saved['preview'], first['preview'], 'the preview is recomputed for the saved family')
 
     def test_shared_pdf_is_a_draft_pdf(self):
         token = self.public()['token']

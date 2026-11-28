@@ -138,3 +138,52 @@ test("isUndoShortcut accepts Ctrl/Cmd+Z by character, or by the physical key on 
   assert.equal(isUndoShortcut({ ...base, altKey: true }), false);
   assert.equal(isUndoShortcut({ ...base, ctrlKey: false }), false);
 });
+
+test("the toast floats above a bar that leaves room, and stays in flow otherwise; Undo works in both", async () => {
+  const { setObstruction } = await import("@/interview/obstruction");
+  const ui = await mount();
+  const w = window as unknown as { innerHeight: number };
+  const originalHeight = w.innerHeight;
+  try {
+    assert.equal(ui.toast()!.getAttribute("data-toast-placement"), "flow", "no bar: in flow");
+    // happy-dom measures 0 for the toast; a bar of 60 plus gap 8 fits in 25% of a 1000px viewport.
+    w.innerHeight = 1000;
+    await act(async () => { setObstruction("bar", 60); window.dispatchEvent(new Event("resize")); });
+    assert.equal(ui.toast()!.getAttribute("data-toast-placement"), "float");
+    await act(async () => { ui.toast()!.querySelector("button")!.click(); });
+    assert.equal(ui.presses(), 1);
+    w.innerHeight = 200;
+    await act(async () => { window.dispatchEvent(new Event("resize")); });
+    assert.equal(ui.toast()!.getAttribute("data-toast-placement"), "flow", "too tall: in flow");
+    await act(async () => { ui.toast()!.querySelector("button")!.click(); });
+    assert.equal(ui.presses(), 2);
+  } finally {
+    w.innerHeight = originalHeight;
+    setObstruction("bar", null);
+    await ui.close();
+  }
+});
+
+test("a floating toast reflects aria-disabled, ignores Undo and still pauses on hover", async () => {
+  const { setObstruction } = await import("@/interview/obstruction");
+  const ui = await mount(true);
+  const w = window as unknown as { innerHeight: number };
+  const originalHeight = w.innerHeight;
+  try {
+    w.innerHeight = 1000;
+    await act(async () => { setObstruction("bar", 60); window.dispatchEvent(new Event("resize")); });
+    assert.equal(ui.toast()!.getAttribute("data-toast-placement"), "float");
+    const button = ui.toast()!.querySelector("button")!;
+    assert.equal(button.getAttribute("aria-disabled"), "true");
+    await act(async () => { button.click(); });
+    assert.equal(ui.presses(), 0);
+    await ui.tick(5000);
+    await act(async () => { ui.toast()!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); });
+    await ui.tick(TOAST_MS * 2);
+    assert.ok(ui.toast(), "hover keeps the floating toast past the timer");
+  } finally {
+    w.innerHeight = originalHeight;
+    setObstruction("bar", null);
+    await ui.close();
+  }
+});

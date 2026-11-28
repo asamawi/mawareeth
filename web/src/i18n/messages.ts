@@ -43,9 +43,9 @@ export type Messages = {
   auth: { change: string; old_password: string; noPassword: string; passwordRequirements: string; login: string; signup: string; reset: string; confirm: string; username: string; email: string; password: string; password2: string; new_password1: string; new_password2: string; pending: string; throttled: string; error: string; invalid: string; sent: string; complete: string; facebook: string; linkedin: string; socialError: string; logout: string };
   invites: { heading: string; email: string; send: string; sent: string; error: string; list: string; pending: string; accepted: string; expired: string; expires: string; revoke: string; received: string; owner: string; empty: string; open: string; accept: string };
   title: string;
-  cases: { heading: string; empty: string; error: string; signIn: string; open: string; updated: string; heirs: string; draft: string; discardTitle: string; discardBody: string; discardYes: string; discardNo: string };
+  cases: { heading: string; empty: string; error: string; signIn: string; open: string; updated: string; heirs: string; draft: string; discardTitle: string; discardBody: string; discardYes: string; discardNo: string; sortLabel: string; sortRecent: string; sortName: string; rename: string; renameSave: string; renameCancel: string; renameSaving: string; renameFailed: string; renameConflict: string; retry: string; loading: string; untitled: string; newCase: string; newCaseFailed: string; discardConfirmNew: string };
   share: { heading: string; preparing: string; created: string; urlLabel: string; copy: string; copied: string; copyFailed: string; createError: string; listHeading: string; none: string; privateBadge: string; publicBadge: string; expires: string; expired: string; makePublic: string; makePrivate: string; revoke: string; actionError: string; warningTitle: string; warningBody: string; warningConfirm: string; cancel: string; whatsappReady: string; whatsappOpen: string; whatsappUnavailable: string };
-  shared: { heading: string; loading: string; signInTitle: string; signIn: string; createAccount: string; unavailable: string; error: string; retry: string; banner: string; throttled: string; privateBadge: string; publicBadge: string };
+  shared: { heading: string; loading: string; signInTitle: string; signIn: string; createAccount: string; unavailable: string; error: string; retry: string; banner: string; readOnly: string; throttled: string; privateBadge: string; publicBadge: string };
   checking: string;
   connected: string;
   unavailable: string;
@@ -57,6 +57,7 @@ export type Messages = {
     signup: string;
     cases: string;
     language: string;
+    discardAndSignOut: string;
   };
   interview: {
     heading: string;
@@ -211,6 +212,10 @@ export type Messages = {
     resume: string;
     startOver: string;
     expired: string;
+    expiredTitle: string;
+    expiredLifetime: string;
+    openFailed: string;
+    backToCases: string;
     throttled: string;
     failed: string;
     retry: string;
@@ -238,6 +243,7 @@ export type Messages = {
     previewAmount: string;
     previewNoShare: string;
     previewUnallocated: string;
+    previewRounding: string;
     previewUnavailable: string;
     previewReasons: Record<PreviewReason, string>;
     previewFailed: string;
@@ -251,6 +257,8 @@ export type Messages = {
     unsavedNotice: string;
     unsavedLink: string;
     startOverUnsaved: string;
+    autosaveNeedsHeirs: string;
+    autosaveUnavailable: string;
   };
   results: {
     save: string;
@@ -361,9 +369,9 @@ export const messages: Record<Locale, Messages> = {
     checking: "جارٍ التحقق من الاتصال بالخدمة…",
     connected: "متصل بالخدمة.",
     unavailable: "الخدمة غير متاحة حاليًا. يرجى المحاولة لاحقًا.",
-    cases: { heading: "حالاتي المحفوظة", empty: "لا توجد حالات محفوظة.", error: "تعذر تحميل أو فتح الحالة. حاول مرة أخرى.", signIn: "سجّل الدخول لعرض حالاتك المحفوظة.", open: "فتح", updated: "آخر تحديث", heirs: "عدد الورثة", draft: "مسودة", discardTitle: "تجاهل التغييرات غير المحفوظة؟", discardBody: "ستُفقد التغييرات التي لم تُحفظ في حالتك الحالية.", discardYes: "نعم، تجاهلها وافتح", discardNo: "لا، أبقِ حالتي الحالية" },
+    cases: { heading: "حالاتي المحفوظة", empty: "لا توجد حالات محفوظة.", error: "تعذر تحميل أو فتح الحالة. حاول مرة أخرى.", signIn: "سجّل الدخول لعرض حالاتك المحفوظة.", open: "فتح", updated: "آخر تحديث", heirs: "عدد الورثة", draft: "مسودة", discardTitle: "تجاهل التغييرات غير المحفوظة؟", discardBody: "ستُفقد التغييرات التي لم تُحفظ في حالتك الحالية.", discardYes: "نعم، تجاهلها وافتح", discardNo: "لا، أبقِ حالتي الحالية", sortLabel: "ترتيب حسب", sortRecent: "آخر تغيير", sortName: "الاسم", rename: "إعادة تسمية {name}", renameSave: "حفظ", renameCancel: "إلغاء", renameSaving: "جارٍ الحفظ…", renameFailed: "تعذرت إعادة التسمية. حاول مرة أخرى.", renameConflict: "تغيّرت هذه الحالة في مكان آخر. الاسم المحفوظ معروض، ويبقى ما كتبته، واضغط حفظ لإعادة المحاولة.", retry: "إعادة المحاولة", loading: "جارٍ تحميل حالاتك المحفوظة…", untitled: "حالة بلا اسم", newCase: "بدء حالة جديدة", newCaseFailed: "تعذّر بدء حالة جديدة. حاول مرة أخرى.", discardConfirmNew: "نعم، تجاهلها وابدأ حالة جديدة" },
     share: {"heading": "روابط المشاركة", "preparing": "جارٍ إنشاء الرابط…", "created": "تم إنشاء رابط خاص. انسخه الآن، فلن يظهر مرة أخرى.", "urlLabel": "رابط المشاركة", "copy": "نسخ الرابط", "copied": "تم النسخ.", "copyFailed": "تعذر النسخ. حدد الرابط وانسخه يدويًا.", "createError": "تعذر إنشاء الرابط. حاول مرة أخرى.", "listHeading": "الروابط الحالية", "none": "لا توجد روابط نشطة.", "privateBadge": "خاص", "publicBadge": "عام", "expires": "ينتهي في", "expired": "منتهي الصلاحية", "makePublic": "جعله عامًا", "makePrivate": "جعله خاصًا", "revoke": "إلغاء الرابط", "actionError": "تعذر تنفيذ الإجراء. حاول مرة أخرى.", "warningTitle": "تحذير: رابط عام", "warningBody": "أي شخص لديه هذا الرابط يمكنه الاطلاع على معلومات عائلية خاصة دون تسجيل الدخول. لا تجعله عامًا إلا إذا كنت تقبل ذلك.", "warningConfirm": "أفهم، اجعله عامًا", "cancel": "إلغاء", "whatsappReady": "الرابط الخاص جاهز للإرسال عبر واتساب.", "whatsappOpen": "فتح واتساب", "whatsappUnavailable": "تعذر فتح واتساب هنا. انسخ الرابط أعلاه وأرسله بطريقة أخرى."},
-    shared: {"heading": "حالة مشاركة", "loading": "جارٍ تحميل الحالة المشاركة…", "signInTitle": "سجّل الدخول لعرض هذه الحالة المشاركة.", "signIn": "تسجيل الدخول", "createAccount": "إنشاء حساب", "unavailable": "هذا الرابط غير متاح.", "error": "تعذر تحميل الحالة المشاركة.", "retry": "إعادة المحاولة", "banner": "مسودة أولية غير معتمدة، للعرض فقط وليست فتوى ولا حكمًا.", "throttled": "طلبات كثيرة. حاول لاحقًا.", "privateBadge": "خاص", "publicBadge": "عام"},
+    shared: {"heading": "حالة مشاركة", "loading": "جارٍ تحميل الحالة المشاركة…", "signInTitle": "سجّل الدخول لعرض هذه الحالة المشاركة.", "signIn": "تسجيل الدخول", "createAccount": "إنشاء حساب", "unavailable": "هذا الرابط غير متاح.", "error": "تعذر تحميل الحالة المشاركة.", "retry": "إعادة المحاولة", "banner": "مسودة أولية غير معتمدة، للعرض فقط وليست فتوى ولا حكمًا.", "readOnly": "عرض للقراءة فقط لآخر نسخة محفوظة من حالة المالك. لا يمكنك تعديلها أو إعادة تسميتها هنا.", "throttled": "طلبات كثيرة. حاول لاحقًا.", "privateBadge": "خاص", "publicBadge": "عام"},
     nav: {
       cases: "حالاتي المحفوظة",
       label: "التنقل الرئيسي",
@@ -372,6 +380,7 @@ export const messages: Record<Locale, Messages> = {
       login: "تسجيل الدخول",
       signup: "إنشاء حساب",
       language: "اللغة",
+      discardAndSignOut: "نعم، تجاهلها وسجّل الخروج",
     },
     interview: {
       heading: "ابدأ حالة ميراث",
@@ -388,7 +397,7 @@ export const messages: Record<Locale, Messages> = {
       genderMale: "ذكر",
       genderFemale: "أنثى",
       estateLabel: "التركة القابلة للقسمة",
-      estateHint: "اختياري. أدخل المبلغ المتبقي بعد سداد الديون ونفقات التجهيز والدفن والوصايا. يمكنك إضافته لاحقًا.",
+      estateHint: "اختياري، ويمكنك إضافته لاحقًا. أدخل المبلغ المتبقي بعد سداد الديون ونفقات التجهيز والدفن والوصايا. قد لا تكون الأموال المملوكة بالاشتراك أو التي حُدِّد لها مستفيد جزءًا من التركة.",
       deceasedSave: "حفظ ومتابعة",
       deceasedCancel: "إلغاء",
       deceasedEdit: "تعديل بيانات المتوفى",
@@ -571,6 +580,10 @@ export const messages: Record<Locale, Messages> = {
       resume: "متابعة حالتي",
       startOver: "البدء من جديد",
       expired: "انتهت صلاحية حالتك السابقة. يمكنك بدء حالة جديدة.",
+      expiredTitle: "انتهت صلاحية هذه الحالة",
+      expiredLifetime: "تُحفظ الحالات غير المحفوظة في «حالاتي المحفوظة» لمدة 24 ساعة بعد آخر تغيير.",
+      openFailed: "تعذّر فتح الحالة المحددة.",
+      backToCases: "العودة إلى حالاتي المحفوظة",
       throttled: "عدد المحاولات كبير جدًا. يرجى المحاولة لاحقًا.",
       failed: "تعذر الاتصال بالخدمة. يرجى المحاولة مرة أخرى.",
       retry: "إعادة المحاولة",
@@ -585,12 +598,13 @@ export const messages: Record<Locale, Messages> = {
       schoolsAgree: "النتيجة نفسها في المذاهب السنية الأربعة",
       schoolsDiffer: "تختلف المذاهب في هذه الحالة",
       schoolsDifferBecause: "بسبب:",
-      chooseSchool: "اختر المذهب الذي تتبعه",
+      chooseSchool: "أي مذهب فقهي تتبع؟",
       previewUpdated: "تم تحديث معاينة الأنصبة.",
       previewShare: "النصيب",
       previewAmount: "المبلغ",
       previewNoShare: "لا نصيب له في هذه الحالة.",
       previewUnallocated: "الباقي غير الموزع على أي وارث",
+      previewRounding: "فرق التقريب",
       previewUnavailable: "المعاينة غير متاحة لهذه الحالة. يمكنك متابعة إضافة الورثة.",
       previewReasons: refusalTerms("ar"),
       previewFailed: "تعذّر تحميل المعاينة. بيانات الأسرة محفوظة، ويمكنك المتابعة.",
@@ -602,6 +616,8 @@ export const messages: Record<Locale, Messages> = {
       unsavedNotice: "التغييرات لم تُحفظ في حالاتي بعد.",
       unsavedLink: "عرض النتائج الكاملة للحفظ",
       startOverUnsaved: "وسيُفقد ما لم يُحفظ من تغييرات في حالتك المحفوظة.",
+      autosaveNeedsHeirs: "أضف وارثًا واحدًا على الأقل ليتم الحفظ في حالاتي.",
+      autosaveUnavailable: "لم تعد هذه الحالة المحفوظة متاحة، فلن تُحفظ التغييرات تلقائيًا.",
     },
     results: {
       save: "حفظ",
@@ -707,9 +723,9 @@ export const messages: Record<Locale, Messages> = {
     checking: "Checking the connection to the service…",
     connected: "Connected to the service.",
     unavailable: "The service is unavailable right now. Please try again later.",
-    cases: {"heading": "My saved cases", "empty": "No saved cases yet.", "error": "Could not load or open the case. Please try again.", "signIn": "Sign in to see your saved cases.", "open": "Open", "updated": "Updated", "heirs": "Heirs", "draft": "Draft", "discardTitle": "Discard unsaved changes?", "discardBody": "Changes to your current case that are not saved to My cases will be lost.", "discardYes": "Yes, discard and open", "discardNo": "No, keep my current case"},
+    cases: {"heading": "My saved cases", "empty": "No saved cases yet.", "error": "Could not load or open the case. Please try again.", "signIn": "Sign in to see your saved cases.", "open": "Open", "updated": "Updated", "heirs": "Heirs", "draft": "Draft", "discardTitle": "Discard unsaved changes?", "discardBody": "Changes to your current case that are not saved to My cases will be lost.", "discardYes": "Yes, discard and open", "discardNo": "No, keep my current case", "sortLabel": "Sort by", "sortRecent": "Last changed", "sortName": "Name", "rename": "Rename {name}", "renameSave": "Save", "renameCancel": "Cancel", "renameSaving": "Saving…", "renameFailed": "Could not rename the case. Please try again.", "renameConflict": "This case was changed elsewhere. The stored name is shown and your text is kept; press Save to try again.", "retry": "Retry", "loading": "Loading your saved cases…", "untitled": "Untitled case", "newCase": "Start a new case", "newCaseFailed": "Could not start a new case. Please try again.", "discardConfirmNew": "Yes, discard and start a new case"},
     share: {"heading": "Share links", "preparing": "Creating the link…", "created": "Private link created. Copy it now; it is shown only once.", "urlLabel": "Share link", "copy": "Copy link", "copied": "Copied.", "copyFailed": "Could not copy. Select the link and copy it by hand.", "createError": "Could not create the link. Please try again.", "listHeading": "Current links", "none": "No active links.", "privateBadge": "Private", "publicBadge": "Public", "expires": "Expires", "expired": "Expired", "makePublic": "Make public", "makePrivate": "Make private", "revoke": "Revoke", "actionError": "That did not work. Please try again.", "warningTitle": "Warning: public link", "warningBody": "Anyone with this link can see private family information without signing in. Make it public only if you accept that.", "warningConfirm": "I understand, make it public", "cancel": "Cancel", "whatsappReady": "Your private link is ready to send on WhatsApp.", "whatsappOpen": "Open WhatsApp", "whatsappUnavailable": "WhatsApp could not be opened here. Copy the link above and send it another way."},
-    shared: {"heading": "Shared case", "loading": "Loading the shared case…", "signInTitle": "Sign in to view this shared case.", "signIn": "Sign in", "createAccount": "Create account", "unavailable": "This link is unavailable.", "error": "Could not load the shared case.", "retry": "Try again", "banner": "Draft, not certified. Preliminary results for information only; not a fatwa or legal ruling.", "throttled": "Too many requests. Try again later.", "privateBadge": "Private", "publicBadge": "Public"},
+    shared: {"heading": "Shared case", "loading": "Loading the shared case…", "signInTitle": "Sign in to view this shared case.", "signIn": "Sign in", "createAccount": "Create account", "unavailable": "This link is unavailable.", "error": "Could not load the shared case.", "retry": "Try again", "banner": "Draft, not certified. Preliminary results for information only; not a fatwa or legal ruling.", "readOnly": "Read-only view of the owner's latest saved case. You cannot edit or rename it here.", "throttled": "Too many requests. Try again later.", "privateBadge": "Private", "publicBadge": "Public"},
     nav: {
       cases: "My saved cases",
       label: "Main navigation",
@@ -718,6 +734,7 @@ export const messages: Record<Locale, Messages> = {
       login: "Log in",
       signup: "Sign up",
       language: "Language",
+      discardAndSignOut: "Yes, discard and sign out",
     },
     interview: {
       heading: "Start an inheritance case",
@@ -734,7 +751,7 @@ export const messages: Record<Locale, Messages> = {
       genderMale: "Male",
       genderFemale: "Female",
       estateLabel: "Estate to divide",
-      estateHint: "Optional. Enter the amount left after debts, funeral costs and bequests. You can add this later.",
+      estateHint: "Optional; you can add it later. Enter the amount left after debts, funeral costs and bequests. Jointly owned assets and assets with a named beneficiary may not form part of the estate.",
       deceasedSave: "Save and continue",
       deceasedCancel: "Cancel",
       deceasedEdit: "Edit the deceased",
@@ -918,6 +935,10 @@ export const messages: Record<Locale, Messages> = {
       resume: "Resume my case",
       startOver: "Start over",
       expired: "Your previous case has expired. You can start a new one.",
+      expiredTitle: "This case has expired",
+      expiredLifetime: "Cases that are not saved to My cases are kept for 24 hours after the last change.",
+      openFailed: "The selected case could not be opened.",
+      backToCases: "Back to My cases",
       throttled: "Too many attempts. Please try again later.",
       failed: "We could not reach the service. Please try again.",
       retry: "Try again",
@@ -932,12 +953,13 @@ export const messages: Record<Locale, Messages> = {
       schoolsAgree: "Same result in all four Sunni schools",
       schoolsDiffer: "The schools of law differ for this family",
       schoolsDifferBecause: "Because of:",
-      chooseSchool: "Choose the school of law to follow",
+      chooseSchool: "Which school of law do you follow?",
       previewUpdated: "The share preview was updated.",
       previewShare: "Share",
       previewAmount: "Amount",
       previewNoShare: "Receives no share in this case.",
       previewUnallocated: "Remainder not allocated to any heir",
+      previewRounding: "Rounding adjustment",
       previewUnavailable: "A preview is not available for this case. You can keep adding heirs.",
       previewReasons: refusalTerms("en"),
       previewFailed: "The preview could not be loaded. Your family details are saved, and you can continue.",
@@ -949,6 +971,8 @@ export const messages: Record<Locale, Messages> = {
       unsavedNotice: "Changes not saved to My cases yet",
       unsavedLink: "Full results",
       startOverUnsaved: "Changes not saved to My cases will be lost.",
+      autosaveNeedsHeirs: "Add at least one heir to save to My cases.",
+      autosaveUnavailable: "This saved case is no longer available, so changes are not saved automatically.",
     },
     results: {
       save: "Save",
@@ -1054,9 +1078,9 @@ export const messages: Record<Locale, Messages> = {
     checking: "Vérification de la connexion au service…",
     connected: "Connecté au service.",
     unavailable: "Le service est indisponible pour le moment. Veuillez réessayer plus tard.",
-    cases: { heading: "Mes cas enregistrés", empty: "Aucun cas enregistré.", error: "Impossible de charger ou ouvrir le cas. Réessayez.", signIn: "Connectez-vous pour voir vos cas enregistrés.", open: "Ouvrir", updated: "Mis à jour", heirs: "Héritiers", draft: "Brouillon", discardTitle: "Abandonner les modifications non enregistrées ?", discardBody: "Les modifications de votre cas actuel non enregistrées dans Mes cas seront perdues.", discardYes: "Oui, abandonner et ouvrir", discardNo: "Non, garder mon cas actuel" },
+    cases: { heading: "Mes cas enregistrés", empty: "Aucun cas enregistré.", error: "Impossible de charger ou ouvrir le cas. Réessayez.", signIn: "Connectez-vous pour voir vos cas enregistrés.", open: "Ouvrir", updated: "Mis à jour", heirs: "Héritiers", draft: "Brouillon", discardTitle: "Abandonner les modifications non enregistrées ?", discardBody: "Les modifications de votre cas actuel non enregistrées dans Mes cas seront perdues.", discardYes: "Oui, abandonner et ouvrir", discardNo: "Non, garder mon cas actuel", sortLabel: "Trier par", sortRecent: "Dernière modification", sortName: "Nom", rename: "Renommer {name}", renameSave: "Enregistrer", renameCancel: "Annuler", renameSaving: "Enregistrement…", renameFailed: "Impossible de renommer le cas. Réessayez.", renameConflict: "Ce cas a été modifié ailleurs. Le nom enregistré est affiché et votre texte est conservé ; appuyez sur Enregistrer pour réessayer.", retry: "Réessayer", loading: "Chargement de vos cas enregistrés…", untitled: "Cas sans nom", newCase: "Commencer un nouveau cas", newCaseFailed: "Impossible de commencer un nouveau cas. Réessayez.", discardConfirmNew: "Oui, abandonner et commencer un nouveau cas" },
     share: {"heading": "Liens de partage", "preparing": "Création du lien…", "created": "Lien privé créé. Copiez-le maintenant : il ne s’affiche qu’une fois.", "urlLabel": "Lien de partage", "copy": "Copier le lien", "copied": "Copié.", "copyFailed": "Copie impossible. Sélectionnez le lien et copiez-le à la main.", "createError": "Impossible de créer le lien. Réessayez.", "listHeading": "Liens actuels", "none": "Aucun lien actif.", "privateBadge": "Privé", "publicBadge": "Public", "expires": "Expire le", "expired": "Expiré", "makePublic": "Rendre public", "makePrivate": "Rendre privé", "revoke": "Révoquer", "actionError": "L’action a échoué. Réessayez.", "warningTitle": "Attention : lien public", "warningBody": "Toute personne disposant de ce lien peut voir des informations familiales privées sans se connecter. Ne le rendez public que si vous l’acceptez.", "warningConfirm": "Je comprends, rendre public", "cancel": "Annuler", "whatsappReady": "Votre lien privé est prêt à être envoyé sur WhatsApp.", "whatsappOpen": "Ouvrir WhatsApp", "whatsappUnavailable": "Impossible d’ouvrir WhatsApp ici. Copiez le lien ci-dessus et envoyez-le autrement."},
-    shared: {"heading": "Cas partagé", "loading": "Chargement du cas partagé…", "signInTitle": "Connectez-vous pour voir ce cas partagé.", "signIn": "Se connecter", "createAccount": "Créer un compte", "unavailable": "Ce lien est indisponible.", "error": "Impossible de charger le cas partagé.", "retry": "Réessayer", "banner": "Brouillon non certifié. Résultats préliminaires, à titre informatif uniquement ; ne constitue ni une fatwa ni une décision juridique.", "throttled": "Trop de requêtes. Réessayez plus tard.", "privateBadge": "Privé", "publicBadge": "Public"},
+    shared: {"heading": "Cas partagé", "loading": "Chargement du cas partagé…", "signInTitle": "Connectez-vous pour voir ce cas partagé.", "signIn": "Se connecter", "createAccount": "Créer un compte", "unavailable": "Ce lien est indisponible.", "error": "Impossible de charger le cas partagé.", "retry": "Réessayer", "banner": "Brouillon non certifié. Résultats préliminaires, à titre informatif uniquement ; ne constitue ni une fatwa ni une décision juridique.", "readOnly": "Vue en lecture seule de la dernière version enregistrée du dossier du propriétaire. Vous ne pouvez pas le modifier ni le renommer ici.", "throttled": "Trop de requêtes. Réessayez plus tard.", "privateBadge": "Privé", "publicBadge": "Public"},
     nav: {
       cases: "Mes cas enregistrés",
       label: "Navigation principale",
@@ -1065,6 +1089,7 @@ export const messages: Record<Locale, Messages> = {
       login: "Connexion",
       signup: "Créer un compte",
       language: "Langue",
+      discardAndSignOut: "Oui, abandonner et se déconnecter",
     },
     interview: {
       heading: "Commencer un dossier de succession",
@@ -1081,7 +1106,7 @@ export const messages: Record<Locale, Messages> = {
       genderMale: "Homme",
       genderFemale: "Femme",
       estateLabel: "Succession à partager",
-      estateHint: "Facultatif. Indiquez le montant restant après les dettes, les frais funéraires et les legs. Vous pourrez l'ajouter plus tard.",
+      estateHint: "Facultatif ; vous pourrez l'ajouter plus tard. Indiquez le montant restant après les dettes, les frais funéraires et les legs. Les biens détenus en commun et les biens attribués à un bénéficiaire désigné peuvent ne pas faire partie de la succession.",
       deceasedSave: "Enregistrer et continuer",
       deceasedCancel: "Annuler",
       deceasedEdit: "Modifier le défunt",
@@ -1267,6 +1292,10 @@ export const messages: Record<Locale, Messages> = {
       resume: "Reprendre mon dossier",
       startOver: "Recommencer",
       expired: "Votre dossier précédent a expiré. Vous pouvez en commencer un nouveau.",
+      expiredTitle: "Ce cas a expiré",
+      expiredLifetime: "Les cas non enregistrés dans Mes cas sont conservés 24 heures après la dernière modification.",
+      openFailed: "Le cas sélectionné n'a pas pu être ouvert.",
+      backToCases: "Retour à Mes cas",
       throttled: "Trop de tentatives. Veuillez réessayer plus tard.",
       failed: "Impossible de joindre le service. Veuillez réessayer.",
       retry: "Réessayer",
@@ -1281,12 +1310,13 @@ export const messages: Record<Locale, Messages> = {
       schoolsAgree: "Même résultat dans les quatre écoles sunnites",
       schoolsDiffer: "Les écoles juridiques divergent pour cette famille",
       schoolsDifferBecause: "En raison de :",
-      chooseSchool: "Choisissez l'école juridique à suivre",
+      chooseSchool: "Quelle école juridique suivez-vous ?",
       previewUpdated: "L'aperçu des parts a été mis à jour.",
       previewShare: "Part",
       previewAmount: "Montant",
       previewNoShare: "Ne reçoit aucune part dans ce cas.",
       previewUnallocated: "Reste non attribué à un héritier",
+      previewRounding: "Ajustement d'arrondi",
       previewUnavailable: "Aucun aperçu n'est disponible pour ce cas. Vous pouvez continuer à ajouter des héritiers.",
       previewReasons: refusalTerms("fr"),
       previewFailed: "L'aperçu n'a pas pu être chargé. Les informations de la famille sont enregistrées et vous pouvez continuer.",
@@ -1298,6 +1328,8 @@ export const messages: Record<Locale, Messages> = {
       unsavedNotice: "Modifications pas encore enregistrées dans Mes cas",
       unsavedLink: "Résultats complets",
       startOverUnsaved: "Les modifications non enregistrées dans Mes cas seront perdues.",
+      autosaveNeedsHeirs: "Ajoutez au moins un héritier pour enregistrer dans Mes cas.",
+      autosaveUnavailable: "Ce cas enregistré n’est plus disponible ; les modifications ne sont donc pas enregistrées automatiquement.",
     },
     results: {
       save: "Enregistrer",

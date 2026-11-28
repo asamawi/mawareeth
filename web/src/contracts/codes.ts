@@ -1,6 +1,6 @@
 // Vocabularies of the shared contracts. Identical to contracts/codes.json; a test keeps them equal.
 
-export const CONTRACT_VERSIONS = { family: 1, basis: 1, result: 1, comparison: 1, presented_result: 3, preset: 1, catalog: 1 } as const;
+export const CONTRACT_VERSIONS = { family: 1, basis: 1, result: 1, comparison: 1, presented_result: 4, preset: 1, catalog: 1 } as const;
 
 export const CODES = {
   relationships: ["father", "mother", "husband", "wife", "son", "daughter", "son_of_son", "daughter_of_son", "grandfather", "paternal_grandmother", "maternal_grandmother", "brother", "sister", "paternal_brother", "paternal_sister", "maternal_brother", "maternal_sister", "son_of_brother", "son_of_paternal_brother", "uncle", "paternal_uncle", "son_of_uncle", "son_of_paternal_uncle"] as readonly string[],

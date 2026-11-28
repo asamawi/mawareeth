@@ -64,7 +64,7 @@ function placeholdersOf(text: string): Set<string> {
 
 /** The term keys every catalog must have, derived from the shared code vocabularies. */
 export function requiredKeys(codes: Codes): string[] {
-  const keys: string[] = ["notice.disclaimer", "comparison.same_in_all_schools"];
+  const keys: string[] = ["notice.disclaimer", "notice.supplied_facts", "notice.supplied_facts_no_amount", "comparison.same_in_all_schools"];
   for (const id of codes.relationships) keys.push(`relationship.${id}`);
   for (const id of codes.schools) keys.push(`school.${id}`, `school.${id}.description`);
   for (const id of codes.basis_kinds) keys.push(`basis.${id}`);

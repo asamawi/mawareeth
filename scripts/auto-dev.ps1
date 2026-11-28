@@ -10,8 +10,10 @@
   Spec files under _bmad-output/implementation-artifacts are the source of truth for completion.
   Every run first marks each story whose spec is `done` as done in sprint-status.yaml (catching up
   stories built by running /bmad-build-auto directly), and marks each story it builds the same way;
-  an epic moves to in-progress, then done when all its stories are. Your checkpoint is reviewing
-  the local commits before you push.
+  an epic moves to in-progress, then done when all its stories are. Before an epic is marked done,
+  scripts/epic_e2e_gate.py rebuilds the web export and reruns every e2e spec the epic's stories
+  touched (Epic 11 retro, action item 5); if any fails the epic stays in-progress and the run stops.
+  Your checkpoint is reviewing the local commits before you push.
 
 .EXAMPLE
   ./scripts/auto-dev.ps1 -DryRun            # show what would run
@@ -105,11 +107,25 @@ function Get-SprintStatus([string]$key) {
     if ($m.Success) { return $m.Groups[1].Value } else { return $null }
 }
 
+# Reruns every e2e spec the epic's stories added or changed, on a fresh build. True when they pass.
+function Test-EpicE2e([string]$epic) {
+    $log = Join-Path $LogDir "$(Get-Date -Format 'yyyyMMdd-HHmmss')-epic-$epic-e2e-gate.log"
+    Say "epic $epic is complete: rerunning its e2e specs on a fresh build; log: $log"
+    $ErrorActionPreference = 'Continue'
+    & uv run python scripts/epic_e2e_gate.py --epic $epic 2>&1 | Tee-Object -FilePath $log | Out-Host
+    $passed = $LASTEXITCODE -eq 0
+    $ErrorActionPreference = 'Stop'
+    if (-not $passed) { $script:GateFailures += "epic $epic (log: $log)" }
+    return $passed
+}
+
 # Marks every story whose spec is `done` as done in sprint-status.yaml, and moves each epic to
-# in-progress (some stories done) or done (all done). Stories built by running /bmad-build-auto
-# directly, outside this loop, are caught up here. Commits only sprint-status.yaml, and only if
-# something changed. Returns the story keys it marked.
+# in-progress (some stories done) or done (all done, and its e2e gate passed). Stories built by
+# running /bmad-build-auto directly, outside this loop, are caught up here. Commits only
+# sprint-status.yaml, and only if something changed. Returns the story keys it marked; stops the run
+# after that commit when an epic's e2e gate failed.
 function Sync-SprintStatus([string]$reason) {
+    $script:GateFailures = @()
     $marked = @()
     foreach ($s in Get-Stories) {
         if ($s.Sprint -eq 'done') { continue }
@@ -130,11 +146,15 @@ function Sync-SprintStatus([string]$reason) {
         $want = if (-not ($states | Where-Object { $_ -ne 'done' })) { 'done' }
                 elseif ($states -contains 'done') { 'in-progress' } else { $null }
         $have = Get-SprintStatus "epic-$epic"
+        if ($want -eq 'done' -and $have -and $have -ne 'done' -and -not (Test-EpicE2e $epic)) { $want = 'in-progress' }
         if ($want -and $have -and $have -ne $want -and $have -ne 'done') { Set-SprintStatus "epic-$epic" $want }
     }
     if (Git-Out @('status', '--porcelain', '--', $SprintFile)) {
         Git-Out @('add', '--', $SprintFile) | Out-Null
         Git-Out @('commit', '-q', '-m', "chore(sprint): $reason") | Out-Null
+    }
+    if ($script:GateFailures) {
+        Fail "e2e gate failed, so the epic stays in-progress: $($script:GateFailures -join '; '). Fix the specs, then rerun."
     }
     return $marked
 }
@@ -275,9 +295,10 @@ $originAfter = & git rev-parse --verify --quiet $originRef
 if ($originBefore -ne $originAfter) { Say "WARNING: $originRef moved during the run; check what was pushed." 'Yellow' }
 
 if ($FullSuite -and $built.Count -gt 0) {
-    Say 'Running the full calc+api suite serially (~45 min)'
+    # Two workers: --parallel 4 ran local Postgres out of memory (2026-11-11). No --keepdb here, since stories in the batch may have added migrations.
+    Say 'Running the full calc+api suite in parallel'
     $ErrorActionPreference = 'Continue'
-    & uv run python manage.py test calc api --noinput 2>&1 | Tee-Object -FilePath (Join-Path $LogDir "$(Get-Date -Format 'yyyyMMdd-HHmmss')-full-suite.log")
+    & uv run python manage.py test calc api --noinput --parallel 2 2>&1 | Tee-Object -FilePath (Join-Path $LogDir "$(Get-Date -Format 'yyyyMMdd-HHmmss')-full-suite.log")
     if ($LASTEXITCODE -ne 0) { Fail 'full suite failed' }
 }
 
