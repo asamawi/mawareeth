@@ -1,4 +1,5 @@
 import json
+import traceback
 from pathlib import Path
 from django.core.management.base import BaseCommand
 from api.capacity import Harness
@@ -27,6 +28,8 @@ class Command(BaseCommand):
                 Path(options["json_path"]).write_text(text + "\n", encoding="utf-8")
         except Exception:
             self.stdout.write("capacity setup failed")
+            # The deploy log keeps stderr too: say where it failed (the first production run said nothing more).
+            traceback.print_exc()
             raise SystemExit(2)
         self.stdout.write(text)
         for group in ("workloads", "interview"):
